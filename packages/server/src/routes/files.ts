@@ -1,6 +1,4 @@
 import { createHash } from 'node:crypto';
-import { createReadStream, existsSync, mkdirSync, statSync, writeFileSync } from 'node:fs';
-import { extname, join } from 'node:path';
 import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { requireAuth, requireWorkspace } from '../lib/auth.ts';
@@ -8,24 +6,14 @@ import { badRequest, forbidden, notFound, readBody, type Ctx, type Router } from
 import { imageSize } from '../lib/imagesize.ts';
 import { serverClock } from '../lib/bootstrap.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
+import * as storage from '../lib/storage.ts';
 import { uid } from '../lib/ids.ts';
 
 /** Types we are willing to hand back with their original content type. */
 const INLINE_TYPES = new Set([
-  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif', 'image/svg+xml',
+  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif',
   'application/pdf', 'text/plain', 'text/markdown', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/ogg',
 ]);
-
-const EXTENSIONS: Record<string, string> = {
-  'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif', 'image/webp': '.webp',
-  'image/avif': '.avif', 'application/pdf': '.pdf', 'text/plain': '.txt', 'text/markdown': '.md',
-};
-
-const pathFor = (hash: string, mime: string): string => {
-  const dir = join(env.uploadDir, hash.slice(0, 2), hash.slice(2, 4));
-  mkdirSync(dir, { recursive: true });
-  return join(dir, `${hash}${EXTENSIONS[mime] ?? ''}`);
-};
 
 const safeName = (raw: string): string =>
   (raw || 'file').replace(/[\r\n"\\/]/g, '_').replace(/\.\./g, '_').slice(0, 180);
@@ -47,15 +35,21 @@ export function registerFileRoutes(router: Router): void {
     if (!body.length) throw badRequest('Empty upload');
 
     const hash = createHash('sha256').update(body).digest('hex');
-    const target = pathFor(hash, mime);
-    if (!existsSync(target)) writeFileSync(target, body);
+    const key = storage.keyFor(hash, mime);
+    const known = get<Row>(`SELECT hash, storage FROM files WHERE hash = ?`, hash);
+
+    // Content-addressed: identical bytes are stored once, whatever the backend.
+    if (!known || !(await storage.exists(key, known.storage))) {
+      await storage.put(key, body, mime);
+    }
 
     const size = imageSize(body, mime);
-    if (!get(`SELECT hash FROM files WHERE hash = ?`, hash)) {
+    if (!known) {
       run(
-        `INSERT INTO files (hash, workspace_id, name, mime, size, width, height, created_by, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        hash, ctx.params.ws, name, mime, body.length, size?.width ?? null, size?.height ?? null, auth.userId, Date.now(),
+        `INSERT INTO files (hash, workspace_id, name, mime, size, width, height, storage, created_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        hash, ctx.params.ws, name, mime, body.length, size?.width ?? null, size?.height ?? null,
+        storage.activeKind, auth.userId, Date.now(),
       );
     }
 
@@ -81,38 +75,48 @@ export function registerFileRoutes(router: Router): void {
     return { url, hash, name, mime, size: body.length, ...size };
   });
 
-  router.get('/files/:hash/*', (ctx: Ctx) => {
+  router.get('/files/:hash/*', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     const file = get<Row>(`SELECT * FROM files WHERE hash = ?`, ctx.params.hash);
     if (!file) throw notFound('File not found');
     if (!auth.memberships.has(file.workspace_id)) throw forbidden('Not your workspace');
 
-    const path = pathFor(file.hash, file.mime);
-    if (!existsSync(path)) throw notFound('File contents are missing on disk');
-    const stat = statSync(path);
-
-    const inline = INLINE_TYPES.has(file.mime) && file.mime !== 'image/svg+xml';
+    const key = storage.keyFor(file.hash, file.mime);
+    const backend = (file.storage ?? 'disk') as storage.StorageKind;
+    const inline = INLINE_TYPES.has(file.mime);
     const filename = safeName(decodeURIComponent(ctx.params['*'] || file.name));
+
+    // With an object store we hand out a short-lived signed URL instead of
+    // proxying the bytes — the permission check above still gates who gets one.
+    const direct = storage.directUrl(key, filename, backend);
+    if (direct) {
+      ctx.res.writeHead(302, { location: direct, 'cache-control': 'private, max-age=60' });
+      ctx.res.end();
+      return undefined;
+    }
+
+    const result = await storage.read(key, backend);
+    if (!result) throw notFound('File contents are missing from storage');
+
     ctx.res.writeHead(200, {
       'content-type': inline ? file.mime : 'application/octet-stream',
-      'content-length': String(stat.size),
+      ...(result.size ? { 'content-length': String(result.size) } : {}),
       'content-disposition': `${inline ? 'inline' : 'attachment'}; filename="${filename}"`,
       // Content-addressed: the bytes behind a hash never change.
       'cache-control': 'private, max-age=31536000, immutable',
       'x-content-type-options': 'nosniff',
     });
-    createReadStream(path).pipe(ctx.res);
+    result.stream.pipe(ctx.res);
+    result.stream.on('error', () => ctx.res.destroy());
     return undefined;
   });
 
   router.get('/api/workspaces/:ws/files', (ctx: Ctx) => {
     requireWorkspace(ctx, ctx.params.ws);
     return all<Row>(
-      `SELECT hash, name, mime, size, width, height, created_at, created_by FROM files
+      `SELECT hash, name, mime, size, width, height, storage, created_at, created_by FROM files
         WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?`,
       ctx.params.ws, Math.min(Number(ctx.query.get('limit') ?? 100) || 100, 500),
     ).map((row) => ({ ...row, url: `/files/${row.hash}/${encodeURIComponent(row.name)}` }));
   });
 }
-
-export const fileExtension = (name: string): string => extname(name).toLowerCase();

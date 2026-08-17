@@ -262,6 +262,32 @@ describe('kolibri api', () => {
     assert.match(result.result?.content?.[0]?.text ?? result.error.message, /read-only/i);
   });
 
+  it('notifies the person named in a comment', async () => {
+    // Bob is invited further down; for the mention we need a second member now.
+    const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'member' } });
+    const adaCookie = cookie;
+
+    cookie = '';
+    await api('/api/auth/register', { body: { email: 'lin@example.com', name: 'Lin Clark', password: 'yet another pass' } });
+    await api(`/api/invites/${invite.code}/accept`, { body: {} });
+    const linId = (await api('/api/session')).user.id;
+
+    cookie = adaCookie;
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { task_id: taskId, body: 'Can you take a look at this, @lin?' },
+    });
+
+    cookie = '';
+    await api('/api/auth/login', { body: { email: 'lin@example.com', password: 'yet another pass' } });
+    const notifications = await api(`/api/workspaces/${workspaceId}/notifications`);
+    const mention = notifications.find((n: any) => n.kind === 'mention');
+    assert.ok(mention, 'the mentioned user gets a notification');
+    assert.equal(mention.user_id, linId);
+    assert.match(mention.title, /mentioned/i);
+
+    cookie = adaCookie;
+  });
+
   it('hides private projects from non-members', async () => {
     cookie = '';
     await api('/api/auth/register', { body: { email: 'bob@example.com', name: 'Bob', password: 'another good pass' } });

@@ -4,6 +4,8 @@ import { extname, join, normalize, resolve } from 'node:path';
 import { close, currentSeq, run } from './db/index.ts';
 import { env } from './env.ts';
 import { authenticate } from './lib/auth.ts';
+import { startMailWorker, stopMailWorker } from './lib/mail.ts';
+import * as storage from './lib/storage.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
@@ -23,7 +25,13 @@ registerFileRoutes(router);
 registerMcpRoutes(router);
 registerEntityRoutes(router);
 
-router.get('/api/health', () => ({ status: 'ok', seq: currentSeq(), uptime: Math.round(process.uptime()) }));
+router.get('/api/health', () => ({
+  status: 'ok',
+  seq: currentSeq(),
+  uptime: Math.round(process.uptime()),
+  storage: env.storage.kind,
+  mail: env.mailEnabled,
+}));
 
 /* ------------------------------------------------------------ static files */
 
@@ -134,20 +142,31 @@ function sweep(): void {
   const now = Date.now();
   run(`DELETE FROM sessions WHERE expires_at < ?`, now);
   run(`DELETE FROM applied_mutations WHERE applied_at < ?`, now - 30 * 86_400_000);
+  run(`DELETE FROM email_queue WHERE sent_at IS NOT NULL AND sent_at < ?`, now - 30 * 86_400_000);
 }
 
 if (process.env.NODE_ENV !== 'test') {
+  // Fail fast on a misconfigured object store rather than on the first upload.
+  storage.init().catch((error) => {
+    log('error', `Storage backend is not usable: ${error instanceof Error ? error.message : error}`);
+    process.exit(1);
+  });
+
   server.listen(env.port, env.host, () => {
     log('info', `Kolibri listening on http://${env.host}:${env.port}`);
-    log('info', `Data directory: ${env.dbFile}`);
+    log('info', `Database: ${env.dbFile}`);
+    log('info', `Uploads: ${storage.describe()}`);
+    log('info', env.mailEnabled ? `Mail: ${env.mail.host}:${env.mail.port} as ${env.mail.from}` : 'Mail: disabled (in-app notifications only)');
     if (!existsSync(env.webDir)) log('warn', `Web build not found at ${env.webDir} — run "npm run build"`);
   });
+  startMailWorker();
   sweep();
   setInterval(sweep, 6 * 3600_000).unref();
 }
 
 const shutdown = (signal: string) => {
   log('info', `${signal} received, shutting down`);
+  stopMailWorker();
   server.close(() => {
     close();
     process.exit(0);

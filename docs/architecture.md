@@ -39,12 +39,14 @@ runs the TypeScript sources directly, so there is no build step and no `dist/` t
 | `routes/sync.ts` | `pull`, `push` and the SSE change stream |
 | `routes/entities.ts` | generic REST CRUD for every registry entity |
 | `routes/files.ts` | content-addressed uploads and downloads |
+| `lib/storage.ts` | disk and S3 backends behind one interface (`lib/s3.ts` signs SigV4 by hand) |
+| `lib/mail.ts` | notification batching, the mail queue and its retry loop (`lib/smtp.ts` speaks SMTP) |
 
 Every mutation — REST, sync push, MCP tool, seed script — goes through `writeEntity`. That is what
 keeps merge semantics, activity records, notifications and the search index from drifting apart
 between entry points.
 
-### Why not Redis, Postgres, S3 or a worker queue
+### Why no Redis or Postgres — and why S3 and email are optional
 
 Kolibri does have a database — SQLite is a full relational database with transactions, foreign keys
 and full-text search. What it does not have is a *separate server* for any of it. That was a
@@ -65,26 +67,36 @@ mechanical when someone actually needs it.
 | Session store | Sessions are hashed rows in SQLite. A session lookup is an indexed read on a local file — microseconds, and it survives a restart, which an unpersisted Redis does not. |
 | Cache | The expensive reads happen *on the client*, out of IndexedDB. The server answers deltas, not full pages, so there is very little worth caching in front of a local B-tree. |
 | Pub/sub for realtime | Realtime is one in-process `EventEmitter` feeding SSE connections. A message bus between processes only earns its keep once there is more than one process. |
-| Job queue | There are no background jobs. Notifications, the search index and the activity trail are written inside the same transaction as the change that caused them, which also makes them impossible to lose. |
+| Job queue | The only asynchronous work is sending email, and its queue is a SQLite table with `send_after`, `attempts` and `last_error`. At this volume that is a better queue than Redis: it is transactional with the notification that caused it, it survives a restart, and you can inspect it with `SELECT`. Everything else — the search index, the activity trail, in-app notifications — is written inside the same transaction as the change that caused it. |
 
-**S3 → the filesystem.** Uploads are content-addressed by SHA-256 under the data directory, so
-de-duplication is free and the URL is stable. A bucket adds credentials, egress cost and a second
-failure mode to back up; a volume is already being backed up because the database lives on it. If
-you need object storage, `KOLIBRI_UPLOAD_DIR` can point at a network mount.
+**S3 → optional, off by default.** Uploads are content-addressed by SHA-256, and the same key is
+used in both backends. On the default `disk` backend they live in the data volume, which is already
+being backed up because the database is there too — for most teams that is the whole story, with no
+credentials to rotate and no egress bill. Set `KOLIBRI_STORAGE=s3` and they go to MinIO, Ceph, R2 or
+AWS instead, with downloads served by short-lived pre-signed URLs so the bytes never pass through
+the app. Each `files` row records its backend, so switching does not orphan what is already stored.
+See [`storage.md`](storage.md).
 
 **Elasticsearch → FTS5.** Full-text search is built into SQLite and is maintained transactionally
 with the rows it indexes, so it can never drift out of date the way an async indexer can.
+
+**A mail service → 200 lines of SMTP.** Notifications are delivered by an SMTP client written
+against `node:net`/`node:tls`. Sending mail is a small, stable protocol; a mail library would have
+been the largest dependency in the server, and the queue in front of it is the part that actually
+matters. Email stays off until a relay is configured — the in-app inbox is always the source of
+truth. See [`notifications.md`](notifications.md).
 
 **Image processing service → the browser.** Photos are downscaled to WebP on the client before
 upload. That removes a native dependency (`sharp`/libvips) from the server *and* saves the upload
 bandwidth on the device that has least of it.
 
-The honest cost of all this is written down in the trade-offs below and in
-[`TODO.md`](../TODO.md): a single node, no shared cache, no background workers. The moment you
-genuinely need two replicas, the seams are `nextSeq()` and `lib/bus.ts` — that is the point where
-Redis or Postgres stops being ceremony and starts being the right answer. Until then, every piece
-of infrastructure you do not run is one you cannot misconfigure, forget to patch, or be woken up
-by.
+The pattern is the same each time: the default install runs one process, and the pieces that some
+teams genuinely need — an object store, a mail relay — are configuration rather than architecture.
+The honest cost is written down in the trade-offs below and in [`TODO.md`](../TODO.md): a single
+node, no shared cache, one mail worker. The moment you genuinely need two replicas, the seams are
+`nextSeq()`, `lib/bus.ts` and the mail worker's polling loop — that is the point where Redis or
+Postgres stops being ceremony and starts being the right answer. Until then, every piece of
+infrastructure you do not run is one you cannot misconfigure, forget to patch, or be woken up by.
 
 The result is measurable, not just aesthetic: zero runtime npm dependencies on the server, one
 container, one volume, and a cold start that is a process spawn rather than a dependency graph.
@@ -128,5 +140,7 @@ client without opening anything but HTTPS.
 - **LWW, not full CRDT.** Concurrent edits merge per field, but two people typing in the same page
   body still resolve to one winner (the other revision stays in page history). A text CRDT would
   fix that at a large complexity cost; the history-based escape hatch was the better trade.
-- **No email.** Invites are links, notifications are in-app. Adding SMTP is a route and a template,
-  but it is not a dependency the default install should carry.
+- **Email is best-effort.** One worker polls a SQLite queue; there is no separate delivery service
+  and no bounce handling. If a relay is down for longer than the retry budget, the message is
+  marked failed and stays in the table — the in-app notification is unaffected, which is why the
+  inbox, not the inbox provider, is the source of truth.

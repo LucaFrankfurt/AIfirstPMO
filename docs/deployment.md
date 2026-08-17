@@ -16,6 +16,33 @@ One container, one volume. Everything below is optional polish on top of `docker
 | `KOLIBRI_LOG_LEVEL` | `info` | `debug` `info` `warn` `error` |
 | `TZ` | `UTC` | Affects date rendering on the server side |
 
+### Email (optional — see [`notifications.md`](notifications.md))
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_SMTP_URL` | empty | `smtp://user:pass@host:587` or `smtps://…:465`. Empty means in-app notifications only. |
+| `KOLIBRI_MAIL_FROM` | `kolibri@localhost` | Envelope and header sender — use a domain you control |
+| `KOLIBRI_MAIL_FROM_NAME` | `Kolibri` | Display name |
+| `KOLIBRI_MAIL_REPLY_TO` | empty | Optional `Reply-To` |
+| `KOLIBRI_MAIL_BATCH_SECONDS` | `120` | How long notifications are collected before one summary mail goes out |
+| `KOLIBRI_MAIL_MAX_ATTEMPTS` | `6` | Retries before a message is marked failed |
+| `KOLIBRI_SMTP_INSECURE` | `false` | Accept a self-signed certificate on an internal relay |
+
+`KOLIBRI_PUBLIC_URL` must be set for the links in those emails to point anywhere useful.
+
+### Object storage (optional — see [`storage.md`](storage.md))
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_STORAGE` | `disk` | `disk` keeps uploads in the volume, `s3` puts them in a bucket |
+| `KOLIBRI_S3_ENDPOINT` | `http://minio:9000` | Object store endpoint |
+| `KOLIBRI_S3_BUCKET` | `kolibri` | Created on start if missing |
+| `KOLIBRI_S3_REGION` | `us-east-1` | `auto` for R2 |
+| `KOLIBRI_S3_ACCESS_KEY` / `KOLIBRI_S3_SECRET_KEY` | empty | Credentials; scope them to this one bucket |
+| `KOLIBRI_S3_PATH_STYLE` | `true` | `true` for MinIO/Ceph, `false` for AWS/R2 |
+| `KOLIBRI_S3_PRESIGN` | `true` | Serve downloads by redirect to a signed URL instead of proxying |
+| `KOLIBRI_S3_PRESIGN_SECONDS` | `300` | Lifetime of those URLs |
+
 The first account created owns the instance. Turn signup off afterwards.
 
 ## TLS
@@ -43,7 +70,9 @@ mapping from the app service so only the proxy is exposed.
 
 ## Backups
 
-Everything is in the data volume: `kolibri.sqlite`, `uploads/`, `.secret`. With the container
+Everything is in the data volume: `kolibri.sqlite`, `uploads/`, `.secret`. (With `KOLIBRI_STORAGE=s3`
+the uploads live in the bucket instead — back that up with the object store's own tooling, and note
+that the database still holds the metadata that makes those objects findable.) With the container
 running, take a consistent copy through SQLite rather than `cp`:
 
 ```bash
@@ -92,8 +121,10 @@ The limits worth knowing:
 
 - **One node.** The sequence counter and the SSE bus are in-process, so running two replicas behind
   a load balancer is not supported today.
-- **Disk, not object storage.** Uploads live on the volume. Point `KOLIBRI_UPLOAD_DIR` at a network
-  mount if you need them elsewhere.
+- **Uploads on the volume by default.** Switch to `KOLIBRI_STORAGE=s3` for an object store, or
+  point `KOLIBRI_UPLOAD_DIR` at a network mount.
+- **One mail worker.** Email is sent by a single polling loop inside the app process. Fine for a
+  team's volume; it is not a bulk sender.
 - **One instance per host process.** Multiple containers must not share the same SQLite file.
 
 ## Hardening checklist
@@ -103,4 +134,7 @@ The limits worth knowing:
 - [ ] TLS terminated in front, `KOLIBRI_PUBLIC_URL` set to the https URL
 - [ ] Volume backed up on a schedule, restore tested once
 - [ ] API tokens scoped to `read` where write access is not needed, and expiring
+- [ ] If email is on: SPF/DKIM/DMARC set for the sending domain, and a test mail sent from
+      Settings → Notifications
+- [ ] If S3 is on: the bucket is **private**, and the credentials are limited to it
 - [ ] Container runs as the non-root `node` user (it does by default — keep it that way)

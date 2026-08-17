@@ -448,3 +448,24 @@ CREATE TABLE IF NOT EXISTS files (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS files_workspace ON files (workspace_id);
+
+-- Outgoing mail. Queued rather than sent inline so a slow or broken relay can
+-- never block a request, and a failed send can be retried with backoff.
+CREATE TABLE IF NOT EXISTS email_queue (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT,
+  workspace_id TEXT,
+  to_email     TEXT NOT NULL,
+  subject      TEXT NOT NULL,
+  body_text    TEXT NOT NULL,
+  body_html    TEXT,
+  headers      TEXT NOT NULL DEFAULT '{}',
+  kind         TEXT NOT NULL DEFAULT 'notification',
+  send_after   INTEGER NOT NULL,
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  last_error   TEXT,
+  sent_at      INTEGER,
+  failed_at    INTEGER,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS email_queue_pending ON email_queue (sent_at, failed_at, send_after);

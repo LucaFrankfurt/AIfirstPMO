@@ -18,8 +18,9 @@ around three convictions:
 1. **The interface should never wait for the network.** Every screen reads from a local copy of
    the workspace, so it is instant on a train, on a plane and on hotel wifi. Changes queue up and
    merge field by field when you come back.
-2. **Self-hosting should be boring.** No Postgres, no Redis, no S3, no worker queue. One Node
-   process and a SQLite file you can copy.
+2. **Self-hosting should be boring.** One Node process and a SQLite file you can copy — no
+   Postgres, no Redis, no worker queue. Object storage and email are there when you need them,
+   and off when you don't.
 3. **An assistant is a first-class user.** Kolibri speaks the Model Context Protocol natively, so
    an AI can read the backlog, file issues, move them through the workflow and write documentation
    with exactly the permissions you grant it.
@@ -43,8 +44,9 @@ around three convictions:
 | **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects |
 | **Views** | List, Kanban board with drag & drop, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; per-project preferences remembered |
 | **Pages** | Nested markdown wiki with version history, drag & drop images, project or workspace scope, private pages |
-| **Collaboration** | Comments with markdown and attachments, activity trail per task, inbox notifications, invite links, roles (owner / admin / member / guest), private projects |
-| **Files** | Content-addressed uploads with de-duplication, client-side image downscaling, thumbnails, offline caching |
+| **Collaboration** | Comments with markdown and attachments, `@mentions`, activity trail per task, invite links, roles (owner / admin / member / guest), private projects |
+| **Notifications** | In-app inbox plus optional email — batched into one message per person, per-user preferences, signed one-click unsubscribe, queued with retry |
+| **Files** | Content-addressed uploads with de-duplication, client-side image downscaling, offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads |
 | **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field, Server-Sent-Events live updates, installable PWA |
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
 | **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 19 tools, 3 prompts and page resources |
@@ -135,8 +137,10 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 
 - [`TODO.md`](TODO.md) — what is missing, what is unverified, what was deferred on purpose
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
-  [why there is no Redis, Postgres, S3 or worker queue](docs/architecture.md#why-not-redis-postgres-s3-or-a-worker-queue)
+  [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
+- [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
+- [`docs/storage.md`](docs/storage.md) — disk vs. S3/MinIO, pre-signed downloads, migrating
 - [`docs/api.md`](docs/api.md) — REST endpoints, auth, uploads
 - [`docs/mcp.md`](docs/mcp.md) — every tool, prompt and resource with examples
 - [`docs/deployment.md`](docs/deployment.md) — TLS, backups, upgrades, environment variables
@@ -144,10 +148,14 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 ## Testing
 
 ```bash
-npm test          # API, sync merge, permissions, uploads, MCP — no external services
+npm test          # API, sync merge, permissions, uploads, MCP, SMTP, S3 — no external services
 npm run typecheck # all four packages
 node scripts/smoke.mjs   # browser walkthrough incl. mobile + offline (needs Playwright)
 ```
+
+The mail tests run against a real SMTP server implemented in the test, and the storage tests
+against a fake S3 that verifies the request signature — so both protocols are exercised, not
+mocked.
 
 ## Project layout
 

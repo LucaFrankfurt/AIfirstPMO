@@ -55,12 +55,15 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Saved views UI.** The `view` entity syncs, the seed creates one, the server serves them —
       there is no interface to save the current filter set or load a shared view. This is the
       largest gap between the data model and what you can actually click.
-- [ ] **@mentions in comments and descriptions**, with notifications. Today notifications only fire
-      for assignment and for comments on tasks you already follow.
-- [ ] **Email.** Invites are links you copy; notifications are in-app only. SMTP delivery for
-      invites, mentions and daily digests. Deliberately not in the default install (see
-      [`docs/architecture.md`](docs/architecture.md#why-not-redis-postgres-s3-or-a-worker-queue)) —
-      but it should be an opt-in that works.
+- [x] **@mentions in comments and descriptions**, with notifications. Handles resolve by first
+      name, display name or email address.
+- [x] **Email notifications** — batched per person, per-user preferences, signed one-click
+      unsubscribe, queued with retry. Invites are delivered by mail when a relay is configured.
+      See [`docs/notifications.md`](docs/notifications.md).
+- [ ] **Mention autocomplete in the editor.** Typing `@` should offer the workspace members
+      instead of relying on the writer knowing the handle.
+- [ ] **Scheduled digests** (daily/weekly summary) on top of the existing batching window.
+- [ ] **Due-date reminders.** The `due_soon` notification kind is reserved but nothing emits it.
 - [ ] **Bulk actions in the list view.** `POST /api/workspaces/:ws/tasks/bulk` exists and is tested;
       the UI has no multi-select.
 - [ ] **Trash / archive browser.** Everything is soft-deleted and recoverable in the database, but
@@ -84,15 +87,20 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Real-time collaborative page editing.** Page bodies merge last-writer-wins; simultaneous
       typing resolves to one version with the other kept in history. A text CRDT (Yjs/Automerge) on
       the `content` field would fix it — see the closing section of [`docs/sync.md`](docs/sync.md).
-- [ ] **Multi-node deployment.** The sequence counter and the SSE bus live in the process. Running
-      two replicas needs an external counter and a shared bus — this is the one scenario where
-      Redis or Postgres genuinely earns its place.
+- [ ] **Multi-node deployment.** The sequence counter, the SSE bus and the mail worker live in the
+      process. Running two replicas needs an external counter, a shared bus and a locked queue —
+      this is the one scenario where Redis or Postgres genuinely earns its place.
+- [ ] **Bounce and complaint handling.** Failed sends are recorded in `email_queue.last_error`, but
+      a hard bounce does not disable that address automatically.
 - [ ] **Custom fields** per project.
 - [ ] **Time tracking** (estimates exist, logged time does not).
 - [ ] **Recurring tasks** and **task templates**.
 - [ ] **Webhooks and integrations** (GitHub/GitLab commit linking, Slack notifications).
 - [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.
 - [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).
+- [ ] **Object-storage migration command.** Switching `disk` → `s3` keeps serving old files from
+      disk, but moving them is a manual `mc mirror` plus an `UPDATE` today (see
+      [`docs/storage.md`](docs/storage.md)).
 - [ ] **Roadmap / portfolio view** across projects.
 - [ ] **Public share links** for a page or a filtered task list.
 
@@ -101,7 +109,7 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 14 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
+(`npm test`, 31 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -114,6 +122,10 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Page history written on body change
 - [x] MCP `initialize` / `tools/list` / `tools/call`, and a write refused on a read-only token
 - [x] Full-text search finds a task by a word in its title
+- [x] SMTP against a real server socket: EHLO, AUTH, dot-stuffing, MIME, UTF-8 subjects
+- [x] Notification batching, per-user preferences, unsubscribe signature, retry with backoff
+- [x] S3 against a fake store that **verifies the SigV4 signature**: bucket creation, round trip,
+      percent-encoded keys, delete, pre-signed URL, tampered-secret rejection
 - [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
 - [x] Browser: phone viewport, dark mode, and rendering with the network switched off
 
@@ -125,5 +137,9 @@ Things nobody has measured yet, so treat any claim about them as a guess:
 - Real iOS Safari and Android Chrome behaviour — only Chromium's device emulation was used.
   IndexedDB eviction under storage pressure on iOS is the specific risk.
 - Behaviour when the disk fills up mid-write.
+- Real SMTP relays (Postmark, SES, Gmail) — the client is tested against a server written for the
+  test, which cannot catch a provider's quirks or a deliverability problem.
+- Real MinIO/AWS — the S3 client is verified by an independent signature implementation, but has
+  not been run against an actual object store.
 - Long-running clock skew between clients (the HLC converges after one exchange, but that path
   has not been exercised against a device with a badly wrong clock).

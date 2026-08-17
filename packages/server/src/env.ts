@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSmtpUrl } from './lib/smtp.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(here, '../../..');
@@ -30,6 +31,47 @@ function resolveSecret(): string {
   return secret;
 }
 
+/** `disk` keeps uploads on the volume; `s3` puts them in an object store. */
+const storageKind = (process.env.KOLIBRI_STORAGE ?? 'disk').toLowerCase() === 's3' ? 's3' : 'disk';
+
+const storage = {
+  kind: storageKind as 'disk' | 's3',
+  s3: {
+    endpoint: process.env.KOLIBRI_S3_ENDPOINT ?? 'http://minio:9000',
+    bucket: process.env.KOLIBRI_S3_BUCKET ?? 'kolibri',
+    region: process.env.KOLIBRI_S3_REGION ?? 'us-east-1',
+    accessKeyId: process.env.KOLIBRI_S3_ACCESS_KEY ?? '',
+    secretAccessKey: process.env.KOLIBRI_S3_SECRET_KEY ?? '',
+    // MinIO and Ceph address buckets by path; AWS and R2 by subdomain.
+    forcePathStyle: bool(process.env.KOLIBRI_S3_PATH_STYLE, true),
+  },
+  /** Serve downloads via a short-lived pre-signed URL instead of proxying bytes. */
+  presign: bool(process.env.KOLIBRI_S3_PRESIGN, true),
+  presignSeconds: int(process.env.KOLIBRI_S3_PRESIGN_SECONDS, 300),
+};
+
+/**
+ * Mail is optional: without an SMTP host Kolibri simply keeps notifications
+ * in-app, and every queued message is marked as skipped rather than retried.
+ */
+const smtpFromUrl = process.env.KOLIBRI_SMTP_URL ? parseSmtpUrl(process.env.KOLIBRI_SMTP_URL) : null;
+
+const mail = {
+  host: smtpFromUrl?.host ?? process.env.KOLIBRI_SMTP_HOST ?? '',
+  port: smtpFromUrl?.port ?? int(process.env.KOLIBRI_SMTP_PORT, 587),
+  secure: smtpFromUrl?.secure ?? bool(process.env.KOLIBRI_SMTP_SECURE, false),
+  user: smtpFromUrl?.user ?? process.env.KOLIBRI_SMTP_USER ?? undefined,
+  pass: smtpFromUrl?.pass ?? process.env.KOLIBRI_SMTP_PASS ?? undefined,
+  allowInvalidCerts: smtpFromUrl?.allowInvalidCerts ?? bool(process.env.KOLIBRI_SMTP_INSECURE, false),
+  from: process.env.KOLIBRI_MAIL_FROM ?? 'kolibri@localhost',
+  fromName: process.env.KOLIBRI_MAIL_FROM_NAME ?? 'Kolibri',
+  replyTo: process.env.KOLIBRI_MAIL_REPLY_TO ?? undefined,
+  /** Wait this long before emailing, so a burst of activity becomes one message. */
+  batchSeconds: int(process.env.KOLIBRI_MAIL_BATCH_SECONDS, 120),
+  pollSeconds: int(process.env.KOLIBRI_MAIL_POLL_SECONDS, 20),
+  maxAttempts: int(process.env.KOLIBRI_MAIL_MAX_ATTEMPTS, 6),
+};
+
 export const env = {
   port: int(process.env.PORT, 4000),
   host: process.env.HOST ?? '0.0.0.0',
@@ -46,6 +88,12 @@ export const env = {
   logLevel: process.env.KOLIBRI_LOG_LEVEL ?? 'info',
   trustProxy: bool(process.env.KOLIBRI_TRUST_PROXY, true),
   demo: bool(process.env.KOLIBRI_DEMO, false),
+  storage,
+  mail,
+  /** Mail is configured; without a host nothing is ever sent. */
+  get mailEnabled(): boolean {
+    return !!mail.host;
+  },
 };
 
 export type Env = typeof env;

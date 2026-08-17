@@ -1,8 +1,11 @@
 # Kolibri — `docker compose up -d` and you are done.
 #
-# Everything (app, database, uploads, search index) lives in one container and
-# one volume. Put a reverse proxy in front of it for TLS; see the commented
-# Caddy service at the bottom for a one-line HTTPS setup.
+# The default is one container and one volume. Two optional profiles extend it:
+#
+#   docker compose --profile s3 up -d     # MinIO for uploads
+#   docker compose --profile mail up -d   # Mailpit, a local inbox for testing
+#
+# Both are opt-in: without them uploads go to the volume and email is simply off.
 
 services:
   kolibri:
@@ -13,14 +16,32 @@ services:
     ports:
       - "${KOLIBRI_PORT:-4000}:4000"
     environment:
-      # Keep this stable: it signs sessions and API tokens. Generated on first
-      # start and persisted in the volume if you leave it empty.
+      # Keep this stable: it signs sessions, API tokens and unsubscribe links.
+      # Generated on first start and persisted in the volume if you leave it empty.
       KOLIBRI_SECRET: "${KOLIBRI_SECRET:-}"
       KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-http://localhost:4000}"
       KOLIBRI_ALLOW_SIGNUP: "${KOLIBRI_ALLOW_SIGNUP:-true}"
       KOLIBRI_MAX_UPLOAD_MB: "${KOLIBRI_MAX_UPLOAD_MB:-25}"
       KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-60}"
       KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
+
+      # --- email (optional) ------------------------------------------------
+      # smtp://user:pass@host:587 or smtps://…:465. Empty = in-app inbox only.
+      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-}"
+      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
+      KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-Kolibri}"
+      KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
+
+      # --- object storage (optional) ---------------------------------------
+      # disk (default) keeps uploads in the volume; s3 puts them in a bucket.
+      KOLIBRI_STORAGE: "${KOLIBRI_STORAGE:-disk}"
+      KOLIBRI_S3_ENDPOINT: "${KOLIBRI_S3_ENDPOINT:-http://minio:9000}"
+      KOLIBRI_S3_BUCKET: "${KOLIBRI_S3_BUCKET:-kolibri}"
+      KOLIBRI_S3_REGION: "${KOLIBRI_S3_REGION:-us-east-1}"
+      KOLIBRI_S3_ACCESS_KEY: "${KOLIBRI_S3_ACCESS_KEY:-kolibri}"
+      KOLIBRI_S3_SECRET_KEY: "${KOLIBRI_S3_SECRET_KEY:-kolibri-secret}"
+      KOLIBRI_S3_PATH_STYLE: "${KOLIBRI_S3_PATH_STYLE:-true}"
+
       TZ: "${TZ:-UTC}"
     volumes:
       - kolibri-data:/data
@@ -31,8 +52,42 @@ services:
       retries: 3
       start_period: 10s
 
+  # --- optional: S3-compatible object storage -----------------------------
+  # Kolibri creates the bucket on start, so there is nothing to set up by hand.
+  minio:
+    image: quay.io/minio/minio:latest
+    profiles: ["s3"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: "${KOLIBRI_S3_ACCESS_KEY:-kolibri}"
+      MINIO_ROOT_PASSWORD: "${KOLIBRI_S3_SECRET_KEY:-kolibri-secret}"
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"   # web console
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # --- optional: a local inbox for trying email out ------------------------
+  # Set KOLIBRI_SMTP_URL=smtp://mailpit:1025 and open http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit:latest
+    profiles: ["mail"]
+    restart: unless-stopped
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"   # web inbox
+      - "1025:1025"                    # SMTP
+    environment:
+      MP_MAX_MESSAGES: "500"
+
 volumes:
   kolibri-data:
+  minio-data:
 
 # --- HTTPS in front of it -----------------------------------------------
 #

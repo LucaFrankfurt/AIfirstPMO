@@ -20,6 +20,23 @@ db.exec(`
 
 db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
 
+/**
+ * Columns added after the first release. `CREATE TABLE IF NOT EXISTS` cannot
+ * add them to a database that already exists, so they are applied here — an
+ * upgrade stays a restart.
+ */
+for (const [table, column, definition] of [
+  ['users', 'email_prefs', `TEXT NOT NULL DEFAULT 'important'`],
+  ['users', 'email_verified_at', 'INTEGER'],
+  ['notifications', 'emailed_at', 'INTEGER'],
+  ['files', 'storage', `TEXT NOT NULL DEFAULT 'disk'`],
+] as const) {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
 const stmtCache = new Map<string, StatementSync>();
 
 function prepare(sql: string): StatementSync {

@@ -8,6 +8,7 @@ import {
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
+import { pendingCount, queueInvite, queueTestMail, verifyUnsubscribe } from '../lib/mail.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -41,6 +42,8 @@ export function registerAuthRoutes(router: Router): void {
     allowSignup: env.allowSignup,
     hasUsers: !!get(`SELECT id FROM users LIMIT 1`),
     maxUploadBytes: env.maxUploadBytes,
+    mailEnabled: env.mailEnabled,
+    storage: env.storage.kind,
     version: '0.1.0',
   }));
 
@@ -106,7 +109,14 @@ export function registerAuthRoutes(router: Router): void {
     for (const field of ['name', 'avatar_url', 'timezone', 'bio'] as const) {
       if (body[field] !== undefined) patch[field] = body[field];
     }
-    writeEntity('user', auth.userId, patch, { workspaceId: '', actorId: auth.userId, hlc: serverClock.now(), system: true });
+    if (Object.keys(patch).length) {
+      writeEntity('user', auth.userId, patch, { workspaceId: '', actorId: auth.userId, hlc: serverClock.now(), system: true });
+    }
+    // Email preference is not part of the synced profile: it is private to the
+    // account and lives only on the server.
+    if (typeof body.email_prefs === 'string' && ['all', 'important', 'none'].includes(body.email_prefs)) {
+      run(`UPDATE users SET email_prefs = ? WHERE id = ?`, body.email_prefs, auth.userId);
+    }
     return sessionInfo(auth.userId);
   });
 
@@ -233,13 +243,27 @@ export function registerAuthRoutes(router: Router): void {
     requireWorkspace(ctx, ctx.params.id, 'admin');
     const body = await readJson<{ email?: string; role?: WorkspaceRole; expiresInDays?: number }>(ctx);
     const code = shortCode(10);
+    const email = body.email?.trim().toLowerCase() || null;
     run(
       `INSERT INTO invites (id, workspace_id, email, role, code, created_by, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      uid(), ctx.params.id, body.email?.trim().toLowerCase() ?? null, body.role ?? 'member', code, auth.userId,
+      uid(), ctx.params.id, email, body.role ?? 'member', code, auth.userId,
       Date.now(), Date.now() + (body.expiresInDays ?? 14) * 86_400_000,
     );
-    return { code, url: `${env.publicUrl}/invite/${code}` };
+
+    let mailed = false;
+    if (email && env.mailEnabled) {
+      const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, ctx.params.id);
+      const inviter = get<Row>(`SELECT name FROM users WHERE id = ?`, auth.userId);
+      queueInvite({
+        code, email,
+        workspaceId: ctx.params.id,
+        workspaceName: workspace?.name ?? 'a workspace',
+        inviterName: inviter?.name ?? 'Someone',
+      });
+      mailed = true;
+    }
+    return { code, url: `${env.publicUrl}/invite/${code}`, mailed };
   });
 
   router.get('/api/invites/:code', (ctx) => {
@@ -256,6 +280,59 @@ export function registerAuthRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     const workspaceId = acceptInvite(ctx.params.code, auth.userId);
     return { workspaceId, session: sessionInfo(auth.userId) };
+  });
+
+  /* ----------------------------------------------------------------- mail */
+
+  /**
+   * One-click unsubscribe. Signed with the instance secret so the link works
+   * from an inbox without a session, and cannot be guessed for someone else.
+   */
+  const unsubscribe = (ctx: Ctx) => {
+    if (!verifyUnsubscribe(ctx.params.userId, ctx.params.token)) throw forbidden('This unsubscribe link is not valid');
+    run(`UPDATE users SET email_prefs = 'none' WHERE id = ?`, ctx.params.userId);
+    ctx.res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+    ctx.res.end(
+      `<!doctype html><meta charset="utf-8"><title>Unsubscribed</title>
+       <body style="font-family:system-ui;padding:48px;max-width:36em;margin:0 auto;line-height:1.6">
+       <h1 style="font-size:20px">Email notifications are off</h1>
+       <p>You will still see everything in your Kolibri inbox. You can turn email back on
+       under Settings → Notifications.</p>
+       <p><a href="${env.publicUrl || '/'}">Back to Kolibri</a></p>`,
+    );
+    return undefined;
+  };
+  router.get('/api/unsubscribe/:userId/:token', unsubscribe);
+  router.post('/api/unsubscribe/:userId/:token', unsubscribe);
+
+  /** Admin diagnostics: is mail configured, and does the relay actually accept? */
+  router.get('/api/mail/status', (ctx) => {
+    const auth = requireAuth(ctx);
+    const user = get<Row>(`SELECT email_prefs FROM users WHERE id = ?`, auth.userId);
+    return {
+      enabled: env.mailEnabled,
+      host: env.mailEnabled ? `${env.mail.host}:${env.mail.port}` : null,
+      from: env.mail.from,
+      batchSeconds: env.mail.batchSeconds,
+      pending: pendingCount(),
+      preference: user?.email_prefs ?? 'important',
+    };
+  });
+
+  router.post('/api/mail/test', async (ctx) => {
+    const auth = requireAuth(ctx);
+    if (!env.mailEnabled) throw badRequest('No SMTP relay is configured on this instance');
+    const user = get<Row>(`SELECT email FROM users WHERE id = ?`, auth.userId);
+    queueTestMail(user!.email);
+    const { flushQueue } = await import('../lib/mail.ts');
+    const result = await flushQueue(5);
+    if (!result.sent) {
+      const failure = get<Row>(
+        `SELECT last_error FROM email_queue WHERE kind = 'test' ORDER BY created_at DESC LIMIT 1`,
+      );
+      throw badRequest(failure?.last_error ?? 'The relay did not accept the message');
+    }
+    return { sent: true, to: user!.email };
   });
 }
 

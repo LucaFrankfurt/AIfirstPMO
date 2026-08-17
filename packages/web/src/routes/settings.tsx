@@ -5,7 +5,7 @@ import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
 
-type Tab = 'profile' | 'workspace' | 'members' | 'api' | 'data';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'api' | 'data';
 
 export function Settings() {
   const [tab, setTab] = useState<Tab>('profile');
@@ -13,7 +13,7 @@ export function Settings() {
     <>
       <Header title="Settings" />
       <div className="tabs" style={{ padding: '0 12px' }}>
-        {(['profile', 'workspace', 'members', 'api', 'data'] as Tab[]).map((name) => (
+        {(['profile', 'notifications', 'workspace', 'members', 'api', 'data'] as Tab[]).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
             {name === 'api' ? 'API & MCP' : name[0].toUpperCase() + name.slice(1)}
           </button>
@@ -21,6 +21,7 @@ export function Settings() {
       </div>
       <div className="page" style={{ maxWidth: 680 }}>
         {tab === 'profile' && <Profile />}
+        {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
         {tab === 'members' && <Members />}
         {tab === 'api' && <ApiSettings />}
@@ -111,6 +112,113 @@ function Profile() {
           Change password
         </button>
       </div>
+    </>
+  );
+}
+
+/* --------------------------------------------------------- notifications */
+
+interface MailStatus {
+  enabled: boolean;
+  host: string | null;
+  from: string;
+  batchSeconds: number;
+  pending: number;
+  preference: 'all' | 'important' | 'none';
+}
+
+const PREFERENCES: { value: MailStatus['preference']; label: string; hint: string }[] = [
+  { value: 'all', label: 'Everything', hint: 'Assignments, mentions and comments on work you follow' },
+  { value: 'important', label: 'Only what needs me', hint: 'Assignments and mentions' },
+  { value: 'none', label: 'Nothing', hint: 'In-app inbox only' },
+];
+
+const batchWindow = (seconds: number): string => {
+  if (seconds < 60) return `${seconds} seconds`;
+  const minutes = Math.round(seconds / 60);
+  return minutes === 1 ? 'a minute' : `${minutes} minutes`;
+};
+
+function Notifications() {
+  const toast = useToast();
+  const [status, setStatus] = useState<MailStatus | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const load = () => api.get<MailStatus>('/api/mail/status').then(setStatus).catch(() => setStatus(null));
+  useEffect(() => {
+    load();
+  }, []);
+
+  const choose = async (preference: MailStatus['preference']) => {
+    setStatus((current) => (current ? { ...current, preference } : current));
+    await api.patch('/api/me', { email_prefs: preference });
+    toast('Notification settings saved');
+  };
+
+  return (
+    <>
+      <p className="muted" style={{ fontSize: 13 }}>
+        Everything always lands in your in-app inbox. Email is an extra: updates are collected for{' '}
+        {batchWindow(status?.batchSeconds ?? 120)} and sent as a single message, so a busy afternoon
+        does not become twenty separate mails.
+      </p>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>Email me about</h3>
+      <div className="col" style={{ gap: 6 }}>
+        {PREFERENCES.map((option) => (
+          <button
+            key={option.value}
+            className="card"
+            style={{
+              textAlign: 'left',
+              borderColor: status?.preference === option.value ? 'var(--accent)' : 'var(--line)',
+              cursor: 'pointer',
+            }}
+            onClick={() => void choose(option.value)}
+          >
+            <div className="row">
+              <strong className="grow">{option.label}</strong>
+              {status?.preference === option.value && <Icon name="check" size={15} />}
+            </div>
+            <span className="muted" style={{ fontSize: 12.5 }}>{option.hint}</span>
+          </button>
+        ))}
+      </div>
+
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Delivery</h3>
+      {status?.enabled ? (
+        <>
+          <div className="card" style={{ marginBottom: 10 }}>
+            <div className="row"><span className="grow">Relay</span><strong className="mono">{status.host}</strong></div>
+            <div className="row"><span className="grow">Sender</span><strong className="mono">{status.from}</strong></div>
+            <div className="row"><span className="grow">Waiting in the queue</span><strong>{status.pending}</strong></div>
+          </div>
+          <button
+            className="btn"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              try {
+                const result = await api.post<{ to: string }>('/api/mail/test');
+                toast(`Test email sent to ${result.to}`);
+              } catch (err) {
+                toast(err instanceof Error ? err.message : 'The relay refused the message');
+              } finally {
+                setBusy(false);
+                load();
+              }
+            }}
+          >
+            <Icon name="send" size={14} /> Send a test email
+          </button>
+        </>
+      ) : (
+        <Empty
+          emoji="✉️"
+          title="No mail relay configured"
+          hint="This instance sends nothing by email. Set KOLIBRI_SMTP_URL and restart to enable it — the in-app inbox works either way."
+        />
+      )}
     </>
   );
 }

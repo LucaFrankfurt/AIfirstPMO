@@ -325,12 +325,30 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
+  const mentionSource = entity === 'comment' ? changed.body : entity === 'task' ? changed.description : undefined;
+  if (mentionSource !== undefined) {
+    const context = entity === 'comment'
+      ? get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id)
+      : row;
+    for (const userId of findMentions(opts.workspaceId, String(mentionSource ?? ''))) {
+      if (userId === opts.actorId) continue;
+      targets.set(userId, {
+        kind: 'mention',
+        title: context?.identifier
+          ? `You were mentioned in ${context.identifier}`
+          : `You were mentioned in ${context?.title ?? 'Kolibri'}`,
+        body: String(mentionSource ?? '').slice(0, 280),
+      });
+    }
+  }
+
   if (entity === 'comment' && !before && row.task_id) {
     const task = get<Row>(`SELECT * FROM tasks WHERE id = ?`, row.task_id);
     if (task) {
       const audience = new Set([...parseIds(task.assignees), ...parseIds(task.subscribers), task.created_by]);
       for (const userId of audience) {
         if (!userId || userId === opts.actorId) continue;
+        if (targets.get(userId)?.kind === 'mention') continue; // a mention is the stronger signal
         targets.set(userId, {
           kind: 'comment',
           title: `New comment on ${task.identifier}`,
@@ -357,6 +375,37 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       opts.actorId, Date.now(), Date.now(), nextSeq(),
     );
   }
+}
+
+/**
+ * Resolve `@handles` in a body to workspace members. People type what they see:
+ * a first name, a display name without spaces, or an email address — so all
+ * three are accepted, and unknown handles are simply left alone.
+ */
+export function findMentions(workspaceId: string, text: string): string[] {
+  const body = String(text ?? '');
+  if (!body.includes('@')) return [];
+
+  const handles = new Map<string, string>();
+  const members = all<Row>(
+    `SELECT u.id, u.name, u.email FROM workspace_members m JOIN users u ON u.id = m.user_id
+      WHERE m.workspace_id = ? AND m.deleted_at IS NULL AND u.deleted_at IS NULL`,
+    workspaceId,
+  );
+  for (const member of members) {
+    const email = String(member.email ?? '').toLowerCase();
+    const name = String(member.name ?? '').toLowerCase();
+    for (const handle of [email, email.split('@')[0], name.replace(/\s+/g, ''), name.split(/\s+/)[0]]) {
+      if (handle && handle.length > 1 && !handles.has(handle)) handles.set(handle, member.id);
+    }
+  }
+
+  const found = new Set<string>();
+  for (const match of body.matchAll(/@([\w.+-]+(?:@[\w.-]+\.[a-z]{2,})?)/gi)) {
+    const userId = handles.get(match[1].toLowerCase());
+    if (userId) found.add(userId);
+  }
+  return [...found];
 }
 
 export function parseIds(value: unknown): string[] {
