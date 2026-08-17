@@ -44,15 +44,50 @@ Every mutation — REST, sync push, MCP tool, seed script — goes through `writ
 keeps merge semantics, activity records, notifications and the search index from drifting apart
 between entry points.
 
-### Why SQLite
+### Why not Redis, Postgres, S3 or a worker queue
 
-A team tool is a low-write, high-read workload with strong locality: one workspace, one machine.
-WAL-mode SQLite handles that comfortably and removes the entire operational surface of a separate
-database — no connection pools, no migrations service, no backup agent. `cp kolibri.sqlite` is a
-backup. The cost is horizontal scaling, which a self-hosted team tool does not need; the schema
-stays plain enough that moving to Postgres later is mechanical.
+Kolibri does have a database — SQLite is a full relational database with transactions, foreign keys
+and full-text search. What it does not have is a *separate server* for any of it. That was a
+deliberate choice, made per component:
 
-FTS5 (built into SQLite) provides full-text search, so there is no Elasticsearch either.
+**Postgres → SQLite (embedded).** A team tool is a low-write, high-read workload with strong
+locality: one workspace, one machine, a few dozen people. WAL-mode SQLite serves that from
+memory-mapped pages with no network hop, and removes an entire operational surface — connection
+pools, a second container to patch, a migration service, a backup agent, a `pg_hba.conf` to get
+wrong. `cp kolibri.sqlite` is a backup. The price is horizontal scaling, which a self-hosted team
+tool does not need until it has thousands of users; the schema is plain SQL, so that migration is
+mechanical when someone actually needs it.
+
+**Redis → nothing.** Redis usually shows up for four jobs, and none of them exists here:
+
+| Typical Redis job | Why it is absent |
+|---|---|
+| Session store | Sessions are hashed rows in SQLite. A session lookup is an indexed read on a local file — microseconds, and it survives a restart, which an unpersisted Redis does not. |
+| Cache | The expensive reads happen *on the client*, out of IndexedDB. The server answers deltas, not full pages, so there is very little worth caching in front of a local B-tree. |
+| Pub/sub for realtime | Realtime is one in-process `EventEmitter` feeding SSE connections. A message bus between processes only earns its keep once there is more than one process. |
+| Job queue | There are no background jobs. Notifications, the search index and the activity trail are written inside the same transaction as the change that caused them, which also makes them impossible to lose. |
+
+**S3 → the filesystem.** Uploads are content-addressed by SHA-256 under the data directory, so
+de-duplication is free and the URL is stable. A bucket adds credentials, egress cost and a second
+failure mode to back up; a volume is already being backed up because the database lives on it. If
+you need object storage, `KOLIBRI_UPLOAD_DIR` can point at a network mount.
+
+**Elasticsearch → FTS5.** Full-text search is built into SQLite and is maintained transactionally
+with the rows it indexes, so it can never drift out of date the way an async indexer can.
+
+**Image processing service → the browser.** Photos are downscaled to WebP on the client before
+upload. That removes a native dependency (`sharp`/libvips) from the server *and* saves the upload
+bandwidth on the device that has least of it.
+
+The honest cost of all this is written down in the trade-offs below and in
+[`TODO.md`](../TODO.md): a single node, no shared cache, no background workers. The moment you
+genuinely need two replicas, the seams are `nextSeq()` and `lib/bus.ts` — that is the point where
+Redis or Postgres stops being ceremony and starts being the right answer. Until then, every piece
+of infrastructure you do not run is one you cannot misconfigure, forget to patch, or be woken up
+by.
+
+The result is measurable, not just aesthetic: zero runtime npm dependencies on the server, one
+container, one volume, and a cold start that is a process spawn rather than a dependency graph.
 
 ### Realtime
 

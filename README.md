@@ -133,7 +133,9 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 
 ## Documentation
 
-- [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together and why
+- [`TODO.md`](TODO.md) — what is missing, what is unverified, what was deferred on purpose
+- [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
+  [why there is no Redis, Postgres, S3 or worker queue](docs/architecture.md#why-not-redis-postgres-s3-or-a-worker-queue)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
 - [`docs/api.md`](docs/api.md) — REST endpoints, auth, uploads
 - [`docs/mcp.md`](docs/mcp.md) — every tool, prompt and resource with examples

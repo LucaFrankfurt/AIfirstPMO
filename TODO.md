@@ -1,0 +1,129 @@
+# To-do
+
+Everything that is knowingly missing, unverified or deliberately deferred, honestly listed.
+Ticked boxes are done; the rest is open. Ordered by "would I run this in production without it?".
+
+Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to have.
+
+---
+
+## P1 — before putting real data in it
+
+### Security hardening
+
+- [ ] **Rate limiting** on `/api/auth/login`, `/api/auth/register` and `/api/invites/:code/accept`.
+      Today an attacker can guess passwords as fast as the network allows. A per-IP + per-account
+      token bucket in memory is enough for a single-node deployment.
+- [ ] **Content-Security-Policy header.** The app is same-origin only and markdown is escaped before
+      rendering, but a CSP (`default-src 'self'`, no inline scripts) turns a future XSS bug from a
+      breach into a console error. Needs the inline `<style>`-free build we already have.
+- [ ] **Explicit `content-type` check on JSON routes.** CSRF is currently prevented by
+      `SameSite=Lax` cookies alone (cross-site POSTs carry no cookie). That is correct today, but
+      rejecting anything that is not `application/json` is one line and removes the dependency on
+      one browser default.
+- [ ] **Session management UI** — list active sessions per device and revoke individually.
+      Changing the password already invalidates all of them, which is the blunt version.
+- [ ] Optional **2FA (TOTP)** for owner/admin accounts.
+
+### Operations
+
+- [ ] **Verify the Docker build on a real daemon.** The Dockerfile and compose file were written and
+      reviewed but never executed — there was no Docker daemon in the environment they were authored
+      in. CI (`.github/workflows/ci.yml`) builds and boots the image on every push; that job has not
+      run yet.
+- [ ] **Test a restore.** The backup procedure in `docs/deployment.md` (`VACUUM INTO` + uploads
+      tarball) is written from first principles, not from a rehearsed restore.
+- [ ] **`kolibri doctor` / maintenance commands** — integrity check, `VACUUM`, and a search-index
+      rebuild. If the FTS table ever drifts from the tables (a crash mid-transaction, a manual
+      edit), there is currently no supported way to rebuild it.
+
+### Correctness
+
+- [ ] **Replace the pull-pagination heuristic.** The client decides whether to ask for another page
+      by checking if any entity returned exactly `PAGE_SIZE` rows (`hadFullPage` in `lib/sync.ts`).
+      The server should return an explicit `hasMore` flag instead — the heuristic is right but
+      fragile, and it is the one place where a wrong guess means a client silently stops syncing.
+- [ ] **Guest role in the UI.** Guests are correctly refused by the server, but the interface still
+      shows them buttons that will fail. Hide or disable write affordances when `role === 'guest'`.
+- [ ] **Client-side tests.** The store, the outbox and the merge path have no unit tests of their
+      own; they are only covered indirectly through the API tests and the browser smoke run.
+
+---
+
+## P2 — the obvious next features
+
+- [ ] **Saved views UI.** The `view` entity syncs, the seed creates one, the server serves them —
+      there is no interface to save the current filter set or load a shared view. This is the
+      largest gap between the data model and what you can actually click.
+- [ ] **@mentions in comments and descriptions**, with notifications. Today notifications only fire
+      for assignment and for comments on tasks you already follow.
+- [ ] **Email.** Invites are links you copy; notifications are in-app only. SMTP delivery for
+      invites, mentions and daily digests. Deliberately not in the default install (see
+      [`docs/architecture.md`](docs/architecture.md#why-not-redis-postgres-s3-or-a-worker-queue)) —
+      but it should be an opt-in that works.
+- [ ] **Bulk actions in the list view.** `POST /api/workspaces/:ws/tasks/bulk` exists and is tested;
+      the UI has no multi-select.
+- [ ] **Trash / archive browser.** Everything is soft-deleted and recoverable in the database, but
+      there is no screen to see or restore deleted tasks and pages.
+- [ ] **Avatar upload.** `users.avatar_url` is respected everywhere; nothing sets it.
+- [ ] **Precise drop position on the board.** A drop currently appends to the end of the target
+      column. Fractional indexing already supports inserting between two neighbours — the drop
+      handler just needs the index under the cursor.
+- [ ] **Comment reactions.** The `reactions` field is stored and synced; no picker, no display.
+- [ ] **Table and Gantt layouts.** `LAYOUTS` in `packages/shared/src/types.ts` declares five layouts;
+      three are implemented (list, board, calendar). Either build them or trim the type.
+- [ ] **Internationalisation.** The interface is English only. Given who this was built for, German
+      is the obvious first translation. No i18n scaffolding exists yet — strings are inline.
+- [ ] **Image lightbox** for attachments and inline images (the `.gallery` styles are unused).
+- [ ] **Per-task notification opt-out** (`subscribers` is stored and used, but nothing toggles it).
+
+---
+
+## P3 — bigger bets, only with a reason
+
+- [ ] **Real-time collaborative page editing.** Page bodies merge last-writer-wins; simultaneous
+      typing resolves to one version with the other kept in history. A text CRDT (Yjs/Automerge) on
+      the `content` field would fix it — see the closing section of [`docs/sync.md`](docs/sync.md).
+- [ ] **Multi-node deployment.** The sequence counter and the SSE bus live in the process. Running
+      two replicas needs an external counter and a shared bus — this is the one scenario where
+      Redis or Postgres genuinely earns its place.
+- [ ] **Custom fields** per project.
+- [ ] **Time tracking** (estimates exist, logged time does not).
+- [ ] **Recurring tasks** and **task templates**.
+- [ ] **Webhooks and integrations** (GitHub/GitLab commit linking, Slack notifications).
+- [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.
+- [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).
+- [ ] **Roadmap / portfolio view** across projects.
+- [ ] **Public share links** for a page or a filtered task list.
+
+---
+
+## Verified, for contrast
+
+So the list above is read in proportion — these are covered by automated tests
+(`npm test`, 14 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
+
+- [x] Registration, login, sessions, API tokens, read-only scopes
+- [x] Task identifiers allocated without gaps or duplicates
+- [x] `completed_at` set and cleared by workflow state group
+- [x] Delta pull returns only what changed since the cursor
+- [x] A replayed push does not create a duplicate task
+- [x] Concurrent offline edits merge per field (newer title wins, older priority survives)
+- [x] Private projects invisible to non-members in REST *and* in sync pulls
+- [x] Uploads content-addressed, dimensions detected, unauthenticated download refused
+- [x] Page history written on body change
+- [x] MCP `initialize` / `tools/list` / `tools/call`, and a write refused on a read-only token
+- [x] Full-text search finds a task by a word in its title
+- [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
+- [x] Browser: phone viewport, dark mode, and rendering with the network switched off
+
+## Known-unknowns
+
+Things nobody has measured yet, so treat any claim about them as a guess:
+
+- Performance with a large workspace (>10k tasks, >100 concurrent SSE clients).
+- Real iOS Safari and Android Chrome behaviour — only Chromium's device emulation was used.
+  IndexedDB eviction under storage pressure on iOS is the specific risk.
+- Behaviour when the disk fills up mid-write.
+- Long-running clock skew between clients (the HLC converges after one exchange, but that path
+  has not been exercised against a device with a badly wrong clock).
