@@ -9,8 +9,12 @@
 
 services:
   kolibri:
+    # The Dockerfile in this directory is the build. Compose only names the
+    # result and wires up ports, volumes and environment. Nothing is published
+    # to a registry yet, so this tag is local — `docker compose pull` has
+    # nothing to fetch.
     build: .
-    image: ghcr.io/kolibri/kolibri:latest
+    image: kolibri:local
     container_name: kolibri
     restart: unless-stopped
     ports:
