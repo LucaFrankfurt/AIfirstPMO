@@ -6,6 +6,7 @@ import { byId, list, useQuery, useRow } from '../lib/store';
 import { comment as postComment, createTask, remove, update } from '../lib/mutations';
 import { useMe, useMemberMap, useSession } from '../session';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
+import { Relations } from './Relations';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, stateOf,
 } from './task-parts';
@@ -196,6 +197,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <button className="btn sm" type="submit"><Icon name="plus" size={14} /></button>
           </form>
         </section>
+
+        <Relations task={task} onOpen={onOpen} />
 
         {/* attachments */}
         <section style={{ marginBottom: 18 }}>

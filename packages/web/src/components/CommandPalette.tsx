@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { list, useQuery } from '../lib/store';
 import { excerpt } from '../lib/markdown';
+import { useOpenTask } from '../lib/navigation';
 import { useSession } from '../session';
 import { Icon, StateDot } from './ui';
 import { stateOf } from './task-parts';
@@ -23,6 +24,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const navigate = useNavigate();
+  const openTask = useOpenTask();
   const { workspaceId } = useSession();
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -56,7 +58,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         title: task.title,
         hint: task.identifier,
         run: () => {
-          navigate(`/t/${task.id}`);
+          openTask(task);
           onClose();
         },
       }));
@@ -89,7 +91,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       ...pageCommands,
       ...navigation.filter((command) => match(command.title)),
     ];
-  }, [query, tasks, projects, pages, navigate, onClose]);
+  }, [query, tasks, projects, pages, navigate, openTask, onClose]);
 
   useEffect(() => setActive(0), [query]);
 

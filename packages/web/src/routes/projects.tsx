@@ -9,6 +9,7 @@ import { Avatar, Empty, Icon, MenuButton, Progress, Sheet, useConfirm, useToast 
 import { api } from '../lib/api';
 import { shortDate, today } from '../lib/format';
 import { byOrder, create, createPage, remove, update } from '../lib/mutations';
+import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useMe, useMembers, useSession } from '../session';
@@ -160,6 +161,7 @@ export function ProjectNew() {
 type Tab = 'tasks' | 'cycles' | 'modules' | 'pages' | 'settings';
 
 export function ProjectPage() {
+  const openTask = useOpenTask();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const project = useRow('project', id);
@@ -199,10 +201,10 @@ export function ProjectPage() {
       {tab === 'tasks' && (
         view.layout === 'board'
           ? <div style={{ height: 'calc(100dvh - var(--header-height) - 110px)' }}>
-            <TaskViews tasks={visible} view={view} projectId={id} onOpen={(task: Task) => navigate(`/t/${task.id}`)} />
+            <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
           : <div className="page" style={{ paddingLeft: 0, paddingRight: 0 }}>
-            <TaskViews tasks={visible} view={view} projectId={id} onOpen={(task: Task) => navigate(`/t/${task.id}`)} />
+            <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
       )}
       {tab === 'cycles' && <Cycles projectId={id} />}
@@ -318,6 +320,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
 }
 
 export function CyclePage() {
+  const openTask = useOpenTask();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const cycle = useRow('cycle', id);
@@ -357,7 +360,7 @@ export function CyclePage() {
           <Progress value={burndown.done} total={burndown.total} />
           {cycle.description && <p className="muted" style={{ marginTop: 8, fontSize: 12.5 }}>{cycle.description}</p>}
         </div>
-        <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={(task: Task) => navigate(`/t/${task.id}`)} />
+        <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={openTask} />
       </div>
       {adding && <QuickAdd projectId={cycle.project_id} cycleId={id} onClose={() => setAdding(false)} />}
     </>
@@ -437,6 +440,7 @@ function Modules({ projectId }: { projectId: string }) {
 }
 
 export function ModulePage() {
+  const openTask = useOpenTask();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const module = useRow('module', id);
@@ -451,7 +455,7 @@ export function ModulePage() {
       </Header>
       <div className="page">
         {module.description && <Markdown source={module.description} />}
-        <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={(task: Task) => navigate(`/t/${task.id}`)} />
+        <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={openTask} />
       </div>
     </>
   );

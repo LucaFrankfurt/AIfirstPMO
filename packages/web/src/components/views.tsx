@@ -231,8 +231,8 @@ export function BoardView({
   );
 
   /** Dropping on a column both reorders and rewrites the grouped-by field. */
-  const drop = (groupId: string) => {
-    const task = dragId ? byId('task', dragId) : undefined;
+  const drop = (groupId: string, dropped?: Task) => {
+    const task = dropped ?? (dragId ? byId('task', dragId) : undefined);
     setDragId(null);
     setOverColumn(null);
     if (!task) return;
@@ -274,6 +274,11 @@ export function BoardView({
                 task={task}
                 onOpen={onOpen}
                 dragging={dragId === task.id}
+                moveTargets={groups.map((target) => ({
+                  id: target.id,
+                  title: target.title,
+                  onSelect: () => drop(target.id, task),
+                }))}
                 onDragStart={(event) => {
                   setDragId(task.id);
                   event.dataTransfer.effectAllowed = 'move';

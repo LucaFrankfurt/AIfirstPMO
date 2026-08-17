@@ -188,8 +188,15 @@ export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (ta
 }
 
 export function TaskCard({
-  task, onOpen, onDragStart, dragging,
-}: { task: Task; onOpen: (task: Task) => void; onDragStart?: (event: React.DragEvent) => void; dragging?: boolean }) {
+  task, onOpen, onDragStart, dragging, moveTargets,
+}: {
+  task: Task;
+  onOpen: (task: Task) => void;
+  onDragStart?: (event: React.DragEvent) => void;
+  dragging?: boolean;
+  /** Columns this card can be moved to — the touch alternative to dragging. */
+  moveTargets?: { id: string; title: string; onSelect: () => void }[];
+}) {
   const members = useMemberMap();
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   return (
@@ -203,6 +210,22 @@ export function TaskCard({
         <span className="mono muted">{task.identifier}</span>
         <span className="grow" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
+        {moveTargets && moveTargets.length > 1 && (
+          <span onClick={(event) => event.stopPropagation()}>
+            <MenuButton
+              className="btn ghost sm icon"
+              title="Move to"
+              items={moveTargets.map((target) => ({
+                id: target.id,
+                section: 'Move to',
+                label: target.title,
+                onSelect: target.onSelect,
+              }))}
+            >
+              <Icon name="dots" size={13} />
+            </MenuButton>
+          </span>
+        )}
       </div>
       <div className="title">{task.title}</div>
       <div className="footer">

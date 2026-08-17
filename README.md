@@ -24,6 +24,17 @@ around three convictions:
    an AI can read the backlog, file issues, move them through the workflow and write documentation
    with exactly the permissions you grant it.
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/images/board.png" alt="Kanban board" /></td>
+    <td width="50%"><img src="docs/images/task-dark.png" alt="Task detail in dark mode" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/images/pages.png" alt="Wiki page" /></td>
+    <td align="center"><img src="docs/images/mobile.png" alt="Mobile layout" width="55%" /></td>
+  </tr>
+</table>
+
 ## What is in the box
 
 | | |

@@ -9,16 +9,17 @@ import { api } from '../lib/api';
 import { relativeTime, today } from '../lib/format';
 import { excerpt } from '../lib/markdown';
 import { markAllRead, markNotificationRead } from '../lib/mutations';
+import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
 import { useMe, useMemberMap, useSession } from '../session';
 
-const openTask = (navigate: ReturnType<typeof useNavigate>) => (task: Task) => navigate(`/t/${task.id}`);
+
 
 /* --------------------------------------------------------------- my work */
 
 export function MyWork() {
   const me = useMe();
-  const navigate = useNavigate();
+  const openTask = useOpenTask();
   const { workspaceId } = useSession();
   const [view, setView] = useState<ViewConfig>({ ...DEFAULT_VIEW, groupBy: 'project', orderBy: 'due_date', showDone: false });
 
@@ -54,7 +55,7 @@ export function MyWork() {
                   <span className="muted">{buckets.overdue.length}</span>
                 </div>
                 {buckets.overdue.slice(0, 5).map((task) => (
-                  <TaskRow key={task.id} task={task} onOpen={openTask(navigate)} showProject />
+                  <TaskRow key={task.id} task={task} onOpen={openTask} showProject />
                 ))}
               </div>
             )}
@@ -65,7 +66,7 @@ export function MyWork() {
                   <span className="muted">{buckets.today.length}</span>
                 </div>
                 {buckets.today.map((task) => (
-                  <TaskRow key={task.id} task={task} onOpen={openTask(navigate)} showProject />
+                  <TaskRow key={task.id} task={task} onOpen={openTask} showProject />
                 ))}
               </div>
             )}
@@ -75,13 +76,13 @@ export function MyWork() {
         {visible.length === 0 ? (
           <Empty emoji="🎉" title="Nothing assigned to you" hint="Enjoy it, or pick something up from a project." />
         ) : (
-          <TaskViews tasks={visible} view={view} onOpen={openTask(navigate)} showProject />
+          <TaskViews tasks={visible} view={view} onOpen={openTask} showProject />
         )}
 
         {created.length > 0 && (
           <section style={{ marginTop: 26 }}>
             <h2 style={{ fontSize: 14, marginBottom: 6 }}>Created by you</h2>
-            {created.map((task) => <TaskRow key={task.id} task={task} onOpen={openTask(navigate)} showProject />)}
+            {created.map((task) => <TaskRow key={task.id} task={task} onOpen={openTask} showProject />)}
           </section>
         )}
       </div>
@@ -94,6 +95,7 @@ export function MyWork() {
 export function Inbox() {
   const me = useMe();
   const navigate = useNavigate();
+  const openTask = useOpenTask();
   const members = useMemberMap();
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
 
@@ -128,7 +130,7 @@ export function Inbox() {
                 style={{ width: '100%', textAlign: 'left', opacity: notification.read_at ? 0.62 : 1 }}
                 onClick={() => {
                   markNotificationRead(notification.id);
-                  if (notification.task_id) navigate(`/t/${notification.task_id}`);
+                  if (notification.task_id) openTask({ id: notification.task_id });
                   else if (notification.page_id) navigate(`/pages/${notification.page_id}`);
                 }}
               >
@@ -155,6 +157,7 @@ export function Inbox() {
 export function Search() {
   const { workspaceId } = useSession();
   const navigate = useNavigate();
+  const openTask = useOpenTask();
   const [query, setQuery] = useState('');
   const [serverHits, setServerHits] = useState<any[]>([]);
   const toast = useToast();
@@ -191,12 +194,12 @@ export function Search() {
   }, [local, serverHits]);
 
   const open = (hit: { kind: string; id: string }) => {
-    if (hit.kind === 'task') navigate(`/t/${hit.id}`);
+    if (hit.kind === 'task') openTask({ id: hit.id });
     else if (hit.kind === 'page') navigate(`/pages/${hit.id}`);
     else if (hit.kind === 'project') navigate(`/projects/${hit.id}`);
     else if (hit.kind === 'comment') {
       const comment = byId('comment', hit.id);
-      if (comment?.task_id) navigate(`/t/${comment.task_id}`);
+      if (comment?.task_id) openTask({ id: comment.task_id });
       else toast('That comment is not in this workspace any more');
     }
   };

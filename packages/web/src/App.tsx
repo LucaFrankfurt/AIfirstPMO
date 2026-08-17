@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { TaskDetail } from './components/TaskDetail';
 import { Empty, ToastHost } from './components/ui';
@@ -9,19 +9,21 @@ import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './r
 import { PageDetail, PagesIndex } from './routes/pages';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
+import { backgroundOf, useOpenTask } from './lib/navigation';
 import { useSession } from './session';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
 function TaskRoute() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
-  return (
-    <TaskDetail
-      taskId={id}
-      onClose={() => navigate(-1)}
-      onOpen={(task) => navigate(`/t/${task.id}`, { replace: true })}
-    />
-  );
+  const location = useLocation();
+  const openTask = useOpenTask();
+  const close = () => {
+    // Went straight to the link: there is nothing to go back to.
+    if (backgroundOf(location)) navigate(-1);
+    else navigate('/', { replace: true });
+  };
+  return <TaskDetail taskId={id} onClose={close} onOpen={openTask} />;
 }
 
 function Boot() {
@@ -37,6 +39,8 @@ function Boot() {
 
 export default function App() {
   const { ready, session, workspaceId } = useSession();
+  const location = useLocation();
+  const background = backgroundOf(location);
 
   useEffect(() => {
     if ('serviceWorker' in navigator && import.meta.env.PROD) {
@@ -68,7 +72,9 @@ export default function App() {
   return (
     <ToastHost>
       <AppShell>
-        <Routes>
+        {/* The sheet renders over the screen recorded in the router state, so
+            the page behind it never flickers or falls back to a 404. */}
+        <Routes location={background ?? location}>
           <Route path="/" element={<MyWork />} />
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/search" element={<Search />} />
@@ -83,6 +89,7 @@ export default function App() {
           <Route path="/teams" element={<Teams />} />
           <Route path="/settings/*" element={<Settings />} />
           <Route path="/invite/:code" element={<Navigate to="/" replace />} />
+          <Route path="/t/:id" element={<MyWork />} />
           <Route path="*" element={<Empty emoji="🧭" title="Page not found" />} />
         </Routes>
       </AppShell>
