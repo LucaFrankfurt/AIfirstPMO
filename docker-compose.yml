@@ -1,27 +1,44 @@
-# Kolibri — `docker compose up -d` and you are done.
+# Kolibri — the whole stack, wired and configured.
 #
-# The default is one container and one volume. Two optional profiles extend it:
+#   docker compose up -d --build
 #
-#   docker compose --profile s3 up -d     # MinIO for uploads
-#   docker compose --profile mail up -d   # Mailpit, a local inbox for testing
+# That is the entire installation. It brings up the app, an S3-compatible
+# object store for uploads and a local mail inbox, already pointed at each
+# other. The bucket is created on first boot, the owner account is created from
+# the environment, and nothing needs to be clicked to finish setup.
 #
-# Both are opt-in: without them uploads go to the volume and email is simply off.
+#   App        http://localhost:4000
+#   Mail       http://localhost:8025   (every notification lands here)
+#   S3 console http://localhost:9001   (login: the S3 keys below)
+#
+# Want the boring single-container version instead — uploads on the volume,
+# no mail? Use `docker compose -f docker-compose.lite.yml up -d`.
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
 
 services:
+  # The Dockerfile in this directory is the build; compose only names the
+  # result and wires it up. Nothing is published to a registry yet, so this
+  # tag is local.
   kolibri:
-    # The Dockerfile in this directory is the build. Compose only names the
-    # result and wires up ports, volumes and environment. Nothing is published
-    # to a registry yet, so this tag is local — `docker compose pull` has
-    # nothing to fetch.
     build: .
     image: kolibri:local
     container_name: kolibri
     restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
     ports:
       - "${KOLIBRI_PORT:-4000}:4000"
     environment:
-      # Keep this stable: it signs sessions, API tokens and unsubscribe links.
-      # Generated on first start and persisted in the volume if you leave it empty.
+      # Signs sessions, API tokens and unsubscribe links. Generated into the
+      # volume on first start if you leave it empty.
       KOLIBRI_SECRET: "${KOLIBRI_SECRET:-}"
       KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-http://localhost:4000}"
       KOLIBRI_ALLOW_SIGNUP: "${KOLIBRI_ALLOW_SIGNUP:-true}"
@@ -29,22 +46,40 @@ services:
       KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-60}"
       KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
 
-      # --- email (optional) ------------------------------------------------
-      # smtp://user:pass@host:587 or smtps://…:465. Empty = in-app inbox only.
-      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-}"
-      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
-      KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-Kolibri}"
-      KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
+      # --- first-run provisioning -----------------------------------------
+      # Set these and the owner account exists the moment the stack is up.
+      # Leave them empty to claim the instance yourself in the browser.
+      KOLIBRI_ADMIN_EMAIL: "${KOLIBRI_ADMIN_EMAIL:-}"
+      KOLIBRI_ADMIN_PASSWORD: "${KOLIBRI_ADMIN_PASSWORD:-}"
+      KOLIBRI_ADMIN_NAME: "${KOLIBRI_ADMIN_NAME:-Owner}"
+      KOLIBRI_WORKSPACE_NAME: "${KOLIBRI_WORKSPACE_NAME:-Kolibri}"
+      # Fill an empty database with a demo workspace to look around in.
+      KOLIBRI_SEED_DEMO: "${KOLIBRI_SEED_DEMO:-false}"
 
-      # --- object storage (optional) ---------------------------------------
-      # disk (default) keeps uploads in the volume; s3 puts them in a bucket.
-      KOLIBRI_STORAGE: "${KOLIBRI_STORAGE:-disk}"
+      # --- object storage --------------------------------------------------
+      # The bucket is created by the app on boot; there is nothing to set up
+      # in MinIO by hand.
+      KOLIBRI_STORAGE: "${KOLIBRI_STORAGE:-s3}"
       KOLIBRI_S3_ENDPOINT: "${KOLIBRI_S3_ENDPOINT:-http://minio:9000}"
       KOLIBRI_S3_BUCKET: "${KOLIBRI_S3_BUCKET:-kolibri}"
       KOLIBRI_S3_REGION: "${KOLIBRI_S3_REGION:-us-east-1}"
       KOLIBRI_S3_ACCESS_KEY: "${KOLIBRI_S3_ACCESS_KEY:-kolibri}"
-      KOLIBRI_S3_SECRET_KEY: "${KOLIBRI_S3_SECRET_KEY:-kolibri-secret}"
-      KOLIBRI_S3_PATH_STYLE: "${KOLIBRI_S3_PATH_STYLE:-true}"
+      KOLIBRI_S3_SECRET_KEY: "${KOLIBRI_S3_SECRET_KEY:-kolibri-secret-change-me}"
+      KOLIBRI_S3_PATH_STYLE: "true"
+      # Pre-signed URLs are signed for the host the *browser* resolves, which
+      # is not the internal one. Off by default, so downloads are proxied by
+      # the app and work from anywhere; turn it on together with a public
+      # endpoint to hand the bandwidth to MinIO.
+      KOLIBRI_S3_PRESIGN: "${KOLIBRI_S3_PRESIGN:-false}"
+      KOLIBRI_S3_PUBLIC_ENDPOINT: "${KOLIBRI_S3_PUBLIC_ENDPOINT:-}"
+
+      # --- email -----------------------------------------------------------
+      # Defaults to the Mailpit container: notifications work out of the box
+      # and land in a local inbox. Point this at a real relay to send for real.
+      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-smtp://mailpit:1025}"
+      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
+      KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-Kolibri}"
+      KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
 
       TZ: "${TZ:-UTC}"
     volumes:
@@ -54,56 +89,71 @@ services:
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      start_period: 20s
+    logging: *logging
 
-  # --- optional: S3-compatible object storage -----------------------------
-  # Kolibri creates the bucket on start, so there is nothing to set up by hand.
+  # Object storage for uploads. Only the console is published; the API is
+  # reachable inside the compose network, which is all the app needs.
   minio:
-    image: quay.io/minio/minio:latest
-    profiles: ["s3"]
+    image: quay.io/minio/minio:latest   # pin to a RELEASE.* tag for reproducible deploys
+    container_name: kolibri-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: "${KOLIBRI_S3_ACCESS_KEY:-kolibri}"
-      MINIO_ROOT_PASSWORD: "${KOLIBRI_S3_SECRET_KEY:-kolibri-secret}"
+      MINIO_ROOT_PASSWORD: "${KOLIBRI_S3_SECRET_KEY:-kolibri-secret-change-me}"
+      MINIO_BROWSER_REDIRECT_URL: "${MINIO_CONSOLE_URL:-http://localhost:9001}"
     ports:
-      - "${MINIO_PORT:-9000}:9000"
-      - "${MINIO_CONSOLE_PORT:-9001}:9001"   # web console
+      # Bound to localhost: the console is an admin tool, not a public service.
+      - "${MINIO_CONSOLE_BIND:-127.0.0.1}:${MINIO_CONSOLE_PORT:-9001}:9001"
+      - "${MINIO_API_BIND:-127.0.0.1}:${MINIO_API_PORT:-9000}:9000"
     volumes:
       - minio-data:/data
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
-      interval: 30s
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 12
+      start_period: 10s
+    logging: *logging
 
-  # --- optional: a local inbox for trying email out ------------------------
-  # Set KOLIBRI_SMTP_URL=smtp://mailpit:1025 and open http://localhost:8025.
+  # A local inbox so notifications are visible immediately. Replace it with a
+  # real relay (KOLIBRI_SMTP_URL) when mail should actually leave the machine.
   mailpit:
-    image: axllent/mailpit:latest
-    profiles: ["mail"]
+    image: axllent/mailpit:v1.30
+    container_name: kolibri-mailpit
     restart: unless-stopped
-    ports:
-      - "${MAILPIT_PORT:-8025}:8025"   # web inbox
-      - "1025:1025"                    # SMTP
     environment:
-      MP_MAX_MESSAGES: "500"
+      MP_MAX_MESSAGES: "1000"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_PORT:-8025}:8025"
+    logging: *logging
+
+  # --- optional: automatic HTTPS ------------------------------------------
+  # docker compose --profile tls up -d
+  # Set KOLIBRI_DOMAIN to a name that points at this host; Caddy obtains and
+  # renews the certificate on its own. Remember to set
+  # KOLIBRI_PUBLIC_URL=https://$KOLIBRI_DOMAIN as well.
+  caddy:
+    image: caddy:2-alpine
+    container_name: kolibri-caddy
+    profiles: ["tls"]
+    restart: unless-stopped
+    depends_on: [kolibri]
+    command: caddy reverse-proxy --from "${KOLIBRI_DOMAIN:-localhost}" --to kolibri:4000
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    logging: *logging
 
 volumes:
   kolibri-data:
   minio-data:
-
-# --- HTTPS in front of it -----------------------------------------------
-#
-#  caddy:
-#    image: caddy:2-alpine
-#    restart: unless-stopped
-#    ports: ["80:80", "443:443"]
-#    command: caddy reverse-proxy --from kolibri.example.com --to kolibri:4000
-#    volumes:
-#      - caddy-data:/data
-#    depends_on: [kolibri]
-#
-#  Add `caddy-data:` to the volumes block above, set
-#  KOLIBRI_PUBLIC_URL=https://kolibri.example.com, and drop the port mapping
-#  on the kolibri service so only Caddy is exposed.
+  caddy-data:
+  caddy-config:

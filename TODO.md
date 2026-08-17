@@ -27,10 +27,11 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 
 ### Operations
 
-- [ ] **Verify the Docker build on a real daemon.** The Dockerfile and compose file were written and
-      reviewed but never executed — there was no Docker daemon in the environment they were authored
-      in. CI (`.github/workflows/ci.yml`) builds and boots the image on every push; that job has not
-      run yet.
+- [ ] **Verify the deployment on a real daemon.** The Dockerfile and both compose files were
+      written and reviewed but never executed — there was no Docker daemon in the environment they
+      were authored in. The `deploy` job in CI brings the whole stack up and asserts the wiring
+      (provisioned owner account, upload landing in MinIO, test mail arriving in Mailpit, restart
+      idempotence, plus the lite variant); that job has not run yet.
 - [ ] **Test a restore.** The backup procedure in `docs/deployment.md` (`VACUUM INTO` + uploads
       tarball) is written from first principles, not from a rehearsed restore.
 - [ ] **`kolibri doctor` / maintenance commands** — integrity check, `VACUUM`, and a search-index
@@ -126,6 +127,8 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Notification batching, per-user preferences, unsubscribe signature, retry with backoff
 - [x] S3 against a fake store that **verifies the SigV4 signature**: bucket creation, round trip,
       percent-encoded keys, delete, pre-signed URL, tampered-secret rejection
+- [x] First-run provisioning: owner account, workspace and starter project created from the
+      environment, idempotent on restart, storage retry with backoff before giving up
 - [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
 - [x] Browser: phone viewport, dark mode, and rendering with the network switched off
 
@@ -139,7 +142,8 @@ Things nobody has measured yet, so treat any claim about them as a guess:
 - Behaviour when the disk fills up mid-write.
 - Real SMTP relays (Postmark, SES, Gmail) — the client is tested against a server written for the
   test, which cannot catch a provider's quirks or a deliverability problem.
-- Real MinIO/AWS — the S3 client is verified by an independent signature implementation, but has
-  not been run against an actual object store.
+- Real MinIO/AWS — the S3 client is verified by an independent signature implementation and the CI
+  deploy job runs it against a real MinIO, but no one has yet run it against AWS, R2 or Ceph.
+- Automatic HTTPS (the `tls` profile) needs a public domain, so it cannot be exercised in CI.
 - Long-running clock skew between clients (the HLC converges after one exchange, but that path
   has not been exercised against a device with a badly wrong clock).

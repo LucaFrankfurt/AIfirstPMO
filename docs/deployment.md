@@ -1,8 +1,47 @@
 # Deployment
 
-One container, one volume. Everything below is optional polish on top of `docker compose up -d`.
+```bash
+docker compose up -d --build
+```
+
+That is the deployment. Everything below is detail.
+
+## What comes up
+
+| Service | Published on | Purpose |
+|---|---|---|
+| `kolibri` | `:4000` | the app |
+| `minio` | `127.0.0.1:9000`, console `127.0.0.1:9001` | uploads; the bucket is created by the app on boot |
+| `mailpit` | `127.0.0.1:8025` | a local inbox so notifications are visible immediately |
+| `caddy` | `:80`, `:443` — profile `tls` | automatic HTTPS for `KOLIBRI_DOMAIN` |
+
+The app waits for the object store instead of crash-looping if MinIO is slow to start, creates the
+bucket itself, and — if `KOLIBRI_ADMIN_EMAIL`/`KOLIBRI_ADMIN_PASSWORD` are set — creates the owner
+account and its first workspace. All of that is idempotent, so restarts and redeploys converge
+rather than duplicate. `GET /api/health` reports `"ready": true` once it is done.
+
+Two things to change before anyone else can reach the machine:
+
+1. `KOLIBRI_S3_SECRET_KEY` — it is also the MinIO console password.
+2. `KOLIBRI_SMTP_URL` — until it points at a real relay, mail is captured locally and no recipient
+   ever sees it. The app logs a warning about this on every boot.
+
+For the smallest possible install — one container, uploads on the volume, no mail —
+`docker compose -f docker-compose.lite.yml up -d --build`.
 
 ## Environment
+
+### First-run provisioning
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_ADMIN_EMAIL` | empty | Creates the owner account on an empty database. Without it, the first person to sign up owns the instance. |
+| `KOLIBRI_ADMIN_PASSWORD` | empty | Required with the above; at least 8 characters or the bootstrap is skipped with a warning. |
+| `KOLIBRI_ADMIN_NAME` | `Owner` | Display name for that account |
+| `KOLIBRI_WORKSPACE_NAME` | `Kolibri` | Name of the workspace created with it |
+| `KOLIBRI_SEED_DEMO` | `false` | Fill an empty database with the demo workspace |
+
+### Core
 
 | Variable | Default | Meaning |
 |---|---|---|

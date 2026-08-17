@@ -43,18 +43,78 @@ jobs:
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
 
-  docker:
+  # The deployment itself is the thing under test here: one command has to
+  # produce a working instance with storage and mail already wired up.
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build the image
-        run: docker build -t kolibri:ci .
-      - name: Boot it and check health
+
+      - name: Bring up the whole stack
         run: |
-          docker run -d --name kolibri -p 4000:4000 -v kolibri-ci:/data kolibri:ci
-          for i in $(seq 1 30); do
-            if curl -fs http://127.0.0.1:4000/api/health; then exit 0; fi
+          cat > .env <<'EOF'
+          KOLIBRI_ADMIN_EMAIL=owner@example.com
+          KOLIBRI_ADMIN_PASSWORD=a good long password
+          KOLIBRI_WORKSPACE_NAME=CI
+          KOLIBRI_S3_SECRET_KEY=ci-secret-key
+          EOF
+          docker compose up -d --build --wait --wait-timeout 300
+
+      - name: The instance provisioned itself
+        run: |
+          health=$(curl -fsS http://127.0.0.1:4000/api/health)
+          echo "$health"
+          echo "$health" | grep -q '"ready":true'      || { echo "not provisioned"; exit 1; }
+          echo "$health" | grep -q '"storage":"s3"'    || { echo "object storage not active"; exit 1; }
+          echo "$health" | grep -q '"mail":true'       || { echo "mail not configured"; exit 1; }
+
+      - name: The owner account exists without anyone clicking anything
+        run: |
+          curl -fsS -c jar -X POST http://127.0.0.1:4000/api/auth/login \
+            -H 'content-type: application/json' \
+            -d '{"email":"owner@example.com","password":"a good long password"}' \
+            | tee session.json | grep -q '"role":"owner"'
+          echo "workspace: $(grep -o '"name":"CI"' session.json)"
+
+      - name: An upload lands in MinIO and comes back
+        run: |
+          ws=$(python3 -c "import json;print(json.load(open('session.json'))['workspaces'][0]['id'])")
+          printf 'hello object storage' > sample.txt
+          url=$(curl -fsS -b jar -X POST "http://127.0.0.1:4000/api/workspaces/$ws/files" \
+                 -H 'content-type: text/plain' -H 'x-filename: sample.txt' \
+                 --data-binary @sample.txt | python3 -c "import json,sys;print(json.load(sys.stdin)['url'])")
+          test "$(curl -fsS -b jar "http://127.0.0.1:4000$url")" = "hello object storage"
+          # …and the bytes really are in the bucket, not on the app's disk.
+          docker compose exec -T minio mc alias set ci http://127.0.0.1:9000 kolibri ci-secret-key >/dev/null
+          docker compose exec -T minio mc ls --recursive ci/kolibri | tee objects.txt
+          test -s objects.txt
+
+      - name: A test email reaches the inbox
+        run: |
+          curl -fsS -b jar -X POST http://127.0.0.1:4000/api/mail/test | grep -q '"sent":true'
+          for i in $(seq 1 15); do
+            if curl -fsS http://127.0.0.1:8025/api/v1/messages | grep -q 'Kolibri test email'; then
+              echo "delivered"; exit 0
+            fi
             sleep 2
           done
-          docker logs kolibri
-          exit 1
+          echo "no message in the inbox"; docker compose logs kolibri; exit 1
+
+      - name: Restarting changes nothing
+        run: |
+          docker compose restart kolibri
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:4000/api/health | grep -q '"ready":true' && break; sleep 2; done
+          users=$(docker compose exec -T kolibri node --experimental-sqlite -e \
+            "const{DatabaseSync}=require('node:sqlite');console.log(new DatabaseSync('/data/kolibri.sqlite').prepare('select count(*) c from users').get().c)")
+          test "$users" -eq 1 || { echo "provisioning was not idempotent: $users users"; exit 1; }
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: docker compose ps && docker compose logs --tail 200
+
+      - name: The single-container variant also comes up
+        run: |
+          docker compose down -v
+          docker compose -f docker-compose.lite.yml up -d --build --wait --wait-timeout 180
+          curl -fsS http://127.0.0.1:4000/api/health | grep -q '"storage":"disk"'
+          docker compose -f docker-compose.lite.yml down -v

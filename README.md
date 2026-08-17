@@ -6,7 +6,7 @@
 
 **Open source projects, tasks and pages. Offline-first, self-hosted, MCP-native.**
 
-One container. One volume. `docker compose up -d`.
+`docker compose up -d` — app, object storage and mail, wired and configured.
 
 </div>
 
@@ -18,9 +18,9 @@ around three convictions:
 1. **The interface should never wait for the network.** Every screen reads from a local copy of
    the workspace, so it is instant on a train, on a plane and on hotel wifi. Changes queue up and
    merge field by field when you come back.
-2. **Self-hosting should be boring.** One Node process and a SQLite file you can copy — no
-   Postgres, no Redis, no worker queue. Object storage and email are there when you need them,
-   and off when you don't.
+2. **Self-hosting should be boring.** One command brings up a complete, self-configuring stack;
+   the app itself is one Node process and a SQLite file you can copy — no Postgres, no Redis, no
+   worker queue. Strip it down to a single container when that is all you want.
 3. **An assistant is a first-class user.** Kolibri speaks the Model Context Protocol natively, so
    an AI can read the backlog, file issues, move them through the workflow and write documentation
    with exactly the permissions you grant it.
@@ -50,19 +50,49 @@ around three convictions:
 | **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field, Server-Sent-Events live updates, installable PWA |
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
 | **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 19 tools, 3 prompts and page resources |
+| **Deployment** | One command brings up app + object store + mail, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS |
 
 ## Quick start
 
 ```bash
 git clone https://github.com/LucaFrankfurt/AIfirstPMO.git kolibri
 cd kolibri
-cp .env.example .env          # optional — everything has defaults
 docker compose up -d --build
 open http://localhost:4000
 ```
 
-The first account you create owns the instance. Set `KOLIBRI_ALLOW_SIGNUP=false` afterwards and
-invite the rest of the team from **Settings → Members**.
+That is the whole installation. It brings up the app, an S3-compatible object store for uploads
+and a mail inbox, **already wired to each other** — the bucket is created on first boot, mail is
+delivered, and nothing has to be configured afterwards.
+
+| | |
+|---|---|
+| App | <http://localhost:4000> |
+| Mail inbox | <http://localhost:8025> — every notification lands here until you point `KOLIBRI_SMTP_URL` at a real relay |
+| Object store console | <http://localhost:9001> — login is `KOLIBRI_S3_ACCESS_KEY` / `KOLIBRI_S3_SECRET_KEY` |
+
+Both admin interfaces are bound to `127.0.0.1`; only the app itself is published.
+
+To skip the browser step that claims the instance, set the owner in `.env` before the first start
+— the account then exists the moment the stack is up:
+
+```bash
+cp .env.example .env
+# KOLIBRI_ADMIN_EMAIL=you@example.com
+# KOLIBRI_ADMIN_PASSWORD=something long
+# KOLIBRI_SEED_DEMO=true      ← optional demo workspace to look around in
+docker compose up -d --build
+```
+
+Otherwise the first account you create in the browser owns the instance. Either way, set
+`KOLIBRI_ALLOW_SIGNUP=false` afterwards and invite the rest of the team from **Settings → Members**.
+
+**Variants**
+
+```bash
+docker compose -f docker-compose.lite.yml up -d --build   # single container, uploads on the volume
+docker compose --profile tls up -d                        # + Caddy, automatic HTTPS for KOLIBRI_DOMAIN
+```
 
 ### Without Docker
 

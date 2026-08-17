@@ -45,6 +45,12 @@ const storage = {
     // MinIO and Ceph address buckets by path; AWS and R2 by subdomain.
     forcePathStyle: bool(process.env.KOLIBRI_S3_PATH_STYLE, true),
   },
+  /**
+   * The endpoint a browser can reach, when it differs from the one the server
+   * uses (`http://minio:9000` inside a compose network is not resolvable from
+   * a laptop). Pre-signed URLs are signed for this host.
+   */
+  publicEndpoint: process.env.KOLIBRI_S3_PUBLIC_ENDPOINT ?? '',
   /** Serve downloads via a short-lived pre-signed URL instead of proxying bytes. */
   presign: bool(process.env.KOLIBRI_S3_PRESIGN, true),
   presignSeconds: int(process.env.KOLIBRI_S3_PRESIGN_SECONDS, 300),
@@ -72,6 +78,17 @@ const mail = {
   maxAttempts: int(process.env.KOLIBRI_MAIL_MAX_ATTEMPTS, 6),
 };
 
+/**
+ * Optional first-run provisioning, so an automated deployment comes up ready
+ * to use instead of waiting for a human to claim the instance in a browser.
+ */
+const admin = {
+  email: process.env.KOLIBRI_ADMIN_EMAIL ?? '',
+  password: process.env.KOLIBRI_ADMIN_PASSWORD ?? '',
+  name: process.env.KOLIBRI_ADMIN_NAME ?? 'Owner',
+  workspace: process.env.KOLIBRI_WORKSPACE_NAME ?? 'Kolibri',
+};
+
 export const env = {
   port: int(process.env.PORT, 4000),
   host: process.env.HOST ?? '0.0.0.0',
@@ -90,6 +107,9 @@ export const env = {
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,
+  admin,
+  /** Fill an empty database with the demo workspace on first start. */
+  seedDemo: bool(process.env.KOLIBRI_SEED_DEMO, false),
   /** Mail is configured; without a host nothing is ever sent. */
   get mailEnabled(): boolean {
     return !!mail.host;

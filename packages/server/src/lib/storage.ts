@@ -86,7 +86,11 @@ export async function remove(key: string, kind: StorageKind = activeKind): Promi
  */
 export function directUrl(key: string, filename: string, kind: StorageKind = activeKind): string | null {
   if (kind !== 's3' || !env.storage.presign) return null;
-  return s3.presignGet(env.storage.s3, key, env.storage.presignSeconds, new Date(), filename);
+  // Sign for the host the browser will actually connect to.
+  const config = env.storage.publicEndpoint
+    ? { ...env.storage.s3, endpoint: env.storage.publicEndpoint }
+    : env.storage.s3;
+  return s3.presignGet(config, key, env.storage.presignSeconds, new Date(), filename);
 }
 
 export const describe = (): string =>

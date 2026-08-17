@@ -1,0 +1,45 @@
+# Kolibri, single container.
+#
+#   docker compose -f docker-compose.lite.yml up -d --build
+#
+# One process, one volume, no other services: uploads live on the volume and
+# notifications stay in the in-app inbox. This is the smallest thing that runs
+# the product — use the default docker-compose.yml if you want object storage
+# and email wired up as well.
+
+services:
+  kolibri:
+    build: .
+    image: kolibri:local
+    container_name: kolibri
+    restart: unless-stopped
+    ports:
+      - "${KOLIBRI_PORT:-4000}:4000"
+    environment:
+      KOLIBRI_SECRET: "${KOLIBRI_SECRET:-}"
+      KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-http://localhost:4000}"
+      KOLIBRI_ALLOW_SIGNUP: "${KOLIBRI_ALLOW_SIGNUP:-true}"
+      KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
+
+      # Optional first-run provisioning — same as the full stack.
+      KOLIBRI_ADMIN_EMAIL: "${KOLIBRI_ADMIN_EMAIL:-}"
+      KOLIBRI_ADMIN_PASSWORD: "${KOLIBRI_ADMIN_PASSWORD:-}"
+      KOLIBRI_WORKSPACE_NAME: "${KOLIBRI_WORKSPACE_NAME:-Kolibri}"
+      KOLIBRI_SEED_DEMO: "${KOLIBRI_SEED_DEMO:-false}"
+
+      # Point at a real relay to turn email on; empty means in-app only.
+      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-}"
+      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
+
+      TZ: "${TZ:-UTC}"
+    volumes:
+      - kolibri-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  kolibri-data:

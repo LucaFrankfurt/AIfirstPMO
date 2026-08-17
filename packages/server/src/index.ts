@@ -5,7 +5,7 @@ import { close, currentSeq, run } from './db/index.ts';
 import { env } from './env.ts';
 import { authenticate } from './lib/auth.ts';
 import { startMailWorker, stopMailWorker } from './lib/mail.ts';
-import * as storage from './lib/storage.ts';
+import { provision } from './lib/provision.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
@@ -25,8 +25,16 @@ registerFileRoutes(router);
 registerMcpRoutes(router);
 registerEntityRoutes(router);
 
+/**
+ * `ready` turns true once provisioning finished (bucket reachable, owner
+ * account created). The container is "healthy" as soon as it can answer, so a
+ * slow object store shows up here rather than in a restart loop.
+ */
+let ready = false;
+
 router.get('/api/health', () => ({
   status: 'ok',
+  ready,
   seq: currentSeq(),
   uptime: Math.round(process.uptime()),
   storage: env.storage.kind,
@@ -146,20 +154,25 @@ function sweep(): void {
 }
 
 if (process.env.NODE_ENV !== 'test') {
-  // Fail fast on a misconfigured object store rather than on the first upload.
-  storage.init().catch((error) => {
-    log('error', `Storage backend is not usable: ${error instanceof Error ? error.message : error}`);
-    process.exit(1);
-  });
-
   server.listen(env.port, env.host, () => {
     log('info', `Kolibri listening on http://${env.host}:${env.port}`);
     log('info', `Database: ${env.dbFile}`);
-    log('info', `Uploads: ${storage.describe()}`);
-    log('info', env.mailEnabled ? `Mail: ${env.mail.host}:${env.mail.port} as ${env.mail.from}` : 'Mail: disabled (in-app notifications only)');
     if (!existsSync(env.webDir)) log('warn', `Web build not found at ${env.webDir} — run "npm run build"`);
   });
-  startMailWorker();
+
+  // Provisioning runs alongside the server: the object store may still be
+  // starting in the same compose stack, and waiting for it should not make the
+  // container look dead to an orchestrator.
+  provision(log)
+    .then(() => {
+      ready = true;
+      startMailWorker();
+    })
+    .catch(() => {
+      log('error', 'Provisioning failed — exiting so the restart policy can try again');
+      process.exit(1);
+    });
+
   sweep();
   setInterval(sweep, 6 * 3600_000).unref();
 }
