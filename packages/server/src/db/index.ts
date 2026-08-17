@@ -1,0 +1,104 @@
+import { DatabaseSync, type StatementSync } from 'node:sqlite';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { env } from '../env.ts';
+
+const here = dirname(fileURLToPath(import.meta.url));
+
+export type Row = Record<string, any>;
+
+export const db = new DatabaseSync(env.dbFile);
+
+db.exec(`
+  PRAGMA journal_mode = WAL;
+  PRAGMA synchronous = NORMAL;
+  PRAGMA foreign_keys = ON;
+  PRAGMA busy_timeout = 5000;
+  PRAGMA temp_store = MEMORY;
+`);
+
+db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
+
+const stmtCache = new Map<string, StatementSync>();
+
+function prepare(sql: string): StatementSync {
+  let stmt = stmtCache.get(sql);
+  if (!stmt) {
+    stmt = db.prepare(sql);
+    stmtCache.set(sql, stmt);
+  }
+  return stmt;
+}
+
+/** SQLite only speaks null/number/string/bigint/buffer — normalise the rest. */
+type SqlValue = null | number | bigint | string | Uint8Array;
+
+function coerce(value: unknown): SqlValue {
+  if (value === undefined || value === null) return null;
+  if (typeof value === 'boolean') return value ? 1 : 0;
+  if (typeof value === 'object' && !(value instanceof Uint8Array)) return JSON.stringify(value);
+  return value as SqlValue;
+}
+
+const args = (params: unknown[]): SqlValue[] => params.map(coerce);
+
+export const all = <T = Row>(sql: string, ...params: unknown[]): T[] =>
+  prepare(sql).all(...args(params)) as T[];
+
+export const get = <T = Row>(sql: string, ...params: unknown[]): T | undefined =>
+  prepare(sql).get(...args(params)) as T | undefined;
+
+export const run = (sql: string, ...params: unknown[]) => prepare(sql).run(...args(params));
+
+export const pluck = <T = unknown>(sql: string, ...params: unknown[]): T | undefined => {
+  const row = get<Row>(sql, ...params);
+  return row ? (Object.values(row)[0] as T) : undefined;
+};
+
+/** Runs `fn` in a transaction; nested calls join the outer transaction. */
+let depth = 0;
+export function tx<T>(fn: () => T): T {
+  if (depth > 0) return fn();
+  depth++;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const result = fn();
+    db.exec('COMMIT');
+    return result;
+  } catch (err) {
+    try { db.exec('ROLLBACK'); } catch { /* already rolled back */ }
+    throw err;
+  } finally {
+    depth--;
+  }
+}
+
+/**
+ * Global monotonic change counter. Sync cursors are values of this counter, so
+ * "give me everything after X" is a single indexed range scan per table.
+ */
+export function nextSeq(): number {
+  run(`INSERT INTO counters (name, value) VALUES ('seq', 1)
+       ON CONFLICT (name) DO UPDATE SET value = value + 1`);
+  return Number(pluck<number>(`SELECT value FROM counters WHERE name = 'seq'`) ?? 1);
+}
+
+export const currentSeq = (): number => Number(pluck<number>(`SELECT value FROM counters WHERE name = 'seq'`) ?? 0);
+
+/** Idempotent column addition, so upgrades never need a migration runner. */
+export function ensureColumn(table: string, column: string, definition: string): void {
+  const cols = all<{ name: string }>(`PRAGMA table_info(${table})`);
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+export function columnsOf(table: string): string[] {
+  return all<{ name: string }>(`PRAGMA table_info(${table})`).map((c) => c.name);
+}
+
+export function close(): void {
+  try { db.exec('PRAGMA wal_checkpoint(TRUNCATE)'); } catch { /* ignore */ }
+  db.close();
+}

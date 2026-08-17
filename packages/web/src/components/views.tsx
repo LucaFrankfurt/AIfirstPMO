@@ -1,0 +1,394 @@
+import { useMemo, useState } from 'react';
+import type { Filters, Layout, Task } from '@kolibri/shared';
+import { orderKey, PRIORITIES } from '@kolibri/shared';
+import { byId, list, useQuery } from '../lib/store';
+import { byOrder, update } from '../lib/mutations';
+import { GROUP_LABEL, PRIORITY_LABEL, shortDate, today } from '../lib/format';
+import { useMembers } from '../session';
+import { groupTasks, TaskCard, TaskRow, useLabels, useStates, type GroupBy } from './task-parts';
+import { Empty, Icon, MenuButton, StateDot, type MenuItem } from './ui';
+
+export interface ViewConfig {
+  layout: Layout;
+  groupBy: GroupBy;
+  orderBy: 'manual' | 'priority' | 'due_date' | 'created_at' | 'updated_at' | 'title';
+  filters: Filters;
+  showDone: boolean;
+}
+
+export const DEFAULT_VIEW: ViewConfig = {
+  layout: 'list',
+  groupBy: 'state',
+  orderBy: 'manual',
+  filters: {},
+  showDone: true,
+};
+
+const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
+
+/** Apply filters + sorting. Runs against the local cache, so it is instant. */
+export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
+  return useMemo(() => {
+    const { filters } = view;
+    const day = today();
+    const filtered = tasks.filter((task) => {
+      if (task.archived) return false;
+      const state = byId('state', task.state_id);
+      if (!view.showDone && (state?.group_key === 'completed' || state?.group_key === 'cancelled')) return false;
+      if (filters.state?.length && !filters.state.includes(task.state_id)) return false;
+      if (filters.group?.length && !filters.group.includes(state?.group_key as any)) return false;
+      if (filters.priority?.length && !filters.priority.includes(task.priority)) return false;
+      if (filters.project?.length && !filters.project.includes(task.project_id)) return false;
+      if (filters.cycle?.length && !filters.cycle.includes(task.cycle_id ?? '')) return false;
+      if (filters.module?.length && !filters.module.includes(task.module_id ?? '')) return false;
+      if (filters.assignee?.length && !filters.assignee.some((id) => (task.assignees ?? []).includes(id))) return false;
+      if (filters.label?.length && !filters.label.some((id) => (task.labels ?? []).includes(id))) return false;
+      if (filters.due === 'overdue' && !(task.due_date && task.due_date < day)) return false;
+      if (filters.due === 'today' && task.due_date !== day) return false;
+      if (filters.due === 'none' && task.due_date) return false;
+      if (filters.text) {
+        const needle = filters.text.toLowerCase();
+        const haystack = `${task.identifier} ${task.title} ${task.description ?? ''}`.toLowerCase();
+        if (!haystack.includes(needle)) return false;
+      }
+      return true;
+    });
+
+    const sorters: Record<string, (a: Task, b: Task) => number> = {
+      manual: byOrder,
+      priority: (a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority],
+      due_date: (a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999'),
+      created_at: (a, b) => b.created_at - a.created_at,
+      updated_at: (a, b) => b.updated_at - a.updated_at,
+      title: (a, b) => a.title.localeCompare(b.title),
+    };
+    return [...filtered].sort(sorters[view.orderBy] ?? byOrder);
+  }, [tasks, view]);
+}
+
+/* --------------------------------------------------------------- controls */
+
+export function ViewControls({
+  view, onChange, projectId,
+}: { view: ViewConfig; onChange: (next: ViewConfig) => void; projectId?: string }) {
+  const states = useStates(projectId);
+  const labels = useLabels(projectId);
+  const members = useMembers();
+
+  const toggle = <K extends keyof Filters>(key: K, value: string) => {
+    const current = (view.filters[key] as string[] | undefined) ?? [];
+    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+    onChange({ ...view, filters: { ...view.filters, [key]: next.length ? next : undefined } });
+  };
+
+  const filterItems: MenuItem[] = [
+    ...states.map((state) => ({
+      id: `state-${state.id}`,
+      section: 'State',
+      label: state.name,
+      hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
+      icon: <StateDot group={state.group_key} color={state.color} />,
+      onSelect: () => toggle('state', state.id),
+    })),
+    ...PRIORITIES.map((priority) => ({
+      id: `priority-${priority}`,
+      section: 'Priority',
+      label: PRIORITY_LABEL[priority],
+      hint: view.filters.priority?.includes(priority) ? '✓' : undefined,
+      onSelect: () => toggle('priority', priority),
+    })),
+    ...members.map((member) => ({
+      id: `assignee-${member.id}`,
+      section: 'Assignee',
+      label: member.name,
+      hint: view.filters.assignee?.includes(member.id) ? '✓' : undefined,
+      onSelect: () => toggle('assignee', member.id),
+    })),
+    ...labels.map((label) => ({
+      id: `label-${label.id}`,
+      section: 'Label',
+      label: label.name,
+      hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
+      onSelect: () => toggle('label', label.id),
+    })),
+    { id: 'clear', section: 'Reset', label: 'Clear all filters', onSelect: () => onChange({ ...view, filters: {} }) },
+  ];
+
+  const activeFilters = Object.values(view.filters).filter((value) => (Array.isArray(value) ? value.length : !!value)).length;
+
+  return (
+    <div className="row wrap" style={{ gap: 6 }}>
+      <div className="row" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+        {(['list', 'board', 'calendar'] as Layout[]).map((layout) => (
+          <button
+            key={layout}
+            className={`btn ghost sm${view.layout === layout ? ' active' : ''}`}
+            style={view.layout === layout ? { background: 'var(--bg-active)' } : undefined}
+            onClick={() => onChange({ ...view, layout })}
+            title={layout}
+            aria-pressed={view.layout === layout}
+          >
+            <Icon name={layout} size={14} />
+          </button>
+        ))}
+      </div>
+
+      <MenuButton
+        className="btn sm"
+        search
+        items={filterItems}
+      >
+        <Icon name="filter" size={14} />
+        <span className="hide-sm">Filter</span>{activeFilters ? ` ${activeFilters}` : ''}
+      </MenuButton>
+
+      <MenuButton
+        className="btn sm"
+        items={[
+          ...(['state', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as GroupBy[]).map((groupBy) => ({
+            id: groupBy,
+            section: 'Group by',
+            label: groupBy === 'none' ? 'No grouping' : groupBy[0].toUpperCase() + groupBy.slice(1),
+            hint: view.groupBy === groupBy ? '✓' : undefined,
+            onSelect: () => onChange({ ...view, groupBy }),
+          })),
+          ...(['manual', 'priority', 'due_date', 'updated_at', 'title'] as ViewConfig['orderBy'][]).map((orderBy) => ({
+            id: `order-${orderBy}`,
+            section: 'Order by',
+            label: orderBy.replace('_', ' '),
+            hint: view.orderBy === orderBy ? '✓' : undefined,
+            onSelect: () => onChange({ ...view, orderBy }),
+          })),
+          {
+            id: 'done',
+            section: 'Display',
+            label: view.showDone ? 'Hide completed' : 'Show completed',
+            onSelect: () => onChange({ ...view, showDone: !view.showDone }),
+          },
+        ]}
+      >
+        <Icon name="list" size={14} />
+        <span className="hide-sm">Display</span>
+      </MenuButton>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- list */
+
+export function ListView({
+  tasks, view, onOpen, showProject,
+}: { tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; showProject?: boolean }) {
+  const states = useStates(undefined);
+  const labels = useLabels(undefined);
+  const members = useMembers();
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const groups = useMemo(
+    () => groupTasks(tasks, view.groupBy, { states, members, labels }).filter((group) => group.tasks.length),
+    [tasks, view.groupBy, states, members, labels],
+  );
+
+  if (!tasks.length) return <Empty emoji="🗒️" title="Nothing here yet" hint="Create a task to get started — it works offline too." />;
+
+  return (
+    <div>
+      {groups.map((group) => (
+        <section key={group.id}>
+          <button
+            className="task-group"
+            style={{ width: '100%', border: 'none', cursor: 'pointer' }}
+            onClick={() => setCollapsed((current) => ({ ...current, [group.id]: !current[group.id] }))}
+          >
+            <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />
+            {group.color && <StateDot group={group.group} color={group.color} size={10} />}
+            <span>{group.title}</span>
+            <span className="count">{group.tasks.length}</span>
+          </button>
+          {!collapsed[group.id] && group.tasks.map((task) => (
+            <TaskRow key={task.id} task={task} onOpen={onOpen} showProject={showProject} />
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ board */
+
+export function BoardView({
+  tasks, view, onOpen, projectId,
+}: { tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; projectId?: string }) {
+  const states = useStates(projectId);
+  const labels = useLabels(projectId);
+  const members = useMembers();
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overColumn, setOverColumn] = useState<string | null>(null);
+
+  const groups = useMemo(
+    () => groupTasks(tasks, view.groupBy === 'none' ? 'state' : view.groupBy, { states, members, labels }),
+    [tasks, view.groupBy, states, members, labels],
+  );
+
+  /** Dropping on a column both reorders and rewrites the grouped-by field. */
+  const drop = (groupId: string) => {
+    const task = dragId ? byId('task', dragId) : undefined;
+    setDragId(null);
+    setOverColumn(null);
+    if (!task) return;
+    const column = groups.find((group) => group.id === groupId);
+    const last = column?.tasks.filter((t) => t.id !== task.id).slice(-1)[0];
+    const patch: Record<string, unknown> = { sort_order: orderKey(last?.sort_order ?? null, null) };
+    if (view.groupBy === 'state' || view.groupBy === 'none') patch.state_id = groupId;
+    if (view.groupBy === 'priority') patch.priority = groupId;
+    if (view.groupBy === 'cycle') patch.cycle_id = groupId === 'none' ? null : groupId;
+    if (view.groupBy === 'assignee') patch.assignees = groupId === 'none' ? [] : [groupId];
+    update('task', task.id, patch);
+  };
+
+  return (
+    <div className="board">
+      {groups.map((group) => (
+        <div
+          key={group.id}
+          className={`board-column${overColumn === group.id ? ' drop-target' : ''}`}
+          onDragOver={(event) => {
+            event.preventDefault();
+            setOverColumn(group.id);
+          }}
+          onDragLeave={() => setOverColumn((current) => (current === group.id ? null : current))}
+          onDrop={(event) => {
+            event.preventDefault();
+            drop(group.id);
+          }}
+        >
+          <header>
+            {group.color && <StateDot group={group.group} color={group.color} size={10} />}
+            <span className="grow truncate">{group.title}</span>
+            <span className="muted">{group.tasks.length}</span>
+          </header>
+          <div className="items">
+            {group.tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                onOpen={onOpen}
+                dragging={dragId === task.id}
+                onDragStart={(event) => {
+                  setDragId(task.id);
+                  event.dataTransfer.effectAllowed = 'move';
+                  event.dataTransfer.setData('text/plain', task.id);
+                }}
+              />
+            ))}
+            {!group.tasks.length && <span className="muted" style={{ fontSize: 12, padding: '6px 2px' }}>Empty</span>}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* --------------------------------------------------------------- calendar */
+
+export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: Task) => void }) {
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  const days = useMemo(() => {
+    const first = new Date(month);
+    const offset = (first.getDay() + 6) % 7; // weeks start on Monday
+    const start = new Date(first);
+    start.setDate(first.getDate() - offset);
+    return Array.from({ length: 42 }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      return date;
+    });
+  }, [month]);
+
+  const byDate = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    for (const task of tasks) {
+      if (!task.due_date) continue;
+      const bucket = map.get(task.due_date) ?? [];
+      bucket.push(task);
+      map.set(task.due_date, bucket);
+    }
+    return map;
+  }, [tasks]);
+
+  const iso = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const shift = (delta: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + delta, 1));
+
+  return (
+    <div style={{ padding: 12 }}>
+      <div className="row" style={{ marginBottom: 10 }}>
+        <button className="btn ghost icon" onClick={() => shift(-1)} aria-label="Previous month"><Icon name="chevronLeft" /></button>
+        <strong>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong>
+        <button className="btn ghost icon" onClick={() => shift(1)} aria-label="Next month"><Icon name="chevronRight" /></button>
+        <span className="grow" />
+        <button className="btn sm" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
+      </div>
+      <div className="calendar">
+        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((weekday) => (
+          <div className="weekday" key={weekday}>{weekday}</div>
+        ))}
+        {days.map((date) => {
+          const key = iso(date);
+          const items = byDate.get(key) ?? [];
+          return (
+            <div
+              key={key}
+              className={`day${date.getMonth() !== month.getMonth() ? ' other' : ''}${key === today() ? ' today' : ''}`}
+            >
+              <span className="num">{date.getDate()}</span>
+              {items.slice(0, 4).map((task) => (
+                <span key={task.id} className="pill" onClick={() => onOpen(task)} title={task.title}>
+                  {task.title}
+                </span>
+              ))}
+              {items.length > 4 && <span className="muted" style={{ fontSize: 10 }}>+{items.length - 4}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- dispatcher */
+
+export function TaskViews(props: {
+  tasks: Task[];
+  view: ViewConfig;
+  onOpen: (task: Task) => void;
+  projectId?: string;
+  showProject?: boolean;
+}) {
+  if (props.view.layout === 'board') return <BoardView {...props} />;
+  if (props.view.layout === 'calendar') return <CalendarView tasks={props.tasks} onOpen={props.onOpen} />;
+  return <ListView {...props} />;
+}
+
+/** Small helper used by cycle pages. */
+export function CycleProgress({ cycleId }: { cycleId: string }) {
+  const tasks = useQuery(() => list('task', (t) => t.cycle_id === cycleId), [cycleId]);
+  const done = tasks.filter((task) => {
+    const group = byId('state', task.state_id)?.group_key;
+    return group === 'completed' || group === 'cancelled';
+  }).length;
+  const cycle = byId('cycle', cycleId);
+  return (
+    <div className="col" style={{ gap: 6 }}>
+      <div className="row" style={{ fontSize: 12.5 }}>
+        <span className="grow truncate">{cycle?.name}</span>
+        <span className="muted">{done}/{tasks.length}</span>
+      </div>
+      <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
+      {cycle?.end_date && <span className="muted" style={{ fontSize: 11.5 }}>Ends {shortDate(cycle.end_date)}</span>}
+    </div>
+  );
+}

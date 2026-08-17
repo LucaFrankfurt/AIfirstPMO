@@ -1,0 +1,252 @@
+import { ENTITIES, type EntityName } from '@kolibri/shared';
+import { all, get, type Row } from '../db/index.ts';
+import { hasRole, requireAuth, requireWorkspace } from '../lib/auth.ts';
+import { serverClock, createProject } from '../lib/bootstrap.ts';
+import { badRequest, flag, forbidden, notFound, readJson, type Ctx, type Router } from '../lib/http.ts';
+import { uid } from '../lib/ids.ts';
+import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
+
+/** URL segment -> entity. Everything the sync engine knows is also plain REST. */
+export const REST_ENTITIES: Record<string, EntityName> = {
+  teams: 'team',
+  'team-members': 'teamMember',
+  projects: 'project',
+  'project-members': 'projectMember',
+  states: 'state',
+  labels: 'label',
+  tasks: 'task',
+  relations: 'relation',
+  cycles: 'cycle',
+  modules: 'module',
+  pages: 'page',
+  comments: 'comment',
+  attachments: 'attachment',
+  views: 'view',
+  notifications: 'notification',
+};
+
+const resolve = (segment: string): EntityName => {
+  const entity = REST_ENTITIES[segment];
+  if (!entity) throw notFound(`Unknown collection ${segment}`);
+  return entity;
+};
+
+const workspaceOf = (entity: EntityName, id: string): Row => {
+  const row = get<Row>(`SELECT * FROM ${ENTITIES[entity].table} WHERE id = ?`, id);
+  if (!row) throw notFound(`${entity} not found`);
+  return row;
+};
+
+/** A project row guards itself; everything else guards through its project. */
+const projectOf = (entity: EntityName, row: Row): string | null =>
+  (entity === 'project' ? row.id : row.project_id) ?? null;
+
+function guardProject(userId: string, entity: EntityName, row: Row): void {
+  if (!canSeeProject(userId, projectOf(entity, row))) throw forbidden('Project is private');
+}
+
+export function registerEntityRoutes(router: Router): void {
+  /** List: `/api/workspaces/:ws/tasks?project_id=…&state_id=…&limit=100`. */
+  router.get('/api/workspaces/:ws/:collection', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws);
+    const entity = resolve(ctx.params.collection);
+    const def = ENTITIES[entity];
+    const filters: string[] = [`workspace_id = ?`];
+    const params: unknown[] = [ctx.params.ws];
+
+    for (const field of def.fields) {
+      const value = ctx.query.get(field);
+      if (value === null) continue;
+      if (value === 'null') filters.push(`${field} IS NULL`);
+      else {
+        filters.push(`${field} = ?`);
+        params.push(value);
+      }
+    }
+    if (!flag(ctx.query, 'include_deleted')) filters.push('deleted_at IS NULL');
+    if (entity === 'notification') {
+      filters.push('user_id = ?');
+      params.push(auth.userId);
+    }
+
+    const limit = Math.min(Number(ctx.query.get('limit') ?? 200) || 200, 1000);
+    const offset = Math.max(Number(ctx.query.get('offset') ?? 0) || 0, 0);
+    const sortable = new Set([...def.fields, 'created_at', 'updated_at', 'seq']);
+    const orderField = ctx.query.get('order_by') ?? 'created_at';
+    const order = sortable.has(orderField) ? orderField : 'created_at';
+    const direction = (ctx.query.get('order') ?? 'asc').toLowerCase() === 'desc' ? 'DESC' : 'ASC';
+
+    const rows = all<Row>(
+      `SELECT * FROM ${def.table} WHERE ${filters.join(' AND ')} ORDER BY ${order} ${direction} LIMIT ? OFFSET ?`,
+      ...params, limit, offset,
+    );
+    return rows
+      .filter((row) => canSeeProject(auth.userId, projectOf(entity, row)))
+      .map((row) => serialize(entity, row));
+  });
+
+  /** Create. Projects get their default states/labels for free. */
+  router.post('/api/workspaces/:ws/:collection', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const role = requireWorkspace(ctx, ctx.params.ws, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    if (!hasRole(role, 'member')) throw forbidden('Guests cannot create content');
+    const entity = resolve(ctx.params.collection);
+    const body = await readJson<Record<string, unknown>>(ctx);
+
+    if (entity === 'project') {
+      const project = createProject(ctx.params.ws, auth.userId, {
+        name: String(body.name ?? 'Untitled project'),
+        key: body.key as string | undefined,
+        description: body.description as string | undefined,
+        teamId: (body.team_id as string) ?? null,
+        icon: body.icon as string | undefined,
+        color: body.color as string | undefined,
+        visibility: body.visibility === 'private' ? 'private' : 'public',
+      });
+      return serialize('project', project);
+    }
+
+    const id = typeof body.id === 'string' ? body.id : uid();
+    const { row } = writeEntity(entity, id, { ...body, workspace_id: ctx.params.ws }, {
+      workspaceId: ctx.params.ws,
+      actorId: auth.userId,
+      hlc: serverClock.now(),
+    });
+    return serialize(entity, row);
+  });
+
+  router.get('/api/:collection/:id', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const entity = resolve(ctx.params.collection);
+    const row = workspaceOf(entity, ctx.params.id);
+    requireWorkspace(ctx, row.workspace_id);
+    guardProject(auth.userId, entity, row);
+    if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
+    return serialize(entity, row);
+  });
+
+  router.patch('/api/:collection/:id', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const entity = resolve(ctx.params.collection);
+    const row = workspaceOf(entity, ctx.params.id);
+    const role = requireWorkspace(ctx, row.workspace_id, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    if (!hasRole(role, 'member')) throw forbidden('Guests cannot edit content');
+    guardProject(auth.userId, entity, row);
+    if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
+    const body = await readJson<Record<string, unknown>>(ctx);
+    const { row: updated } = writeEntity(entity, ctx.params.id, body, {
+      workspaceId: row.workspace_id,
+      actorId: auth.userId,
+      hlc: serverClock.now(),
+    });
+    return serialize(entity, updated);
+  });
+
+  router.delete('/api/:collection/:id', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const entity = resolve(ctx.params.collection);
+    const row = workspaceOf(entity, ctx.params.id);
+    requireWorkspace(ctx, row.workspace_id, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    guardProject(auth.userId, entity, row);
+    deleteEntity(entity, ctx.params.id, {
+      workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
+    });
+    return { ok: true };
+  });
+
+  /* --------------------------------------------------- task extras */
+
+  router.get('/api/tasks/:id/activity', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const task = workspaceOf('task', ctx.params.id);
+    requireWorkspace(ctx, task.workspace_id);
+    guardProject(auth.userId, 'task', task);
+    return all<Row>(
+      `SELECT * FROM activities WHERE task_id = ? ORDER BY created_at DESC LIMIT 200`,
+      ctx.params.id,
+    ).map((row) => serialize('activity', row));
+  });
+
+  router.get('/api/tasks/:id/children', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const task = workspaceOf('task', ctx.params.id);
+    requireWorkspace(ctx, task.workspace_id);
+    guardProject(auth.userId, 'task', task);
+    return all<Row>(`SELECT * FROM tasks WHERE parent_id = ? AND deleted_at IS NULL ORDER BY sort_order`, ctx.params.id)
+      .map((row) => serialize('task', row));
+  });
+
+  /** Look a task up the way humans refer to it: `KOL-42`. */
+  router.get('/api/workspaces/:ws/by-identifier/:identifier', (ctx: Ctx) => {
+    requireWorkspace(ctx, ctx.params.ws);
+    const row = get<Row>(
+      `SELECT * FROM tasks WHERE workspace_id = ? AND identifier = ? AND deleted_at IS NULL`,
+      ctx.params.ws, ctx.params.identifier.toUpperCase(),
+    );
+    if (!row) throw notFound(`No task ${ctx.params.identifier}`);
+    guardProject(requireAuth(ctx).userId, 'task', row);
+    return serialize('task', row);
+  });
+
+  /* --------------------------------------------------- page history */
+
+  router.get('/api/pages/:id/versions', (ctx: Ctx) => {
+    const page = workspaceOf('page', ctx.params.id);
+    requireWorkspace(ctx, page.workspace_id);
+    return all<Row>(
+      `SELECT id, title, author_id, created_at, length(content) AS size FROM page_versions
+        WHERE page_id = ? ORDER BY created_at DESC LIMIT 100`,
+      ctx.params.id,
+    );
+  });
+
+  router.get('/api/pages/:id/versions/:versionId', (ctx: Ctx) => {
+    const page = workspaceOf('page', ctx.params.id);
+    requireWorkspace(ctx, page.workspace_id);
+    const version = get<Row>(`SELECT * FROM page_versions WHERE id = ? AND page_id = ?`, ctx.params.versionId, ctx.params.id);
+    if (!version) throw notFound('Version not found');
+    return version;
+  });
+
+  router.post('/api/pages/:id/versions', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const page = workspaceOf('page', ctx.params.id);
+    requireWorkspace(ctx, page.workspace_id, 'member');
+    const body = await readJson<{ restore?: string }>(ctx);
+    if (body.restore) {
+      const version = get<Row>(`SELECT * FROM page_versions WHERE id = ? AND page_id = ?`, body.restore, ctx.params.id);
+      if (!version) throw notFound('Version not found');
+      const { row } = writeEntity('page', ctx.params.id, { content: version.content, title: version.title }, {
+        workspaceId: page.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
+      });
+      return serialize('page', row);
+    }
+    throw badRequest('Pass { restore: versionId } to restore a version');
+  });
+
+  /* --------------------------------------------------- bulk helpers */
+
+  /** One round trip for "move these five tasks to In Progress". */
+  router.post('/api/workspaces/:ws/tasks/bulk', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'member');
+    const body = await readJson<{ ids?: string[]; patch?: Record<string, unknown>; op?: 'update' | 'delete' }>(ctx);
+    if (!Array.isArray(body.ids) || !body.ids.length) throw badRequest('ids is required');
+    if (body.ids.length > 500) throw badRequest('Too many ids (max 500)');
+    const updated: Row[] = [];
+    for (const id of body.ids) {
+      const task = get<Row>(`SELECT * FROM tasks WHERE id = ? AND workspace_id = ?`, id, ctx.params.ws);
+      if (!task) continue;
+      const { row } = writeEntity('task', id, body.op === 'delete' ? {} : body.patch ?? {}, {
+        workspaceId: ctx.params.ws, actorId: auth.userId, hlc: serverClock.now(),
+        op: body.op === 'delete' ? 'delete' : 'upsert',
+      });
+      updated.push(serialize('task', row)!);
+    }
+    return { updated: updated.length, tasks: updated };
+  });
+}

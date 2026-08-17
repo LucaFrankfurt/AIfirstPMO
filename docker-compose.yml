@@ -1,0 +1,50 @@
+# Kolibri — `docker compose up -d` and you are done.
+#
+# Everything (app, database, uploads, search index) lives in one container and
+# one volume. Put a reverse proxy in front of it for TLS; see the commented
+# Caddy service at the bottom for a one-line HTTPS setup.
+
+services:
+  kolibri:
+    build: .
+    image: ghcr.io/kolibri/kolibri:latest
+    container_name: kolibri
+    restart: unless-stopped
+    ports:
+      - "${KOLIBRI_PORT:-4000}:4000"
+    environment:
+      # Keep this stable: it signs sessions and API tokens. Generated on first
+      # start and persisted in the volume if you leave it empty.
+      KOLIBRI_SECRET: "${KOLIBRI_SECRET:-}"
+      KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-http://localhost:4000}"
+      KOLIBRI_ALLOW_SIGNUP: "${KOLIBRI_ALLOW_SIGNUP:-true}"
+      KOLIBRI_MAX_UPLOAD_MB: "${KOLIBRI_MAX_UPLOAD_MB:-25}"
+      KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-60}"
+      KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
+      TZ: "${TZ:-UTC}"
+    volumes:
+      - kolibri-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  kolibri-data:
+
+# --- HTTPS in front of it -----------------------------------------------
+#
+#  caddy:
+#    image: caddy:2-alpine
+#    restart: unless-stopped
+#    ports: ["80:80", "443:443"]
+#    command: caddy reverse-proxy --from kolibri.example.com --to kolibri:4000
+#    volumes:
+#      - caddy-data:/data
+#    depends_on: [kolibri]
+#
+#  Add `caddy-data:` to the volumes block above, set
+#  KOLIBRI_PUBLIC_URL=https://kolibri.example.com, and drop the port mapping
+#  on the kolibri service so only Caddy is exposed.

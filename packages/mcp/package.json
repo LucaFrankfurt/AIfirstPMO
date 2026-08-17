@@ -1,0 +1,17 @@
+{
+  "name": "@kolibri/mcp",
+  "version": "0.1.0",
+  "description": "stdio MCP bridge for a Kolibri instance",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "kolibri-mcp": "src/index.ts"
+  },
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "node src/index.ts"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}

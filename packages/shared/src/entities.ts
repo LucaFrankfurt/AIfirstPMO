@@ -1,0 +1,159 @@
+/**
+ * The single source of truth for everything that syncs.
+ *
+ * Server and client both derive their storage, validation and merge rules from
+ * this registry, so adding a field is a one-line change in one place.
+ */
+
+export type EntityName =
+  | 'user'
+  | 'member'
+  | 'team'
+  | 'teamMember'
+  | 'project'
+  | 'projectMember'
+  | 'state'
+  | 'label'
+  | 'task'
+  | 'relation'
+  | 'cycle'
+  | 'module'
+  | 'page'
+  | 'comment'
+  | 'attachment'
+  | 'view'
+  | 'notification'
+  | 'activity';
+
+export interface EntityDef {
+  /** SQL table name. */
+  table: string;
+  /** Mutable fields that participate in last-writer-wins merging. */
+  fields: readonly string[];
+  /** Fields only the server may write. Clients that try are ignored. */
+  serverOnly?: readonly string[];
+  /** Entity rows are never created or edited by clients. */
+  readOnly?: boolean;
+  /** Rows belong to a single user and are not shared with the workspace. */
+  private?: boolean;
+  /** Columns holding JSON-encoded values. */
+  json?: readonly string[];
+}
+
+export const ENTITIES = {
+  user: {
+    table: 'users',
+    fields: ['name', 'email', 'avatar_url', 'timezone', 'bio'],
+    readOnly: true,
+  },
+  member: {
+    table: 'workspace_members',
+    fields: ['workspace_id', 'user_id', 'role'],
+    readOnly: true,
+  },
+  team: {
+    table: 'teams',
+    fields: ['workspace_id', 'name', 'key', 'description', 'icon', 'color', 'archived'],
+  },
+  teamMember: {
+    table: 'team_members',
+    fields: ['workspace_id', 'team_id', 'user_id', 'role'],
+  },
+  project: {
+    table: 'projects',
+    fields: [
+      'workspace_id', 'team_id', 'name', 'key', 'description', 'icon', 'color',
+      'lead_id', 'start_date', 'target_date', 'status', 'visibility', 'archived',
+      'default_state_id', 'sort_order',
+    ],
+  },
+  projectMember: {
+    table: 'project_members',
+    fields: ['workspace_id', 'project_id', 'user_id', 'role'],
+  },
+  state: {
+    table: 'states',
+    fields: ['workspace_id', 'project_id', 'name', 'group_key', 'color', 'sort_order'],
+  },
+  label: {
+    table: 'labels',
+    fields: ['workspace_id', 'project_id', 'name', 'color', 'description'],
+  },
+  task: {
+    table: 'tasks',
+    fields: [
+      'workspace_id', 'project_id', 'title', 'description', 'state_id', 'priority',
+      'assignees', 'labels', 'parent_id', 'cycle_id', 'module_id', 'estimate',
+      'start_date', 'due_date', 'sort_order', 'completed_at', 'archived', 'created_by',
+      'subscribers',
+    ],
+    serverOnly: ['number', 'identifier'],
+    json: ['assignees', 'labels', 'subscribers'],
+  },
+  relation: {
+    table: 'task_relations',
+    fields: ['workspace_id', 'task_id', 'related_task_id', 'kind'],
+  },
+  cycle: {
+    table: 'cycles',
+    fields: ['workspace_id', 'project_id', 'name', 'description', 'start_date', 'end_date', 'status'],
+  },
+  module: {
+    table: 'modules',
+    fields: [
+      'workspace_id', 'project_id', 'name', 'description', 'lead_id',
+      'start_date', 'target_date', 'status', 'sort_order',
+    ],
+  },
+  page: {
+    table: 'pages',
+    fields: [
+      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content',
+      'sort_order', 'archived', 'access', 'created_by', 'cover_url',
+    ],
+  },
+  comment: {
+    table: 'comments',
+    fields: ['workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'reactions'],
+    json: ['reactions'],
+  },
+  attachment: {
+    table: 'attachments',
+    fields: [
+      'workspace_id', 'task_id', 'page_id', 'comment_id', 'name', 'mime', 'size',
+      'url', 'thumb_url', 'width', 'height', 'uploaded_by',
+    ],
+  },
+  view: {
+    table: 'views',
+    fields: [
+      'workspace_id', 'project_id', 'team_id', 'name', 'icon', 'layout',
+      'filters', 'group_by', 'order_by', 'shared', 'owner_id', 'sort_order',
+    ],
+    json: ['filters'],
+  },
+  notification: {
+    table: 'notifications',
+    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id', 'read_at', 'archived_at'],
+    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id'],
+    private: true,
+  },
+  activity: {
+    table: 'activities',
+    fields: ['workspace_id', 'project_id', 'task_id', 'page_id', 'actor_id', 'verb', 'field', 'old_value', 'new_value'],
+    readOnly: true,
+  },
+} as const satisfies Record<EntityName, EntityDef>;
+
+export const ENTITY_NAMES = Object.keys(ENTITIES) as EntityName[];
+
+/** Columns present on every syncable table. */
+export const SYSTEM_FIELDS = ['id', 'created_at', 'updated_at', 'deleted_at', 'seq', 'clocks'] as const;
+
+export function entityDef(name: string): EntityDef | undefined {
+  return (ENTITIES as Record<string, EntityDef>)[name];
+}
+
+export function tableFor(name: EntityName): string {
+  return ENTITIES[name].table;
+}

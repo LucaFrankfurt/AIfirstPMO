@@ -1,0 +1,21 @@
+{
+  "name": "Kolibri",
+  "short_name": "Kolibri",
+  "description": "Open source projects, tasks and pages. Works offline.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "categories": ["productivity", "business"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "My work", "url": "/my-work" },
+    { "name": "Inbox", "url": "/inbox" },
+    { "name": "Search", "url": "/search" }
+  ]
+}
