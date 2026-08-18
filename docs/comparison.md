@@ -58,12 +58,12 @@ images, attachments, full-text search across pages and tasks.
 ## Against Plane
 
 The closest of the three. Kolibri has cycles, modules, board/list/calendar,
-labels, per-project workflow states, estimates, sub-tasks, relations, pages —
-and templates with rules, which Plane does not have in this form.
+saved views, labels, per-project workflow states, estimates, sub-tasks,
+relations, pages — and templates with rules, which Plane does not have in this
+form.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Saved views with an interface** | High | The `view` entity syncs, the seed creates one, the server serves them; there is no screen to save or load one. The largest gap between the data model and what you can click |
 | **Table and Gantt layouts** | High | `LAYOUTS` declares five; three are built |
 | **Analytics** — burn-down/up, throughput, cycle time | High | |
 | **Import** from Jira / CSV / GitHub | High | The single biggest adoption blocker: nobody migrates without it |
@@ -122,7 +122,7 @@ Ordered by value per unit of work, not by size.
 
 | # | What | Why now | Effort |
 |---|---|---|---|
-| 1 | Saved views (interface) | Data and sync are finished; only the screen is missing | small |
+| ~~1~~ | ~~Saved views (interface)~~ | **Done** — save, load, share, rename, delete | |
 | 2 | Page comments + mentions in pages | Makes the wiki collaborative rather than a read-only shelf; the data model is already there | small–medium |
 | ~~3~~ | ~~Rate limiting + CSP~~ | **Done** — see `lib/ratelimit.ts` and `lib/csp.ts` | |
 | 4 | Multi-select and the table layout | Everyday work; the bulk API already exists | medium |

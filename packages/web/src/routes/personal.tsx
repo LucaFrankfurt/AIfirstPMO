@@ -51,7 +51,7 @@ export function MyWork() {
   return (
     <>
       <Header title={t('myWork.title')}>
-        <ViewControls view={view} onChange={setView} />
+        <ViewControls view={view} onChange={setView} saveable />
       </Header>
       <div className="page">
         <SetupChecklist />

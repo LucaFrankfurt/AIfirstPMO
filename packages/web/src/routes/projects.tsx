@@ -196,7 +196,7 @@ export function ProjectPage() {
   return (
     <>
       <Header title={<span className="row" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
-        {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} />}
+        {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
         <button className="btn primary sm" onClick={() => setAdding(true)}>
           <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
         </button>

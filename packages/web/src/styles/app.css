@@ -326,6 +326,18 @@ p { margin: 0 0 0.75em; }
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .field label { font-size: 12.5px; font-weight: 550; color: var(--fg-soft); }
 .field .hint { font-size: 12px; color: var(--fg-muted); }
+.hint.warn { color: var(--danger); }
+
+/* A checkbox with a label and a line of explanation under it. */
+.check-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
+.check-row input { margin-top: 2px; flex: none; }
+.check-row .hint { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
+
+/* Marks a saved view that has been changed since it was saved. */
+.dot-modified {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent); flex: none; margin-left: 1px;
+}
 
 .chip {
   display: inline-flex;
@@ -1214,9 +1226,6 @@ p { margin: 0 0 0.75em; }
 .auto-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
   color: var(--fg-muted); margin: 18px 0 8px; }
 
-.auto-toggle { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
-.auto-toggle input { margin-top: 2px; flex: none; }
-.auto-toggle .hint { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
 
 .auto-run { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid var(--line); }
 .auto-run:first-of-type { border-top: none; }

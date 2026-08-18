@@ -368,6 +368,7 @@ CREATE TABLE IF NOT EXISTS views (
   filters      TEXT NOT NULL DEFAULT '{}',
   group_by     TEXT NOT NULL DEFAULT 'state',
   order_by     TEXT NOT NULL DEFAULT 'manual',
+  show_done    INTEGER NOT NULL DEFAULT 1,
   shared       INTEGER NOT NULL DEFAULT 1,
   owner_id     TEXT,
   sort_order   TEXT NOT NULL DEFAULT 'V',

@@ -215,6 +215,38 @@ describe('kolibri api', () => {
     assert.equal(versions[0].title, 'Runbook');
   });
 
+  it('stores a saved view with every part of what it shows', async () => {
+    // `show_done` was added after the first release. A column missing from the
+    // entity registry is not an error anywhere — it is simply dropped on the
+    // way in — so the interesting assertion is that it comes back at all.
+    const view = await api(`/api/workspaces/${workspaceId}/views`, {
+      body: {
+        project_id: projectId,
+        name: 'Mine, unfinished',
+        layout: 'board',
+        group_by: 'assignee',
+        order_by: 'due_date',
+        filters: { priority: ['urgent'] },
+        show_done: 0,
+        shared: 0,
+      },
+    });
+
+    const [stored] = await api(`/api/workspaces/${workspaceId}/views`);
+    assert.equal(stored.id, view.id);
+    assert.equal(stored.show_done, 0, 'the column survived the registry');
+    assert.equal(stored.shared, 0);
+    assert.equal(stored.layout, 'board');
+    assert.deepEqual(stored.filters, { priority: ['urgent'] }, 'filters are JSON, not a string');
+
+    // Saving over a view has to be able to turn a flag back on. A patch that
+    // treats 0 as "unset" would make a hidden-done view impossible to undo.
+    await api(`/api/views/${view.id}`, { method: 'PATCH', body: { show_done: 1, shared: 1 } });
+    const [updated] = await api(`/api/workspaces/${workspaceId}/views`);
+    assert.equal(updated.show_done, 1);
+    assert.equal(updated.shared, 1);
+  });
+
   it('issues API tokens and speaks MCP', async () => {
     const created = await api('/api/tokens', { body: { name: 'mcp', workspaceId } });
     apiToken = created.token;

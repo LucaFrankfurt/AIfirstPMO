@@ -66,9 +66,10 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P2 — the obvious next features
 
-- [ ] **Saved views UI.** The `view` entity syncs, the seed creates one, the server serves them —
-      there is no interface to save the current filter set or load a shared view. This is the
-      largest gap between the data model and what you can actually click.
+- [x] **Saved views UI.** Save the current filter set under a name, from a project or from My work,
+      shared with the team by default. A dot marks a view you have changed since saving. Still open:
+      pinning one as a project's default, and an icon per view (`views.icon` is stored, nothing sets
+      it).
 - [x] **@mentions in comments and descriptions**, with notifications. Handles resolve by first
       name, display name or email address.
 - [x] **Email notifications** — batched per person, per-user preferences, signed one-click

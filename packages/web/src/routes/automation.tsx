@@ -583,7 +583,7 @@ function Toggle({
 }: { label: TranslationKey; hint?: TranslationKey; value: number; onChange: (value: number) => void }) {
   const t = useT();
   return (
-    <label className="auto-toggle">
+    <label className="check-row">
       <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked ? 1 : 0)} />
       <span>
         <span>{t(label)}</span>

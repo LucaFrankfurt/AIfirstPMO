@@ -267,6 +267,9 @@ export interface View extends Base {
   filters: Filters;
   group_by: string;
   order_by: string;
+  /** Whether completed and cancelled tasks are part of the view. */
+  show_done: number;
+  /** 0 keeps it to its owner; 1 offers it to everyone who can see the project. */
   shared: number;
   owner_id: ID;
   sort_order: string;

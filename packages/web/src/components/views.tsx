@@ -8,6 +8,7 @@ import { shortDate, today } from '../lib/format';
 import { useMembers } from '../session';
 import { groupTasks, TaskCard, TaskRow, useLabels, useStates, type GroupBy } from './task-parts';
 import { Empty, Icon, MenuButton, StateDot, type MenuItem } from './ui';
+import { SavedViews } from './saved-views';
 
 export interface ViewConfig {
   layout: Layout;
@@ -89,8 +90,18 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
 /* --------------------------------------------------------------- controls */
 
 export function ViewControls({
-  view, onChange, projectId,
-}: { view: ViewConfig; onChange: (next: ViewConfig) => void; projectId?: string }) {
+  view, onChange, projectId, saveable,
+}: {
+  view: ViewConfig;
+  onChange: (next: ViewConfig) => void;
+  projectId?: string;
+  /**
+   * Offer saved views. Off for a cycle or a module: those screens already show
+   * one slice of the project, and a view saved there would be a filter set that
+   * has nothing to do with the cycle it was saved from.
+   */
+  saveable?: boolean;
+}) {
   const t = useT();
   const states = useStates(projectId);
   const labels = useLabels(projectId);
@@ -139,6 +150,7 @@ export function ViewControls({
 
   return (
     <div className="row wrap" style={{ gap: 6 }}>
+      {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       <div className="row" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
         {(['list', 'board', 'calendar'] as Layout[]).map((layout) => (
           <button

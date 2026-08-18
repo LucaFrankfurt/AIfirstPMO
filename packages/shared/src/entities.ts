@@ -130,7 +130,7 @@ export const ENTITIES = {
     table: 'views',
     fields: [
       'workspace_id', 'project_id', 'team_id', 'name', 'icon', 'layout',
-      'filters', 'group_by', 'order_by', 'shared', 'owner_id', 'sort_order',
+      'filters', 'group_by', 'order_by', 'show_done', 'shared', 'owner_id', 'sort_order',
     ],
     json: ['filters'],
   },
