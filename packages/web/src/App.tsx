@@ -3,14 +3,17 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 're
 import { AppShell } from './components/AppShell';
 import { TaskDetail } from './components/TaskDetail';
 import { Empty, ToastHost } from './components/ui';
+import { WelcomeTour } from './components/tour';
 import { Login } from './routes/Login';
 import { Inbox, More, MyWork, Search } from './routes/personal';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
+import { Help } from './routes/help';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
 import { backgroundOf, useOpenTask } from './lib/navigation';
 import { useSession } from './session';
+import { useI18n, type Locale } from './lib/i18n';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
 function TaskRoute() {
@@ -38,6 +41,7 @@ function Boot() {
 }
 
 export default function App() {
+  const { t, adoptLocale } = useI18n();
   const { ready, session, workspaceId } = useSession();
   const location = useLocation();
   const background = backgroundOf(location);
@@ -47,6 +51,13 @@ export default function App() {
       navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }
   }, []);
+
+  // A device that has never been told otherwise follows the account's language,
+  // so signing in on a new phone does not land in the wrong one.
+  const accountLocale = session?.user?.locale;
+  useEffect(() => {
+    if (accountLocale) adoptLocale(accountLocale as Locale);
+  }, [accountLocale, adoptLocale]);
 
   if (!ready) return <Boot />;
 
@@ -64,7 +75,7 @@ export default function App() {
   if (!workspaceId) {
     return (
       <ToastHost>
-        <Empty emoji="🏗️" title="No workspace yet" hint="Create one in settings to get started." />
+        <Empty emoji="🏗️" title={t('misc.noWorkspaceTitle')} hint={t('misc.noWorkspaceHint')} />
       </ToastHost>
     );
   }
@@ -87,15 +98,17 @@ export default function App() {
           <Route path="/pages" element={<PagesIndex />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />
+          <Route path="/guide" element={<Help />} />
           <Route path="/settings/*" element={<Settings />} />
           <Route path="/invite/:code" element={<Navigate to="/" replace />} />
           <Route path="/t/:id" element={<MyWork />} />
-          <Route path="*" element={<Empty emoji="🧭" title="Page not found" />} />
+          <Route path="*" element={<Empty emoji="🧭" title={t('misc.pageNotFound')} />} />
         </Routes>
       </AppShell>
       <Routes>
         <Route path="/t/:id" element={<TaskRoute />} />
       </Routes>
+      <WelcomeTour />
     </ToastHost>
   );
 }

@@ -1,26 +1,32 @@
 import { Clock, orderKeys, type StateGroup } from '@kolibri/shared';
 import { get, run, tx, type Row } from '../db/index.ts';
 import { conflict } from './http.ts';
+import { translatorFor, type ServerKey } from './i18n.ts';
 import { keyFromName, slugify, uid } from './ids.ts';
 import { writeEntity } from './repo.ts';
 
 /** Server-side clock used for writes that do not originate from a client. */
 export const serverClock = new Clock('server');
 
-export const DEFAULT_STATES: { name: string; group_key: StateGroup; color: string }[] = [
-  { name: 'Backlog', group_key: 'backlog', color: '#94a3b8' },
-  { name: 'Todo', group_key: 'unstarted', color: '#64748b' },
-  { name: 'In Progress', group_key: 'started', color: '#f59e0b' },
-  { name: 'In Review', group_key: 'started', color: '#8b5cf6' },
-  { name: 'Done', group_key: 'completed', color: '#10b981' },
-  { name: 'Cancelled', group_key: 'cancelled', color: '#ef4444' },
+/**
+ * The workflow every new project starts with. The name is a translation key,
+ * not a string: the first thing somebody sees in a fresh project should not be
+ * in a language their team does not use. They are ordinary rows afterwards.
+ */
+export const DEFAULT_STATES: { name: ServerKey; group_key: StateGroup; color: string }[] = [
+  { name: 'seed.stateBacklog', group_key: 'backlog', color: '#94a3b8' },
+  { name: 'seed.stateTodo', group_key: 'unstarted', color: '#64748b' },
+  { name: 'seed.stateInProgress', group_key: 'started', color: '#f59e0b' },
+  { name: 'seed.stateInReview', group_key: 'started', color: '#8b5cf6' },
+  { name: 'seed.stateDone', group_key: 'completed', color: '#10b981' },
+  { name: 'seed.stateCancelled', group_key: 'cancelled', color: '#ef4444' },
 ];
 
-const DEFAULT_LABELS = [
-  { name: 'bug', color: '#ef4444' },
-  { name: 'feature', color: '#6366f1' },
-  { name: 'improvement', color: '#0ea5e9' },
-  { name: 'documentation', color: '#14b8a6' },
+const DEFAULT_LABELS: { name: ServerKey; color: string }[] = [
+  { name: 'seed.labelBug', color: '#ef4444' },
+  { name: 'seed.labelFeature', color: '#6366f1' },
+  { name: 'seed.labelImprovement', color: '#0ea5e9' },
+  { name: 'seed.labelDocumentation', color: '#14b8a6' },
 ];
 
 export function createWorkspace(name: string, ownerId: string, slugHint?: string): Row {
@@ -87,18 +93,19 @@ export function createProject(workspaceId: string, actorId: string, input: NewPr
       { workspaceId, actorId, hlc: hlc(), system: true });
 
     if (input.withDefaults !== false) {
+      const t = translatorFor(actorId);
       const orders = orderKeys(DEFAULT_STATES.length);
       let firstStateId: string | null = null;
       DEFAULT_STATES.forEach((state, index) => {
         const stateId = uid();
         if (index === 0) firstStateId = stateId;
         writeEntity('state', stateId, {
-          workspace_id: workspaceId, project_id: id, name: state.name,
+          workspace_id: workspaceId, project_id: id, name: t(state.name),
           group_key: state.group_key, color: state.color, sort_order: orders[index],
         }, { workspaceId, actorId, hlc: hlc(), system: true });
       });
       for (const label of DEFAULT_LABELS) {
-        writeEntity('label', uid(), { workspace_id: workspaceId, project_id: id, name: label.name, color: label.color },
+        writeEntity('label', uid(), { workspace_id: workspaceId, project_id: id, name: t(label.name), color: label.color },
           { workspaceId, actorId, hlc: hlc(), system: true });
       }
       if (firstStateId) {

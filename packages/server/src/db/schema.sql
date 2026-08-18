@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT,
   avatar_url    TEXT,
   timezone      TEXT,
+  locale        TEXT,
   bio           TEXT,
   is_admin      INTEGER NOT NULL DEFAULT 0,
   last_seen_at  INTEGER,

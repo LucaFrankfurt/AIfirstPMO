@@ -39,6 +39,12 @@ not five emails. Anything you have already read in the app by then is skipped en
 **3. Unsubscribable.** Every message carries a `List-Unsubscribe` header and a footer link, signed
 with the instance secret so it works straight from an inbox without a session.
 
+**4. In the recipient's language.** Notification titles are rendered when the row is written — a
+notification belongs to exactly one person, so it is stored in that person's language and never
+needs translating again. Emails are rendered the same way at send time. Ada working in English
+produces a German notification for Lin. An invitation is the exception: the invitee has no account
+yet, so it goes out in the inviter's language. See [`i18n.md`](i18n.md).
+
 Each person chooses their level under **Settings → Notifications**:
 
 - **Everything** — assignments, mentions and comments

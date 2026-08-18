@@ -125,7 +125,41 @@ with the network stage delayed.
 
 Mobile-first CSS with a token palette in `styles/app.css`, dark mode from `prefers-color-scheme`
 with a manual override, bottom navigation and bottom sheets below 900px, sidebar above. No CSS
-framework: the whole stylesheet is ~20 kB and there is no build-time class generation.
+framework: the whole stylesheet is ~35 kB and there is no build-time class generation.
+
+### The guide
+
+`routes/help.tsx` is the manual, and it is built the same way as the rest of the app rather than as
+an embedded video or a pile of screenshots — both of which go stale the day after a redesign.
+
+- `components/explain.tsx` — the stage. Every diagram is a **pure function of one number**, the step
+  it is on, and CSS transitions do the moving. That buys the narration (one sentence per step, in an
+  `aria-live` region, so the picture is not sighted-only), the pause and step controls, and a
+  sensible answer to `prefers-reduced-motion`: stop advancing, stay steppable. Stages idle until an
+  `IntersectionObserver` says they are on screen.
+- `components/diagrams.tsx` — the scenes, drawn out of the same tokens as the real interface, so a
+  card that crossed a board in the guide is recognisable in a project a minute later. Connectors are
+  laid out with the panels rather than drawn over them; an SVG overlay has to guess where the boxes
+  ended up and shears at any width it was not drawn for.
+- `components/hierarchy.tsx` — the containment tree, transcribed from `ENTITIES`. If a relationship
+  changes in the registry it should change here too.
+
+Adding a feature means adding a card: a lead sentence, a scene, four how-to steps and a link into
+the screen. Every string is a catalogue key, so a new language gets an explained product rather
+than a translated menu bar.
+
+Two things point at it from the rest of the app:
+
+- `lib/guide.ts` names the targets. Any screen can render `<GuideHint to="planning" />`, or pass
+  `guide="planning"` to `Empty`; the link is `/guide?to=planning`, and the guide switches section,
+  scrolls to the card and marks it. An empty screen is when an explanation is most wanted, so that
+  is where the links live.
+- `components/tour.tsx` holds the first-run tour and the setup checklist. The tour *does* things —
+  it sets the language and creates a project rather than describing how to — and drops the steps a
+  plain member would only be refused. The checklist derives its ticks from the store, not from
+  what has been clicked, so it stays honest on a second device and after a restore, and hides
+  itself when there is nothing left to say. Both can be summoned again from the guide by a window
+  event, so nothing else has to own their state.
 
 ## MCP bridge
 

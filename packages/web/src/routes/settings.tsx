@@ -1,21 +1,40 @@
 import { useEffect, useState } from 'react';
-import { Header, useTheme } from '../components/AppShell';
-import { Avatar, Empty, Icon, Sheet, useConfirm, useToast } from '../components/ui';
+import { useSearchParams } from 'react-router-dom';
+import { Header, THEME_KEY, useTheme } from '../components/AppShell';
+import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
+import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'api' | 'data';
 
+const TAB_KEY: Record<Tab, TranslationKey> = {
+  profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
+  workspace: 'settings.tabWorkspace', members: 'settings.tabMembers',
+  api: 'settings.tabApi', data: 'settings.tabData',
+};
+
+const ROLES = ['owner', 'admin', 'member', 'guest'] as const;
+
 export function Settings() {
-  const [tab, setTab] = useState<Tab>('profile');
+  const t = useT();
+  const [params, setParams] = useSearchParams();
+  // `?tab=members` so the setup checklist can point at the screen it names.
+  const requested = params.get('tab');
+  const [tab, setTab] = useState<Tab>(() => (requested && requested in TAB_KEY ? requested as Tab : 'profile'));
+
+  const choose = (next: Tab) => {
+    setTab(next);
+    setParams(next === 'profile' ? {} : { tab: next }, { replace: true });
+  };
   return (
     <>
-      <Header title="Settings" />
+      <Header title={t('settings.title')} />
       <div className="tabs" style={{ padding: '0 12px' }}>
-        {(['profile', 'notifications', 'workspace', 'members', 'api', 'data'] as Tab[]).map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            {name === 'api' ? 'API & MCP' : name[0].toUpperCase() + name.slice(1)}
+        {(Object.keys(TAB_KEY) as Tab[]).map((name) => (
+          <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
+            {t(TAB_KEY[name])}
           </button>
         ))}
       </div>
@@ -34,6 +53,7 @@ export function Settings() {
 /* --------------------------------------------------------------- profile */
 
 function Profile() {
+  const { t, locale, setLocale } = useI18n();
   const { user, refresh } = useSession();
   const [theme, setTheme] = useTheme();
   const toast = useToast();
@@ -52,11 +72,11 @@ function Profile() {
       </div>
 
       <div className="field">
-        <label htmlFor="me-name">Display name</label>
+        <label htmlFor="me-name">{t('profile.displayName')}</label>
         <input id="me-name" className="input" value={name} onChange={(event) => setName(event.target.value)} />
       </div>
       <div className="field">
-        <label htmlFor="me-bio">Bio</label>
+        <label htmlFor="me-bio">{t('profile.bio')}</label>
         <textarea id="me-bio" className="textarea" style={{ minHeight: 70 }} value={bio ?? ''} onChange={(event) => setBio(event.target.value)} />
       </div>
       <button
@@ -64,13 +84,31 @@ function Profile() {
         onClick={async () => {
           await api.patch('/api/me', { name, bio });
           await refresh();
-          toast('Profile saved');
+          toast(t('profile.saved'));
         }}
       >
-        Save profile
+        {t('profile.save')}
       </button>
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>Appearance</h3>
+      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.language')}</h3>
+      <select
+        className="select"
+        style={{ maxWidth: 220 }}
+        value={locale}
+        aria-label={t('profile.language')}
+        onChange={async (event) => {
+          const next = event.target.value as Locale;
+          setLocale(next);
+          // The server needs it too: notification emails are written per recipient.
+          await api.patch('/api/me', { locale: next }).catch(() => undefined);
+          await refresh();
+        }}
+      >
+        {Object.entries(LOCALE_NAMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+      </select>
+      <span className="hint" style={{ display: 'block', marginTop: 4 }}>{t('profile.languageHint')}</span>
+
+      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.appearance')}</h3>
       <div className="row" style={{ gap: 6 }}>
         {(['system', 'light', 'dark'] as const).map((option) => (
           <button
@@ -79,20 +117,20 @@ function Profile() {
             onClick={() => setTheme(option)}
           >
             <Icon name={option === 'dark' ? 'moon' : option === 'light' ? 'sun' : 'settings'} size={14} />
-            {option}
+            {t(THEME_KEY[option])}
           </button>
         ))}
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>Password</h3>
+      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.password')}</h3>
       <div className="row wrap" style={{ gap: 8 }}>
         <input
-          className="input" type="password" placeholder="Current password" autoComplete="current-password"
+          className="input" type="password" placeholder={t('profile.currentPassword')} autoComplete="current-password"
           style={{ maxWidth: 220 }} value={passwords.current}
           onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
         />
         <input
-          className="input" type="password" placeholder="New password" autoComplete="new-password"
+          className="input" type="password" placeholder={t('profile.newPassword')} autoComplete="new-password"
           style={{ maxWidth: 220 }} value={passwords.next}
           onChange={(event) => setPasswords({ ...passwords, next: event.target.value })}
         />
@@ -103,13 +141,13 @@ function Profile() {
             try {
               await api.post('/api/me/password', passwords);
               setPasswords({ current: '', next: '' });
-              toast('Password changed — other devices were signed out');
+              toast(t('profile.passwordChanged'));
             } catch (err) {
-              toast(err instanceof Error ? err.message : 'Could not change the password');
+              toast(err instanceof Error ? err.message : t('profile.passwordFailed'));
             }
           }}
         >
-          Change password
+          {t('profile.changePassword')}
         </button>
       </div>
     </>
@@ -129,19 +167,20 @@ interface MailStatus {
   preference: 'all' | 'important' | 'none';
 }
 
-const PREFERENCES: { value: MailStatus['preference']; label: string; hint: string }[] = [
-  { value: 'all', label: 'Everything', hint: 'Assignments, mentions and comments on work you follow' },
-  { value: 'important', label: 'Only what needs me', hint: 'Assignments and mentions' },
-  { value: 'none', label: 'Nothing', hint: 'In-app inbox only' },
+const PREFERENCES: { value: MailStatus['preference']; label: TranslationKey; hint: TranslationKey }[] = [
+  { value: 'all', label: 'notify.all', hint: 'notify.allHint' },
+  { value: 'important', label: 'notify.important', hint: 'notify.importantHint' },
+  { value: 'none', label: 'notify.none', hint: 'notify.noneHint' },
 ];
 
-const batchWindow = (seconds: number): string => {
-  if (seconds < 60) return `${seconds} seconds`;
+const batchWindow = (t: Translate, seconds: number): string => {
+  if (seconds < 60) return t('notify.windowSeconds', { count: seconds });
   const minutes = Math.round(seconds / 60);
-  return minutes === 1 ? 'a minute' : `${minutes} minutes`;
+  return minutes === 1 ? t('notify.windowMinute') : t('notify.windowMinutes', { count: minutes });
 };
 
 function Notifications() {
+  const t = useT();
   const toast = useToast();
   const [status, setStatus] = useState<MailStatus | null>(null);
   const [busy, setBusy] = useState(false);
@@ -154,18 +193,16 @@ function Notifications() {
   const choose = async (preference: MailStatus['preference']) => {
     setStatus((current) => (current ? { ...current, preference } : current));
     await api.patch('/api/me', { email_prefs: preference });
-    toast('Notification settings saved');
+    toast(t('notify.saved'));
   };
 
   return (
     <>
       <p className="muted" style={{ fontSize: 13 }}>
-        Everything always lands in your in-app inbox. Email is an extra: updates are collected for{' '}
-        {batchWindow(status?.batchSeconds ?? 120)} and sent as a single message, so a busy afternoon
-        does not become twenty separate mails.
+        {t('notify.intro', { window: batchWindow(t, status?.batchSeconds ?? 120) })}
       </p>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>Email me about</h3>
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.emailAbout')}</h3>
       <div className="col" style={{ gap: 6 }}>
         {PREFERENCES.map((option) => (
           <button
@@ -179,15 +216,15 @@ function Notifications() {
             onClick={() => void choose(option.value)}
           >
             <div className="row">
-              <strong className="grow">{option.label}</strong>
+              <strong className="grow">{t(option.label)}</strong>
               {status?.preference === option.value && <Icon name="check" size={15} />}
             </div>
-            <span className="muted" style={{ fontSize: 12.5 }}>{option.hint}</span>
+            <span className="muted" style={{ fontSize: 12.5 }}>{t(option.hint)}</span>
           </button>
         ))}
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Delivery</h3>
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('notify.delivery')}</h3>
       {status?.mode === 'test-inbox' && (
         <div
           className="card"
@@ -195,13 +232,10 @@ function Notifications() {
         >
           <div className="row" style={{ gap: 7, marginBottom: 4 }}>
             <Icon name="bell" size={15} />
-            <strong>This is a capture inbox, not a mail server</strong>
+            <strong>{t('notify.captureTitle')}</strong>
           </div>
           <span className="soft" style={{ fontSize: 12.5 }}>
-            Messages are accepted by <span className="mono">{status.host}</span> and stop there — no
-            recipient ever gets them. Read them in the local inbox (Mailpit, usually on port 8025),
-            and set <span className="mono">KOLIBRI_SMTP_URL</span> to a real relay before this
-            instance is used for actual work.
+            {t('notify.captureBody', { host: status.host ?? '' })}
           </span>
         </div>
       )}
@@ -209,12 +243,12 @@ function Notifications() {
         <>
           <div className="card" style={{ marginBottom: 10 }}>
             <div className="row">
-              <span className="grow">Relay</span>
+              <span className="grow">{t('notify.relay')}</span>
               <strong className="mono">{status.host}</strong>
-              {status.mode === 'test-inbox' && <span className="chip" style={{ color: 'var(--warn)' }}>capture</span>}
+              {status.mode === 'test-inbox' && <span className="chip" style={{ color: 'var(--warn)' }}>{t('notify.captureChip')}</span>}
             </div>
-            <div className="row"><span className="grow">Sender</span><strong className="mono">{status.from}</strong></div>
-            <div className="row"><span className="grow">Waiting in the queue</span><strong>{status.pending}</strong></div>
+            <div className="row"><span className="grow">{t('notify.sender')}</span><strong className="mono">{status.from}</strong></div>
+            <div className="row"><span className="grow">{t('notify.queued')}</span><strong>{status.pending}</strong></div>
           </div>
           <button
             className="btn"
@@ -223,23 +257,24 @@ function Notifications() {
               setBusy(true);
               try {
                 const result = await api.post<{ to: string }>('/api/mail/test');
-                toast(`Test email sent to ${result.to}`);
+                toast(t('notify.testSent', { email: result.to }));
               } catch (err) {
-                toast(err instanceof Error ? err.message : 'The relay refused the message');
+                toast(err instanceof Error ? err.message : t('notify.testFailed'));
               } finally {
                 setBusy(false);
                 load();
               }
             }}
           >
-            <Icon name="send" size={14} /> Send a test email
+            <Icon name="send" size={14} /> {t('notify.sendTest')}
           </button>
         </>
       ) : (
         <Empty
           emoji="✉️"
-          title="No mail relay configured"
-          hint="This instance sends nothing by email — notifications stay in the in-app inbox, which is the source of truth anyway. Set KOLIBRI_SMTP_URL to a relay and restart to turn delivery on."
+          title={t('notify.noRelayTitle')}
+          hint={t('notify.noRelayHint')}
+          guide="collab"
         />
       )}
     </>
@@ -249,6 +284,7 @@ function Notifications() {
 /* ------------------------------------------------------------- workspace */
 
 function WorkspaceSettings() {
+  const t = useT();
   const { session, workspaceId, role, refresh, setWorkspace } = useSession();
   const toast = useToast();
   const workspace = session?.workspaces.find((w) => w.id === workspaceId);
@@ -261,33 +297,33 @@ function WorkspaceSettings() {
   return (
     <>
       <div className="field">
-        <label htmlFor="ws-name">Workspace name</label>
+        <label htmlFor="ws-name">{t('workspace.name')}</label>
         <input id="ws-name" className="input" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
-        {!canEdit && <span className="hint">Only admins can rename the workspace.</span>}
+        {!canEdit && <span className="hint">{t('workspace.adminOnly')}</span>}
       </div>
       <button
         className="btn primary" disabled={!canEdit}
         onClick={async () => {
           await api.patch(`/api/workspaces/${workspaceId}`, { name });
           await refresh();
-          toast('Workspace updated');
+          toast(t('workspace.updated'));
         }}
       >
-        Save
+        {t('action.save')}
       </button>
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>Your workspaces</h3>
+      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('workspace.yours')}</h3>
       {session?.workspaces.map((entry) => (
         <div className="row" key={entry.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
           <span className="grow">{entry.name}</span>
-          <span className="chip">{entry.role}</span>
-          {entry.id !== workspaceId && <button className="btn sm" onClick={() => setWorkspace(entry.id)}>Switch</button>}
+          <span className="chip">{t(roleKey(entry.role))}</span>
+          {entry.id !== workspaceId && <button className="btn sm" onClick={() => setWorkspace(entry.id)}>{t('workspace.switch')}</button>}
         </div>
       ))}
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>New workspace</h3>
+      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('workspace.new')}</h3>
       <div className="row">
-        <input className="input" placeholder="Name" value={creating} onChange={(event) => setCreating(event.target.value)} />
+        <input className="input" placeholder={t('common.name')} value={creating} onChange={(event) => setCreating(event.target.value)} />
         <button
           className="btn"
           disabled={!creating.trim()}
@@ -296,10 +332,10 @@ function WorkspaceSettings() {
             setCreating('');
             await refresh();
             setWorkspace(result.workspace.id);
-            toast('Workspace created');
+            toast(t('workspace.created'));
           }}
         >
-          Create
+          {t('action.create')}
         </button>
       </div>
     </>
@@ -309,6 +345,7 @@ function WorkspaceSettings() {
 /* --------------------------------------------------------------- members */
 
 function Members() {
+  const t = useT();
   const { workspaceId, role } = useSession();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
@@ -342,16 +379,16 @@ function Members() {
                 load();
               }}
             >
-              {['owner', 'admin', 'member', 'guest'].map((option) => <option key={option} value={option}>{option}</option>)}
+              {ROLES.map((option) => <option key={option} value={option}>{t(roleKey(option))}</option>)}
             </select>
           ) : (
-            <span className="chip">{member.role}</span>
+            <span className="chip">{t(roleKey(member.role))}</span>
           )}
           {canManage && (
             <button
               className="btn ghost sm icon"
               onClick={async () => {
-                if (!(await confirm(`Remove ${member.name} from this workspace?`, 'Remove'))) return;
+                if (!(await confirm(t('members.remove', { name: member.name }), t('action.remove')))) return;
                 await api.delete(`/api/workspaces/${workspaceId}/members/${member.user_id}`);
                 load();
               }}
@@ -364,27 +401,27 @@ function Members() {
 
       {canManage && (
         <>
-          <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>Invites</h3>
+          <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('members.invites')}</h3>
           <button
             className="btn"
             onClick={async () => {
               const invite = await api.createInvite(workspaceId, 'member');
               await navigator.clipboard?.writeText(`${location.origin}/invite/${invite.code}`);
-              toast('Invite link copied to clipboard');
+              toast(t('members.inviteCopied'));
               load();
             }}
           >
-            <Icon name="link" size={14} /> Create invite link
+            <Icon name="link" size={14} /> {t('members.createInvite')}
           </button>
           {invites.map((invite) => (
             <div className="row" key={invite.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
               <code className="mono grow truncate">{location.origin}/invite/{invite.code}</code>
-              <span className="chip">{invite.role}</span>
+              <span className="chip">{t(roleKey(invite.role))}</span>
               <button
                 className="btn ghost sm icon"
                 onClick={() => {
                   void navigator.clipboard?.writeText(`${location.origin}/invite/${invite.code}`);
-                  toast('Copied');
+                  toast(t('members.copied'));
                 }}
               >
                 <Icon name="copy" size={14} />
@@ -401,6 +438,7 @@ function Members() {
 /* ------------------------------------------------------------- api + mcp */
 
 function ApiSettings() {
+  const t = useT();
   const { workspaceId } = useSession();
   const toast = useToast();
   const [tokens, setTokens] = useState<any[]>([]);
@@ -427,14 +465,12 @@ function ApiSettings() {
 
   return (
     <>
-      <p className="muted" style={{ fontSize: 13 }}>
-        Kolibri speaks the Model Context Protocol. Point an assistant at this instance and it can read the backlog,
-        file tasks, move them through the workflow and write pages — with the same permissions as the token owner.
-      </p>
+      <p className="muted" style={{ fontSize: 13 }}>{t('api.intro')}</p>
+      <GuideHint to="assistant" />
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>API tokens</h3>
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('api.tokens')}</h3>
       <div className="row" style={{ marginBottom: 12 }}>
-        <input className="input" placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
+        <input className="input" placeholder={t('api.tokenName')} value={name} onChange={(event) => setName(event.target.value)} />
         <button
           className="btn primary"
           onClick={async () => {
@@ -443,7 +479,7 @@ function ApiSettings() {
             load();
           }}
         >
-          <Icon name="plus" size={14} /> Create
+          <Icon name="plus" size={14} /> {t('action.create')}
         </button>
       </div>
 
@@ -454,46 +490,46 @@ function ApiSettings() {
             <div className="muted mono truncate">{token.prefix}… · {token.scopes}</div>
           </div>
           <span className="muted" style={{ fontSize: 11.5 }}>
-            {token.last_used_at ? `used ${relativeTime(token.last_used_at)}` : 'never used'}
+            {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
           </span>
           <button
             className="btn ghost sm icon"
             onClick={async () => {
               await api.revokeToken(token.id);
               load();
-              toast('Token revoked');
+              toast(t('api.revoked'));
             }}
           >
             <Icon name="trash" size={14} />
           </button>
         </div>
       ))}
-      {!tokens.length && <span className="muted" style={{ fontSize: 12.5 }}>No tokens yet.</span>}
+      {!tokens.length && <span className="muted" style={{ fontSize: 12.5 }}>{t('api.noTokens')}</span>}
 
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Connect an MCP client</h3>
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('api.connect')}</h3>
       <pre className="md" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 12, borderRadius: 10, overflowX: 'auto', fontSize: 12 }}>
         {snippet}
       </pre>
       <div className="row" style={{ marginTop: 8 }}>
-        <button className="btn sm" onClick={() => { void navigator.clipboard?.writeText(snippet); toast('Config copied'); }}>
-          <Icon name="copy" size={14} /> Copy config
+        <button className="btn sm" onClick={() => { void navigator.clipboard?.writeText(snippet); toast(t('api.configCopied')); }}>
+          <Icon name="copy" size={14} /> {t('api.copyConfig')}
         </button>
         <span className="muted" style={{ fontSize: 12 }}>
-          Or point a streamable-HTTP client straight at <code className="mono">{location.origin}/mcp</code>.
+          {t('api.orDirect', { url: `${location.origin}/mcp` })}
         </span>
       </div>
 
       {created && (
-        <Sheet title="Copy your token now" onClose={() => setCreated(null)}>
-          <p className="muted">This is the only time the token is shown. Store it somewhere safe.</p>
+        <Sheet title={t('api.copyNow')} onClose={() => setCreated(null)}>
+          <p className="muted">{t('api.copyNowHint')}</p>
           <code className="mono" style={{ display: 'block', wordBreak: 'break-all', background: 'var(--bg-sunken)', padding: 12, borderRadius: 8 }}>
             {created}
           </code>
           <button
             className="btn primary block" style={{ marginTop: 12 }}
-            onClick={() => { void navigator.clipboard?.writeText(created); toast('Token copied'); }}
+            onClick={() => { void navigator.clipboard?.writeText(created); toast(t('api.tokenCopied')); }}
           >
-            <Icon name="copy" size={14} /> Copy token
+            <Icon name="copy" size={14} /> {t('api.copyToken')}
           </button>
         </Sheet>
       )}
@@ -504,6 +540,7 @@ function ApiSettings() {
 /* ------------------------------------------------------------------ data */
 
 function DataSettings() {
+  const t = useT();
   const { signOut } = useSession();
   const toast = useToast();
   const [estimate, setEstimate] = useState<{ usage?: number; quota?: number } | null>(null);
@@ -518,15 +555,16 @@ function DataSettings() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, marginBottom: 8 }}>Offline copy</h3>
-      <p className="muted" style={{ fontSize: 13 }}>
-        This device keeps a full copy of the workspace in IndexedDB. Changes you make offline are queued and
-        merged field by field when you come back online, so nobody's edits get overwritten wholesale.
-      </p>
+      <h3 style={{ fontSize: 14, marginBottom: 8 }}>{t('data.offlineCopy')}</h3>
+      <p className="muted" style={{ fontSize: 13 }}>{t('data.offlineIntro')}</p>
+      <GuideHint to="sync" />
       <div className="card" style={{ marginBottom: 14 }}>
-        <div className="row"><span className="grow">Local data</span><strong>{mb(estimate?.usage)}</strong></div>
-        <div className="row"><span className="grow">Available</span><strong>{mb(estimate?.quota)}</strong></div>
-        <div className="row"><span className="grow">Storage persisted</span><strong>{persisted === null ? '—' : persisted ? 'Yes' : 'Best effort'}</strong></div>
+        <div className="row"><span className="grow">{t('data.localData')}</span><strong>{mb(estimate?.usage)}</strong></div>
+        <div className="row"><span className="grow">{t('data.available')}</span><strong>{mb(estimate?.quota)}</strong></div>
+        <div className="row">
+          <span className="grow">{t('data.persisted')}</span>
+          <strong>{persisted === null ? '—' : persisted ? t('data.persistedYes') : t('data.persistedBestEffort')}</strong>
+        </div>
       </div>
 
       <div className="row wrap">
@@ -535,28 +573,25 @@ function DataSettings() {
           onClick={async () => {
             const registration = await navigator.serviceWorker?.getRegistration();
             await registration?.update();
-            toast('Checked for updates');
+            toast(t('data.updateChecked'));
           }}
         >
-          <Icon name="refresh" size={14} /> Check for app update
+          <Icon name="refresh" size={14} /> {t('data.checkUpdate')}
         </button>
         <button
           className="btn danger"
           onClick={async () => {
             await signOut();
-            toast('Local copy cleared');
+            toast(t('data.cleared'));
           }}
         >
-          <Icon name="logout" size={14} /> Sign out and clear this device
+          <Icon name="logout" size={14} /> {t('data.signOutClear')}
         </button>
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Export</h3>
-      <p className="muted" style={{ fontSize: 13 }}>
-        Everything is plain data. <code className="mono">GET /api/workspaces/&lt;id&gt;/tasks</code> and its siblings
-        return JSON for any collection, and the SQLite file under <code className="mono">/data</code> is yours to copy.
-      </p>
-      {!estimate && <Empty emoji="💾" title="Storage information unavailable" hint="Your browser does not expose quota details." />}
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('data.export')}</h3>
+      <p className="muted" style={{ fontSize: 13 }}>{t('data.exportHint')}</p>
+      {!estimate && <Empty emoji="💾" title={t('data.storageUnavailable')} hint={t('data.storageUnavailableHint')} />}
     </>
   );
 }

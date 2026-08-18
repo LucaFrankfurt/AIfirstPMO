@@ -5,6 +5,7 @@ import { list, useQuery } from '../lib/store';
 import { excerpt } from '../lib/markdown';
 import { useOpenTask } from '../lib/navigation';
 import { useSession } from '../session';
+import { useT } from '../lib/i18n';
 import { Icon, StateDot } from './ui';
 import { stateOf } from './task-parts';
 
@@ -21,6 +22,7 @@ interface Command {
  * offline and never waits for a request.
  */
 export function CommandPalette({ onClose }: { onClose: () => void }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const navigate = useNavigate();
@@ -38,12 +40,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       onClose();
     };
     const navigation: Command[] = [
-      { id: 'nav-my', icon: 'home', title: 'My work', run: go('/') },
-      { id: 'nav-inbox', icon: 'inbox', title: 'Inbox', run: go('/inbox') },
-      { id: 'nav-pages', icon: 'page', title: 'Pages', run: go('/pages') },
-      { id: 'nav-teams', icon: 'users', title: 'Teams', run: go('/teams') },
-      { id: 'nav-settings', icon: 'settings', title: 'Settings', run: go('/settings') },
-      { id: 'nav-new-project', icon: 'plus', title: 'New project', run: go('/projects/new') },
+      { id: 'nav-my', icon: 'home', title: t('nav.myWork'), run: go('/') },
+      { id: 'nav-inbox', icon: 'inbox', title: t('nav.inbox'), run: go('/inbox') },
+      { id: 'nav-pages', icon: 'page', title: t('nav.pages'), run: go('/pages') },
+      { id: 'nav-teams', icon: 'users', title: t('nav.teams'), run: go('/teams') },
+      { id: 'nav-settings', icon: 'settings', title: t('nav.settings'), run: go('/settings') },
+      { id: 'nav-guide', icon: 'help', title: t('nav.guide'), run: go('/guide') },
+      { id: 'nav-new-project', icon: 'plus', title: t('nav.newProject'), run: go('/projects/new') },
     ];
 
     const needle = query.trim().toLowerCase();
@@ -81,7 +84,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         id: page.id,
         icon: 'page',
         title: page.title,
-        hint: 'Page',
+        hint: t('page.title'),
         run: go(`/pages/${page.id}`),
       }));
 
@@ -91,7 +94,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       ...pageCommands,
       ...navigation.filter((command) => match(command.title)),
     ];
-  }, [query, tasks, projects, pages, navigate, openTask, onClose]);
+  }, [query, tasks, projects, pages, navigate, openTask, onClose, t]);
 
   useEffect(() => setActive(0), [query]);
 
@@ -124,12 +127,12 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       <div className="box">
         <input
           autoFocus
-          placeholder="Search tasks, projects and pages…"
+          placeholder={t('search.palettePlaceholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
         <div className="results menu" ref={listRef} style={{ position: 'static', border: 'none', boxShadow: 'none', maxHeight: 'none' }}>
-          {commands.length === 0 && <div className="section">Nothing matches “{query}”</div>}
+          {commands.length === 0 && <div className="section">{t('search.paletteNoResults', { query })}</div>}
           {commands.map((command, index) => (
             <button
               key={command.id}

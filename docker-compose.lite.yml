@@ -20,6 +20,7 @@ services:
       KOLIBRI_PUBLIC_URL: "${KOLIBRI_PUBLIC_URL:-http://localhost:4000}"
       KOLIBRI_ALLOW_SIGNUP: "${KOLIBRI_ALLOW_SIGNUP:-true}"
       KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
+      KOLIBRI_DEFAULT_LOCALE: "${KOLIBRI_DEFAULT_LOCALE:-en}"
 
       # Optional first-run provisioning — same as the full stack.
       KOLIBRI_ADMIN_EMAIL: "${KOLIBRI_ADMIN_EMAIL:-}"

@@ -12,12 +12,20 @@ import { markAllRead, markNotificationRead } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
 import { useMe, useMemberMap, useSession } from '../session';
+import { useT, type TranslationKey } from '../lib/i18n';
+import { SetupChecklist } from '../components/tour';
+
+const KIND_KEY: Record<string, TranslationKey> = {
+  task: 'search.kindTask', page: 'search.kindPage',
+  project: 'search.kindProject', comment: 'search.kindComment',
+};
 
 
 
 /* --------------------------------------------------------------- my work */
 
 export function MyWork() {
+  const t = useT();
   const me = useMe();
   const openTask = useOpenTask();
   const { workspaceId } = useSession();
@@ -42,16 +50,18 @@ export function MyWork() {
 
   return (
     <>
-      <Header title="My work">
+      <Header title={t('myWork.title')}>
         <ViewControls view={view} onChange={setView} />
       </Header>
       <div className="page">
+        <SetupChecklist />
+
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
           <div className="grid two" style={{ marginBottom: 18 }}>
             {buckets.overdue.length > 0 && (
               <div className="card">
                 <div className="row" style={{ marginBottom: 8 }}>
-                  <strong className="due-overdue">Overdue</strong>
+                  <strong className="due-overdue">{t('myWork.overdue')}</strong>
                   <span className="muted">{buckets.overdue.length}</span>
                 </div>
                 {buckets.overdue.slice(0, 5).map((task) => (
@@ -62,7 +72,7 @@ export function MyWork() {
             {buckets.today.length > 0 && (
               <div className="card">
                 <div className="row" style={{ marginBottom: 8 }}>
-                  <strong className="due-today">Due today</strong>
+                  <strong className="due-today">{t('myWork.dueToday')}</strong>
                   <span className="muted">{buckets.today.length}</span>
                 </div>
                 {buckets.today.map((task) => (
@@ -74,14 +84,14 @@ export function MyWork() {
         )}
 
         {visible.length === 0 ? (
-          <Empty emoji="🎉" title="Nothing assigned to you" hint="Enjoy it, or pick something up from a project." />
+          <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} guide="capture" />
         ) : (
           <TaskViews tasks={visible} view={view} onOpen={openTask} showProject />
         )}
 
         {created.length > 0 && (
           <section style={{ marginTop: 26 }}>
-            <h2 style={{ fontSize: 14, marginBottom: 6 }}>Created by you</h2>
+            <h2 style={{ fontSize: 14, marginBottom: 6 }}>{t('myWork.createdByYou')}</h2>
             {created.map((task) => <TaskRow key={task.id} task={task} onOpen={openTask} showProject />)}
           </section>
         )}
@@ -93,6 +103,7 @@ export function MyWork() {
 /* ----------------------------------------------------------------- inbox */
 
 export function Inbox() {
+  const t = useT();
   const me = useMe();
   const navigate = useNavigate();
   const openTask = useOpenTask();
@@ -108,18 +119,18 @@ export function Inbox() {
 
   return (
     <>
-      <Header title="Inbox">
+      <Header title={t('inbox.title')}>
         <div className="tabs" style={{ border: 'none' }}>
-          <button className={filter === 'unread' ? 'active' : ''} onClick={() => setFilter('unread')}>Unread</button>
-          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>All</button>
+          <button className={filter === 'unread' ? 'active' : ''} onClick={() => setFilter('unread')}>{t('inbox.unread')}</button>
+          <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t('inbox.all')}</button>
         </div>
         <button className="btn sm" onClick={() => markAllRead(me)} disabled={!notifications.some((n) => !n.read_at)}>
-          <Icon name="check" size={14} /> <span className="hide-sm">Mark all read</span>
+          <Icon name="check" size={14} /> <span className="hide-sm">{t('inbox.markAllRead')}</span>
         </button>
       </Header>
       <div className="page">
         {shown.length === 0 ? (
-          <Empty emoji="📭" title="Inbox zero" hint="Mentions, assignments and comments on your work land here." />
+          <Empty emoji="📭" title={t('inbox.emptyTitle')} hint={t('inbox.emptyHint')} guide="collab" />
         ) : (
           shown.map((notification) => {
             const actor = members.get(notification.actor_id ?? '');
@@ -155,6 +166,7 @@ export function Inbox() {
 /* ---------------------------------------------------------------- search */
 
 export function Search() {
+  const t = useT();
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const openTask = useOpenTask();
@@ -200,26 +212,26 @@ export function Search() {
     else if (hit.kind === 'comment') {
       const comment = byId('comment', hit.id);
       if (comment?.task_id) openTask({ id: comment.task_id });
-      else toast('That comment is not in this workspace any more');
+      else toast(t('search.commentGone'));
     }
   };
 
   return (
     <>
-      <Header title="Search" />
+      <Header title={t('search.title')} />
       <div className="page">
         <input
           className="input"
           autoFocus
-          placeholder="Search tasks, pages, projects and comments…"
+          placeholder={t('search.placeholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           style={{ marginBottom: 14, fontSize: 16 }}
         />
         {query.trim().length < 2 ? (
-          <Empty emoji="🔎" title="Type to search" hint="Titles match instantly from the local cache — full text comes from the server." />
+          <Empty emoji="🔎" title={t('search.promptTitle')} hint={t('search.promptHint')} />
         ) : results.length === 0 ? (
-          <Empty emoji="🫙" title={`Nothing found for “${query}”`} />
+          <Empty emoji="🫙" title={t('search.noResults', { query })} />
         ) : (
           results.map((hit) => (
             <button key={`${hit.kind}-${hit.id}`} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => open(hit)}>
@@ -228,7 +240,7 @@ export function Search() {
                 <div className="truncate">{hit.title}</div>
                 {hit.snippet && <div className="muted truncate" style={{ fontSize: 12 }}>{hit.snippet}</div>}
               </span>
-              <span className="muted" style={{ fontSize: 11.5 }}>{hit.kind}</span>
+              <span className="muted" style={{ fontSize: 11.5 }}>{KIND_KEY[hit.kind] ? t(KIND_KEY[hit.kind]) : hit.kind}</span>
             </button>
           ))
         )}
@@ -240,13 +252,14 @@ export function Search() {
 /* -------------------------------------------------------- mobile "more" */
 
 export function More() {
+  const t = useT();
   const navigate = useNavigate();
   const { session, workspaceId, setWorkspace, signOut, user } = useSession();
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
 
   return (
     <>
-      <Header title="More" />
+      <Header title={t('nav.more')} />
       <div className="page">
         <div className="row" style={{ marginBottom: 16 }}>
           <Avatar user={user ?? undefined} size={40} />
@@ -257,13 +270,14 @@ export function More() {
         </div>
 
         <div className="card" style={{ padding: 6, marginBottom: 14 }}>
-          <button className="nav-item" onClick={() => navigate('/pages')}><Icon name="page" size={16} /> Pages</button>
-          <button className="nav-item" onClick={() => navigate('/teams')}><Icon name="users" size={16} /> Teams</button>
-          <button className="nav-item" onClick={() => navigate('/projects/new')}><Icon name="plus" size={16} /> New project</button>
-          <button className="nav-item" onClick={() => navigate('/settings')}><Icon name="settings" size={16} /> Settings</button>
+          <button className="nav-item" onClick={() => navigate('/pages')}><Icon name="page" size={16} /> {t('nav.pages')}</button>
+          <button className="nav-item" onClick={() => navigate('/teams')}><Icon name="users" size={16} /> {t('nav.teams')}</button>
+          <button className="nav-item" onClick={() => navigate('/projects/new')}><Icon name="plus" size={16} /> {t('nav.newProject')}</button>
+          <button className="nav-item" onClick={() => navigate('/settings')}><Icon name="settings" size={16} /> {t('nav.settings')}</button>
+          <button className="nav-item" onClick={() => navigate('/guide')}><Icon name="help" size={16} /> {t('nav.guide')}</button>
         </div>
 
-        <div className="nav-section">Projects</div>
+        <div className="nav-section">{t('nav.projects')}</div>
         <div className="card" style={{ padding: 6, marginBottom: 14 }}>
           {projects.map((project) => (
             <button key={project.id} className="nav-item" onClick={() => navigate(`/projects/${project.id}`)}>
@@ -274,7 +288,7 @@ export function More() {
 
         {(session?.workspaces.length ?? 0) > 1 && (
           <>
-            <div className="nav-section">Workspaces</div>
+            <div className="nav-section">{t('nav.workspaces')}</div>
             <div className="card" style={{ padding: 6, marginBottom: 14 }}>
               {session?.workspaces.map((workspace) => (
                 <button
@@ -290,7 +304,7 @@ export function More() {
         )}
 
         <button className="btn block danger" onClick={() => void signOut()}>
-          <Icon name="logout" size={15} /> Sign out
+          <Icon name="logout" size={15} /> {t('nav.signOut')}
         </button>
       </div>
     </>

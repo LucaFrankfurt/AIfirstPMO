@@ -62,6 +62,7 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_SESSION_DAYS` | `60` | Browser session lifetime |
 | `KOLIBRI_DATA_DIR` | `/data` | SQLite file, uploads, generated secret |
 | `KOLIBRI_LOG_LEVEL` | `info` | `debug` `info` `warn` `error` |
+| `KOLIBRI_DEFAULT_LOCALE` | `en` | Language for notifications and emails to someone who has not picked one (`en`, `de`). See [`i18n.md`](i18n.md). |
 | `TZ` | `UTC` | Affects date rendering on the server side |
 
 ### Email (optional — see [`notifications.md`](notifications.md))

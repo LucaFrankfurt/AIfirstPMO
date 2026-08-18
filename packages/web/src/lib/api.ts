@@ -1,4 +1,5 @@
 import type { SessionInfo } from '@kolibri/shared';
+import { currentLocale, translate } from './i18n';
 
 export class ApiError extends Error {
   status: number;
@@ -25,7 +26,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       },
     });
   } catch (err) {
-    throw new ApiError(0, err instanceof Error ? err.message : 'Network unavailable', 'offline');
+    throw new ApiError(0, err instanceof Error ? err.message : translate(currentLocale(), 'common.networkUnavailable'), 'offline');
   }
 
   const text = await response.text();

@@ -4,8 +4,11 @@ import {
   useMemo, useRef, useState, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from '../lib/format';
+import { priorityKey, useT } from '../lib/i18n';
+import { guideHref, type GuideTarget } from '../lib/guide';
 
 /* ------------------------------------------------------------------- icons */
 
@@ -45,12 +48,23 @@ const PATHS: Record<string, string> = {
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   grip: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
   refresh: 'M20 11a8 8 0 1 0-.6 4M20 4v6h-6',
+  play: 'M8 5.5v13l11-6.5z',
+  pause: 'M9 5v14M15 5v14',
+  help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4M12 17.2h.01',
+  sparkle: 'M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9zM18.5 3v3M20 4.5h-3',
 };
+
+/**
+ * Icons that mean "forwards" or "away" rather than naming a thing. They are
+ * mirrored under a right-to-left direction, where forwards is the other way.
+ */
+const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout']);
 
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
   return (
     <svg
-      width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}
+      width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
+      className={`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined}
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
       style={{ flex: 'none' }}
     >
@@ -107,9 +121,10 @@ export function StateDot({ group, color, size = 12 }: { group?: StateGroup | str
 }
 
 export function PriorityBars({ priority }: { priority: Priority }) {
+  const t = useT();
   const level = { urgent: 3, high: 3, medium: 2, low: 1, none: 0 }[priority] ?? 0;
   return (
-    <span className="priority-bars" style={{ color: PRIORITY_COLOR[priority] }} title={priority}>
+    <span className="priority-bars" style={{ color: PRIORITY_COLOR[priority] }} title={t(priorityKey(priority))}>
       {[1, 2, 3].map((n) => <i key={n} className={n <= level ? 'on' : ''} />)}
     </span>
   );
@@ -120,6 +135,7 @@ export function PriorityBars({ priority }: { priority: Priority }) {
 export function Sheet({
   title, children, onClose, footer, wide,
 }: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean }) {
+  const t = useT();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -134,12 +150,12 @@ export function Sheet({
 
   return createPortal(
     <div className="overlay" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : 'Dialog'}>
+      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : t('action.close')}>
         <div className="grabber" />
         {title && (
           <header>
             <strong className="grow truncate">{title}</strong>
-            <button className="btn ghost icon" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+            <button className="btn ghost icon" onClick={onClose} aria-label={t('action.close')}><Icon name="close" /></button>
           </header>
         )}
         <div className="body">{children}</div>
@@ -163,8 +179,9 @@ export interface MenuItem {
 }
 
 export function Menu({
-  items, onClose, anchor, search, empty = 'Nothing here',
+  items, onClose, anchor, search, empty,
 }: { items: MenuItem[]; onClose: () => void; anchor: DOMRect | null; search?: boolean; empty?: string }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: anchor?.bottom ?? 0, left: anchor?.left ?? 0 });
@@ -205,11 +222,11 @@ export function Menu({
     <div className="menu" ref={ref} style={position} role="menu">
       {search && (
         <input
-          className="search" autoFocus placeholder="Filter…" value={query}
+          className="search" autoFocus placeholder={t('common.filterPlaceholder')} value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       )}
-      {filtered.length === 0 && <div className="section">{empty}</div>}
+      {filtered.length === 0 && <div className="section">{empty ?? t('common.nothingHere')}</div>}
       {filtered.map((item) => {
         const header = item.section && item.section !== lastSection ? item.section : null;
         lastSection = item.section;
@@ -301,14 +318,35 @@ export function ToastHost({ children }: { children: ReactNode }) {
 
 /* ------------------------------------------------------------------- misc */
 
-export function Empty({ emoji = '🌱', title, hint, action }: { emoji?: string; title: string; hint?: string; action?: ReactNode }) {
+export function Empty({
+  emoji = '🌱', title, hint, action, guide,
+}: {
+  emoji?: string;
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+  /** An empty screen is when an explanation is most wanted — offer the right one. */
+  guide?: GuideTarget;
+}) {
   return (
     <div className="empty">
       <div className="emoji">{emoji}</div>
       <strong style={{ color: 'var(--fg)' }}>{title}</strong>
       {hint && <span style={{ maxWidth: 340 }}>{hint}</span>}
       {action}
+      {guide && <GuideHint to={guide} />}
     </div>
+  );
+}
+
+/** A quiet link into the part of the guide that explains the screen you are on. */
+export function GuideHint({ to, className = '' }: { to: GuideTarget; className?: string }) {
+  const t = useT();
+  return (
+    <Link className={`guide-hint ${className}`} to={guideHref(to)}>
+      <Icon name="help" size={13} />
+      {t('guide.explainThis')}
+    </Link>
   );
 }
 
@@ -336,25 +374,26 @@ export function Progress({ value, total }: { value: number; total: number }) {
 
 /** Small confirm dialog — used before anything destructive. */
 export function useConfirm() {
-  const [request, setRequest] = useState<{ message: string; confirmLabel: string; resolve: (ok: boolean) => void } | null>(null);
+  const t = useT();
+  const [request, setRequest] = useState<{ message: string; confirmLabel?: string; resolve: (ok: boolean) => void } | null>(null);
 
   const confirm = useCallback(
-    (message: string, confirmLabel = 'Delete') =>
+    (message: string, confirmLabel?: string) =>
       new Promise<boolean>((resolve) => setRequest({ message, confirmLabel, resolve })),
     [],
   );
 
   const dialog = request ? (
     <Sheet
-      title="Are you sure?"
+      title={t('action.confirmTitle')}
       onClose={() => {
         request.resolve(false);
         setRequest(null);
       }}
       footer={
         <>
-          <button className="btn" onClick={() => { request.resolve(false); setRequest(null); }}>Cancel</button>
-          <button className="btn danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel}</button>
+          <button className="btn" onClick={() => { request.resolve(false); setRequest(null); }}>{t('action.cancel')}</button>
+          <button className="btn danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel ?? t('action.delete')}</button>
         </>
       }
     >

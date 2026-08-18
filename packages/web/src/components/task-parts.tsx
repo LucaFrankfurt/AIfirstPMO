@@ -1,7 +1,8 @@
 import { PRIORITIES, type Label, type Priority, type State, type Task } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
-import { dueClass, GROUP_LABEL, PRIORITY_LABEL, shortDate } from '../lib/format';
+import { dueClass, shortDate } from '../lib/format';
+import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers } from '../session';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
@@ -24,39 +25,42 @@ export const stateOf = (task: Task): State | undefined => byId('state', task.sta
 /* ----------------------------------------------------------------- pickers */
 
 export function StatePicker({ task, compact }: { task: Task; compact?: boolean }) {
+  const t = useT();
   const states = useStates(task.project_id);
   const current = stateOf(task);
   const items: MenuItem[] = states.map((state) => ({
     id: state.id,
     label: state.name,
-    section: GROUP_LABEL[state.group_key] ?? state.group_key,
+    section: t(groupKey(state.group_key)),
     icon: <StateDot group={state.group_key} color={state.color} />,
     onSelect: () => update('task', task.id, { state_id: state.id }),
   }));
   return (
-    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? 'State'}>
+    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('task.state')}>
       <StateDot group={current?.group_key} color={current?.color} />
-      {!compact && <span className="truncate">{current?.name ?? 'No state'}</span>}
+      {!compact && <span className="truncate">{current?.name ?? t('task.noState')}</span>}
     </MenuButton>
   );
 }
 
 export function PriorityPicker({ task, compact }: { task: Task; compact?: boolean }) {
+  const t = useT();
   const items: MenuItem[] = PRIORITIES.map((priority) => ({
     id: priority,
-    label: PRIORITY_LABEL[priority],
+    label: t(priorityKey(priority)),
     icon: <PriorityBars priority={priority} />,
     onSelect: () => update('task', task.id, { priority }),
   }));
   return (
-    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={PRIORITY_LABEL[task.priority]}>
+    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={t(priorityKey(task.priority))}>
       <PriorityBars priority={task.priority} />
-      {!compact && <span>{PRIORITY_LABEL[task.priority]}</span>}
+      {!compact && <span>{t(priorityKey(task.priority))}</span>}
     </MenuButton>
   );
 }
 
 export function AssigneePicker({ task, compact }: { task: Task; compact?: boolean }) {
+  const t = useT();
   const members = useMembers();
   const assigned = new Set(task.assignees ?? []);
   const items: MenuItem[] = members.map((user) => ({
@@ -68,14 +72,15 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
   }));
   const people = (task.assignees ?? []).map((id) => members.find((m) => m.id === id)).filter(Boolean) as any[];
   return (
-    <MenuButton items={items} search className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title="Assignees">
+    <MenuButton items={items} search className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={t('task.assignees')}>
       {people.length ? <AvatarStack users={people} size={compact ? 18 : 20} /> : <Icon name="users" size={14} />}
-      {!compact && <span className="truncate">{people.length ? people.map((p) => p.name).join(', ') : 'Unassigned'}</span>}
+      {!compact && <span className="truncate">{people.length ? people.map((p) => p.name).join(', ') : t('task.unassigned')}</span>}
     </MenuButton>
   );
 }
 
 export function LabelPicker({ task }: { task: Task }) {
+  const t = useT();
   const labels = useLabels(task.project_id);
   const applied = new Set(task.labels ?? []);
   const items: MenuItem[] = labels.map((label) => ({
@@ -86,18 +91,19 @@ export function LabelPicker({ task }: { task: Task }) {
     onSelect: () => toggleLabel(task, label.id),
   }));
   return (
-    <MenuButton items={items} search className="btn ghost sm" title="Labels" empty="No labels in this project yet">
+    <MenuButton items={items} search className="btn ghost sm" title={t('task.labels')} empty={t('task.noLabelsYet')}>
       <Icon name="bolt" size={14} />
-      <span>{applied.size ? `${applied.size} label${applied.size > 1 ? 's' : ''}` : 'Labels'}</span>
+      <span>{applied.size ? t('task.labelCount', { count: applied.size }) : t('task.labels')}</span>
     </MenuButton>
   );
 }
 
 export function CyclePicker({ task }: { task: Task }) {
+  const t = useT();
   const cycles = useQuery(() => list('cycle', (c) => c.project_id === task.project_id), [task.project_id]);
   const current = byId('cycle', task.cycle_id);
   const items: MenuItem[] = [
-    { id: 'none', label: 'No cycle', onSelect: () => update('task', task.id, { cycle_id: null }) },
+    { id: 'none', label: t('task.noCycle'), onSelect: () => update('task', task.id, { cycle_id: null }) },
     ...cycles.map((cycle) => ({
       id: cycle.id,
       label: cycle.name,
@@ -106,24 +112,25 @@ export function CyclePicker({ task }: { task: Task }) {
     })),
   ];
   return (
-    <MenuButton items={items} className="btn ghost sm" title="Cycle">
+    <MenuButton items={items} className="btn ghost sm" title={t('task.cycle')}>
       <Icon name="cycle" size={14} />
-      <span className="truncate">{current?.name ?? 'No cycle'}</span>
+      <span className="truncate">{current?.name ?? t('task.noCycle')}</span>
     </MenuButton>
   );
 }
 
 export function ModulePicker({ task }: { task: Task }) {
+  const t = useT();
   const modules = useQuery(() => list('module', (m) => m.project_id === task.project_id), [task.project_id]);
   const current = byId('module', task.module_id);
   const items: MenuItem[] = [
-    { id: 'none', label: 'No module', onSelect: () => update('task', task.id, { module_id: null }) },
+    { id: 'none', label: t('task.noModule'), onSelect: () => update('task', task.id, { module_id: null }) },
     ...modules.map((module) => ({ id: module.id, label: module.name, onSelect: () => update('task', task.id, { module_id: module.id }) })),
   ];
   return (
-    <MenuButton items={items} className="btn ghost sm" title="Module">
+    <MenuButton items={items} className="btn ghost sm" title={t('task.module')}>
       <Icon name="target" size={14} />
-      <span className="truncate">{current?.name ?? 'No module'}</span>
+      <span className="truncate">{current?.name ?? t('task.noModule')}</span>
     </MenuButton>
   );
 }
@@ -163,6 +170,7 @@ export function LabelChips({ ids, projectId }: { ids: string[]; projectId?: stri
 }
 
 export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (task: Task) => void; showProject?: boolean }) {
+  const t = useT();
   const state = stateOf(task);
   const members = useMemberMap();
   const project = byId('project', task.project_id);
@@ -178,7 +186,7 @@ export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (ta
       <span className="title">{task.title}</span>
       <span className="meta">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
-        {!!subtasks.length && <span className="chip" title="Sub-tasks">⑂ {subtasks.length}</span>}
+        {!!subtasks.length && <span className="chip" title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
         {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         <AvatarStack users={people} size={20} />
@@ -197,6 +205,7 @@ export function TaskCard({
   /** Columns this card can be moved to — the touch alternative to dragging. */
   moveTargets?: { id: string; title: string; onSelect: () => void }[];
 }) {
+  const t = useT();
   const members = useMemberMap();
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   return (
@@ -214,10 +223,10 @@ export function TaskCard({
           <span onClick={(event) => event.stopPropagation()}>
             <MenuButton
               className="btn ghost sm icon"
-              title="Move to"
+              title={t('task.moveTo')}
               items={moveTargets.map((target) => ({
                 id: target.id,
-                section: 'Move to',
+                section: t('task.moveTo'),
                 label: target.title,
                 onSelect: target.onSelect,
               }))}
@@ -251,8 +260,13 @@ export interface Group {
   tasks: Task[];
 }
 
-export function groupTasks(tasks: Task[], groupBy: GroupBy, context: { states: State[]; members: { id: string; name: string }[]; labels: Label[] }): Group[] {
-  if (groupBy === 'none') return [{ id: 'all', title: 'All tasks', tasks }];
+export function groupTasks(
+  tasks: Task[],
+  groupBy: GroupBy,
+  context: { states: State[]; members: { id: string; name: string }[]; labels: Label[]; t: Translate },
+): Group[] {
+  const { t } = context;
+  if (groupBy === 'none') return [{ id: 'all', title: t('view.allTasks'), tasks }];
 
   if (groupBy === 'state') {
     return context.states.map((state) => ({
@@ -267,7 +281,7 @@ export function groupTasks(tasks: Task[], groupBy: GroupBy, context: { states: S
   if (groupBy === 'priority') {
     return PRIORITIES.map((priority) => ({
       id: priority,
-      title: PRIORITY_LABEL[priority],
+      title: t(priorityKey(priority)),
       tasks: tasks.filter((task) => task.priority === priority),
     }));
   }
@@ -278,7 +292,7 @@ export function groupTasks(tasks: Task[], groupBy: GroupBy, context: { states: S
       title: member.name,
       tasks: tasks.filter((task) => (task.assignees ?? []).includes(member.id)),
     }));
-    groups.push({ id: 'none', title: 'Unassigned', tasks: tasks.filter((task) => !(task.assignees ?? []).length) });
+    groups.push({ id: 'none', title: t('task.unassigned'), tasks: tasks.filter((task) => !(task.assignees ?? []).length) });
     return groups;
   }
 
@@ -289,7 +303,7 @@ export function groupTasks(tasks: Task[], groupBy: GroupBy, context: { states: S
       color: label.color,
       tasks: tasks.filter((task) => (task.labels ?? []).includes(label.id)),
     }));
-    groups.push({ id: 'none', title: 'No label', tasks: tasks.filter((task) => !(task.labels ?? []).length) });
+    groups.push({ id: 'none', title: t('view.noLabel'), tasks: tasks.filter((task) => !(task.labels ?? []).length) });
     return groups;
   }
 
@@ -300,7 +314,7 @@ export function groupTasks(tasks: Task[], groupBy: GroupBy, context: { states: S
       title: cycle.name,
       tasks: tasks.filter((task) => task.cycle_id === cycle.id),
     }));
-    groups.push({ id: 'none', title: 'No cycle', tasks: tasks.filter((task) => !task.cycle_id) });
+    groups.push({ id: 'none', title: t('task.noCycle'), tasks: tasks.filter((task) => !task.cycle_id) });
     return groups;
   }
 

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Task } from '@kolibri/shared';
 import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
+import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { comment as postComment, createTask, remove, update } from '../lib/mutations';
 import { useMe, useMemberMap, useSession } from '../session';
@@ -13,6 +14,7 @@ import {
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from './ui';
 
 export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClose: () => void; onOpen: (task: Task) => void }) {
+  const t = useT();
   const task = useRow('task', taskId);
   const me = useMe();
   const { workspaceId } = useSession();
@@ -50,8 +52,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
   if (!task) {
     return (
-      <Sheet title="Task" onClose={onClose} wide>
-        <Empty emoji="🔍" title="This task is gone" hint="It may have been deleted on another device." />
+      <Sheet title={t('task.title')} onClose={onClose} wide>
+        <Empty emoji="🔍" title={t('task.gone')} hint={t('task.goneHint')} />
       </Sheet>
     );
   }
@@ -67,7 +69,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         const payload = await downscale(file);
         await api.upload(workspaceId, payload, file.name, { task_id: task!.id });
       } catch (err) {
-        toast(err instanceof Error ? err.message : 'Upload failed');
+        toast(err instanceof Error ? err.message : t('editor.uploadFailed'));
       }
     }
   }
@@ -104,14 +106,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           <MenuButton
             className="btn ghost sm"
             items={[
-              { id: 'copy', label: 'Copy link', icon: <Icon name="link" size={14} />, onSelect: () => {
+              { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
                 void navigator.clipboard?.writeText(`${location.origin}/t/${task.id}`);
-                toast('Link copied');
+                toast(t('common.copied'));
               } },
-              { id: 'archive', label: task.archived ? 'Unarchive' : 'Archive', icon: <Icon name="archive" size={14} />,
+              { id: 'archive', label: task.archived ? t('action.unarchive') : t('action.archive'), icon: <Icon name="archive" size={14} />,
                 onSelect: () => update('task', task.id, { archived: task.archived ? 0 : 1 }) },
-              { id: 'delete', label: 'Delete task', icon: <Icon name="trash" size={14} />, danger: true, onSelect: async () => {
-                if (await confirm(`Delete ${task.identifier}? This also hides its sub-tasks.`)) {
+              { id: 'delete', label: t('task.delete'), icon: <Icon name="trash" size={14} />, danger: true, onSelect: async () => {
+                if (await confirm(t('task.deleteConfirm', { identifier: task.identifier }))) {
                   remove('task', task.id);
                   onClose();
                 }
@@ -124,11 +126,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         <div className="row wrap" style={{ gap: 10, marginBottom: 16 }}>
           <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-            <span className="muted">Due</span>
-            <DateField label="Due date" value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
+            <span className="muted">{t('task.due')}</span>
+            <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
           <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-            <span className="muted">Estimate</span>
+            <span className="muted">{t('task.estimate')}</span>
             <input
               className="input" type="number" min={0} step={1} style={{ width: 84 }}
               value={task.estimate ?? ''}
@@ -150,10 +152,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                     setEditingDescription(false);
                   }}
                 >
-                  Save
+                  {t('action.save')}
                 </button>
                 <button className="btn sm" onClick={() => { setDescription(task.description ?? ''); setEditingDescription(false); }}>
-                  Cancel
+                  {t('action.cancel')}
                 </button>
               </div>
             </>
@@ -161,7 +163,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <div onClick={() => setEditingDescription(true)} style={{ cursor: 'text', minHeight: 40 }}>
               {task.description?.trim()
                 ? <Markdown source={task.description} />
-                : <span className="muted">Add a description…</span>}
+                : <span className="muted">{t('task.addDescription')}</span>}
             </div>
           )}
         </section>
@@ -169,9 +171,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         {/* sub-tasks */}
         <section style={{ marginBottom: 18 }}>
           <div className="row" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>Sub-tasks</strong>
+            <strong style={{ fontSize: 13 }}>{t('task.subtasks')}</strong>
             <span className="muted" style={{ fontSize: 12 }}>
-              {subtasks.filter((t) => stateOf(t)?.group_key === 'completed').length}/{subtasks.length}
+              {t('task.subtaskCount', {
+                done: subtasks.filter((child) => stateOf(child)?.group_key === 'completed').length,
+                total: subtasks.length,
+              })}
             </span>
           </div>
           {subtasks.map((child) => (
@@ -193,7 +198,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               setNewSubtask('');
             }}
           >
-            <input className="input" placeholder="Add a sub-task" value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
+            <input className="input" placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
             <button className="btn sm" type="submit"><Icon name="plus" size={14} /></button>
           </form>
         </section>
@@ -203,10 +208,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         {/* attachments */}
         <section style={{ marginBottom: 18 }}>
           <div className="row" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>Files</strong>
+            <strong style={{ fontSize: 13 }}>{t('task.files')}</strong>
             <span className="grow" />
             <button className="btn ghost sm" onClick={() => fileInput.current?.click()}>
-              <Icon name="attach" size={14} /> Attach
+              <Icon name="attach" size={14} /> {t('task.attach')}
             </button>
             <input
               ref={fileInput} type="file" hidden multiple
@@ -216,7 +221,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               }}
             />
           </div>
-          {attachments.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>No files yet.</span>}
+          {attachments.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>{t('task.noFiles')}</span>}
           <div className="col" style={{ gap: 6 }}>
             {attachments.map((file) => (
               <a className="attachment" key={file.id} href={file.url} target="_blank" rel="noreferrer">
@@ -232,9 +237,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <section>
           <div className="tabs" style={{ marginBottom: 10 }}>
             <button className={tab === 'comments' ? 'active' : ''} onClick={() => setTab('comments')}>
-              Comments {comments.length ? `(${comments.length})` : ''}
+              {t('task.comments')} {comments.length ? `(${comments.length})` : ''}
             </button>
-            <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>Activity</button>
+            <button className={tab === 'activity' ? 'active' : ''} onClick={() => setTab('activity')}>{t('task.activity')}</button>
           </div>
 
           {tab === 'comments' ? (
@@ -246,14 +251,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                     <Avatar user={author} size={26} />
                     <div className="body">
                       <div className="row" style={{ gap: 6 }}>
-                        <span className="who">{author?.name ?? 'Someone'}</span>
+                        <span className="who">{author?.name ?? t('common.someone')}</span>
                         <span className="when">{relativeTime(entry.created_at)}</span>
                         {entry.author_id === me && (
                           <button
                             className="btn ghost sm"
-                            style={{ marginLeft: 'auto' }}
+                            style={{ marginInlineStart: 'auto' }}
                             onClick={async () => {
-                              if (await confirm('Delete this comment?')) remove('comment', entry.id);
+                              if (await confirm(t('task.deleteComment'))) remove('comment', entry.id);
                             }}
                           >
                             <Icon name="trash" size={13} />
@@ -270,7 +275,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                   value={draft}
                   onChange={setDraft}
                   minHeight={70}
-                  placeholder="Leave a comment… (⌘↵ to send)"
+                  placeholder={t('task.commentPlaceholder')}
                   attachTo={{ task_id: task.id }}
                   onSubmit={() => {
                     if (!draft.trim()) return;
@@ -287,20 +292,22 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                       setDraft('');
                     }}
                   >
-                    <Icon name="send" size={14} /> Comment
+                    <Icon name="send" size={14} /> {t('task.comment')}
                   </button>
                 </div>
               </div>
             </>
           ) : (
             <div className="col" style={{ gap: 8 }}>
-              {activity.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>No activity recorded yet.</span>}
+              {activity.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>{t('task.noActivity')}</span>}
               {activity.map((entry) => (
                 <div key={entry.id} className="row" style={{ fontSize: 12.5, gap: 7 }}>
                   <Avatar user={members.get(entry.actor_id)} size={18} />
                   <span className="soft grow">
-                    <strong>{members.get(entry.actor_id)?.name ?? 'Someone'}</strong>{' '}
-                    {entry.verb === 'created' ? 'created this task' : `changed ${entry.field?.replace('_id', '') ?? 'something'}`}
+                    <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
+                    {entry.verb === 'created'
+                      ? t('task.activityCreated')
+                      : t('task.activityChanged', { field: entry.field?.replace('_id', '') ?? t('task.activitySomething') })}
                   </span>
                   <span className="muted">{relativeTime(entry.created_at)}</span>
                 </div>
@@ -310,7 +317,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         </section>
 
         <div className="muted" style={{ fontSize: 11.5, marginTop: 18 }}>
-          Created {shortDate(task.created_at)} · updated {relativeTime(task.updated_at)}
+          {t('task.createdUpdated', { created: shortDate(task.created_at), updated: relativeTime(task.updated_at) })}
           {task.labels?.length ? <span className="row wrap" style={{ marginTop: 6 }}><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
         </div>
       </Sheet>

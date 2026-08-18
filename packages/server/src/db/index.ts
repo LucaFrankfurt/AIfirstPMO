@@ -28,6 +28,7 @@ db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
 for (const [table, column, definition] of [
   ['users', 'email_prefs', `TEXT NOT NULL DEFAULT 'important'`],
   ['users', 'email_verified_at', 'INTEGER'],
+  ['users', 'locale', 'TEXT'],
   ['notifications', 'emailed_at', 'INTEGER'],
   ['files', 'storage', `TEXT NOT NULL DEFAULT 'disk'`],
 ] as const) {

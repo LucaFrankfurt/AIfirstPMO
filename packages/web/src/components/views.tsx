@@ -3,7 +3,8 @@ import type { Filters, Layout, Task } from '@kolibri/shared';
 import { orderKey, PRIORITIES } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, update } from '../lib/mutations';
-import { GROUP_LABEL, PRIORITY_LABEL, shortDate, today } from '../lib/format';
+import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
+import { shortDate, today } from '../lib/format';
 import { useMembers } from '../session';
 import { groupTasks, TaskCard, TaskRow, useLabels, useStates, type GroupBy } from './task-parts';
 import { Empty, Icon, MenuButton, StateDot, type MenuItem } from './ui';
@@ -25,6 +26,25 @@ export const DEFAULT_VIEW: ViewConfig = {
 };
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
+
+const LAYOUT_KEY: Record<string, TranslationKey> = {
+  list: 'view.list', board: 'view.board', calendar: 'view.calendar',
+};
+
+const GROUP_BY_KEY: Record<GroupBy, TranslationKey> = {
+  state: 'view.groupState', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
+  label: 'view.groupLabel', cycle: 'view.groupCycle', project: 'view.groupProject', none: 'view.noGrouping',
+};
+
+const ORDER_BY_KEY: Record<ViewConfig['orderBy'], TranslationKey> = {
+  manual: 'view.orderManual', priority: 'view.orderPriority', due_date: 'view.orderDueDate',
+  created_at: 'view.orderUpdatedAt', updated_at: 'view.orderUpdatedAt', title: 'view.orderTitle',
+};
+
+const WEEKDAY_KEYS: TranslationKey[] = [
+  'view.weekdayMon', 'view.weekdayTue', 'view.weekdayWed',
+  'view.weekdayThu', 'view.weekdayFri', 'view.weekdaySat', 'view.weekdaySun',
+];
 
 /** Apply filters + sorting. Runs against the local cache, so it is instant. */
 export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
@@ -71,6 +91,7 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
 export function ViewControls({
   view, onChange, projectId,
 }: { view: ViewConfig; onChange: (next: ViewConfig) => void; projectId?: string }) {
+  const t = useT();
   const states = useStates(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
@@ -84,7 +105,7 @@ export function ViewControls({
   const filterItems: MenuItem[] = [
     ...states.map((state) => ({
       id: `state-${state.id}`,
-      section: 'State',
+      section: t('view.groupState'),
       label: state.name,
       hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
       icon: <StateDot group={state.group_key} color={state.color} />,
@@ -92,26 +113,26 @@ export function ViewControls({
     })),
     ...PRIORITIES.map((priority) => ({
       id: `priority-${priority}`,
-      section: 'Priority',
-      label: PRIORITY_LABEL[priority],
+      section: t('view.groupPriority'),
+      label: t(priorityKey(priority)),
       hint: view.filters.priority?.includes(priority) ? '✓' : undefined,
       onSelect: () => toggle('priority', priority),
     })),
     ...members.map((member) => ({
       id: `assignee-${member.id}`,
-      section: 'Assignee',
+      section: t('view.groupAssignee'),
       label: member.name,
       hint: view.filters.assignee?.includes(member.id) ? '✓' : undefined,
       onSelect: () => toggle('assignee', member.id),
     })),
     ...labels.map((label) => ({
       id: `label-${label.id}`,
-      section: 'Label',
+      section: t('view.groupLabel'),
       label: label.name,
       hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
       onSelect: () => toggle('label', label.id),
     })),
-    { id: 'clear', section: 'Reset', label: 'Clear all filters', onSelect: () => onChange({ ...view, filters: {} }) },
+    { id: 'clear', section: t('view.reset'), label: t('view.clearFilters'), onSelect: () => onChange({ ...view, filters: {} }) },
   ];
 
   const activeFilters = Object.values(view.filters).filter((value) => (Array.isArray(value) ? value.length : !!value)).length;
@@ -125,7 +146,7 @@ export function ViewControls({
             className={`btn ghost sm${view.layout === layout ? ' active' : ''}`}
             style={view.layout === layout ? { background: 'var(--bg-active)' } : undefined}
             onClick={() => onChange({ ...view, layout })}
-            title={layout}
+            title={t(LAYOUT_KEY[layout])}
             aria-pressed={view.layout === layout}
           >
             <Icon name={layout} size={14} />
@@ -139,7 +160,7 @@ export function ViewControls({
         items={filterItems}
       >
         <Icon name="filter" size={14} />
-        <span className="hide-sm">Filter</span>{activeFilters ? ` ${activeFilters}` : ''}
+        <span className="hide-sm">{t('view.filter')}</span>{activeFilters ? ` ${activeFilters}` : ''}
       </MenuButton>
 
       <MenuButton
@@ -147,28 +168,28 @@ export function ViewControls({
         items={[
           ...(['state', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as GroupBy[]).map((groupBy) => ({
             id: groupBy,
-            section: 'Group by',
-            label: groupBy === 'none' ? 'No grouping' : groupBy[0].toUpperCase() + groupBy.slice(1),
+            section: t('view.groupBy'),
+            label: t(GROUP_BY_KEY[groupBy]),
             hint: view.groupBy === groupBy ? '✓' : undefined,
             onSelect: () => onChange({ ...view, groupBy }),
           })),
           ...(['manual', 'priority', 'due_date', 'updated_at', 'title'] as ViewConfig['orderBy'][]).map((orderBy) => ({
             id: `order-${orderBy}`,
-            section: 'Order by',
-            label: orderBy.replace('_', ' '),
+            section: t('view.orderBy'),
+            label: t(ORDER_BY_KEY[orderBy]),
             hint: view.orderBy === orderBy ? '✓' : undefined,
             onSelect: () => onChange({ ...view, orderBy }),
           })),
           {
             id: 'done',
-            section: 'Display',
-            label: view.showDone ? 'Hide completed' : 'Show completed',
+            section: t('view.display'),
+            label: view.showDone ? t('view.hideCompleted') : t('view.showCompleted'),
             onSelect: () => onChange({ ...view, showDone: !view.showDone }),
           },
         ]}
       >
         <Icon name="list" size={14} />
-        <span className="hide-sm">Display</span>
+        <span className="hide-sm">{t('view.display')}</span>
       </MenuButton>
     </div>
   );
@@ -179,17 +200,18 @@ export function ViewControls({
 export function ListView({
   tasks, view, onOpen, showProject,
 }: { tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; showProject?: boolean }) {
+  const t = useT();
   const states = useStates(undefined);
   const labels = useLabels(undefined);
   const members = useMembers();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const groups = useMemo(
-    () => groupTasks(tasks, view.groupBy, { states, members, labels }).filter((group) => group.tasks.length),
-    [tasks, view.groupBy, states, members, labels],
+    () => groupTasks(tasks, view.groupBy, { states, members, labels, t }).filter((group) => group.tasks.length),
+    [tasks, view.groupBy, states, members, labels, t],
   );
 
-  if (!tasks.length) return <Empty emoji="🗒️" title="Nothing here yet" hint="Create a task to get started — it works offline too." />;
+  if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
 
   return (
     <div>
@@ -219,6 +241,7 @@ export function ListView({
 export function BoardView({
   tasks, view, onOpen, projectId,
 }: { tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; projectId?: string }) {
+  const t = useT();
   const states = useStates(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
@@ -226,8 +249,8 @@ export function BoardView({
   const [overColumn, setOverColumn] = useState<string | null>(null);
 
   const groups = useMemo(
-    () => groupTasks(tasks, view.groupBy === 'none' ? 'state' : view.groupBy, { states, members, labels }),
-    [tasks, view.groupBy, states, members, labels],
+    () => groupTasks(tasks, view.groupBy === 'none' ? 'state' : view.groupBy, { states, members, labels, t }),
+    [tasks, view.groupBy, states, members, labels, t],
   );
 
   /** Dropping on a column both reorders and rewrites the grouped-by field. */
@@ -286,7 +309,7 @@ export function BoardView({
                 }}
               />
             ))}
-            {!group.tasks.length && <span className="muted" style={{ fontSize: 12, padding: '6px 2px' }}>Empty</span>}
+            {!group.tasks.length && <span className="muted" style={{ fontSize: 12, padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>
       ))}
@@ -297,6 +320,7 @@ export function BoardView({
 /* --------------------------------------------------------------- calendar */
 
 export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: Task) => void }) {
+  const t = useT();
   const [month, setMonth] = useState(() => {
     const now = new Date();
     return new Date(now.getFullYear(), now.getMonth(), 1);
@@ -331,15 +355,15 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
   return (
     <div style={{ padding: 12 }}>
       <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn ghost icon" onClick={() => shift(-1)} aria-label="Previous month"><Icon name="chevronLeft" /></button>
-        <strong>{month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</strong>
-        <button className="btn ghost icon" onClick={() => shift(1)} aria-label="Next month"><Icon name="chevronRight" /></button>
+        <button className="btn ghost icon" onClick={() => shift(-1)} aria-label={t('view.previousMonth')}><Icon name="chevronLeft" /></button>
+        <strong>{month.toLocaleDateString(currentLocale(), { month: 'long', year: 'numeric' })}</strong>
+        <button className="btn ghost icon" onClick={() => shift(1)} aria-label={t('view.nextMonth')}><Icon name="chevronRight" /></button>
         <span className="grow" />
-        <button className="btn sm" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
+        <button className="btn sm" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>{t('common.today')}</button>
       </div>
       <div className="calendar">
-        {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((weekday) => (
-          <div className="weekday" key={weekday}>{weekday}</div>
+        {WEEKDAY_KEYS.map((weekday) => (
+          <div className="weekday" key={weekday}>{t(weekday)}</div>
         ))}
         {days.map((date) => {
           const key = iso(date);
@@ -380,6 +404,7 @@ export function TaskViews(props: {
 
 /** Small helper used by cycle pages. */
 export function CycleProgress({ cycleId }: { cycleId: string }) {
+  const t = useT();
   const tasks = useQuery(() => list('task', (t) => t.cycle_id === cycleId), [cycleId]);
   const done = tasks.filter((task) => {
     const group = byId('state', task.state_id)?.group_key;
@@ -393,7 +418,7 @@ export function CycleProgress({ cycleId }: { cycleId: string }) {
         <span className="muted">{done}/{tasks.length}</span>
       </div>
       <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
-      {cycle?.end_date && <span className="muted" style={{ fontSize: 11.5 }}>Ends {shortDate(cycle.end_date)}</span>}
+      {cycle?.end_date && <span className="muted" style={{ fontSize: 11.5 }}>{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
     </div>
   );
 }

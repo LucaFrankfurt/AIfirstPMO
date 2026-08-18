@@ -81,8 +81,31 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Comment reactions.** The `reactions` field is stored and synced; no picker, no display.
 - [ ] **Table and Gantt layouts.** `LAYOUTS` in `packages/shared/src/types.ts` declares five layouts;
       three are implemented (list, board, calendar). Either build them or trim the type.
-- [ ] **Internationalisation.** The interface is English only. Given who this was built for, German
-      is the obvious first translation. No i18n scaffolding exists yet — strings are inline.
+- [x] **Internationalisation.** English and German, both as catalogue files — the interface, the
+      notification titles and the emails, each written in the recipient's own language. Other
+      locales are typed against English, so a missing key is a compile error.
+      See [`docs/i18n.md`](docs/i18n.md).
+- [ ] **More languages than English and German.** The scaffolding takes a third in one typed file
+      and nothing else, but a catalogue nobody can read back is worse than none — this one is
+      waiting on a speaker, not on code. Languages with more plural forms than `_one`/`_other` are
+      supported by `Intl.PluralRules` but have never been exercised.
+- [x] **Right-to-left groundwork.** The stylesheet is free of physical properties, the root carries
+      `dir` from `LOCALE_DIR`, and icons that mean *forwards* mirror. Verified only by forcing
+      `dir="rtl"` — with no RTL locale to ship, nobody has seen it with real text, and the
+      catalogue is still the easy half.
+- [x] **Translated workflow states in the seed.** A new project's states and labels are written in
+      the creator's language. Ordinary editable rows afterwards.
+- [x] **An explanation of the product inside the product.** Four sections under `?`: an overview
+      with an animated build-up of the model, an explorer for the hierarchy with the rule behind
+      each level, one narrated animation per feature, and the shortcuts.
+- [x] **A first-run tour.** Runs once per device and *does* things rather than pointing at them:
+      language and appearance, a real project, a copied invite link. It adapts — a member who
+      cannot invite is not shown the step. Re-runnable from the guide.
+- [x] **A setup checklist** on My work, ticked from the actual data rather than from what has been
+      clicked, so it is honest on a second device and after a restore. Hides itself when there is
+      nothing left, and is dismissible before that.
+- [x] **Contextual help.** Every empty screen and the settings screens that raise a question link
+      into the guide card that answers it, which scrolls to that card and marks it.
 - [ ] **Image lightbox** for attachments and inline images (the `.gallery` styles are unused).
 - [ ] **Per-task notification opt-out** (`subscribers` is stored and used, but nothing toggles it).
 
@@ -115,7 +138,7 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 31 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
+(`npm test`, 45 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -136,6 +159,20 @@ So the list above is read in proportion — these are covered by automated tests
       environment, idempotent on restart, storage retry with backoff before giving up
 - [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
 - [x] Browser: phone viewport, dark mode, and rendering with the network switched off
+- [x] Browser: the same walkthrough through the German interface (`KOLIBRI_LOCALE=de`)
+- [x] Browser: the guide opens from `?`, all four sections render without a raw translation key,
+      every one of the 32 animation steps is narrated, and all 18 hierarchy nodes explain themselves
+- [x] Browser: the first-run tour greets a new device, offers five steps to an owner and three to a
+      member, creates a real project, and stays gone after a reload
+- [x] Browser: the setup checklist reads the seeded workspace correctly, a contextual hint lands on
+      the card it names and scrolls to it, and `?tab=` opens the settings screen it promised
+- [x] Browser: right-to-left is no worse than left-to-right — no horizontal scroll and nothing
+      pushed out of frame on five screens at desktop and phone widths
+- [x] A German account creating a project gets a German workflow and German labels
+- [x] The guide does not animate on its own when the OS asks for reduced motion, and stays steppable
+- [x] Catalogue parity: same keys both ways, no placeholder lost in translation, plural pairs
+      complete, every key the interface uses exists, and no user-visible string left hard-coded
+- [x] A notification written for a German recipient by an English actor arrives in German
 
 ## Known-unknowns
 
