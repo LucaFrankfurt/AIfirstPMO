@@ -105,6 +105,11 @@ docker compose --profile tls up -d                        # + Caddy, automatic H
 Put `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in `.env` and plain
 `docker compose up -d` picks up the overlay every time.
 
+Deploying on **Coolify** or a similar PaaS? Use the Docker Compose build pack with
+`docker-compose.coolify.yml` — it drops the host port mappings, fixed container names and the
+bundled TLS proxy, because the platform provides all three. See
+[`docs/deployment.md`](docs/deployment.md#coolify-and-other-paas).
+
 ### Without Docker
 
 Node 22.18 or newer is the only requirement — the server runs TypeScript directly and SQLite is

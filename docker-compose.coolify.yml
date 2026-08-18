@@ -1,0 +1,110 @@
+# Kolibri on Coolify.
+#
+# Coolify → Add Resource → Docker Compose → point it at this repository and set
+# the compose file to `docker-compose.coolify.yml`. It builds the Dockerfile,
+# runs the stack and terminates TLS itself.
+#
+# This file differs from docker-compose.yml in four ways, all of them because
+# Coolify owns the host:
+#
+#   1. no `container_name` — Coolify suffixes service names with a UUID so two
+#      deployments (or a preview environment) cannot collide,
+#   2. `expose` instead of `ports` — nothing is published on the host; Coolify's
+#      proxy routes to the container port you give a domain to,
+#   3. no Caddy — Coolify's proxy already does TLS,
+#   4. secrets come from Coolify's environment, not from defaults in the file.
+#
+# After the first deploy, set in the Coolify UI:
+#   * a domain for the `kolibri` service, pointing at port 4000
+#   * KOLIBRI_ADMIN_EMAIL / KOLIBRI_ADMIN_PASSWORD so the owner account exists
+#   * KOLIBRI_SMTP_URL if you want email (see docs/notifications.md)
+# Then check that KOLIBRI_PUBLIC_URL really shows your https URL — links in
+# invites and emails are built from it.
+
+services:
+  kolibri:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      minio:
+        condition: service_healthy
+    expose:
+      - "4000"
+    environment:
+      # Asks Coolify for a domain and points its proxy at port 4000.
+      - SERVICE_FQDN_KOLIBRI_4000
+      # Absolute links (invites, email, MCP output) are built from this. If your
+      # Coolify version does not substitute the variable, set it by hand in the
+      # UI to https://<your-domain>.
+      - KOLIBRI_PUBLIC_URL=$SERVICE_FQDN_KOLIBRI_4000
+
+      # Signs sessions, API tokens and unsubscribe links. Generated into the
+      # volume on first start; set it explicitly to keep sessions alive across a
+      # volume reset.
+      - KOLIBRI_SECRET=${KOLIBRI_SECRET:-}
+
+      # Close the instance once your team has accounts.
+      - KOLIBRI_ALLOW_SIGNUP=${KOLIBRI_ALLOW_SIGNUP:-true}
+      - KOLIBRI_MAX_UPLOAD_MB=${KOLIBRI_MAX_UPLOAD_MB:-25}
+      - KOLIBRI_LOG_LEVEL=${KOLIBRI_LOG_LEVEL:-info}
+      - TZ=${TZ:-UTC}
+
+      # First-run provisioning: set these and the owner account, its workspace
+      # and a starter project exist as soon as the deploy is healthy.
+      - KOLIBRI_ADMIN_EMAIL=${KOLIBRI_ADMIN_EMAIL:-}
+      - KOLIBRI_ADMIN_PASSWORD=${KOLIBRI_ADMIN_PASSWORD:-}
+      - KOLIBRI_ADMIN_NAME=${KOLIBRI_ADMIN_NAME:-Owner}
+      - KOLIBRI_WORKSPACE_NAME=${KOLIBRI_WORKSPACE_NAME:-Kolibri}
+      - KOLIBRI_SEED_DEMO=${KOLIBRI_SEED_DEMO:-false}
+
+      # Uploads go to the MinIO service below, reachable by service name on the
+      # shared network. The bucket is created by the app on boot.
+      - KOLIBRI_STORAGE=s3
+      - KOLIBRI_S3_ENDPOINT=http://minio:9000
+      - KOLIBRI_S3_BUCKET=${KOLIBRI_S3_BUCKET:-kolibri}
+      - KOLIBRI_S3_REGION=us-east-1
+      - KOLIBRI_S3_ACCESS_KEY=${SERVICE_USER_MINIO}
+      - KOLIBRI_S3_SECRET_KEY=${SERVICE_PASSWORD_MINIO}
+      - KOLIBRI_S3_PATH_STYLE=true
+      # MinIO has no public address here, so downloads are proxied by the app.
+      - KOLIBRI_S3_PRESIGN=false
+
+      # Email is off until this points at a relay you control.
+      - KOLIBRI_SMTP_URL=${KOLIBRI_SMTP_URL:-}
+      - KOLIBRI_MAIL_FROM=${KOLIBRI_MAIL_FROM:-kolibri@localhost}
+      - KOLIBRI_MAIL_FROM_NAME=${KOLIBRI_MAIL_FROM_NAME:-Kolibri}
+    volumes:
+      - kolibri-data:/data
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  minio:
+    image: quay.io/minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      # Coolify generates and stores these on the first deploy, so no object
+      # storage credentials live in the repository.
+      - MINIO_ROOT_USER=${SERVICE_USER_MINIO}
+      - MINIO_ROOT_PASSWORD=${SERVICE_PASSWORD_MINIO}
+    expose:
+      - "9000"
+      # Give this port a domain in Coolify only if you want the admin console
+      # reachable; the app itself does not need it.
+      - "9001"
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  kolibri-data:
+  minio-data:

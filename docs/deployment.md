@@ -93,6 +93,37 @@ For the smallest possible install — one container, uploads on the volume, no m
 
 The first account created owns the instance. Turn signup off afterwards.
 
+## Coolify (and other PaaS)
+
+Use the **Docker Compose** build pack with `docker-compose.coolify.yml`, not the Dockerfile one:
+the app needs MinIO next to it, and Compose keeps both in a single resource that deploys, restarts
+and backs up together. The Dockerfile pack would mean running MinIO as a second resource and wiring
+the two by hand.
+
+Coolify → *Add Resource* → *Docker Compose* → this repository → compose file
+`docker-compose.coolify.yml`. Then, in the UI:
+
+1. give the `kolibri` service a domain pointing at port **4000**,
+2. set `KOLIBRI_ADMIN_EMAIL` and `KOLIBRI_ADMIN_PASSWORD` so the owner account exists on the first
+   deploy,
+3. set `KOLIBRI_SMTP_URL` if you want email,
+4. check that `KOLIBRI_PUBLIC_URL` really resolved to your `https://` domain — invite and email
+   links are built from it.
+
+The Coolify file differs from `docker-compose.yml` only where the platform owns the host:
+
+| | `docker-compose.yml` | `docker-compose.coolify.yml` |
+|---|---|---|
+| Container names | fixed (`kolibri`, `kolibri-minio`) | none — Coolify suffixes with a UUID so deployments cannot collide |
+| Networking | `ports:` published on the host | `expose:` only; Coolify's proxy routes to the port you gave a domain |
+| TLS | optional Caddy (`--profile tls`) | Coolify's proxy |
+| Object storage credentials | defaults in the file | `SERVICE_USER_MINIO` / `SERVICE_PASSWORD_MINIO`, generated and stored by Coolify |
+
+The same shape works on any PaaS that consumes a compose file. On one that only takes a Dockerfile
+(Fly, Railway's simple mode, a plain container host), deploy the image on its own with
+`KOLIBRI_STORAGE=disk` and a persistent volume at `/data` — that is `docker-compose.lite.yml`
+without the compose part, and it needs no second service.
+
 ## TLS
 
 Kolibri speaks plain HTTP and expects a reverse proxy for TLS. Caddy is two lines
