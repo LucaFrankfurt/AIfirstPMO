@@ -138,6 +138,12 @@ describe('email notifications', () => {
     assert.equal(env.mail.pass, 'secret');
   });
 
+  it('recognises a local capture inbox for what it is', () => {
+    // This test's own relay is on 127.0.0.1 — the same shape as Mailpit in the
+    // dev overlay. Reporting it as ordinary delivery is the confusion we avoid.
+    assert.equal(env.mailMode, 'test-inbox');
+  });
+
   it('batches several notifications into one message', async () => {
     notify('u1', 'assigned', 'Assigned: WEB-1 Redesign the pricing page');
     notify('u1', 'mention', 'You were mentioned in WEB-2');

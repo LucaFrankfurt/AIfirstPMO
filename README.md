@@ -6,7 +6,7 @@
 
 **Open source projects, tasks and pages. Offline-first, self-hosted, MCP-native.**
 
-`docker compose up -d` — app, object storage and mail, wired and configured.
+`docker compose up -d` — app and object storage, wired and configured.
 
 </div>
 
@@ -50,7 +50,7 @@ around three convictions:
 | **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field, Server-Sent-Events live updates, installable PWA |
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
 | **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 19 tools, 3 prompts and page resources |
-| **Deployment** | One command brings up app + object store + mail, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS |
+| **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
 
 ## Quick start
 
@@ -61,17 +61,25 @@ docker compose up -d --build
 open http://localhost:4000
 ```
 
-That is the whole installation. It brings up the app, an S3-compatible object store for uploads
-and a mail inbox, **already wired to each other** — the bucket is created on first boot, mail is
-delivered, and nothing has to be configured afterwards.
+That is the whole installation. It brings up the app and an S3-compatible object store for uploads,
+**already wired to each other** — the bucket is created on first boot and nothing has to be
+configured afterwards.
 
 | | |
 |---|---|
 | App | <http://localhost:4000> |
-| Mail inbox | <http://localhost:8025> — every notification lands here until you point `KOLIBRI_SMTP_URL` at a real relay |
-| Object store console | <http://localhost:9001> — login is `KOLIBRI_S3_ACCESS_KEY` / `KOLIBRI_S3_SECRET_KEY` |
+| Object store console | <http://localhost:9001> — login is `KOLIBRI_S3_ACCESS_KEY` / `KOLIBRI_S3_SECRET_KEY`, bound to localhost |
 
-Both admin interfaces are bound to `127.0.0.1`; only the app itself is published.
+Email is **off** until `KOLIBRI_SMTP_URL` points at a relay you control — notifications live in the
+in-app inbox either way. To try delivery locally, add the dev overlay, which runs a capture inbox
+(Mailpit on <http://localhost:8025>) and wires the app to it:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+```
+
+Kolibri recognises a capture inbox and labels it as such in the log, in `/api/health` and in the
+settings screen, so it can never be mistaken for real delivery.
 
 To skip the browser step that claims the instance, set the owner in `.env` before the first start
 — the account then exists the moment the stack is up:
@@ -93,6 +101,9 @@ Otherwise the first account you create in the browser owns the instance. Either 
 docker compose -f docker-compose.lite.yml up -d --build   # single container, uploads on the volume
 docker compose --profile tls up -d                        # + Caddy, automatic HTTPS for KOLIBRI_DOMAIN
 ```
+
+Put `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in `.env` and plain
+`docker compose up -d` picks up the overlay every time.
 
 ### Without Docker
 

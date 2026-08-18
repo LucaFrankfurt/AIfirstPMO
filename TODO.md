@@ -30,8 +30,9 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Verify the deployment on a real daemon.** The Dockerfile and both compose files were
       written and reviewed but never executed — there was no Docker daemon in the environment they
       were authored in. The `deploy` job in CI brings the whole stack up and asserts the wiring
-      (provisioned owner account, upload landing in MinIO, test mail arriving in Mailpit, restart
-      idempotence, plus the lite variant); that job has not run yet.
+      (provisioned owner account, upload landing in MinIO, mail refused while no relay is
+      configured, the dev overlay delivering into the capture inbox, restart idempotence, plus the
+      lite variant); that job has not run yet.
 - [ ] **Test a restore.** The backup procedure in `docs/deployment.md` (`VACUUM INTO` + uploads
       tarball) is written from first principles, not from a rehearsed restore.
 - [ ] **`kolibri doctor` / maintenance commands** — integrity check, `VACUUM`, and a search-index

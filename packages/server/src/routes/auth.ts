@@ -311,6 +311,7 @@ export function registerAuthRoutes(router: Router): void {
     const user = get<Row>(`SELECT email_prefs FROM users WHERE id = ?`, auth.userId);
     return {
       enabled: env.mailEnabled,
+      mode: env.mailMode,
       host: env.mailEnabled ? `${env.mail.host}:${env.mail.port}` : null,
       from: env.mail.from,
       batchSeconds: env.mail.batchSeconds,

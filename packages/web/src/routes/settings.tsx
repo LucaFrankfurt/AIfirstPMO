@@ -120,6 +120,8 @@ function Profile() {
 
 interface MailStatus {
   enabled: boolean;
+  /** 'test-inbox' means a capture tool — delivered, but nobody receives it. */
+  mode: 'off' | 'relay' | 'test-inbox';
   host: string | null;
   from: string;
   batchSeconds: number;
@@ -186,10 +188,31 @@ function Notifications() {
       </div>
 
       <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>Delivery</h3>
+      {status?.mode === 'test-inbox' && (
+        <div
+          className="card"
+          style={{ marginBottom: 10, borderColor: 'var(--warn)', background: 'color-mix(in srgb, var(--warn) 8%, transparent)' }}
+        >
+          <div className="row" style={{ gap: 7, marginBottom: 4 }}>
+            <Icon name="bell" size={15} />
+            <strong>This is a capture inbox, not a mail server</strong>
+          </div>
+          <span className="soft" style={{ fontSize: 12.5 }}>
+            Messages are accepted by <span className="mono">{status.host}</span> and stop there — no
+            recipient ever gets them. Read them in the local inbox (Mailpit, usually on port 8025),
+            and set <span className="mono">KOLIBRI_SMTP_URL</span> to a real relay before this
+            instance is used for actual work.
+          </span>
+        </div>
+      )}
       {status?.enabled ? (
         <>
           <div className="card" style={{ marginBottom: 10 }}>
-            <div className="row"><span className="grow">Relay</span><strong className="mono">{status.host}</strong></div>
+            <div className="row">
+              <span className="grow">Relay</span>
+              <strong className="mono">{status.host}</strong>
+              {status.mode === 'test-inbox' && <span className="chip" style={{ color: 'var(--warn)' }}>capture</span>}
+            </div>
             <div className="row"><span className="grow">Sender</span><strong className="mono">{status.from}</strong></div>
             <div className="row"><span className="grow">Waiting in the queue</span><strong>{status.pending}</strong></div>
           </div>
@@ -216,7 +239,7 @@ function Notifications() {
         <Empty
           emoji="✉️"
           title="No mail relay configured"
-          hint="This instance sends nothing by email. Set KOLIBRI_SMTP_URL and restart to enable it — the in-app inbox works either way."
+          hint="This instance sends nothing by email — notifications stay in the in-app inbox, which is the source of truth anyway. Set KOLIBRI_SMTP_URL to a relay and restart to turn delivery on."
         />
       )}
     </>

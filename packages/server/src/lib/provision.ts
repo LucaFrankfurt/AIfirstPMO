@@ -93,14 +93,10 @@ export async function provision(log: Log): Promise<void> {
   bootstrapAdmin(log);
   seedDemo(log);
 
-  if (env.mailEnabled) {
-    const local = /^(mailpit|localhost|127\.0\.0\.1)$/i.test(env.mail.host);
-    log(
-      local ? 'warn' : 'info',
-      local
-        ? `Mail goes to the local test inbox at ${env.mail.host}:${env.mail.port} — nothing leaves this machine. Point KOLIBRI_SMTP_URL at a real relay to send for real.`
-        : `Mail: ${env.mail.host}:${env.mail.port} as ${env.mail.from}`,
-    );
+  if (env.mailMode === 'test-inbox') {
+    log('warn', `Mail goes to the test inbox at ${env.mail.host}:${env.mail.port} — messages are captured, no recipient ever receives them. Point KOLIBRI_SMTP_URL at a real relay to send for real.`);
+  } else if (env.mailMode === 'relay') {
+    log('info', `Mail: ${env.mail.host}:${env.mail.port} as ${env.mail.from}`);
   } else {
     log('info', 'Mail: disabled (in-app notifications only)');
   }

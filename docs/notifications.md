@@ -21,10 +21,10 @@ your phone marks it read on your laptop.
 
 ## Email
 
-The default compose stack ships a **Mailpit** container and points Kolibri at it, so email works
-from the first minute: every notification is delivered and lands in a local inbox on
-<http://localhost:8025>. Nothing leaves the machine until you point `KOLIBRI_SMTP_URL` at a real
-relay — the app logs a warning on every boot to make sure that is not forgotten.
+Email is **off** until `KOLIBRI_SMTP_URL` points at a relay you control. That is deliberate: a
+default that accepted every message and quietly dropped it would look identical, from inside the
+app, to one that delivers — same green ticks, same "sent" in the queue, no recipient. Notifications
+are not lost in the meantime; they are in the in-app inbox, which is the source of truth.
 
 Delivery follows three rules:
 
@@ -59,9 +59,22 @@ Or set the pieces separately: `KOLIBRI_SMTP_HOST`, `KOLIBRI_SMTP_PORT`, `KOLIBRI
 `KOLIBRI_SMTP_PASS`, `KOLIBRI_SMTP_SECURE`. For an internal relay with a self-signed certificate,
 `KOLIBRI_SMTP_INSECURE=true`.
 
-The local inbox is already running in the default stack — `open http://localhost:8025` to see
-everything that was sent. With `docker-compose.lite.yml` there is no relay at all and email stays
-off until you configure one.
+### Trying it without a mail provider
+
+The dev overlay adds **Mailpit**, a capture inbox, and wires the app to it in one command:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+open http://localhost:8025      # everything the app "sent" is here
+```
+
+Mailpit accepts every message and delivers none of them. Kolibri detects that shape of relay
+(`mailpit`, `localhost`, `127.0.0.1`, and the usual capture tools) and says so in three places, so
+it can never be mistaken for working delivery:
+
+- a warning in the log on every boot,
+- `"mail": "test-inbox"` from `GET /api/health` instead of a plain `true`,
+- a banner in **Settings → Notifications**.
 
 Then hit **Send a test email** in Settings → Notifications. It reports the relay's own error
 message if something is wrong, which is usually enough to diagnose it (wrong port, bad credentials,
