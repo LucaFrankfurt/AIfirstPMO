@@ -66,7 +66,9 @@ jobs:
           echo "$health"
           echo "$health" | grep -q '"ready":true'      || { echo "not provisioned"; exit 1; }
           echo "$health" | grep -q '"storage":"s3"'    || { echo "object storage not active"; exit 1; }
-          echo "$health" | grep -q '"mail":true'       || { echo "mail not configured"; exit 1; }
+          # The default stack deliberately has no relay: mail must report "off",
+          # never a capture tool dressed up as working delivery.
+          echo "$health" | grep -q '"mail":"off"'      || { echo "mail should be off by default"; exit 1; }
 
       - name: The owner account exists without anyone clicking anything
         run: |
@@ -89,16 +91,10 @@ jobs:
           docker compose exec -T minio mc ls --recursive ci/kolibri | tee objects.txt
           test -s objects.txt
 
-      - name: A test email reaches the inbox
+      - name: Without a relay, mail is refused rather than silently dropped
         run: |
-          curl -fsS -b jar -X POST http://127.0.0.1:4000/api/mail/test | grep -q '"sent":true'
-          for i in $(seq 1 15); do
-            if curl -fsS http://127.0.0.1:8025/api/v1/messages | grep -q 'Kolibri test email'; then
-              echo "delivered"; exit 0
-            fi
-            sleep 2
-          done
-          echo "no message in the inbox"; docker compose logs kolibri; exit 1
+          code=$(curl -s -o /dev/null -w '%{http_code}' -b jar -X POST http://127.0.0.1:4000/api/mail/test)
+          test "$code" = "400" || { echo "expected 400 without a relay, got $code"; exit 1; }
 
       - name: Restarting changes nothing
         run: |
@@ -108,13 +104,37 @@ jobs:
             "const{DatabaseSync}=require('node:sqlite');console.log(new DatabaseSync('/data/kolibri.sqlite').prepare('select count(*) c from users').get().c)")
           test "$users" -eq 1 || { echo "provisioning was not idempotent: $users users"; exit 1; }
 
-      - name: Diagnostics on failure
-        if: failure()
-        run: docker compose ps && docker compose logs --tail 200
+      # The dev overlay is what makes email demonstrable: it adds the capture
+      # inbox and wires the app to it in one command.
+      - name: The dev overlay delivers mail into the capture inbox
+        run: |
+          dev="docker compose -f docker-compose.yml -f docker-compose.dev.yml"
+          $dev up -d --build --wait --wait-timeout 300
+          curl -fsS http://127.0.0.1:4000/api/health | grep -q '"mail":"test-inbox"' \
+            || { echo "the capture inbox must be labelled as such"; exit 1; }
+
+          curl -fsS -c jar2 -X POST http://127.0.0.1:4000/api/auth/login \
+            -H 'content-type: application/json' \
+            -d '{"email":"owner@example.com","password":"a good long password"}' >/dev/null
+          curl -fsS -b jar2 -X POST http://127.0.0.1:4000/api/mail/test | grep -q '"sent":true'
+
+          for i in $(seq 1 15); do
+            if curl -fsS http://127.0.0.1:8025/api/v1/messages | grep -q 'Kolibri test email'; then
+              echo "delivered to the capture inbox"; exit 0
+            fi
+            sleep 2
+          done
+          echo "no message in the inbox"; $dev logs kolibri mailpit; exit 1
 
       - name: The single-container variant also comes up
         run: |
-          docker compose down -v
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
           docker compose -f docker-compose.lite.yml up -d --build --wait --wait-timeout 180
           curl -fsS http://127.0.0.1:4000/api/health | grep -q '"storage":"disk"'
           docker compose -f docker-compose.lite.yml down -v
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
+          docker compose -f docker-compose.yml -f docker-compose.dev.yml logs --tail 200

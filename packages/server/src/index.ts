@@ -38,7 +38,9 @@ router.get('/api/health', () => ({
   seq: currentSeq(),
   uptime: Math.round(process.uptime()),
   storage: env.storage.kind,
-  mail: env.mailEnabled,
+  // 'off' | 'relay' | 'test-inbox' — a boolean would call a capture tool
+  // "working", which is the confusion this avoids.
+  mail: env.mailMode,
 }));
 
 /* ------------------------------------------------------------ static files */

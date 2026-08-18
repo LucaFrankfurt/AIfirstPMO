@@ -110,6 +110,15 @@ export const env = {
   admin,
   /** Fill an empty database with the demo workspace on first start. */
   seedDemo: bool(process.env.KOLIBRI_SEED_DEMO, false),
+  /**
+   * `test-inbox` means the relay is a local capture tool (Mailpit and friends):
+   * messages are delivered and then go nowhere. Worth saying out loud, because
+   * every other signal in the app looks identical to real delivery.
+   */
+  get mailMode(): 'off' | 'relay' | 'test-inbox' {
+    if (!mail.host) return 'off';
+    return /^(mailpit|mailhog|maildev|localhost|127\.0\.0\.1|::1)$/i.test(mail.host) ? 'test-inbox' : 'relay';
+  },
   /** Mail is configured; without a host nothing is ever sent. */
   get mailEnabled(): boolean {
     return !!mail.host;

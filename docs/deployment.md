@@ -12,19 +12,28 @@ That is the deployment. Everything below is detail.
 |---|---|---|
 | `kolibri` | `:4000` | the app |
 | `minio` | `127.0.0.1:9000`, console `127.0.0.1:9001` | uploads; the bucket is created by the app on boot |
-| `mailpit` | `127.0.0.1:8025` | a local inbox so notifications are visible immediately |
 | `caddy` | `:80`, `:443` — profile `tls` | automatic HTTPS for `KOLIBRI_DOMAIN` |
+| `mailpit` | `127.0.0.1:8025` — dev overlay only | a capture inbox for trying email out |
 
 The app waits for the object store instead of crash-looping if MinIO is slow to start, creates the
 bucket itself, and — if `KOLIBRI_ADMIN_EMAIL`/`KOLIBRI_ADMIN_PASSWORD` are set — creates the owner
 account and its first workspace. All of that is idempotent, so restarts and redeploys converge
 rather than duplicate. `GET /api/health` reports `"ready": true` once it is done.
 
-Two things to change before anyone else can reach the machine:
+Two things to set before this is more than a local experiment:
 
 1. `KOLIBRI_S3_SECRET_KEY` — it is also the MinIO console password.
-2. `KOLIBRI_SMTP_URL` — until it points at a real relay, mail is captured locally and no recipient
-   ever sees it. The app logs a warning about this on every boot.
+2. `KOLIBRI_SMTP_URL` — email is off until it points at a relay. Notifications still work; they
+   live in the in-app inbox. See [`notifications.md`](notifications.md).
+
+To try email locally, add the dev overlay — it runs a capture inbox and points the app at it:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build   # inbox on :8025
+```
+
+A capture inbox is never presented as working delivery: the log warns on boot, `/api/health`
+reports `"mail": "test-inbox"`, and the settings screen shows a banner.
 
 For the smallest possible install — one container, uploads on the volume, no mail —
 `docker compose -f docker-compose.lite.yml up -d --build`.
@@ -83,6 +92,37 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_S3_PRESIGN_SECONDS` | `300` | Lifetime of those URLs |
 
 The first account created owns the instance. Turn signup off afterwards.
+
+## Coolify (and other PaaS)
+
+Use the **Docker Compose** build pack with `docker-compose.coolify.yml`, not the Dockerfile one:
+the app needs MinIO next to it, and Compose keeps both in a single resource that deploys, restarts
+and backs up together. The Dockerfile pack would mean running MinIO as a second resource and wiring
+the two by hand.
+
+Coolify → *Add Resource* → *Docker Compose* → this repository → compose file
+`docker-compose.coolify.yml`. Then, in the UI:
+
+1. give the `kolibri` service a domain pointing at port **4000**,
+2. set `KOLIBRI_ADMIN_EMAIL` and `KOLIBRI_ADMIN_PASSWORD` so the owner account exists on the first
+   deploy,
+3. set `KOLIBRI_SMTP_URL` if you want email,
+4. check that `KOLIBRI_PUBLIC_URL` really resolved to your `https://` domain — invite and email
+   links are built from it.
+
+The Coolify file differs from `docker-compose.yml` only where the platform owns the host:
+
+| | `docker-compose.yml` | `docker-compose.coolify.yml` |
+|---|---|---|
+| Container names | fixed (`kolibri`, `kolibri-minio`) | none — Coolify suffixes with a UUID so deployments cannot collide |
+| Networking | `ports:` published on the host | `expose:` only; Coolify's proxy routes to the port you gave a domain |
+| TLS | optional Caddy (`--profile tls`) | Coolify's proxy |
+| Object storage credentials | defaults in the file | `SERVICE_USER_MINIO` / `SERVICE_PASSWORD_MINIO`, generated and stored by Coolify |
+
+The same shape works on any PaaS that consumes a compose file. On one that only takes a Dockerfile
+(Fly, Railway's simple mode, a plain container host), deploy the image on its own with
+`KOLIBRI_STORAGE=disk` and a persistent volume at `/data` — that is `docker-compose.lite.yml`
+without the compose part, and it needs no second service.
 
 ## TLS
 

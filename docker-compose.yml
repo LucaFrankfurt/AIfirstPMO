@@ -2,17 +2,26 @@
 #
 #   docker compose up -d --build
 #
-# That is the entire installation. It brings up the app, an S3-compatible
-# object store for uploads and a local mail inbox, already pointed at each
-# other. The bucket is created on first boot, the owner account is created from
-# the environment, and nothing needs to be clicked to finish setup.
+# That is the entire installation. It brings up the app and an S3-compatible
+# object store for uploads, already pointed at each other: the bucket is
+# created on first boot, the owner account comes from the environment, and
+# nothing needs to be clicked to finish setup.
 #
 #   App        http://localhost:4000
-#   Mail       http://localhost:8025   (every notification lands here)
 #   S3 console http://localhost:9001   (login: the S3 keys below)
 #
-# Want the boring single-container version instead — uploads on the volume,
-# no mail? Use `docker compose -f docker-compose.lite.yml up -d`.
+# Email is *off* until you point KOLIBRI_SMTP_URL at a relay you control.
+# Notifications still work — they live in the in-app inbox. A default that
+# quietly swallowed every message would look identical to one that delivers.
+#
+# To try email locally, add the dev overlay — it runs a capture inbox and
+# wires the app to it:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Single container, uploads on the volume, no object store:
+#
+#   docker compose -f docker-compose.lite.yml up -d --build
 
 x-logging: &logging
   driver: json-file
@@ -32,8 +41,6 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-      mailpit:
-        condition: service_started
     ports:
       - "${KOLIBRI_PORT:-4000}:4000"
     environment:
@@ -74,9 +81,10 @@ services:
       KOLIBRI_S3_PUBLIC_ENDPOINT: "${KOLIBRI_S3_PUBLIC_ENDPOINT:-}"
 
       # --- email -----------------------------------------------------------
-      # Defaults to the Mailpit container: notifications work out of the box
-      # and land in a local inbox. Point this at a real relay to send for real.
-      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-smtp://mailpit:1025}"
+      # Empty means no email at all: notifications stay in the in-app inbox,
+      # which is the source of truth anyway. Set a relay to turn it on:
+      #   smtp://user:pass@smtp.example.com:587
+      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-}"
       KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
       KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-Kolibri}"
       KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
@@ -115,20 +123,6 @@ services:
       timeout: 5s
       retries: 12
       start_period: 10s
-    logging: *logging
-
-  # A local inbox so notifications are visible immediately. Replace it with a
-  # real relay (KOLIBRI_SMTP_URL) when mail should actually leave the machine.
-  mailpit:
-    image: axllent/mailpit:v1.30
-    container_name: kolibri-mailpit
-    restart: unless-stopped
-    environment:
-      MP_MAX_MESSAGES: "1000"
-      MP_SMTP_AUTH_ACCEPT_ANY: "1"
-      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
-    ports:
-      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_PORT:-8025}:8025"
     logging: *logging
 
   # --- optional: automatic HTTPS ------------------------------------------

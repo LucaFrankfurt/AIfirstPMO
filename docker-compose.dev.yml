@@ -1,0 +1,41 @@
+# Development overlay: adds a mail capture inbox and points the app at it.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+#
+# Mailpit accepts every message and shows it at http://localhost:8025 — nothing
+# is ever delivered to a real recipient. That is exactly why it is not in the
+# default stack: an instance that captures mail looks, from inside the app,
+# identical to one that sends it. The app calls this out in the log on boot and
+# in Settings → Notifications.
+#
+# Tip: put `COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml` in your
+# .env and plain `docker compose up -d` picks up this overlay.
+
+services:
+  kolibri:
+    depends_on:
+      minio:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    environment:
+      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-smtp://mailpit:1025}"
+      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
+      # Short window so a test does not wait two minutes for the digest.
+      KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-15}"
+
+  mailpit:
+    image: axllent/mailpit:v1.30
+    container_name: kolibri-mailpit
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "1000"
+      MP_SMTP_AUTH_ACCEPT_ANY: "1"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "1"
+    ports:
+      - "${MAILPIT_BIND:-127.0.0.1}:${MAILPIT_PORT:-8025}:8025"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
