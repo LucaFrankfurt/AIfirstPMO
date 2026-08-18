@@ -25,8 +25,9 @@ returned exactly once — only its hash is stored. A `read` token is rejected on
 ## Entities
 
 Every entity in the registry gets the same five routes. Collections: `tasks`, `projects`, `states`,
-`labels`, `cycles`, `modules`, `pages`, `comments`, `attachments`, `views`, `teams`, `team-members`,
-`project-members`, `relations`, `notifications`.
+`labels`, `cycles`, `modules`, `pages`, `comments`, `attachments`, `views`, `templates`,
+`automations`, `time-entries`, `teams`, `team-members`, `project-members`, `relations`,
+`notifications`.
 
 ```
 GET    /api/workspaces/:ws/:collection      list, filterable by any field

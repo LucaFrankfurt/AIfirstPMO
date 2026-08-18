@@ -22,6 +22,7 @@ export type EntityName =
   | 'comment'
   | 'attachment'
   | 'view'
+  | 'timeEntry'
   | 'template'
   | 'automation'
   | 'notification'
@@ -133,6 +134,13 @@ export const ENTITIES = {
       'filters', 'group_by', 'order_by', 'show_done', 'shared', 'owner_id', 'sort_order',
     ],
     json: ['filters'],
+  },
+  timeEntry: {
+    table: 'time_entries',
+    fields: [
+      'workspace_id', 'project_id', 'task_id', 'user_id', 'minutes', 'spent_on',
+      'note', 'started_at', 'billable',
+    ],
   },
   template: {
     table: 'templates',

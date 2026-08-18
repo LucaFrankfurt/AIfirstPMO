@@ -51,6 +51,10 @@ function filterFor(entity: EntityName): string {
       return `AND ${table}.id IN (${VISIBLE_PROJECTS})`;
     case 'label':
     case 'view':
+    case 'timeEntry':
+      // Time is not private: a lead has to be able to add up the project. It is
+      // scoped to the project like everything else, and an entry with no
+      // project is the writer's own loose time.
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
     case 'page':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))

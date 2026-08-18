@@ -170,6 +170,14 @@ const ASIDE: Node[] = [
     belongsTo: 'guide.hierarchy.aPerson',
   },
   {
+    id: 'timeEntry',
+    glyph: 'cycle',
+    name: 'guide.node.time',
+    what: 'guide.node.timeWhat',
+    rule: 'guide.node.timeRule',
+    belongsTo: 'guide.hierarchy.aTask',
+  },
+  {
     id: 'view',
     glyph: 'filter',
     name: 'guide.node.view',

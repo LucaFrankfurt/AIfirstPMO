@@ -9,6 +9,7 @@ import { useMe, useMemberMap, useSession } from '../session';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
+import { TaskTime } from './time';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, stateOf,
 } from './task-parts';
@@ -138,6 +139,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             />
           </label>
         </div>
+
+        <TaskTime taskId={task.id} projectId={task.project_id} />
 
         {/* description */}
         <section style={{ marginBottom: 18 }}>

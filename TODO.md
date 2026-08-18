@@ -165,8 +165,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [ ] **Bounce and complaint handling.** Failed sends are recorded in `email_queue.last_error`, but
       a hard bounce does not disable that address automatically.
 - [ ] **Custom fields** per project.
-- [ ] **Time tracking** (estimates exist, logged time does not), and everything that needs it:
-      hourly rates, budgets, cost and utilisation reports.
+- [x] **Time tracking.** Log time on a task, or run a timer — which is a row with a start and no
+      minutes yet, so it survives a reload, a second device and a tunnel. One clock per person.
+      Totals per task and per project, and `log_time` / `list_time` over MCP.
+- [ ] **What time tracking is a prerequisite for**: hourly rates, budgets, cost and utilisation
+      reports, and a timesheet view across projects and weeks. Also: `tasks.estimate` is in points,
+      so "spent vs. estimated" cannot be shown until an estimate carries a unit — which is a
+      decision about how a team plans, not a formatting problem.
 - [ ] **Gantt with real scheduling.** Relations exist but nothing reschedules — moving a
       predecessor moves nothing. Baselines (plan vs. actual) sit on top of the same work.
 - [ ] **Resource and capacity planning**, a team planner.

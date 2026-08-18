@@ -23,6 +23,7 @@ export const REST_ENTITIES: Record<string, EntityName> = {
   comments: 'comment',
   attachments: 'attachment',
   views: 'view',
+  'time-entries': 'timeEntry',
   templates: 'template',
   automations: 'automation',
   notifications: 'notification',

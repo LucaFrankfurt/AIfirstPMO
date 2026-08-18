@@ -25,7 +25,7 @@ Worth stating first, because it is the reason the gaps below are acceptable:
   one is on a train both keep their change. None of the three do this; they are
   all request/response applications with a spinner.
 - **MCP natively.** An assistant is a user with a scoped token, not a plugin or
-  a chat sidebar. 21 tools over the same permissions as a person.
+  a chat sidebar. 23 tools over the same permissions as a person.
 - **One container, no database to run.** SQLite in the data volume, one Node
   process. Confluence and OpenProject both want a Postgres and a few gigabytes
   of RAM before they say hello.
@@ -58,8 +58,8 @@ across pages and tasks.
 
 The closest of the three. Kolibri has cycles, modules, list/board/table/calendar,
 saved views, multi-select with bulk actions, labels, per-project workflow states,
-estimates, sub-tasks, relations, pages — and templates with rules, which Plane
-does not have in this form.
+estimates, time tracking, sub-tasks, relations, pages — and templates with rules,
+which Plane does not have in this form.
 
 | Missing | Weight | Note |
 |---|---|---|
@@ -67,7 +67,6 @@ does not have in this form.
 | **Analytics** — burn-down/up, throughput, cycle time | High | |
 | **Import** from Jira / CSV / GitHub | High | The single biggest adoption blocker: nobody migrates without it |
 | **Integrations** — GitHub/GitLab commit linking, Slack | High | |
-| **Time tracking** | High | Estimates exist; logged time does not |
 | **Work item types** (bug / feature / epic) | Medium–high | There is no `type` on a task, only labels |
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
@@ -85,7 +84,7 @@ management with money in it.
 | Missing | Weight | Note |
 |---|---|---|
 | **Gantt with real scheduling** | High | Relations exist (`blocks`, `relates_to`, …) but nothing reschedules: moving a predecessor moves nothing |
-| **Time and cost tracking**, hourly rates, budgets | High | |
+| **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
 | **Reports** — cost, utilisation, progress across projects | High | |
 | **Resource and capacity planning**, team planner | High | |
 | **Work package types with type-dependent forms and workflows** | High | |
@@ -124,7 +123,7 @@ Ordered by value per unit of work, not by size.
 | ~~2~~ | ~~Page comments + mentions in pages~~ | **Done** — a thread under every page, mentions in the body | |
 | ~~3~~ | ~~Rate limiting + CSP~~ | **Done** — see `lib/ratelimit.ts` and `lib/csp.ts` | |
 | ~~4~~ | ~~Multi-select and the table layout~~ | **Done** — selection, bulk actions, sortable table | |
-| 5 | Time tracking | Prerequisite for everything cost-related, and the most common single request for tools like this | medium |
+| ~~5~~ | ~~Time tracking~~ | **Done** — timer or manual entry, totals per task and project, over MCP too | |
 | 6 | Import (CSV first, then Jira/Plane) | Nobody migrates without it | medium |
 | 7 | Gantt with dependencies | The largest single piece missing against OpenProject | large |
 | 8 | SSO | The gate on company adoption | large |

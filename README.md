@@ -52,7 +52,7 @@ around three convictions:
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of every feature plus an explorer for how the pieces nest. Every empty screen links to the card that explains it. Press `?` |
 | **Languages** | English and German throughout — interface, notifications and emails, each written in the recipient's own language. Adding a third is one typed catalogue file |
-| **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 21 tools, 3 prompts and page resources |
+| **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
 
 ## Quick start
@@ -193,6 +193,7 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
 - [`docs/automation.md`](docs/automation.md) — task templates, rules, who gets the task and why one might not fire
 - [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
+- [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the

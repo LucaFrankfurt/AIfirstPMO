@@ -6,6 +6,7 @@ import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
 import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
+import { ProjectTime } from '../components/time';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -609,6 +610,9 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <input className="input" placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
         <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
       </form>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('time.title')}</h3>
+      <ProjectTime projectId={projectId} />
 
       <div className="divider" style={{ margin: '22px 0' }} />
       <div className="row">

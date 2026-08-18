@@ -7,7 +7,13 @@
 import { ENTITY_NAMES, type EntityName } from '@kolibri/shared';
 
 const DB_NAME = 'kolibri';
-const DB_VERSION = 1;
+/**
+ * Bump this whenever an entity is added: a browser that has already opened the
+ * database at the old version never runs `onupgradeneeded` again, so the new
+ * store would simply not exist and every read of it would throw. The upgrade
+ * itself only ever adds missing stores, so it is safe to run on any old copy.
+ */
+const DB_VERSION = 2;
 export const META = 'meta';
 export const OUTBOX = 'outbox';
 

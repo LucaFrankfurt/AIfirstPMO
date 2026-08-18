@@ -197,6 +197,12 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
   if (entity === 'comment' && !values.author_id) setForced('author_id', opts.actorId);
   if (entity === 'attachment' && !values.uploaded_by) setForced('uploaded_by', opts.actorId);
   if (entity === 'view' && !values.owner_id) setForced('owner_id', opts.actorId);
+  // Time is logged by whoever is logging it. Filing it under somebody else is
+  // a timesheet-approval feature, not a field a client gets to set casually.
+  if (entity === 'timeEntry') {
+    setForced('user_id', opts.actorId);
+    if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
+  }
   if (entity === 'project') {
     if (!values.key) setForced('key', `P${id.slice(0, 4).toUpperCase()}`);
     if (!values.name) setForced('name', 'Untitled project');

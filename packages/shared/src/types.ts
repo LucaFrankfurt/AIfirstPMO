@@ -257,6 +257,29 @@ export interface Filters {
   due?: 'overdue' | 'today' | 'week' | 'none';
 }
 
+/**
+ * Time actually spent, as opposed to `Task.estimate`, which is time guessed.
+ *
+ * A row with `started_at` set and `minutes` still 0 is a running timer;
+ * stopping it writes the minutes and clears `started_at`. Keeping both in one
+ * row means a timer survives a reload, a second device and being offline —
+ * it is a fact about the past, not a piece of interface state.
+ */
+export interface TimeEntry extends Base {
+  workspace_id: ID;
+  project_id: ID | null;
+  task_id: ID | null;
+  user_id: ID;
+  /** Whole minutes. Nobody logs seconds and everybody argues about decimals. */
+  minutes: number;
+  /** The day the work happened, which is not always the day it was entered. */
+  spent_on: ISODate;
+  note: string | null;
+  /** Epoch millis while a timer is running, null otherwise. */
+  started_at: number | null;
+  billable: number;
+}
+
 export interface View extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -373,6 +396,7 @@ export interface EntityMap {
   comment: Comment;
   attachment: Attachment;
   view: View;
+  timeEntry: TimeEntry;
   template: Template;
   automation: Automation;
   notification: Notification;

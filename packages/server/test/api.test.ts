@@ -330,6 +330,77 @@ describe('kolibri api', () => {
     cookie = adaCookie;
   });
 
+  it('tracks time spent, and adds it up', async () => {
+    const first = await api(`/api/workspaces/${workspaceId}/time-entries`, {
+      body: { task_id: taskId, project_id: projectId, minutes: 90, spent_on: '2026-08-17', note: 'pairing' },
+    });
+    assert.equal(first.minutes, 90);
+    assert.equal(first.spent_on, '2026-08-17');
+
+    // A running timer is a row with a start and no minutes yet, which is what
+    // lets it survive a reload, a second device and being offline.
+    const timer = await api(`/api/workspaces/${workspaceId}/time-entries`, {
+      body: { task_id: taskId, project_id: projectId, minutes: 0, spent_on: '2026-08-18', started_at: 1_755_500_000_000 },
+    });
+    assert.equal(timer.started_at, 1_755_500_000_000);
+    assert.equal(timer.minutes, 0);
+
+    const stopped = await api(`/api/time-entries/${timer.id}`, {
+      method: 'PATCH', body: { minutes: 25, started_at: null },
+    });
+    assert.equal(stopped.minutes, 25);
+    assert.equal(stopped.started_at, null, 'stopping clears the clock rather than leaving it running');
+
+    const entries = await api(`/api/workspaces/${workspaceId}/time-entries`);
+    assert.equal(entries.reduce((sum: number, entry: any) => sum + entry.minutes, 0), 115);
+  });
+
+  it('logs time over MCP the way a person does over the form', async () => {
+    const logged = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 20, method: 'tools/call',
+        params: { name: 'log_time', arguments: { task: 'WEB-1', amount: '1h30', note: 'review' } },
+      },
+    });
+    assert.equal(logged.result.structuredContent.minutes, 90, 'the same shorthand the form takes');
+
+    // A duration nobody can read must not become a silent zero-minute entry.
+    const nonsense = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 21, method: 'tools/call',
+        params: { name: 'log_time', arguments: { task: 'WEB-1', amount: 'a while' } },
+      },
+    });
+    assert.ok(nonsense.error, 'an unreadable amount is refused, not rounded to nothing');
+    assert.match(nonsense.error.message, /duration/i, 'and the message says what was wrong');
+
+    const listed = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 22, method: 'tools/call',
+        params: { name: 'list_time', arguments: { task: 'WEB-1' } },
+      },
+    });
+    // WEB-1 is the task the previous case logged 115 minutes against, so the
+    // total is everybody's time on it, not just what this token just added.
+    assert.equal(listed.result.structuredContent.total_minutes, 205);
+    assert.ok(listed.result.structuredContent.entries.every((entry: any) => entry.task === 'WEB-1'));
+
+    const mine = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 23, method: 'tools/call',
+        params: { name: 'list_time', arguments: { task: 'WEB-1', from: '2026-08-18' } },
+      },
+    });
+    assert.ok(
+      mine.result.structuredContent.entries.every((entry: any) => entry.spent_on >= '2026-08-18'),
+      'a date range narrows it',
+    );
+  });
+
   it('carries a conversation on a page, not only on a task', async () => {
     const adaCookie = cookie;
     const page = await api(`/api/workspaces/${workspaceId}/pages`, {

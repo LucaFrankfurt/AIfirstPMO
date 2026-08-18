@@ -6,7 +6,7 @@
  * handler — the HTTP route and the stdio bridge in `packages/mcp` both call
  * `handleRpc`, so tools only exist in one place.
  */
-import { PRIORITIES, orderKey, type EntityName } from '@kolibri/shared';
+import { PRIORITIES, orderKey, parseDuration, type EntityName } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
@@ -445,6 +445,99 @@ const TOOLS: ToolDef[] = [
         workspace_id: workspaceId, task_id: task.id, body: String(args.body), author_id: ctx.auth.userId,
       }, writeOpts(workspaceId, ctx));
       return { id: row.id, task: task.identifier, created_at: row.created_at };
+    },
+  },
+  {
+    name: 'log_time',
+    title: 'Log time on a task',
+    description:
+      'Record time already spent. Accepts "90", "1h30", "1.5h" or "1:30". '
+      + 'Defaults to today and to the calling token\'s own user.',
+    schema: {
+      type: 'object',
+      required: ['task', 'amount'],
+      properties: {
+        task: { type: 'string' },
+        amount: { type: 'string', description: 'How long, e.g. 45m, 1h30, 2h' },
+        spent_on: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        note: { type: 'string' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      requireWrite(ctx);
+      const workspaceId = workspaceOf(args, ctx);
+      const task = findTask(String(args.task), workspaceId, ctx);
+      const minutes = parseDuration(String(args.amount));
+      // An unparseable duration must not become a silent zero-minute entry.
+      if (minutes === null || minutes <= 0) throw new McpError(`Cannot read "${args.amount}" as a duration`);
+      const spentOn = args.spent_on ? String(args.spent_on) : new Date().toISOString().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(spentOn)) throw new McpError('spent_on must be YYYY-MM-DD');
+
+      const { row } = writeEntity('timeEntry', uid(), {
+        workspace_id: workspaceId,
+        project_id: task.project_id,
+        task_id: task.id,
+        user_id: ctx.auth.userId,
+        minutes,
+        spent_on: spentOn,
+        note: args.note ? String(args.note) : null,
+        started_at: null,
+        billable: 1,
+      }, writeOpts(workspaceId, ctx));
+      return { id: row.id, task: task.identifier, minutes, spent_on: spentOn };
+    },
+  },
+  {
+    name: 'list_time',
+    title: 'List logged time',
+    description: 'Time logged, optionally narrowed to one task, one project or a date range.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string' },
+        project: { type: 'string', description: 'Project key or name' },
+        from: { type: 'string', description: 'YYYY-MM-DD, inclusive' },
+        to: { type: 'string', description: 'YYYY-MM-DD, inclusive' },
+        mine: { type: 'boolean', description: 'Only the calling user\'s own entries' },
+        limit: { type: 'number', default: 100 },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const where: string[] = ['t.workspace_id = ?', 't.deleted_at IS NULL'];
+      const params: unknown[] = [workspaceId];
+
+      if (args.task) {
+        where.push('t.task_id = ?');
+        params.push(findTask(String(args.task), workspaceId, ctx).id);
+      }
+      if (args.project) {
+        where.push('t.project_id = ?');
+        params.push(findProject(String(args.project), workspaceId, ctx).id);
+      }
+      if (args.from) { where.push('t.spent_on >= ?'); params.push(String(args.from)); }
+      if (args.to) { where.push('t.spent_on <= ?'); params.push(String(args.to)); }
+      if (args.mine) { where.push('t.user_id = ?'); params.push(ctx.auth.userId); }
+
+      const rows = all<Row>(
+        `SELECT t.id, t.minutes, t.spent_on, t.note, t.started_at, t.user_id,
+                u.name AS user_name, k.identifier AS task, p.name AS project
+           FROM time_entries t
+           LEFT JOIN users u ON u.id = t.user_id
+           LEFT JOIN tasks k ON k.id = t.task_id
+           LEFT JOIN projects p ON p.id = t.project_id
+          WHERE ${where.join(' AND ')}
+          ORDER BY t.spent_on DESC, t.created_at DESC
+          LIMIT ?`,
+        ...params, Math.min(Number(args.limit ?? 100) || 100, 500),
+      );
+      return {
+        entries: rows.map((row) => ({ ...row, running: !!row.started_at })),
+        total_minutes: rows.reduce((sum, row) => sum + Number(row.minutes ?? 0), 0),
+      };
     },
   },
   {

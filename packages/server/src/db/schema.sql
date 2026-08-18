@@ -357,6 +357,30 @@ CREATE TABLE IF NOT EXISTS attachments (
 CREATE INDEX IF NOT EXISTS attachments_seq ON attachments (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS attachments_task ON attachments (task_id);
 
+-- Time actually spent, as opposed to `tasks.estimate`, which is time guessed.
+-- One row per stretch of work. A row with `started_at` set and no minutes yet
+-- is a timer that is still running; stopping it fills the minutes in.
+CREATE TABLE IF NOT EXISTS time_entries (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT,
+  task_id      TEXT,
+  user_id      TEXT NOT NULL,
+  minutes      INTEGER NOT NULL DEFAULT 0,
+  spent_on     TEXT NOT NULL,
+  note         TEXT,
+  started_at   INTEGER,
+  billable     INTEGER NOT NULL DEFAULT 1,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS time_entries_seq ON time_entries (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS time_entries_task ON time_entries (task_id);
+CREATE INDEX IF NOT EXISTS time_entries_user ON time_entries (user_id, spent_on);
+
 CREATE TABLE IF NOT EXISTS views (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
