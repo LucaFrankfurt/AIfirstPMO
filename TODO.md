@@ -82,10 +82,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [ ] **Inline comments** — select a passage, comment on that passage. The same feature one step
       further, and the reason Confluence is used at all. Needs an anchor that survives an edit to
       the text it points at, which is the whole problem.
-- [ ] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
-      version *diff* (history and restore exist, "what changed" does not), page templates, and
-      exposing the `access` column (`workspace`/`project`/`private`) that is already stored but
-      set by no screen. Export to PDF or a markdown bundle belongs here too.
+- [x] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
+      a version *diff*, page templates, the `access` column exposed, and export as a markdown
+      bundle (the page and everything under it). PDF is deliberately not built — see below.
+- [ ] **PDF export.** Markdown is built and is the honest format for "do not lock my writing in
+      here". PDF needs a renderer on the server and is worse at that job; it is wanted for
+      circulating a document, which is a different reason.
 - [x] **Work item types.** Every project starts with Task, Bug and Feature and can edit the list;
       a task carries one, and views group and filter by it. Deliberately *not* type-dependent
       fields: a form that changes per type is custom fields, which is the next entry.

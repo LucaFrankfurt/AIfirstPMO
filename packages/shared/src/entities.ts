@@ -117,8 +117,10 @@ export const ENTITIES = {
     table: 'pages',
     fields: [
       'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content',
-      'sort_order', 'archived', 'access', 'created_by', 'cover_url',
+      'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template',
+      'created_by', 'cover_url',
     ],
+    json: ['labels', 'watchers'],
   },
   comment: {
     table: 'comments',

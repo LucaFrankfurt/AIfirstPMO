@@ -392,6 +392,21 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
+  // Somebody watching a page hears about a change to its body. Not about every
+  // field: renaming a page or moving it between projects is bookkeeping, and a
+  // notification for it teaches people to ignore the bell.
+  if (entity === 'page' && before && changed.content !== undefined && String(before.content ?? '') !== String(row.content ?? '')) {
+    for (const userId of parseIds(row.watchers)) {
+      if (!userId || userId === opts.actorId) continue;
+      if (targets.has(userId)) continue; // a mention in the same edit is the stronger signal
+      targets.set(userId, {
+        kind: 'page_changed',
+        title: (t) => t('notify.pageChanged', { title: row.title }),
+        body: null,
+      });
+    }
+  }
+
   // A page has no assignees to fall back on, so its audience is the people who
   // have shown up: whoever wrote it, and whoever has said something on it.
   // Everybody who *can* see a page is the whole workspace, and notifying them
@@ -403,7 +418,7 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
         `SELECT DISTINCT author_id FROM comments WHERE page_id = ? AND deleted_at IS NULL`,
         row.page_id,
       ).map((entry) => entry.author_id);
-      for (const userId of new Set([page.created_by, ...talkers])) {
+      for (const userId of new Set([page.created_by, ...talkers, ...parseIds(page.watchers)])) {
         if (!userId || userId === opts.actorId) continue;
         if (targets.get(userId)?.kind === 'mention') continue;
         targets.set(userId, {

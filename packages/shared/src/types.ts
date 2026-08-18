@@ -235,6 +235,11 @@ export interface Page extends Base {
   sort_order: string;
   archived: number;
   access: 'workspace' | 'project' | 'private';
+  labels: ID[];
+  /** Who asked to hear about changes — a page has no assignees to fall back on. */
+  watchers: ID[];
+  /** A page kept as a starting point rather than as content. */
+  is_template: number;
   created_by: ID;
   cover_url: string | null;
 }

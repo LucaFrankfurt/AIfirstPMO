@@ -103,5 +103,6 @@ export const api = {
   applyTemplate: (id: string, body: { project_id?: string; assignees?: string[] }) =>
     request<any>(`/api/templates/${id}/apply`, json(body)),
   pageVersions: (pageId: string) => request<any[]>(`/api/pages/${pageId}/versions`),
+  pageVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions/${versionId}`),
   restoreVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions`, json({ restore: versionId })),
 };

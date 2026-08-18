@@ -3,6 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { compareOrder, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { Comments } from '../components/comments';
+import {
+  ACCESS_KEY, PageLabelChips, VersionDiff, labelItems, useExport, usePageLabels, useWatching,
+} from '../components/page-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -69,13 +72,63 @@ export function PagesIndex() {
   const { workspaceId } = useSession();
   const me = useMe();
   const navigate = useNavigate();
-  const pages = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
+  const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
+  const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
+  const [filter, setFilter] = useState<string>('');
+
+  // Templates are kept out of the tree: they are starting points, not content,
+  // and a handbook with three half-written templates in it reads as a mess.
+  const templates = useMemo(() => all.filter((page) => page.is_template), [all]);
+  const pages = useMemo(
+    () => all.filter((page) => !page.is_template && (!filter || (page.labels ?? []).includes(filter))),
+    [all, filter],
+  );
   const tree = useMemo(() => buildTree(pages), [pages]);
   const recent = useMemo(() => [...pages].sort((a, b) => b.updated_at - a.updated_at).slice(0, 6), [pages]);
+  const inUse = useMemo(() => {
+    const used = new Set(all.flatMap((page) => page.labels ?? []));
+    return labels.filter((label) => used.has(label.id));
+  }, [all, labels]);
 
   return (
     <>
       <Header title={t('page.listTitle')}>
+        {inUse.length > 0 && (
+          <MenuButton
+            className="btn sm"
+            items={[
+              { id: 'all', label: t('page.allPages'), hint: filter ? undefined : '✓', onSelect: () => setFilter('') },
+              ...inUse.map((label) => ({
+                id: label.id,
+                section: t('page.filterByLabel'),
+                label: label.name,
+                icon: <span className="dot" style={{ background: label.color }} />,
+                hint: filter === label.id ? '✓' : undefined,
+                onSelect: () => setFilter(label.id),
+              })),
+            ]}
+          >
+            <Icon name="filter" size={14} />
+            <span className="hide-sm">{filter ? byId('label', filter)?.name ?? t('page.filterByLabel') : t('page.filterByLabel')}</span>
+          </MenuButton>
+        )}
+        {templates.length > 0 && (
+          <MenuButton
+            className="btn sm"
+            items={templates.map((template) => ({
+              id: template.id,
+              label: `${template.icon ?? '📄'} ${template.title}`,
+              // A copy, not a link: a template is a starting point, and editing
+              // the new page must not edit the template.
+              onSelect: () => navigate(`/pages/${createPage({
+                title: template.title, content: template.content, project_id: template.project_id,
+              }, me)}`),
+            }))}
+          >
+            <Icon name="copy" size={14} />
+            <span className="hide-sm">{t('page.newFromTemplate')}</span>
+          </MenuButton>
+        )}
         <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
           <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
         </button>
@@ -127,9 +180,13 @@ export function PageDetail() {
   const [content, setContent] = useState(page?.content ?? '');
   const [title, setTitle] = useState(page?.title ?? '');
   const [history, setHistory] = useState<any[] | null>(null);
+  const [diffing, setDiffing] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const children = useQuery(() => list('page', (p) => p.parent_id === id && !p.archived), [id]);
+  const labels = usePageLabels((page ?? { project_id: null }) as any);
+  const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
+  const exportPage = useExport();
   const projects = useQuery(() => list('project'), []);
 
   useEffect(() => {
@@ -175,6 +232,29 @@ export function PageDetail() {
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
             { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
               onSelect: () => api.pageVersions(id).then(setHistory).catch(() => toast(t('page.historyFailed'))) },
+            { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
+              hint: watching ? '✓' : undefined, onSelect: toggleWatch },
+            { id: 'export', label: t('page.export'), icon: <Icon name="page" size={14} />,
+              onSelect: () => exportPage(page) },
+            { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
+              icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
+              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
+            ...labelItems(page, labels, t('page.labels')),
+            ...(['workspace', 'project', 'private'] as const).map((access) => ({
+              id: `access-${access}`,
+              section: t('page.access'),
+              label: t(ACCESS_KEY[access]),
+              hint: page.access === access ? '✓' : undefined,
+              onSelect: () => {
+                // `project` access on a page that belongs to no project would
+                // hide it from everybody, including its author.
+                if (access === 'project' && !page.project_id) {
+                  toast(t('page.accessNeedsProject'));
+                  return;
+                }
+                update('page', id, { access });
+              },
+            })),
             { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
               void navigator.clipboard?.writeText(`${location.origin}/pages/${id}`);
               toast(t('common.copied'));
@@ -223,7 +303,11 @@ export function PageDetail() {
               <span>{author ? t('page.byAuthor', { name: author.name }) : ''}</span>
               <span>· {t('page.updatedAgo', { time: relativeTime(page.updated_at) })}</span>
               {page.project_id && <span>· {byId('project', page.project_id)?.name}</span>}
+              {page.access !== 'workspace' && <span>· {t(ACCESS_KEY[page.access])}</span>}
+              {watching && <span>· {t('page.watching')}</span>}
+              {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
+            <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}><PageLabelChips page={page} /></div>
             {page.content?.trim()
               ? <Markdown source={page.content} />
               : <button className="btn" onClick={() => setEditing(true)}>{t('page.startWriting')}</button>}
@@ -263,6 +347,7 @@ export function PageDetail() {
                   {shortDate(version.created_at)} · {members.get(version.author_id)?.name ?? t('common.someone')} · {t('page.versionSize', { count: version.size })}
                 </div>
               </div>
+              <button className="btn ghost sm" onClick={() => setDiffing(version.id)}>{t('page.compare')}</button>
               <button
                 className="btn sm"
                 onClick={async () => {
@@ -279,6 +364,7 @@ export function PageDetail() {
           ))}
         </Sheet>
       )}
+      {diffing && <VersionDiff page={page} versionId={diffing} onClose={() => setDiffing(null)} />}
       {dialog}
     </>
   );

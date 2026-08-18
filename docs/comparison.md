@@ -40,19 +40,15 @@ Worth stating first, because it is the reason the gaps below are acceptable:
 
 ## Against Confluence
 
-Kolibri has: nested markdown pages, version history with restore, drag-and-drop
-images, attachments, comments with @mentions on every page, full-text search
-across pages and tasks.
+Kolibri has: nested markdown pages, version history with restore *and a diff*,
+labels and filtering, watching, page templates, per-page visibility, markdown
+export, drag-and-drop images, attachments, comments with @mentions on every
+page, full-text search across pages and tasks.
 
 | Missing | Weight | Note |
 |---|---|---|
 | **Inline comments** (select text → comment) | High | The thing Confluence is actually used for |
-| **Version diff** | Medium | History and restore work; "what changed" does not exist |
-| **Page templates / blueprints** | Medium | Templates exist, but only for tasks |
-| **Labels on pages**, and filtering by them | Medium | |
-| **Watch a page** → notified on change | Medium | |
-| **Page permissions in the interface** | Medium | The `access` column (`workspace`/`project`/`private`) is stored and synced but never set by any screen |
-| **Export** to PDF / Word / a markdown bundle | Medium | |
+| **Export** to PDF or Word | Low–medium | A markdown bundle is built — the page and everything under it. PDF needs a renderer and is worse at not locking writing in |
 | Emoji reactions | Low | `reactions` is stored and synced; no picker, no display |
 | Macros — table of contents, cross-page task lists, embeds | Low–medium | |
 | A table editor | Low | Markdown tables render; they cannot be edited as tables |
@@ -128,7 +124,7 @@ value per unit of work rather than by size.
 | ~~1~~ | ~~Import — CSV~~ | **Done** — mapping guessed, dry run, per-row report. What is left is the parts CSV cannot carry | |
 | ~~2~~ | ~~Work item types~~ | **Done** — per project, grouped and filtered by. Type-*dependent fields* are custom fields, below | |
 | ~~3~~ | ~~Analytics~~ | **Done** — per project, computed from the local mirror | |
-| 4 | **Page extras** — labels, watching, version diff, page templates, and exposing the stored `access` column | Turns the wiki from "good enough" into the reason somebody leaves Confluence | medium |
+| ~~4~~ | ~~Page extras~~ | **Done** — labels, watching, diff, templates, access, markdown export | |
 | 5 | **SSO** (OIDC first) | The gate on adoption past roughly fifty people. Nothing in the auth layer anticipates it, so it is a project | large |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
 | 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |

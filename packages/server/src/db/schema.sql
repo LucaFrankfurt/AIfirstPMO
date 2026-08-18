@@ -320,6 +320,11 @@ CREATE TABLE IF NOT EXISTS pages (
   sort_order   TEXT NOT NULL DEFAULT 'V',
   archived     INTEGER NOT NULL DEFAULT 0,
   access       TEXT NOT NULL DEFAULT 'workspace',
+  labels       TEXT NOT NULL DEFAULT '[]',
+  -- Who asked to hear about changes. A page has no assignees, so this is the
+  -- only way somebody can follow one they did not write.
+  watchers     TEXT NOT NULL DEFAULT '[]',
+  is_template  INTEGER NOT NULL DEFAULT 0,
   created_by   TEXT,
   cover_url    TEXT,
   created_at   INTEGER NOT NULL,
