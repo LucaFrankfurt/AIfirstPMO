@@ -63,6 +63,7 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_DATA_DIR` | `/data` | SQLite file, uploads, generated secret |
 | `KOLIBRI_LOG_LEVEL` | `info` | `debug` `info` `warn` `error` |
 | `KOLIBRI_DEFAULT_LOCALE` | `en` | Language for notifications and emails to someone who has not picked one (`en`, `de`). See [`i18n.md`](i18n.md). |
+| `KOLIBRI_TRUST_PROXY` | `true` | Read the client address from `x-forwarded-for`. Correct behind the bundled Caddy; **set it to `false` if the container is published directly**, or every client can pick its own address. See below. |
 | `TZ` | `UTC` | Affects date rendering on the server side |
 
 ### Email (optional — see [`notifications.md`](notifications.md))
@@ -207,9 +208,44 @@ The limits worth knowing:
   team's volume; it is not a bulk sender.
 - **One instance per host process.** Multiple containers must not share the same SQLite file.
 
+## What the server does to protect itself
+
+Two things, both on by default and neither of them configurable — there is no
+setting to get wrong.
+
+**Rate limits** on the routes where guessing is the attack: signing in,
+registering, and looking up an invite code. Each is a token bucket, in memory,
+and a refusal costs a token too, so hammering after a `429` does not reset the
+clock. The response says how many seconds to wait.
+
+Signing in is limited **per account as well as per address**. An address-only
+limit is blind to the case that actually takes accounts over: one account, a
+thousand machines, ten attempts each.
+
+The address a request claims is not necessarily where it came from. When
+`KOLIBRI_TRUST_PROXY` is on — the default, because the bundled Caddy needs it —
+`x-forwarded-for` is believed, so an instance published *without* a proxy would
+let a client invent a fresh address, and a fresh allowance, per request. The
+socket address is therefore charged as well, against a much wider bucket: wide
+enough that everybody behind one proxy never meets it, finite enough that
+inventing addresses buys a bounded number of attempts. Setting
+`KOLIBRI_TRUST_PROXY=false` when nothing is in front is still the right answer;
+this is what happens if you forget.
+
+**A Content-Security-Policy** on every response: `default-src 'self'`, no inline
+script and no `eval`, `frame-ancestors 'none'`. Markdown is escaped before it is
+rendered, so this is the second lock rather than the first — it turns a future
+injection bug into a console message instead of a stolen session.
+
+The policy is computed, not fixed. With `KOLIBRI_S3_PRESIGN` on, a download
+redirects the browser to MinIO or S3, so that origin is named in `img-src`,
+`media-src` and `connect-src` — otherwise attachments would arrive and be
+discarded. Nothing widens `script-src`, ever.
+
 ## Hardening checklist
 
 - [ ] `KOLIBRI_ALLOW_SIGNUP=false` after your team has signed up
+- [ ] `KOLIBRI_TRUST_PROXY=false` if nothing terminates TLS in front of the container
 - [ ] `KOLIBRI_SECRET` set explicitly and stored in your secret manager
 - [ ] TLS terminated in front, `KOLIBRI_PUBLIC_URL` set to the https URL
 - [ ] Volume backed up on a schedule, restore tested once

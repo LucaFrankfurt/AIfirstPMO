@@ -6,6 +6,7 @@ import { env } from './env.ts';
 import { authenticate } from './lib/auth.ts';
 import { startMailWorker, stopMailWorker } from './lib/mail.ts';
 import { provision } from './lib/provision.ts';
+import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
@@ -82,7 +83,17 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
 
 /* -------------------------------------------------------------- the server */
 
+const CSP = buildCsp(env.storage);
+
+function securityHeaders(res: ServerResponse): void {
+  res.setHeader('content-security-policy', CSP);
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('referrer-policy', 'same-origin');
+  res.setHeader('x-frame-options', 'DENY');
+}
+
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  securityHeaders(res);
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader('access-control-allow-origin', origin);

@@ -5,18 +5,21 @@ Ticked boxes are done; the rest is open. Ordered by "would I run this in product
 
 Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to have.
 
+Where the edges are against Confluence, Plane and OpenProject — and the order I would close
+them in — is in [`docs/comparison.md`](docs/comparison.md).
+
 ---
 
 ## P1 — before putting real data in it
 
 ### Security hardening
 
-- [ ] **Rate limiting** on `/api/auth/login`, `/api/auth/register` and `/api/invites/:code/accept`.
-      Today an attacker can guess passwords as fast as the network allows. A per-IP + per-account
-      token bucket in memory is enough for a single-node deployment.
-- [ ] **Content-Security-Policy header.** The app is same-origin only and markdown is escaped before
-      rendering, but a CSP (`default-src 'self'`, no inline scripts) turns a future XSS bug from a
-      breach into a console error. Needs the inline `<style>`-free build we already have.
+- [x] **Rate limiting** on `/api/auth/login`, `/api/auth/register` and both invite routes.
+      A token bucket per IP **and** per account, in memory — the account key is the one that stops a
+      botnet working through a single account from a thousand addresses. See `lib/ratelimit.ts`.
+- [x] **Content-Security-Policy header.** `default-src 'self'` with no inline or `eval`'d script,
+      `frame-ancestors 'none'`. Computed rather than constant: with an object store and pre-signed
+      downloads the browser is redirected off-origin, so that origin is named. See `lib/csp.ts`.
 - [ ] **Explicit `content-type` check on JSON routes.** CSRF is currently prevented by
       `SameSite=Lax` cookies alone (cross-site POSTs carry no cookie). That is correct today, but
       rejecting anything that is not `application/json` is one line and removes the dependency on
@@ -24,6 +27,11 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Session management UI** — list active sessions per device and revoke individually.
       Changing the password already invalidates all of them, which is the blunt version.
 - [ ] Optional **2FA (TOTP)** for owner/admin accounts.
+- [ ] **Single sign-on** (OIDC, SAML or LDAP). All three tools Kolibri is compared to have it, and
+      past roughly fifty people it stops being optional. Nothing in the auth layer anticipates it
+      yet, so this is a project rather than a patch.
+- [ ] **Workspace-wide audit log.** Activity is recorded per task; there is no view that answers
+      "what happened in this workspace last week", which is the first thing an auditor asks for.
 
 ### Operations
 
@@ -66,6 +74,23 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [x] **Email notifications** — batched per person, per-user preferences, signed one-click
       unsubscribe, queued with retry. Invites are delivered by mail when a relay is configured.
       See [`docs/notifications.md`](docs/notifications.md).
+- [ ] **Page comments.** `comment.page_id` syncs and the server accepts it; no screen shows or
+      writes one, so a page is a shelf rather than a conversation. Inline comments — select a
+      passage, comment on it — are the same feature one step further and the reason Confluence is
+      used at all.
+- [ ] **@mentions inside page bodies.** `findMentions` runs over task descriptions and comment
+      bodies; page content is never scanned, so naming somebody in a spec reaches nobody.
+- [ ] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
+      version *diff* (history and restore exist, "what changed" does not), page templates, and
+      exposing the `access` column (`workspace`/`project`/`private`) that is already stored but
+      set by no screen. Export to PDF or a markdown bundle belongs here too.
+- [ ] **Work item types** (bug / feature / epic) with type-dependent fields. There is no `type` on
+      a task today — only labels, which do not change the form.
+- [ ] **Import.** CSV first, then Jira/Plane. This is the single biggest adoption blocker: nobody
+      migrates a backlog by hand.
+- [ ] **Repository and chat integrations** — GitHub/GitLab commit linking, Slack. Outgoing webhooks
+      would cover most of it generically; rules only act inwards today.
+- [ ] **Analytics** — burn-down/up, throughput, cycle time. The data is all there; nothing reads it.
 - [ ] **Mention autocomplete in the editor.** Typing `@` should offer the workspace members
       instead of relying on the writer knowing the handle.
 - [ ] **Scheduled digests** (daily/weekly summary) on top of the existing batching window.
@@ -133,7 +158,14 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Bounce and complaint handling.** Failed sends are recorded in `email_queue.last_error`, but
       a hard bounce does not disable that address automatically.
 - [ ] **Custom fields** per project.
-- [ ] **Time tracking** (estimates exist, logged time does not).
+- [ ] **Time tracking** (estimates exist, logged time does not), and everything that needs it:
+      hourly rates, budgets, cost and utilisation reports.
+- [ ] **Gantt with real scheduling.** Relations exist but nothing reschedules — moving a
+      predecessor moves nothing. Baselines (plan vs. actual) sit on top of the same work.
+- [ ] **Resource and capacity planning**, a team planner.
+- [ ] **Sub-projects and project templates.** Projects are flat; teams group them but do not nest
+      them, and copying a whole project is not possible.
+- [ ] **Status transition rules per role** — who may move a task from where to where.
 - [ ] **Recurring tasks** and **task templates**.
 - [ ] **Webhooks and integrations** (GitHub/GitLab commit linking, Slack notifications).
 - [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.

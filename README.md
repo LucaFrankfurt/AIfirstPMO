@@ -186,6 +186,8 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 ## Documentation
 
 - [`TODO.md`](TODO.md) — what is missing, what is unverified, what was deferred on purpose
+- [`docs/comparison.md`](docs/comparison.md) — an honest gap analysis against Confluence, Plane and
+  OpenProject, and the order those gaps are worth closing in
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
   [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes

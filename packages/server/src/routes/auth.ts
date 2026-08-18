@@ -8,6 +8,7 @@ import {
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
+import { byAddress, byValue, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { defaultLocale, isLocale, translate } from '../lib/i18n.ts';
 import { pendingCount, queueInvite, queueTestMail, verifyUnsubscribe } from '../lib/mail.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
@@ -49,6 +50,7 @@ export function registerAuthRoutes(router: Router): void {
   }));
 
   router.post('/api/auth/register', async (ctx) => {
+    enforce(ctx, byAddress(ctx, LIMITS.register, 'register'));
     const body = await readJson<{
       email?: string; name?: string; password?: string; workspace?: string; invite?: string; locale?: string;
     }>(ctx);
@@ -92,6 +94,11 @@ export function registerAuthRoutes(router: Router): void {
   router.post('/api/auth/login', async (ctx) => {
     const body = await readJson<{ email?: string; password?: string }>(ctx);
     const email = (body.email ?? '').trim().toLowerCase();
+    // Two buckets: one machine working through a password list, and a thousand
+    // machines working through one account. An IP limit alone is blind to the
+    // second, which is the one that gets accounts taken over.
+    enforce(ctx, [...byAddress(ctx, LIMITS.login, 'login'), byValue(LIMITS.login, 'login-user', email)]);
+
     const user = get<Row>(`SELECT * FROM users WHERE email = ? AND deleted_at IS NULL`, email);
     if (!user || !verifyPassword(body.password ?? '', user.password_hash)) {
       throw unauthorized('Email or password is incorrect');
@@ -282,6 +289,9 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.get('/api/invites/:code', (ctx) => {
+    // Unauthenticated, and it says whether a code exists — so this, not accept,
+    // is where guessing actually happens.
+    enforce(ctx, byAddress(ctx, LIMITS.invite, 'invite'));
     const invite = get<Row>(
       `SELECT i.code, i.role, i.email, i.expires_at, i.accepted_at, w.name AS workspace_name
          FROM invites i JOIN workspaces w ON w.id = i.workspace_id WHERE i.code = ?`,
@@ -292,6 +302,8 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.post('/api/invites/:code/accept', (ctx) => {
+    // Invite codes are short, so guessing them is worth somebody's time.
+    enforce(ctx, byAddress(ctx, LIMITS.invite, 'invite'));
     const auth = requireAuth(ctx);
     const workspaceId = acceptInvite(ctx.params.code, auth.userId);
     return { workspaceId, session: sessionInfo(auth.userId) };
