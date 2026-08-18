@@ -13,6 +13,7 @@ import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
 import { useMe, useMemberMap, useSession } from '../session';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { SetupChecklist } from '../components/tour';
 
 const KIND_KEY: Record<string, TranslationKey> = {
   task: 'search.kindTask', page: 'search.kindPage',
@@ -53,6 +54,8 @@ export function MyWork() {
         <ViewControls view={view} onChange={setView} />
       </Header>
       <div className="page">
+        <SetupChecklist />
+
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
           <div className="grid two" style={{ marginBottom: 18 }}>
             {buckets.overdue.length > 0 && (
@@ -81,7 +84,7 @@ export function MyWork() {
         )}
 
         {visible.length === 0 ? (
-          <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} />
+          <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} guide="capture" />
         ) : (
           <TaskViews tasks={visible} view={view} onOpen={openTask} showProject />
         )}
@@ -127,7 +130,7 @@ export function Inbox() {
       </Header>
       <div className="page">
         {shown.length === 0 ? (
-          <Empty emoji="📭" title={t('inbox.emptyTitle')} hint={t('inbox.emptyHint')} />
+          <Empty emoji="📭" title={t('inbox.emptyTitle')} hint={t('inbox.emptyHint')} guide="collab" />
         ) : (
           shown.map((notification) => {
             const actor = members.get(notification.actor_id ?? '');

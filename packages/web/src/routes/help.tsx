@@ -9,8 +9,8 @@
  * Every feature card ends in a link into the real screen — the point of the
  * guide is to be left, not to be read twice.
  */
-import { useState, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '../components/AppShell';
 import {
   AssistantDiagram, CaptureDiagram, CollaborationDiagram, OverviewDiagram,
@@ -18,9 +18,11 @@ import {
 } from '../components/diagrams';
 import { HierarchyExplorer } from '../components/hierarchy';
 import { Icon } from '../components/ui';
+import { cardId, sectionFor, type GuideSection } from '../lib/guide';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { SHOW_CHECKLIST, START_TOUR } from '../components/tour';
 
-type Section = 'overview' | 'hierarchy' | 'features' | 'shortcuts';
+type Section = GuideSection;
 
 const SECTION_KEY: Record<Section, TranslationKey> = {
   overview: 'guide.tabOverview',
@@ -32,8 +34,10 @@ const SECTION_KEY: Record<Section, TranslationKey> = {
 /* ------------------------------------------------------------- building blocks */
 
 function Feature({
-  icon, title, lead, steps, to, linkLabel, children,
+  id, icon, title, lead, steps, to, linkLabel, children,
 }: {
+  /** Also the guide target other screens link to: `/guide?to=<id>`. */
+  id: string;
   icon: string;
   title: TranslationKey;
   lead: TranslationKey;
@@ -45,7 +49,7 @@ function Feature({
 }) {
   const t = useT();
   return (
-    <section className="guide-feature">
+    <section className="guide-feature" id={cardId(id)}>
       <div className="guide-feature-head">
         <span className="guide-icon"><Icon name={icon} size={16} /></span>
         <h3>{t(title)}</h3>
@@ -102,9 +106,18 @@ function Overview() {
         <li>{t('guide.firstFive4')}</li>
         <li>{t('guide.firstFive5')}</li>
       </ol>
-      <Link className="btn primary sm" to="/projects/new">
-        {t('guide.startHere')} <Icon name="chevronRight" size={13} />
-      </Link>
+      <div className="row wrap" style={{ gap: 8 }}>
+        <Link className="btn primary sm" to="/projects/new">
+          {t('guide.startHere')} <Icon name="chevronRight" size={13} />
+        </Link>
+        <button className="btn sm" onClick={() => window.dispatchEvent(new CustomEvent(START_TOUR))}>
+          <Icon name="play" size={13} /> {t('guide.restartTour')}
+        </button>
+        <button className="btn sm" onClick={() => window.dispatchEvent(new CustomEvent(SHOW_CHECKLIST))}>
+          <Icon name="check" size={13} /> {t('guide.showChecklist')}
+        </button>
+      </div>
+      <p className="soft" style={{ marginTop: 12, fontSize: 12.5 }}>{t('guide.helpFromHere')}</p>
     </>
   );
 }
@@ -138,6 +151,7 @@ function Features() {
       <p className="guide-lead">{t('guide.featuresIntro')}</p>
 
       <Feature
+        id="capture"
         icon="plus"
         title="guide.capture.title"
         lead="guide.capture.lead"
@@ -149,6 +163,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="views"
         icon="board"
         title="guide.views.title"
         lead="guide.views.lead"
@@ -160,6 +175,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="planning"
         icon="cycle"
         title="guide.planning.title"
         lead="guide.planning.lead"
@@ -171,6 +187,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="sync"
         icon="refresh"
         title="guide.sync.title"
         lead="guide.sync.lead"
@@ -182,6 +199,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="pages"
         icon="page"
         title="guide.pages.title"
         lead="guide.pages.lead"
@@ -193,6 +211,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="collab"
         icon="inbox"
         title="guide.collab.title"
         lead="guide.collab.lead"
@@ -204,6 +223,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="teams"
         icon="users"
         title="guide.teams.title"
         lead="guide.teams.lead"
@@ -222,6 +242,7 @@ function Features() {
       </Feature>
 
       <Feature
+        id="assistant"
         icon="sparkle"
         title="guide.assistant.title"
         lead="guide.assistant.lead"
@@ -269,14 +290,40 @@ function Shortcuts() {
 
 export function Help() {
   const t = useT();
-  const [section, setSection] = useState<Section>('overview');
+  const [params, setParams] = useSearchParams();
+  const target = params.get('to');
+  const [section, setSection] = useState<Section>(() => (target ? sectionFor(target) : 'overview'));
+  const highlighted = useRef<string | null>(null);
+
+  // Arriving from an empty screen should land on the card that explains it,
+  // not at the top of a manual the reader then has to search.
+  useEffect(() => {
+    if (!target) return;
+    setSection(sectionFor(target));
+    const id = cardId(target);
+    highlighted.current = id;
+    // One frame for the section to render, then scroll and mark it briefly.
+    const handle = setTimeout(() => {
+      const card = document.getElementById(id);
+      if (!card) return;
+      card.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 1600);
+    }, 60);
+    return () => clearTimeout(handle);
+  }, [target]);
+
+  const choose = (next: Section) => {
+    setSection(next);
+    if (target) setParams({}, { replace: true });   // stop re-scrolling on a manual switch
+  };
 
   return (
     <>
       <Header title={t('guide.title')} />
       <div className="tabs" style={{ padding: '0 12px' }}>
         {(Object.keys(SECTION_KEY) as Section[]).map((name) => (
-          <button key={name} className={section === name ? 'active' : ''} onClick={() => setSection(name)}>
+          <button key={name} className={section === name ? 'active' : ''} onClick={() => choose(name)}>
             {t(SECTION_KEY[name])}
           </button>
         ))}

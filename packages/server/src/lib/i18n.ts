@@ -41,6 +41,20 @@ const en = {
   'mail.testBody': 'This is a test message from your Kolibri instance.',
   'mail.testRelay': 'Relay: {relay}',
   'mail.backToSettings': 'Back to settings',
+
+  /* A new project's workflow and labels are seeded in the creator's language.
+     They are ordinary editable rows afterwards — this only decides the first
+     impression, which should not be in a language the team does not use. */
+  'seed.stateBacklog': 'Backlog',
+  'seed.stateTodo': 'Todo',
+  'seed.stateInProgress': 'In Progress',
+  'seed.stateInReview': 'In Review',
+  'seed.stateDone': 'Done',
+  'seed.stateCancelled': 'Cancelled',
+  'seed.labelBug': 'bug',
+  'seed.labelFeature': 'feature',
+  'seed.labelImprovement': 'improvement',
+  'seed.labelDocumentation': 'documentation',
 } as const;
 
 type Catalogue = { readonly [K in keyof typeof en]: string };
@@ -72,6 +86,18 @@ const de: Catalogue = {
   'mail.testBody': 'Dies ist eine Testnachricht von deiner Kolibri-Instanz.',
   'mail.testRelay': 'Relay: {relay}',
   'mail.backToSettings': 'Zurück zu den Einstellungen',
+
+  'seed.stateBacklog': 'Backlog',
+  'seed.stateTodo': 'Zu erledigen',
+  'seed.stateInProgress': 'In Arbeit',
+  'seed.stateInReview': 'In Review',
+  'seed.stateDone': 'Erledigt',
+  'seed.stateCancelled': 'Abgebrochen',
+  // Bug and Feature are what German teams actually say; the other two are not.
+  'seed.labelBug': 'Bug',
+  'seed.labelFeature': 'Feature',
+  'seed.labelImprovement': 'Verbesserung',
+  'seed.labelDocumentation': 'Dokumentation',
 };
 
 export const LOCALES = { en, de } as const;

@@ -99,8 +99,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         navigate('/guide');
       }
     };
+    // The setup checklist asks for the quick-add sheet from outside the shell.
+    const openQuickAdd = () => setAdding(true);
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    window.addEventListener('kolibri:new-task', openQuickAdd);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('kolibri:new-task', openQuickAdd);
+    };
   }, [navigate]);
 
   const workspaceItems: MenuItem[] = [

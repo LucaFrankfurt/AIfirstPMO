@@ -211,7 +211,7 @@ export function ListView({
     [tasks, view.groupBy, states, members, labels, t],
   );
 
-  if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} />;
+  if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
 
   return (
     <div>

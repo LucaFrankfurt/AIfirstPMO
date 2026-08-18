@@ -4,9 +4,11 @@ import {
   useMemo, useRef, useState, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from '../lib/format';
 import { priorityKey, useT } from '../lib/i18n';
+import { guideHref, type GuideTarget } from '../lib/guide';
 
 /* ------------------------------------------------------------------- icons */
 
@@ -52,10 +54,17 @@ const PATHS: Record<string, string> = {
   sparkle: 'M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9zM18.5 3v3M20 4.5h-3',
 };
 
+/**
+ * Icons that mean "forwards" or "away" rather than naming a thing. They are
+ * mirrored under a right-to-left direction, where forwards is the other way.
+ */
+const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout']);
+
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
   return (
     <svg
-      width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true" className={className}
+      width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
+      className={`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined}
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
       style={{ flex: 'none' }}
     >
@@ -309,14 +318,35 @@ export function ToastHost({ children }: { children: ReactNode }) {
 
 /* ------------------------------------------------------------------- misc */
 
-export function Empty({ emoji = '🌱', title, hint, action }: { emoji?: string; title: string; hint?: string; action?: ReactNode }) {
+export function Empty({
+  emoji = '🌱', title, hint, action, guide,
+}: {
+  emoji?: string;
+  title: string;
+  hint?: string;
+  action?: ReactNode;
+  /** An empty screen is when an explanation is most wanted — offer the right one. */
+  guide?: GuideTarget;
+}) {
   return (
     <div className="empty">
       <div className="emoji">{emoji}</div>
       <strong style={{ color: 'var(--fg)' }}>{title}</strong>
       {hint && <span style={{ maxWidth: 340 }}>{hint}</span>}
       {action}
+      {guide && <GuideHint to={guide} />}
     </div>
+  );
+}
+
+/** A quiet link into the part of the guide that explains the screen you are on. */
+export function GuideHint({ to, className = '' }: { to: GuideTarget; className?: string }) {
+  const t = useT();
+  return (
+    <Link className={`guide-hint ${className}`} to={guideHref(to)}>
+      <Icon name="help" size={13} />
+      {t('guide.explainThis')}
+    </Link>
   );
 }
 

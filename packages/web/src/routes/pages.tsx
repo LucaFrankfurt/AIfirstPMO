@@ -42,7 +42,7 @@ function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; ac
   const [open, setOpen] = useState(true);
   return (
     <>
-      <div className="row" style={{ gap: 0, paddingLeft: depth * 12 }}>
+      <div className="row" style={{ gap: 0, paddingInlineStart: depth * 12 }}>
         {node.children.length > 0 ? (
           <button className="btn ghost sm icon" onClick={() => setOpen(!open)} aria-label={t('page.toggleTree')}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
@@ -83,7 +83,7 @@ export function PagesIndex() {
         {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
-            hint={t('page.emptyHint')}
+            hint={t('page.emptyHint')} guide="pages"
             action={<button className="btn primary" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>{t('page.writeFirst')}</button>}
           />
         ) : (

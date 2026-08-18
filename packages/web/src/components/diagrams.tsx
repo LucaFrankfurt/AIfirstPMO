@@ -184,7 +184,7 @@ export function ViewsDiagram() {
                 ))}
                 <div
                   className={`gx-card travelling${step >= 5 ? ' done' : ''}`}
-                  style={{ left: `calc(${column} * (33.333% + 2px) + 6px)` }}
+                  style={{ insetInlineStart: `calc(${column} * (33.333% + 2px) + 6px)` }}
                 >
                   <span className="gx-id">WEB-1</span>
                   {t('guide.sample.task1')}

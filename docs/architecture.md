@@ -148,6 +148,19 @@ Adding a feature means adding a card: a lead sentence, a scene, four how-to step
 the screen. Every string is a catalogue key, so a new language gets an explained product rather
 than a translated menu bar.
 
+Two things point at it from the rest of the app:
+
+- `lib/guide.ts` names the targets. Any screen can render `<GuideHint to="planning" />`, or pass
+  `guide="planning"` to `Empty`; the link is `/guide?to=planning`, and the guide switches section,
+  scrolls to the card and marks it. An empty screen is when an explanation is most wanted, so that
+  is where the links live.
+- `components/tour.tsx` holds the first-run tour and the setup checklist. The tour *does* things —
+  it sets the language and creates a project rather than describing how to — and drops the steps a
+  plain member would only be refused. The checklist derives its ticks from the store, not from
+  what has been clicked, so it stays honest on a second device and after a restore, and hides
+  itself when there is nothing left to say. Both can be summoned again from the guide by a window
+  event, so nothing else has to own their state.
+
 ## MCP bridge
 
 `packages/mcp` is a ~90-line stdio pipe that forwards JSON-RPC to `POST /mcp`. The tools live in

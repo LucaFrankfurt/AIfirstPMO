@@ -17,9 +17,17 @@ const shots = process.env.KOLIBRI_SHOT_DIR ?? (locale === 'en' ? '/tmp/shots' : 
 
 /** Only the strings the walkthrough clicks on — not a second catalogue. */
 const LABELS = {
-  en: { board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages', guide: 'Guide' },
-  de: { board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten', guide: 'Anleitung' },
+  en: { board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages', guide: 'Guide', welcome: 'Welcome' },
+  de: { board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten', guide: 'Anleitung', welcome: 'Willkommen' },
 }[locale];
+
+/** The first-run tour opens over everything; every later step needs it gone. */
+const closeTour = async (target) => {
+  if (await target.locator('.sheet:has(.tour-h)').count()) {
+    await target.keyboard.press('Escape');
+    await target.waitForTimeout(250);
+  }
+};
 if (!LABELS) throw new Error(`smoke test has no labels for locale "${locale}"`);
 const errors = [];
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
@@ -38,6 +46,21 @@ await step('login', async () => {
   await page.fill('#password', 'kolibri-demo');
   await page.click('button[type=submit]');
   await page.waitForSelector('.sidebar', { timeout: 15000 });
+});
+
+await step('first-run tour greets a new device and can be dismissed', async () => {
+  await page.waitForSelector('.sheet:has(.tour-h)', { timeout: 6000 });
+  const heading = await page.locator('.sheet header strong').innerText();
+  if (!heading.includes(LABELS.welcome)) throw new Error(`tour title was "${heading}"`);
+  const steps = (await page.locator('.sheet footer .muted').innerText()).match(/\d+$/)?.[0];
+  console.log('     tour steps for an owner:', steps);
+  if (steps !== '5') throw new Error(`expected 5 steps, got ${steps}`);
+  await closeTour(page);
+  if (await page.locator('.sheet').count()) throw new Error('tour did not close');
+  // Dismissed for good: a reload must not bring it back.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.waitForSelector('.sidebar');
+  if (await page.locator('.sheet:has(.tour-h)').count()) throw new Error('tour reopened after a reload');
 });
 await page.waitForTimeout(1500);
 await step('my work has tasks', async () => {
@@ -113,6 +136,7 @@ await step('mobile layout', async () => {
   await m.fill('#password', 'kolibri-demo');
   await m.click('button[type=submit]');
   await m.waitForSelector('.tabbar', { timeout: 15000 });
+  await closeTour(m);
   await m.waitForTimeout(1500);
   await m.screenshot({ path: `${shots}/5-mobile.png` });
   await m.emulateMedia({ colorScheme: 'dark' });
@@ -127,6 +151,46 @@ await step('offline mode', async () => {
   const rows = await page.locator('.task-row').count();
   console.log('     rows while offline:', rows);
   await ctx.setOffline(false);
+});
+
+await step('setup checklist reflects the workspace, empty screens offer help', async () => {
+  await page.goto(`${base}/`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.setup', { timeout: 5000 });
+  const rows = await page.locator('.setup-item').count();
+  const done = await page.locator('.setup-item.done').count();
+  console.log('     checklist:', `${done}/${rows} already true of the seeded workspace`);
+  if (rows < 3) throw new Error(`checklist has only ${rows} items`);
+  // The demo workspace has projects, tasks and pages, so those must read as done.
+  if (done < 3) throw new Error(`expected the seeded work to tick at least 3, got ${done}`);
+
+  // Settings always carries a hint, so this is the deterministic end of the
+  // mechanism: click it and the guide must open on that card, scrolled to it.
+  await page.goto(`${base}/settings?tab=api`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.guide-hint', { timeout: 5000 });
+  await page.click('.guide-hint');
+  await page.waitForSelector('#guide-assistant');
+  await page.waitForTimeout(1100);
+  const placed = await page.evaluate(() => {
+    const box = document.getElementById('guide-assistant')?.getBoundingClientRect();
+    return box ? box.top > -60 && box.top < 420 : false;
+  });
+  if (!placed) throw new Error('the linked card was not scrolled into view');
+
+  // The empty screens that do have something to explain carry one too. The
+  // demo workspace is not empty everywhere, so this counts rather than demands.
+  let offered = 0;
+  for (const path of ['/teams', '/pages', '/inbox']) {
+    await page.goto(`${base}${path}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(250);
+    if (await page.locator('.empty .guide-hint').count()) offered++;
+  }
+  console.log('     empty screens offering help:', offered, 'of 3 visited');
+
+  // And a checklist button lands on the tab it names.
+  await page.goto(`${base}/settings?tab=members`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.tabs button.active');
+  const tab = await page.locator('.tabs button.active').innerText();
+  console.log('     settings deep link opened:', tab);
 });
 
 await step('guide opens, explains itself, and leaks no keys', async () => {

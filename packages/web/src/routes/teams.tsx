@@ -38,7 +38,7 @@ export function Teams() {
         </form>
 
         {!teams.length && (
-          <Empty emoji="👥" title={t('team.emptyTitle')} hint={t('team.emptyHint')} />
+          <Empty emoji="👥" title={t('team.emptyTitle')} hint={t('team.emptyHint')} guide="teams" />
         )}
 
         <div className="grid two">

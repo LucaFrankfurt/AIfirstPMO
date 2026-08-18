@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Header, THEME_KEY, useTheme } from '../components/AppShell';
-import { Avatar, Empty, Icon, Sheet, useConfirm, useToast } from '../components/ui';
+import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
@@ -18,13 +19,21 @@ const ROLES = ['owner', 'admin', 'member', 'guest'] as const;
 
 export function Settings() {
   const t = useT();
-  const [tab, setTab] = useState<Tab>('profile');
+  const [params, setParams] = useSearchParams();
+  // `?tab=members` so the setup checklist can point at the screen it names.
+  const requested = params.get('tab');
+  const [tab, setTab] = useState<Tab>(() => (requested && requested in TAB_KEY ? requested as Tab : 'profile'));
+
+  const choose = (next: Tab) => {
+    setTab(next);
+    setParams(next === 'profile' ? {} : { tab: next }, { replace: true });
+  };
   return (
     <>
       <Header title={t('settings.title')} />
       <div className="tabs" style={{ padding: '0 12px' }}>
         {(Object.keys(TAB_KEY) as Tab[]).map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+          <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
             {t(TAB_KEY[name])}
           </button>
         ))}
@@ -265,6 +274,7 @@ function Notifications() {
           emoji="✉️"
           title={t('notify.noRelayTitle')}
           hint={t('notify.noRelayHint')}
+          guide="collab"
         />
       )}
     </>
@@ -456,6 +466,7 @@ function ApiSettings() {
   return (
     <>
       <p className="muted" style={{ fontSize: 13 }}>{t('api.intro')}</p>
+      <GuideHint to="assistant" />
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('api.tokens')}</h3>
       <div className="row" style={{ marginBottom: 12 }}>
@@ -546,6 +557,7 @@ function DataSettings() {
     <>
       <h3 style={{ fontSize: 14, marginBottom: 8 }}>{t('data.offlineCopy')}</h3>
       <p className="muted" style={{ fontSize: 13 }}>{t('data.offlineIntro')}</p>
+      <GuideHint to="sync" />
       <div className="card" style={{ marginBottom: 14 }}>
         <div className="row"><span className="grow">{t('data.localData')}</span><strong>{mb(estimate?.usage)}</strong></div>
         <div className="row"><span className="grow">{t('data.available')}</span><strong>{mb(estimate?.quota)}</strong></div>

@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 're
 import { AppShell } from './components/AppShell';
 import { TaskDetail } from './components/TaskDetail';
 import { Empty, ToastHost } from './components/ui';
+import { WelcomeTour } from './components/tour';
 import { Login } from './routes/Login';
 import { Inbox, More, MyWork, Search } from './routes/personal';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
@@ -107,6 +108,7 @@ export default function App() {
       <Routes>
         <Route path="/t/:id" element={<TaskRoute />} />
       </Routes>
+      <WelcomeTour />
     </ToastHost>
   );
 }

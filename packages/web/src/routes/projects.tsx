@@ -5,7 +5,7 @@ import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
-import { Avatar, Empty, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
+import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { shortDate, today } from '../lib/format';
 import { byOrder, create, createPage, remove, update } from '../lib/mutations';
@@ -61,7 +61,7 @@ export function ProjectList() {
         </div>
         {!projects.length && (
           <Empty
-            emoji="📁" title={t('project.emptyTitle')} hint={t('project.emptyHint')}
+            emoji="📁" title={t('project.emptyTitle')} hint={t('project.emptyHint')} guide="overview"
             action={<button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>}
           />
         )}
@@ -215,7 +215,7 @@ export function ProjectPage() {
           ? <div style={{ height: 'calc(100dvh - var(--header-height) - 110px)' }}>
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
-          : <div className="page" style={{ paddingLeft: 0, paddingRight: 0 }}>
+          : <div className="page" style={{ paddingInline: 0 }}>
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
       )}
@@ -249,7 +249,7 @@ function Cycles({ projectId }: { projectId: string }) {
         <button className="btn sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</button>
       </div>
 
-      {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} />}
+      {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} guide="planning" />}
 
       <div className="grid two">
         {cycles.map((cycle) => {
@@ -411,7 +411,7 @@ function Modules({ projectId }: { projectId: string }) {
         <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
       </form>
 
-      {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} />}
+      {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
 
       <div className="grid two">
         {modules.map((module) => {
@@ -495,7 +495,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
           <Icon name="plus" size={14} /> {t('project.newPage')}
         </button>
       </div>
-      {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} />}
+      {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} guide="pages" />}
       {pages.map((page) => (
         <button key={page.id} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate(`/pages/${page.id}`)}>
           <span>{page.icon ?? '📄'}</span>
@@ -546,7 +546,11 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.workflowStates')}</h3>
+      <div className="row" style={{ margin: '18px 0 8px' }}>
+        <h3 style={{ fontSize: 14, margin: 0 }}>{t('project.workflowStates')}</h3>
+        <span className="grow" />
+        <GuideHint to="hierarchy" />
+      </div>
       {states.map((state) => (
         <div className="row" key={state.id} style={{ padding: '5px 0' }}>
           <input

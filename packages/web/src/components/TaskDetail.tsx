@@ -256,7 +256,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                         {entry.author_id === me && (
                           <button
                             className="btn ghost sm"
-                            style={{ marginLeft: 'auto' }}
+                            style={{ marginInlineStart: 'auto' }}
                             onClick={async () => {
                               if (await confirm(t('task.deleteComment'))) remove('comment', entry.id);
                             }}

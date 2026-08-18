@@ -312,6 +312,26 @@ describe('kolibri api', () => {
     cookie = adaCookie;
   });
 
+  it('seeds a new project\'s workflow in the creator\'s language', async () => {
+    const adaCookie = cookie;
+
+    // Ada is on English, Lin switched to German a moment ago.
+    const english = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name: 'English project', key: 'ENP' } });
+    const englishStates = await api(`/api/workspaces/${workspaceId}/states?project_id=${english.id}`);
+    assert.ok(englishStates.some((s: any) => s.name === 'In Progress'), 'English workflow for an English creator');
+
+    cookie = '';
+    await api('/api/auth/login', { body: { email: 'lin@example.com', password: 'yet another pass' } });
+    const german = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name: 'Deutsches Projekt', key: 'DEP' } });
+    const germanStates = await api(`/api/workspaces/${workspaceId}/states?project_id=${german.id}`);
+    assert.ok(germanStates.some((s: any) => s.name === 'In Arbeit'), 'German workflow for a German creator');
+    assert.ok(germanStates.some((s: any) => s.name === 'Erledigt'));
+    const germanLabels = await api(`/api/workspaces/${workspaceId}/labels?project_id=${german.id}`);
+    assert.ok(germanLabels.some((l: any) => l.name === 'Dokumentation'), 'labels follow too');
+
+    cookie = adaCookie;
+  });
+
   it('hides private projects from non-members', async () => {
     cookie = '';
     await api('/api/auth/register', { body: { email: 'bob@example.com', name: 'Bob', password: 'another good pass' } });

@@ -134,7 +134,7 @@ p { margin: 0 0 0.75em; }
   flex-direction: column;
   gap: 2px;
   background: var(--bg-sunken);
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   padding: 10px 8px;
   overflow-y: auto;
 }
@@ -215,7 +215,7 @@ p { margin: 0 0 0.75em; }
 }
 
 .tabbar a[aria-current='page'] { color: var(--accent); }
-.tabbar .badge-dot { position: absolute; top: 6px; right: 50%; margin-right: -14px; }
+.tabbar .badge-dot { position: absolute; top: 6px; inset-inline-end: 50%; margin-inline-end: -14px; }
 
 @media (min-width: 900px) {
   .shell { grid-template-columns: var(--sidebar-width) 1fr; }
@@ -260,7 +260,7 @@ p { margin: 0 0 0.75em; }
   color: var(--fg);
   font-weight: 550;
 }
-.nav-item .count { margin-left: auto; font-size: 11.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.nav-item .count { margin-inline-start: auto; font-size: 11.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 
 .nav-section {
   display: flex;
@@ -273,7 +273,7 @@ p { margin: 0 0 0.75em; }
   text-transform: uppercase;
   color: var(--fg-muted);
 }
-.nav-section button { margin-left: auto; }
+.nav-section button { margin-inline-start: auto; }
 
 /* ----------------------------------------------------------------- pieces */
 
@@ -360,7 +360,7 @@ p { margin: 0 0 0.75em; }
 }
 
 .avatar-stack { display: inline-flex; }
-.avatar-stack .avatar + .avatar { margin-left: -6px; box-shadow: 0 0 0 2px var(--bg); }
+.avatar-stack .avatar + .avatar { margin-inline-start: -6px; box-shadow: 0 0 0 2px var(--bg); }
 
 .badge-dot {
   width: 7px;
@@ -646,6 +646,7 @@ p { margin: 0 0 0.75em; }
 
 .toast-host {
   position: fixed;
+  /* Centred rather than aligned to a side, so this one stays physical. */
   left: 50%;
   transform: translateX(-50%);
   bottom: calc(74px + env(safe-area-inset-bottom));
@@ -681,16 +682,16 @@ p { margin: 0 0 0.75em; }
 .md h3 { font-size: 15.5px; margin: 16px 0 6px; }
 .md h1:first-child, .md h2:first-child, .md h3:first-child { margin-top: 0; }
 .md p { margin: 0 0 11px; }
-.md ul, .md ol { margin: 0 0 11px; padding-left: 22px; }
+.md ul, .md ol { margin: 0 0 11px; padding-inline-start: 22px; }
 .md li { margin: 3px 0; }
-.md li.md-task { list-style: none; margin-left: -18px; display: flex; gap: 7px; align-items: flex-start; }
+.md li.md-task { list-style: none; margin-inline-start: -18px; display: flex; gap: 7px; align-items: flex-start; }
 .md li.md-task input { margin-top: 4px; }
 .md .md-done { color: var(--fg-muted); text-decoration: line-through; }
 .md a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 .md code { background: var(--bg-hover); padding: 1.5px 4px; border-radius: 4px; font-family: var(--mono); font-size: 0.88em; }
 .md pre { background: var(--bg-sunken); border: 1px solid var(--line); padding: 11px 13px; border-radius: var(--radius); overflow-x: auto; margin: 0 0 12px; }
 .md pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
-.md blockquote { margin: 0 0 12px; padding: 2px 0 2px 13px; border-left: 3px solid var(--line-strong); color: var(--fg-soft); }
+.md blockquote { margin: 0 0 12px; padding-block: 2px; padding-inline-start: 13px; border-inline-start: 3px solid var(--line-strong); color: var(--fg-soft); }
 .md img { max-width: 100%; border-radius: var(--radius); border: 1px solid var(--line); display: block; margin: 10px 0; }
 .md hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
 .md .md-tag { color: var(--accent); }
@@ -1127,3 +1128,54 @@ p { margin: 0 0 0.75em; }
   background: var(--bg-sunken); border-radius: var(--radius-sm); padding: 9px 11px;
 }
 .gx-rule svg { color: var(--warn); flex: none; margin-top: 2px; }
+
+/* An arrow that means "forwards" points the other way in a right-to-left
+   layout. Icons that name a thing (a page, a bell) are left alone. */
+[dir='rtl'] .icon-dir { transform: scaleX(-1); }
+
+/* --------------------------------------------------- contextual help */
+
+/* The quiet link from an empty screen into the card that explains it. */
+.guide-hint {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12.5px; color: var(--fg-muted); text-decoration: none;
+  padding: 3px 0; transition: color 160ms ease;
+}
+.guide-hint:hover { color: var(--accent); }
+.empty .guide-hint { margin-top: 2px; }
+
+/* Arriving from one of those links marks the card, so the reader knows
+   which of eight they were sent to. */
+.guide-feature.flash { animation: guide-flash 1.6s ease-out; }
+@keyframes guide-flash {
+  from { background: var(--accent-soft); box-shadow: 0 0 0 8px var(--accent-soft); }
+  to { background: transparent; box-shadow: 0 0 0 8px transparent; }
+}
+
+/* ----------------------------------------------------- tour + setup */
+
+.tour-h { font-size: 15px; margin: 0 0 6px; }
+.sheet .tour-h + p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.6; }
+.tour-ok {
+  display: flex; align-items: center; gap: 7px; margin: 0;
+  font-size: 13.5px; color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 9%, transparent);
+  border-radius: var(--radius-sm); padding: 10px 12px;
+}
+
+.setup { margin-bottom: 18px; }
+.setup-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-top: 1px solid var(--line);
+}
+.setup-item:first-of-type { border-top: none; }
+.setup-tick {
+  width: 18px; height: 18px; border-radius: 50%; flex: none;
+  border: 1.5px solid var(--line-strong); display: grid; place-items: center;
+  color: var(--accent-fg); transition: background 200ms ease, border-color 200ms ease;
+}
+.setup-item.done .setup-tick { background: var(--ok); border-color: var(--ok); }
+.setup-label { display: block; font-size: 13px; }
+.setup-hint { display: block; font-size: 12px; color: var(--fg-muted); }
+.setup-item.done .setup-label { color: var(--fg-muted); text-decoration: line-through; }
+.setup-item.done .setup-hint { display: none; }

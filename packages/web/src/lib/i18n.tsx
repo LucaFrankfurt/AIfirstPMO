@@ -19,6 +19,14 @@ export type TranslationKey = RawKey | PluralBase<RawKey>;
 
 export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch' };
 
+/**
+ * Writing direction per locale. Both current locales are left-to-right, so this
+ * is scaffolding rather than a feature — but the stylesheet is written with
+ * logical properties throughout, so adding an RTL locale is a catalogue file
+ * plus one entry here. Untested against a real RTL language; see docs/i18n.md.
+ */
+export const LOCALE_DIR: Record<Locale, 'ltr' | 'rtl'> = { en: 'ltr', de: 'ltr' };
+
 const STORAGE_KEY = 'kolibri.locale';
 
 /** Whether this device has an explicit choice, as opposed to a detected one. */
@@ -78,6 +86,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     current = locale;
     document.documentElement.lang = locale;
+    document.documentElement.dir = LOCALE_DIR[locale];
   }, [locale]);
 
   const setLocale = useCallback((next: Locale) => {
