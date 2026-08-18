@@ -95,6 +95,14 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Translated workflow states in the seed.** A new project's states are created server-side and
       named in English (`Backlog`, `Todo`, …) whatever the creator's language. They are editable
       data, so this is a first-impression problem rather than a correctness one.
+- [x] **An explanation of the product inside the product.** Four sections under `?`: an overview
+      with an animated build-up of the model, an explorer for the hierarchy with the rule behind
+      each level, one narrated animation per feature, and the shortcuts.
+- [ ] **A first-run tour.** The guide is there but nobody is walked to it; a new account lands on an
+      empty My work with no nudge. A dismissible pointer on the first sign-in would cost little.
+- [ ] **Contextual help.** The guide is one screen away from everywhere, but nothing links into the
+      relevant card from the screen you are on — an empty cycles tab should offer the cycles
+      animation rather than only an empty state.
 - [ ] **Image lightbox** for attachments and inline images (the `.gallery` styles are unused).
 - [ ] **Per-task notification opt-out** (`subscribers` is stored and used, but nothing toggles it).
 
@@ -149,6 +157,9 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
 - [x] Browser: phone viewport, dark mode, and rendering with the network switched off
 - [x] Browser: the same walkthrough through the German interface (`KOLIBRI_LOCALE=de`)
+- [x] Browser: the guide opens from `?`, all four sections render without a raw translation key,
+      every one of the 32 animation steps is narrated, and all 18 hierarchy nodes explain themselves
+- [x] The guide does not animate on its own when the OS asks for reduced motion, and stays steppable
 - [x] Catalogue parity: same keys both ways, no placeholder lost in translation, plural pairs
       complete, every key the interface uses exists, and no user-visible string left hard-coded
 - [x] A notification written for a German recipient by an English actor arrives in German

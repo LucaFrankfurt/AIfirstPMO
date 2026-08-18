@@ -49,6 +49,7 @@ around three convictions:
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling, offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads |
 | **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field, Server-Sent-Events live updates, installable PWA |
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
+| **Learning it** | A guide built into the app: animated, narrated diagrams of every feature, an explorer for how the pieces nest, and the keyboard shortcuts. Press `?` |
 | **Languages** | English and German throughout — interface, notifications and emails, each written in the recipient's own language. Adding a third is one typed catalogue file |
 | **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 19 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
@@ -188,6 +189,9 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
 - [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
+- **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
+  pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the
+  manual for running and extending it.
 - [`docs/storage.md`](docs/storage.md) — disk vs. S3/MinIO, pre-signed downloads, migrating
 - [`docs/api.md`](docs/api.md) — REST endpoints, auth, uploads
 - [`docs/mcp.md`](docs/mcp.md) — every tool, prompt and resource with examples

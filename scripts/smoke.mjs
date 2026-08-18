@@ -17,8 +17,8 @@ const shots = process.env.KOLIBRI_SHOT_DIR ?? (locale === 'en' ? '/tmp/shots' : 
 
 /** Only the strings the walkthrough clicks on — not a second catalogue. */
 const LABELS = {
-  en: { board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages' },
-  de: { board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten' },
+  en: { board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages', guide: 'Guide' },
+  de: { board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten', guide: 'Anleitung' },
 }[locale];
 if (!LABELS) throw new Error(`smoke test has no labels for locale "${locale}"`);
 const errors = [];
@@ -129,13 +129,64 @@ await step('offline mode', async () => {
   await ctx.setOffline(false);
 });
 
+await step('guide opens, explains itself, and leaks no keys', async () => {
+  await page.goto(`${base}/`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.sidebar');
+  await page.keyboard.press('Shift+Slash');            // the `?` shortcut
+  await page.waitForSelector('.guide', { timeout: 5000 });
+  if (!page.url().endsWith('/guide')) throw new Error(`? went to ${page.url()}`);
+
+  const tabs = await page.locator('.tabs button').count();
+  if (tabs !== 4) throw new Error(`expected 4 sections, found ${tabs}`);
+
+  // Walk every section and make sure no raw translation key reached the screen.
+  for (let index = 0; index < tabs; index++) {
+    await page.locator('.tabs button').nth(index).click();
+    await page.waitForTimeout(150);
+    const text = await page.locator('.guide').innerText();
+    const leak = text.match(/guide\.[\w.]+/);
+    if (leak) throw new Error(`untranslated key on screen: ${leak[0]}`);
+  }
+
+  // Every step of every animation has to say something.
+  await page.locator('.tabs button').nth(2).click();
+  await page.waitForSelector('.guide-feature .stage');
+  const stages = page.locator('.stage');
+  let steps = 0;
+  for (let index = 0; index < await stages.count(); index++) {
+    const stage = stages.nth(index);
+    const dots = await stage.locator('.dots button').count();
+    for (let dot = 0; dot < dots; dot++) {
+      await stage.locator('.dots button').nth(dot).click();
+      const caption = (await stage.locator('.caption').innerText()).trim();
+      if (caption.length < 25) throw new Error(`stage ${index} step ${dot} has no narration`);
+      steps++;
+    }
+  }
+  console.log('     narrated animation steps:', steps);
+
+  // Every node of the hierarchy has to explain itself.
+  await page.locator('.tabs button').nth(1).click();
+  await page.waitForSelector('.gx-hierarchy');
+  const nodes = page.locator('.gx-node');
+  for (let index = 0; index < await nodes.count(); index++) {
+    await nodes.nth(index).click();
+    const detail = await page.locator('.gx-detail').innerText();
+    if (detail.length < 90) throw new Error(`hierarchy node ${index} is not explained`);
+  }
+  console.log('     hierarchy nodes explained:', await nodes.count());
+});
+await page.screenshot({ path: `${shots}/7-guide.png` });
+
 await step('interface is in the chosen language', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.sidebar');
   const lang = await page.evaluate(() => document.documentElement.lang);
   if (lang !== locale) throw new Error(`<html lang> is "${lang}", expected "${locale}"`);
   const nav = await page.locator('.sidebar').innerText();
-  if (!nav.includes(LABELS.pages)) throw new Error(`sidebar does not mention "${LABELS.pages}"`);
+  for (const label of [LABELS.pages, LABELS.guide]) {
+    if (!nav.includes(label)) throw new Error(`sidebar does not mention "${label}"`);
+  }
 });
 
 console.log(`\nlocale: ${locale}  ·  screenshots: ${shots}`);

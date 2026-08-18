@@ -46,6 +46,10 @@ const PATHS: Record<string, string> = {
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   grip: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
   refresh: 'M20 11a8 8 0 1 0-.6 4M20 4v6h-6',
+  play: 'M8 5.5v13l11-6.5z',
+  pause: 'M9 5v14M15 5v14',
+  help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4M12 17.2h.01',
+  sparkle: 'M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9zM18.5 3v3M20 4.5h-3',
 };
 
 export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {

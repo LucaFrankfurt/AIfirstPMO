@@ -45,6 +45,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       { id: 'nav-pages', icon: 'page', title: t('nav.pages'), run: go('/pages') },
       { id: 'nav-teams', icon: 'users', title: t('nav.teams'), run: go('/teams') },
       { id: 'nav-settings', icon: 'settings', title: t('nav.settings'), run: go('/settings') },
+      { id: 'nav-guide', icon: 'help', title: t('nav.guide'), run: go('/guide') },
       { id: 'nav-new-project', icon: 'plus', title: t('nav.newProject'), run: go('/projects/new') },
     ];
 

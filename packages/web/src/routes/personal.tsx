@@ -271,6 +271,7 @@ export function More() {
           <button className="nav-item" onClick={() => navigate('/teams')}><Icon name="users" size={16} /> {t('nav.teams')}</button>
           <button className="nav-item" onClick={() => navigate('/projects/new')}><Icon name="plus" size={16} /> {t('nav.newProject')}</button>
           <button className="nav-item" onClick={() => navigate('/settings')}><Icon name="settings" size={16} /> {t('nav.settings')}</button>
+          <button className="nav-item" onClick={() => navigate('/guide')}><Icon name="help" size={16} /> {t('nav.guide')}</button>
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>

@@ -7,6 +7,7 @@ import { Login } from './routes/Login';
 import { Inbox, More, MyWork, Search } from './routes/personal';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
+import { Help } from './routes/help';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
 import { backgroundOf, useOpenTask } from './lib/navigation';
@@ -96,6 +97,7 @@ export default function App() {
           <Route path="/pages" element={<PagesIndex />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />
+          <Route path="/guide" element={<Help />} />
           <Route path="/settings/*" element={<Settings />} />
           <Route path="/invite/:code" element={<Navigate to="/" replace />} />
           <Route path="/t/:id" element={<MyWork />} />

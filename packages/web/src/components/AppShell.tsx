@@ -94,11 +94,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       } else if (event.key === 'c' && !typing && !event.metaKey && !event.ctrlKey) {
         event.preventDefault();
         setAdding(true);
+      } else if (event.key === '?' && !typing && !event.metaKey && !event.ctrlKey) {
+        event.preventDefault();
+        navigate('/guide');
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, []);
+  }, [navigate]);
 
   const workspaceItems: MenuItem[] = [
     ...(session?.workspaces ?? []).map((workspace) => ({
@@ -111,6 +114,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
 
   const accountItems: MenuItem[] = [
+    { id: 'guide', label: t('nav.guide'), icon: <Icon name="help" size={14} />, onSelect: () => navigate('/guide') },
     { id: 'profile', label: t('nav.settings'), icon: <Icon name="settings" size={14} />, onSelect: () => navigate('/settings') },
     {
       id: 'theme',
@@ -141,6 +145,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Item to="/search" icon="search">{t('nav.search')}</Item>
         <Item to="/pages" icon="page">{t('nav.pages')}</Item>
         <Item to="/teams" icon="users">{t('nav.teams')}</Item>
+        <Item to="/guide" icon="help">{t('nav.guide')}</Item>
 
         <div className="nav-section">
           {t('nav.projects')}
