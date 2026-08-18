@@ -7,6 +7,7 @@ import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, 
 import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
+import { ImportSheet } from '../components/import';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -526,6 +527,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   );
   const labels = useQuery(() => list('label', (l) => l.project_id === projectId), [projectId]);
   const [newLabel, setNewLabel] = useState('');
+  const [importing, setImporting] = useState(false);
   if (!project) return null;
 
   return (
@@ -613,6 +615,12 @@ function ProjectSettings({ projectId }: { projectId: string }) {
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('time.title')}</h3>
       <ProjectTime projectId={projectId} />
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('import.title')}</h3>
+      <button className="btn" onClick={() => setImporting(true)}>
+        <Icon name="attach" size={14} /> {t('import.action')}
+      </button>
+      {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
 
       <div className="divider" style={{ margin: '22px 0' }} />
       <div className="row">

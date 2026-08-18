@@ -40,7 +40,7 @@ around three convictions:
 
 | | |
 |---|---|
-| **Work tracking** | Projects with their own workflow states, tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving |
+| **Work tracking** | Projects with their own workflow states, tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, and CSV import with a preview before anything is written |
 | **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects, time tracking with a timer that survives a reload |
 | **Templates & rules** | Task templates with a checklist that becomes sub-tasks, and rules that file one when something happens — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
 | **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; select several tasks and change them together; save a view under a name and share it |
@@ -195,6 +195,7 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/automation.md`](docs/automation.md) — task templates, rules, who gets the task and why one might not fire
 - [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
 - [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
+- [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV, and what it does with a row it cannot read
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the

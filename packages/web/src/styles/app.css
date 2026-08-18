@@ -451,6 +451,29 @@ p { margin: 0 0 0.75em; }
   .task-table .narrow { display: none; }
 }
 
+/* ------------------------------------------------------------- importing */
+
+.import-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 30px 18px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  text-align: center;
+  cursor: pointer;
+}
+.import-drop:hover { background: var(--bg-hover); }
+.import-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.import-drop .hint { max-width: 46ch; }
+
+/* Both lists can be long; they scroll inside the sheet rather than pushing the
+   footer — the buttons are the point of the screen. */
+.import-map, .import-problems { max-height: 320px; overflow-y: auto; }
+.import-map > .row { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.import-problems > .row { padding: 4px 0; border-top: 1px solid var(--line); }
+
 .chip {
   display: inline-flex;
   align-items: center;

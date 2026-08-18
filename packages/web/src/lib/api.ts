@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@kolibri/shared';
+import type { ImportResult, SessionInfo } from '@kolibri/shared';
 import { currentLocale, translate } from './i18n';
 
 export class ApiError extends Error {
@@ -89,6 +89,9 @@ export const api = {
     ),
 
   activity: (taskId: string) => request<any[]>(`/api/tasks/${taskId}/activity`),
+  import: (workspaceId: string, body: {
+    csv: string; project_id: string; mapping: Record<string, string>; delimiter?: string; dry_run: boolean;
+  }) => request<ImportResult>(`/api/workspaces/${workspaceId}/import`, json(body)),
   members: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/members`),
   tokens: () => request<any[]>('/api/tokens'),
   createToken: (body: { name: string; workspaceId?: string; scopes?: string }) => request<{ token: string; id: string }>('/api/tokens', json(body)),

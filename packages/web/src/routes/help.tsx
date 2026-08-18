@@ -157,7 +157,7 @@ function Features() {
         lead="guide.capture.lead"
         to="/"
         linkLabel="guide.capture.cta"
-        steps={['guide.capture.h1', 'guide.capture.h2', 'guide.capture.h3', 'guide.capture.h4']}
+        steps={['guide.capture.h1', 'guide.capture.h2', 'guide.capture.h3', 'guide.capture.h4', 'guide.capture.h5']}
       >
         <CaptureDiagram />
       </Feature>

@@ -88,8 +88,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       set by no screen. Export to PDF or a markdown bundle belongs here too.
 - [ ] **Work item types** (bug / feature / epic) with type-dependent fields. There is no `type` on
       a task today — only labels, which do not change the form.
-- [ ] **Import.** CSV first, then Jira/Plane. This is the single biggest adoption blocker: nobody
-      migrates a backlog by hand.
+- [x] **CSV import.** Column mapping guessed from the header names in both languages and in Jira /
+      Plane / OpenProject's words, a dry run that writes nothing, and a report that names the
+      spreadsheet row of everything it could not read. Semicolon files from a German Excel included.
+      See [`docs/import.md`](docs/import.md).
+- [ ] **Import beyond CSV**, and the parts CSV cannot carry: sub-task parents, relations and
+      comments need a second pass once the rows exist. Jira XML/JSON if anybody asks.
 - [ ] **Repository and chat integrations** — GitHub/GitLab commit linking, Slack. Outgoing webhooks
       would cover most of it generically; rules only act inwards today.
 - [ ] **Analytics** — burn-down/up, throughput, cycle time. The data is all there; nothing reads it.

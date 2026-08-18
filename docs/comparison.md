@@ -33,6 +33,8 @@ Worth stating first, because it is the reason the gaps below are acceptable:
   a first-run tour that configures the instance as it goes.
 - **A timer that is a database row**, so it survives a reload, a second device
   and a tunnel — see [`time.md`](time.md).
+- **An import that shows you what it read before it writes**, and names the
+  spreadsheet row of everything it could not — see [`import.md`](import.md).
 - **Templates and rules whose recipients are selectors**, not stored names — see
   [`automation.md`](automation.md).
 
@@ -68,7 +70,7 @@ which Plane does not have in this form.
 |---|---|---|
 | **Gantt layout** | High | `LAYOUTS` declares five; four are built. Gantt needs scheduling, not a layout |
 | **Analytics** — burn-down/up, throughput, cycle time | High | |
-| **Import** from Jira / CSV / GitHub | High | The single biggest adoption blocker: nobody migrates without it |
+| **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
 | **Integrations** — GitHub/GitLab commit linking, Slack | High | |
 | **Work item types** (bug / feature / epic) | Medium–high | There is no `type` on a task, only labels |
 | **Custom fields** | High | Invasive in the data model |
@@ -125,7 +127,7 @@ value per unit of work rather than by size.
 
 | # | What | Why it is next | Effort |
 |---|---|---|---|
-| 1 | **Import** — CSV first, then Jira/Plane | The single biggest adoption blocker. Everything else here helps people who already moved in | medium |
+| ~~1~~ | ~~Import — CSV~~ | **Done** — mapping guessed, dry run, per-row report. What is left is the parts CSV cannot carry | |
 | 2 | **Work item types** (bug / feature / epic) | There is no `type` on a task, only labels, and labels do not change the form. Custom fields sit on top of the same decision | medium |
 | 3 | **Analytics** — burn-down/up, throughput, cycle time | Every number needed is already stored; nothing reads it. Time tracking just added another axis | medium |
 | 4 | **Page extras** — labels, watching, version diff, page templates, and exposing the stored `access` column | Turns the wiki from "good enough" into the reason somebody leaves Confluence | medium |

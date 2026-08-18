@@ -1,10 +1,11 @@
-import { ENTITIES, type EntityName } from '@kolibri/shared';
+import { ENTITIES, IMPORT_FIELDS, type EntityName, type ImportField, type Mapping } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { serverClock, createProject } from '../lib/bootstrap.ts';
 import { badRequest, flag, forbidden, notFound, readJson, type Ctx, type Router } from '../lib/http.ts';
 import { uid } from '../lib/ids.ts';
 import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
+import { importCsv } from '../lib/import.ts';
 import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 
 /** URL segment -> entity. Everything the sync engine knows is also plain REST. */
@@ -50,6 +51,55 @@ function guardProject(userId: string, entity: EntityName, row: Row): void {
 }
 
 export function registerEntityRoutes(router: Router): void {
+  /* -------------------------------------------------------- import */
+
+  /**
+   * CSV import. Always run twice by the interface: once with `dry_run` to show
+   * what would happen, once without to do it.
+   *
+   * The file is parsed here rather than trusting rows the client assembled, so
+   * what the preview promised and what lands are the same code path.
+   */
+  router.post('/api/workspaces/:ws/import', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+
+    const body = await readJson<{
+      csv?: string;
+      project_id?: string;
+      mapping?: Record<string, string>;
+      delimiter?: string;
+      dry_run?: boolean;
+    }>(ctx, 12 * 1024 * 1024);
+
+    if (typeof body.csv !== 'string' || !body.csv.trim()) throw badRequest('csv is required');
+    if (!body.project_id) throw badRequest('project_id is required');
+    const project = get<Row>(
+      `SELECT id FROM projects WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+      body.project_id, ctx.params.ws,
+    );
+    if (!project) throw notFound('Project not found');
+    if (!canSeeProject(auth.userId, project.id)) throw forbidden('That project is private');
+
+    // Only the fields the importer knows; anything else is a column to ignore,
+    // not a way to write a column the registry does not expose.
+    const mapping: Mapping = {};
+    for (const [column, field] of Object.entries(body.mapping ?? {})) {
+      if ((IMPORT_FIELDS as readonly string[]).includes(field)) mapping[column] = field as ImportField;
+    }
+
+    return importCsv(body.csv, {
+      workspaceId: ctx.params.ws,
+      projectId: project.id,
+      actorId: auth.userId,
+      mapping,
+      dryRun: body.dry_run !== false,
+      delimiter: body.delimiter,
+      opts: { workspaceId: ctx.params.ws, actorId: auth.userId, hlc: serverClock.now() },
+    });
+  });
+
   /** List: `/api/workspaces/:ws/tasks?project_id=…&state_id=…&limit=100`. */
   router.get('/api/workspaces/:ws/:collection', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
