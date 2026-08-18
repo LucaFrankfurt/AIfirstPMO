@@ -100,7 +100,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       comments need a second pass once the rows exist. Jira XML/JSON if anybody asks.
 - [ ] **Repository and chat integrations** — GitHub/GitLab commit linking, Slack. Outgoing webhooks
       would cover most of it generically; rules only act inwards today.
-- [ ] **Analytics** — burn-down/up, throughput, cycle time. The data is all there; nothing reads it.
+- [x] **Analytics.** Project → Insights: open/finished counts, median cycle time, time logged,
+      throughput per week, a burn-up over the active cycle, and breakdowns by kind and by person.
+      Computed from the local mirror, so it works offline. See [`docs/insights.md`](docs/insights.md).
+- [ ] **Analytics across projects.** A portfolio view is a different screen and a different
+      question. Nothing here aggregates beyond one project.
 - [ ] **Mention autocomplete in the editor.** Typing `@` should offer the workspace members
       instead of relying on the writer knowing the handle.
 - [ ] **Scheduled digests** (daily/weekly summary) on top of the existing batching window.

@@ -69,7 +69,7 @@ which Plane does not have in this form.
 | Missing | Weight | Note |
 |---|---|---|
 | **Gantt layout** | High | `LAYOUTS` declares five; four are built. Gantt needs scheduling, not a layout |
-| **Analytics** — burn-down/up, throughput, cycle time | High | |
+| **Analytics across projects** | Medium | Per project is built — throughput, burn-up, cycle time. Nothing aggregates a portfolio |
 | **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
 | **Integrations** — GitHub/GitLab commit linking, Slack | High | |
 | **Custom fields** | High | Invasive in the data model |
@@ -88,7 +88,7 @@ management with money in it.
 |---|---|---|
 | **Gantt with real scheduling** | High | Relations exist (`blocks`, `relates_to`, …) but nothing reschedules: moving a predecessor moves nothing |
 | **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
-| **Reports** — cost, utilisation, progress across projects | High | |
+| **Reports** — cost, utilisation, progress *across* projects | High | Per-project progress is built; money and portfolio-wide are not |
 | **Resource and capacity planning**, team planner | High | |
 | **Type-dependent forms and workflows** | High | Types themselves are built; a form that changes per type is custom fields with a visibility rule |
 | **Status transition rules per role** (who may move what, where) | Medium–high | |
@@ -127,7 +127,7 @@ value per unit of work rather than by size.
 |---|---|---|---|
 | ~~1~~ | ~~Import — CSV~~ | **Done** — mapping guessed, dry run, per-row report. What is left is the parts CSV cannot carry | |
 | ~~2~~ | ~~Work item types~~ | **Done** — per project, grouped and filtered by. Type-*dependent fields* are custom fields, below | |
-| 3 | **Analytics** — burn-down/up, throughput, cycle time | Every number needed is already stored; nothing reads it. Time tracking just added another axis | medium |
+| ~~3~~ | ~~Analytics~~ | **Done** — per project, computed from the local mirror | |
 | 4 | **Page extras** — labels, watching, version diff, page templates, and exposing the stored `access` column | Turns the wiki from "good enough" into the reason somebody leaves Confluence | medium |
 | 5 | **SSO** (OIDC first) | The gate on adoption past roughly fifty people. Nothing in the auth layer anticipates it, so it is a project | large |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |

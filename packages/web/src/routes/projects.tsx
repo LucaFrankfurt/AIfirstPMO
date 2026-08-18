@@ -8,6 +8,7 @@ import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ImportSheet } from '../components/import';
+import { ProjectInsights } from '../components/insights';
 import { useTypes } from '../components/task-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
@@ -24,7 +25,7 @@ const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
 const TAB_KEY: Record<string, TranslationKey> = {
   tasks: 'project.tabTasks', cycles: 'project.tabCycles', modules: 'project.tabModules',
-  pages: 'project.tabPages', settings: 'project.tabSettings',
+  pages: 'project.tabPages', insights: 'insights.tab', settings: 'project.tabSettings',
 };
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
@@ -174,7 +175,7 @@ export function ProjectNew() {
 
 /* ---------------------------------------------------------------- project */
 
-type Tab = 'tasks' | 'cycles' | 'modules' | 'pages' | 'settings';
+type Tab = 'tasks' | 'cycles' | 'modules' | 'pages' | 'insights' | 'settings';
 
 export function ProjectPage() {
   const t = useT();
@@ -209,7 +210,7 @@ export function ProjectPage() {
       </Header>
 
       <div className="tabs" style={{ padding: '0 12px' }}>
-        {(['tasks', 'cycles', 'modules', 'pages', 'settings'] as Tab[]).map((name) => (
+        {(['tasks', 'cycles', 'modules', 'pages', 'insights', 'settings'] as Tab[]).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
             {t(TAB_KEY[name])}
           </button>
@@ -232,6 +233,7 @@ export function ProjectPage() {
       {tab === 'cycles' && <Cycles projectId={id} />}
       {tab === 'modules' && <Modules projectId={id} />}
       {tab === 'pages' && <ProjectPages projectId={id} />}
+      {tab === 'insights' && <ProjectInsights projectId={id} />}
       {tab === 'settings' && <ProjectSettings projectId={id} />}
 
       {adding && <QuickAdd projectId={id} onClose={() => setAdding(false)} />}

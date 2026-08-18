@@ -181,7 +181,7 @@ function Features() {
         lead="guide.planning.lead"
         to="/projects"
         linkLabel="guide.planning.cta"
-        steps={['guide.planning.h1', 'guide.planning.h2', 'guide.planning.h3', 'guide.planning.h4', 'guide.planning.h5']}
+        steps={['guide.planning.h1', 'guide.planning.h2', 'guide.planning.h3', 'guide.planning.h4', 'guide.planning.h5', 'guide.planning.h6']}
       >
         <PlanningDiagram />
       </Feature>
