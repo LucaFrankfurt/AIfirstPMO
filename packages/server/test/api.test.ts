@@ -48,6 +48,16 @@ async function api<T = any>(path: string, options: Options = {}): Promise<T> {
   return payload as T;
 }
 
+/** How many mention notifications one person is holding, counted as them. */
+async function countMentions(workspace: string, email: string, password: string): Promise<number> {
+  const caller = cookie;
+  cookie = '';
+  await api('/api/auth/login', { body: { email, password } });
+  const notifications = await api<any[]>(`/api/workspaces/${workspace}/notifications`);
+  cookie = caller;
+  return notifications.filter((n) => n.kind === 'mention').length;
+}
+
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -316,6 +326,65 @@ describe('kolibri api', () => {
     assert.ok(mention, 'the mentioned user gets a notification');
     assert.equal(mention.user_id, linId);
     assert.match(mention.title, /mentioned/i);
+
+    cookie = adaCookie;
+  });
+
+  it('carries a conversation on a page, not only on a task', async () => {
+    const adaCookie = cookie;
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Release checklist', content: 'Steps to follow before shipping.' },
+    });
+
+    // Lin joins the conversation first, so Ada has somebody to be told about.
+    cookie = '';
+    await api('/api/auth/login', { body: { email: 'lin@example.com', password: 'yet another pass' } });
+    const linCookie = cookie;
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { page_id: page.id, body: 'Should the database backup step come first?' },
+    });
+
+    cookie = adaCookie;
+    const adaInbox = await api(`/api/workspaces/${workspaceId}/notifications`);
+    const told = adaInbox.find((n: any) => n.page_id === page.id && n.kind === 'comment');
+    assert.ok(told, 'the person who wrote the page hears about a comment on it');
+    assert.match(told.title, /Release checklist/, 'and the title says which page');
+
+    // Ada replies. Lin has spoken on this page, so Lin is part of its audience
+    // now — a page has no assignees for the audience to be read from.
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { page_id: page.id, body: 'Yes — I will reorder it.' },
+    });
+    cookie = linCookie;
+    const linInbox = await api(`/api/workspaces/${workspaceId}/notifications`);
+    assert.ok(
+      linInbox.some((n: any) => n.page_id === page.id && n.kind === 'comment'),
+      'whoever has commented is part of the conversation from then on',
+    );
+
+    cookie = adaCookie;
+  });
+
+  it('notices a mention written into a page, and only says so once', async () => {
+    const adaCookie = cookie;
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Onboarding', content: 'First draft.' },
+    });
+    const before = (await countMentions(workspaceId, 'lin@example.com', 'yet another pass'));
+
+    cookie = adaCookie;
+    await api(`/api/pages/${page.id}`, {
+      method: 'PATCH', body: { content: 'First draft. @lin can you check the account section?' },
+    });
+    assert.equal(await countMentions(workspaceId, 'lin@example.com', 'yet another pass') - before, 1, 'a mention in a page body counts');
+
+    // A page autosaves while you type, so every keystroke arrives as another
+    // write with the same name in it. Being told once is the whole point.
+    cookie = adaCookie;
+    await api(`/api/pages/${page.id}`, {
+      method: 'PATCH', body: { content: 'First draft. @lin can you check the account section? Thanks.' },
+    });
+    assert.equal(await countMentions(workspaceId, 'lin@example.com', 'yet another pass') - before, 1, 'editing around it says nothing new');
 
     cookie = adaCookie;
   });

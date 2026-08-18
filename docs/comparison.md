@@ -36,13 +36,12 @@ Worth stating first, because it is the reason the gaps below are acceptable:
 ## Against Confluence
 
 Kolibri has: nested markdown pages, version history with restore, drag-and-drop
-images, attachments, full-text search across pages and tasks.
+images, attachments, comments with @mentions on every page, full-text search
+across pages and tasks.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Comments on pages** | High | `comment.page_id` exists in the data model and syncs; there is no interface for it |
 | **Inline comments** (select text → comment) | High | The thing Confluence is actually used for |
-| **@mentions inside page content** | Medium | `findMentions` runs over `task.description` and `comment.body` only; page bodies are never scanned |
 | **Version diff** | Medium | History and restore work; "what changed" does not exist |
 | **Page templates / blueprints** | Medium | Templates exist, but only for tasks |
 | **Labels on pages**, and filtering by them | Medium | |
@@ -123,7 +122,7 @@ Ordered by value per unit of work, not by size.
 | # | What | Why now | Effort |
 |---|---|---|---|
 | ~~1~~ | ~~Saved views (interface)~~ | **Done** — save, load, share, rename, delete | |
-| 2 | Page comments + mentions in pages | Makes the wiki collaborative rather than a read-only shelf; the data model is already there | small–medium |
+| ~~2~~ | ~~Page comments + mentions in pages~~ | **Done** — a thread under every page, mentions in the body | |
 | ~~3~~ | ~~Rate limiting + CSP~~ | **Done** — see `lib/ratelimit.ts` and `lib/csp.ts` | |
 | 4 | Multi-select and the table layout | Everyday work; the bulk API already exists | medium |
 | 5 | Time tracking | Prerequisite for everything cost-related, and the most common single request for tools like this | medium |

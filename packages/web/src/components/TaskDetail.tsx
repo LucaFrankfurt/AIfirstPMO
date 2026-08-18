@@ -4,9 +4,10 @@ import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
-import { comment as postComment, createTask, remove, update } from '../lib/mutations';
+import { createTask, remove, update } from '../lib/mutations';
 import { useMe, useMemberMap, useSession } from '../session';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
+import { Comments } from './comments';
 import { Relations } from './Relations';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, stateOf,
@@ -25,7 +26,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const [title, setTitle] = useState(task?.title ?? '');
   const [editingDescription, setEditingDescription] = useState(false);
   const [description, setDescription] = useState(task?.description ?? '');
-  const [draft, setDraft] = useState('');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
   const [activity, setActivity] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -243,60 +243,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </div>
 
           {tab === 'comments' ? (
-            <>
-              {comments.map((entry) => {
-                const author = members.get(entry.author_id);
-                return (
-                  <div className="comment" key={entry.id}>
-                    <Avatar user={author} size={26} />
-                    <div className="body">
-                      <div className="row" style={{ gap: 6 }}>
-                        <span className="who">{author?.name ?? t('common.someone')}</span>
-                        <span className="when">{relativeTime(entry.created_at)}</span>
-                        {entry.author_id === me && (
-                          <button
-                            className="btn ghost sm"
-                            style={{ marginInlineStart: 'auto' }}
-                            onClick={async () => {
-                              if (await confirm(t('task.deleteComment'))) remove('comment', entry.id);
-                            }}
-                          >
-                            <Icon name="trash" size={13} />
-                          </button>
-                        )}
-                      </div>
-                      <Markdown source={entry.body} />
-                    </div>
-                  </div>
-                );
-              })}
-              <div style={{ marginTop: 10 }}>
-                <MarkdownEditor
-                  value={draft}
-                  onChange={setDraft}
-                  minHeight={70}
-                  placeholder={t('task.commentPlaceholder')}
-                  attachTo={{ task_id: task.id }}
-                  onSubmit={() => {
-                    if (!draft.trim()) return;
-                    postComment({ task_id: task.id }, draft.trim(), me);
-                    setDraft('');
-                  }}
-                />
-                <div className="row" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn primary sm"
-                    disabled={!draft.trim()}
-                    onClick={() => {
-                      postComment({ task_id: task.id }, draft.trim(), me);
-                      setDraft('');
-                    }}
-                  >
-                    <Icon name="send" size={14} /> {t('task.comment')}
-                  </button>
-                </div>
-              </div>
-            </>
+            <Comments target={{ task_id: task.id }} />
           ) : (
             <div className="col" style={{ gap: 8 }}>
               {activity.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>{t('task.noActivity')}</span>}

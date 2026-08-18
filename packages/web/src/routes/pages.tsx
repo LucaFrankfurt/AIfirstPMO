@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { compareOrder, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
+import { Comments } from '../components/comments';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -237,6 +238,15 @@ export function PageDetail() {
                 <span className="grow truncate">{child.title}</span>
               </button>
             ))}
+          </section>
+        )}
+
+        {/* Last, and only while reading: the page is the point, the thread is
+            what people said about it — and mid-edit it is simply in the way. */}
+        {!editing && (
+          <section style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
+            <h3 style={{ fontSize: 14, marginBottom: 12 }}>{t('page.discussion')}</h3>
+            <Comments target={{ page_id: id }} empty={t('page.noComments')} />
           </section>
         )}
       </div>

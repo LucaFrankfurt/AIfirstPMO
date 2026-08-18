@@ -75,12 +75,14 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Email notifications** — batched per person, per-user preferences, signed one-click
       unsubscribe, queued with retry. Invites are delivered by mail when a relay is configured.
       See [`docs/notifications.md`](docs/notifications.md).
-- [ ] **Page comments.** `comment.page_id` syncs and the server accepts it; no screen shows or
-      writes one, so a page is a shelf rather than a conversation. Inline comments — select a
-      passage, comment on it — are the same feature one step further and the reason Confluence is
-      used at all.
-- [ ] **@mentions inside page bodies.** `findMentions` runs over task descriptions and comment
-      bodies; page content is never scanned, so naming somebody in a spec reaches nobody.
+- [x] **Page comments.** A thread under every page, the same component the task detail uses.
+      Its audience is whoever wrote the page and whoever has already spoken on it — a page has no
+      assignees, and notifying everyone who *can* see it would teach people to ignore the bell.
+- [x] **@mentions inside page bodies.** Only newly added handles notify, because a page autosaves
+      while you type and being pinged once a second for the same name is worse than not at all.
+- [ ] **Inline comments** — select a passage, comment on that passage. The same feature one step
+      further, and the reason Confluence is used at all. Needs an anchor that survives an edit to
+      the text it points at, which is the whole problem.
 - [ ] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
       version *diff* (history and restore exist, "what changed" does not), page templates, and
       exposing the `access` column (`workspace`/`project`/`private`) that is already stored but

@@ -339,13 +339,18 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
-  const mentionSource = entity === 'comment' ? changed.body : entity === 'task' ? changed.description : undefined;
-  if (mentionSource !== undefined) {
-    const context = entity === 'comment'
-      ? get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id)
-      : row;
+  // Where a mention can be written: a comment, a task's description, a page's
+  // body. Anything else is a field nobody writes prose into.
+  const mentionField = entity === 'comment' ? 'body' : entity === 'task' ? 'description' : entity === 'page' ? 'content' : null;
+  const mentionSource = mentionField ? changed[mentionField] : undefined;
+  if (mentionField && mentionSource !== undefined) {
+    const context = entity === 'comment' ? commentContext(row) : row;
+    // Only handles that were not there before. A page autosaves while you type,
+    // so notifying on every write would ping the same person once a second for
+    // a name they were already told about.
+    const already = new Set(before ? findMentions(opts.workspaceId, String(before[mentionField] ?? '')) : []);
     for (const userId of findMentions(opts.workspaceId, String(mentionSource ?? ''))) {
-      if (userId === opts.actorId) continue;
+      if (userId === opts.actorId || already.has(userId)) continue;
       targets.set(userId, {
         kind: 'mention',
         title: (t) => t('notify.mentionedIn', { context: context?.identifier ?? context?.title ?? 'Kolibri' }),
@@ -364,6 +369,29 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
         targets.set(userId, {
           kind: 'comment',
           title: (t) => t('notify.newComment', { identifier: task.identifier }),
+          body: String(row.body ?? '').slice(0, 280),
+        });
+      }
+    }
+  }
+
+  // A page has no assignees to fall back on, so its audience is the people who
+  // have shown up: whoever wrote it, and whoever has said something on it.
+  // Everybody who *can* see a page is the whole workspace, and notifying them
+  // would teach people to ignore the bell.
+  if (entity === 'comment' && !before && row.page_id) {
+    const page = get<Row>(`SELECT id, title, created_by FROM pages WHERE id = ?`, row.page_id);
+    if (page) {
+      const talkers = all<Row>(
+        `SELECT DISTINCT author_id FROM comments WHERE page_id = ? AND deleted_at IS NULL`,
+        row.page_id,
+      ).map((entry) => entry.author_id);
+      for (const userId of new Set([page.created_by, ...talkers])) {
+        if (!userId || userId === opts.actorId) continue;
+        if (targets.get(userId)?.kind === 'mention') continue;
+        targets.set(userId, {
+          kind: 'comment',
+          title: (t) => t('notify.newPageComment', { title: page.title }),
           body: String(row.body ?? '').slice(0, 280),
         });
       }
@@ -391,6 +419,13 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       opts.actorId, Date.now(), Date.now(), nextSeq(),
     );
   }
+}
+
+/** What a comment is about — a task or a page — for a notification title. */
+function commentContext(row: Row): Row | undefined {
+  if (row.task_id) return get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id);
+  if (row.page_id) return get<Row>(`SELECT title FROM pages WHERE id = ?`, row.page_id);
+  return undefined;
 }
 
 /**

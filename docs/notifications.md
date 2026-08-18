@@ -9,12 +9,21 @@ missing something — it just means you have to look.
 | Kind | When | Counts as "important" |
 |---|---|---|
 | `assigned` | Someone assigns a task to you (on creation or later) | yes |
-| `mention` | Your `@handle` appears in a comment or a task description | yes |
+| `mention` | Your `@handle` appears in a comment, a task description or a page | yes |
 | `comment` | A comment on a task you are assigned to, subscribed to, or created | no |
+| `comment` | A comment on a page you wrote, or on one you have already commented on | no |
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
 
 Mentions accept what people actually type: `@ada`, `@adalovelace`, `@ada@example.com`. Unknown
 handles are left alone, and mentioning yourself does nothing.
+
+Only a **newly added** handle notifies. A page saves itself while you type, so a rule of "notify
+whoever is named" would ping the same person once a second for a name they were told about at the
+first keystroke; editing the paragraph around a mention says nothing new.
+
+A page has no assignees, so its audience is the people who have shown up: whoever wrote it, and
+whoever has commented on it. Everyone who *can* see a page is the whole workspace, and notifying
+them all would teach people to ignore the bell.
 
 Notifications are ordinary synced rows, so the inbox works offline and marking something read on
 your phone marks it read on your laptop.

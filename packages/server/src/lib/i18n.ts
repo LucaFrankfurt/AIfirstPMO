@@ -18,6 +18,7 @@ const en = {
   'notify.assigned': 'Assigned: {identifier} {title}',
   'notify.mentionedIn': 'You were mentioned in {context}',
   'notify.newComment': 'New comment on {identifier}',
+  'notify.newPageComment': 'New comment on “{title}”',
 
   'mail.digestSubject': '{count} updates in Kolibri',
   'mail.greeting': 'Hello {name},',
@@ -73,6 +74,7 @@ const de: Catalogue = {
   'notify.assigned': 'Zugewiesen: {identifier} {title}',
   'notify.mentionedIn': 'Du wurdest in {context} erwähnt',
   'notify.newComment': 'Neuer Kommentar zu {identifier}',
+  'notify.newPageComment': 'Neuer Kommentar zu „{title}“',
 
   'mail.digestSubject': '{count} Neuigkeiten in Kolibri',
   'mail.greeting': 'Hallo {name},',

@@ -205,7 +205,7 @@ function Features() {
         lead="guide.pages.lead"
         to="/pages"
         linkLabel="guide.pages.cta"
-        steps={['guide.pages.h1', 'guide.pages.h2', 'guide.pages.h3', 'guide.pages.h4']}
+        steps={['guide.pages.h1', 'guide.pages.h2', 'guide.pages.h3', 'guide.pages.h4', 'guide.pages.h5']}
       >
         <PagesDiagram />
       </Feature>
