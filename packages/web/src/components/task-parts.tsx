@@ -1,4 +1,4 @@
-import { PRIORITIES, type Label, type Priority, type State, type Task } from '@kolibri/shared';
+import { PRIORITIES, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
@@ -14,6 +14,15 @@ export const useStates = (projectId?: string | null): State[] =>
     () => list('state', (s) => !projectId || s.project_id === projectId).sort(byOrder),
     [projectId],
   );
+
+/** The kinds of work a project recognises, in the order it put them in. */
+export const useTypes = (projectId?: string | null): TaskType[] =>
+  useQuery(
+    () => list('taskType', (type) => !projectId || type.project_id === projectId).sort(byOrder),
+    [projectId],
+  );
+
+export const typeOf = (task: Task): TaskType | undefined => byId('taskType', task.type_id ?? undefined);
 
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
@@ -40,6 +49,33 @@ export function StatePicker({ task, compact }: { task: Task; compact?: boolean }
     <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('task.state')}>
       <StateDot group={current?.group_key} color={current?.color} />
       {!compact && <span className="truncate">{current?.name ?? t('task.noState')}</span>}
+    </MenuButton>
+  );
+}
+
+export function TypePicker({ task, compact }: { task: Task; compact?: boolean }) {
+  const t = useT();
+  const types = useTypes(task.project_id);
+  const current = typeOf(task);
+  if (!types.length) return null;
+
+  const items: MenuItem[] = [
+    ...types.map((type) => ({
+      id: type.id,
+      label: type.name,
+      icon: <span aria-hidden>{type.icon ?? '•'}</span>,
+      hint: task.type_id === type.id ? '✓' : undefined,
+      onSelect: () => update('task', task.id, { type_id: type.id }),
+    })),
+    // Clearing is offered because a task that predates the project's types has
+    // none, and pretending otherwise would make that state unreachable again.
+    { id: 'none', section: t('view.reset'), label: t('type.none'), onSelect: () => update('task', task.id, { type_id: null }) },
+  ];
+
+  return (
+    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('type.label')}>
+      <span aria-hidden>{current?.icon ?? '◇'}</span>
+      {!compact && <span className="truncate">{current?.name ?? t('type.none')}</span>}
     </MenuButton>
   );
 }
@@ -272,7 +308,7 @@ export function TaskCard({
 
 /* --------------------------------------------------------------- grouping */
 
-export type GroupBy = 'state' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
+export type GroupBy = 'state' | 'type' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
 
 export interface Group {
   id: string;
@@ -298,6 +334,19 @@ export function groupTasks(
       group: state.group_key,
       tasks: tasks.filter((task) => task.state_id === state.id),
     }));
+  }
+
+  if (groupBy === 'type') {
+    const types = list('taskType').sort(byOrder);
+    const groups: Group[] = types.map((type) => ({
+      id: type.id,
+      title: `${type.icon ?? ''} ${type.name}`.trim(),
+      color: type.color,
+      tasks: tasks.filter((task) => task.type_id === type.id),
+    }));
+    // Tasks from before the project had types, and any deliberately cleared.
+    groups.push({ id: 'none', title: t('type.none'), tasks: tasks.filter((task) => !task.type_id) });
+    return groups;
   }
 
   if (groupBy === 'priority') {

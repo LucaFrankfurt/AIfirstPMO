@@ -72,7 +72,6 @@ which Plane does not have in this form.
 | **Analytics** — burn-down/up, throughput, cycle time | High | |
 | **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
 | **Integrations** — GitHub/GitLab commit linking, Slack | High | |
-| **Work item types** (bug / feature / epic) | Medium–high | There is no `type` on a task, only labels |
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
 | Recurring tasks | Medium | |
@@ -91,7 +90,7 @@ management with money in it.
 | **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
 | **Reports** — cost, utilisation, progress across projects | High | |
 | **Resource and capacity planning**, team planner | High | |
-| **Work package types with type-dependent forms and workflows** | High | |
+| **Type-dependent forms and workflows** | High | Types themselves are built; a form that changes per type is custom fields with a visibility rule |
 | **Status transition rules per role** (who may move what, where) | Medium–high | |
 | **Sub-projects** | Medium | Projects are flat; teams group them but do not nest them |
 | **Project templates** | Medium | Task templates exist; copying a whole project does not |
@@ -127,7 +126,7 @@ value per unit of work rather than by size.
 | # | What | Why it is next | Effort |
 |---|---|---|---|
 | ~~1~~ | ~~Import — CSV~~ | **Done** — mapping guessed, dry run, per-row report. What is left is the parts CSV cannot carry | |
-| 2 | **Work item types** (bug / feature / epic) | There is no `type` on a task, only labels, and labels do not change the form. Custom fields sit on top of the same decision | medium |
+| ~~2~~ | ~~Work item types~~ | **Done** — per project, grouped and filtered by. Type-*dependent fields* are custom fields, below | |
 | 3 | **Analytics** — burn-down/up, throughput, cycle time | Every number needed is already stored; nothing reads it. Time tracking just added another axis | medium |
 | 4 | **Page extras** — labels, watching, version diff, page templates, and exposing the stored `access` column | Turns the wiki from "good enough" into the reason somebody leaves Confluence | medium |
 | 5 | **SSO** (OIDC first) | The gate on adoption past roughly fifty people. Nothing in the auth layer anticipates it, so it is a project | large |

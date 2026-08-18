@@ -292,6 +292,56 @@ describe('kolibri api', () => {
     assert.equal(initialize.result.serverInfo.name, 'kolibri');
   });
 
+  it('gives a new project its kinds of work, and a new task the default one', async () => {
+    const types = await api(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
+    assert.deepEqual(types.map((type: any) => type.name), ['Task', 'Bug', 'Feature']);
+    assert.equal(types.filter((type: any) => type.is_default).length, 1, 'exactly one is the default');
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Typed by default' } });
+    assert.equal(task.type_id, types.find((type: any) => type.is_default).id);
+
+    // And an explicit type is kept rather than overwritten by the default.
+    const bug = types.find((type: any) => type.name === 'Bug');
+    const explicit = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: projectId, title: 'A real bug', type_id: bug.id },
+    });
+    assert.equal(explicit.type_id, bug.id);
+  });
+
+  it('files and finds work by its kind over MCP', async () => {
+    const filed = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 30, method: 'tools/call',
+        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Crash on save', type: 'Bug' } },
+      },
+    });
+    assert.equal(filed.result.structuredContent.type, 'Bug', 'the view says what kind it is');
+
+    const bugs = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 31, method: 'tools/call',
+        params: { name: 'list_tasks', arguments: { project: 'WEB', type: 'Bug' } },
+      },
+    });
+    // `list_tasks` returns an array, which the dispatcher wraps as `result`.
+    const titles = bugs.result.structuredContent.result.map((task: any) => task.title);
+    assert.ok(titles.includes('Crash on save'));
+    assert.ok(!titles.includes('Typed by default'), 'and only that kind');
+
+    // A kind the project does not have is refused rather than invented: the
+    // list of what a team calls its work is not something a tool should add to.
+    const invented = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 32, method: 'tools/call',
+        params: { name: 'update_task', arguments: { task: 'WEB-1', type: 'Epic' } },
+      },
+    });
+    assert.ok(invented.error, 'an unknown kind is an error, not a new type');
+  });
+
   it('refuses writes from a read-only token', async () => {
     const readOnly = await api('/api/tokens', { body: { name: 'ro', workspaceId, scopes: 'read' } });
     const result = await api('/mcp', {

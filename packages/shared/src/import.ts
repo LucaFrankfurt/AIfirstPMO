@@ -10,7 +10,7 @@ import { PRIORITIES, type Priority } from './types.ts';
 
 /** Fields a column can be mapped onto. `skip` is the absence of a mapping. */
 export const IMPORT_FIELDS = [
-  'title', 'description', 'state', 'priority', 'assignee', 'labels',
+  'title', 'description', 'state', 'type', 'priority', 'assignee', 'labels',
   'due_date', 'start_date', 'estimate', 'external_id',
 ] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];
@@ -34,6 +34,7 @@ export interface ImportResult {
   preview: {
     title: string;
     state: string | null;
+    type: string | null;
     priority: Priority;
     assignee: string | null;
     labels: string[];
@@ -58,6 +59,7 @@ const HEADER_HINTS: Record<ImportField, string[]> = {
   title: ['title', 'titel', 'summary', 'subject', 'name', 'aufgabe', 'task', 'issue', 'betreff', 'zusammenfassung'],
   description: ['description', 'beschreibung', 'details', 'body', 'notes', 'notizen', 'inhalt'],
   state: ['state', 'status', 'stage', 'workflow', 'zustand', 'spalte', 'column'],
+  type: ['type', 'issue type', 'work item type', 'kind', 'art', 'typ', 'aufgabenart', 'vorgangsart'],
   priority: ['priority', 'priorität', 'prioritaet', 'severity', 'dringlichkeit'],
   assignee: ['assignee', 'assigned to', 'zugewiesen', 'bearbeiter', 'owner', 'verantwortlich', 'responsible'],
   labels: ['labels', 'label', 'tags', 'tag', 'components', 'schlagworte', 'kategorie', 'category'],

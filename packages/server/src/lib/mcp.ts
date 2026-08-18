@@ -124,6 +124,7 @@ const taskView = (row: Row) => ({
   identifier: row.identifier,
   title: row.title,
   state: get<Row>(`SELECT name, group_key FROM states WHERE id = ?`, row.state_id)?.name ?? null,
+  type: row.type_id ? get<Row>(`SELECT name FROM task_types WHERE id = ?`, row.type_id)?.name ?? null : null,
   priority: row.priority,
   assignees: JSON.parse(row.assignees ?? '[]'),
   labels: JSON.parse(row.labels ?? '[]'),
@@ -217,6 +218,7 @@ const TOOLS: ToolDef[] = [
         workspace_id: { type: 'string' },
         project: { type: 'string', description: 'Project id, key or name' },
         state: { type: 'string', description: 'State name or group: backlog, unstarted, started, completed, cancelled' },
+        type: { type: 'string', description: "Kind of work, e.g. Bug — matched by name across the workspace" },
         assignee: { type: 'string', description: 'User id, email or name; use "me" for the token owner' },
         priority: { type: 'string', enum: [...PRIORITIES] },
         cycle: { type: 'string', description: 'Cycle id or name, or "current"' },
@@ -245,6 +247,12 @@ const TOOLS: ToolDef[] = [
           where.push(`EXISTS (SELECT 1 FROM states s WHERE s.id = t.state_id AND (s.group_key = lower(?) OR lower(s.name) = lower(?)))`);
           params.push(String(args.state), String(args.state));
         }
+      }
+      if (args.type) {
+        // By name across the workspace, not by id: "show me the bugs" should
+        // work without knowing that each project has its own Bug row.
+        where.push(`EXISTS (SELECT 1 FROM task_types tt WHERE tt.id = t.type_id AND lower(tt.name) = lower(?))`);
+        params.push(String(args.type));
       }
       if (args.assignee) {
         const userId = args.assignee === 'me' ? ctx.auth.userId : resolveUsers(workspaceId, [args.assignee])[0];
@@ -330,6 +338,7 @@ const TOOLS: ToolDef[] = [
         title: { type: 'string' },
         description: { type: 'string', description: 'Markdown' },
         state: { type: 'string' },
+        type: { type: 'string', description: "Kind of work, e.g. Bug or Feature — see the project's own list" },
         priority: { type: 'string', enum: [...PRIORITIES] },
         assignees: { type: 'array', items: { type: 'string' }, description: 'User ids, emails or names' },
         labels: { type: 'array', items: { type: 'string' }, description: 'Label names; unknown ones are created' },
@@ -354,6 +363,7 @@ const TOOLS: ToolDef[] = [
         title: String(args.title).slice(0, 500),
         description: str(args.description) ?? null,
         state_id: state?.id,
+        type_id: resolveType(project.id, str(args.type))?.id,
         priority: PRIORITIES.includes(args.priority) ? args.priority : 'none',
         assignees: resolveUsers(workspaceId, args.assignees),
         labels: resolveLabels(workspaceId, project.id, args.labels, ctx),
@@ -378,6 +388,7 @@ const TOOLS: ToolDef[] = [
         title: { type: 'string' },
         description: { type: 'string' },
         state: { type: 'string' },
+        type: { type: 'string', description: "Kind of work — see the project's own list" },
         priority: { type: 'string', enum: [...PRIORITIES] },
         assignees: { type: 'array', items: { type: 'string' } },
         labels: { type: 'array', items: { type: 'string' } },
@@ -403,6 +414,11 @@ const TOOLS: ToolDef[] = [
       if (args.archived !== undefined) patch.archived = args.archived ? 1 : 0;
       if (args.assignees !== undefined) patch.assignees = resolveUsers(workspaceId, args.assignees);
       if (args.labels !== undefined) patch.labels = resolveLabels(workspaceId, task.project_id, args.labels, ctx);
+      if (args.type !== undefined) {
+        const type = resolveType(task.project_id, String(args.type));
+        if (!type) throw new McpError(`No kind of work matching "${args.type}" in this project`);
+        patch.type_id = type.id;
+      }
       if (args.state !== undefined) {
         const state = resolveState(task.project_id, String(args.state));
         if (!state) throw new McpError(`No state matching "${args.state}" in this project`);
@@ -871,6 +887,19 @@ function resolveCycle(workspaceId: string, ref: string): Row | undefined {
     );
   }
   return get<Row>(`SELECT * FROM cycles WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL`, workspaceId, ref, ref);
+}
+
+/**
+ * A kind of work, by name or id. Unknown names resolve to nothing rather than
+ * creating a type: labels are cheap to invent, the list of what a team calls
+ * its work is not.
+ */
+function resolveType(projectId: string, ref?: string): Row | undefined {
+  if (!ref) return undefined;
+  return get<Row>(
+    `SELECT * FROM task_types WHERE project_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?)) LIMIT 1`,
+    projectId, ref, ref,
+  );
 }
 
 function resolveLabels(workspaceId: string, projectId: string, refs: unknown, ctx: McpCtx): string[] {

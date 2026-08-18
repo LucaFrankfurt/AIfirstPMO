@@ -40,7 +40,7 @@ around three convictions:
 
 | | |
 |---|---|
-| **Work tracking** | Projects with their own workflow states, tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, and CSV import with a preview before anything is written |
+| **Work tracking** | Projects with their own workflow states and kinds of work (bug / feature / chore, editable per project), tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, and CSV import with a preview before anything is written |
 | **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects, time tracking with a timer that survives a reload |
 | **Templates & rules** | Task templates with a checklist that becomes sub-tasks, and rules that file one when something happens — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
 | **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; select several tasks and change them together; save a view under a name and share it |

@@ -22,6 +22,18 @@ export const DEFAULT_STATES: { name: ServerKey; group_key: StateGroup; color: st
   { name: 'seed.stateCancelled', group_key: 'cancelled', color: '#ef4444' },
 ];
 
+/**
+ * The three kinds of work every project starts with.
+ *
+ * Three, not eight. A list long enough to need thinking about is a list people
+ * pick the first item from; the project settings can add to it.
+ */
+const DEFAULT_TYPES: { name: ServerKey; icon: string; color: string; isDefault?: boolean }[] = [
+  { name: 'seed.typeTask', icon: '📋', color: '#6366f1', isDefault: true },
+  { name: 'seed.typeBug', icon: '🐞', color: '#ef4444' },
+  { name: 'seed.typeFeature', icon: '✨', color: '#0ea5e9' },
+];
+
 const DEFAULT_LABELS: { name: ServerKey; color: string }[] = [
   { name: 'seed.labelBug', color: '#ef4444' },
   { name: 'seed.labelFeature', color: '#6366f1' },
@@ -106,6 +118,14 @@ export function createProject(workspaceId: string, actorId: string, input: NewPr
           group_key: state.group_key, color: state.color, sort_order: orders[index],
         }, { workspaceId, actorId, hlc: hlc(), system: true });
       });
+      const typeOrders = orderKeys(DEFAULT_TYPES.length);
+      DEFAULT_TYPES.forEach((type, index) => {
+        writeEntity('taskType', uid(), {
+          workspace_id: workspaceId, project_id: id, name: t(type.name), icon: type.icon,
+          color: type.color, is_default: type.isDefault ? 1 : 0, sort_order: typeOrders[index],
+        }, { workspaceId, actorId, hlc: hlc(), system: true });
+      });
+
       for (const label of DEFAULT_LABELS) {
         writeEntity('label', uid(), { workspace_id: workspaceId, project_id: id, name: t(label.name), color: label.color },
           { workspaceId, actorId, hlc: hlc(), system: true });

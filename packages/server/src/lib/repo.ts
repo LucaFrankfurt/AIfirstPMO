@@ -188,6 +188,17 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
         ?? get<Row>(`SELECT id FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id)?.id;
       if (fallback) setForced('state_id', fallback);
     }
+    if (!values.type_id) {
+      // Whichever the project marked default, or simply the first one. A task
+      // with no type is allowed — projects created before types existed have
+      // none — but a new one should not start that way.
+      const fallback = get<Row>(
+        `SELECT id FROM task_types WHERE project_id = ? AND deleted_at IS NULL
+          ORDER BY is_default DESC, sort_order LIMIT 1`,
+        project.id,
+      )?.id;
+      if (fallback) setForced('type_id', fallback);
+    }
     if (!values.created_by) setForced('created_by', opts.actorId);
     if (!values.sort_order) setForced('sort_order', 'V');
     if (!values.subscribers) values.subscribers = JSON.stringify([opts.actorId]);

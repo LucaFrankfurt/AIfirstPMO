@@ -86,8 +86,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       version *diff* (history and restore exist, "what changed" does not), page templates, and
       exposing the `access` column (`workspace`/`project`/`private`) that is already stored but
       set by no screen. Export to PDF or a markdown bundle belongs here too.
-- [ ] **Work item types** (bug / feature / epic) with type-dependent fields. There is no `type` on
-      a task today — only labels, which do not change the form.
+- [x] **Work item types.** Every project starts with Task, Bug and Feature and can edit the list;
+      a task carries one, and views group and filter by it. Deliberately *not* type-dependent
+      fields: a form that changes per type is custom fields, which is the next entry.
+- [ ] **Type-dependent fields.** What OpenProject means by work-package types: a Bug asks for steps
+      to reproduce, a Feature does not. That is custom fields with a visibility rule, not a bigger
+      version of what is built.
 - [x] **CSV import.** Column mapping guessed from the header names in both languages and in Jira /
       Plane / OpenProject's words, a dry run that writes nothing, and a report that names the
       spreadsheet row of everything it could not read. Semicolon files from a German Excel included.

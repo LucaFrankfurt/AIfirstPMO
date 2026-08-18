@@ -13,6 +13,7 @@ export type EntityName =
   | 'project'
   | 'projectMember'
   | 'state'
+  | 'taskType'
   | 'label'
   | 'task'
   | 'relation'
@@ -78,6 +79,10 @@ export const ENTITIES = {
     table: 'states',
     fields: ['workspace_id', 'project_id', 'name', 'group_key', 'color', 'sort_order'],
   },
+  taskType: {
+    table: 'task_types',
+    fields: ['workspace_id', 'project_id', 'name', 'icon', 'color', 'is_default', 'sort_order'],
+  },
   label: {
     table: 'labels',
     fields: ['workspace_id', 'project_id', 'name', 'color', 'description'],
@@ -85,7 +90,7 @@ export const ENTITIES = {
   task: {
     table: 'tasks',
     fields: [
-      'workspace_id', 'project_id', 'title', 'description', 'state_id', 'priority',
+      'workspace_id', 'project_id', 'title', 'description', 'state_id', 'type_id', 'priority',
       'assignees', 'labels', 'parent_id', 'cycle_id', 'module_id', 'estimate',
       'start_date', 'due_date', 'sort_order', 'completed_at', 'archived', 'created_by',
       'subscribers',

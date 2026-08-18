@@ -11,7 +11,7 @@ import { Comments } from './comments';
 import { Relations } from './Relations';
 import { TaskTime } from './time';
 import {
-  AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, stateOf,
+  AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, TypePicker, stateOf,
 } from './task-parts';
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from './ui';
 
@@ -99,6 +99,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}>
           <StatePicker task={task} />
+          <TypePicker task={task} />
           <PriorityPicker task={task} />
           <AssigneePicker task={task} />
           <LabelPicker task={task} />

@@ -17,6 +17,7 @@ words the tools people are leaving actually use:
 | Title | `Title` · `Summary` (Jira) · `Subject` (OpenProject) · `Name` (Plane) · `Titel` · `Aufgabe` |
 | Description | `Description` · `Details` · `Notes` · `Beschreibung` |
 | State | `Status` · `State` · `Stage` · `Column` · `Zustand` |
+| Type | `Type` · `Issue type` · `Work item type` · `Art` · `Vorgangsart` |
 | Priority | `Priority` · `Severity` · `Priorität` |
 | Assignee | `Assignee` · `Assigned to` · `Owner` · `Bearbeiter` · `Zugewiesen` |
 | Labels | `Labels` · `Tags` · `Components` · `Schlagworte` |
@@ -51,6 +52,7 @@ than pulled in:
 |---|---|
 | **Priority** | `Highest`, `Blocker`, `Major`, `Trivial` and the German words all land on the five Kolibri has. Something it cannot read is reported and the priority left alone |
 | **State** | matched by name against the project's own workflow, case-insensitively. No match → the project's default state, and a line in the report |
+| **Type** | matched by name against the project's kinds of work. No match → the project's default kind, and a line in the report. A file full of `Story` and `Epic` does not quietly add two kinds of work nobody agreed to |
 | **Assignee** | by email, full name or first name — the same handles a `@mention` accepts. No match → unassigned, and a line in the report |
 | **Labels** | split on `,` `;` or `|`; existing ones are reused, missing ones created once for the whole run |
 | **Dates** | `2026-12-31` and `31.12.2026`. **`01/02/2026` is refused** — that is two different days in two different countries, and guessing wrong moves a deadline five weeks without saying so |

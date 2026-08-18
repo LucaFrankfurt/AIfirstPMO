@@ -43,6 +43,7 @@ function filterFor(entity: EntityName): string {
       return `AND ${table}.user_id = ?2`;
     case 'task':
     case 'state':
+    case 'taskType':
     case 'cycle':
     case 'module':
     case 'projectMember':

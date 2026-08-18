@@ -6,7 +6,7 @@ import { byOrder, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
 import { useMemberMap, useMembers } from '../session';
-import { groupTasks, LabelChips, TaskCard, TaskRow, useLabels, useStates, type GroupBy } from './task-parts';
+import { groupTasks, LabelChips, TaskCard, TaskRow, useLabels, useStates, useTypes, type GroupBy } from './task-parts';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
@@ -37,7 +37,7 @@ const LAYOUT_KEY: Record<string, TranslationKey> = {
 const BUILT_LAYOUTS: Layout[] = ['list', 'board', 'table', 'calendar'];
 
 const GROUP_BY_KEY: Record<GroupBy, TranslationKey> = {
-  state: 'view.groupState', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
+  state: 'view.groupState', type: 'type.groupBy', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
   label: 'view.groupLabel', cycle: 'view.groupCycle', project: 'view.groupProject', none: 'view.noGrouping',
 };
 
@@ -61,6 +61,7 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       const state = byId('state', task.state_id);
       if (!view.showDone && (state?.group_key === 'completed' || state?.group_key === 'cancelled')) return false;
       if (filters.state?.length && !filters.state.includes(task.state_id)) return false;
+      if (filters.type?.length && !filters.type.includes(task.type_id ?? '')) return false;
       if (filters.group?.length && !filters.group.includes(state?.group_key as any)) return false;
       if (filters.priority?.length && !filters.priority.includes(task.priority)) return false;
       if (filters.project?.length && !filters.project.includes(task.project_id)) return false;
@@ -108,6 +109,7 @@ export function ViewControls({
 }) {
   const t = useT();
   const states = useStates(projectId);
+  const types = useTypes(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
 
@@ -125,6 +127,13 @@ export function ViewControls({
       hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
       icon: <StateDot group={state.group_key} color={state.color} />,
       onSelect: () => toggle('state', state.id),
+    })),
+    ...types.map((type) => ({
+      id: `type-${type.id}`,
+      section: t('type.label'),
+      label: `${type.icon ?? ''} ${type.name}`.trim(),
+      hint: view.filters.type?.includes(type.id) ? '✓' : undefined,
+      onSelect: () => toggle('type', type.id),
     })),
     ...PRIORITIES.map((priority) => ({
       id: `priority-${priority}`,
@@ -198,7 +207,7 @@ export function ViewControls({
       <MenuButton
         className="btn sm"
         items={[
-          ...(['state', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as GroupBy[]).map((groupBy) => ({
+          ...(['state', 'type', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as GroupBy[]).map((groupBy) => ({
             id: groupBy,
             section: t('view.groupBy'),
             label: t(GROUP_BY_KEY[groupBy]),
@@ -446,6 +455,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
 const COLUMNS = [
   { id: 'identifier', label: 'table.id' as const, orderBy: null, narrow: true },
   { id: 'title', label: 'table.title' as const, orderBy: 'title' as const, narrow: false },
+  { id: 'type', label: 'type.label' as const, orderBy: null, narrow: true },
   { id: 'state', label: 'table.state' as const, orderBy: null, narrow: false },
   { id: 'assignees', label: 'table.assignees' as const, orderBy: null, narrow: false },
   { id: 'priority', label: 'table.priority' as const, orderBy: 'priority' as const, narrow: false },
@@ -544,6 +554,12 @@ export function TableView({
                   )}
                   <td className="identifier narrow">{task.identifier}</td>
                   <td className="title">{task.title}</td>
+                  <td className="type narrow">
+                    {(() => {
+                      const type = byId('taskType', task.type_id ?? undefined);
+                      return type ? `${type.icon ?? ''} ${type.name}`.trim() : '';
+                    })()}
+                  </td>
                   <td className="state">
                     <StateDot group={state?.group_key} color={state?.color} /> {state?.name ?? ''}
                   </td>

@@ -76,6 +76,11 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
   const project = get<Row>(`SELECT default_state_id FROM projects WHERE id = ?`, options.projectId);
   const fallbackState = project?.default_state_id ?? states[0]?.id ?? null;
 
+  const types = all<Row>(
+    `SELECT id, name FROM task_types WHERE project_id = ? AND deleted_at IS NULL ORDER BY is_default DESC, sort_order`,
+    options.projectId,
+  );
+
   // Labels created during a run are remembered, so a thousand rows tagged
   // "bug" produce one label rather than a thousand.
   const labelCache = new Map<string, string>();
@@ -120,6 +125,24 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
       }
     } else {
       values.state_id = fallbackState;
+    }
+
+    const typeName = read(row, byField, 'type');
+    let typeLabel: string | null = null;
+    if (typeName) {
+      const match = types.find((type) => String(type.name).toLowerCase() === typeName.toLowerCase());
+      if (match) {
+        values.type_id = match.id;
+        typeLabel = String(match.name);
+      } else {
+        // Left to the project default rather than invented: a file full of
+        // "Story" and "Epic" should not quietly add two kinds of work nobody
+        // agreed to.
+        result.problems.push({
+          row: line, column: byField.get('type'),
+          message: `No kind of work called "${typeName}" in this project — used the default`,
+        });
+      }
     }
 
     const priorityText = read(row, byField, 'priority');
@@ -167,6 +190,8 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
       result.preview.push({
         title,
         state: states.find((state) => state.id === values.state_id)?.name ?? null,
+        // Falls back to what the project will actually give it.
+        type: typeLabel ?? (types[0] ? String(types[0].name) : null),
         priority: (values.priority as Priority) ?? 'none',
         // Who it will actually go to, not what the cell said: showing an
         // address that resolved to nobody promises an assignment that is not

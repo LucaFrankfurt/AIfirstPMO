@@ -192,6 +192,28 @@ describe('importing a file', () => {
     assert.equal(created.priority, 'low');
   });
 
+  it('maps a Jira issue type onto the kinds of work the project has', async () => {
+    const result = await importCsv(
+      'Summary,Issue Type\nA real bug,Bug\nSomething else,Story\n',
+      { Summary: 'title', 'Issue Type': 'type' },
+    );
+    assert.equal(result.created, 2);
+
+    const types = await api(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
+    const bug = types.find((type: any) => type.name === 'Bug');
+    const created = (await tasks()).find((task: any) => task.title === 'A real bug');
+    assert.equal(created.type_id, bug.id, 'matched by name');
+
+    // "Story" is not one of this project's kinds. Inventing it would quietly
+    // add to the list of what a team calls its work, so it is reported instead.
+    assert.ok(
+      result.problems.some((problem: any) => /Story/.test(problem.message)),
+      'and an unknown kind is named rather than created',
+    );
+    const other = (await tasks()).find((task: any) => task.title === 'Something else');
+    assert.equal(other.type_id, types.find((type: any) => type.is_default).id, 'it falls back to the default');
+  });
+
   it('refuses a file with no title column instead of importing blanks', async () => {
     const result = await importCsv('Notes\nsomething\n', { Notes: 'description' });
     assert.equal(result.created, 0);

@@ -8,6 +8,7 @@ import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ImportSheet } from '../components/import';
+import { useTypes } from '../components/task-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -528,6 +529,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     [projectId],
   );
   const labels = useQuery(() => list('label', (l) => l.project_id === projectId), [projectId]);
+  const types = useTypes(projectId);
   const [newLabel, setNewLabel] = useState('');
   const [importing, setImporting] = useState(false);
   if (!project) return null;
@@ -592,6 +594,53 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         })}
       >
         <Icon name="plus" size={14} /> {t('project.addState')}
+      </button>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('type.settingsTitle')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('type.settingsHint')}</p>
+      {types.map((type) => (
+        <div className="row" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
+          <input
+            className="input" style={{ width: 56, textAlign: 'center' }} maxLength={4}
+            aria-label={t('type.label')}
+            value={type.icon ?? ''}
+            onChange={(event) => update('taskType', type.id, { icon: event.target.value || null })}
+          />
+          <input
+            className="input grow"
+            value={type.name}
+            aria-label={type.name}
+            onChange={(event) => update('taskType', type.id, { name: event.target.value })}
+          />
+          <button
+            className={`btn sm${type.is_default ? ' active' : ''}`}
+            style={type.is_default ? { background: 'var(--bg-active)' } : undefined}
+            aria-pressed={!!type.is_default}
+            title={t('type.makeDefault')}
+            onClick={() => {
+              // Exactly one default, so setting one clears the others.
+              for (const other of types) {
+                if (other.is_default && other.id !== type.id) update('taskType', other.id, { is_default: 0 });
+              }
+              update('taskType', type.id, { is_default: 1 });
+            }}
+          >
+            {t('type.isDefault')}
+          </button>
+          <button className="btn ghost sm icon" title={t('type.removeHint')} aria-label={t('type.removeHint')}
+            onClick={() => remove('taskType', type.id)}>
+            <Icon name="trash" size={13} />
+          </button>
+        </div>
+      ))}
+      <button
+        className="btn sm"
+        onClick={() => create('taskType', {
+          project_id: projectId, name: t('type.newName'), icon: '◇', color: '#6366f1', is_default: 0,
+          sort_order: orderKey(types[types.length - 1]?.sort_order ?? null, null),
+        })}
+      >
+        <Icon name="plus" size={14} /> {t('type.add')}
       </button>
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.labels')}</h3>

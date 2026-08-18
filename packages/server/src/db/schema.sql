@@ -181,6 +181,31 @@ CREATE TABLE IF NOT EXISTS states (
 );
 CREATE INDEX IF NOT EXISTS states_seq ON states (workspace_id, seq);
 
+-- What kind of thing a task is: a bug, a feature, a chore. Per project, like
+-- the workflow states, because a design project and an API project disagree
+-- about this the same way they disagree about their columns.
+--
+-- Deliberately *not* type-dependent forms. A type here changes what a task is
+-- called and how it is grouped, not which fields it has; fields that appear and
+-- disappear per type are a much larger idea and would arrive as custom fields.
+CREATE TABLE IF NOT EXISTS task_types (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  icon         TEXT,
+  color        TEXT NOT NULL DEFAULT '#6366f1',
+  is_default   INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS task_types_seq ON task_types (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS task_types_project ON task_types (project_id);
+
 CREATE TABLE IF NOT EXISTS labels (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -241,6 +266,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   title        TEXT NOT NULL DEFAULT '',
   description  TEXT,
   state_id     TEXT,
+  type_id      TEXT,
   priority     TEXT NOT NULL DEFAULT 'none',
   assignees    TEXT NOT NULL DEFAULT '[]',
   labels       TEXT NOT NULL DEFAULT '[]',

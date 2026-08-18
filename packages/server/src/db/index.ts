@@ -32,6 +32,7 @@ for (const [table, column, definition] of [
   ['notifications', 'emailed_at', 'INTEGER'],
   ['files', 'storage', `TEXT NOT NULL DEFAULT 'disk'`],
   ['views', 'show_done', 'INTEGER NOT NULL DEFAULT 1'],
+  ['tasks', 'type_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
