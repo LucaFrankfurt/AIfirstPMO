@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
 import { AutomationSettings } from './automation';
+import { Trash } from '../components/trash';
 import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
@@ -557,6 +558,10 @@ function DataSettings() {
 
   return (
     <>
+      <Trash />
+
+      <div className="divider" style={{ margin: '22px 0' }} />
+
       <h3 style={{ fontSize: 14, marginBottom: 8 }}>{t('data.offlineCopy')}</h3>
       <p className="muted" style={{ fontSize: 13 }}>{t('data.offlineIntro')}</p>
       <GuideHint to="sync" />

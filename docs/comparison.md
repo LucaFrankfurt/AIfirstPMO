@@ -75,7 +75,6 @@ which Plane does not have in this form.
 | **Work item types** (bug / feature / epic) | Medium–high | There is no `type` on a task, only labels |
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
-| **Trash / archive browser** | Medium | Everything is soft-deleted and recoverable in the database; no screen shows it |
 | Recurring tasks | Medium | |
 | Precise drop position on the board | Low | A drop appends to the end of the column |
 | Avatar upload | Low | `users.avatar_url` is respected everywhere; nothing sets it |
@@ -134,7 +133,7 @@ value per unit of work rather than by size.
 | 5 | **SSO** (OIDC first) | The gate on adoption past roughly fifty people. Nothing in the auth layer anticipates it, so it is a project | large |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
 | 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |
-| 8 | **Trash / archive browser** | Everything is soft-deleted and recoverable in the database, and no screen shows it. Small, and the sort of gap people find at the worst moment | small |
+| ~~8~~ | ~~Trash / archive browser~~ | **Done** — Settings → Data, with a way back | |
 
 Items 1 and 8 are each a sitting. Items 5 and 7 are projects.
 

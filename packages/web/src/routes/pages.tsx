@@ -169,6 +169,7 @@ export function PageDetail() {
         </button>
         <MenuButton
           className="btn ghost sm icon"
+          label={t('common.moreActions')}
           items={[
             { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },

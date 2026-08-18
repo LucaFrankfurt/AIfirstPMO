@@ -78,5 +78,6 @@ title is nothing.
   to exist first, which is a second pass this does not do yet.
 - **One project at a time.** The target is the project you started from.
 - **No undo button.** But an import is ordinary tasks: select them in the list
-  and delete them together, which is why the multi-select landed first.
+  and delete them together, which is why the multi-select landed first — and if
+  you delete one too many, **Settings → Data** has it.
 - **No Jira XML or JSON**, only CSV. Every one of the three exports CSV.

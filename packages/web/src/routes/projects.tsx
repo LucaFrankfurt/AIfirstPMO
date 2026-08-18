@@ -270,6 +270,7 @@ function Cycles({ projectId }: { projectId: string }) {
                 {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
                   className="btn ghost sm icon"
+                  label={t('common.moreActions')}
                   items={[
                     { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
                     { id: 'open', label: t('cycle.showTasks'), onSelect: () => navigate(`/cycles/${cycle.id}`) },
@@ -434,6 +435,7 @@ function Modules({ projectId }: { projectId: string }) {
                 {lead && <Avatar user={lead} size={20} />}
                 <MenuButton
                   className="btn ghost sm icon"
+                  label={t('common.moreActions')}
                   items={[
                     ...members.map((member) => ({
                       id: member.id, section: t('project.lead'), label: member.name,

@@ -106,6 +106,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           <ModulePicker task={task} />
           <MenuButton
             className="btn ghost sm"
+            label={t('common.moreActions')}
             items={[
               { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
                 void navigator.clipboard?.writeText(`${location.origin}/t/${task.id}`);

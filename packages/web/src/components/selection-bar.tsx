@@ -134,6 +134,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
         <MenuButton
           className="btn ghost sm icon"
           title={t('common.more')}
+          label={t('common.moreActions')}
           items={[
             {
               id: 'archive',

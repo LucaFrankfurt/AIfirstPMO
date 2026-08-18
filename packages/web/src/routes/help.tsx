@@ -193,7 +193,7 @@ function Features() {
         lead="guide.sync.lead"
         to="/settings"
         linkLabel="guide.sync.cta"
-        steps={['guide.sync.h1', 'guide.sync.h2', 'guide.sync.h3', 'guide.sync.h4']}
+        steps={['guide.sync.h1', 'guide.sync.h2', 'guide.sync.h3', 'guide.sync.h4', 'guide.sync.h5']}
       >
         <SyncDiagram />
       </Feature>

@@ -451,6 +451,9 @@ p { margin: 0 0 0.75em; }
   .task-table .narrow { display: none; }
 }
 
+.trash-row { gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
+.trash-row:last-child { border-bottom: none; }
+
 /* ------------------------------------------------------------- importing */
 
 .import-drop {

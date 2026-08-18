@@ -257,13 +257,26 @@ export function Menu({
 
 /** Button that opens a menu anchored to itself. */
 export function MenuButton({
-  items, children, className = 'btn ghost', title, search, disabled, empty,
-}: { items: MenuItem[]; children: ReactNode; className?: string; title?: string; search?: boolean; disabled?: boolean; empty?: string }) {
+  items, children, className = 'btn ghost', title, label, search, disabled, empty,
+}: {
+  items: MenuItem[];
+  children: ReactNode;
+  className?: string;
+  title?: string;
+  /**
+   * Accessible name. An icon-only menu button otherwise announces as "button"
+   * and nothing else, which is the whole of what a screen reader gets.
+   */
+  label?: string;
+  search?: boolean;
+  disabled?: boolean;
+  empty?: string;
+}) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   return (
     <>
       <button
-        className={className} title={title} disabled={disabled} type="button"
+        className={className} title={title} aria-label={label ?? title} disabled={disabled} type="button"
         onClick={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
       >
         {children}

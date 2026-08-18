@@ -117,8 +117,10 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       them. The actions that belong to a project disappear when the selection spans two, because
       states and labels do. Written locally like every other change, so it works offline —
       `POST /tasks/bulk` stays for API and MCP callers, who have no outbox.
-- [ ] **Trash / archive browser.** Everything is soft-deleted and recoverable in the database, but
-      there is no screen to see or restore deleted tasks and pages.
+- [x] **Trash and archive browser.** Settings → Data lists what was deleted or archived, with a way
+      back. It needed no new endpoint: a delete keeps the row and syncs it as a tombstone — that is
+      how two devices agree it is gone — so the data was already on the device and simply had no
+      screen asking for it. Still open: emptying the trash on purpose, and a retention policy.
 - [ ] **Avatar upload.** `users.avatar_url` is respected everywhere; nothing sets it.
 - [ ] **Precise drop position on the board.** A drop currently appends to the end of the target
       column. Fractional indexing already supports inserting between two neighbours — the drop
