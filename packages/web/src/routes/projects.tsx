@@ -4,6 +4,8 @@ import { orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
+import { useSelection } from '../components/selection';
+import { SelectionBar } from '../components/selection-bar';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -178,6 +180,7 @@ export function ProjectPage() {
   const navigate = useNavigate();
   const project = useRow('project', id);
   const [view, setView] = useStoredView(id);
+  const selection = useSelection();
   const [tab, setTab] = useState<Tab>('tasks');
   const [adding, setAdding] = useState(false);
 
@@ -216,9 +219,13 @@ export function ProjectPage() {
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
           : <div className="page" style={{ paddingInline: 0 }}>
-            <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
+            <TaskViews
+              tasks={visible} view={view} projectId={id} onOpen={openTask}
+              onChange={setView} selection={selection}
+            />
           </div>
       )}
+      {tab === 'tasks' && <SelectionBar selection={selection} tasks={visible} />}
       {tab === 'cycles' && <Cycles projectId={id} />}
       {tab === 'modules' && <Modules projectId={id} />}
       {tab === 'pages' && <ProjectPages projectId={id} />}

@@ -5,10 +5,11 @@ import { byId, list, useQuery } from '../lib/store';
 import { byOrder, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
-import { useMembers } from '../session';
-import { groupTasks, TaskCard, TaskRow, useLabels, useStates, type GroupBy } from './task-parts';
-import { Empty, Icon, MenuButton, StateDot, type MenuItem } from './ui';
+import { useMemberMap, useMembers } from '../session';
+import { groupTasks, LabelChips, TaskCard, TaskRow, useLabels, useStates, type GroupBy } from './task-parts';
+import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 import { SavedViews } from './saved-views';
+import { SelectBox, type Selection } from './selection';
 
 export interface ViewConfig {
   layout: Layout;
@@ -29,8 +30,11 @@ export const DEFAULT_VIEW: ViewConfig = {
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 
 const LAYOUT_KEY: Record<string, TranslationKey> = {
-  list: 'view.list', board: 'view.board', calendar: 'view.calendar',
+  list: 'view.list', board: 'view.board', calendar: 'view.calendar', table: 'view.table',
 };
+
+/** The layouts that are built. `LAYOUTS` also declares `gantt`, which is not. */
+const BUILT_LAYOUTS: Layout[] = ['list', 'board', 'table', 'calendar'];
 
 const GROUP_BY_KEY: Record<GroupBy, TranslationKey> = {
   state: 'view.groupState', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
@@ -151,8 +155,11 @@ export function ViewControls({
   return (
     <div className="row wrap" style={{ gap: 6 }}>
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
-      <div className="row" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
-        {(['list', 'board', 'calendar'] as Layout[]).map((layout) => (
+      {/* Four buttons side by side are right where there is room and too many
+          on a phone, where the header also carries saved views, filter, display
+          and the add button. Same choice, one button. */}
+      <div className="row not-sm" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+        {BUILT_LAYOUTS.map((layout) => (
           <button
             key={layout}
             className={`btn ghost sm${view.layout === layout ? ' active' : ''}`}
@@ -165,6 +172,19 @@ export function ViewControls({
           </button>
         ))}
       </div>
+      <MenuButton
+        className="btn sm only-sm"
+        title={t(LAYOUT_KEY[view.layout])}
+        items={BUILT_LAYOUTS.map((layout) => ({
+          id: layout,
+          label: t(LAYOUT_KEY[layout]),
+          icon: <Icon name={layout} size={14} />,
+          hint: view.layout === layout ? '✓' : undefined,
+          onSelect: () => onChange({ ...view, layout }),
+        }))}
+      >
+        <Icon name={view.layout} size={14} />
+      </MenuButton>
 
       <MenuButton
         className="btn sm"
@@ -210,8 +230,10 @@ export function ViewControls({
 /* ------------------------------------------------------------------- list */
 
 export function ListView({
-  tasks, view, onOpen, showProject,
-}: { tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; showProject?: boolean }) {
+  tasks, view, onOpen, showProject, selection,
+}: {
+  tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; showProject?: boolean; selection?: Selection;
+}) {
   const t = useT();
   const states = useStates(undefined);
   const labels = useLabels(undefined);
@@ -223,27 +245,44 @@ export function ListView({
     [tasks, view.groupBy, states, members, labels, t],
   );
 
+  // Shift-click needs the order the eye sees, not the order the array is in.
+  const order = useMemo(() => groups.flatMap((group) => group.tasks.map((task) => task.id)), [groups]);
+
   if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
 
   return (
     <div>
-      {groups.map((group) => (
-        <section key={group.id}>
-          <button
-            className="task-group"
-            style={{ width: '100%', border: 'none', cursor: 'pointer' }}
-            onClick={() => setCollapsed((current) => ({ ...current, [group.id]: !current[group.id] }))}
-          >
-            <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />
-            {group.color && <StateDot group={group.group} color={group.color} size={10} />}
-            <span>{group.title}</span>
-            <span className="count">{group.tasks.length}</span>
-          </button>
-          {!collapsed[group.id] && group.tasks.map((task) => (
-            <TaskRow key={task.id} task={task} onOpen={onOpen} showProject={showProject} />
-          ))}
-        </section>
-      ))}
+      {groups.map((group) => {
+        const ids = group.tasks.map((task) => task.id);
+        const allSelected = !!selection && ids.every((id) => selection.has(id));
+        return (
+          <section key={group.id}>
+            <div className="task-group">
+              {selection && (
+                <span
+                  className="select-box"
+                  onClick={() => selection.setMany(ids, !allSelected)}
+                >
+                  <input type="checkbox" checked={allSelected} aria-label={t('select.selectGroup')} onChange={() => {}} />
+                </span>
+              )}
+              <button
+                className="grow row"
+                style={{ border: 'none', background: 'none', cursor: 'pointer', gap: 7, padding: 0, font: 'inherit', color: 'inherit' }}
+                onClick={() => setCollapsed((current) => ({ ...current, [group.id]: !current[group.id] }))}
+              >
+                <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />
+                {group.color && <StateDot group={group.group} color={group.color} size={10} />}
+                <span>{group.title}</span>
+                <span className="count">{group.tasks.length}</span>
+              </button>
+            </div>
+            {!collapsed[group.id] && group.tasks.map((task) => (
+              <TaskRow key={task.id} task={task} onOpen={onOpen} showProject={showProject} selection={selection} order={order} />
+            ))}
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -400,7 +439,134 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
   );
 }
 
+
+/* ------------------------------------------------------------------ table */
+
+/** Columns, in the order they are shown. Narrow ones drop out on a phone. */
+const COLUMNS = [
+  { id: 'identifier', label: 'table.id' as const, orderBy: null, narrow: true },
+  { id: 'title', label: 'table.title' as const, orderBy: 'title' as const, narrow: false },
+  { id: 'state', label: 'table.state' as const, orderBy: null, narrow: false },
+  { id: 'assignees', label: 'table.assignees' as const, orderBy: null, narrow: false },
+  { id: 'priority', label: 'table.priority' as const, orderBy: 'priority' as const, narrow: false },
+  { id: 'due_date', label: 'table.due' as const, orderBy: 'due_date' as const, narrow: false },
+  { id: 'estimate', label: 'table.estimate' as const, orderBy: null, narrow: true },
+  { id: 'labels', label: 'table.labels' as const, orderBy: null, narrow: true },
+  { id: 'updated_at', label: 'table.updated' as const, orderBy: 'updated_at' as const, narrow: true },
+];
+
+/**
+ * One row per task and nothing else — the layout for comparing rather than
+ * reading. Grouping still applies: a group becomes a header row rather than a
+ * separate table, so the columns stay aligned down the whole page.
+ */
+export function TableView({
+  tasks, view, onOpen, onChange, selection,
+}: {
+  tasks: Task[];
+  view: ViewConfig;
+  onOpen: (task: Task) => void;
+  /** Clicking a sortable header changes the view, exactly as the menu does. */
+  onChange?: (next: ViewConfig) => void;
+  selection?: Selection;
+}) {
+  const t = useT();
+  const states = useStates(undefined);
+  const labels = useLabels(undefined);
+  const members = useMembers();
+  const memberMap = useMemberMap();
+
+  const groups = useMemo(
+    () => groupTasks(tasks, view.groupBy, { states, members, labels, t }).filter((group) => group.tasks.length),
+    [tasks, view.groupBy, states, members, labels, t],
+  );
+  const order = useMemo(() => groups.flatMap((group) => group.tasks.map((task) => task.id)), [groups]);
+  const allSelected = !!selection && order.length > 0 && order.every((id) => selection.has(id));
+
+  if (!tasks.length) return <Empty emoji="🗒️" title={t('view.emptyTitle')} hint={t('view.emptyHint')} guide="views" />;
+
+  return (
+    <div className="table-wrap">
+      <table className="task-table">
+        <thead>
+          <tr>
+            {selection && (
+              <th className="pick">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  aria-label={t('select.selectGroup')}
+                  onChange={() => selection.setMany(order, !allSelected)}
+                />
+              </th>
+            )}
+            {COLUMNS.map((column) => (
+              <th key={column.id} className={`${column.id}${column.narrow ? ' narrow' : ''}`}>
+                {column.orderBy && onChange ? (
+                  <button
+                    className="sort"
+                    aria-pressed={view.orderBy === column.orderBy}
+                    onClick={() => onChange({ ...view, orderBy: column.orderBy! })}
+                  >
+                    {t(column.label)}
+                    {view.orderBy === column.orderBy && <Icon name="chevronDown" size={11} />}
+                  </button>
+                ) : t(column.label)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        {groups.map((group) => (
+          <tbody key={group.id}>
+            {view.groupBy !== 'none' && (
+              <tr className="group">
+                <th colSpan={COLUMNS.length + (selection ? 1 : 0)}>
+                  {group.color && <StateDot group={group.group} color={group.color} size={9} />}
+                  <span>{group.title}</span>
+                  <span className="count">{group.tasks.length}</span>
+                </th>
+              </tr>
+            )}
+            {group.tasks.map((task) => {
+              const state = byId('state', task.state_id);
+              const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
+              const people = (task.assignees ?? []).map((id) => memberMap.get(id)).filter(Boolean) as any[];
+              return (
+                <tr
+                  key={task.id}
+                  className={`${done ? 'done' : ''}${selection?.has(task.id) ? ' selected' : ''}`}
+                  onClick={() => onOpen(task)}
+                >
+                  {selection && (
+                    <td className="pick" onClick={(event) => event.stopPropagation()}>
+                      <SelectBox id={task.id} order={order} selection={selection} label={t('select.selectRow')} />
+                    </td>
+                  )}
+                  <td className="identifier narrow">{task.identifier}</td>
+                  <td className="title">{task.title}</td>
+                  <td className="state">
+                    <StateDot group={state?.group_key} color={state?.color} /> {state?.name ?? ''}
+                  </td>
+                  <td className="assignees"><AvatarStack users={people} size={20} /></td>
+                  <td className="priority">
+                    {task.priority !== 'none' && <><PriorityBars priority={task.priority} /> {t(priorityKey(task.priority))}</>}
+                  </td>
+                  <td className="due_date">{task.due_date ? shortDate(task.due_date) : ''}</td>
+                  <td className="estimate narrow">{task.estimate ?? ''}</td>
+                  <td className="labels narrow"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></td>
+                  <td className="updated_at narrow">{shortDate(task.updated_at)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        ))}
+      </table>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------- dispatcher */
+
 
 export function TaskViews(props: {
   tasks: Task[];
@@ -408,9 +574,14 @@ export function TaskViews(props: {
   onOpen: (task: Task) => void;
   projectId?: string;
   showProject?: boolean;
+  onChange?: (next: ViewConfig) => void;
+  selection?: Selection;
 }) {
+  // The board and the calendar have no room for a checkbox column and no row
+  // to put one in; selecting there is a different gesture, not a smaller one.
   if (props.view.layout === 'board') return <BoardView {...props} />;
   if (props.view.layout === 'calendar') return <CalendarView tasks={props.tasks} onOpen={props.onOpen} />;
+  if (props.view.layout === 'table') return <TableView {...props} />;
   return <ListView {...props} />;
 }
 

@@ -4,6 +4,7 @@ import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers } from '../session';
+import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
 /* ----------------------------------------------------------------- lookups */
@@ -169,7 +170,16 @@ export function LabelChips({ ids, projectId }: { ids: string[]; projectId?: stri
   );
 }
 
-export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (task: Task) => void; showProject?: boolean }) {
+export function TaskRow({
+  task, onOpen, showProject, selection, order,
+}: {
+  task: Task;
+  onOpen: (task: Task) => void;
+  showProject?: boolean;
+  selection?: Selection;
+  /** The visible order, so a shift-click knows what "in between" means. */
+  order?: string[];
+}) {
   const t = useT();
   const state = stateOf(task);
   const members = useMemberMap();
@@ -177,10 +187,22 @@ export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (ta
   const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   const subtasks = useQuery(() => list('task', (t) => t.parent_id === task.id), [task.id]);
+  const picked = !!selection?.has(task.id);
+  const press = useLongPressSelect(task.id, order ?? [task.id], selection ?? EMPTY_SELECTION);
 
   return (
-    <div className={`task-row${done ? ' done' : ''}`} onClick={() => onOpen(task)} role="button" tabIndex={0}
-      onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onOpen(task)}>
+    <div
+      className={`task-row${done ? ' done' : ''}${picked ? ' selected' : ''}`}
+      role="button"
+      tabIndex={0}
+      {...(selection ? press : {})}
+      onClick={() => {
+        if (selection && press.swallowClick()) return;
+        onOpen(task);
+      }}
+      onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onOpen(task)}
+    >
+      {selection && <SelectBox id={task.id} order={order ?? [task.id]} selection={selection} label={t('select.selectRow')} />}
       <StateDot group={state?.group_key} color={state?.color} />
       <span className="id" title={project?.name}>{task.identifier}</span>
       <span className="title">{task.title}</span>

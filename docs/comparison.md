@@ -56,14 +56,14 @@ across pages and tasks.
 
 ## Against Plane
 
-The closest of the three. Kolibri has cycles, modules, board/list/calendar,
-saved views, labels, per-project workflow states, estimates, sub-tasks,
-relations, pages — and templates with rules, which Plane does not have in this
-form.
+The closest of the three. Kolibri has cycles, modules, list/board/table/calendar,
+saved views, multi-select with bulk actions, labels, per-project workflow states,
+estimates, sub-tasks, relations, pages — and templates with rules, which Plane
+does not have in this form.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Table and Gantt layouts** | High | `LAYOUTS` declares five; three are built |
+| **Gantt layout** | High | `LAYOUTS` declares five; four are built. Gantt needs scheduling, not a layout |
 | **Analytics** — burn-down/up, throughput, cycle time | High | |
 | **Import** from Jira / CSV / GitHub | High | The single biggest adoption blocker: nobody migrates without it |
 | **Integrations** — GitHub/GitLab commit linking, Slack | High | |
@@ -71,7 +71,6 @@ form.
 | **Work item types** (bug / feature / epic) | Medium–high | There is no `type` on a task, only labels |
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
-| **Multi-select and bulk actions** | Medium | `POST /tasks/bulk` exists and is tested; the UI has no multi-select |
 | **Trash / archive browser** | Medium | Everything is soft-deleted and recoverable in the database; no screen shows it |
 | Recurring tasks | Medium | |
 | Precise drop position on the board | Low | A drop appends to the end of the column |
@@ -124,7 +123,7 @@ Ordered by value per unit of work, not by size.
 | ~~1~~ | ~~Saved views (interface)~~ | **Done** — save, load, share, rename, delete | |
 | ~~2~~ | ~~Page comments + mentions in pages~~ | **Done** — a thread under every page, mentions in the body | |
 | ~~3~~ | ~~Rate limiting + CSP~~ | **Done** — see `lib/ratelimit.ts` and `lib/csp.ts` | |
-| 4 | Multi-select and the table layout | Everyday work; the bulk API already exists | medium |
+| ~~4~~ | ~~Multi-select and the table layout~~ | **Done** — selection, bulk actions, sortable table | |
 | 5 | Time tracking | Prerequisite for everything cost-related, and the most common single request for tools like this | medium |
 | 6 | Import (CSV first, then Jira/Plane) | Nobody migrates without it | medium |
 | 7 | Gantt with dependencies | The largest single piece missing against OpenProject | large |

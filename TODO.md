@@ -109,8 +109,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       happen to a task. "Three days before the due date" would need a poller like the mail worker.
 - [ ] **Rules that watch anything but tasks.** A page edit or a comment could reasonably trigger
       one; only task writes are wired up.
-- [ ] **Bulk actions in the list view.** `POST /api/workspaces/:ws/tasks/bulk` exists and is tested;
-      the UI has no multi-select.
+- [x] **Bulk actions in the list and table views.** Tick a row, shift-click for a range, long press
+      on a touch screen; then state, labels, cycle, priority, assignee, archive or delete for all of
+      them. The actions that belong to a project disappear when the selection spans two, because
+      states and labels do. Written locally like every other change, so it works offline —
+      `POST /tasks/bulk` stays for API and MCP callers, who have no outbox.
 - [ ] **Trash / archive browser.** Everything is soft-deleted and recoverable in the database, but
       there is no screen to see or restore deleted tasks and pages.
 - [ ] **Avatar upload.** `users.avatar_url` is respected everywhere; nothing sets it.
@@ -118,8 +121,9 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       column. Fractional indexing already supports inserting between two neighbours — the drop
       handler just needs the index under the cursor.
 - [ ] **Comment reactions.** The `reactions` field is stored and synced; no picker, no display.
-- [ ] **Table and Gantt layouts.** `LAYOUTS` in `packages/shared/src/types.ts` declares five layouts;
-      three are implemented (list, board, calendar). Either build them or trim the type.
+- [ ] **Gantt layout.** `LAYOUTS` declares five; four are built (list, board, table, calendar).
+      Gantt is the one left, and it is not a layout so much as a scheduler — see the entry on
+      dependency scheduling below. Either build it or trim the type.
 - [x] **Internationalisation.** English and German, both as catalogue files — the interface, the
       notification titles and the emails, each written in the recipient's own language. Other
       locales are typed against English, so a missing key is a compile error.

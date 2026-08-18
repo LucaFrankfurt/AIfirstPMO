@@ -45,6 +45,7 @@ const PATHS: Record<string, string> = {
   menu: 'M4 7h16M4 12h16M4 17h16',
   bolt: 'M13 3 5 14h6l-1 7 8-11h-6z',
   bookmark: 'M6 4h12v17l-6-4-6 4z',
+  table: 'M3 5h18v14H3zM3 10h18M9 10v9M3 15h18',
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   grip: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',

@@ -171,7 +171,7 @@ export function SavedViews({
     <>
       <MenuButton className="btn sm" items={items} search={views.length > 6}>
         <Icon name="bookmark" size={14} />
-        <span className="truncate" style={{ maxWidth: 140 }}>
+        <span className={`truncate saved-view-name${active ? '' : ' hide-sm'}`} style={{ maxWidth: 140 }}>
           {active ? active.name : t('view.saved')}
         </span>
         {/* A dot rather than a word: it says "not saved" without taking a line. */}

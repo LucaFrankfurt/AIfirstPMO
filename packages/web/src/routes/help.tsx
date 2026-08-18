@@ -169,7 +169,7 @@ function Features() {
         lead="guide.views.lead"
         to="/projects"
         linkLabel="guide.views.cta"
-        steps={['guide.views.h1', 'guide.views.h2', 'guide.views.h3', 'guide.views.h4', 'guide.views.h5']}
+        steps={['guide.views.h1', 'guide.views.h2', 'guide.views.h3', 'guide.views.h4', 'guide.views.h5', 'guide.views.h6', 'guide.views.h7']}
       >
         <ViewsDiagram />
       </Feature>

@@ -188,6 +188,13 @@ p { margin: 0 0 0.75em; }
 .hide-sm { display: none; }
 @media (min-width: 700px) { .hide-sm { display: inline; } }
 
+/* The mirror of .hide-sm, for a control that has a compact form on a phone.
+   Doubled selectors so these win over the `.row`/`.btn` they sit on. */
+.only-sm.only-sm { display: inline-flex; }
+@media (min-width: 700px) { .only-sm.only-sm { display: none; } }
+.not-sm.not-sm { display: none; }
+@media (min-width: 700px) { .not-sm.not-sm { display: flex; } }
+
 .header .spacer { flex: 1; }
 
 /* mobile bottom navigation */
@@ -337,6 +344,111 @@ p { margin: 0 0 0.75em; }
 .dot-modified {
   width: 6px; height: 6px; border-radius: 50%;
   background: var(--accent); flex: none; margin-left: 1px;
+}
+
+/* ------------------------------------------------------- selecting rows */
+
+/* The checkbox is out of the way until it is wanted — on a pointer device it
+   appears on hover, on a touch screen there is no hover so it is always there. */
+.select-box {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  padding: 2px;
+  margin-inline-end: -2px;
+  cursor: pointer;
+}
+.select-box input { width: 15px; height: 15px; cursor: pointer; }
+
+@media (hover: hover) and (pointer: fine) {
+  .task-row .select-box.idle, .task-group .select-box.idle { opacity: 0; transition: opacity .12s; }
+  .task-row:hover .select-box,
+  .task-group:hover .select-box,
+  .task-row.selected .select-box,
+  .select-box:focus-within { opacity: 1; }
+}
+
+/* No hover to reveal it, and a checkbox on every row turns a list into a form.
+   A long press on a row starts the selection; from then on they are all here. */
+@media (hover: none) {
+  .task-row .select-box.idle, .task-group .select-box.idle { display: none; }
+}
+
+.selection-bar {
+  position: fixed;
+  inset-inline: 12px;
+  bottom: calc(62px + env(safe-area-inset-bottom));
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 28px rgb(0 0 0 / 12%);
+}
+.selection-bar .count { font-size: 12.5px; font-weight: 600; margin-inline-end: 4px; }
+
+/* The header carries a lot on a phone: saved views, four layouts, filter,
+   display and the add button. The view name is the first thing to shorten. */
+@media (max-width: 700px) {
+  .saved-view-name { max-width: 84px; }
+}
+
+@media (min-width: 900px) {
+  /* No tab bar to clear, and the sidebar is a column rather than an overlay. */
+  .selection-bar {
+    inset-inline: calc(var(--sidebar-width) + 20px) 20px;
+    bottom: 18px;
+  }
+}
+
+/* ---------------------------------------------------------- table layout */
+
+/* The table is the one layout that may be wider than the screen: it scrolls
+   inside itself rather than making the page scroll sideways. */
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.task-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.task-table th, .task-table td { text-align: start; padding: 8px 10px; white-space: nowrap; }
+.task-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-soft);
+}
+.task-table tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; }
+.task-table tbody tr:hover { background: var(--bg-hover); }
+.task-table tbody tr.selected { background: var(--accent-soft); }
+.task-table tbody tr.done .title { color: var(--fg-muted); text-decoration: line-through; }
+.task-table tr.group th {
+  position: static;
+  padding-top: 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+.task-table tr.group .count { color: var(--fg-muted); font-weight: 500; margin-inline-start: 6px; }
+.task-table tr.group .state-dot { margin-inline-end: 6px; vertical-align: -1px; }
+.task-table .title { white-space: normal; min-width: 240px; }
+.task-table .identifier { font-family: var(--mono); font-size: 11.5px; color: var(--fg-muted); }
+.task-table .pick { width: 30px; }
+.task-table .sort {
+  display: inline-flex; align-items: center; gap: 3px;
+  border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
+}
+.task-table .sort[aria-pressed='true'] { color: var(--fg); }
+
+/* On a phone the columns that are only useful for comparing are dropped
+   rather than squeezed — the ones left are the ones you would read out. */
+@media (max-width: 700px) {
+  .task-table .narrow { display: none; }
 }
 
 .chip {
