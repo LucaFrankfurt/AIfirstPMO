@@ -113,7 +113,17 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                 void navigator.clipboard?.writeText(`${location.origin}/t/${task.id}`);
                 toast(t('common.copied'));
               } },
-              { id: 'archive', label: task.archived ? t('action.unarchive') : t('action.archive'), icon: <Icon name="archive" size={14} />,
+              { id: 'subscribe',
+              label: (task.subscribers ?? []).includes(me) ? t('task.unsubscribe') : t('task.subscribe'),
+              icon: <Icon name="bell" size={14} />,
+              hint: (task.subscribers ?? []).includes(me) ? '✓' : undefined,
+              onSelect: () => {
+                const current = task.subscribers ?? [];
+                update('task', task.id, {
+                  subscribers: current.includes(me) ? current.filter((id) => id !== me) : [...current, me],
+                });
+              } },
+            { id: 'archive', label: task.archived ? t('action.unarchive') : t('action.archive'), icon: <Icon name="archive" size={14} />,
                 onSelect: () => update('task', task.id, { archived: task.archived ? 0 : 1 }) },
               { id: 'delete', label: t('task.delete'), icon: <Icon name="trash" size={14} />, danger: true, onSelect: async () => {
                 if (await confirm(t('task.deleteConfirm', { identifier: task.identifier }))) {

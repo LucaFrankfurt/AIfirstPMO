@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { Filters, Layout, Task } from '@kolibri/shared';
 import { orderKey, PRIORITIES } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
@@ -307,6 +307,8 @@ export function BoardView({
   const members = useMembers();
   const [dragId, setDragId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<string | null>(null);
+  /** Where in the column the card would land — the gap the line is drawn in. */
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   const groups = useMemo(
     () => groupTasks(tasks, view.groupBy === 'none' ? 'state' : view.groupBy, { states, members, labels, t }),
@@ -314,14 +316,25 @@ export function BoardView({
   );
 
   /** Dropping on a column both reorders and rewrites the grouped-by field. */
-  const drop = (groupId: string, dropped?: Task) => {
+  /**
+   * Drop a card into a column, at a position.
+   *
+   * `at` is the index it should land on among the column's other cards. A drop
+   * used to append to the end regardless of where the card was released, which
+   * is fine for a triage board and wrong for any board people order by hand.
+   */
+  const drop = (groupId: string, dropped?: Task, at?: number) => {
     const task = dropped ?? (dragId ? byId('task', dragId) : undefined);
     setDragId(null);
     setOverColumn(null);
+    setOverIndex(null);
     if (!task) return;
     const column = groups.find((group) => group.id === groupId);
-    const last = column?.tasks.filter((t) => t.id !== task.id).slice(-1)[0];
-    const patch: Record<string, unknown> = { sort_order: orderKey(last?.sort_order ?? null, null) };
+    const others = (column?.tasks ?? []).filter((other) => other.id !== task.id);
+    const index = at === undefined ? others.length : Math.max(0, Math.min(at, others.length));
+    const patch: Record<string, unknown> = {
+      sort_order: orderKey(others[index - 1]?.sort_order ?? null, others[index]?.sort_order ?? null),
+    };
     if (view.groupBy === 'state' || view.groupBy === 'none') patch.state_id = groupId;
     if (view.groupBy === 'priority') patch.priority = groupId;
     if (view.groupBy === 'cycle') patch.cycle_id = groupId === 'none' ? null : groupId;
@@ -338,11 +351,24 @@ export function BoardView({
           onDragOver={(event) => {
             event.preventDefault();
             setOverColumn(group.id);
+            // Which gap the pointer is nearest: measure the cards rather than
+            // guess, so the line is where the card will actually go.
+            const cards = [...event.currentTarget.querySelectorAll('.task-card')] as HTMLElement[];
+            const visible = cards.filter((card) => !card.classList.contains('dragging'));
+            let index = visible.length;
+            for (let position = 0; position < visible.length; position++) {
+              const box = visible[position].getBoundingClientRect();
+              if (event.clientY < box.top + box.height / 2) {
+                index = position;
+                break;
+              }
+            }
+            setOverIndex(index);
           }}
           onDragLeave={() => setOverColumn((current) => (current === group.id ? null : current))}
           onDrop={(event) => {
             event.preventDefault();
-            drop(group.id);
+            drop(group.id, undefined, overIndex ?? undefined);
           }}
         >
           <header>
@@ -351,9 +377,10 @@ export function BoardView({
             <span className="muted">{group.tasks.length}</span>
           </header>
           <div className="items">
-            {group.tasks.map((task) => (
+            {group.tasks.map((task, position) => (
+              <Fragment key={task.id}>
+                {overColumn === group.id && overIndex === position && dragId !== task.id && <div className="drop-line" />}
               <TaskCard
-                key={task.id}
                 task={task}
                 onOpen={onOpen}
                 dragging={dragId === task.id}
@@ -368,7 +395,9 @@ export function BoardView({
                   event.dataTransfer.setData('text/plain', task.id);
                 }}
               />
+              </Fragment>
             ))}
+            {overColumn === group.id && overIndex !== null && overIndex >= group.tasks.length && <div className="drop-line" />}
             {!group.tasks.length && <span className="muted" style={{ fontSize: 12, padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>

@@ -1,14 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderMarkdown } from '../lib/markdown';
 import { api } from '../lib/api';
-import { useSession } from '../session';
+import { useMembers, useSession } from '../session';
 import { useT, type TranslationKey } from '../lib/i18n';
-import { Icon, useToast } from './ui';
+import { Avatar, Icon, useLightbox, useToast } from './ui';
 
 export function Markdown({ source, className = '' }: { source?: string | null; className?: string }) {
   const html = useMemo(() => renderMarkdown(source ?? ''), [source]);
+  // Click-to-enlarge is delegated: the renderer produces plain HTML, so there
+  // are no image components to hand a handler to.
+  const { open, lightbox } = useLightbox();
   if (!source?.trim()) return null;
-  return <div className={`md ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
+  return (
+    <>
+      <div className={`md ${className}`} onClick={open} dangerouslySetInnerHTML={{ __html: html }} />
+      {lightbox}
+    </>
+  );
 }
 
 interface EditorProps {
@@ -44,7 +52,16 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   const [dropping, setDropping] = useState(false);
   const [busy, setBusy] = useState(false);
   const { workspaceId } = useSession();
+  const members = useMembers();
   const toast = useToast();
+  // The `@` menu: which handles match, and which of them is highlighted.
+  const [mention, setMention] = useState<{ query: string; at: number; index: number } | null>(null);
+
+  const matches = mention
+    ? members
+      .filter((member) => `${member.name} ${member.email}`.toLowerCase().includes(mention.query.toLowerCase()))
+      .slice(0, 6)
+    : [];
 
   useEffect(() => {
     if (autoFocus) ref.current?.focus();
@@ -67,6 +84,38 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     const field = ref.current;
     const at = field?.selectionStart ?? value.length;
     onChange(`${value.slice(0, at)}${text}${value.slice(at)}`);
+  };
+
+  /**
+   * Notice an `@` being typed and offer the people in the workspace.
+   *
+   * Mentions have always resolved by first name, display name or email — the
+   * writer simply had to know one. Offering them is the difference between a
+   * feature people use and a feature people are told about.
+   */
+  const trackMention = (text: string, caret: number) => {
+    const upto = text.slice(0, caret);
+    // Only at a word boundary, so an email address in the middle of a
+    // sentence does not open a menu.
+    const found = upto.match(/(?:^|[\s(])@([\w.+-]*)$/);
+    setMention(found ? { query: found[1], at: caret - found[1].length - 1, index: 0 } : null);
+  };
+
+  /** Replace the partial `@handle` with the chosen one. */
+  const pickMention = (member: { name: string; email: string }) => {
+    if (!mention) return;
+    const field = ref.current;
+    const caret = field?.selectionStart ?? value.length;
+    // The handle people read back is the first name; `findMentions` accepts it.
+    const handle = member.name.split(/\s+/)[0] || member.email.split('@')[0];
+    const next = `${value.slice(0, mention.at)}@${handle} ${value.slice(caret)}`;
+    onChange(next);
+    setMention(null);
+    requestAnimationFrame(() => {
+      field?.focus();
+      const to = mention.at + handle.length + 2;
+      field?.setSelectionRange(to, to);
+    });
   };
 
   async function upload(files: File[]): Promise<void> {
@@ -119,14 +168,36 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           <Markdown source={value || `_${t('editor.nothingToPreview')}_`} />
         </div>
       ) : (
+        <>
         <textarea
           ref={ref}
           className="textarea"
           style={{ minHeight }}
           value={value}
           placeholder={placeholder ?? t('editor.placeholder')}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) => {
+            onChange(event.target.value);
+            trackMention(event.target.value, event.target.selectionStart ?? 0);
+          }}
+          onBlur={() => setTimeout(() => setMention(null), 120)}
           onKeyDown={(event) => {
+            if (mention && matches.length) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                setMention({ ...mention, index: (mention.index + step + matches.length) % matches.length });
+                return;
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                pickMention(matches[mention.index]);
+                return;
+              }
+              if (event.key === 'Escape') {
+                setMention(null);
+                return;
+              }
+            }
             if (onSubmit && (event.metaKey || event.ctrlKey) && event.key === 'Enter') {
               event.preventDefault();
               onSubmit();
@@ -154,6 +225,27 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             void upload([...event.dataTransfer.files]);
           }}
         />
+        {mention && matches.length > 0 && (
+          <div className="mention-menu" role="listbox" aria-label={t('editor.mentionPeople')}>
+            {matches.map((member, index) => (
+              <button
+                key={member.id}
+                type="button"
+                role="option"
+                aria-selected={index === mention.index}
+                className={index === mention.index ? 'active' : ''}
+                // The menu closes on blur, and blur fires before click.
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickMention(member)}
+              >
+                <Avatar user={member} size={18} />
+                <span className="grow truncate">{member.name}</span>
+                <span className="muted truncate" style={{ fontSize: 11 }}>{member.email}</span>
+              </button>
+            ))}
+          </div>
+        )}
+        </>
       )}
     </div>
   );

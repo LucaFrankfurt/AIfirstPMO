@@ -49,7 +49,6 @@ page, full-text search across pages and tasks.
 |---|---|---|
 | **Inline comments** (select text → comment) | High | The thing Confluence is actually used for |
 | **Export** to PDF or Word | Low–medium | A markdown bundle is built — the page and everything under it. PDF needs a renderer and is worse at not locking writing in |
-| Emoji reactions | Low | `reactions` is stored and synced; no picker, no display |
 | Macros — table of contents, cross-page task lists, embeds | Low–medium | |
 | A table editor | Low | Markdown tables render; they cannot be edited as tables |
 | Spaces as a separate container concept | Design difference | Workspace + project carries most of it |
@@ -71,9 +70,6 @@ which Plane does not have in this form.
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
 | Recurring tasks | Medium | |
-| Precise drop position on the board | Low | A drop appends to the end of the column |
-| Avatar upload | Low | `users.avatar_url` is respected everywhere; nothing sets it |
-| Per-task notification opt-out | Low | `subscribers` is stored and used; nothing toggles it |
 
 ## Against OpenProject
 

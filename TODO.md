@@ -107,8 +107,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       Computed from the local mirror, so it works offline. See [`docs/insights.md`](docs/insights.md).
 - [ ] **Analytics across projects.** A portfolio view is a different screen and a different
       question. Nothing here aggregates beyond one project.
-- [ ] **Mention autocomplete in the editor.** Typing `@` should offer the workspace members
-      instead of relying on the writer knowing the handle.
+- [x] **Mention autocomplete in the editor.** Typing `@` offers the workspace members; arrows and
+      Enter or Tab pick one.
 - [ ] **Scheduled digests** (daily/weekly summary) on top of the existing batching window.
 - [ ] **Due-date reminders.** The `due_soon` notification kind is reserved but nothing emits it.
 - [x] **Task templates and automation rules.** Templates with a checklist that becomes sub-tasks,
@@ -131,11 +131,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       back. It needed no new endpoint: a delete keeps the row and syncs it as a tombstone — that is
       how two devices agree it is gone — so the data was already on the device and simply had no
       screen asking for it. Still open: emptying the trash on purpose, and a retention policy.
-- [ ] **Avatar upload.** `users.avatar_url` is respected everywhere; nothing sets it.
-- [ ] **Precise drop position on the board.** A drop currently appends to the end of the target
+- [x] **Avatar upload.** In the profile, downscaled in the browser like any other image.
+- [x] **Precise drop position on the board.** A line shows the gap the card will land in, and it
+      lands there. It used to append to the end of the target
       column. Fractional indexing already supports inserting between two neighbours — the drop
       handler just needs the index under the cursor.
-- [ ] **Comment reactions.** The `reactions` field is stored and synced; no picker, no display.
+- [x] **Comment reactions.** Six of them, counted, with who reacted in the tooltip.
 - [ ] **Gantt layout.** `LAYOUTS` declares five; four are built (list, board, table, calendar).
       Gantt is the one left, and it is not a layout so much as a scheduler — see the entry on
       dependency scheduling below. Either build it or trim the type.
@@ -164,8 +165,9 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       nothing left, and is dismissible before that.
 - [x] **Contextual help.** Every empty screen and the settings screens that raise a question link
       into the guide card that answers it, which scrolls to that card and marks it.
-- [ ] **Image lightbox** for attachments and inline images (the `.gallery` styles are unused).
-- [ ] **Per-task notification opt-out** (`subscribers` is stored and used, but nothing toggles it).
+- [x] **Image lightbox** for images in any rendered markdown — delegated, because the renderer
+      produces plain HTML and has no components to hand a handler to.
+- [x] **Per-task notification opt-in and out**, in the task menu.
 
 ---
 

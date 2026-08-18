@@ -7,6 +7,7 @@ import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
 import { AutomationSettings } from './automation';
 import { Trash } from '../components/trash';
+import { downscale } from '../components/Markdown';
 import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
@@ -57,21 +58,59 @@ export function Settings() {
 
 function Profile() {
   const { t, locale, setLocale } = useI18n();
-  const { user, refresh } = useSession();
+  const { user, refresh, workspaceId } = useSession();
   const [theme, setTheme] = useTheme();
   const toast = useToast();
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [passwords, setPasswords] = useState({ current: '', next: '' });
+  const [uploading, setUploading] = useState(false);
 
   return (
     <>
       <div className="row" style={{ marginBottom: 18 }}>
         <Avatar user={user ?? undefined} size={48} />
-        <div>
+        <div className="grow">
           <strong>{user?.name}</strong>
           <div className="muted" style={{ fontSize: 12.5 }}>{user?.email}</div>
         </div>
+        <label className="btn sm">
+          {uploading ? t('editor.uploading') : t('profile.changePicture')}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file || !workspaceId) return;
+              setUploading(true);
+              try {
+                // Through the same downscale as an inline image: a 4 MB photo
+                // as a 24px avatar is bytes nobody asked for.
+                const result = await api.upload(workspaceId, await downscale(file, 256), file.name);
+                await api.patch('/api/me', { avatar_url: result.url });
+                await refresh();
+                toast(t('profile.pictureChanged'));
+              } catch (error) {
+                toast(error instanceof Error ? error.message : String(error));
+              } finally {
+                setUploading(false);
+              }
+            }}
+          />
+        </label>
+        {user?.avatar_url && (
+          <button
+            className="btn ghost sm"
+            onClick={async () => {
+              await api.patch('/api/me', { avatar_url: null });
+              await refresh();
+            }}
+          >
+            {t('profile.removePicture')}
+          </button>
+        )}
       </div>
 
       <div className="field">

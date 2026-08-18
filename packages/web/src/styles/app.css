@@ -547,6 +547,44 @@ p { margin: 0 0 0.75em; }
 .chart-table summary { font-size: 12px; color: var(--fg-muted); cursor: pointer; }
 .chart-table .task-table { margin-top: 6px; }
 
+.lightbox {
+  position: fixed; inset: 0; z-index: 90;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  background: rgb(0 0 0 / 78%); backdrop-filter: blur(3px);
+}
+.lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; object-fit: contain; }
+.lightbox-close { position: absolute; top: 14px; inset-inline-end: 14px; color: #fff; }
+.lightbox-open { position: absolute; bottom: 16px; }
+
+/* Where the card lands. A line in the gap, not a highlighted card: the card
+   under the pointer is not the target, the space next to it is. */
+.drop-line { height: 2px; border-radius: 2px; background: var(--accent); margin: 2px 0; }
+
+.reactions { margin-top: 5px; }
+.reaction {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px;
+  background: var(--bg); font-size: 12px; color: var(--fg-soft); cursor: pointer;
+}
+.reaction:hover { background: var(--bg-hover); }
+.reaction.mine { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.reaction.add { padding: 2px 6px; color: var(--fg-muted); }
+
+/* The `@` menu sits under the caret's line rather than following it: a menu
+   that moves while you type is harder to hit than one that stays put. */
+.mention-menu {
+  position: absolute; inset-inline-start: 8px; bottom: 8px; z-index: 20;
+  min-width: 220px; max-width: 320px; padding: 4px;
+  border: 1px solid var(--line-strong); border-radius: 9px;
+  background: var(--bg-raised); box-shadow: 0 10px 30px rgb(0 0 0 / 14%);
+}
+.mention-menu button {
+  display: flex; align-items: center; gap: 7px; width: 100%;
+  padding: 5px 7px; border: none; border-radius: 6px; background: none;
+  font: inherit; font-size: 12.5px; color: inherit; text-align: start; cursor: pointer;
+}
+.mention-menu button:hover, .mention-menu button.active { background: var(--bg-hover); }
+
 /* ------------------------------------------------------------------ diff */
 
 .diff { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; font-family: var(--mono); font-size: 12px; }
@@ -930,12 +968,14 @@ p { margin: 0 0 0.75em; }
 .md pre { background: var(--bg-sunken); border: 1px solid var(--line); padding: 11px 13px; border-radius: var(--radius); overflow-x: auto; margin: 0 0 12px; }
 .md pre code { background: none; padding: 0; font-size: 12.5px; line-height: 1.55; }
 .md blockquote { margin: 0 0 12px; padding-block: 2px; padding-inline-start: 13px; border-inline-start: 3px solid var(--line-strong); color: var(--fg-soft); }
+.md img { cursor: zoom-in; }
 .md img { max-width: 100%; border-radius: var(--radius); border: 1px solid var(--line); display: block; margin: 10px 0; }
 .md hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
 .md .md-tag { color: var(--accent); }
 .md table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
 .md th, .md td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; }
 
+.editor { position: relative; }
 .editor-toolbar {
   display: flex;
   gap: 2px;
