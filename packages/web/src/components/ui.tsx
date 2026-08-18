@@ -6,6 +6,7 @@ import {
 import { createPortal } from 'react-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from '../lib/format';
+import { priorityKey, useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- icons */
 
@@ -107,9 +108,10 @@ export function StateDot({ group, color, size = 12 }: { group?: StateGroup | str
 }
 
 export function PriorityBars({ priority }: { priority: Priority }) {
+  const t = useT();
   const level = { urgent: 3, high: 3, medium: 2, low: 1, none: 0 }[priority] ?? 0;
   return (
-    <span className="priority-bars" style={{ color: PRIORITY_COLOR[priority] }} title={priority}>
+    <span className="priority-bars" style={{ color: PRIORITY_COLOR[priority] }} title={t(priorityKey(priority))}>
       {[1, 2, 3].map((n) => <i key={n} className={n <= level ? 'on' : ''} />)}
     </span>
   );
@@ -120,6 +122,7 @@ export function PriorityBars({ priority }: { priority: Priority }) {
 export function Sheet({
   title, children, onClose, footer, wide,
 }: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean }) {
+  const t = useT();
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape') onClose();
@@ -134,12 +137,12 @@ export function Sheet({
 
   return createPortal(
     <div className="overlay" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : 'Dialog'}>
+      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : t('action.close')}>
         <div className="grabber" />
         {title && (
           <header>
             <strong className="grow truncate">{title}</strong>
-            <button className="btn ghost icon" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+            <button className="btn ghost icon" onClick={onClose} aria-label={t('action.close')}><Icon name="close" /></button>
           </header>
         )}
         <div className="body">{children}</div>
@@ -163,8 +166,9 @@ export interface MenuItem {
 }
 
 export function Menu({
-  items, onClose, anchor, search, empty = 'Nothing here',
+  items, onClose, anchor, search, empty,
 }: { items: MenuItem[]; onClose: () => void; anchor: DOMRect | null; search?: boolean; empty?: string }) {
+  const t = useT();
   const [query, setQuery] = useState('');
   const ref = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ top: number; left: number }>({ top: anchor?.bottom ?? 0, left: anchor?.left ?? 0 });
@@ -205,11 +209,11 @@ export function Menu({
     <div className="menu" ref={ref} style={position} role="menu">
       {search && (
         <input
-          className="search" autoFocus placeholder="Filter…" value={query}
+          className="search" autoFocus placeholder={t('common.filterPlaceholder')} value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
       )}
-      {filtered.length === 0 && <div className="section">{empty}</div>}
+      {filtered.length === 0 && <div className="section">{empty ?? t('common.nothingHere')}</div>}
       {filtered.map((item) => {
         const header = item.section && item.section !== lastSection ? item.section : null;
         lastSection = item.section;
@@ -336,25 +340,26 @@ export function Progress({ value, total }: { value: number; total: number }) {
 
 /** Small confirm dialog — used before anything destructive. */
 export function useConfirm() {
-  const [request, setRequest] = useState<{ message: string; confirmLabel: string; resolve: (ok: boolean) => void } | null>(null);
+  const t = useT();
+  const [request, setRequest] = useState<{ message: string; confirmLabel?: string; resolve: (ok: boolean) => void } | null>(null);
 
   const confirm = useCallback(
-    (message: string, confirmLabel = 'Delete') =>
+    (message: string, confirmLabel?: string) =>
       new Promise<boolean>((resolve) => setRequest({ message, confirmLabel, resolve })),
     [],
   );
 
   const dialog = request ? (
     <Sheet
-      title="Are you sure?"
+      title={t('action.confirmTitle')}
       onClose={() => {
         request.resolve(false);
         setRequest(null);
       }}
       footer={
         <>
-          <button className="btn" onClick={() => { request.resolve(false); setRequest(null); }}>Cancel</button>
-          <button className="btn danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel}</button>
+          <button className="btn" onClick={() => { request.resolve(false); setRequest(null); }}>{t('action.cancel')}</button>
+          <button className="btn danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel ?? t('action.delete')}</button>
         </>
       }
     >

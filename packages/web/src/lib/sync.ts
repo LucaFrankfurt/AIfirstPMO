@@ -9,6 +9,7 @@
 import { Clock, ENTITY_NAMES, type ChangeSet, type EntityName, type Mutation, type PullResponse, type PushResponse } from '@kolibri/shared';
 import { api, ApiError } from './api';
 import * as idb from './idb';
+import { currentLocale, translate } from './i18n';
 import { applyChanges, hydrate, notifyStore, reset, tables } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
@@ -208,11 +209,11 @@ function handleError(err: unknown): void {
   if (offline) {
     setStatus({ state: 'offline', message: undefined });
   } else if (err instanceof ApiError && err.status === 401) {
-    setStatus({ state: 'error', message: 'Session expired — please sign in again' });
+    setStatus({ state: 'error', message: translate(currentLocale(), 'sync.sessionExpired') });
     window.dispatchEvent(new CustomEvent('kolibri:signed-out'));
     return;
   } else {
-    setStatus({ state: 'error', message: err instanceof Error ? err.message : 'Sync failed' });
+    setStatus({ state: 'error', message: err instanceof Error ? err.message : translate(currentLocale(), 'sync.failed') });
   }
   retryDelay = Math.min(retryDelay * 2, 30_000);
   setTimeout(() => {

@@ -47,6 +47,7 @@ services:
       - KOLIBRI_ALLOW_SIGNUP=${KOLIBRI_ALLOW_SIGNUP:-true}
       - KOLIBRI_MAX_UPLOAD_MB=${KOLIBRI_MAX_UPLOAD_MB:-25}
       - KOLIBRI_LOG_LEVEL=${KOLIBRI_LOG_LEVEL:-info}
+      - KOLIBRI_DEFAULT_LOCALE=${KOLIBRI_DEFAULT_LOCALE:-en}
       - TZ=${TZ:-UTC}
 
       # First-run provisioning: set these and the owner account, its workspace

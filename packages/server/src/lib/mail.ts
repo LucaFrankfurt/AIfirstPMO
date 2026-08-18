@@ -14,6 +14,7 @@ import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { sendMail, type SmtpConfig } from './smtp.ts';
 import { uid } from './ids.ts';
+import { isLocale, defaultLocale, translate, type Locale } from './i18n.ts';
 
 export type EmailPreference = 'all' | 'important' | 'none';
 
@@ -148,7 +149,7 @@ export function batchNotifications(now = Date.now()): number {
 
   let queued = 0;
   for (const { user_id: userId } of users) {
-    const user = get<Row>(`SELECT id, email, name, email_prefs FROM users WHERE id = ? AND deleted_at IS NULL`, userId);
+    const user = get<Row>(`SELECT id, email, name, email_prefs, locale FROM users WHERE id = ? AND deleted_at IS NULL`, userId);
     const pending = all<Row>(
       `SELECT * FROM notifications
         WHERE user_id = ? AND emailed_at IS NULL AND deleted_at IS NULL AND read_at IS NULL AND created_at <= ?
@@ -218,11 +219,16 @@ function layout(title: string, bodyHtml: string, footerHtml = ''): string {
 const button = (href: string, label: string): string =>
   `<a href="${escape(href)}" style="display:inline-block;background:#5b5bd6;color:#ffffff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:600">${escape(label)}</a>`;
 
+/** Every message is written in the recipient's language, not the instance's. */
+const localeOfRow = (row: Row | undefined): Locale => (isLocale(row?.locale) ? row.locale : defaultLocale());
+
 function renderDigest(user: Row, notifications: Row[]): { subject: string; text: string; html: string } {
+  const locale = localeOfRow(user);
+  const t = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate(locale, key, vars);
   const first = notifications[0];
   const subject = notifications.length === 1
     ? first.title
-    : `${notifications.length} updates in Kolibri`;
+    : t('mail.digestSubject', { count: notifications.length });
 
   const rows = notifications.map((notification) => {
     const href = notification.task_id
@@ -235,17 +241,17 @@ function renderDigest(user: Row, notifications: Row[]): { subject: string; text:
   });
 
   const text = [
-    `Hello ${user.name ?? ''},`.trim(),
+    t('mail.greeting', { name: user.name ?? '' }),
     '',
     ...rows.map((row) => [
       `• ${row.title}`,
-      row.actor ? `  by ${row.actor}` : '',
+      row.actor ? `  ${t('mail.by', { name: row.actor })}` : '',
       row.body ? `  ${String(row.body).slice(0, 200)}` : '',
       `  ${row.href}`,
     ].filter(Boolean).join('\n')),
     '',
-    `Open your inbox: ${link('/inbox')}`,
-    `Turn these emails off: ${unsubscribeUrl(user.id)}`,
+    t('mail.openInbox', { url: link('/inbox') }),
+    t('mail.turnOff', { url: unsubscribeUrl(user.id) }),
   ].join('\n');
 
   const html = layout(
@@ -253,52 +259,60 @@ function renderDigest(user: Row, notifications: Row[]): { subject: string; text:
     `${rows.map((row) => `
       <div style="padding:12px 0;border-top:1px solid #eceef2">
         <div style="font-weight:600"><a href="${escape(row.href)}" style="color:#14161c;text-decoration:none">${escape(row.title)}</a></div>
-        ${row.actor ? `<div style="color:#8b909b;font-size:12.5px">by ${escape(row.actor)}</div>` : ''}
+        ${row.actor ? `<div style="color:#8b909b;font-size:12.5px">${escape(t('mail.by', { name: row.actor }))}</div>` : ''}
         ${row.body ? `<div style="color:#4a4f5a;margin-top:4px">${escape(String(row.body).slice(0, 300))}</div>` : ''}
       </div>`).join('')}
-     <div style="padding-top:16px">${button(link('/inbox'), 'Open Kolibri')}</div>`,
-    `You are receiving this because you are involved in this work.<br />
-     <a href="${escape(unsubscribeUrl(user.id))}" style="color:#8b909b">Turn these emails off</a>`,
+     <div style="padding-top:16px">${button(link('/inbox'), t('mail.openKolibri'))}</div>`,
+    `${escape(t('mail.why'))}<br />
+     <a href="${escape(unsubscribeUrl(user.id))}" style="color:#8b909b">${escape(t('mail.turnOffLabel'))}</a>`,
   );
 
   return { subject, text, html };
 }
 
-export function queueInvite(invite: { code: string; email: string; workspaceName: string; inviterName: string; workspaceId: string }): void {
+export function queueInvite(invite: {
+  code: string; email: string; workspaceName: string; inviterName: string; workspaceId: string;
+  /** The inviter's language: an invitee has no account yet, so nothing better exists. */
+  locale?: string;
+}): void {
   const url = link(`/invite/${invite.code}`);
+  const locale = isLocale(invite.locale) ? invite.locale : defaultLocale();
+  const t = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate(locale, key, vars);
   queueMail({
     to: invite.email,
     workspaceId: invite.workspaceId,
     kind: 'invite',
-    subject: `${invite.inviterName} invited you to ${invite.workspaceName} on Kolibri`,
+    subject: t('mail.inviteSubject', { inviter: invite.inviterName, workspace: invite.workspaceName }),
     text: [
-      `${invite.inviterName} invited you to join "${invite.workspaceName}" on Kolibri.`,
+      t('mail.inviteBody', { inviter: invite.inviterName, workspace: invite.workspaceName }),
       '',
-      `Accept the invitation: ${url}`,
+      t('mail.inviteAcceptLink', { url }),
       '',
-      'If you were not expecting this, you can ignore this message.',
+      t('mail.inviteIgnore'),
     ].join('\n'),
     html: layout(
-      `Join ${invite.workspaceName}`,
-      `<p><strong>${escape(invite.inviterName)}</strong> invited you to join
-        <strong>${escape(invite.workspaceName)}</strong> on Kolibri.</p>
-       <div style="padding-top:8px">${button(url, 'Accept the invitation')}</div>
-       <p style="color:#8b909b;font-size:12.5px;margin-top:14px">If you were not expecting this, ignore this message.</p>`,
+      t('mail.inviteTitle', { workspace: invite.workspaceName }),
+      `<p>${escape(t('mail.inviteBody', { inviter: invite.inviterName, workspace: invite.workspaceName }))}</p>
+       <div style="padding-top:8px">${button(url, t('mail.inviteAccept'))}</div>
+       <p style="color:#8b909b;font-size:12.5px;margin-top:14px">${escape(t('mail.inviteIgnore'))}</p>`,
     ),
   });
 }
 
-export function queueTestMail(to: string): string | null {
+export function queueTestMail(to: string, locale?: string): string | null {
+  const chosen = isLocale(locale) ? locale : defaultLocale();
+  const t = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate(chosen, key, vars);
+  const relay = `${env.mail.host}:${env.mail.port}${env.mail.secure ? ' (TLS)' : ''}`;
   return queueMail({
     to,
     kind: 'test',
-    subject: 'Kolibri test email',
-    text: `This is a test message from Kolibri.\n\nIf you can read it, SMTP is configured correctly.\n\n${link('/settings')}`,
+    subject: t('mail.testSubject'),
+    text: `${t('mail.testText')}\n\n${link('/settings')}`,
     html: layout(
-      'SMTP is working',
-      `<p>This is a test message from your Kolibri instance.</p>
-       <p style="color:#4a4f5a">Relay: ${escape(env.mail.host)}:${env.mail.port}${env.mail.secure ? ' (TLS)' : ''}</p>
-       <div style="padding-top:8px">${button(link('/settings'), 'Back to settings')}</div>`,
+      t('mail.testTitle'),
+      `<p>${escape(t('mail.testBody'))}</p>
+       <p style="color:#4a4f5a">${escape(t('mail.testRelay', { relay }))}</p>
+       <div style="padding-top:8px">${button(link('/settings'), t('mail.backToSettings'))}</div>`,
     ),
   });
 }

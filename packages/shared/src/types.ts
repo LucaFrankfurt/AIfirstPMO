@@ -43,6 +43,8 @@ export interface User extends Base {
   email: string;
   avatar_url: string | null;
   timezone: string | null;
+  /** Interface and email language, e.g. `en` or `de`. Empty means "ask the browser". */
+  locale: string | null;
   bio: string | null;
 }
 

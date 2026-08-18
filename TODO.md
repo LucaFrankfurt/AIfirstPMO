@@ -81,8 +81,20 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 - [ ] **Comment reactions.** The `reactions` field is stored and synced; no picker, no display.
 - [ ] **Table and Gantt layouts.** `LAYOUTS` in `packages/shared/src/types.ts` declares five layouts;
       three are implemented (list, board, calendar). Either build them or trim the type.
-- [ ] **Internationalisation.** The interface is English only. Given who this was built for, German
-      is the obvious first translation. No i18n scaffolding exists yet — strings are inline.
+- [x] **Internationalisation.** English and German, both as catalogue files — the interface, the
+      notification titles and the emails, each written in the recipient's own language. Other
+      locales are typed against English, so a missing key is a compile error.
+      See [`docs/i18n.md`](docs/i18n.md).
+- [ ] **More languages than English and German.** The scaffolding takes a third in one typed file;
+      nobody has written one. Languages with more plural forms than `_one`/`_other` are supported by
+      `Intl.PluralRules` but have never been exercised.
+- [ ] **Right-to-left layouts.** Adding Arabic or Hebrew needs `dir="rtl"` on the root and a pass
+      over the twelve remaining physical properties (nine in `app.css`, three inline: the sidebar
+      border, the nav-item counts, the avatar stack, markdown lists and the page-tree indent) to
+      swap them for logical ones. The catalogue is the easy half.
+- [ ] **Translated workflow states in the seed.** A new project's states are created server-side and
+      named in English (`Backlog`, `Todo`, …) whatever the creator's language. They are editable
+      data, so this is a first-impression problem rather than a correctness one.
 - [ ] **Image lightbox** for attachments and inline images (the `.gallery` styles are unused).
 - [ ] **Per-task notification opt-out** (`subscribers` is stored and used, but nothing toggles it).
 
@@ -115,7 +127,7 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 31 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
+(`npm test`, 45 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -136,6 +148,10 @@ So the list above is read in proportion — these are covered by automated tests
       environment, idempotent on restart, storage retry with backoff before giving up
 - [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
 - [x] Browser: phone viewport, dark mode, and rendering with the network switched off
+- [x] Browser: the same walkthrough through the German interface (`KOLIBRI_LOCALE=de`)
+- [x] Catalogue parity: same keys both ways, no placeholder lost in translation, plural pairs
+      complete, every key the interface uses exists, and no user-visible string left hard-coded
+- [x] A notification written for a German recipient by an English actor arrives in German
 
 ## Known-unknowns
 

@@ -11,6 +11,7 @@ import { createPage, remove, update } from '../lib/mutations';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useMe, useMemberMap, useSession } from '../session';
+import { useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- tree */
 
@@ -36,13 +37,14 @@ function buildTree(pages: Page[]): TreeNode[] {
 }
 
 function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; activeId?: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const [open, setOpen] = useState(true);
   return (
     <>
       <div className="row" style={{ gap: 0, paddingLeft: depth * 12 }}>
         {node.children.length > 0 ? (
-          <button className="btn ghost sm icon" onClick={() => setOpen(!open)} aria-label="Toggle">
+          <button className="btn ghost sm icon" onClick={() => setOpen(!open)} aria-label={t('page.toggleTree')}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
           </button>
         ) : (
@@ -53,7 +55,7 @@ function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; ac
           onClick={() => navigate(`/pages/${node.page.id}`)}
         >
           <span style={{ width: 16 }}>{node.page.icon ?? '📄'}</span>
-          <span className="grow truncate">{node.page.title || 'Untitled'}</span>
+          <span className="grow truncate">{node.page.title || t('common.untitled')}</span>
         </button>
       </div>
       {open && node.children.map((child) => <TreeItem key={child.page.id} node={child} depth={depth + 1} activeId={activeId} />)}
@@ -62,6 +64,7 @@ function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; ac
 }
 
 export function PagesIndex() {
+  const t = useT();
   const { workspaceId } = useSession();
   const me = useMe();
   const navigate = useNavigate();
@@ -71,34 +74,34 @@ export function PagesIndex() {
 
   return (
     <>
-      <Header title="Pages">
-        <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: 'Untitled' }, me)}`)}>
-          <Icon name="plus" size={14} /> <span className="hide-sm">New page</span>
+      <Header title={t('page.listTitle')}>
+        <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
+          <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
         </button>
       </Header>
       <div className="page">
         {!pages.length ? (
           <Empty
-            emoji="📓" title="No pages yet"
-            hint="Pages are markdown documents with history — handbooks, specs, meeting notes."
-            action={<button className="btn primary" onClick={() => navigate(`/pages/${createPage({ title: 'Untitled' }, me)}`)}>Write the first page</button>}
+            emoji="📓" title={t('page.emptyTitle')}
+            hint={t('page.emptyHint')}
+            action={<button className="btn primary" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>{t('page.writeFirst')}</button>}
           />
         ) : (
           <>
-            <h2 style={{ fontSize: 14, marginBottom: 8 }}>Recently edited</h2>
+            <h2 style={{ fontSize: 14, marginBottom: 8 }}>{t('page.recentlyEdited')}</h2>
             <div className="grid two" style={{ marginBottom: 22 }}>
               {recent.map((page) => (
                 <button className="card" key={page.id} style={{ textAlign: 'left' }} onClick={() => navigate(`/pages/${page.id}`)}>
                   <div className="row" style={{ marginBottom: 4 }}>
                     <span>{page.icon ?? '📄'}</span>
-                    <strong className="grow truncate">{page.title || 'Untitled'}</strong>
+                    <strong className="grow truncate">{page.title || t('common.untitled')}</strong>
                   </div>
-                  <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>{excerpt(page.content, 110) || 'Empty page'}</p>
-                  <span className="muted" style={{ fontSize: 11.5 }}>Updated {relativeTime(page.updated_at)}</span>
+                  <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>{excerpt(page.content, 110) || t('page.emptyPage')}</p>
+                  <span className="muted" style={{ fontSize: 11.5 }}>{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
                 </button>
               ))}
             </div>
-            <h2 style={{ fontSize: 14, marginBottom: 8 }}>All pages</h2>
+            <h2 style={{ fontSize: 14, marginBottom: 8 }}>{t('page.all')}</h2>
             {tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} />)}
           </>
         )}
@@ -110,6 +113,7 @@ export function PagesIndex() {
 /* ------------------------------------------------------------------- page */
 
 export function PageDetail() {
+  const t = useT();
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const page = useRow('page', id);
@@ -145,8 +149,8 @@ export function PageDetail() {
   if (!page) {
     return (
       <>
-        <Header title="Page" />
-        <Empty emoji="🕳️" title="Page not found" />
+        <Header title={t('page.title')} />
+        <Empty emoji="🕳️" title={t('page.notFound')} />
       </>
     );
   }
@@ -155,35 +159,35 @@ export function PageDetail() {
 
   return (
     <>
-      <Header title={<span className="row" style={{ gap: 6 }}><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || 'Untitled'}</span></span>}>
+      <Header title={<span className="row" style={{ gap: 6 }}><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
         <button className="btn sm" onClick={() => {
           if (editing) update('page', id, { content, title });
           setEditing(!editing);
         }}>
-          {editing ? <><Icon name="check" size={14} /> Done</> : <>Edit</>}
+          {editing ? <><Icon name="check" size={14} /> {t('action.done')}</> : <>{t('action.edit')}</>}
         </button>
         <MenuButton
           className="btn ghost sm icon"
           items={[
-            { id: 'child', label: 'Add sub-page', icon: <Icon name="plus" size={14} />,
-              onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: 'Untitled' }, me)}`) },
-            { id: 'history', label: 'Version history', icon: <Icon name="refresh" size={14} />,
-              onSelect: () => api.pageVersions(id).then(setHistory).catch(() => toast('Could not load history')) },
-            { id: 'copy', label: 'Copy link', icon: <Icon name="link" size={14} />, onSelect: () => {
+            { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
+              onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
+            { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
+              onSelect: () => api.pageVersions(id).then(setHistory).catch(() => toast(t('page.historyFailed'))) },
+            { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
               void navigator.clipboard?.writeText(`${location.origin}/pages/${id}`);
-              toast('Link copied');
+              toast(t('common.copied'));
             } },
             ...projects.map((project) => ({
               id: `move-${project.id}`,
-              section: 'Move to project',
+              section: t('page.moveToProject'),
               label: `${project.icon ?? ''} ${project.name}`.trim(),
               onSelect: () => update('page', id, { project_id: project.id }),
             })),
-            { id: 'move-none', section: 'Move to project', label: 'Workspace level', onSelect: () => update('page', id, { project_id: null }) },
-            { id: 'archive', section: 'Danger', label: page.archived ? 'Unarchive' : 'Archive',
+            { id: 'move-none', section: t('page.moveToProject'), label: t('page.workspaceLevel'), onSelect: () => update('page', id, { project_id: null }) },
+            { id: 'archive', section: t('module.danger'), label: page.archived ? t('action.unarchive') : t('action.archive'),
               onSelect: () => update('page', id, { archived: page.archived ? 0 : 1 }) },
-            { id: 'delete', section: 'Danger', label: 'Delete page', danger: true, onSelect: async () => {
-              if (await confirm(`Delete “${page.title}”? Sub-pages stay but lose their parent.`)) {
+            { id: 'delete', section: t('module.danger'), label: t('page.delete'), danger: true, onSelect: async () => {
+              if (await confirm(t('page.deleteConfirm', { title: page.title }))) {
                 remove('page', id);
                 navigate('/pages');
               }
@@ -205,28 +209,28 @@ export function PageDetail() {
               <input
                 className="input grow" style={{ fontSize: 19, fontWeight: 600 }} value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                onBlur={() => update('page', id, { title: title.trim() || 'Untitled' })}
+                onBlur={() => update('page', id, { title: title.trim() || t('common.untitled') })}
               />
             </div>
             <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} />
           </>
         ) : (
           <>
-            <h1 style={{ fontSize: 26, marginBottom: 6 }}>{page.title || 'Untitled'}</h1>
+            <h1 style={{ fontSize: 26, marginBottom: 6 }}>{page.title || t('common.untitled')}</h1>
             <div className="row muted" style={{ fontSize: 12, marginBottom: 18 }}>
-              <span>{author ? `By ${author.name}` : ''}</span>
-              <span>· updated {relativeTime(page.updated_at)}</span>
+              <span>{author ? t('page.byAuthor', { name: author.name }) : ''}</span>
+              <span>· {t('page.updatedAgo', { time: relativeTime(page.updated_at) })}</span>
               {page.project_id && <span>· {byId('project', page.project_id)?.name}</span>}
             </div>
             {page.content?.trim()
               ? <Markdown source={page.content} />
-              : <button className="btn" onClick={() => setEditing(true)}>This page is empty — start writing</button>}
+              : <button className="btn" onClick={() => setEditing(true)}>{t('page.startWriting')}</button>}
           </>
         )}
 
         {children.length > 0 && (
           <section style={{ marginTop: 28 }}>
-            <h3 style={{ fontSize: 14, marginBottom: 6 }}>Sub-pages</h3>
+            <h3 style={{ fontSize: 14, marginBottom: 6 }}>{t('page.subpages')}</h3>
             {children.map((child) => (
               <button key={child.id} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate(`/pages/${child.id}`)}>
                 <span>{child.icon ?? '📄'}</span>
@@ -238,27 +242,27 @@ export function PageDetail() {
       </div>
 
       {history && (
-        <Sheet title="Version history" onClose={() => setHistory(null)}>
-          {history.length === 0 && <p className="muted">No earlier versions yet — history starts with the first edit.</p>}
+        <Sheet title={t('page.history')} onClose={() => setHistory(null)}>
+          {history.length === 0 && <p className="muted">{t('page.noVersions')}</p>}
           {history.map((version) => (
             <div className="row" key={version.id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
               <div className="grow">
                 <strong style={{ fontSize: 13 }}>{version.title}</strong>
                 <div className="muted" style={{ fontSize: 12 }}>
-                  {shortDate(version.created_at)} · {members.get(version.author_id)?.name ?? 'Someone'} · {version.size} chars
+                  {shortDate(version.created_at)} · {members.get(version.author_id)?.name ?? t('common.someone')} · {t('page.versionSize', { count: version.size })}
                 </div>
               </div>
               <button
                 className="btn sm"
                 onClick={async () => {
-                  if (!(await confirm('Restore this version? The current text is kept in history.', 'Restore'))) return;
+                  if (!(await confirm(t('page.restoreConfirm'), t('action.restore')))) return;
                   await api.restoreVersion(id, version.id);
                   await pull();
                   setHistory(null);
-                  toast('Version restored');
+                  toast(t('page.restored'));
                 }}
               >
-                Restore
+                {t('action.restore')}
               </button>
             </div>
           ))}

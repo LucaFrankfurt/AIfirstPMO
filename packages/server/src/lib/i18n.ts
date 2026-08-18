@@ -1,0 +1,108 @@
+/**
+ * Server-side translation.
+ *
+ * The server writes two kinds of text a person reads: notification titles
+ * (stored per recipient, so they can be rendered in that person's language at
+ * the moment they are created) and emails (rendered per recipient too).
+ * Everything else — API error messages — stays English, because it is read by
+ * developers and logs, not by the interface.
+ *
+ * Deliberately a separate catalogue from the web app's: these strings have no
+ * counterpart in the UI, and coupling the two would mean the server importing
+ * a React module.
+ */
+import { get, type Row } from '../db/index.ts';
+import { env } from '../env.ts';
+
+const en = {
+  'notify.assigned': 'Assigned: {identifier} {title}',
+  'notify.mentionedIn': 'You were mentioned in {context}',
+  'notify.newComment': 'New comment on {identifier}',
+
+  'mail.digestSubject': '{count} updates in Kolibri',
+  'mail.greeting': 'Hello {name},',
+  'mail.by': 'by {name}',
+  'mail.openInbox': 'Open your inbox: {url}',
+  'mail.turnOff': 'Turn these emails off: {url}',
+  'mail.turnOffLabel': 'Turn these emails off',
+  'mail.openKolibri': 'Open Kolibri',
+  'mail.why': 'You are receiving this because you are involved in this work.',
+
+  'mail.inviteSubject': '{inviter} invited you to {workspace} on Kolibri',
+  'mail.inviteTitle': 'Join {workspace}',
+  'mail.inviteBody': '{inviter} invited you to join "{workspace}" on Kolibri.',
+  'mail.inviteAccept': 'Accept the invitation',
+  'mail.inviteAcceptLink': 'Accept the invitation: {url}',
+  'mail.inviteIgnore': 'If you were not expecting this, you can ignore this message.',
+
+  'mail.testSubject': 'Kolibri test email',
+  'mail.testTitle': 'SMTP is working',
+  'mail.testText': 'This is a test message from Kolibri.\n\nIf you can read it, SMTP is configured correctly.',
+  'mail.testBody': 'This is a test message from your Kolibri instance.',
+  'mail.testRelay': 'Relay: {relay}',
+  'mail.backToSettings': 'Back to settings',
+} as const;
+
+type Catalogue = { readonly [K in keyof typeof en]: string };
+
+const de: Catalogue = {
+  'notify.assigned': 'Zugewiesen: {identifier} {title}',
+  'notify.mentionedIn': 'Du wurdest in {context} erwähnt',
+  'notify.newComment': 'Neuer Kommentar zu {identifier}',
+
+  'mail.digestSubject': '{count} Neuigkeiten in Kolibri',
+  'mail.greeting': 'Hallo {name},',
+  'mail.by': 'von {name}',
+  'mail.openInbox': 'Posteingang öffnen: {url}',
+  'mail.turnOff': 'Diese E-Mails abbestellen: {url}',
+  'mail.turnOffLabel': 'Diese E-Mails abbestellen',
+  'mail.openKolibri': 'Kolibri öffnen',
+  'mail.why': 'Du bekommst diese Nachricht, weil du an dieser Arbeit beteiligt bist.',
+
+  'mail.inviteSubject': '{inviter} hat dich zu {workspace} auf Kolibri eingeladen',
+  'mail.inviteTitle': '{workspace} beitreten',
+  'mail.inviteBody': '{inviter} hat dich eingeladen, „{workspace}“ auf Kolibri beizutreten.',
+  'mail.inviteAccept': 'Einladung annehmen',
+  'mail.inviteAcceptLink': 'Einladung annehmen: {url}',
+  'mail.inviteIgnore': 'Wenn du damit nicht gerechnet hast, kannst du diese Nachricht ignorieren.',
+
+  'mail.testSubject': 'Kolibri-Testmail',
+  'mail.testTitle': 'SMTP funktioniert',
+  'mail.testText': 'Dies ist eine Testnachricht von Kolibri.\n\nWenn du sie lesen kannst, ist SMTP richtig konfiguriert.',
+  'mail.testBody': 'Dies ist eine Testnachricht von deiner Kolibri-Instanz.',
+  'mail.testRelay': 'Relay: {relay}',
+  'mail.backToSettings': 'Zurück zu den Einstellungen',
+};
+
+export const LOCALES = { en, de } as const;
+export type Locale = keyof typeof LOCALES;
+export type ServerKey = keyof typeof en;
+
+export const isLocale = (value: unknown): value is Locale =>
+  typeof value === 'string' && value in LOCALES;
+
+/** The locale used when a user has not picked one. */
+export const defaultLocale = (): Locale => (isLocale(env.defaultLocale) ? env.defaultLocale : 'en');
+
+export function translate(locale: Locale, key: ServerKey, vars?: Record<string, string | number>): string {
+  // A locale that is not compiled in can still reach here from a stale database
+  // row; English is a better answer than a crash or a raw key.
+  const catalogue = (LOCALES[locale] ?? en) as Record<string, string>;
+  const template = catalogue[key] ?? en[key] ?? key;
+  return vars
+    ? template.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match))
+    : template;
+}
+
+/** The recipient's own language, falling back to the instance default. */
+export function localeOf(userId: string | null | undefined): Locale {
+  if (!userId) return defaultLocale();
+  const row = get<Row>(`SELECT locale FROM users WHERE id = ?`, userId);
+  return isLocale(row?.locale) ? row.locale : defaultLocale();
+}
+
+/** Bound translator for one recipient, so call sites stay readable. */
+export const translatorFor = (userId: string | null | undefined) => {
+  const locale = localeOf(userId);
+  return (key: ServerKey, vars?: Record<string, string | number>) => translate(locale, key, vars);
+};

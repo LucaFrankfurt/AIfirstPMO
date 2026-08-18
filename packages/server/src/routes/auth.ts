@@ -8,6 +8,7 @@ import {
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
+import { isLocale } from '../lib/i18n.ts';
 import { pendingCount, queueInvite, queueTestMail, verifyUnsubscribe } from '../lib/mail.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
 
@@ -108,6 +109,12 @@ export function registerAuthRoutes(router: Router): void {
     const patch: Record<string, unknown> = {};
     for (const field of ['name', 'avatar_url', 'timezone', 'bio'] as const) {
       if (body[field] !== undefined) patch[field] = body[field];
+    }
+    // An unknown locale would silently disable translation, so it is rejected
+    // rather than stored: the interface only ever sends one it knows.
+    if (body.locale !== undefined) {
+      if (body.locale !== null && !isLocale(body.locale)) throw badRequest('Unsupported locale');
+      patch.locale = body.locale;
     }
     if (Object.keys(patch).length) {
       writeEntity('user', auth.userId, patch, { workspaceId: '', actorId: auth.userId, hlc: serverClock.now(), system: true });
@@ -254,12 +261,14 @@ export function registerAuthRoutes(router: Router): void {
     let mailed = false;
     if (email && env.mailEnabled) {
       const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, ctx.params.id);
-      const inviter = get<Row>(`SELECT name FROM users WHERE id = ?`, auth.userId);
+      const inviter = get<Row>(`SELECT name, locale FROM users WHERE id = ?`, auth.userId);
       queueInvite({
         code, email,
         workspaceId: ctx.params.id,
         workspaceName: workspace?.name ?? 'a workspace',
         inviterName: inviter?.name ?? 'Someone',
+        // The invitee has no account yet, so the inviter's language is the best guess.
+        locale: inviter?.locale ?? undefined,
       });
       mailed = true;
     }
@@ -323,8 +332,8 @@ export function registerAuthRoutes(router: Router): void {
   router.post('/api/mail/test', async (ctx) => {
     const auth = requireAuth(ctx);
     if (!env.mailEnabled) throw badRequest('No SMTP relay is configured on this instance');
-    const user = get<Row>(`SELECT email FROM users WHERE id = ?`, auth.userId);
-    queueTestMail(user!.email);
+    const user = get<Row>(`SELECT email, locale FROM users WHERE id = ?`, auth.userId);
+    queueTestMail(user!.email, user!.locale ?? undefined);
     const { flushQueue } = await import('../lib/mail.ts');
     const result = await flushQueue(5);
     if (!result.sent) {

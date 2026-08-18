@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { PRIORITIES, type Priority } from '@kolibri/shared';
 import { list, useQuery } from '../lib/store';
 import { createTask, defaultStateId } from '../lib/mutations';
-import { PRIORITY_LABEL } from '../lib/format';
+import { priorityKey, useT } from '../lib/i18n';
 import { useMe, useMembers, useSession } from '../session';
 import { MarkdownEditor } from './Markdown';
 import { useStates } from './task-parts';
@@ -15,6 +15,7 @@ const LAST_PROJECT_KEY = 'kolibri.last-project';
  * except the title — filling in details later is the normal case.
  */
 export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onClose: () => void; projectId?: string; cycleId?: string }) {
+  const t = useT();
   const { workspaceId } = useSession();
   const me = useMe();
   const members = useMembers();
@@ -58,7 +59,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
       cycle_id: cycleId ?? null,
     }, me);
     localStorage.setItem(LAST_PROJECT_KEY, projectId);
-    toast(`Added to ${project?.name ?? 'project'}`);
+    toast(t('quickAdd.added', { project: project?.name ?? t('quickAdd.project') }));
     if (keepOpen) {
       setTitle('');
       setDescription('');
@@ -85,27 +86,27 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
 
   return (
     <Sheet
-      title="New task"
+      title={t('quickAdd.title')}
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={() => submit(true)} disabled={!title.trim() || !projectId} title="Create and keep the form open">
-            Save & new
+          <button className="btn" onClick={() => submit(true)} disabled={!title.trim() || !projectId} title={t('quickAdd.saveAndNewHint')}>
+            {t('quickAdd.saveAndNew')}
           </button>
           <button className="btn primary" onClick={() => submit(false)} disabled={!title.trim() || !projectId}>
-            Create task
+            {t('quickAdd.create')}
           </button>
         </>
       }
     >
       {!projects.length ? (
-        <p className="muted">Create a project first — tasks live inside projects.</p>
+        <p className="muted">{t('quickAdd.needProject')}</p>
       ) : (
         <>
           <input
             className="input"
             autoFocus
-            placeholder="What needs doing?"
+            placeholder={t('quickAdd.placeholder')}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
@@ -116,7 +117,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
 
           <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>
             <MenuButton items={projectItems} className="btn sm" search>
-              <span>{project ? `${project.icon ?? ''} ${project.name}` : 'Project'}</span>
+              <span>{project ? `${project.icon ?? ''} ${project.name}` : t('quickAdd.project')}</span>
               <Icon name="chevronDown" size={13} />
             </MenuButton>
 
@@ -130,35 +131,35 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
               }))}
             >
               <StateDot group={states.find((s) => s.id === stateId)?.group_key} color={states.find((s) => s.id === stateId)?.color} />
-              {states.find((s) => s.id === stateId)?.name ?? 'State'}
+              {states.find((s) => s.id === stateId)?.name ?? t('task.state')}
             </MenuButton>
 
             <MenuButton
               className="btn sm"
               items={PRIORITIES.map((value) => ({
                 id: value,
-                label: PRIORITY_LABEL[value],
+                label: t(priorityKey(value)),
                 icon: <PriorityBars priority={value} />,
                 onSelect: () => setPriority(value),
               }))}
             >
               <PriorityBars priority={priority} />
-              {PRIORITY_LABEL[priority]}
+              {t(priorityKey(priority))}
             </MenuButton>
 
             <MenuButton items={memberItems} className="btn sm" search>
               <Icon name="users" size={14} />
-              {assignees.length ? `${assignees.length} assigned` : 'Assign'}
+              {assignees.length ? t('quickAdd.assigned', { count: assignees.length }) : t('quickAdd.assign')}
             </MenuButton>
 
             <input className="input" type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
           </div>
 
           {more ? (
-            <MarkdownEditor value={description} onChange={setDescription} minHeight={110} placeholder="Add context, acceptance criteria, links…" />
+            <MarkdownEditor value={description} onChange={setDescription} minHeight={110} placeholder={t('quickAdd.descriptionPlaceholder')} />
           ) : (
             <button className="btn ghost sm" onClick={() => setMore(true)}>
-              <Icon name="plus" size={13} /> Add description
+              <Icon name="plus" size={13} /> {t('quickAdd.addDescription')}
             </button>
           )}
         </>

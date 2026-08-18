@@ -42,6 +42,13 @@ jobs:
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
+      # The same walk in German: a missing translation shows up as a selector
+      # that no longer matches, which is exactly what should fail the build.
+      - name: Browser walkthrough (German)
+        run: node scripts/smoke.mjs
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+          KOLIBRI_LOCALE: de
 
   # The deployment itself is the thing under test here: one command has to
   # produce a working instance with storage and mail already wired up.

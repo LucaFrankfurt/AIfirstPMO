@@ -1,12 +1,5 @@
-import type { Priority, StateGroup } from '@kolibri/shared';
-
-export const PRIORITY_LABEL: Record<Priority, string> = {
-  urgent: 'Urgent',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low',
-  none: 'No priority',
-};
+import type { Priority } from '@kolibri/shared';
+import { currentLocale } from './i18n';
 
 export const PRIORITY_COLOR: Record<Priority, string> = {
   urgent: '#ef4444',
@@ -14,14 +7,6 @@ export const PRIORITY_COLOR: Record<Priority, string> = {
   medium: '#eab308',
   low: '#3b82f6',
   none: 'var(--fg-muted)',
-};
-
-export const GROUP_LABEL: Record<StateGroup, string> = {
-  backlog: 'Backlog',
-  unstarted: 'Todo',
-  started: 'In progress',
-  completed: 'Done',
-  cancelled: 'Cancelled',
 };
 
 export const isDone = (group?: string): boolean => group === 'completed' || group === 'cancelled';
@@ -36,7 +21,7 @@ export function shortDate(value?: string | number | null): string {
   if (Number.isNaN(date.getTime())) return '';
   const now = new Date();
   const sameYear = date.getFullYear() === now.getFullYear();
-  return date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
+  return date.toLocaleDateString(currentLocale(), { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
 export function relativeTime(timestamp?: number | null): string {
@@ -46,11 +31,11 @@ export function relativeTime(timestamp?: number | null): string {
     ['year', 31_536_000_000], ['month', 2_592_000_000], ['week', 604_800_000],
     ['day', 86_400_000], ['hour', 3_600_000], ['minute', 60_000],
   ];
-  const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' });
+  const formatter = new Intl.RelativeTimeFormat(currentLocale(), { numeric: 'auto' });
   for (const [unit, ms] of units) {
     if (Math.abs(diff) >= ms) return formatter.format(Math.round(diff / ms), unit);
   }
-  return 'just now';
+  return formatter.format(0, 'second');
 }
 
 export function dueClass(due?: string | null): string {

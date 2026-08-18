@@ -43,7 +43,7 @@ export interface EntityDef {
 export const ENTITIES = {
   user: {
     table: 'users',
-    fields: ['name', 'email', 'avatar_url', 'timezone', 'bio'],
+    fields: ['name', 'email', 'avatar_url', 'timezone', 'locale', 'bio'],
     readOnly: true,
   },
   member: {

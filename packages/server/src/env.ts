@@ -103,6 +103,8 @@ export const env = {
   maxUploadBytes: int(process.env.KOLIBRI_MAX_UPLOAD_MB, 25) * 1024 * 1024,
   sessionDays: int(process.env.KOLIBRI_SESSION_DAYS, 60),
   logLevel: process.env.KOLIBRI_LOG_LEVEL ?? 'info',
+  /** Language for notifications and emails when a recipient has not chosen one. */
+  defaultLocale: (process.env.KOLIBRI_DEFAULT_LOCALE ?? 'en').toLowerCase().split('-')[0],
   trustProxy: bool(process.env.KOLIBRI_TRUST_PROXY, true),
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,

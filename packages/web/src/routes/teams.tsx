@@ -6,8 +6,10 @@ import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../compon
 import { create, remove, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
 import { useMembers, useSession } from '../session';
+import { useT } from '../lib/i18n';
 
 export function Teams() {
+  const t = useT();
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const members = useMembers();
@@ -20,7 +22,7 @@ export function Teams() {
 
   return (
     <>
-      <Header title="Teams" />
+      <Header title={t('team.title')} />
       <div className="page">
         <form
           className="row" style={{ marginBottom: 16 }}
@@ -31,12 +33,12 @@ export function Teams() {
             setName('');
           }}
         >
-          <input className="input" placeholder="New team, e.g. Platform" value={name} onChange={(event) => setName(event.target.value)} />
-          <button className="btn" type="submit"><Icon name="plus" size={14} /> Add</button>
+          <input className="input" placeholder={t('team.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
+          <button className="btn" type="submit"><Icon name="plus" size={14} /> {t('action.add')}</button>
         </form>
 
         {!teams.length && (
-          <Empty emoji="👥" title="No teams yet" hint="Teams group people and projects — useful once more than a handful of people share the workspace." />
+          <Empty emoji="👥" title={t('team.emptyTitle')} hint={t('team.emptyHint')} />
         )}
 
         <div className="grid two">
@@ -66,7 +68,7 @@ export function Teams() {
                         const membership = teamMembers.find((m) => m.team_id === team.id && m.user_id === member.id);
                         return {
                           id: member.id,
-                          section: 'Members',
+                          section: t('team.members'),
                           label: member.name,
                           hint: membership ? '✓' : undefined,
                           icon: <Avatar user={member} size={20} />,
@@ -77,9 +79,9 @@ export function Teams() {
                         };
                       }),
                       {
-                        id: 'delete', section: 'Danger', label: 'Delete team', danger: true,
+                        id: 'delete', section: t('team.danger'), label: t('team.delete'), danger: true,
                         onSelect: async () => {
-                          if (await confirm(`Delete the team “${team.name}”? Projects stay, they just lose the team.`)) remove('team', team.id);
+                          if (await confirm(t('team.deleteConfirm', { name: team.name }))) remove('team', team.id);
                         },
                       },
                     ]}
@@ -94,14 +96,14 @@ export function Teams() {
                       <Avatar user={person} size={16} /> {person.name}
                     </span>
                   ))}
-                  {!people.length && <span className="muted" style={{ fontSize: 12.5 }}>No members yet</span>}
+                  {!people.length && <span className="muted" style={{ fontSize: 12.5 }}>{t('team.noMembers')}</span>}
                 </div>
 
                 <Progress value={done} total={tasks.length} />
                 <div className="row muted" style={{ fontSize: 12, marginTop: 6 }}>
-                  <span>{teamProjects.length} project{teamProjects.length === 1 ? '' : 's'}</span>
+                  <span>{t('team.projectCount', { count: teamProjects.length })}</span>
                   <span className="grow" />
-                  <span>{done}/{tasks.length} tasks done</span>
+                  <span>{t('team.tasksDone', { done, total: tasks.length })}</span>
                 </div>
 
                 <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
@@ -119,7 +121,7 @@ export function Teams() {
                       onSelect: () => update('project', project.id, { team_id: project.team_id === team.id ? null : team.id }),
                     }))}
                   >
-                    <Icon name="plus" size={12} /> project
+                    <Icon name="plus" size={12} /> {t('team.addProject')}
                   </MenuButton>
                 </div>
               </div>

@@ -52,6 +52,7 @@ services:
       KOLIBRI_MAX_UPLOAD_MB: "${KOLIBRI_MAX_UPLOAD_MB:-25}"
       KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-60}"
       KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
+      KOLIBRI_DEFAULT_LOCALE: "${KOLIBRI_DEFAULT_LOCALE:-en}"
 
       # --- first-run provisioning -----------------------------------------
       # Set these and the owner account exists the moment the stack is up.

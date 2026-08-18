@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { renderMarkdown } from '../lib/markdown';
 import { api } from '../lib/api';
 import { useSession } from '../session';
+import { useT, type TranslationKey } from '../lib/i18n';
 import { Icon, useToast } from './ui';
 
 export function Markdown({ source, className = '' }: { source?: string | null; className?: string }) {
@@ -21,14 +22,14 @@ interface EditorProps {
   onSubmit?: () => void;
 }
 
-const SNIPPETS: { icon: string; title: string; wrap: [string, string] }[] = [
-  { icon: 'B', title: 'Bold', wrap: ['**', '**'] },
-  { icon: 'I', title: 'Italic', wrap: ['_', '_'] },
-  { icon: '</>', title: 'Code', wrap: ['`', '`'] },
-  { icon: '#', title: 'Heading', wrap: ['## ', ''] },
-  { icon: '•', title: 'Bullet list', wrap: ['- ', ''] },
-  { icon: '☑', title: 'Checklist', wrap: ['- [ ] ', ''] },
-  { icon: '❝', title: 'Quote', wrap: ['> ', ''] },
+const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[] = [
+  { icon: 'B', title: 'editor.bold', wrap: ['**', '**'] },
+  { icon: 'I', title: 'editor.italic', wrap: ['_', '_'] },
+  { icon: '</>', title: 'editor.code', wrap: ['`', '`'] },
+  { icon: '#', title: 'editor.heading', wrap: ['## ', ''] },
+  { icon: '•', title: 'editor.bulletList', wrap: ['- ', ''] },
+  { icon: '☑', title: 'editor.checklist', wrap: ['- [ ] ', ''] },
+  { icon: '❝', title: 'editor.quote', wrap: ['> ', ''] },
 ];
 
 /**
@@ -37,6 +38,7 @@ const SNIPPETS: { icon: string; title: string; wrap: [string, string] }[] = [
  * 12 MB original through a mobile connection.
  */
 export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit }: EditorProps) {
+  const t = useT();
   const ref = useRef<HTMLTextAreaElement>(null);
   const [preview, setPreview] = useState(false);
   const [dropping, setDropping] = useState(false);
@@ -77,7 +79,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
         insert(file.type.startsWith('image/') ? `\n![${file.name}](${result.url})\n` : `\n[${file.name}](${result.url})\n`);
       }
     } catch (err) {
-      toast(err instanceof Error ? `Upload failed: ${err.message}` : 'Upload failed');
+      toast(err instanceof Error ? t('editor.uploadFailedReason', { reason: err.message }) : t('editor.uploadFailed'));
     } finally {
       setBusy(false);
     }
@@ -88,14 +90,14 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
       <div className="editor-toolbar">
         {SNIPPETS.map((snippet) => (
           <button
-            key={snippet.title} type="button" className="btn ghost sm" title={snippet.title}
+            key={snippet.title} type="button" className="btn ghost sm" title={t(snippet.title)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => surround(snippet.wrap[0], snippet.wrap[1])}
           >
             {snippet.icon}
           </button>
         ))}
-        <label className="btn ghost sm" title="Attach image" style={{ cursor: 'pointer' }}>
+        <label className="btn ghost sm" title={t('editor.attachImage')} style={{ cursor: 'pointer' }}>
           <Icon name="image" size={14} />
           <input
             type="file" hidden multiple accept="image/*,application/pdf"
@@ -106,15 +108,15 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           />
         </label>
         <span className="grow" />
-        {busy && <span className="muted" style={{ fontSize: 12 }}>Uploading…</span>}
+        {busy && <span className="muted" style={{ fontSize: 12 }}>{t('editor.uploading')}</span>}
         <button type="button" className={`btn ghost sm${preview ? ' active' : ''}`} onClick={() => setPreview(!preview)}>
-          {preview ? 'Write' : 'Preview'}
+          {preview ? t('editor.write') : t('editor.preview')}
         </button>
       </div>
 
       {preview ? (
         <div className="md" style={{ minHeight, border: '1px solid var(--line-strong)', borderTop: 'none', borderRadius: '0 0 7px 7px', padding: 12 }}>
-          <Markdown source={value || '_Nothing to preview yet._'} />
+          <Markdown source={value || `_${t('editor.nothingToPreview')}_`} />
         </div>
       ) : (
         <textarea
@@ -122,7 +124,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           className="textarea"
           style={{ minHeight }}
           value={value}
-          placeholder={placeholder ?? 'Write in markdown…'}
+          placeholder={placeholder ?? t('editor.placeholder')}
           onChange={(event) => onChange(event.target.value)}
           onKeyDown={(event) => {
             if (onSubmit && (event.metaKey || event.ctrlKey) && event.key === 'Enter') {

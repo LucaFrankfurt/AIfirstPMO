@@ -13,8 +13,16 @@ import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useMe, useMembers, useSession } from '../session';
+import { groupKey, useT, type TranslationKey } from '../lib/i18n';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
+
+const TAB_KEY: Record<string, TranslationKey> = {
+  tasks: 'project.tabTasks', cycles: 'project.tabCycles', modules: 'project.tabModules',
+  pages: 'project.tabPages', settings: 'project.tabSettings',
+};
+
+const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
 
 function useStoredView(projectId: string): [ViewConfig, (next: ViewConfig) => void] {
   const [view, setView] = useState<ViewConfig>(() => {
@@ -37,14 +45,15 @@ function useStoredView(projectId: string): [ViewConfig, (next: ViewConfig) => vo
 /* --------------------------------------------------------------- overview */
 
 export function ProjectList() {
+  const t = useT();
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId), [workspaceId]);
 
   return (
     <>
-      <Header title="Projects">
-        <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> New</button>
+      <Header title={t('project.listTitle')}>
+        <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</button>
       </Header>
       <div className="page">
         <div className="grid two">
@@ -52,8 +61,8 @@ export function ProjectList() {
         </div>
         {!projects.length && (
           <Empty
-            emoji="📁" title="No projects yet" hint="A project holds tasks, cycles, modules and its own workflow states."
-            action={<button className="btn primary" onClick={() => navigate('/projects/new')}>Create a project</button>}
+            emoji="📁" title={t('project.emptyTitle')} hint={t('project.emptyHint')}
+            action={<button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>}
           />
         )}
       </div>
@@ -62,6 +71,7 @@ export function ProjectList() {
 }
 
 function ProjectCard({ projectId }: { projectId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const project = useRow('project', projectId);
   const tasks = useQuery(() => list('task', (t) => t.project_id === projectId && !t.archived), [projectId]);
@@ -78,15 +88,16 @@ function ProjectCard({ projectId }: { projectId: string }) {
       {project.description && <p className="muted truncate" style={{ fontSize: 12.5 }}>{project.description}</p>}
       <Progress value={done} total={tasks.length} />
       <div className="row muted" style={{ fontSize: 12, marginTop: 6 }}>
-        <span>{done}/{tasks.length} done</span>
+        <span>{t('project.doneCount', { done, total: tasks.length })}</span>
         <span className="grow" />
-        {project.target_date && <span>Target {shortDate(project.target_date)}</span>}
+        {project.target_date && <span>{t('project.target', { date: shortDate(project.target_date) })}</span>}
       </div>
     </button>
   );
 }
 
 export function ProjectNew() {
+  const t = useT();
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const toast = useToast();
@@ -103,52 +114,52 @@ export function ProjectNew() {
       await pull();
       navigate(`/projects/${project.id}`);
     } catch (err) {
-      toast(err instanceof Error ? err.message : 'Could not create the project');
+      toast(err instanceof Error ? err.message : t('project.createFailed'));
       setBusy(false);
     }
   }
 
   return (
     <>
-      <Header title="New project" />
+      <Header title={t('project.new')} />
       <div className="page" style={{ maxWidth: 560 }}>
         <form onSubmit={submit}>
           <div className="field">
-            <label htmlFor="p-name">Name</label>
+            <label htmlFor="p-name">{t('project.name')}</label>
             <input
               id="p-name" className="input" required autoFocus value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
-              placeholder="Website relaunch"
+              placeholder={t('project.namePlaceholder')}
             />
           </div>
           <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
             <div className="field" style={{ width: 120 }}>
-              <label htmlFor="p-icon">Icon</label>
+              <label htmlFor="p-icon">{t('project.icon')}</label>
               <input id="p-icon" className="input" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
             </div>
             <div className="field grow">
-              <label htmlFor="p-key">Key</label>
+              <label htmlFor="p-key">{t('project.key')}</label>
               <input
-                id="p-key" className="input mono" value={form.key} maxLength={6} placeholder="auto"
+                id="p-key" className="input mono" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
                 onChange={(event) => setForm({ ...form, key: event.target.value.toUpperCase() })}
               />
-              <span className="hint">Used for task identifiers, e.g. WEB-42.</span>
+              <span className="hint">{t('project.keyHint')}</span>
             </div>
           </div>
           <div className="field">
-            <label htmlFor="p-desc">Description</label>
+            <label htmlFor="p-desc">{t('project.description')}</label>
             <textarea id="p-desc" className="textarea" style={{ minHeight: 80 }} value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })} />
           </div>
           <div className="field">
-            <label htmlFor="p-vis">Visibility</label>
+            <label htmlFor="p-vis">{t('project.visibility')}</label>
             <select id="p-vis" className="select" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
-              <option value="public">Everyone in the workspace</option>
-              <option value="private">Only invited members</option>
+              <option value="public">{t('project.visibilityPublic')}</option>
+              <option value="private">{t('project.visibilityPrivate')}</option>
             </select>
           </div>
           <button className="btn primary lg block" disabled={busy || !form.name.trim()}>
-            {busy ? 'Creating…' : 'Create project'}
+            {busy ? t('project.creating') : t('project.createSubmit')}
           </button>
         </form>
       </div>
@@ -161,6 +172,7 @@ export function ProjectNew() {
 type Tab = 'tasks' | 'cycles' | 'modules' | 'pages' | 'settings';
 
 export function ProjectPage() {
+  const t = useT();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -175,8 +187,8 @@ export function ProjectPage() {
   if (!project) {
     return (
       <>
-        <Header title="Project" />
-        <Empty emoji="🕳️" title="Project not found" hint="It may have been deleted or you lost access." />
+        <Header title={t('nav.projects')} />
+        <Empty emoji="🕳️" title={t('project.notFound')} hint={t('project.notFoundHint')} />
       </>
     );
   }
@@ -186,14 +198,14 @@ export function ProjectPage() {
       <Header title={<span className="row" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
         {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} />}
         <button className="btn primary sm" onClick={() => setAdding(true)}>
-          <Icon name="plus" size={14} /> <span className="hide-sm">New task</span>
+          <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
         </button>
       </Header>
 
       <div className="tabs" style={{ padding: '0 12px' }}>
         {(['tasks', 'cycles', 'modules', 'pages', 'settings'] as Tab[]).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
-            {name[0].toUpperCase() + name.slice(1)}
+            {t(TAB_KEY[name])}
           </button>
         ))}
       </div>
@@ -220,6 +232,7 @@ export function ProjectPage() {
 /* ----------------------------------------------------------------- cycles */
 
 function Cycles({ projectId }: { projectId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const cycles = useQuery(
     () => list('cycle', (c) => c.project_id === projectId).sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '')),
@@ -231,12 +244,12 @@ function Cycles({ projectId }: { projectId: string }) {
   return (
     <div className="page">
       <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>Cycles</h2>
+        <h2 style={{ fontSize: 15 }}>{t('cycle.title')}</h2>
         <span className="grow" />
-        <button className="btn sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> New cycle</button>
+        <button className="btn sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</button>
       </div>
 
-      {!cycles.length && <Empty emoji="🔁" title="No cycles yet" hint="Cycles are time-boxed sprints. Tasks can move between them freely." />}
+      {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} />}
 
       <div className="grid two">
         {cycles.map((cycle) => {
@@ -245,20 +258,20 @@ function Cycles({ projectId }: { projectId: string }) {
             <div className="card" key={cycle.id}>
               <div className="row" style={{ marginBottom: 8 }}>
                 <strong className="grow truncate">{cycle.name}</strong>
-                {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>Active</span>}
+                {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
                   className="btn ghost sm icon"
                   items={[
-                    { id: 'edit', label: 'Edit', onSelect: () => setEditing(cycle.id) },
-                    { id: 'open', label: 'Show tasks', onSelect: () => navigate(`/cycles/${cycle.id}`) },
-                    { id: 'delete', label: 'Delete', danger: true, onSelect: () => remove('cycle', cycle.id) },
+                    { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
+                    { id: 'open', label: t('cycle.showTasks'), onSelect: () => navigate(`/cycles/${cycle.id}`) },
+                    { id: 'delete', label: t('action.delete'), danger: true, onSelect: () => remove('cycle', cycle.id) },
                   ]}
                 >
                   <Icon name="dots" size={14} />
                 </MenuButton>
               </div>
               <CycleProgress cycleId={cycle.id} />
-              <button className="btn sm block" style={{ marginTop: 10 }} onClick={() => navigate(`/cycles/${cycle.id}`)}>Open cycle</button>
+              <button className="btn sm block" style={{ marginTop: 10 }} onClick={() => navigate(`/cycles/${cycle.id}`)}>{t('cycle.open')}</button>
             </div>
           );
         })}
@@ -276,6 +289,7 @@ function Cycles({ projectId }: { projectId: string }) {
 }
 
 function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycleId?: string; onClose: () => void }) {
+  const t = useT();
   const cycle = useRow('cycle', cycleId);
   const [form, setForm] = useState({
     name: cycle?.name ?? '',
@@ -293,26 +307,26 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
 
   return (
     <Sheet
-      title={cycleId ? 'Edit cycle' : 'New cycle'}
+      title={cycleId ? t('cycle.edit') : t('cycle.new')}
       onClose={onClose}
-      footer={<button className="btn primary" onClick={save} disabled={!form.name.trim()}>Save</button>}
+      footer={<button className="btn primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</button>}
     >
       <div className="field">
-        <label htmlFor="c-name">Name</label>
+        <label htmlFor="c-name">{t('cycle.name')}</label>
         <input id="c-name" className="input" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
       <div className="row" style={{ gap: 10 }}>
         <div className="field grow">
-          <label htmlFor="c-start">Starts</label>
+          <label htmlFor="c-start">{t('cycle.starts')}</label>
           <input id="c-start" className="input" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
         </div>
         <div className="field grow">
-          <label htmlFor="c-end">Ends</label>
+          <label htmlFor="c-end">{t('cycle.ends')}</label>
           <input id="c-end" className="input" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
         </div>
       </div>
       <div className="field">
-        <label htmlFor="c-desc">Goal</label>
+        <label htmlFor="c-desc">{t('cycle.goal')}</label>
         <textarea id="c-desc" className="textarea" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
     </Sheet>
@@ -320,6 +334,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
 }
 
 export function CyclePage() {
+  const t = useT();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -338,7 +353,7 @@ export function CyclePage() {
     return { done, total: tasks.length, points, donePoints };
   }, [tasks]);
 
-  if (!cycle) return <Empty emoji="🕳️" title="Cycle not found" />;
+  if (!cycle) return <Empty emoji="🕳️" title={t('cycle.notFound')} />;
 
   return (
     <>
@@ -350,9 +365,9 @@ export function CyclePage() {
         <div className="card" style={{ marginBottom: 14 }}>
           <div className="row" style={{ marginBottom: 8 }}>
             <div className="grow">
-              <strong>{burndown.done}/{burndown.total} tasks</strong>
+              <strong>{t('cycle.taskProgress', { done: burndown.done, total: burndown.total })}</strong>
               <div className="muted" style={{ fontSize: 12.5 }}>
-                {burndown.donePoints}/{burndown.points} points
+                {t('cycle.pointProgress', { done: burndown.donePoints, total: burndown.points })}
                 {cycle.start_date && cycle.end_date && ` · ${shortDate(cycle.start_date)} – ${shortDate(cycle.end_date)}`}
               </div>
             </div>
@@ -370,6 +385,7 @@ export function CyclePage() {
 /* ---------------------------------------------------------------- modules */
 
 function Modules({ projectId }: { projectId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const members = useMembers();
   const modules = useQuery(() => list('module', (m) => m.project_id === projectId), [projectId]);
@@ -378,8 +394,8 @@ function Modules({ projectId }: { projectId: string }) {
   return (
     <div className="page">
       <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>Modules</h2>
-        <span className="muted" style={{ fontSize: 12.5 }}>Longer-running workstreams inside this project</span>
+        <h2 style={{ fontSize: 15 }}>{t('module.title')}</h2>
+        <span className="muted" style={{ fontSize: 12.5 }}>{t('module.subtitle')}</span>
       </div>
 
       <form
@@ -391,11 +407,11 @@ function Modules({ projectId }: { projectId: string }) {
           setName('');
         }}
       >
-        <input className="input" placeholder="New module, e.g. Checkout v2" value={name} onChange={(event) => setName(event.target.value)} />
+        <input className="input" placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
         <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
       </form>
 
-      {!modules.length && <Empty emoji="🎯" title="No modules yet" hint="Use modules for milestones that span several cycles." />}
+      {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} />}
 
       <div className="grid two">
         {modules.map((module) => {
@@ -411,10 +427,10 @@ function Modules({ projectId }: { projectId: string }) {
                   className="btn ghost sm icon"
                   items={[
                     ...members.map((member) => ({
-                      id: member.id, section: 'Lead', label: member.name,
+                      id: member.id, section: t('project.lead'), label: member.name,
                       onSelect: () => update('module', module.id, { lead_id: member.id }),
                     })),
-                    { id: 'delete', section: 'Danger', label: 'Delete module', danger: true, onSelect: () => remove('module', module.id) },
+                    { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: () => remove('module', module.id) },
                   ]}
                 >
                   <Icon name="dots" size={14} />
@@ -430,7 +446,7 @@ function Modules({ projectId }: { projectId: string }) {
                   onChange={(event) => update('module', module.id, { target_date: event.target.value || null })}
                 />
               </div>
-              <button className="btn sm block" style={{ marginTop: 8 }} onClick={() => navigate(`/modules/${module.id}`)}>Open</button>
+              <button className="btn sm block" style={{ marginTop: 8 }} onClick={() => navigate(`/modules/${module.id}`)}>{t('action.open')}</button>
             </div>
           );
         })}
@@ -440,6 +456,7 @@ function Modules({ projectId }: { projectId: string }) {
 }
 
 export function ModulePage() {
+  const t = useT();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
   const navigate = useNavigate();
@@ -447,7 +464,7 @@ export function ModulePage() {
   const [view, setView] = useState<ViewConfig>(DEFAULT_VIEW);
   const tasks = useQuery(() => list('task', (t) => t.module_id === id), [id]);
   const visible = useVisibleTasks(tasks, view);
-  if (!module) return <Empty emoji="🕳️" title="Module not found" />;
+  if (!module) return <Empty emoji="🕳️" title={t('module.notFound')} />;
   return (
     <>
       <Header title={module.name}>
@@ -464,6 +481,7 @@ export function ModulePage() {
 /* ------------------------------------------------------------ pages + cfg */
 
 function ProjectPages({ projectId }: { projectId: string }) {
+  const t = useT();
   const navigate = useNavigate();
   const me = useMe();
   const pages = useQuery(() => list('page', (p) => p.project_id === projectId && !p.archived), [projectId]);
@@ -471,13 +489,13 @@ function ProjectPages({ projectId }: { projectId: string }) {
   return (
     <div className="page">
       <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>Pages</h2>
+        <h2 style={{ fontSize: 15 }}>{t('project.pagesTitle')}</h2>
         <span className="grow" />
-        <button className="btn sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: 'Untitled' }, me)}`)}>
-          <Icon name="plus" size={14} /> New page
+        <button className="btn sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
+          <Icon name="plus" size={14} /> {t('project.newPage')}
         </button>
       </div>
-      {!pages.length && <Empty emoji="📄" title="No pages in this project" hint="Specs, notes and decisions live here." />}
+      {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} />}
       {pages.map((page) => (
         <button key={page.id} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate(`/pages/${page.id}`)}>
           <span>{page.icon ?? '📄'}</span>
@@ -489,6 +507,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
 }
 
 function ProjectSettings({ projectId }: { projectId: string }) {
+  const t = useT();
   const project = useRow('project', projectId);
   const navigate = useNavigate();
   const members = useMembers();
@@ -504,30 +523,30 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   return (
     <div className="page" style={{ maxWidth: 620 }}>
       <div className="field">
-        <label htmlFor="s-name">Name</label>
+        <label htmlFor="s-name">{t('project.name')}</label>
         <input id="s-name" className="input" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
       </div>
       <div className="field">
-        <label htmlFor="s-desc">Description</label>
+        <label htmlFor="s-desc">{t('project.description')}</label>
         <textarea id="s-desc" className="textarea" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
       <div className="row" style={{ gap: 10 }}>
         <div className="field grow">
-          <label htmlFor="s-lead">Lead</label>
+          <label htmlFor="s-lead">{t('project.lead')}</label>
           <select id="s-lead" className="select" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
-            <option value="">Nobody</option>
+            <option value="">{t('common.nobody')}</option>
             {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
           </select>
         </div>
         <div className="field grow">
-          <label htmlFor="s-target">Target date</label>
+          <label htmlFor="s-target">{t('project.targetDate')}</label>
           <input id="s-target" className="input" type="date" value={project.target_date ?? ''}
             onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
         </div>
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>Workflow states</h3>
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.workflowStates')}</h3>
       {states.map((state) => (
         <div className="row" key={state.id} style={{ padding: '5px 0' }}>
           <input
@@ -537,13 +556,13 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           <input className="input grow" value={state.name} onChange={(event) => update('state', state.id, { name: event.target.value })} />
           <select className="select" style={{ width: 140 }} value={state.group_key}
             onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
-            {['backlog', 'unstarted', 'started', 'completed', 'cancelled'].map((group) => (
-              <option key={group} value={group}>{group}</option>
+            {STATE_GROUPS.map((group) => (
+              <option key={group} value={group}>{t(groupKey(group))}</option>
             ))}
           </select>
           <button className="btn ghost icon" onClick={async () => {
             if (states.length <= 1) return;
-            if (await confirm(`Delete the state “${state.name}”? Tasks keep their current state id.`)) remove('state', state.id);
+            if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
           }}>
             <Icon name="trash" size={14} />
           </button>
@@ -552,17 +571,17 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <button
         className="btn sm" style={{ marginTop: 6 }}
         onClick={() => create('state', {
-          project_id: projectId, name: 'New state', group_key: 'unstarted', color: '#64748b',
+          project_id: projectId, name: t('project.newStateName'), group_key: 'unstarted', color: '#64748b',
           sort_order: orderKey(states[states.length - 1]?.sort_order ?? null, null),
         })}
       >
-        <Icon name="plus" size={14} /> Add state
+        <Icon name="plus" size={14} /> {t('project.addState')}
       </button>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>Labels</h3>
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.labels')}</h3>
       <div className="row wrap" style={{ gap: 6, marginBottom: 8 }}>
         {labels.map((label) => (
-          <span className="chip button" key={label.id} onClick={() => remove('label', label.id)} title="Click to remove">
+          <span className="chip button" key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
             <span className="dot" style={{ background: label.color }} /> {label.name} ✕
           </span>
         ))}
@@ -576,25 +595,25 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           setNewLabel('');
         }}
       >
-        <input className="input" placeholder="New label" value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
+        <input className="input" placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
         <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
       </form>
 
       <div className="divider" style={{ margin: '22px 0' }} />
       <div className="row">
         <button className="btn" onClick={() => update('project', projectId, { archived: project.archived ? 0 : 1 })}>
-          <Icon name="archive" size={14} /> {project.archived ? 'Unarchive' : 'Archive'} project
+          <Icon name="archive" size={14} /> {project.archived ? t('project.unarchive') : t('project.archive')}
         </button>
         <button
           className="btn danger"
           onClick={async () => {
-            if (await confirm(`Delete “${project.name}” and hide all of its tasks?`)) {
+            if (await confirm(t('project.deleteConfirm', { name: project.name }))) {
               remove('project', projectId);
               navigate('/');
             }
           }}
         >
-          <Icon name="trash" size={14} /> Delete project
+          <Icon name="trash" size={14} /> {t('project.delete')}
         </button>
       </div>
       {dialog}

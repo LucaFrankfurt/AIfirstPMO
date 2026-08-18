@@ -2,6 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+import { I18nProvider } from './lib/i18n';
 import { SessionProvider } from './session';
 import './styles/app.css';
 
@@ -12,9 +13,11 @@ if (theme && theme !== 'system') document.documentElement.setAttribute('data-the
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <SessionProvider>
-        <App />
-      </SessionProvider>
+      <I18nProvider>
+        <SessionProvider>
+          <App />
+        </SessionProvider>
+      </I18nProvider>
     </BrowserRouter>
   </StrictMode>,
 );

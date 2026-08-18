@@ -3,6 +3,9 @@ import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, notFound } from './http.ts';
 import { uid } from './ids.ts';
 import { publish } from './bus.ts';
+import { translatorFor } from './i18n.ts';
+
+type Translator = ReturnType<typeof translatorFor>;
 
 export interface WriteOpts {
   workspaceId: string;
@@ -313,15 +316,24 @@ function recordActivity(entity: EntityName, row: Row, before: Row | undefined, c
   }
 }
 
+/**
+ * Notification titles are written in the recipient's language, not the actor's:
+ * a row belongs to exactly one person, so it can be rendered once, at the
+ * moment it is created, and never needs translating again.
+ */
 function notify(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {
-  const targets = new Map<string, { kind: string; title: string; body: string | null }>();
+  const targets = new Map<string, { kind: string; title: (t: Translator) => string; body: string | null }>();
 
   if (entity === 'task' && changed.assignees !== undefined) {
     const now = parseIds(row.assignees);
     const previous = new Set(parseIds(before?.assignees));
     for (const userId of now) {
       if (previous.has(userId) || userId === opts.actorId) continue;
-      targets.set(userId, { kind: 'assigned', title: `Assigned: ${row.identifier} ${row.title}`, body: null });
+      targets.set(userId, {
+        kind: 'assigned',
+        title: (t) => t('notify.assigned', { identifier: row.identifier, title: row.title }),
+        body: null,
+      });
     }
   }
 
@@ -334,9 +346,7 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       if (userId === opts.actorId) continue;
       targets.set(userId, {
         kind: 'mention',
-        title: context?.identifier
-          ? `You were mentioned in ${context.identifier}`
-          : `You were mentioned in ${context?.title ?? 'Kolibri'}`,
+        title: (t) => t('notify.mentionedIn', { context: context?.identifier ?? context?.title ?? 'Kolibri' }),
         body: String(mentionSource ?? '').slice(0, 280),
       });
     }
@@ -351,7 +361,7 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
         if (targets.get(userId)?.kind === 'mention') continue; // a mention is the stronger signal
         targets.set(userId, {
           kind: 'comment',
-          title: `New comment on ${task.identifier}`,
+          title: (t) => t('notify.newComment', { identifier: task.identifier }),
           body: String(row.body ?? '').slice(0, 280),
         });
       }
@@ -361,7 +371,11 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
   if (entity === 'task' && !before && parseIds(row.assignees).length) {
     for (const userId of parseIds(row.assignees)) {
       if (userId === opts.actorId) continue;
-      targets.set(userId, { kind: 'assigned', title: `Assigned: ${row.identifier} ${row.title}`, body: null });
+      targets.set(userId, {
+        kind: 'assigned',
+        title: (t) => t('notify.assigned', { identifier: row.identifier, title: row.title }),
+        body: null,
+      });
     }
   }
 
@@ -369,7 +383,7 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     run(
       `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, task_id, page_id, actor_id, created_at, updated_at, seq, clocks)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
-      uid(), opts.workspaceId, userId, payload.kind, payload.title, payload.body,
+      uid(), opts.workspaceId, userId, payload.kind, payload.title(translatorFor(userId)), payload.body,
       entity === 'task' ? row.id : row.task_id ?? null,
       entity === 'page' ? row.id : row.page_id ?? null,
       opts.actorId, Date.now(), Date.now(), nextSeq(),
