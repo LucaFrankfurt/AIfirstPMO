@@ -17,8 +17,14 @@ const shots = process.env.KOLIBRI_SHOT_DIR ?? (locale === 'en' ? '/tmp/shots' : 
 
 /** Only the strings the walkthrough clicks on — not a second catalogue. */
 const LABELS = {
-  en: { board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages', guide: 'Guide', welcome: 'Welcome' },
-  de: { board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten', guide: 'Anleitung', welcome: 'Willkommen' },
+  en: {
+    board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
+    guide: 'Guide', welcome: 'Welcome', log: 'Log',
+  },
+  de: {
+    board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
+    guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
+  },
 }[locale];
 
 /** The first-run tour opens over everything; every later step needs it gone. */
@@ -192,6 +198,33 @@ await step('setup checklist reflects the workspace, empty screens offer help', a
   const tab = await page.locator('.tabs button.active').innerText();
   console.log('     settings deep link opened:', tab);
 });
+
+await step('templates and rules are set up and readable', async () => {
+  await page.goto(`${base}/settings?tab=automation`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.auto-row', { timeout: 5000 });
+  const templates = await page.locator('.auto-row .auto-glyph').count();
+  const rules = await page.locator('.auto-switch').count();
+  console.log('     templates:', templates, ' rules:', rules);
+  if (!templates || !rules) throw new Error('the seeded template or rule is missing');
+  if (!await page.locator('.auto-switch.on').count()) throw new Error('the seeded rule is off');
+
+  // The log opens and says something, even before the rule has ever fired.
+  await page.locator(`.auto-row .btn:has-text("${LABELS.log}")`).first().click();
+  await page.waitForSelector('.sheet');
+  const log = await page.locator('.sheet .body').innerText();
+  if (/auto\.[a-z]|tpl\.[a-z]/i.test(log)) throw new Error(`untranslated key in the log: ${log.slice(0, 60)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+
+  // The rule editor opens with its recipient rows.
+  await page.locator('.auto-row').last().locator('.btn').last().click();
+  await page.waitForSelector('#rule-name', { timeout: 5000 });
+  const recipients = await page.locator('.auto-recipient').count();
+  if (!recipients) throw new Error('the rule editor shows no recipients');
+  console.log('     recipient rows in the editor:', recipients);
+  await page.keyboard.press('Escape');
+});
+await page.screenshot({ path: `${shots}/8-automation.png` });
 
 await step('guide opens, explains itself, and leaks no keys', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });

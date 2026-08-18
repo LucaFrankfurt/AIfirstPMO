@@ -8,7 +8,7 @@ import {
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
-import { isLocale } from '../lib/i18n.ts';
+import { defaultLocale, isLocale, translate } from '../lib/i18n.ts';
 import { pendingCount, queueInvite, queueTestMail, verifyUnsubscribe } from '../lib/mail.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
 
@@ -49,7 +49,9 @@ export function registerAuthRoutes(router: Router): void {
   }));
 
   router.post('/api/auth/register', async (ctx) => {
-    const body = await readJson<{ email?: string; name?: string; password?: string; workspace?: string; invite?: string }>(ctx);
+    const body = await readJson<{
+      email?: string; name?: string; password?: string; workspace?: string; invite?: string; locale?: string;
+    }>(ctx);
     const email = (body.email ?? '').trim().toLowerCase();
     const name = (body.name ?? '').trim() || email.split('@')[0];
     const password = body.password ?? '';
@@ -63,18 +65,22 @@ export function registerAuthRoutes(router: Router): void {
     const user = tx(() => {
       const id = uid();
       const now = Date.now();
+      // The language goes in with the row, not after it: the starter project's
+      // workflow, labels and templates are seeded a few lines below, and they
+      // read the creator's locale. Setting it afterwards would be too late.
+      const locale = isLocale(body.locale) ? body.locale : null;
       run(
-        `INSERT INTO users (id, email, name, password_hash, is_admin, created_at, updated_at, seq, clocks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 0, '{}')`,
-        id, email, name, hashPassword(password), firstUser ? 1 : 0, now, now,
+        `INSERT INTO users (id, email, name, password_hash, locale, is_admin, created_at, updated_at, seq, clocks)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '{}')`,
+        id, email, name, hashPassword(password), locale, firstUser ? 1 : 0, now, now,
       );
-      writeEntity('user', id, { name, email }, { workspaceId: '', actorId: id, hlc: serverClock.now(), system: true, silent: true });
+      writeEntity('user', id, { name, email, locale }, { workspaceId: '', actorId: id, hlc: serverClock.now(), system: true, silent: true });
 
       if (body.invite) {
         acceptInvite(body.invite, id);
       } else {
         const workspace = createWorkspace(body.workspace?.trim() || `${name}'s workspace`, id);
-        createProject(workspace.id, id, { name: 'Getting started', key: 'GET', icon: '👋' });
+        createProject(workspace.id, id, { name: translate(locale ?? defaultLocale(), 'seed.starterProject'), key: 'GET', icon: '👋' });
       }
       return get<Row>(`SELECT * FROM users WHERE id = ?`, id)!;
     });

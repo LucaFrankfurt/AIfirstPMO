@@ -57,7 +57,9 @@ export const api = {
   session: () => request<SessionInfo>('/api/session'),
   login: (email: string, password: string) => request<SessionInfo>('/api/auth/login', json({ email, password })),
   register: (body: { email: string; name: string; password: string; workspace?: string; invite?: string }) =>
-    request<SessionInfo>('/api/auth/register', json(body)),
+    // The language goes with the sign-up so the starter project's workflow,
+    // labels and templates are seeded in it rather than in English.
+    request<SessionInfo>('/api/auth/register', json({ ...body, locale: currentLocale() })),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', json({})),
 
   /**
@@ -94,6 +96,9 @@ export const api = {
   invites: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/invites`),
   createInvite: (workspaceId: string, role: string) => request<{ code: string; url: string }>(`/api/workspaces/${workspaceId}/invites`, json({ role })),
   acceptInvite: (code: string) => request<{ workspaceId: string; session: SessionInfo }>(`/api/invites/${code}/accept`, json({})),
+  automationRuns: (id: string) => request<any[]>(`/api/automations/${id}/runs`),
+  applyTemplate: (id: string, body: { project_id?: string; assignees?: string[] }) =>
+    request<any>(`/api/templates/${id}/apply`, json(body)),
   pageVersions: (pageId: string) => request<any[]>(`/api/pages/${pageId}/versions`),
   restoreVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions`, json({ restore: versionId })),
 };

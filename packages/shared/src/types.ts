@@ -27,6 +27,36 @@ export type Layout = (typeof LAYOUTS)[number];
 export const PROJECT_STATUS = ['planned', 'in_progress', 'paused', 'completed', 'cancelled'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUS)[number];
 
+/* ------------------------------------------------- templates + automation */
+
+/** What a template is for. Only affects the icon and how it is grouped. */
+export const TEMPLATE_KINDS = ['feedback', 'review', 'task', 'bug', 'checklist'] as const;
+export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
+
+export const AUTOMATION_TRIGGERS = ['state_entered', 'state_group_entered', 'task_created'] as const;
+export type AutomationTriggerKind = (typeof AUTOMATION_TRIGGERS)[number];
+
+/**
+ * Who gets the task an automation creates.
+ *
+ * Deliberately a list of *selectors* rather than a list of user ids: a rule
+ * that says "the people working on it and whoever leads the project" keeps
+ * meaning that after the team changes, which a list of ids does not. Several
+ * selectors combine, and the result is de-duplicated.
+ */
+export const RECIPIENT_KINDS = ['user', 'assignees', 'creator', 'actor', 'lead', 'team', 'role'] as const;
+export type RecipientKind = (typeof RECIPIENT_KINDS)[number];
+
+export interface Recipient {
+  kind: RecipientKind;
+  /** User id for `user`, team id for `team`, role name for `role`. */
+  ref?: ID | WorkspaceRole | null;
+}
+
+/** One task with everybody on it, or one task each. */
+export const FAN_OUT = ['single', 'each'] as const;
+export type FanOut = (typeof FAN_OUT)[number];
+
 /* -------------------------------------------------------------- base rows */
 
 export interface Base {
@@ -242,6 +272,62 @@ export interface View extends Base {
   sort_order: string;
 }
 
+/**
+ * A task, pre-written. Used by hand ("new task from template") and by the
+ * automations below, which is why the two are separate entities: a template is
+ * useful without a rule, and a rule needs a template to have something to say.
+ */
+export interface Template extends Base {
+  workspace_id: ID;
+  /** Null means the whole workspace can use it. */
+  project_id: ID | null;
+  name: string;
+  kind: TemplateKind;
+  icon: string | null;
+  /** Both support `{identifier}`, `{title}`, `{project}`, `{actor}`, `{state}`, `{url}`. */
+  title: string;
+  description: string | null;
+  priority: Priority;
+  labels: ID[];
+  /** Always assigned on top of whatever an automation resolves. */
+  assignees: ID[];
+  estimate: number | null;
+  /** One sub-task per line, created with the task. */
+  subtasks: string[];
+  /** Null means "the project the source task is in". */
+  target_project_id: ID | null;
+  /** Days from creation; null leaves the due date empty. */
+  due_in_days: number | null;
+  archived: number;
+  sort_order: string;
+}
+
+/** When something happens to a task, make a task from a template. */
+export interface Automation extends Base {
+  workspace_id: ID;
+  /** Null means every project in the workspace. */
+  project_id: ID | null;
+  name: string;
+  enabled: number;
+  trigger_kind: AutomationTriggerKind;
+  /** For `state_entered`. */
+  trigger_state_id: ID | null;
+  /** For `state_group_entered`. */
+  trigger_group: StateGroup | null;
+  template_id: ID;
+  recipients: Recipient[];
+  fan_out: FanOut;
+  /** Leave out whoever caused the trigger — you rarely review your own work. */
+  exclude_actor: number;
+  /** How the new task is linked back to the one that triggered it; '' for none. */
+  link_kind: RelationKind | '';
+  /** Whether the rule also applies to tasks an automation created. Off by default. */
+  apply_to_generated: number;
+  /** Fire at most once per task, rather than on every entry. */
+  once: number;
+  sort_order: string;
+}
+
 export interface Notification extends Base {
   workspace_id: ID;
   user_id: ID;
@@ -284,6 +370,8 @@ export interface EntityMap {
   comment: Comment;
   attachment: Attachment;
   view: View;
+  template: Template;
+  automation: Automation;
   notification: Notification;
   activity: Activity;
 }

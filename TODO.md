@@ -70,6 +70,17 @@ Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to 
       instead of relying on the writer knowing the handle.
 - [ ] **Scheduled digests** (daily/weekly summary) on top of the existing batching window.
 - [ ] **Due-date reminders.** The `due_soon` notification kind is reserved but nothing emits it.
+- [x] **Task templates and automation rules.** Templates with a checklist that becomes sub-tasks,
+      usable by hand, from the quick-add sheet and over MCP; rules that file one when a task enters
+      a state or is created, with recipients as selectors rather than names.
+      See [`docs/automation.md`](docs/automation.md).
+- [ ] **More rule actions than "file a task".** Setting a field, adding a label or moving a task
+      would all be useful, and all raise the same question: two rules editing one row is a merge
+      problem, not a feature flag.
+- [ ] **Scheduled triggers.** Nothing fires because a date passed — a rule needs something to
+      happen to a task. "Three days before the due date" would need a poller like the mail worker.
+- [ ] **Rules that watch anything but tasks.** A page edit or a comment could reasonably trigger
+      one; only task writes are wired up.
 - [ ] **Bulk actions in the list view.** `POST /api/workspaces/:ws/tasks/bulk` exists and is tested;
       the UI has no multi-select.
 - [ ] **Trash / archive browser.** Everything is soft-deleted and recoverable in the database, but
@@ -168,7 +179,12 @@ So the list above is read in proportion — these are covered by automated tests
       the card it names and scrolls to it, and `?tab=` opens the settings screen it promised
 - [x] Browser: right-to-left is no worse than left-to-right — no horizontal scroll and nothing
       pushed out of frame on five screens at desktop and phone widths
-- [x] A German account creating a project gets a German workflow and German labels
+- [x] A German account creating a project gets a German workflow, German labels, a German feedback
+      template and a German rule — including on sign-up, where the browser now sends its language
+- [x] A rule files a feedback task with its checklist, assigns the people its selectors resolve to,
+      links it back, and notifies them; refuses to act on tasks a rule created; fires again on a
+      second review round unless told once; drops recipients who cannot see a private project; and
+      records why whenever it decides to do nothing
 - [x] The guide does not animate on its own when the OS asks for reduced motion, and stays steppable
 - [x] Catalogue parity: same keys both ways, no placeholder lost in translation, plural pairs
       complete, every key the interface uses exists, and no user-visible string left hard-coded

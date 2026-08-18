@@ -379,6 +379,76 @@ CREATE TABLE IF NOT EXISTS views (
 );
 CREATE INDEX IF NOT EXISTS views_seq ON views (workspace_id, seq);
 
+-- A task, pre-written. Usable by hand and by the automations below.
+CREATE TABLE IF NOT EXISTS templates (
+  id                TEXT PRIMARY KEY,
+  workspace_id      TEXT NOT NULL,
+  project_id        TEXT,
+  name              TEXT NOT NULL,
+  kind              TEXT NOT NULL DEFAULT 'task',
+  icon              TEXT,
+  title             TEXT NOT NULL,
+  description       TEXT,
+  priority          TEXT NOT NULL DEFAULT 'none',
+  labels            TEXT NOT NULL DEFAULT '[]',
+  assignees         TEXT NOT NULL DEFAULT '[]',
+  estimate          REAL,
+  subtasks          TEXT NOT NULL DEFAULT '[]',
+  target_project_id TEXT,
+  due_in_days       INTEGER,
+  archived          INTEGER NOT NULL DEFAULT 0,
+  sort_order        TEXT NOT NULL DEFAULT 'V',
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  deleted_at        INTEGER,
+  seq               INTEGER NOT NULL DEFAULT 0,
+  clocks            TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS templates_seq ON templates (workspace_id, seq);
+
+-- When something happens to a task, make a task from a template.
+CREATE TABLE IF NOT EXISTS automations (
+  id                 TEXT PRIMARY KEY,
+  workspace_id       TEXT NOT NULL,
+  project_id         TEXT,
+  name               TEXT NOT NULL,
+  enabled            INTEGER NOT NULL DEFAULT 1,
+  trigger_kind       TEXT NOT NULL DEFAULT 'state_entered',
+  trigger_state_id   TEXT,
+  trigger_group      TEXT,
+  template_id        TEXT NOT NULL,
+  recipients         TEXT NOT NULL DEFAULT '[]',
+  fan_out            TEXT NOT NULL DEFAULT 'single',
+  exclude_actor      INTEGER NOT NULL DEFAULT 1,
+  link_kind          TEXT NOT NULL DEFAULT 'relates_to',
+  apply_to_generated INTEGER NOT NULL DEFAULT 0,
+  once               INTEGER NOT NULL DEFAULT 0,
+  sort_order         TEXT NOT NULL DEFAULT 'V',
+  created_at         INTEGER NOT NULL,
+  updated_at         INTEGER NOT NULL,
+  deleted_at         INTEGER,
+  seq                INTEGER NOT NULL DEFAULT 0,
+  clocks             TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS automations_seq ON automations (workspace_id, seq);
+
+-- What a rule actually did, including when it decided to do nothing. Server-side
+-- bookkeeping: not synced, but readable so a rule that never fires is not a
+-- mystery. `skipped` holds the reason, empty when a task was created.
+CREATE TABLE IF NOT EXISTS automation_runs (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  automation_id   TEXT NOT NULL,
+  task_id         TEXT NOT NULL,
+  created_task_id TEXT,
+  actor_id        TEXT,
+  skipped         TEXT NOT NULL DEFAULT '',
+  created_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS automation_runs_rule ON automation_runs (automation_id, created_at);
+CREATE INDEX IF NOT EXISTS automation_runs_task ON automation_runs (task_id);
+CREATE INDEX IF NOT EXISTS automation_runs_created ON automation_runs (created_task_id);
+
 CREATE TABLE IF NOT EXISTS notifications (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

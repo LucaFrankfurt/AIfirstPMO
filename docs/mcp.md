@@ -54,6 +54,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_pages` / `get_page` | wiki pages, markdown included |
+| `list_templates` | pre-written tasks, with the checklist each one carries |
 | `list_members` | people with role and open task count |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
@@ -69,6 +70,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `create_project` | includes the default workflow states and labels |
 | `create_cycle` | sprint with start/end dates |
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
+| `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.

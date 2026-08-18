@@ -96,9 +96,11 @@ export function createProject(workspaceId: string, actorId: string, input: NewPr
       const t = translatorFor(actorId);
       const orders = orderKeys(DEFAULT_STATES.length);
       let firstStateId: string | null = null;
+      let reviewStateId: string | null = null;
       DEFAULT_STATES.forEach((state, index) => {
         const stateId = uid();
         if (index === 0) firstStateId = stateId;
+        if (state.name === 'seed.stateInReview') reviewStateId = stateId;
         writeEntity('state', stateId, {
           workspace_id: workspaceId, project_id: id, name: t(state.name),
           group_key: state.group_key, color: state.color, sort_order: orders[index],
@@ -112,9 +114,58 @@ export function createProject(workspaceId: string, actorId: string, input: NewPr
         writeEntity('project', id, { default_state_id: firstStateId },
           { workspaceId, actorId, hlc: hlc(), system: true });
       }
+      if (reviewStateId) seedFeedbackAutomation(workspaceId, id, actorId, reviewStateId, t);
     }
     return get<Row>(`SELECT * FROM projects WHERE id = ?`, row.id)!;
   });
+}
+
+/**
+ * Every project starts able to ask for feedback.
+ *
+ * Enabled, because a rule nobody finds is a rule nobody uses — and because it
+ * cannot fire until somebody moves a task into review, by which point the
+ * project is being worked in. It goes to whoever leads the project and skips
+ * the person who did the work, so on a one-person workspace it correctly does
+ * nothing and says so in its run log. One switch in Settings turns it off.
+ */
+export function seedFeedbackAutomation(
+  workspaceId: string,
+  projectId: string,
+  actorId: string,
+  reviewStateId: string,
+  t: (key: ServerKey, vars?: Record<string, string | number>) => string,
+): { templateId: string; automationId: string } {
+  const hlc = () => serverClock.now();
+  const templateId = uid();
+  writeEntity('template', templateId, {
+    workspace_id: workspaceId,
+    project_id: projectId,
+    name: t('seed.feedbackTemplate'),
+    kind: 'feedback',
+    icon: '🔍',
+    title: t('seed.feedbackTitle'),
+    description: t('seed.feedbackBody'),
+    priority: 'medium',
+    subtasks: [t('seed.feedbackSub1'), t('seed.feedbackSub2'), t('seed.feedbackSub3')],
+  }, { workspaceId, actorId, hlc: hlc(), system: true });
+
+  const automationId = uid();
+  writeEntity('automation', automationId, {
+    workspace_id: workspaceId,
+    project_id: projectId,
+    name: t('seed.feedbackRule'),
+    enabled: 1,
+    trigger_kind: 'state_entered',
+    trigger_state_id: reviewStateId,
+    template_id: templateId,
+    recipients: [{ kind: 'lead' }],
+    fan_out: 'single',
+    exclude_actor: 1,
+    link_kind: 'relates_to',
+  }, { workspaceId, actorId, hlc: hlc(), system: true });
+
+  return { templateId, automationId };
 }
 
 function uniqueKey(workspaceId: string, desired: string): string {

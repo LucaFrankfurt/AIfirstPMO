@@ -55,6 +55,16 @@ const en = {
   'seed.labelFeature': 'feature',
   'seed.labelImprovement': 'improvement',
   'seed.labelDocumentation': 'documentation',
+
+  /* The feedback template and rule every new project starts with. */
+  'seed.feedbackTemplate': 'Feedback request',
+  'seed.feedbackTitle': 'Feedback: {identifier} {title}',
+  'seed.feedbackBody': '{identifier} **{title}** moved to *{state}* and is ready for a look.\n\nThe task: {url}\n\nLeave what you find as comments on that task, and close this one when you are done.',
+  'seed.feedbackSub1': 'Does it do what the task asked for?',
+  'seed.feedbackSub2': 'Anything here that will surprise somebody later?',
+  'seed.feedbackSub3': 'Is it written down where the next person will look?',
+  'seed.feedbackRule': 'Ask for feedback when a task enters review',
+  'seed.starterProject': 'Getting started',
 } as const;
 
 type Catalogue = { readonly [K in keyof typeof en]: string };
@@ -98,6 +108,15 @@ const de: Catalogue = {
   'seed.labelFeature': 'Feature',
   'seed.labelImprovement': 'Verbesserung',
   'seed.labelDocumentation': 'Dokumentation',
+
+  'seed.feedbackTemplate': 'Feedback anfordern',
+  'seed.feedbackTitle': 'Feedback: {identifier} {title}',
+  'seed.feedbackBody': '{identifier} **{title}** steht jetzt auf *{state}* und wartet auf einen Blick.\n\nZur Aufgabe: {url}\n\nSchreib deine Anmerkungen als Kommentare an diese Aufgabe und schließ die hier, wenn du fertig bist.',
+  'seed.feedbackSub1': 'Tut es, was die Aufgabe verlangt hat?',
+  'seed.feedbackSub2': 'Gibt es hier etwas, das später jemanden überrascht?',
+  'seed.feedbackSub3': 'Steht es dort geschrieben, wo die nächste Person nachschaut?',
+  'seed.feedbackRule': 'Feedback anfordern, wenn eine Aufgabe in Review geht',
+  'seed.starterProject': 'Erste Schritte',
 };
 
 export const LOCALES = { en, de } as const;

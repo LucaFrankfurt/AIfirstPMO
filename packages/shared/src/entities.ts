@@ -22,6 +22,8 @@ export type EntityName =
   | 'comment'
   | 'attachment'
   | 'view'
+  | 'template'
+  | 'automation'
   | 'notification'
   | 'activity';
 
@@ -131,6 +133,24 @@ export const ENTITIES = {
       'filters', 'group_by', 'order_by', 'shared', 'owner_id', 'sort_order',
     ],
     json: ['filters'],
+  },
+  template: {
+    table: 'templates',
+    fields: [
+      'workspace_id', 'project_id', 'name', 'kind', 'icon', 'title', 'description',
+      'priority', 'labels', 'assignees', 'estimate', 'subtasks', 'target_project_id',
+      'due_in_days', 'archived', 'sort_order',
+    ],
+    json: ['labels', 'assignees', 'subtasks'],
+  },
+  automation: {
+    table: 'automations',
+    fields: [
+      'workspace_id', 'project_id', 'name', 'enabled', 'trigger_kind', 'trigger_state_id',
+      'trigger_group', 'template_id', 'recipients', 'fan_out', 'exclude_actor',
+      'link_kind', 'apply_to_generated', 'once', 'sort_order',
+    ],
+    json: ['recipients'],
   },
   notification: {
     table: 'notifications',

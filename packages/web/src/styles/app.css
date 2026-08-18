@@ -1179,3 +1179,64 @@ p { margin: 0 0 0.75em; }
 .setup-hint { display: block; font-size: 12px; color: var(--fg-muted); }
 .setup-item.done .setup-label { color: var(--fg-muted); text-decoration: line-through; }
 .setup-item.done .setup-hint { display: none; }
+
+/* ------------------------------------------------- templates and rules */
+
+.auto-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-top: 1px solid var(--line);
+}
+.auto-row:first-of-type { border-top: none; }
+.auto-row.off { opacity: 0.6; }
+.auto-glyph { width: 22px; text-align: center; font-size: 15px; flex: none; }
+.auto-name { display: block; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.auto-meta {
+  display: block; font-size: 11.5px; color: var(--fg-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* A switch rather than a checkbox: turning a rule off is the thing people
+   reach for first, so it should be one obvious tap. */
+.auto-switch {
+  width: 34px; height: 20px; flex: none; padding: 0; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: 99px; background: var(--bg-active);
+  display: flex; align-items: center; transition: background 180ms ease, border-color 180ms ease;
+}
+.auto-switch > i {
+  width: 14px; height: 14px; border-radius: 50%; background: var(--bg-raised);
+  margin-inline-start: 2px; box-shadow: var(--shadow-sm);
+  transition: margin-inline-start 180ms ease;
+}
+.auto-switch.on { background: var(--accent); border-color: var(--accent); }
+.auto-switch.on > i { margin-inline-start: 16px; }
+.auto-switch:disabled { cursor: not-allowed; opacity: 0.6; }
+
+.auto-h { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--fg-muted); margin: 18px 0 8px; }
+
+.auto-toggle { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
+.auto-toggle input { margin-top: 2px; flex: none; }
+.auto-toggle .hint { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
+
+.auto-run { display: flex; align-items: center; gap: 9px; padding: 8px 0; border-top: 1px solid var(--line); }
+.auto-run:first-of-type { border-top: none; }
+.auto-run-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); flex: none; }
+.auto-run-dot.skipped { background: var(--line-strong); }
+.auto-when { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--fg-muted); flex: none; }
+
+.gx-auto { flex-direction: row; align-items: stretch; gap: 8px; }
+.gx-auto .gx-tpl, .gx-auto .gx-auto-out { flex: 1; min-width: 0; }
+.gx-auto-middle { display: flex; flex-direction: column; justify-content: center; gap: 6px; flex: 0 0 34%; }
+.gx-auto .gx-rule { gap: 5px; }
+.gx-auto-out { display: flex; flex-direction: column; gap: 6px; }
+.gx-checks { display: flex; flex-direction: column; gap: 5px; }
+.gx-check { display: flex; align-items: center; gap: 6px; }
+.gx-check > i { width: 11px; height: 11px; border-radius: 3px; border: 1.4px solid var(--line-strong); flex: none; }
+.gx-made { border-color: var(--accent); gap: 5px; }
+.gx-runlog { font-size: 11px; gap: 6px; }
+.gx-run-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); flex: none; }
+@media (max-width: 699px) {
+  .gx-auto { flex-direction: column; }
+  .gx-auto-middle { flex: none; }
+  .gx-auto .gx-conn.right { flex-direction: column; min-height: 20px; }
+}

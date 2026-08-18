@@ -5,14 +5,15 @@ import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../
 import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
+import { AutomationSettings } from './automation';
 import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 
-type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'api' | 'data';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
 
 const TAB_KEY: Record<Tab, TranslationKey> = {
   profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
   workspace: 'settings.tabWorkspace', members: 'settings.tabMembers',
-  api: 'settings.tabApi', data: 'settings.tabData',
+  automation: 'settings.tabAutomation', api: 'settings.tabApi', data: 'settings.tabData',
 };
 
 const ROLES = ['owner', 'admin', 'member', 'guest'] as const;
@@ -43,6 +44,7 @@ export function Settings() {
         {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
         {tab === 'members' && <Members />}
+        {tab === 'automation' && <AutomationSettings />}
         {tab === 'api' && <ApiSettings />}
         {tab === 'data' && <DataSettings />}
       </div>

@@ -42,6 +42,7 @@ around three convictions:
 |---|---|
 | **Work tracking** | Projects with their own workflow states, tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving |
 | **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects |
+| **Templates & rules** | Task templates with a checklist that becomes sub-tasks, and rules that file one when something happens — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
 | **Views** | List, Kanban board with drag & drop, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; per-project preferences remembered |
 | **Pages** | Nested markdown wiki with version history, drag & drop images, project or workspace scope, private pages |
 | **Collaboration** | Comments with markdown and attachments, `@mentions`, activity trail per task, invite links, roles (owner / admin / member / guest), private projects |
@@ -51,7 +52,7 @@ around three convictions:
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of every feature plus an explorer for how the pieces nest. Every empty screen links to the card that explains it. Press `?` |
 | **Languages** | English and German throughout — interface, notifications and emails, each written in the recipient's own language. Adding a third is one typed catalogue file |
-| **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 19 tools, 3 prompts and page resources |
+| **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 21 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
 
 ## Quick start
@@ -154,9 +155,10 @@ Clients that speak streamable HTTP can skip the bridge and talk to `POST /mcp` d
 `Authorization: Bearer kol_…` header.
 
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
-`create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_cycles`,
-`create_cycle`, `list_pages`, `get_page`, `create_page`, `update_page`, `list_members`,
-`project_status`, `my_work`. Prompts: `standup`, `sprint_planning`, `triage`.
+`create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,
+`apply_template`, `list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`,
+`update_page`, `list_members`, `project_status`, `my_work`.
+Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant
 a view of the backlog without handing it a pen.
@@ -187,6 +189,7 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
   [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
+- [`docs/automation.md`](docs/automation.md) — task templates, rules, who gets the task and why one might not fire
 - [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the

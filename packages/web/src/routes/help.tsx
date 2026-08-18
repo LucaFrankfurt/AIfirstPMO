@@ -13,8 +13,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '../components/AppShell';
 import {
-  AssistantDiagram, CaptureDiagram, CollaborationDiagram, OverviewDiagram,
-  PagesDiagram, PlanningDiagram, SyncDiagram, ViewsDiagram,
+  AssistantDiagram, AutomationDiagram, CaptureDiagram, CollaborationDiagram,
+  OverviewDiagram, PagesDiagram, PlanningDiagram, SyncDiagram, ViewsDiagram,
 } from '../components/diagrams';
 import { HierarchyExplorer } from '../components/hierarchy';
 import { Icon } from '../components/ui';
@@ -239,6 +239,19 @@ function Features() {
             </div>
           ))}
         </div>
+      </Feature>
+
+      <Feature
+        id="automation"
+        icon="refresh"
+        title="guide.automation.title"
+        lead="guide.automation.lead"
+        to="/settings?tab=automation"
+        linkLabel="guide.automation.cta"
+        steps={['guide.automation.h1', 'guide.automation.h2', 'guide.automation.h3', 'guide.automation.h4']}
+      >
+        <AutomationDiagram />
+        <p className="soft" style={{ fontSize: 12.5, marginTop: 10 }}>{t('guide.automation.newProject')}</p>
       </Feature>
 
       <Feature

@@ -161,6 +161,26 @@ Two things point at it from the rest of the app:
   itself when there is nothing left to say. Both can be summoned again from the guide by a window
   event, so nothing else has to own their state.
 
+### Templates and rules
+
+`lib/automation.ts` hangs off the same write path as notifications: `afterWrite` sees every
+non-system task write, works out whether a state was entered or a task created, and asks the
+enabled rules whether they care.
+
+Three decisions shape it:
+
+- **Recipients are selectors, not ids.** "Whoever leads the project" survives a change of lead;
+  a stored id does not. They combine, de-duplicate, and are filtered through `canSeeProject`, so a
+  rule cannot hand somebody a task inside a private project they are not in.
+- **Generated tasks are recognisable.** Every run is written to `automation_runs` with the id of
+  what it made, so "did a rule create this?" is one indexed lookup — and rules skip such tasks
+  unless deliberately told otherwise. A depth counter backs that up.
+- **Deciding to do nothing is a result.** A rule whose recipients all resolve away looks identical
+  to a broken one from outside, so the skip and its reason are written down and shown in the UI.
+
+`automation_runs` is server-side bookkeeping and is deliberately *not* in the entity registry: it is
+an audit trail, not shared state, and syncing it would put every rule's history on every device.
+
 ## MCP bridge
 
 `packages/mcp` is a ~90-line stdio pipe that forwards JSON-RPC to `POST /mcp`. The tools live in

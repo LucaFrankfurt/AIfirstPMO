@@ -11,6 +11,7 @@ import { all, get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
 import { createProject, serverClock } from './bootstrap.ts';
+import { instantiateTemplate } from './automation.ts';
 import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, writeEntity } from './repo.ts';
 import { searchWorkspace } from '../routes/search.ts';
 import { uid } from './ids.ts';
@@ -464,6 +465,71 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       return searchWorkspace(workspaceId, ctx.auth.userId, String(args.query), Math.min(Number(args.limit ?? 20) || 20, 100), args.kinds);
+    },
+  },
+  {
+    name: 'list_templates',
+    title: 'List task templates',
+    description: 'Pre-written tasks that can be filed with apply_template, including the checklist each one carries.',
+    readOnly: true,
+    schema: { type: 'object', properties: { project: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      return all<Row>(
+        `SELECT * FROM templates
+          WHERE workspace_id = ? AND archived = 0 AND deleted_at IS NULL
+            ${project ? 'AND (project_id IS NULL OR project_id = ?)' : ''}
+          ORDER BY name`,
+        ...(project ? [workspaceId, project.id] : [workspaceId]),
+      ).map((template) => ({
+        id: template.id,
+        name: template.name,
+        kind: template.kind,
+        project_id: template.project_id,
+        title: template.title,
+        description: template.description,
+        subtasks: JSON.parse(String(template.subtasks ?? '[]')),
+      }));
+    },
+  },
+  {
+    name: 'apply_template',
+    title: 'File a task from a template',
+    description: 'Creates a real task from a template, with its checklist as sub-tasks. Same path the automations use.',
+    schema: {
+      type: 'object',
+      required: ['template'],
+      properties: {
+        template: { type: 'string', description: 'Template id or exact name' },
+        project: { type: 'string', description: 'Project key or name; defaults to the template\'s own project' },
+        assignees: { type: 'array', items: { type: 'string' }, description: 'User ids' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const needle = String(args.template);
+      const template = get<Row>(
+        `SELECT * FROM templates WHERE workspace_id = ? AND deleted_at IS NULL AND (id = ? OR name = ?) LIMIT 1`,
+        workspaceId, needle, needle,
+      );
+      if (!template) throw new McpError(`No template called ${needle}`);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      const projectId = project?.id ?? template.target_project_id ?? template.project_id;
+      if (!projectId) throw new McpError('This template has no project — pass one');
+      if (!canSeeProject(ctx.auth.userId, String(projectId))) throw new McpError('Project is private');
+
+      const row = get<Row>(`SELECT name FROM projects WHERE id = ?`, projectId);
+      const actor = get<Row>(`SELECT name FROM users WHERE id = ?`, ctx.auth.userId);
+      const task = instantiateTemplate(template, {
+        workspaceId,
+        actorId: ctx.auth.userId,
+        projectId: String(projectId),
+        assignees: Array.isArray(args.assignees) ? (args.assignees as string[]) : undefined,
+        vars: { project: String(row?.name ?? ''), actor: String(actor?.name ?? '') },
+      });
+      return { id: task.id, identifier: task.identifier, title: task.title, url: `${env.publicUrl}/t/${task.id}` };
     },
   },
   {

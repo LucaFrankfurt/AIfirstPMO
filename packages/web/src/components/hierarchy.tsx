@@ -126,6 +126,20 @@ const TREE: Node[] = [
             ],
           },
           {
+            id: 'template',
+            glyph: 'copy',
+            name: 'guide.node.template',
+            what: 'guide.node.templateWhat',
+            rule: 'guide.node.templateRule',
+          },
+          {
+            id: 'automation',
+            glyph: 'refresh',
+            name: 'guide.node.automation',
+            what: 'guide.node.automationWhat',
+            rule: 'guide.node.automationRule',
+          },
+          {
             id: 'projectPage',
             glyph: 'page',
             name: 'guide.node.projectPage',

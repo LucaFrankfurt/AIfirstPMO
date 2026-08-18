@@ -3,6 +3,7 @@ import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, notFound } from './http.ts';
 import { uid } from './ids.ts';
 import { publish } from './bus.ts';
+import { runAutomations } from './automation.ts';
 import { translatorFor } from './i18n.ts';
 
 type Translator = ReturnType<typeof translatorFor>;
@@ -229,6 +230,7 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   if (opts.system) return;
   recordActivity(entity, row, before, changed, opts);
   notify(entity, row, before, changed, opts);
+  runAutomations(entity, row, before, changed, opts);
 }
 
 /**

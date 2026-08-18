@@ -4,6 +4,7 @@ import { hasRole, requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { serverClock, createProject } from '../lib/bootstrap.ts';
 import { badRequest, flag, forbidden, notFound, readJson, type Ctx, type Router } from '../lib/http.ts';
 import { uid } from '../lib/ids.ts';
+import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
 import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 
 /** URL segment -> entity. Everything the sync engine knows is also plain REST. */
@@ -22,6 +23,8 @@ export const REST_ENTITIES: Record<string, EntityName> = {
   comments: 'comment',
   attachments: 'attachment',
   views: 'view',
+  templates: 'template',
+  automations: 'automation',
   notifications: 'notification',
 };
 
@@ -159,6 +162,45 @@ export function registerEntityRoutes(router: Router): void {
   });
 
   /* --------------------------------------------------- task extras */
+
+  /** What a rule has actually done, so one that never fires is not a mystery. */
+  router.get('/api/automations/:id/runs', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const rule = workspaceOf('automation', ctx.params.id);
+    requireWorkspace(ctx, String(rule.workspace_id));
+    guardProject(auth.userId, 'automation', rule);
+    return automationRuns(ctx.params.id, Number(ctx.query.get('limit') ?? 25));
+  });
+
+  /**
+   * Make a real task out of a template by hand. The same code path an
+   * automation uses, so what you get from the button is what the rule files.
+   */
+  router.post('/api/templates/:id/apply', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const template = workspaceOf('template', ctx.params.id);
+    const role = requireWorkspace(ctx, String(template.workspace_id), 'member');
+    if (!hasRole(role, 'member')) throw forbidden('Guests cannot create content');
+
+    const body = await readJson<{ project_id?: string; assignees?: string[] }>(ctx);
+    const projectId = body.project_id ?? template.target_project_id ?? template.project_id;
+    if (!projectId) throw badRequest('This template has no project — pass project_id');
+    if (!canSeeProject(auth.userId, String(projectId))) throw forbidden('Project is private');
+
+    const project = get<Row>(`SELECT * FROM projects WHERE id = ?`, projectId);
+    const actor = get<Row>(`SELECT name FROM users WHERE id = ?`, auth.userId);
+    const task = instantiateTemplate(template, {
+      workspaceId: String(template.workspace_id),
+      actorId: auth.userId,
+      projectId: String(projectId),
+      assignees: Array.isArray(body.assignees) ? body.assignees : undefined,
+      // A template used by hand has no source task, so only the names that can
+      // be known are filled; the rest stay as written rather than becoming holes.
+      vars: { project: String(project?.name ?? ''), actor: String(actor?.name ?? '') },
+    });
+    return serialize('task', task);
+  });
 
   router.get('/api/tasks/:id/activity', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
