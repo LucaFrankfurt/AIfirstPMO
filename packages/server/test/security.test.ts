@@ -211,3 +211,26 @@ describe('a forwarded address is a claim, not a fact', () => {
     assert.equal(checks[0].key, 'login:203.0.113.7');
   });
 });
+
+describe('a forged cross-site post', () => {
+  // SameSite=Lax already stops the cookie travelling, and that is one browser
+  // default away from being the only thing standing there. A cross-site form
+  // can only produce three content types; none of them is accepted.
+  it('is refused when it dresses up as a form', async () => {
+    resetRateLimits();
+    for (const type of ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain']) {
+      const response = await fetch(`${base}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'content-type': type },
+        body: 'email=ada@example.com&password=correct+horse+battery',
+      });
+      assert.equal(response.status, 415, `${type} is not a way in`);
+    }
+  });
+
+  it('still accepts the real thing', async () => {
+    resetRateLimits();
+    const ok = await call('/api/auth/login', { email: 'ada@example.com', password: 'correct horse battery' });
+    assert.equal(ok.status, 200);
+  });
+});

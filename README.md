@@ -41,19 +41,20 @@ around three convictions:
 | | |
 |---|---|
 | **Work tracking** | Projects with their own workflow states, tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving |
-| **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects |
+| **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects, time tracking with a timer that survives a reload |
 | **Templates & rules** | Task templates with a checklist that becomes sub-tasks, and rules that file one when something happens — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
-| **Views** | List, Kanban board with drag & drop, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; per-project preferences remembered |
-| **Pages** | Nested markdown wiki with version history, drag & drop images, project or workspace scope, private pages |
-| **Collaboration** | Comments with markdown and attachments, `@mentions`, activity trail per task, invite links, roles (owner / admin / member / guest), private projects |
+| **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; select several tasks and change them together; save a view under a name and share it |
+| **Pages** | Nested markdown wiki with version history and restore, comments and `@mentions`, drag & drop images, project or workspace scope |
+| **Collaboration** | Comments with markdown and attachments on tasks *and* pages, `@mentions` in comments, descriptions and page bodies, activity trail per task, invite links, roles (owner / admin / member / guest), private projects |
 | **Notifications** | In-app inbox plus optional email — batched into one message per person, per-user preferences, signed one-click unsubscribe, queued with retry |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling, offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads |
 | **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field, Server-Sent-Events live updates, installable PWA |
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
-| **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of every feature plus an explorer for how the pieces nest. Every empty screen links to the card that explains it. Press `?` |
+| **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area of the app plus an explorer for how the pieces nest. A screen with nothing on it yet links to the card that explains what goes there. Press `?` |
 | **Languages** | English and German throughout — interface, notifications and emails, each written in the recipient's own language. Adding a third is one typed catalogue file |
 | **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
+| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — and a Content-Security-Policy with no inline script |
 
 ## Quick start
 

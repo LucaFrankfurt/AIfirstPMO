@@ -124,8 +124,10 @@ export function pull(): Promise<void> {
         const before = cursor;
         cursor = response.cursor;
         await idb.setMeta('sync', { workspaceId, cursor });
-        // A truncated page returns a cursor below the server head; keep going.
-        more = response.cursor > before && countRows(response.changes) > 0 && hadFullPage(response.changes);
+        // The server says whether it truncated. The `cursor > before` guard
+        // stays: a server that ever answered without advancing would otherwise
+        // spin here forever.
+        more = !!response.hasMore && response.cursor > before;
       }
       retryDelay = 1000;
       setStatus({ state: outbox.length ? 'syncing' : 'synced', lastSyncedAt: Date.now(), message: undefined });
@@ -137,12 +139,6 @@ export function pull(): Promise<void> {
   })();
   return pulling;
 }
-
-const countRows = (changes: ChangeSet): number =>
-  Object.values(changes).reduce((sum, rows) => sum + (rows?.length ?? 0), 0);
-
-const hadFullPage = (changes: ChangeSet): boolean =>
-  Object.values(changes).some((rows) => (rows?.length ?? 0) >= 2000);
 
 async function persist(changes: ChangeSet): Promise<void> {
   const entries = Object.entries(changes)

@@ -36,6 +36,9 @@ runs the TypeScript sources directly, so there is no build step and no `dist/` t
 | `lib/repo.ts` | **the only write path** — per-field LWW merge, side effects, search index |
 | `lib/bootstrap.ts` | workspace/project creation with default states and labels |
 | `lib/mcp.ts` | MCP tools, prompts, resources; plain JSON-RPC, no SDK |
+| `lib/automation.ts` | rules: what fired, who it resolves to, and why it did nothing |
+| `lib/ratelimit.ts` | token buckets per address **and** per account, in memory |
+| `lib/csp.ts` | the content policy, computed because the object store may be off-origin |
 | `routes/sync.ts` | `pull`, `push` and the SSE change stream |
 | `routes/entities.ts` | generic REST CRUD for every registry entity |
 | `routes/files.ts` | content-addressed uploads and downloads |
@@ -144,8 +147,8 @@ an embedded video or a pile of screenshots — both of which go stale the day af
 - `components/hierarchy.tsx` — the containment tree, transcribed from `ENTITIES`. If a relationship
   changes in the registry it should change here too.
 
-Adding a feature means adding a card: a lead sentence, a scene, four how-to steps and a link into
-the screen. Every string is a catalogue key, so a new language gets an explained product rather
+Adding a feature means adding a card: a lead sentence, a scene, a handful of how-to steps and a
+link into the screen. Every string is a catalogue key, so a new language gets an explained product rather
 than a translated menu bar.
 
 Two things point at it from the rest of the app:

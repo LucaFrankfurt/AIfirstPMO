@@ -20,10 +20,9 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Content-Security-Policy header.** `default-src 'self'` with no inline or `eval`'d script,
       `frame-ancestors 'none'`. Computed rather than constant: with an object store and pre-signed
       downloads the browser is redirected off-origin, so that origin is named. See `lib/csp.ts`.
-- [ ] **Explicit `content-type` check on JSON routes.** CSRF is currently prevented by
-      `SameSite=Lax` cookies alone (cross-site POSTs carry no cookie). That is correct today, but
-      rejecting anything that is not `application/json` is one line and removes the dependency on
-      one browser default.
+- [x] **Explicit `content-type` check on JSON routes.** The three types a cross-site form can
+      produce (`x-www-form-urlencoded`, `multipart/form-data`, `text/plain`) are refused with 415,
+      so CSRF no longer rests on the `SameSite=Lax` default alone.
 - [ ] **Session management UI** — list active sessions per device and revoke individually.
       Changing the password already invalidates all of them, which is the blunt version.
 - [ ] Optional **2FA (TOTP)** for owner/admin accounts.
@@ -53,10 +52,10 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ### Correctness
 
-- [ ] **Replace the pull-pagination heuristic.** The client decides whether to ask for another page
-      by checking if any entity returned exactly `PAGE_SIZE` rows (`hadFullPage` in `lib/sync.ts`).
-      The server should return an explicit `hasMore` flag instead — the heuristic is right but
-      fragile, and it is the one place where a wrong guess means a client silently stops syncing.
+- [x] **Replaced the pull-pagination heuristic.** The server returns `hasMore`, which it knows for
+      certain because it asks for one row more than a page. The client no longer guesses from
+      "was any page exactly full", which was right until a workspace had exactly one page of
+      changes. Covered by a test that actually creates 2 025 rows.
 - [ ] **Guest role in the UI.** Guests are correctly refused by the server, but the interface still
       shows them buttons that will fail. Hide or disable write affordances when `role === 'guest'`.
 - [ ] **Client-side tests.** The store, the outbox and the merge path have no unit tests of their

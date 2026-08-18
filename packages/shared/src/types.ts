@@ -436,6 +436,14 @@ export type ChangeSet = { [K in EntityName]?: Record<string, unknown>[] };
 export interface PullResponse {
   changes: ChangeSet;
   cursor: number;
+  /**
+   * The server truncated this page and has more to give from `cursor`.
+   *
+   * Stated rather than inferred: a client guessing from "was any page exactly
+   * full" is right until a workspace has exactly a page of changes, and being
+   * wrong there means it silently stops syncing.
+   */
+  hasMore?: boolean;
   /** Server asks the client to drop its cache and re-pull from zero. */
   reset?: boolean;
   now: number;

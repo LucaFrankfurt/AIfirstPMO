@@ -29,7 +29,10 @@ Worth stating first, because it is the reason the gaps below are acceptable:
 - **One container, no database to run.** SQLite in the data volume, one Node
   process. Confluence and OpenProject both want a Postgres and a few gigabytes
   of RAM before they say hello.
-- **A manual inside the product**, animated and narrated, in two languages.
+- **A manual inside the product**, animated and narrated, in two languages, with
+  a first-run tour that configures the instance as it goes.
+- **A timer that is a database row**, so it survives a reload, a second device
+  and a tunnel — see [`time.md`](time.md).
 - **Templates and rules whose recipients are selectors**, not stored names — see
   [`automation.md`](automation.md).
 
@@ -101,8 +104,9 @@ management with money in it.
 ## Across all three: running it in a company
 
 The category where Kolibri has least and all three have something. Parts of it
-are **P1** in `TODO.md`, which is to say: known, and not yet done. Rate limiting
-and the Content-Security-Policy header used to head this list and are now built.
+are **P1** in `TODO.md`, which is to say: known, and not yet done. Rate limiting,
+the Content-Security-Policy header and refusing cross-site-forgeable content
+types used to head this list and are now built.
 
 | Missing | Note |
 |---|---|
@@ -115,17 +119,26 @@ and the Content-Security-Policy header used to head this list and are now built.
 
 ## What to build next
 
-Ordered by value per unit of work, not by size.
+Re-ordered as things get built. Everything above the line in the earlier
+revision of this file is done; what follows is what is actually left, ordered by
+value per unit of work rather than by size.
 
-| # | What | Why now | Effort |
+| # | What | Why it is next | Effort |
 |---|---|---|---|
-| ~~1~~ | ~~Saved views (interface)~~ | **Done** — save, load, share, rename, delete | |
-| ~~2~~ | ~~Page comments + mentions in pages~~ | **Done** — a thread under every page, mentions in the body | |
-| ~~3~~ | ~~Rate limiting + CSP~~ | **Done** — see `lib/ratelimit.ts` and `lib/csp.ts` | |
-| ~~4~~ | ~~Multi-select and the table layout~~ | **Done** — selection, bulk actions, sortable table | |
-| ~~5~~ | ~~Time tracking~~ | **Done** — timer or manual entry, totals per task and project, over MCP too | |
-| 6 | Import (CSV first, then Jira/Plane) | Nobody migrates without it | medium |
-| 7 | Gantt with dependencies | The largest single piece missing against OpenProject | large |
-| 8 | SSO | The gate on company adoption | large |
+| 1 | **Import** — CSV first, then Jira/Plane | The single biggest adoption blocker. Everything else here helps people who already moved in | medium |
+| 2 | **Work item types** (bug / feature / epic) | There is no `type` on a task, only labels, and labels do not change the form. Custom fields sit on top of the same decision | medium |
+| 3 | **Analytics** — burn-down/up, throughput, cycle time | Every number needed is already stored; nothing reads it. Time tracking just added another axis | medium |
+| 4 | **Page extras** — labels, watching, version diff, page templates, and exposing the stored `access` column | Turns the wiki from "good enough" into the reason somebody leaves Confluence | medium |
+| 5 | **SSO** (OIDC first) | The gate on adoption past roughly fifty people. Nothing in the auth layer anticipates it, so it is a project | large |
+| 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
+| 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |
+| 8 | **Trash / archive browser** | Everything is soft-deleted and recoverable in the database, and no screen shows it. Small, and the sort of gap people find at the worst moment | small |
 
-Items 1 to 3 are one sitting. Items 7 and 8 are projects.
+Items 1 and 8 are each a sitting. Items 5 and 7 are projects.
+
+## What has been closed
+
+For anyone reading this against an older revision: saved views, page comments
+and mentions in pages, rate limiting and the content policy, multi-select with
+bulk actions, the table layout, and time tracking were all on the list above and
+are now built. The tables further up reflect that.

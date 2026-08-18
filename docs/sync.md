@@ -62,13 +62,18 @@ Every write bumps a global counter and stamps the row with it. A pull is then a 
 
 ```
 GET /api/sync/pull?workspace=<id>&since=<cursor>
-→ { changes: { task: [...], page: [...] }, cursor: 4711 }
+→ { changes: { task: [...], page: [...] }, cursor: 4711, hasMore: false }
 ```
 
 Clients persist the cursor next to the data. A fresh client starts at `0` and receives the whole
 workspace; a client that was offline for a week receives exactly what changed. If one entity has
 more than 2000 rows to send, the server truncates the whole response at the last fully-covered
 sequence and the client immediately asks again — so a page boundary can never hide a row.
+
+`hasMore` is **stated, not inferred**. The server asks for one row more than a page and so knows
+for certain whether it truncated; a client guessing from "was any page exactly full" is right until
+a workspace has exactly one page of changes, and being wrong there means it stops syncing without
+saying so.
 
 Permission filtering happens inside the pull query: private projects a user is not a member of are
 excluded there, not in the UI.
