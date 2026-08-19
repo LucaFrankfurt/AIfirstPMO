@@ -75,7 +75,7 @@ export const ENTITIES = {
   project: {
     table: 'projects',
     fields: [
-      'workspace_id', 'team_id', 'name', 'key', 'description', 'icon', 'color',
+      'workspace_id', 'team_id', 'parent_id', 'name', 'key', 'description', 'icon', 'color',
       'lead_id', 'start_date', 'target_date', 'status', 'visibility', 'archived',
       'default_state_id', 'sort_order',
     ],

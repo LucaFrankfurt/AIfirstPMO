@@ -134,6 +134,8 @@ export interface TeamMember extends Base {
 export interface Project extends Base {
   workspace_id: ID;
   team_id: ID | null;
+  /** The project this one sits under. Nesting is for reading, not for access. */
+  parent_id: ID | null;
   name: string;
   key: string;
   description: string | null;

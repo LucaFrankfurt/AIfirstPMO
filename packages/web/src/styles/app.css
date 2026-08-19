@@ -538,6 +538,47 @@ p { margin: 0 0 0.75em; }
 }
 .chart-tip.pinned { bottom: auto; top: 0; }
 
+/* ---------------------------------------------------------------- roadmap */
+
+/* A timeline, not a chart of magnitudes: nothing is compared by length here, so
+   there is no scale — only the months, the bars and today. */
+.roadmap { --roadmap-label: 160px; }
+.roadmap-axis {
+  position: relative; height: 18px; margin-inline-start: var(--roadmap-label);
+  font-size: 11px; color: var(--fg-muted);
+}
+.roadmap-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.roadmap-rows { position: relative; }
+/* Lines drawn across every row live here, so a percentage inside it means the
+   same as a percentage inside a track — the label column is already excluded. */
+.roadmap-overlay { position: absolute; inset-block: 0; inset-inline: var(--roadmap-label) 0; pointer-events: none; }
+.roadmap-today { position: absolute; inset-block: 0; width: 1px; background: var(--accent); opacity: .55; }
+.roadmap-row { display: flex; align-items: center; height: 30px; }
+.roadmap-name {
+  width: var(--roadmap-label); flex: none; font-size: 12.5px; padding-inline-end: 10px;
+  display: flex; align-items: center; gap: 4px; min-width: 0;
+}
+.roadmap-name .truncate { min-width: 0; }
+.late-flag { color: var(--danger); font-size: 11px; white-space: nowrap; flex: none; }
+.late-flag svg { vertical-align: -1px; }
+.roadmap-track { position: relative; flex: 1; height: 100%; }
+.roadmap-bar {
+  position: absolute; top: 7px; height: 16px; border-radius: 4px;
+  background: color-mix(in srgb, var(--chart-1) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--chart-1) 45%, transparent);
+  overflow: visible; cursor: default;
+}
+.roadmap-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.roadmap-fill { position: absolute; inset-block: 0; inset-inline-start: 0; background: var(--chart-1); border-radius: 3px; }
+/* Late is a state, not a series: it gets the status colour and keeps its label. */
+.roadmap-bar.late { border-color: var(--danger); }
+.roadmap-bar.late .roadmap-fill { background: var(--danger); }
+
+@media (max-width: 700px) {
+  .roadmap { --roadmap-label: 96px; }
+  .roadmap-name { font-size: 11.5px; }
+}
+
 .bars { display: flex; flex-direction: column; gap: 7px; }
 .bar-row { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
 .bar-label { flex: 0 0 34%; color: var(--fg-soft); }

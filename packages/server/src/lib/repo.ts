@@ -229,7 +229,30 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
 
 /** Rules the server enforces regardless of what a client sent. */
 function applyInvariants(entity: EntityName, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
-  if (entity !== 'task') return;
+  // A project cannot sit under itself, directly or at any remove. Two devices
+  // can each make a legal move that is a loop together, so this is checked on
+  // write rather than trusted to the interface.
+  if (entity === 'project' && values.parent_id !== undefined && existing) {
+    if (wouldLoop(String(existing.id), values.parent_id as string | null)) {
+      values.parent_id = existing.parent_id ?? null;
+      forced.parent_id = values.parent_id;
+    }
+  }
+  if (entity === 'task') applyTaskInvariants(values, existing, forced);
+}
+
+/** Whether making `parentId` the parent of `id` closes a circle. */
+function wouldLoop(id: string, parentId: string | null): boolean {
+  let cursor = parentId;
+  for (let hops = 0; cursor && hops < 50; hops++) {
+    if (cursor === id) return true;
+    cursor = get<Row>(`SELECT parent_id FROM projects WHERE id = ?`, cursor)?.parent_id ?? null;
+  }
+  // A chain longer than fifty is a loop somebody already made; refuse to add to it.
+  return !!cursor;
+}
+
+function applyTaskInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   const stateId = (values.state_id ?? existing?.state_id) as string | undefined;
   if (values.state_id !== undefined && stateId) {
     const state = get<{ group_key: string }>(`SELECT group_key FROM states WHERE id = ?`, stateId);

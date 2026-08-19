@@ -64,7 +64,6 @@ which Plane does not have in this form.
 | Missing | Weight | Note |
 |---|---|---|
 | **Gantt layout** | High | `LAYOUTS` declares five; four are built. Gantt needs scheduling, not a layout |
-| **Analytics across projects** | Medium | Per project is built — throughput, burn-up, cycle time. Nothing aggregates a portfolio |
 | **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
 | **Named integrations** — GitHub/GitLab commit linking, Slack | Medium | Signed outgoing webhooks are built; what is missing is the per-service message shape and a route *in* |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
@@ -81,13 +80,10 @@ management with money in it.
 |---|---|---|
 | **Gantt with real scheduling** | High | Relations exist (`blocks`, `relates_to`, …) but nothing reschedules: moving a predecessor moves nothing |
 | **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
-| **Reports** — cost, utilisation, progress *across* projects | High | Per-project progress is built; money and portfolio-wide are not |
+| **Reports** — cost and utilisation | High | Progress across projects is built (the portfolio); money is not |
 | **Resource and capacity planning**, team planner | High | |
 | **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
 | **Status transition rules per role** (who may move what, where) | Medium–high | |
-| **Sub-projects** | Medium | Projects are flat; teams group them but do not nest them |
-| **Project templates** | Medium | Task templates exist; copying a whole project does not |
-| **Portfolio / roadmap across projects** | Medium | |
 | **Baselines** (plan vs. actual) | Medium | |
 | Meetings module (agenda, minutes), forums, news, documents | Depends on audience | |
 | WIP limits on boards | Low | |
@@ -119,6 +115,7 @@ value per unit of work rather than by size.
 | ~~3~~ | ~~Analytics~~ | **Done** — per project, computed from the local mirror | |
 | ~~4~~ | ~~Page extras~~ | **Done** — labels, watching, diff, templates, access, markdown export | |
 | ~~4b~~ | ~~Custom fields, type-dependent~~ | **Done** — nine kinds, per project, limited to work item types, over MCP too | |
+| ~~4c~~ | ~~Sub-projects, project copying, portfolio~~ | **Done** — nesting, any project as a template, and a roadmap across all of them | |
 | ~~5~~ | ~~SSO (OIDC first)~~ | **Done** — code flow with PKCE, optional password lockout, tested against a real signing provider | |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
 | 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |

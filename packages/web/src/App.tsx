@@ -5,6 +5,7 @@ import { TaskDetail } from './components/TaskDetail';
 import { Empty, ToastHost } from './components/ui';
 import { WelcomeTour } from './components/tour';
 import { Login } from './routes/Login';
+import { Portfolio } from './components/portfolio';
 import { Inbox, More, MyWork, Search } from './routes/personal';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
@@ -90,6 +91,7 @@ export default function App() {
           <Route path="/inbox" element={<Inbox />} />
           <Route path="/search" element={<Search />} />
           <Route path="/more" element={<More />} />
+          <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/projects" element={<ProjectList />} />
           <Route path="/projects/new" element={<ProjectNew />} />
           <Route path="/projects/:id" element={<ProjectPage />} />

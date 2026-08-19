@@ -135,6 +135,9 @@ CREATE TABLE IF NOT EXISTS projects (
   id               TEXT PRIMARY KEY,
   workspace_id     TEXT NOT NULL,
   team_id          TEXT,
+  -- A project under another one. Nesting is a way of reading the list, not a
+  -- permission boundary: a sub-project keeps its own members and visibility.
+  parent_id        TEXT,
   name             TEXT NOT NULL,
   key              TEXT NOT NULL,
   description      TEXT,

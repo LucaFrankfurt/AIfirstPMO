@@ -31,7 +31,7 @@ const isDone = (task: Task): boolean => {
 /* ------------------------------------------------------------- primitives */
 
 /** A headline number. Not a one-bar bar chart. */
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
+export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="stat">
       <span className="stat-label">{label}</span>
@@ -41,7 +41,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-interface Column {
+export interface Column {
   key: string;
   label: string;
   value: number;
@@ -206,7 +206,7 @@ function Lines({ series, labels, caption }: { series: Series[]; labels: string[]
 }
 
 /** Horizontal bars for a nominal breakdown — one hue, because length is the encoding. */
-function Bars({ data, caption }: { data: Column[]; caption: string }) {
+export function Bars({ data, caption }: { data: Column[]; caption: string }) {
   const t = useT();
   const max = Math.max(1, ...data.map((row) => row.value));
   return (
@@ -230,7 +230,7 @@ function Bars({ data, caption }: { data: Column[]; caption: string }) {
 }
 
 /** The same numbers as text. Required, not a nicety: colour is never the only channel. */
-function Table({ caption, head, rows }: { caption: string; head: string[]; rows: string[][] }) {
+export function Table({ caption, head, rows }: { caption: string; head: string[]; rows: string[][] }) {
   return (
     <details className="chart-table">
       <summary>{caption}</summary>

@@ -92,15 +92,19 @@ export function seedDemoData(): boolean {
     return { ...team, id: teamId };
   });
 
+  // Dates that overlap and disagree, so the roadmap has something to show:
+  // one nearly finished, one just starting, one already past its target.
   const projects = [
-    { name: 'Website', key: 'WEB', icon: '🌐', color: '#6366f1', team: teams[0].id, lead: ada },
-    { name: 'Public API', key: 'API', icon: '🔌', color: '#0ea5e9', team: teams[1].id, lead: grace },
-    { name: 'Mobile app', key: 'MOB', icon: '📱', color: '#f59e0b', team: teams[0].id, lead: margaret },
+    { name: 'Website', key: 'WEB', icon: '🌐', color: '#6366f1', team: teams[0].id, lead: ada, from: -60, to: 20 },
+    { name: 'Public API', key: 'API', icon: '🔌', color: '#0ea5e9', team: teams[1].id, lead: grace, from: -20, to: 70 },
+    { name: 'Mobile app', key: 'MOB', icon: '📱', color: '#f59e0b', team: teams[0].id, lead: margaret, from: -90, to: -5 },
   ].map((project) => {
     const row = createProject(ws, project.lead, {
       name: project.name, key: project.key, icon: project.icon, color: project.color, teamId: project.team,
       description: `Everything we ship for ${project.name.toLowerCase()}.`,
     });
+    writeEntity('project', row.id, { start_date: isoDate(project.from), target_date: isoDate(project.to) },
+      { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
     for (const userId of ids) {
       if (userId === project.lead) continue;
       writeEntity('projectMember', uid(), { workspace_id: ws, project_id: row.id, user_id: userId, role: 'member' },
@@ -152,6 +156,16 @@ export function seedDemoData(): boolean {
         sort_order: orders[index],
         created_by: project.lead,
       }, { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
+
+      // A little time against the work in flight, so the totals and the
+      // timesheet are not a row of zeros on a fresh demo.
+      if (group === 'started' || group === 'completed') {
+        writeEntity('timeEntry', uid(), {
+          workspace_id: ws, project_id: project.id, task_id: row.id, user_id: assignee,
+          minutes: 45 + ((index * 35) % 180), spent_on: isoDate(-(index % 7) - 1),
+          note: null, billable: 1,
+        }, { workspaceId: ws, actorId: assignee, hlc: hlc(), system: true });
+      }
 
       if (index === 0) {
         writeEntity('comment', uid(), {

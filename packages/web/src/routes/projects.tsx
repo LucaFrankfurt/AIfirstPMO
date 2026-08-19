@@ -21,6 +21,7 @@ import { pull } from '../lib/sync';
 import { useCanWrite, useMe, useMembers, useSession } from '../session';
 import { groupKey, useT, type TranslationKey } from '../lib/i18n';
 import { ProjectFields } from '../components/fields';
+import { CopyProjectSheet } from '../components/copy-project';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
@@ -543,6 +544,13 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const types = useTypes(projectId);
   const [newLabel, setNewLabel] = useState('');
   const [importing, setImporting] = useState(false);
+  const [copying, setCopying] = useState(false);
+  // A project cannot be its own parent, and the server refuses a longer loop —
+  // this list only keeps the obvious case out of the menu.
+  const siblings = useQuery(
+    () => list('project', (other) => other.id !== projectId && !other.archived && other.parent_id !== projectId),
+    [projectId],
+  );
   if (!project) return null;
 
   return (
@@ -556,6 +564,25 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <textarea id="s-desc" className="textarea" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
+      <div className="row" style={{ gap: 10 }}>
+        <div className="field grow">
+          <label htmlFor="s-parent">{t('project.parent')}</label>
+          <select
+            id="s-parent" className="select" value={project.parent_id ?? ''}
+            onChange={(event) => update('project', projectId, { parent_id: event.target.value || null })}
+          >
+            <option value="">{t('project.parentNone')}</option>
+            {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
+          </select>
+          <span className="hint">{t('project.parentHint')}</span>
+        </div>
+        <div className="field grow">
+          <label htmlFor="s-start">{t('project.startDate')}</label>
+          <input id="s-start" className="input" type="date" value={project.start_date ?? ''}
+            onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
+        </div>
+      </div>
+
       <div className="row" style={{ gap: 10 }}>
         <div className="field grow">
           <label htmlFor="s-lead">{t('project.lead')}</label>
@@ -686,6 +713,18 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Icon name="attach" size={14} /> {t('import.action')}
       </button>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('copy.title')}</h3>
+      <button className="btn" onClick={() => setCopying(true)}>
+        <Icon name="copy" size={14} /> {t('copy.action')}
+      </button>
+      {copying && (
+        <CopyProjectSheet
+          projectId={projectId}
+          onClose={() => setCopying(false)}
+          onCopied={(id) => navigate(`/projects/${id}`)}
+        />
+      )}
 
       <div className="divider" style={{ margin: '22px 0' }} />
       <div className="row">

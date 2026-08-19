@@ -136,8 +136,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Analytics.** Project → Insights: open/finished counts, median cycle time, time logged,
       throughput per week, a burn-up over the active cycle, and breakdowns by kind and by person.
       Computed from the local mirror, so it works offline. See [`docs/insights.md`](docs/insights.md).
-- [ ] **Analytics across projects.** A portfolio view is a different screen and a different
-      question. Nothing here aggregates beyond one project.
+- [x] **The portfolio.** One screen for every project at once: a roadmap laying each project out
+      from its start to its target date with progress inside the bar and today drawn through all of
+      them, the counts added up across projects, open work per project, and a table of where
+      everything stands. Computed from the local mirror like the per-project insights, so it works
+      offline. A project past its target with work still open says *late* in words as well as in
+      colour, on a phone too.
 - [x] **Mention autocomplete in the editor.** Typing `@` offers the workspace members; arrows and
       Enter or Tab pick one.
 - [x] **Scheduled digests** — off, daily or weekly, on top of the batching window. Mentions and
@@ -227,8 +231,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [ ] **Gantt with real scheduling.** Relations exist but nothing reschedules — moving a
       predecessor moves nothing. Baselines (plan vs. actual) sit on top of the same work.
 - [ ] **Resource and capacity planning**, a team planner.
-- [ ] **Sub-projects and project templates.** Projects are flat; teams group them but do not nest
-      them, and copying a whole project is not possible.
+- [x] **Sub-projects and project templates.** A project can sit under another — nesting in the
+      sidebar and in the portfolio, deliberately *not* a permission boundary, and the server refuses
+      a loop rather than trusting the interface. And any project can be copied, which is what a
+      project template is here: a project that has been run for six months describes how a team
+      works better than a form somebody filled in once. Structure always comes across; members,
+      rules, pages and tasks are each a choice. One transaction on the server, because half a copied
+      project is worse than none.
 - [ ] **Status transition rules per role** — who may move a task from where to where.
 - [x] **Recurring tasks.** Daily, weekly, fortnightly or monthly. The next one is created when the
       last is *finished*, not when a date passes: a weekly task nobody did four times is one late
@@ -241,7 +250,7 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       wherever its row says it is and updates the row only once the bytes have landed, so an
       interrupted move leaves an instance that still works. The old copies are left in place on
       purpose; `kolibri doctor` counts what is stranded on the backend no longer in use.
-- [ ] **Roadmap / portfolio view** across projects.
+- [x] **Roadmap / portfolio view** across projects — see P2 above.
 - [ ] **Public share links** for a page or a filtered task list.
 
 ---

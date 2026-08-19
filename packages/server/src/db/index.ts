@@ -46,6 +46,7 @@ for (const [table, column, definition] of [
   ['pages', 'labels', `TEXT NOT NULL DEFAULT '[]'`],
   ['pages', 'watchers', `TEXT NOT NULL DEFAULT '[]'`],
   ['pages', 'is_template', 'INTEGER NOT NULL DEFAULT 0'],
+  ['projects', 'parent_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

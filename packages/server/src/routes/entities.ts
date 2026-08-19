@@ -6,6 +6,7 @@ import { badRequest, flag, forbidden, notFound, readJson, type Ctx, type Router 
 import { uid } from '../lib/ids.ts';
 import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
 import { importCsv } from '../lib/import.ts';
+import { copyProject, type CopyOptions } from '../lib/copy.ts';
 import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 
 /** URL segment -> entity. Everything the sync engine knows is also plain REST. */
@@ -149,6 +150,33 @@ export function registerEntityRoutes(router: Router): void {
   });
 
   /** List: `/api/workspaces/:ws/tasks?project_id=…&state_id=…&limit=100`. */
+  /**
+   * Copy a project.
+   *
+   * Any project can be a template — a project that has been run for six months
+   * describes how a team works better than a form somebody filled in once. One
+   * transaction on the server, because half a copied project is worse than none.
+   */
+  router.post('/api/workspaces/:ws/projects/:id/copy', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const source = get<Row>(`SELECT id FROM projects WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+      ctx.params.id, ctx.params.ws);
+    if (!source) throw notFound('Project not found');
+    if (!canSeeProject(auth.userId, source.id)) throw forbidden('That project is private');
+
+    const body = await readJson<CopyOptions>(ctx);
+    const report = copyProject(ctx.params.ws, auth.userId, String(source.id), {
+      name: String(body.name ?? ''),
+      key: body.key,
+      parentId: body.parentId,
+      teamId: body.teamId,
+      include: body.include,
+    });
+    return { project: serialize('project', report.project), counts: report.counts };
+  });
+
   router.get('/api/workspaces/:ws/:collection', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws);
