@@ -8,7 +8,8 @@ import {
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../lib/totp.ts';
 import {
-  authorizeUrl, discover, emailFrom, enabled as oidcEnabled, exchangeCode, nameFrom, startFlow, verifyIdToken,
+  authorizeUrl, discover, emailFrom, enabled as oidcEnabled, exchangeCode, groupsFrom, nameFrom,
+  parseRoleMap, roleFor, startFlow, verifyIdToken,
 } from '../lib/oidc.ts';
 import {
   HttpError, badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
@@ -69,6 +70,58 @@ function setSessionCookie(ctx: Ctx, raw: string): void {
  * an account made through a provider gets the same starter project, in the
  * same language, as one made with a password.
  */
+/**
+ * The workspace accounts made through the provider join.
+ *
+ * Named explicitly if somebody said so; otherwise the instance's *only*
+ * workspace, because on a self-hosted instance with one workspace and a company
+ * directory pointed at it, "join the one that is here" is the only thing
+ * anybody means. With several and no setting, the account gets its own — the
+ * same as signing up — rather than this guessing which company you meant.
+ */
+function ssoWorkspace(): string | null {
+  const asked = env.oidc.workspace.trim();
+  if (asked) {
+    const row = get<Row>(
+      `SELECT id FROM workspaces WHERE (id = ? OR slug = ?) AND deleted_at IS NULL`, asked, asked,
+    );
+    return row ? String(row.id) : null;
+  }
+  const all_ = all<Row>(`SELECT id FROM workspaces WHERE deleted_at IS NULL LIMIT 2`);
+  return all_.length === 1 ? String(all_[0].id) : null;
+}
+
+/**
+ * Put somebody's workspace role where the directory says it should be.
+ *
+ * Only when a role map is configured — otherwise the provider has said nothing
+ * about roles and Kolibri's own answer stands. When it *is* configured the
+ * directory is the authority, which means this demotes as well as promotes:
+ * losing a group has to mean losing the access, or the map is decoration.
+ *
+ * With one exception, and it is not a policy so much as a locked door: the last
+ * owner of a workspace is never demoted. A misspelt group name should cost
+ * somebody an afternoon, not the instance.
+ */
+function applyProviderRole(userId: string, role: string, mapped: boolean): void {
+  if (!mapped) return;
+  for (const membership of all<Row>(
+    `SELECT id, workspace_id, role FROM workspace_members WHERE user_id = ? AND deleted_at IS NULL`, userId,
+  )) {
+    if (membership.role === role) continue;
+    if (membership.role === 'owner') {
+      const owners = all<Row>(
+        `SELECT id FROM workspace_members WHERE workspace_id = ? AND role = 'owner' AND deleted_at IS NULL`,
+        membership.workspace_id,
+      ).length;
+      if (owners <= 1) continue;
+    }
+    writeEntity('member', String(membership.id), { role }, {
+      workspaceId: String(membership.workspace_id), actorId: userId, hlc: serverClock.now(), system: true,
+    });
+  }
+}
+
 function createAccount(input: {
   email: string;
   name: string;
@@ -77,6 +130,9 @@ function createAccount(input: {
   locale: string | null;
   invite?: string;
   workspace?: string;
+  /** Join this workspace instead of getting one of your own. */
+  joinWorkspace?: string;
+  joinAs?: string;
 }): Row {
   const firstUser = !get(`SELECT id FROM users LIMIT 1`);
   return tx(() => {
@@ -97,6 +153,10 @@ function createAccount(input: {
 
     if (input.invite) {
       acceptInvite(input.invite, id);
+    } else if (input.joinWorkspace) {
+      // No starter project: this workspace already has whatever it has, and a
+      // "Getting started" project per new colleague is noise in a shared one.
+      addMember(input.joinWorkspace, id, input.joinAs ?? 'member');
     } else {
       const workspace = createWorkspace(input.workspace?.trim() || `${input.name}'s workspace`, id);
       createProject(workspace.id, id, { name: translate(locale ?? defaultLocale(), 'seed.starterProject'), key: 'GET', icon: '👋' });
@@ -235,13 +295,27 @@ export function registerAuthRoutes(router: Router): void {
       const claims = await verifyIdToken(document, tokens.id_token, flow.nonce);
       const email = emailFrom(claims);
 
+      const groups = groupsFrom(claims, env.oidc.groupsClaim);
+      const map = parseRoleMap(env.oidc.roleMap);
+      const asked = roleFor(groups, map);
+      // "Only these groups may sign in", written as a default of `none`.
+      if (map.size && !asked && env.oidc.defaultRole === 'none') {
+        return fail('Your account is not in a group that may use this instance');
+      }
+      const role = asked ?? (map.size ? env.oidc.defaultRole : 'member');
+
       let user = get<Row>(`SELECT * FROM users WHERE email = ? AND deleted_at IS NULL`, email);
       if (!user) {
         if (!env.oidc.autoCreate) return fail('There is no account for that address here');
         // No password: this account can only ever be signed into through the
         // provider, which is the point.
-        user = createAccount({ email, name: nameFrom(claims), password: null, locale: null });
+        user = createAccount({
+          email, name: nameFrom(claims), password: null, locale: null,
+          joinWorkspace: ssoWorkspace() ?? undefined,
+          joinAs: role,
+        });
       }
+      applyProviderRole(String(user.id), role, map.size > 0);
 
       setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
       ctx.res.writeHead(302, { location: flow.next });

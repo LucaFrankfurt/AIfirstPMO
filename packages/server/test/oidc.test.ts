@@ -277,3 +277,109 @@ describe('an instance that is single sign-on only', () => {
     }
   });
 });
+
+describe('groups from the token', () => {
+  it('reads an array, a space-separated string, and a nested path', async () => {
+    const { groupsFrom } = oidc;
+    assert.deepEqual(groupsFrom({ groups: ['admins', 'eng'] } as any, 'groups'), ['admins', 'eng']);
+    assert.deepEqual(groupsFrom({ groups: 'admins eng' } as any, 'groups'), ['admins', 'eng'],
+      'a provider that sends one string means a list, not a group with a space in it');
+    assert.deepEqual(groupsFrom({ groups: 'admins,eng' } as any, 'groups'), ['admins', 'eng']);
+    assert.deepEqual(
+      groupsFrom({ resource_access: { kolibri: { roles: ['ops'] } } } as any, 'resource_access.kolibri.roles'),
+      ['ops'],
+      'Keycloak puts them three levels down and is not going to move them for us',
+    );
+    assert.deepEqual(groupsFrom({} as any, 'groups'), [], 'a token that says nothing says nothing');
+    assert.deepEqual(groupsFrom({ groups: 42 } as any, 'groups'), [], 'and neither does a number');
+  });
+
+  it('takes the highest role of every group somebody is in', () => {
+    const map = oidc.parseRoleMap('admins=admin, engineering=member, contractors=guest');
+    assert.equal(oidc.roleFor(['engineering', 'admins'], map), 'admin',
+      'access is the union of what somebody has been given');
+    assert.equal(oidc.roleFor(['ADMINS'], map), 'admin', 'group names are compared case-insensitively');
+    assert.equal(oidc.roleFor(['nobody-knows'], map), null, 'an unmapped group asks for nothing');
+    assert.equal(oidc.roleFor(['admins'], new Map()), null, 'and with no map, nothing is asked at all');
+  });
+
+  it('skips a pair somebody typed wrong rather than inventing a role', () => {
+    const map = oidc.parseRoleMap('admins=admin, broken, eng=wizard, =member, spare=');
+    assert.deepEqual([...map], [['admins', 'admin']]);
+  });
+});
+
+describe('a role the directory decides', () => {
+  before(async () => {
+    const { env } = await import('../src/env.ts');
+    env.oidc.roleMap = 'kolibri-admins=admin, kolibri-users=member';
+    env.oidc.groupsClaim = 'groups';
+  });
+
+  after(async () => {
+    const { env } = await import('../src/env.ts');
+    env.oidc.roleMap = '';
+    identity = { sub: 'user-1', email: 'ada@example.com', email_verified: true, name: 'Ada Lovelace' };
+  });
+
+  const roleOf = async (email: string) => {
+    const { get } = await import('../src/db/index.ts');
+    return get<any>(
+      `SELECT m.role FROM workspace_members m JOIN users u ON u.id = m.user_id
+        WHERE u.email = ? AND m.deleted_at IS NULL LIMIT 1`,
+      email,
+    )?.role;
+  };
+
+  it('promotes somebody the provider says is an admin', async () => {
+    identity = { sub: 'lin', email: 'lin@example.com', email_verified: true, name: 'Lin', groups: ['kolibri-users'] };
+    assert.equal((await signIn()).status, 302);
+    assert.equal(await roleOf('lin@example.com'), 'member');
+
+    identity = { ...identity, groups: ['kolibri-users', 'kolibri-admins'] };
+    await signIn();
+    assert.equal(await roleOf('lin@example.com'), 'admin', 'a group added in the directory is access added here');
+  });
+
+  it('joins the workspace that is already here instead of starting a private one', async () => {
+    const { all, get } = await import('../src/db/index.ts');
+    const workspaces = all<any>(`SELECT id FROM workspaces WHERE deleted_at IS NULL`);
+    assert.equal(workspaces.length, 1, 'one instance, one workspace — which is the case this handles');
+
+    const lin = get<any>(`SELECT id FROM users WHERE email = 'lin@example.com'`);
+    const membership = get<any>(
+      `SELECT workspace_id FROM workspace_members WHERE user_id = ? AND deleted_at IS NULL`, lin.id,
+    );
+    assert.equal(
+      membership.workspace_id, workspaces[0].id,
+      'a company directory pointed at one workspace means that workspace, not one empty one per colleague',
+    );
+  });
+
+  it('demotes when the group is taken away, or the map is decoration', async () => {
+    identity = { sub: 'lin', email: 'lin@example.com', email_verified: true, name: 'Lin', groups: ['kolibri-users'] };
+    await signIn();
+    assert.equal(await roleOf('lin@example.com'), 'member');
+  });
+
+  it('never demotes the last owner of a workspace, whatever the directory says', async () => {
+    // Ada made the instance and owns her workspace alone.
+    identity = { sub: 'user-1', email: 'ada@example.com', email_verified: true, name: 'Ada Lovelace', groups: ['kolibri-users'] };
+    await signIn();
+    assert.equal(await roleOf('ada@example.com'), 'owner', 'a misspelt group costs an afternoon, not the instance');
+  });
+
+  it('refuses somebody in no mapped group when the default is none', async () => {
+    const { env } = await import('../src/env.ts');
+    env.oidc.defaultRole = 'none';
+    try {
+      identity = { sub: 'mallory', email: 'mallory@example.com', email_verified: true, name: 'Mallory', groups: ['some-other-app'] };
+      const result = await signIn();
+      assert.equal(result.status, 302);
+      assert.match(result.location, /sso_error/, 'sent back with a reason rather than let in');
+      assert.equal(await roleOf('mallory@example.com'), undefined, 'and no account was made');
+    } finally {
+      env.oidc.defaultRole = 'member';
+    }
+  });
+});

@@ -39,6 +39,8 @@ export interface Claims {
   name?: string;
   preferred_username?: string;
   picture?: string;
+  /** Whatever the groups claim is called; read through `groupsFrom`. */
+  [claim: string]: unknown;
 }
 
 export const enabled = (): boolean => !!(env.oidc.issuer && env.oidc.clientId && env.oidc.clientSecret);
@@ -211,3 +213,64 @@ export function emailFrom(claims: Claims): string {
 
 export const nameFrom = (claims: Claims): string =>
   String(claims.name || claims.preferred_username || claims.email || 'Someone').slice(0, 120);
+
+
+/* ------------------------------------------------------- groups and roles */
+
+/**
+ * The groups a token says somebody is in.
+ *
+ * The path is dotted because providers disagree about where to put them:
+ * Entra says `groups`, Keycloak says `resource_access.kolibri.roles`, and
+ * neither is going to move for us. The value may be an array or a single
+ * string, and a string may be a list — a provider that sends
+ * `"admins engineering"` means two groups, not one with a space in it.
+ */
+export function groupsFrom(claims: Claims, path: string): string[] {
+  let value: unknown = claims;
+  for (const part of path.split('.')) {
+    if (!value || typeof value !== 'object') return [];
+    value = (value as Record<string, unknown>)[part];
+  }
+  if (Array.isArray(value)) return value.map((entry) => String(entry).trim()).filter(Boolean);
+  if (typeof value === 'string') return value.split(/[\s,]+/).map((entry) => entry.trim()).filter(Boolean);
+  return [];
+}
+
+export type Role = 'owner' | 'admin' | 'member' | 'guest';
+const RANK: Record<Role, number> = { guest: 0, member: 1, admin: 2, owner: 3 };
+const isRole = (value: string): value is Role => value in RANK;
+
+/** `admins=admin, engineering=member` → a lookup. Unreadable pairs are skipped. */
+export function parseRoleMap(raw: string): Map<string, Role> {
+  const map = new Map<string, Role>();
+  for (const pair of raw.split(',')) {
+    const [group, role] = pair.split('=').map((part) => part.trim());
+    if (!group || !role) continue;
+    const wanted = role.toLowerCase();
+    if (isRole(wanted)) map.set(group.toLowerCase(), wanted);
+  }
+  return map;
+}
+
+/**
+ * The role the provider is asking for, or `null` for "it did not say".
+ *
+ * The **highest** matching group wins. Somebody in both `engineering` and
+ * `admins` is an admin: a person's access is the union of what they have been
+ * given, and taking the lowest would make adding a group to somebody able to
+ * quietly remove access.
+ *
+ * `owner` is deliberately reachable — an instance whose owners are managed in
+ * the directory is a reasonable thing to want — but the caller must refuse to
+ * remove the last one, which is in `auth.ts` where the members are.
+ */
+export function roleFor(groups: string[], map: Map<string, Role>): Role | null {
+  if (!map.size) return null;
+  let best: Role | null = null;
+  for (const group of groups) {
+    const role = map.get(group.toLowerCase());
+    if (role && (!best || RANK[role] > RANK[best])) best = role;
+  }
+  return best;
+}

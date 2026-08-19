@@ -36,7 +36,16 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       just in the interface. Driven in test against a provider that signs real RS256 tokens, so
       the refusals — a forged signature, `alg: none`, wrong audience, wrong issuer, an expired
       token, a mismatched nonce, a replayed state — are proven rather than assumed.
-      Still open: SAML and LDAP, and group-to-role mapping from provider claims.
+      Groups from the provider map to workspace roles: `KOLIBRI_OIDC_ROLE_MAP` reads a claim (a
+      dotted path, because Keycloak buries it three levels down and Entra does not), takes the
+      *highest* role of every group somebody is in — access is the union of what they have been
+      given — and applies it on every sign-in. It demotes as well as promotes, because a map that
+      only ever added access would be decoration; the one exception is the last owner of a
+      workspace, which is not a policy so much as a locked door. `KOLIBRI_OIDC_DEFAULT_ROLE=none` is
+      how "only these groups may sign in" is written. And an account made through the provider now
+      joins the instance's only workspace rather than starting a private one, which was the
+      behaviour that made single sign-on look configured and useless.
+      Still open: SAML and LDAP.
 - [x] **Workspace-wide audit log**, admins only, paged backwards. Private projects an admin is not
       a member of stay out of it: being an admin is not the same as being invited.
 

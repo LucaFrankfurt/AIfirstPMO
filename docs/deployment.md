@@ -110,6 +110,43 @@ claim an existing Kolibri account. Turning `KOLIBRI_OIDC_ONLY` on closes the
 password door for accounts that still carry one from before the switch, so make
 sure the provider can actually let you back in before you set it.
 
+#### Which workspace, and which role
+
+By default an account made through the provider joins the instance's **only**
+workspace, because a company directory pointed at a one-workspace instance means
+that workspace — not one empty workspace per colleague. With several and nothing
+configured it gets its own, exactly like signing up; name one to be sure:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_OIDC_WORKSPACE` | empty | Slug or id of the workspace new accounts join. Empty: the only workspace, if there is exactly one. |
+| `KOLIBRI_OIDC_GROUPS_CLAIM` | `groups` | Where the groups are in the token. A dotted path — Keycloak puts them at `resource_access.<client>.roles`. |
+| `KOLIBRI_OIDC_ROLE_MAP` | empty | `group=role` pairs, comma-separated. Empty leaves roles alone. |
+| `KOLIBRI_OIDC_DEFAULT_ROLE` | `member` | The role for somebody in no mapped group. `none` refuses the sign-in. |
+
+```bash
+KOLIBRI_OIDC_ROLE_MAP="kolibri-admins=admin, kolibri-users=member, contractors=guest"
+KOLIBRI_OIDC_DEFAULT_ROLE=none      # only those three groups may sign in at all
+```
+
+The **highest** matching role wins: somebody in both `kolibri-users` and
+`kolibri-admins` is an admin, because a person's access is the union of what they
+have been given and taking the lowest would make adding a group able to quietly
+remove access.
+
+Two things worth knowing before you set a map:
+
+- **It is applied on every sign-in, and it demotes.** Once the directory is the
+  authority on roles it has to be the authority both ways, or the map is
+  decoration — so a role changed inside Kolibri is overwritten the next time that
+  person signs in. Leave `KOLIBRI_OIDC_ROLE_MAP` empty if you would rather manage
+  roles here.
+- **The last owner of a workspace is never demoted.** A misspelt group name
+  should cost somebody an afternoon, not the instance.
+
+Groups are read from the ID token. If your provider only puts them in the
+userinfo response, add the claim to the token — every provider named above can.
+
 ### Object storage (optional — see [`storage.md`](storage.md))
 
 | Variable | Default | Meaning |

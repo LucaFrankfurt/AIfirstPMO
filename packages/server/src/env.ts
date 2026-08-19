@@ -121,6 +121,25 @@ export const env = {
     autoCreate: bool(process.env.KOLIBRI_OIDC_AUTO_CREATE, true),
     /** Hide the password form entirely. */
     only: bool(process.env.KOLIBRI_OIDC_ONLY, false),
+    /**
+     * Where the groups live in the token. A dotted path, because Keycloak puts
+     * them at `resource_access.kolibri.roles` and Entra at `groups`, and
+     * neither is going to change for us.
+     */
+    groupsClaim: process.env.KOLIBRI_OIDC_GROUPS_CLAIM ?? 'groups',
+    /** `group=role, group=role` — see `oidc.ts`. Empty leaves roles alone. */
+    roleMap: process.env.KOLIBRI_OIDC_ROLE_MAP ?? '',
+    /**
+     * The role somebody in none of the mapped groups gets. `none` refuses the
+     * sign-in, which is how "only these groups may in" is written.
+     */
+    defaultRole: (process.env.KOLIBRI_OIDC_DEFAULT_ROLE ?? 'member').trim().toLowerCase(),
+    /**
+     * The workspace an account made through the provider joins, by slug or id.
+     * Without it, a lone workspace on the instance is joined and anything else
+     * gets its own — see `joinWorkspace` in `auth.ts`.
+     */
+    workspace: process.env.KOLIBRI_OIDC_WORKSPACE ?? '',
   },
   /**
    * Web Push. On by default: the key pair is generated into the data directory
