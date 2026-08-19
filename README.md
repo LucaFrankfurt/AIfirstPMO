@@ -137,25 +137,16 @@ npm run dev:web        # :5173, proxies /api to :4000
 
 ## Connect an assistant (MCP)
 
-Create a token under **Settings → API & MCP**, then point any MCP client at the instance:
+Create a token under **Settings → API & MCP**, then point a client at the instance. Anything that
+speaks streamable HTTP needs nothing installed — the tools are in the server:
 
-```jsonc
-{
-  "mcpServers": {
-    "kolibri": {
-      "command": "npx",
-      "args": ["-y", "@kolibri/mcp"],
-      "env": {
-        "KOLIBRI_URL": "https://kolibri.example.com",
-        "KOLIBRI_TOKEN": "kol_…"
-      }
-    }
-  }
-}
+```bash
+claude mcp add --transport http kolibri https://kolibri.example.com/mcp \
+  --header "Authorization: Bearer kol_…"
 ```
 
-Clients that speak streamable HTTP can skip the bridge and talk to `POST /mcp` directly with an
-`Authorization: Bearer kol_…` header.
+A client that only speaks stdio runs the bridge in `packages/mcp`, which pipes JSON-RPC to that same
+endpoint. See [`docs/mcp.md`](docs/mcp.md).
 
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
 `create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,

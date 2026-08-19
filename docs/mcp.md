@@ -7,20 +7,30 @@ pages. It is a first-class client, not a scraping target.
 Protocol version `2025-06-18`. Two transports, one implementation:
 
 - **Streamable HTTP** — `POST /mcp` with `Authorization: Bearer kol_…`
-- **stdio** — `npx @kolibri/mcp`, which pipes JSON-RPC to that same endpoint
+- **stdio** — `packages/mcp`, a small bridge that pipes JSON-RPC to that same endpoint
 
 ## Setup
 
 1. **Settings → API & MCP → Create token.** Pin it to a workspace so tools do not need a
    `workspace_id` argument. Use scope `read` for an assistant that should only look.
-2. Add it to your client:
+2. Point your client at the instance. Which of the two transports you want depends only on what the
+   client speaks — the tools are the same either way, because they are the same implementation.
+
+**A client that speaks HTTP** needs nothing installed. Claude Code, for example:
+
+```bash
+claude mcp add --transport http kolibri https://kolibri.example.com/mcp \
+  --header "Authorization: Bearer kol_…"
+```
+
+**A client that only speaks stdio** runs the bridge, which pipes JSON-RPC to that same endpoint:
 
 ```jsonc
 {
   "mcpServers": {
     "kolibri": {
-      "command": "npx",
-      "args": ["-y", "@kolibri/mcp"],
+      "command": "node",
+      "args": ["/path/to/kolibri/packages/mcp/src/index.ts"],
       "env": {
         "KOLIBRI_URL": "https://kolibri.example.com",
         "KOLIBRI_TOKEN": "kol_…"
@@ -29,6 +39,10 @@ Protocol version `2025-06-18`. Two transports, one implementation:
   }
 }
 ```
+
+A path into a checkout, and not `npx @kolibri/mcp`, because **the bridge is not published to npm
+yet** — this said otherwise for a while and the instruction simply failed with a 404. It needs Node
+22.18 or newer, which is what runs the server too; nothing is built or installed.
 
 Verify from a shell:
 

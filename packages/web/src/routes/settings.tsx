@@ -573,18 +573,17 @@ function ApiSettings() {
     load();
   }, []);
 
-  const snippet = `{
-  "mcpServers": {
-    "kolibri": {
-      "command": "npx",
-      "args": ["-y", "@kolibri/mcp"],
-      "env": {
-        "KOLIBRI_URL": "${location.origin}",
-        "KOLIBRI_TOKEN": "${created ?? 'kol_your_token_here'}"
-      }
-    }
-  }
-}`;
+  /*
+   * What somebody copies out of here has to work when they paste it.
+   *
+   * This used to be a stdio config pointing at `npx -y @kolibri/mcp`, which is
+   * not published — the instruction failed with a 404 for everybody who tried
+   * it. The command below needs nothing installed at all: the tools live in
+   * this server, and a client that speaks HTTP can simply call it.
+   */
+  const token = created ?? 'kol_your_token_here';
+  const snippet = `claude mcp add --transport http kolibri ${location.origin}/mcp \\
+  --header "Authorization: Bearer ${token}"`;
 
   return (
     <>
@@ -638,7 +637,7 @@ function ApiSettings() {
           <Icon name="copy" size={14} /> {t('api.copyConfig')}
         </button>
         <span className="muted" style={{ fontSize: 12 }}>
-          {t('api.orDirect', { url: `${location.origin}/mcp` })}
+          {t('api.orDirect')}
         </span>
       </div>
 

@@ -299,6 +299,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P3 — bigger bets, only with a reason
 
+- [ ] **Publish `@kolibri/mcp` to npm.** The stdio bridge is a single file with no dependencies, and
+      until it is published a stdio client has to be pointed at a path inside a checkout. The docs
+      and the in-app snippet said `npx -y @kolibri/mcp` for a while, which failed with a 404 for
+      everybody who tried it; they now say what actually works. Publishing is the fix, and it turns
+      three lines of setup into one.
 - [ ] **A real GitHub integration.** Backlogged deliberately rather than forgotten, and worth being
       precise about what is already here, because the generic machinery covers more of it than the
       word "integration" suggests:
