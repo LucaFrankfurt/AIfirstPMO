@@ -299,6 +299,30 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P3 — bigger bets, only with a reason
 
+- [ ] **A real GitHub integration.** Backlogged deliberately rather than forgotten, and worth being
+      precise about what is already here, because the generic machinery covers more of it than the
+      word "integration" suggests:
+      **Already working, today, with no GitHub-specific code.** An *incoming* hook is a URL you give
+      GitHub as a webhook; a commit message naming a task gets commented on that task, and
+      `fixes SRV-12` moves it to Done. GitHub's and GitLab's push payload shapes are both read, and a
+      payload neither recognises is accepted and ignored rather than answered with an error — an
+      integration that returns 500 is an integration somebody switches off. An *outgoing* hook posts
+      task and comment events anywhere, signed with HMAC-SHA256, and can wear Slack's or Discord's
+      body shape instead of Kolibri's. See [`docs/api.md`](docs/api.md).
+      **What a named integration would add beyond that**, roughly in the order it is worth having:
+      a pull request linked to the task it names, with its state — open, in review, merged — shown on
+      the task rather than only mentioned in a comment; a branch created from a task, named after its
+      identifier; check status surfaced next to the task; a two-way issue link, so an issue filed on
+      GitHub becomes an intake row and a task filed here can open an issue; and a repository picker
+      instead of pasting a webhook URL, which means a GitHub App, an installation token and the token
+      refresh that goes with it.
+      **Why it is not being done now.** Everything on that list needs *outbound authenticated* calls
+      to GitHub, which is a different thing from receiving a webhook: an App registration, an
+      installation flow, token storage and rotation, and rate-limit handling — for one vendor. This
+      project has no runtime dependencies and one generic webhook mechanism that already carries the
+      cheap half of the value. The honest sequencing is to do it when somebody is actually using the
+      hooks and can say which of those five things they wanted first, rather than guessing all five.
+
 - [x] **Real-time collaborative page editing.** A page body is now a **text CRDT** — RGA, stored as
       runs, written from first principles like everything else hard in this project. Two people
       typing at once is a merge rather than a race: both paragraphs survive, in the same order on
