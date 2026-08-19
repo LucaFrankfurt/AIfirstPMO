@@ -30,7 +30,7 @@ import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
-import { useMe, useMemberMap } from '../session';
+import { useCanWrite, useMe, useMemberMap } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
@@ -54,9 +54,16 @@ function useConversations(me: string) {
   }, [me]);
 }
 
-/** How many messages in this conversation this person has not seen. */
-function useUnread(channelId: string, me: string): number {
+/**
+ * How many messages in this conversation this person has not seen.
+ *
+ * Zero for somebody who cannot write, for the same reason the sidebar badge is
+ * — see `useUnreadMessages`. A guest cannot write a read marker, so a count
+ * shown to them would only ever climb.
+ */
+function useUnread(channelId: string, me: string, canWrite: boolean): number {
   return useQuery(() => {
+    if (!canWrite) return 0;
     const marker = byId('channelRead', readStateId(channelId, me));
     if (marker?.notify === 'none') return 0;
     return unreadCount(
@@ -64,12 +71,21 @@ function useUnread(channelId: string, me: string): number {
       marker?.last_read_at ?? 0,
       me,
     );
-  }, [channelId, me]);
+  }, [channelId, me, canWrite]);
 }
 
-/** Everything unread, for the badge in the sidebar. */
-export function useUnreadMessages(me: string): number {
+/**
+ * Everything unread, for the badge in the sidebar.
+ *
+ * Zero for a guest, and not because they have nothing to read. A read marker is
+ * a *write*, and a guest has none — so their count would go up and never come
+ * down. A number that cannot reach zero is worse than no number, and letting
+ * guests keep their own private read state is a change to the permission model
+ * rather than something to slip in here.
+ */
+export function useUnreadMessages(me: string, canWrite = true): number {
   return useQuery(() => {
+    if (!canWrite) return 0;
     const markers = new Map(list('channelRead', (marker) => marker.user_id === me).map((m) => [m.channel_id, m]));
     const byChannel = new Map<string, Message[]>();
     for (const message of list('message', (message) => !message.deleted_at)) {
@@ -95,6 +111,7 @@ export function Chat() {
   const navigate = useNavigate();
   const { id } = useParams();
   const members = useMemberMap();
+  const canWrite = useCanWrite();
   const conversations = useConversations(me);
   const [creating, setCreating] = useState(false);
 
@@ -106,9 +123,11 @@ export function Chat() {
       <aside className="chat-list">
         <div className="row" style={{ marginBottom: 8 }}>
           <h1 className="grow" style={{ fontSize: 17, margin: 0 }}>{t('chat.title')}</h1>
-          <button className="btn sm" onClick={() => setCreating(true)}>
-            <Icon name="plus" size={13} /> {t('chat.new')}
-          </button>
+          {canWrite && (
+            <button className="btn sm" onClick={() => setCreating(true)}>
+              <Icon name="plus" size={13} /> {t('chat.new')}
+            </button>
+          )}
         </div>
 
         {conversations.length === 0 && (
@@ -123,11 +142,14 @@ export function Chat() {
             active={channel.id === id}
             title={channelTitle(channel, me, nameOf)}
             onOpen={() => navigate(`/chat/${channel.id}`)}
+            canWrite={canWrite}
           />
         ))}
 
-        <h2 className="nav-section" style={{ marginTop: 14 }}>{t('chat.people')}</h2>
-        {[...members.values()]
+        {/* Starting a conversation is a write, and a guest has none. A list of
+            people that refuses on click is worse than no list. */}
+        {canWrite && <h2 className="nav-section" style={{ marginTop: 14 }}>{t('chat.people')}</h2>}
+        {canWrite && [...members.values()]
           .filter((member) => member.id !== me)
           .map((member) => (
             <button
@@ -165,14 +187,15 @@ function openDirect(me: string, them: string): string {
   return id;
 }
 
-function ConversationRow({ channel, me, active, title, onOpen }: {
+function ConversationRow({ channel, me, active, title, onOpen, canWrite }: {
   channel: Channel;
   me: string;
   active: boolean;
   title: string;
   onOpen: () => void;
+  canWrite: boolean;
 }) {
-  const unread = useUnread(channel.id, me);
+  const unread = useUnread(channel.id, me, canWrite);
   return (
     <button className={`nav-item${active ? ' active' : ''}`} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
@@ -188,6 +211,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const t = useT();
   const members = useMemberMap();
   const { confirm, dialog } = useConfirm();
+  const canWrite = useCanWrite();
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<string | null>(null);
@@ -315,6 +339,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         <div ref={bottom} />
       </div>
 
+      {canWrite ? (
       <div className="chat-composer">
         {replyTo && (
           <div className="row quoted-draft">
@@ -340,6 +365,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           <Icon name="send" size={14} /> {t('chat.send')}
         </button>
       </div>
+      ) : (
+        /* A guest can read an open channel and cannot write anywhere. Saying so
+           here beats a composer that takes a paragraph and then refuses it. */
+        <div className="chat-composer">
+          <p className="hint" style={{ fontSize: 12.5, margin: 0 }}>{t('chat.readOnly')}</p>
+        </div>
+      )}
       {dialog}
     </>
   );

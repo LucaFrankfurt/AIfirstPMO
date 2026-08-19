@@ -504,6 +504,7 @@ export const fr: Catalogue = {
   'search.kindProject': 'projet',
   'search.kindComment': 'commentaire',
   'search.commentGone': 'Ce commentaire n’est plus dans cet espace de travail',
+  'search.messageGone': 'Ce message n’est plus dans cet espace de travail',
   /* ------------------------------------------------------------ projects */
   'state.wipLimit': 'Limite',
   'state.wipLimitHint': 'Combien de tâches peuvent se trouver dans cette colonne à la fois. 0 signifie sans limite. Le dépassement est affiché, jamais refusé — un tableau qui refuse une carte apprend aux gens à travailler ailleurs.',
@@ -579,6 +580,7 @@ export const fr: Catalogue = {
   'chat.deleteMessage': 'Supprimer ce message ?',
   'chat.placeholder': 'Message à {where}',
   'chat.send': 'Envoyer',
+  'chat.readOnly': 'Les invités peuvent lire cette conversation mais pas y écrire.',
   'chat.backToList': 'Retour aux conversations',
   'chat.notify': 'Me prévenir pour',
   'chat.notify.all': 'Chaque message',

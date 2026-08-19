@@ -585,6 +585,81 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] The doctor notices a search index that has drifted in either direction, a file row whose bytes
       are gone, and rows the housekeeping sweep would have removed
 
+## Decisions the chat still needs
+
+Not bugs, and not oversights: each of these has two defensible answers, and picking one is a call
+about how the team works rather than about how the code should. What is there today is written down
+so that "nothing was decided" and "this was decided" cannot be confused.
+
+**Blocking — a private channel is currently a dead end**
+
+- [ ] **Who may add somebody to a private channel, and where.** The server already enforces the hard
+      part: only somebody already in a conversation may change its membership, so nobody can add
+      themselves. What is missing is any *interface* for it, which means a private channel today is a
+      channel of one — you can create it and never invite anybody. **The decision:** may any member
+      of a private channel add anyone from the workspace, or only its creator, or only a workspace
+      admin? Slack lets any member invite; a tool used with clients often should not.
+- [ ] **Archiving, leaving and deleting a conversation.** The schema and the guards support all
+      three — `archived_at` is honoured, an archived conversation refuses new messages — and none of
+      them has a button. **The decision:** does leaving a channel remove you from its member list
+      (and so lose you the history), or only mute it? Does deleting a channel delete its messages for
+      everybody, or only hide the room? The second question is the one worth being sure about,
+      because a chat history is often the record of a decision.
+
+**Behaviour that is currently one way and could reasonably be the other**
+
+- [ ] **What time an offline message shows.** Today a message is stamped when it *reaches the
+      server*, not when it was typed — so a message written at 09:00 on a train and sent at 17:00
+      appears at 17:00, and two people who were both offline appear in the order their phones got
+      signal rather than the order they wrote. The alternative is honouring the device's clock, which
+      hands a phone with a wrong clock the ability to pin a message to the top of a conversation
+      forever. A third option exists: keep server time for ordering and show "written at" separately.
+      Everything else in this app uses server time, so that is what it does now; a chat is the one
+      place where it is visibly wrong.
+- [ ] **A chat message in the email digest.** Currently *no*: a message is important for Telegram and
+      Web Push and excluded from email, because email is batched and a chat message in a two-hour
+      digest is one answered too late to matter. Somebody who reads only email would rather have it
+      late than not at all. One line in `shared/src/chat.ts` either way.
+- [ ] **Guests and read state.** A guest can read an open channel and cannot write anything —
+      including their own read marker, which is why unread counts are hidden from them rather than
+      shown climbing forever. **The decision:** should a private read marker count as "content" a
+      guest may not write? Letting them write only `channelRead` rows is a small, contained change to
+      the permission model, and it is the difference between a guest having a usable inbox and not.
+- [ ] **Deleted conversations and the trash.** Channels and messages are purgeable and tombstoned
+      like everything else, but they are not in the trash screen, so a deleted channel cannot be
+      restored from the interface. Probably right for a *message* — a deleted message should stay
+      deleted — and probably wrong for a *channel*.
+
+**Missing next to what the rest of the app already does**
+
+- [ ] **Attachments in a conversation.** Comments and tasks take files; messages do not. "Here is the
+      screenshot" is most of what a work chat is for, so this is the most likely first complaint.
+      The uploader and the blob store already exist; it is a `message_id` on `attachments` and a drop
+      target.
+- [ ] **Reactions on a message.** Comments have them, messages do not. Same shape, same storage.
+      A 👍 is also the cheapest way to end a thread without another line in it.
+- [ ] **Chat in the in-app guide and the hierarchy explorer.** Every other feature has a card that
+      explains it and a node in the containment tree; chat has neither, and `hierarchy.tsx` says in
+      its own header that it should track `ENTITIES`. The tree currently under-describes the model.
+- [ ] **A project-scoped channel and the project export.** `transfer.ts` exports a project by an
+      explicit list of parts, and channels are not on it — so exporting a project silently leaves its
+      conversation behind. **The decision:** is a conversation part of a project, or something that
+      merely points at one? Either answer is fine; the current one is accidental.
+- [ ] **How much history a device keeps.** Every message ever sent is synced to every device that may
+      see it and held in memory. That is the same rule as tasks, and chat is the one entity whose
+      volume grows without bound — a busy year is a different order of magnitude from a year of
+      tasks. Nothing is wrong today and nothing has been measured; the options are a windowed sync,
+      an age-based local prune, or leaving it and finding out.
+
+**Already recorded as deliberate, and still worth revisiting**
+
+- [ ] **Typing indicators and presence.** Left out because the realtime channel deliberately carries
+      "something changed up to seq N" and nothing else, so that catching up after a tunnel and
+      hearing about a change live are one code path. If they are wanted, the honest shape is a second
+      ephemeral transport rather than widening this one — see [`docs/chat.md`](docs/chat.md).
+- [ ] **Read receipts.** The read marker exists and is private. Making it visible to others is a
+      one-way door socially, so it is a decision rather than a feature.
+
 ## Known-unknowns
 
 Things nobody has measured yet, so treat any claim about them as a guess:

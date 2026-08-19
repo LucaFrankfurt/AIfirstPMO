@@ -15,11 +15,19 @@ import { env } from '../env.ts';
 import { sendMail, type SmtpConfig } from './smtp.ts';
 import { uid } from './ids.ts';
 import { isLocale, defaultLocale, translate, type Locale } from './i18n.ts';
+import { isImportantFor } from '@kolibri/shared';
 
 export type EmailPreference = 'all' | 'important' | 'none';
 
-/** Kinds a user on the "important only" setting still wants in their inbox. */
-const IMPORTANT = new Set(['assigned', 'mention', 'invite', 'due_soon']);
+/**
+ * Kinds a user on the "important only" setting still wants in their inbox.
+ *
+ * Defined once in `@kolibri/shared` alongside the instant channels' answer, so
+ * the two cannot drift apart again — a chat message counts as important there
+ * and deliberately not here, because this channel is batched and a chat message
+ * in a two-hour digest is one answered too late to matter.
+ */
+const important = (kind: string): boolean => isImportantFor('email', kind);
 
 const smtp = (): SmtpConfig => ({
   host: env.mail.host,
@@ -225,7 +233,7 @@ export function batchNotifications(now = Date.now()): number {
       stamp();
       continue;
     }
-    const relevant = preference === 'all' ? pending : pending.filter((row) => IMPORTANT.has(row.kind));
+    const relevant = preference === 'all' ? pending : pending.filter((row) => important(String(row.kind)));
     stamp();
     if (!relevant.length) continue;
 

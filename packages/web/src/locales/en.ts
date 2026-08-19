@@ -497,6 +497,7 @@ export const en = {
   'search.kindProject': 'project',
   'search.kindComment': 'comment',
   'search.commentGone': 'That comment is not in this workspace any more',
+  'search.messageGone': 'That message is not in this workspace any more',
 
   /* ------------------------------------------------------------ projects */
   'state.wipLimit': 'Limit',
@@ -573,6 +574,7 @@ export const en = {
   'chat.deleteMessage': 'Delete this message?',
   'chat.placeholder': 'Message {where}',
   'chat.send': 'Send',
+  'chat.readOnly': 'Guests can read this conversation but not write in it.',
   'chat.backToList': 'Back to conversations',
   'chat.notify': 'Tell me about',
   'chat.notify.all': 'Every message',

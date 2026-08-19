@@ -14,9 +14,16 @@ every channel off never means missing something — it just means you have to lo
 | `comment` | A comment on a page you wrote, or on one you have already commented on | no |
 | `due_soon` | A task you are on is due within two days, or is already past due | yes |
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
+| `message` | Somebody wrote to you directly, or named you in a channel | instant channels only |
 
-"Important" is what the *email* and *Telegram* channels fall back to when somebody chooses "only
-what needs me". The in-app inbox always gets everything — it is the source of truth, not a channel.
+"Important" is what a channel falls back to when somebody chooses "only what needs me". The in-app
+inbox always gets everything — it is the source of truth, not a channel.
+
+One kind splits: a **chat message is important for the instant channels** (Telegram, Web Push) and
+deliberately not for email. Email here is batched into a digest on purpose, and a chat message that
+arrives in a two-hour summary is one answered too late to matter. Both answers come from a single
+definition in `packages/shared/src/chat.ts`, so the two cannot quietly drift apart — which they had,
+under a comment claiming they matched.
 
 Mentions accept what people actually type: `@ada`, `@adalovelace`, `@ada@example.com`. Unknown
 handles are left alone, and mentioning yourself does nothing.

@@ -59,6 +59,12 @@ places, because each has to be shaped for its own query:
 Four copies of a rule is four chances to get it wrong, so `test/chat.test.ts` asks each of them the
 same question about the same channels and requires the same answer.
 
+That test was written after the fact and immediately earned its place: the sync copy checked a
+channel's privacy and its project and **forgot its tombstone**, so a deleted conversation carried on
+posting messages to devices that no longer had a channel to put them in. Not a leak — only members
+ever received them — but exactly the kind of disagreement four copies produce. It is now covered
+both alive and deleted.
+
 Two consequences worth stating:
 
 - **Search does not leak.** A message is indexed like anything else, but the index has no idea who
@@ -67,6 +73,11 @@ Two consequences worth stating:
 - **Membership cannot be self-granted.** The member list is an ordinary synced field, which is what
   makes adding somebody to a channel work offline — and would also make adding *yourself* work.
   Only somebody already in a conversation may change it.
+- **Leaving the workspace closes the door.** Being removed from a workspace does not take your name
+  out of the channels you were in — the member list is a synced field, not a foreign key — so
+  `canSeeChannel` checks workspace membership as well. Every route that reaches it already checks
+  that too, so this is the second lock rather than the only one; it is there so the next caller
+  cannot forget.
 
 ## What the server decides
 
@@ -96,8 +107,15 @@ Per-conversation, in the bell menu at the top of a conversation. The setting liv
 `channel_reads` row, which is private to you: where you have got to is nobody else's business, and a
 read receipt is deliberately not a feature here.
 
-Message notifications count as *important*, so they reach the email and Telegram channels of anybody
-on "only what needs me" — see [`notifications.md`](notifications.md).
+A message notification carries the conversation it is about, so pressing it opens that conversation.
+A notification that announces something and then does nothing when pressed is worse than one that
+was never sent.
+
+Message notifications count as *important* for the **instant** channels — Telegram and Web Push —
+and deliberately **not** for email. Email here is batched into a digest on purpose, and a chat
+message that arrives in a two-hour summary is one answered too late to matter. Both answers come
+from one definition in `shared/src/chat.ts` so they cannot drift; an earlier version had two sets
+and a comment claiming they matched. See [`notifications.md`](notifications.md).
 
 ## Unread
 
@@ -106,6 +124,17 @@ marker, not counting your own. No endpoint, no polling, and it is right while of
 
 The marker only ever moves **forwards**. A marker that went backwards would make a conversation
 somebody has just read unread again on their other device.
+
+## Guests
+
+A guest can **read** an open channel and cannot write anywhere — that is the workspace-wide guest
+rule, not a chat rule. Chat says so before somebody types rather than after: no composer, no *new
+channel* button, no list of people to start a conversation with, and a line explaining why.
+
+Unread counts are **hidden** from guests, and not because there is nothing to read. A read marker is
+itself a write, so a guest's count would climb and never come down; a number that cannot reach zero
+is worse than no number. Letting guests keep their own private read state would be a change to the
+permission model, which is a decision rather than something to slip in here — it is in `TODO.md`.
 
 ## What is deliberately not here
 

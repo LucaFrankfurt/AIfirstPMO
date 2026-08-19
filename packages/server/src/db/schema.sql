@@ -691,8 +691,10 @@ CREATE TABLE IF NOT EXISTS notifications (
   task_id      TEXT,
   page_id      TEXT,
   -- Where to go when the notification is not about one task or one page. A
-  -- report from outside is about a project's queue, not a row.
+  -- report from outside is about a project's queue, not a row; a message is
+  -- about a conversation.
   project_id   TEXT,
+  channel_id   TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,

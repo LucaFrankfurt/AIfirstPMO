@@ -498,6 +498,7 @@ export const de: Catalogue = {
   'search.kindProject': 'Projekt',
   'search.kindComment': 'Kommentar',
   'search.commentGone': 'Dieser Kommentar ist nicht mehr in diesem Workspace',
+  'search.messageGone': 'Diese Nachricht ist nicht mehr in diesem Workspace',
 
   /* ------------------------------------------------------------ projects */
   'state.wipLimit': 'Limit',
@@ -574,6 +575,7 @@ export const de: Catalogue = {
   'chat.deleteMessage': 'Diese Nachricht löschen?',
   'chat.placeholder': 'Nachricht an {where}',
   'chat.send': 'Senden',
+  'chat.readOnly': 'Gäste können diese Unterhaltung lesen, aber nicht darin schreiben.',
   'chat.backToList': 'Zurück zu den Unterhaltungen',
   'chat.notify': 'Benachrichtigen bei',
   'chat.notify.all': 'Jeder Nachricht',

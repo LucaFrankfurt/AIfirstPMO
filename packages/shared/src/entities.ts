@@ -264,8 +264,8 @@ export const ENTITIES = {
   },
   notification: {
     table: 'notifications',
-    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'actor_id', 'read_at', 'archived_at'],
-    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id'],
+    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'actor_id', 'read_at', 'archived_at'],
+    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'actor_id'],
     private: true,
   },
   /**

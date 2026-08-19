@@ -102,7 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return out;
   }, [projects]);
   const unread = useQuery(() => list('notification', (n) => n.user_id === me && !n.read_at).length, [me]);
-  const unreadMessages = useUnreadMessages(me);
+  const unreadMessages = useUnreadMessages(me, canWrite);
   const myOpen = useQuery(
     () => list('task', (t) => (t.assignees ?? []).includes(me) && !t.archived).length,
     [me],

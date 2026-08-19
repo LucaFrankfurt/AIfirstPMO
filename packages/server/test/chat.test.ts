@@ -287,6 +287,35 @@ describe('who can read what', () => {
     assert.ok(forMax.length > 0, 'the open message should still be findable');
   });
 
+  it('stops sending a deleted conversation\'s messages, through every door', async () => {
+    const doomed = (await post(people.ada, 'channels', { name: 'doomed' })).id;
+    const said = (await post(people.ada, 'messages', { channel_id: doomed, body: 'zarquon doomed' })).id;
+    await as(people.ada, `/api/channels/${doomed}`, undefined, 'DELETE');
+
+    // All four doors, and they have to agree. The sync one did not: it checked
+    // the channel's privacy and forgot its tombstone, so a deleted conversation
+    // kept posting to devices that no longer had anywhere to put it.
+    assert.equal(canSeeChannel(people.ada.id, doomed), false, 'the guard');
+    assert.ok(!idsOf(await pull(people.ada), 'message').includes(said), 'the sync pull');
+    assert.ok(!(await as(people.ada, `/api/workspaces/${workspaceId}/messages`)).some((row: any) => row.id === said), 'the REST list');
+    assert.ok(!searchWorkspace(workspaceId, people.ada.id, 'zarquon').some((hit) => hit.id === said), 'search');
+  });
+
+  it('shuts the door on somebody who left the workspace', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'stayers', is_private: 1, members: [people.ada.id, people.lin.id],
+    })).id;
+    assert.equal(canSeeChannel(people.lin.id, channel), true);
+
+    // Leaving does not take your name out of the channels you were in — the
+    // member list is a synced field, not a foreign key.
+    run(`UPDATE workspace_members SET deleted_at = ? WHERE user_id = ? AND workspace_id = ?`,
+      Date.now(), people.lin.id, workspaceId);
+    assert.equal(canSeeChannel(people.lin.id, channel), false);
+    run(`UPDATE workspace_members SET deleted_at = NULL WHERE user_id = ? AND workspace_id = ?`,
+      people.lin.id, workspaceId);
+  });
+
   it('refuses somebody adding themselves to a conversation', async () => {
     const result = await raw(people.max, `/api/channels/${secret}`, {
       members: [people.ada.id, people.lin.id, people.max.id],
@@ -393,6 +422,13 @@ describe('being told about a message', () => {
     const before = inbox(people.lin).length;
     await post(people.ada, 'messages', { channel_id: channel, body: 'no names in this one' });
     assert.equal(inbox(people.lin).length, before + 1);
+  });
+
+  it('names the conversation, so the notification can be opened', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'pointy' })).id;
+    await post(people.ada, 'messages', { channel_id: channel, body: 'over here @lin' });
+    const latest = inbox(people.lin).at(-1)!;
+    assert.equal(latest.channel_id, channel, 'a notification with nowhere to go is worse than none');
   });
 
   it('stays quiet for somebody who asked for none of it, even by name', async () => {

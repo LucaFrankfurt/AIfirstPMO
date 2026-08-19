@@ -125,3 +125,29 @@ export function normaliseChannelName(input: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60);
 }
+
+/* --------------------------------------------------- what counts as urgent */
+
+/**
+ * Notification kinds somebody on "only what needs me" still wants delivered.
+ *
+ * One definition rather than one per channel, because a rule that differs by
+ * channel is a rule nobody can predict — that sentence was in the code while
+ * two sets quietly disagreed, which is how this came to be written down.
+ */
+export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon'] as const;
+
+/**
+ * ...and the one kind the *instant* channels add.
+ *
+ * A chat message is urgent or it is nothing: it belongs on a phone in a second
+ * or not at all. Email here is batched into a digest on purpose, and a chat
+ * message that arrives in a two-hour summary is a message answered too late to
+ * matter — so it is important for Telegram and Web Push and deliberately not
+ * for email. That is a real difference, and it is stated instead of hidden.
+ */
+export const INSTANT_ONLY_KINDS = ['message'] as const;
+
+export const isImportantFor = (channel: 'email' | 'instant', kind: string): boolean =>
+  (IMPORTANT_KINDS as readonly string[]).includes(kind)
+  || (channel === 'instant' && (INSTANT_ONLY_KINDS as readonly string[]).includes(kind));

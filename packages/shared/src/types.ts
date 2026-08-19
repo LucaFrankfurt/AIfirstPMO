@@ -620,6 +620,8 @@ export interface Notification extends Base {
   page_id: ID | null;
   /** Where to go when it is about neither one task nor one page. */
   project_id: ID | null;
+  /** The conversation, when it is about something somebody said in one. */
+  channel_id: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;

@@ -75,12 +75,14 @@ function filterFor(entity: EntityName): string {
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
               AND (${table}.is_private = 0
                    OR EXISTS (SELECT 1 FROM json_each(${table}.members) WHERE json_each.value = ?2))`;
-    // Messages inherit their channel's answer, exactly. Written out rather than
-    // reusing the clause above so there is one query and no join to forget.
+    // Messages inherit their channel's answer, exactly — including `deleted_at`.
+    // Leaving that out was a real bug: a deleted conversation kept sending its
+    // messages to members whose devices no longer had a channel to put them in.
     case 'message':
       return `AND EXISTS (
                 SELECT 1 FROM channels c
                  WHERE c.id = ${table}.channel_id
+                   AND c.deleted_at IS NULL
                    AND (c.project_id IS NULL OR c.project_id IN (${VISIBLE_PROJECTS}))
                    AND (c.is_private = 0
                         OR EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;

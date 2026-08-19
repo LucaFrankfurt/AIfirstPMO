@@ -26,15 +26,20 @@
 import { randomBytes } from 'node:crypto';
 import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
+import { isImportantFor } from '@kolibri/shared';
 import { translate, localeOf, type ServerKey } from './i18n.ts';
 
 export type TelegramPreference = 'all' | 'important' | 'none';
 
 /**
- * Kinds somebody on "important only" still wants on their phone. The same set
- * email uses: a rule that differs per channel is a rule nobody can predict.
+ * Kinds somebody on "important only" still wants on their phone.
+ *
+ * The same definition email uses, plus the one thing an instant channel adds:
+ * a chat message. Both live in `@kolibri/shared` so they cannot drift — an
+ * earlier version of this comment claimed the two sets matched while they
+ * quietly did not.
  */
-const IMPORTANT = new Set(['assigned', 'mention', 'invite', 'due_soon', 'message']);
+const important = (kind: string): boolean => isImportantFor('instant', kind);
 
 const TIMEOUT_MS = 15_000;
 
@@ -187,7 +192,7 @@ export async function deliverNotification(notificationId: string): Promise<'sent
 
   const preference = (isPreference(row.prefs) ? row.prefs : 'all') as TelegramPreference;
   if (!row.chat_id || preference === 'none') return 'skipped';
-  if (preference === 'important' && !IMPORTANT.has(String(row.kind))) return 'skipped';
+  if (preference === 'important' && !important(String(row.kind))) return 'skipped';
   if (Number(row.telegram_attempts ?? 0) >= env.telegram.maxAttempts) return 'skipped';
 
   const chatId = String(row.chat_id);
@@ -235,6 +240,7 @@ function deepLink(row: Row): string | null {
   if (!env.publicUrl) return null;
   if (row.task_id) return `${env.publicUrl}/t/${row.task_id}`;
   if (row.page_id) return `${env.publicUrl}/pages/${row.page_id}`;
+  if (row.channel_id) return `${env.publicUrl}/chat/${row.channel_id}`;
   if (row.project_id) return `${env.publicUrl}/projects/${row.project_id}`;
   return `${env.publicUrl}/inbox`;
 }

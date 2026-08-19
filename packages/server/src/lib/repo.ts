@@ -803,7 +803,7 @@ function recordActivity(entity: EntityName, row: Row, before: Row | undefined, c
  * moment it is created, and never needs translating again.
  */
 function notify(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {
-  const targets = new Map<string, { kind: string; title: (t: Translator) => string; body: string | null }>();
+  const targets = new Map<string, { kind: string; title: (t: Translator) => string; body: string | null; channelId?: string }>();
 
   if (entity === 'task' && changed.assignees !== undefined) {
     const now = parseIds(row.assignees);
@@ -917,6 +917,9 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
             ? t('notify.directMessage', { name: displayName(opts.actorId) })
             : t('notify.message', { name: displayName(opts.actorId), channel: `#${channel.name}` })),
           body: String(row.body ?? '').slice(0, 280),
+          // Without this the notification says something happened and then has
+          // nowhere to take you, which is worse than not sending it.
+          channelId: String(channel.id),
         });
       }
     }
@@ -942,6 +945,7 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       body: payload.body,
       taskId: entity === 'task' ? row.id : row.task_id ?? null,
       pageId: entity === 'page' ? row.id : row.page_id ?? null,
+      channelId: payload.channelId ?? null,
       actorId: opts.actorId,
     });
   }
@@ -1098,6 +1102,16 @@ export function canSeeChannel(userId: string, channelId: string | null | undefin
   if (!channelId) return false;
   const channel = get<Row>(`SELECT * FROM channels WHERE id = ? AND deleted_at IS NULL`, channelId);
   if (!channel) return false;
+  // Leaving the workspace does not take your name out of the channels you were
+  // in — the member list is a synced field, not a foreign key. Every caller
+  // today also checks workspace membership, so this is the second lock rather
+  // than the only one; it is here so that the *next* caller cannot forget.
+  const stillHere = get(
+    `SELECT 1 FROM workspace_members
+      WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    channel.workspace_id, userId,
+  );
+  if (!stillHere) return false;
   if (!canSeeProject(userId, channel.project_id)) return false;
   if (!Number(channel.is_private)) return true;
   return parseIds(channel.members).includes(userId);

@@ -24,6 +24,7 @@ export interface NewNotification {
   taskId?: string | null;
   pageId?: string | null;
   projectId?: string | null;
+  channelId?: string | null;
   actorId?: string | null;
 }
 
@@ -33,11 +34,12 @@ export function createNotification(input: NewNotification): string {
   const now = Date.now();
   run(
     `INSERT INTO notifications
-       (id, workspace_id, user_id, kind, title, body, task_id, page_id, project_id, actor_id,
+       (id, workspace_id, user_id, kind, title, body, task_id, page_id, project_id, channel_id, actor_id,
         created_at, updated_at, seq, clocks)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
     id, input.workspaceId, input.userId, input.kind, input.title, input.body ?? null,
-    input.taskId ?? null, input.pageId ?? null, input.projectId ?? null, input.actorId ?? null,
+    input.taskId ?? null, input.pageId ?? null, input.projectId ?? null, input.channelId ?? null,
+    input.actorId ?? null,
     now, now, nextSeq(),
   );
 

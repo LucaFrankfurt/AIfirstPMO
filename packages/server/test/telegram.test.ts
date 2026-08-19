@@ -428,3 +428,28 @@ describe('an instance with no bot configured', () => {
     }
   });
 });
+
+describe('what counts as important', () => {
+  it('is one definition, and the instant channels add exactly one kind to it', async () => {
+    const { isImportantFor } = await import('@kolibri/shared');
+    for (const kind of ['assigned', 'mention', 'invite', 'due_soon']) {
+      assert.equal(isImportantFor('email', kind), true, kind);
+      assert.equal(isImportantFor('instant', kind), true, kind);
+    }
+    // A chat message belongs on a phone in a second or not at all; a batched
+    // digest would deliver it too late to answer.
+    assert.equal(isImportantFor('instant', 'message'), true);
+    assert.equal(isImportantFor('email', 'message'), false);
+    // And neither channel invents anything else.
+    assert.equal(isImportantFor('instant', 'page_changed'), false);
+    assert.equal(isImportantFor('email', 'comment'), false);
+  });
+
+  it('sends a message on "important" and holds back a page edit', async () => {
+    await link();
+    run(`UPDATE users SET telegram_prefs = 'important' WHERE id = ?`, ada);
+    notify({ kind: 'message', title: 'Lin in #general' });
+    await settle();
+    assert.equal(messages().length, 1);
+  });
+});
