@@ -60,14 +60,22 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ### Operations
 
-- [ ] **Verify the deployment on a real daemon.** The Dockerfile and both compose files were
-      written and reviewed but never executed — there was no Docker daemon in the environment they
-      were authored in. The `deploy` job in CI brings the whole stack up and asserts the wiring
-      (provisioned owner account, upload landing in MinIO, mail refused while no relay is
-      configured, the dev overlay delivering into the capture inbox, restart idempotence, plus the
-      lite variant, and now a backup taken, verified and restored inside the container); that job
-      has not run yet.
-- [ ] **Verify the Coolify deployment.** `docker-compose.coolify.yml` is written against Coolify's
+- [x] **Verified the deployment on a real daemon.** This carried the honest caveat for a long time
+      that the Dockerfile and the compose files had been written and reviewed but never executed —
+      there was no Docker daemon in the environment they were authored in. The CI `deploy` job has
+      now run, and passed. What it actually proves, in one pass on a real daemon:
+      the image builds; MinIO and the app both come up healthy; `/api/health` reports `ready`,
+      `storage: s3` and `mail: off`; the owner account provisioned from the environment can sign in
+      and owns the workspace it names; a file uploaded through the API round-trips **and its bytes
+      are listed in the MinIO bucket** rather than sitting on the app's disk; a test mail is refused
+      with 400 while no relay is configured; a restart leaves exactly one user, so provisioning is
+      idempotent; `kolibri doctor` finds nothing broken; a backup is taken, verified and *restored*
+      inside the container, with a sign-in afterwards as the proof the account survived the round
+      trip; the dev overlay reports `mail: test-inbox` and a message reaches Mailpit; and the lite
+      variant comes up with `storage: disk`.
+      What is still only a compose file is the Coolify variant, below.
+- [ ] **Verify the Coolify deployment.** The one deployment claim still resting on documentation
+      rather than on a run. `docker-compose.coolify.yml` is written against Coolify's
       documented behaviour (no `container_name`, `expose` instead of `ports`, `SERVICE_FQDN_*` and
       `SERVICE_PASSWORD_*` magic variables) but has never been deployed to a real Coolify instance.
       The magic-variable substitution in particular is the part most likely to need a tweak.
