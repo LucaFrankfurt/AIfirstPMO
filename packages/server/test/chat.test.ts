@@ -28,6 +28,7 @@ const { directChannelId, readStateId } = await import('@kolibri/shared');
 const { canSeeChannel } = await import('../src/lib/repo.ts');
 const { searchWorkspace } = await import('../src/routes/search.ts');
 const { all, get, run } = await import('../src/db/index.ts');
+const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
 
 let base = '';
 let workspaceId = '';
@@ -63,6 +64,9 @@ async function as(who: Person, path: string, body?: unknown, method?: string): P
 }
 
 async function register(email: string, name: string): Promise<Person> {
+  // Six accounts in one file is more than the sign-up limiter allows in two
+  // minutes, and a test that fails on a rate limit says nothing about chat.
+  resetRateLimits();
   const response = await fetch(`${base}/api/auth/register`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -644,6 +648,122 @@ describe('somebody who joins the workspace later', () => {
     assert.ok(
       idsOf(delta.changes ?? {}, 'member').length > 0,
       'the membership row itself is there too — the name would be useless alone',
+    );
+  });
+});
+
+/* -------------------------------------------- talking across the org chart */
+
+describe('a direct conversation between two workspaces', () => {
+  /**
+   * A direct conversation is between two people, not inside an organisation.
+   *
+   * Two colleagues on one instance may share no workspace — that is the normal
+   * state on a fresh instance, because signing up a second time makes a second
+   * workspace rather than joining the first — and needing to be put in the same
+   * project before being able to say hello is not a rule anybody wants.
+   *
+   * So a direct channel carries no workspace at all, and so do its messages.
+   * The lock is its id: the two members are read back out of it on every write,
+   * which is what the last test here is about. "No workspace" widens *where* a
+   * conversation is delivered, never *to whom*.
+   */
+  let outsider: Person;
+  let outsiderWorkspace = '';
+  let conversation = '';
+
+  before(async () => {
+    outsider = await register('nia@example.com', 'Nia');
+    outsiderWorkspace = (await as(outsider, '/api/session')).workspaces[0].id;
+    assert.notEqual(outsiderWorkspace, workspaceId, 'a second sign-up makes its own workspace');
+    conversation = directChannelId(people.ada.id, outsider.id);
+  });
+
+  it('can be opened by somebody who shares no workspace with the other person', async () => {
+    await post(people.ada, 'channels', { id: conversation, kind: 'direct' });
+    await post(people.ada, 'messages', { channel_id: conversation, body: 'Hello from another workspace.' });
+
+    const row = get<any>(`SELECT workspace_id, is_private FROM channels WHERE id = ?`, conversation);
+    assert.equal(row.workspace_id, null, 'a direct conversation belongs to no workspace');
+    assert.equal(row.is_private, 1);
+    assert.equal(
+      get<any>(`SELECT workspace_id FROM messages WHERE channel_id = ?`, conversation).workspace_id,
+      null,
+      'and neither do the things said in it — otherwise the other person never receives them',
+    );
+  });
+
+  it('arrives on the other side, pulled through a workspace that has nothing to do with it', async () => {
+    const changes = (await as(outsider, `/api/sync/pull?workspace=${outsiderWorkspace}&since=0`)).changes ?? {};
+    assert.ok(idsOf(changes, 'channel').includes(conversation), 'the conversation comes down');
+    assert.equal(
+      (changes.message ?? []).filter((row: any) => row.channel_id === conversation).length,
+      1,
+      'with what was said in it',
+    );
+    const told = (changes.notification ?? []).filter((row: any) => row.channel_id === conversation);
+    assert.equal(told.length, 1, 'and the notification about it, which also has no workspace to be in');
+  });
+
+  it('brings the other person\'s name with it', async () => {
+    // The conversation is useless titled with an id, and the two of them share
+    // no workspace, so nothing else would ever have carried that row across.
+    const changes = (await as(outsider, `/api/sync/pull?workspace=${outsiderWorkspace}&since=0`)).changes ?? {};
+    const ada = (changes.user ?? []).find((row: any) => row.id === people.ada.id);
+    assert.ok(ada, 'the person on the other end of the conversation comes down');
+    assert.equal(ada.name, 'Ada');
+    assert.ok(
+      !(changes.user ?? []).some((row: any) => row.id === people.max.id),
+      'and nobody else does — this is not a directory',
+    );
+  });
+
+  it('is invisible to everybody else, in both workspaces', async () => {
+    for (const [who, workspace] of [[people.lin, workspaceId], [people.max, workspaceId]] as const) {
+      const changes = (await as(who, `/api/sync/pull?workspace=${workspace}&since=0`)).changes ?? {};
+      assert.ok(!idsOf(changes, 'channel').includes(conversation), `${who.name} pulled somebody else's conversation`);
+      assert.ok(
+        !(changes.message ?? []).some((row: any) => row.channel_id === conversation),
+        `${who.name} pulled somebody else's messages`,
+      );
+    }
+    assert.equal(canSeeChannel(people.lin.id, conversation), false);
+    assert.equal(canSeeChannel(people.ada.id, conversation), true);
+    assert.equal(canSeeChannel(outsider.id, conversation), true);
+
+    const refused = await raw(people.lin, `/api/channels/${conversation}`);
+    assert.equal(refused.status, 403, 'and asking for it by id is refused rather than answered');
+  });
+
+  it('cannot be talked into including somebody who is not in its id', async () => {
+    // On creation the id simply wins and the sent list is overwritten. On an
+    // existing one it is refused outright, because a direct conversation has no
+    // membership to manage — which is the same answer said louder.
+    const refused = await raw(people.ada, `/api/workspaces/${workspaceId}/channels`, {
+      id: conversation, kind: 'direct', members: [people.ada.id, people.lin.id],
+    });
+    assert.equal(refused.status, 403);
+    const members = JSON.parse(get<any>(`SELECT members FROM channels WHERE id = ?`, conversation).members);
+    assert.deepEqual([...members].sort(), [people.ada.id, outsider.id].sort(), 'and the two in the id are still the two');
+    assert.equal(canSeeChannel(people.lin.id, conversation), false);
+  });
+
+  it('refuses a message from somebody who is not one of the two', async () => {
+    const refused = await raw(people.lin, `/api/workspaces/${workspaceId}/messages`, {
+      channel_id: conversation, body: 'listening in',
+    });
+    assert.equal(refused.status, 403);
+  });
+
+  it('does not let a client file an open channel outside every workspace', async () => {
+    // The workspace is the write's own, never the payload's — which matters
+    // more now that "no workspace" is a legal state: an open channel there
+    // would be delivered to every device on the instance.
+    const created = await post(people.ada, 'channels', { name: 'nowhere', workspace_id: null });
+    assert.equal(
+      get<any>(`SELECT workspace_id FROM channels WHERE id = ?`, created.id).workspace_id,
+      workspaceId,
+      'a client does not get to say which workspace a row is in, or that it is in none',
     );
   });
 });

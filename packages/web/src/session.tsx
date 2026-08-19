@@ -140,6 +140,20 @@ export function useMembers(): User[] {
   }, [workspaceId]);
 }
 
+/**
+ * Everybody this device knows a name for.
+ *
+ * `useMembers` is *the workspace's* people, which is the right list for
+ * assigning work and for putting somebody in a channel. It is the wrong list
+ * for a direct conversation: that can be with somebody in none of your
+ * workspaces, and their `user` row is synced precisely so they have a name
+ * here. Looking them up in the member map instead is how a conversation ends up
+ * titled with a raw id and its messages signed "someone".
+ */
+export function usePeople(): Map<string, User> {
+  return useQuery(() => new Map(list('user', (user) => !user.deleted_at).map((user) => [user.id, user])), []);
+}
+
 /** Lookup helper for rendering assignee avatars without repeated scans. */
 export function useMemberMap(): Map<string, User> {
   const members = useMembers();

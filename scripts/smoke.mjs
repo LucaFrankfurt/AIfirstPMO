@@ -22,16 +22,19 @@ const LABELS = {
     board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
+    findPerson: 'Find somebody',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
+    findPerson: 'Jemanden suchen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
+    findPerson: 'Trouver quelqu',
   },
 }[locale];
 
@@ -172,7 +175,7 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 
   // And a direct conversation names the other person rather than showing a key.
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
-  await page.locator('.chat-list .nav-item').last().click();
+  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
   await page.waitForSelector('.chat-header', { timeout: 5000 });
   const title = await page.locator('.chat-header strong').innerText();
   if (!title.trim() || title.includes('.')) throw new Error(`direct conversation titled "${title}"`);
@@ -234,7 +237,7 @@ await page.screenshot({ path: `${shots}/4b-chat.png` });
 await step('chat: a message can point at a task and a project', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item').last().click();
+  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
   await page.waitForSelector('.chat-composer textarea');
 
   // The `#` menu offers projects and tasks, and puts in the bare token.
@@ -266,6 +269,31 @@ await step('chat: a message can point at a task and a project', async () => {
   if (!page.url().endsWith('/t/WEB-3')) throw new Error(`clicking the reference went to ${page.url()}`);
   await page.waitForSelector('.sheet', { timeout: 5000 });
   await page.keyboard.press('Escape');
+});
+
+/**
+ * Starting a conversation with somebody who is not beside you in the sidebar.
+ *
+ * The People list is the workspace's members, which is the right shortcut and
+ * the wrong answer to "can I write to this colleague at all" — a direct
+ * conversation belongs to no workspace, so it needs none in common. The
+ * cross-workspace rules are proved in `test/chat.test.ts`; what this walks is
+ * the way in, which no server test can see.
+ */
+await step('chat: anybody on the instance can be written to', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.click(`.chat-list button:has-text("${LABELS.findPerson}")`);
+  await page.waitForSelector('#find-person', { timeout: 5000 });
+  await page.fill('#find-person', 'grace');
+  await page.waitForTimeout(700);
+  const found = await page.locator('.sheet .nav-item').allInnerTexts();
+  if (!found.some((row) => /grace/i.test(row))) throw new Error(`the search offered ${JSON.stringify(found)}`);
+  await page.locator('.sheet .nav-item').first().click();
+  await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+  const title = await page.locator('.chat-header strong').innerText();
+  if (!/grace/i.test(title)) throw new Error(`opened a conversation with "${title}"`);
+  console.log('     opened a conversation with:', title);
 });
 
 await step('command palette', async () => {

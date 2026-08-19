@@ -15,7 +15,8 @@ import { notifyDevices } from './push.ts';
 import { deliverNotification } from './telegram.ts';
 
 export interface NewNotification {
-  workspaceId: string;
+  /** Null for something that happened outside any workspace — a direct message. */
+  workspaceId: string | null;
   userId: string;
   kind: string;
   /** Already rendered in the recipient's language — see `i18n.ts`. */

@@ -78,6 +78,13 @@ saying so.
 Permission filtering happens inside the pull query: private projects a user is not a member of are
 excluded there, not in the UI.
 
+One entity is not scoped to a workspace at all, and one may be scoped to none: a `user` is not owned
+by an organisation, and neither is a direct conversation — it is between two people who may share no
+workspace, so it carries none and comes down whichever workspace the device has open. The entities
+allowed to do that are marked `crossWorkspace` in the registry. What keeps it safe is the row-level
+filter beside it: such a channel is always private and its two members are read out of its id, so
+having no workspace widens *where* it is delivered and never *to whom*.
+
 That filter has a consequence worth stating, because it is not obvious and it cost a real bug:
 **widening what somebody may see does not, by itself, send it to them.** A row that was invisible
 while a device walked past its sequence stays invisible for ever, because the range scan will never

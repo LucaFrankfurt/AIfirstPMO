@@ -1,5 +1,5 @@
 import {
-  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat, isGuestWritable,
+  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat, isCrossWorkspace, isGuestWritable,
   type EntityName, type ImportField, type Mapping,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
@@ -373,8 +373,9 @@ export function registerEntityRoutes(router: Router): void {
       body: row.body,
       url: row.task_id ? `/t/${row.task_id}`
         : row.page_id ? `/pages/${row.page_id}`
-          : row.project_id ? `/projects/${row.project_id}?tab=intake`
-            : '/inbox',
+          : row.channel_id ? `/chat/${row.channel_id}`
+            : row.project_id ? `/projects/${row.project_id}?tab=intake`
+              : '/inbox',
       unread: Number(get<Row>(
         `SELECT count(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND deleted_at IS NULL`,
         auth.userId,
@@ -387,7 +388,10 @@ export function registerEntityRoutes(router: Router): void {
     requireWorkspace(ctx, ctx.params.ws);
     const entity = resolve(ctx.params.collection);
     const def = ENTITIES[entity];
-    const filters: string[] = [`workspace_id = ?`];
+    // A direct conversation belongs to no workspace, so listing this one has
+    // to include the rows that belong to none. The chat clauses further down
+    // are what keep that honest: they are about membership, not location.
+    const filters: string[] = [isCrossWorkspace(entity) ? `(workspace_id = ? OR workspace_id IS NULL)` : `workspace_id = ?`];
     const params: unknown[] = [ctx.params.ws];
 
     for (const field of def.fields) {

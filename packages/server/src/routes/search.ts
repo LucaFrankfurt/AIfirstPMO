@@ -33,10 +33,16 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
   const rows = all<Row>(
     `SELECT kind, ref_id, project_id, title, snippet(search_index, 5, '', '', '…', 12) AS snippet, bm25(search_index) AS rank
        FROM search_index
-      WHERE search_index MATCH ? AND workspace_id = ?
+      WHERE search_index MATCH ? AND (workspace_id = ? OR workspace_id IS NULL)
       ORDER BY rank LIMIT ?`,
     match, workspaceId, Math.min(limit * 3, 200),
   );
+  // The index also holds rows belonging to no workspace: a direct conversation
+  // is between two people rather than inside an organisation, and it would be
+  // odd for it to be findable from one workspace and not another. Only
+  // messages are ever in that state, and the membership check below is what
+  // makes including them safe.
+  //
   // A message's visibility is its channel's, and the index does not carry the
   // channel. Resolved in one query for the whole page of hits rather than one
   // per row — and *before* the slice, so a private conversation cannot push a

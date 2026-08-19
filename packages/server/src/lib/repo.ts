@@ -111,6 +111,12 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     const writable = new Set<string>(def.fields);
     if (opts.system) for (const f of def.serverOnly ?? []) writable.add(f);
     else for (const f of def.serverOnly ?? []) writable.delete(f);
+    // Which workspace a row is in is never the client's to say — it comes from
+    // the scope the write arrived in. It matters more now that a row is allowed
+    // to have *no* workspace: left writable, a client could file an open
+    // channel outside every workspace, and the pull would then hand it to
+    // everybody on the instance. Only the invariants below may set this.
+    if (!opts.system) writable.delete('workspace_id');
 
     const merging = new Set<string>(def.crdt ?? []);
     const values: Record<string, unknown> = {};
@@ -159,8 +165,11 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     applyInvariants(entity, id, values, existing, forced);
 
     const seq = nextSeq();
+    // The write's own workspace, unless something above decided otherwise: a
+    // direct conversation has none, and its messages follow it.
+    const workspaceId = 'workspace_id' in values ? (values.workspace_id as string | null) : opts.workspaceId;
     const row = created
-      ? insertRow(table, { ...values, id, workspace_id: opts.workspaceId, created_at: now, updated_at: now, seq, clocks: JSON.stringify(clocks) })
+      ? insertRow(table, { ...values, id, workspace_id: workspaceId, created_at: now, updated_at: now, seq, clocks: JSON.stringify(clocks) })
       : updateRow(table, id, { ...values, updated_at: now, seq, clocks: JSON.stringify(clocks) });
 
     afterWrite(entity, row, existing, values, opts);
@@ -318,6 +327,24 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   if (entity === 'page') applyPageInvariants(values, existing, forced);
   if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
   if (entity === 'message') applyMessageInvariants(values, existing, forced);
+  if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
+}
+
+/**
+ * A message belongs where its conversation belongs.
+ *
+ * Which for a direct conversation is nowhere: it has no workspace, so neither
+ * do the things said in it. Without this the channel would sit outside every
+ * workspace while its messages sat inside the sender's, and the other person —
+ * who may not be in that workspace — would receive a conversation with nothing
+ * in it. Not forced through `forced`, because the client never sent a value
+ * here worth correcting out loud; it is bookkeeping, not a refused write.
+ */
+function followChannelWorkspace(values: Record<string, unknown>, existing: Row | undefined): void {
+  const channelId = String(values.channel_id ?? existing?.channel_id ?? '');
+  if (!channelId) return;
+  const channel = get<Row>(`SELECT workspace_id FROM channels WHERE id = ?`, channelId);
+  if (channel) values.workspace_id = channel.workspace_id ?? null;
 }
 
 /**
@@ -341,6 +368,14 @@ function applyChannelInvariants(id: string, values: Record<string, unknown>, exi
         values.members = members;
         forced.members = pair;
       }
+    }
+    // And it belongs to no workspace. Two people may have none in common, or
+    // several; filing their conversation under one of them would mean it
+    // vanished when either switched, and would make "can we talk at all" a
+    // question about org charts. See `crossWorkspace` in the registry.
+    if (values.workspace_id !== null) {
+      values.workspace_id = null;
+      forced.workspace_id = null;
     }
     // Always private, and never named: what to call it depends on who is
     // looking at it, so it has no name to store.
@@ -625,6 +660,13 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
     && (changed.lag !== undefined || changed.related_task_id !== undefined || changed.kind !== undefined)) {
     const blocker = get<Row>(`SELECT id, project_id FROM tasks WHERE id = ?`, row.task_id);
     if (blocker) cascadeSchedule(blocker, opts);
+  }
+  // Opening a direct conversation with somebody outside your workspaces makes
+  // the two of you visible to each other for the first time. Being allowed to
+  // see a row is not the same as receiving it — see `resendUser` — so both
+  // names are sent again, or the conversation arrives titled with a raw id.
+  if (entity === 'channel' && !before && row.kind === 'direct') {
+    for (const userId of parseIds(row.members)) resendUser(userId);
   }
   if (opts.system) return;
   recordActivity(entity, row, before, changed, opts);
@@ -990,7 +1032,13 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
 
   for (const [userId, payload] of targets) {
     createNotification({
-      workspaceId: opts.workspaceId,
+      // A notification about a direct message has to reach somebody who may
+      // not be in this workspace, so it belongs outside one exactly as the
+      // conversation does. Everything else belongs where it happened.
+      // `??` would be wrong here: null is the *answer* for a direct message,
+      // not a missing value, and coalescing it would file the notification in
+      // the sender's workspace where the other person cannot reach it.
+      workspaceId: (row.workspace_id === undefined ? opts.workspaceId : row.workspace_id) as string | null,
       userId,
       kind: payload.kind,
       title: payload.title(translatorFor(userId)),
@@ -1150,6 +1198,23 @@ export function visibleProjectIds(userId: string, workspaceId: string): Set<stri
  * stays one query, and a guard has to be a function so it can refuse. They are
  * tested against each other rather than trusted to stay in step.
  */
+/**
+ * Send somebody's `user` row out again, unchanged.
+ *
+ * Being *allowed* to see a row is not the same as receiving it. A delta pull
+ * carries rows whose `seq` is past the device's cursor, so an account that
+ * existed before it became visible has a sequence everybody already walked past
+ * while the row was still hidden from them — and it arrives as an id with no
+ * name behind it. Restamping the sequence is the whole fix: nothing about the
+ * person changed, only who may now see them.
+ *
+ * Two things widen that: joining a workspace, and opening a direct conversation
+ * with somebody from outside it. Both call this.
+ */
+export function resendUser(userId: string): void {
+  run(`UPDATE users SET seq = ? WHERE id = ?`, nextSeq(), userId);
+}
+
 export function canSeeChannel(userId: string, channelId: string | null | undefined): boolean {
   if (!channelId) return false;
   const channel = get<Row>(`SELECT * FROM channels WHERE id = ? AND deleted_at IS NULL`, channelId);
@@ -1158,12 +1223,18 @@ export function canSeeChannel(userId: string, channelId: string | null | undefin
   // in — the member list is a synced field, not a foreign key. Every caller
   // today also checks workspace membership, so this is the second lock rather
   // than the only one; it is here so that the *next* caller cannot forget.
-  const stillHere = get(
-    `SELECT 1 FROM workspace_members
-      WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
-    channel.workspace_id, userId,
-  );
-  if (!stillHere) return false;
+  //
+  // A direct conversation has no workspace to be a member of. Its lock is its
+  // id: the members are read back out of it on every write, so "is this person
+  // in it" is a question the id itself answers and cannot be talked out of.
+  if (channel.workspace_id) {
+    const stillHere = get(
+      `SELECT 1 FROM workspace_members
+        WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+      channel.workspace_id, userId,
+    );
+    if (!stillHere) return false;
+  }
   if (!canSeeProject(userId, channel.project_id)) return false;
   if (!Number(channel.is_private)) return true;
   return parseIds(channel.members).includes(userId);

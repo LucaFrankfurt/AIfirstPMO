@@ -13,7 +13,7 @@ import { relativeTime, today } from '../lib/format';
 import { markAllRead, markNotificationRead } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
-import { useMe, useMemberMap, useSession } from '../session';
+import { useMe, usePeople, useSession } from '../session';
 import { useUnreadMessages } from './chat';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { SetupChecklist } from '../components/tour';
@@ -113,7 +113,10 @@ export function Inbox() {
   const me = useMe();
   const navigate = useNavigate();
   const openTask = useOpenTask();
-  const members = useMemberMap();
+  // Everybody known rather than the workspace's members: a direct message can
+  // come from somebody in none of your workspaces, and a notification from a
+  // nameless "?" is worse than the message it announces.
+  const members = usePeople();
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
 
   const notifications = useQuery(
