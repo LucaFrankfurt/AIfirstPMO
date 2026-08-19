@@ -235,3 +235,66 @@ describe('importing a file', () => {
     assert.equal(created.archived, 0, 'the invented mapping was ignored');
   });
 });
+
+describe('the second pass', () => {
+  /** The importer guesses these columns; the mapping is spelled out anyway. */
+  const guessed = { Key: 'external_id', Title: 'title', Parent: 'parent', 'Blocked by': 'blocked_by' };
+
+  it('resolves a parent and a blocking link by key, once every row exists', async () => {
+    const csv = [
+      'Key,Title,Parent,Blocked by',
+      'EPIC-1,Move house,,',
+      'SUB-1,Book the van,EPIC-1,',
+      'SUB-2,Pack the kitchen,EPIC-1,SUB-1',
+    ].join('\n');
+
+    const result = await importCsv(csv, guessed);
+    assert.equal(result.created, 3);
+    assert.equal(result.linked, 3, 'two parents and one blocker');
+    assert.deepEqual(result.problems, []);
+
+    const rows = await tasks();
+    const parent = rows.find((task) => task.title === 'Move house');
+    const van = rows.find((task) => task.title === 'Book the van');
+    const kitchen = rows.find((task) => task.title === 'Pack the kitchen');
+    assert.equal(van.parent_id, parent.id);
+    assert.equal(kitchen.parent_id, parent.id);
+
+    // "Pack the kitchen is blocked by Book the van" is stored the one way round
+    // relations are stored: from the blocker to the blocked.
+    const relations = await api<any[]>(`/api/workspaces/${workspaceId}/relations?task_id=${van.id}`);
+    assert.equal(relations.length, 1);
+    assert.equal(relations[0].kind, 'blocks');
+    assert.equal(relations[0].related_task_id, kitchen.id);
+  });
+
+  it('resolves by title when there is no key column', async () => {
+    const csv = ['Title,Parent', 'Redecorate,', 'Buy paint,Redecorate'].join('\n');
+    const result = await importCsv(csv, { Title: 'title', Parent: 'parent' });
+    assert.equal(result.linked, 1);
+  });
+
+  it('reports a reference to something outside the file rather than guessing', async () => {
+    const csv = ['Key,Title,Parent', 'A-1,Only row,SOMETHING-ELSE'].join('\n');
+    const result = await importCsv(csv, { Key: 'external_id', Title: 'title', Parent: 'parent' });
+    assert.equal(result.linked, 0);
+    assert.equal(result.problems.length, 1);
+    assert.match(result.problems[0].message, /SOMETHING-ELSE/);
+    assert.equal(result.created, 1, 'and one unreadable column does not lose the row');
+  });
+
+  it('refuses to make a task its own parent', async () => {
+    const csv = ['Key,Title,Parent', 'X-1,Ouroboros,X-1'].join('\n');
+    const result = await importCsv(csv, { Key: 'external_id', Title: 'title', Parent: 'parent' });
+    assert.equal(result.linked, 0);
+    assert.match(result.problems[0].message, /own parent/i);
+  });
+
+  it('counts the links a dry run would make without writing any', async () => {
+    const csv = ['Key,Title,Parent', 'D-1,First,', 'D-2,Second,D-1'].join('\n');
+    const before = (await tasks()).length;
+    const result = await importCsv(csv, { Key: 'external_id', Title: 'title', Parent: 'parent' }, true);
+    assert.equal(result.linked, 1);
+    assert.equal((await tasks()).length, before, 'and nothing was written');
+  });
+});

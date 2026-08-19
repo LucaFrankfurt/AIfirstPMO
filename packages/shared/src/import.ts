@@ -12,6 +12,9 @@ import { PRIORITIES, type Priority } from './types.ts';
 export const IMPORT_FIELDS = [
   'title', 'description', 'state', 'type', 'priority', 'assignee', 'labels',
   'due_date', 'start_date', 'estimate', 'external_id',
+  // Read on a second pass, once every row exists: a parent or a blocker can
+  // only be looked up after the thing it names has been created.
+  'parent', 'blocks', 'blocked_by',
 ] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];
 
@@ -29,6 +32,8 @@ export interface ImportResult {
   total: number;
   created: number;
   skipped: number;
+  /** Parent links and blocking relations resolved on the second pass. */
+  linked: number;
   problems: ImportProblem[];
   /** The first few rows as they will land, so a dry run can be checked by eye. */
   preview: {
@@ -67,6 +72,9 @@ const HEADER_HINTS: Record<ImportField, string[]> = {
   start_date: ['start', 'start date', 'startdate', 'startdatum', 'beginn'],
   estimate: ['estimate', 'story points', 'points', 'schätzung', 'schaetzung', 'aufwand', 'punkte'],
   external_id: ['id', 'key', 'issue key', 'identifier', 'nummer', 'number', 'ticket'],
+  parent: ['parent', 'parent id', 'parent key', 'epic', 'epic link', 'übergeordnet', 'uebergeordnet', 'oberaufgabe'],
+  blocks: ['blocks', 'blockiert', 'is blocking', 'successor', 'nachfolger'],
+  blocked_by: ['blocked by', 'is blocked by', 'blockiert von', 'depends on', 'abhängig von', 'abhaengig von', 'predecessor', 'vorgänger', 'vorgaenger'],
 };
 
 export function guessMapping(columns: string[]): Mapping {

@@ -25,6 +25,9 @@ words the tools people are leaving actually use:
 | Start date | `Start` · `Start date` · `Startdatum` |
 | Estimate | `Estimate` · `Story points` · `Schätzung` · `Aufwand` |
 | Original ID | `Key` · `Issue key` · `ID` · `Ticket` · `Nummer` |
+| Parent | `Parent` · `Epic` · `Epic link` · `Übergeordnet` |
+| Blocks | `Blocks` · `Successor` · `Blockiert` |
+| Blocked by | `Blocked by` · `Depends on` · `Predecessor` · `Blockiert von` |
 
 Every guess is a dropdown you can change, and anything unmapped is ignored.
 The first column to claim a field keeps it, so a file with both `Summary` and
@@ -76,10 +79,53 @@ title is nothing.
 
 - **5 000 rows** per file. More than that is refused rather than run for ten
   minutes behind a spinner.
-- **No sub-tasks, relations or comments.** A parent column would need the parents
-  to exist first, which is a second pass this does not do yet.
+- **No comments.** Parents and blocking links *are* read, on a second pass once
+  every row exists (see below); comments need the JSON format.
 - **One project at a time.** The target is the project you started from.
 - **No undo button.** But an import is ordinary tasks: select them in the list
   and delete them together, which is why the multi-select landed first — and if
   you delete one too many, **Settings → Data** has it.
-- **No Jira XML or JSON**, only CSV. Every one of the three exports CSV.
+- **No Jira XML or JSON**, only CSV. Every one of the three exports CSV — and
+  moving between two Kolibri instances has its own format, below.
+
+## Parents and blockers
+
+A spreadsheet can only name another task in words, and the task it names does
+not exist until the file has been read. So those columns are resolved on a
+**second pass**: every row is created first, then `Parent`, `Blocks` and
+`Blocked by` are looked up — by the original key where the file has one, by
+title otherwise.
+
+```csv
+Key,Title,Parent,Blocked by
+EPIC-1,Move house,,
+SUB-1,Book the van,EPIC-1,
+SUB-2,Pack the kitchen,EPIC-1,SUB-1
+```
+
+Anything naming a task that is not in the file is **reported, not guessed at** —
+a parent link to the wrong task is much harder to notice than a missing one. The
+row itself still arrives; one unreadable column never loses a task. A dry run
+counts the links it would make without writing any of them.
+
+Several can be named in one cell, separated by a comma or a semicolon.
+
+## Moving a project between two Kolibri instances
+
+CSV is for leaving another tool. For moving a project from one Kolibri to
+another, **Project → Settings → Export as JSON** writes the whole thing as one
+readable document: structure, tasks, sub-tasks, relations, comments, pages,
+custom fields and their answers, templates and rules. Importing it makes a new
+project with every reference rewritten, so the same file can be imported twice
+and produce two projects rather than one tangle.
+
+This is deliberately *not* the backup format. A backup has to be exact, which is
+why `kolibri backup` copies the database (see
+[`deployment.md`](deployment.md)); this is a portable description that still
+means something after the schema has moved on.
+
+People are matched **by email address** — the only identifier that means the
+same thing on two instances. Anybody with no account on the target is named in
+the report and their work arrives unassigned, rather than being handed to
+somebody who is not there. Who reacted to a comment is not carried across for
+the same reason.

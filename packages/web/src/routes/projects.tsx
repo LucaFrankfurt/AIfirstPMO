@@ -535,6 +535,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const project = useRow('project', projectId);
   const navigate = useNavigate();
   const members = useMembers();
+  const toast = useToast();
+  const { workspaceId } = useSession();
   const { confirm, dialog } = useConfirm();
   const states = useQuery(
     () => list('state', (s) => s.project_id === projectId).sort(byOrder),
@@ -545,6 +547,46 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const [newLabel, setNewLabel] = useState('');
   const [importing, setImporting] = useState(false);
   const [copying, setCopying] = useState(false);
+
+  /**
+   * A project as a document: for moving it to another instance, and for reading
+   * it. The download is built here rather than by navigating to the endpoint,
+   * so it goes through the same authenticated fetch as everything else.
+   */
+  async function exportJson(): Promise<void> {
+    try {
+      const doc = await api.get<unknown>(`/api/workspaces/${workspaceId}/projects/${projectId}/export`);
+      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(project?.key ?? 'project').toLowerCase()}.kolibri.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
+
+  async function importJson(file: File): Promise<void> {
+    try {
+      const document_ = JSON.parse(await file.text());
+      const result = await api.post<{ project: { id: string }; counts: Record<string, number>; unmatched: string[] }>(
+        `/api/workspaces/${workspaceId}/import/json`,
+        { document: document_ },
+      );
+      await pull();
+      const rows = Object.values(result.counts).reduce((sum, count) => sum + count, 0);
+      toast(result.unmatched.length
+        ? t('transfer.importedWithGaps', { count: rows, names: result.unmatched.join(', ') })
+        : t('transfer.imported', { count: rows }));
+      navigate(`/projects/${result.project.id}`);
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
   // A project cannot be its own parent, and the server refuses a longer loop —
   // this list only keeps the obvious case out of the menu.
   const siblings = useQuery(
@@ -738,9 +780,26 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <ProjectTime projectId={projectId} />
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('import.title')}</h3>
-      <button className="btn" onClick={() => setImporting(true)}>
-        <Icon name="attach" size={14} /> {t('import.action')}
-      </button>
+      <div className="row wrap" style={{ gap: 8 }}>
+        <button className="btn" onClick={() => setImporting(true)}>
+          <Icon name="attach" size={14} /> {t('import.action')}
+        </button>
+        <button className="btn" onClick={() => void exportJson()}>
+          <Icon name="page" size={14} /> {t('transfer.export')}
+        </button>
+        <label className="btn" style={{ cursor: 'pointer' }}>
+          <Icon name="plus" size={14} /> {t('transfer.import')}
+          <input
+            type="file" accept=".json,application/json" style={{ display: 'none' }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void importJson(file);
+            }}
+          />
+        </label>
+      </div>
+      <p className="hint" style={{ marginTop: 6 }}>{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('copy.title')}</h3>

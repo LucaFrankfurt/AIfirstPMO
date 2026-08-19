@@ -52,7 +52,21 @@ export interface ImportOptions {
 
 export function importCsv(text: string, options: ImportOptions): ImportResult {
   const table = parseCsv(text, options.delimiter);
-  const result: ImportResult = { total: table.rows.length, created: 0, skipped: 0, problems: [], preview: [] };
+  const result: ImportResult = { total: table.rows.length, created: 0, skipped: 0, linked: 0, problems: [], preview: [] };
+
+  /**
+   * What each row turned into, so the second pass can resolve the references
+   * a spreadsheet can only express as text: a parent, and what blocks what.
+   */
+  const made: {
+    line: number;
+    id: string;
+    externalId: string;
+    title: string;
+    parent: string;
+    blocks: string[];
+    blockedBy: string[];
+  }[] = [];
   if (!table.rows.length) return result;
   if (table.rows.length > MAX_ROWS) {
     result.problems.push({ row: 0, message: `${table.rows.length} rows is more than the ${MAX_ROWS} this accepts at once` });
@@ -202,7 +216,17 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
       });
     }
 
+    const refs = {
+      line,
+      externalId,
+      title,
+      parent: read(row, byField, 'parent'),
+      blocks: splitRefs(read(row, byField, 'blocks')),
+      blockedBy: splitRefs(read(row, byField, 'blocked_by')),
+    };
+
     if (options.dryRun) {
+      made.push({ ...refs, id: `dry-${line}` });
       result.created++;
       continue;
     }
@@ -212,11 +236,75 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
     }
     previous = orderKey(previous, null);
     values.sort_order = previous;
-    writeEntity('task', uid(), values, options.opts);
+    const id = uid();
+    writeEntity('task', id, values, options.opts);
+    made.push({ ...refs, id });
     result.created++;
   }
 
+  linkUp(made, result, options);
   return result;
+}
+
+/** A cell naming several tasks: `WEB-1, WEB-2` or `WEB-1; WEB-2`. */
+const splitRefs = (raw: string): string[] =>
+  raw.split(/[,;]/).map((part) => part.trim()).filter(Boolean);
+
+/**
+ * The second pass: parents and blockers.
+ *
+ * A spreadsheet can only name a task in words — its key, or its title — and
+ * neither exists as a row until the first pass has run. Anything that names
+ * something outside the file is reported rather than guessed at: a parent link
+ * to the wrong task is harder to notice than a missing one.
+ */
+function linkUp(
+  made: { line: number; id: string; externalId: string; title: string; parent: string; blocks: string[]; blockedBy: string[] }[],
+  result: ImportResult,
+  options: ImportOptions,
+): void {
+  const byRef = new Map<string, string>();
+  for (const row of made) {
+    if (row.externalId) byRef.set(row.externalId.toLowerCase(), row.id);
+    // A title is a weaker key than an identifier, so it never overwrites one.
+    const title = row.title.toLowerCase();
+    if (!byRef.has(title)) byRef.set(title, row.id);
+  }
+
+  const find = (ref: string): string | undefined => byRef.get(ref.trim().toLowerCase());
+
+  for (const row of made) {
+    if (row.parent) {
+      const parent = find(row.parent);
+      if (!parent) {
+        result.problems.push({ row: row.line, message: `Nothing in this file is called "${row.parent}" — left without a parent` });
+      } else if (parent === row.id) {
+        result.problems.push({ row: row.line, message: 'A task cannot be its own parent — left without one' });
+      } else {
+        if (!options.dryRun) writeEntity('task', row.id, { parent_id: parent }, options.opts);
+        result.linked++;
+      }
+    }
+
+    for (const [kind, refs] of [['blocks', row.blocks], ['blocked_by', row.blockedBy]] as const) {
+      for (const ref of refs) {
+        const other = find(ref);
+        if (!other || other === row.id) {
+          result.problems.push({ row: row.line, message: `Nothing in this file is called "${ref}" — that link was not made` });
+          continue;
+        }
+        // Stored one way round: `blocks` from the blocker to the blocked.
+        const from = kind === 'blocks' ? row.id : other;
+        const to = kind === 'blocks' ? other : row.id;
+        if (!options.dryRun) {
+          writeEntity('relation', uid(), {
+            workspace_id: options.workspaceId, task_id: from, related_task_id: to, kind: 'blocks',
+          }, options.opts);
+        }
+        result.linked++;
+      }
+    }
+  }
 }
 
 const read = (row: Record<string, string>, byField: Map<ImportField, string>, field: ImportField): string => {

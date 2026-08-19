@@ -133,8 +133,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       Plane / OpenProject's words, a dry run that writes nothing, and a report that names the
       spreadsheet row of everything it could not read. Semicolon files from a German Excel included.
       See [`docs/import.md`](docs/import.md).
-- [ ] **Import beyond CSV**, and the parts CSV cannot carry: sub-task parents, relations and
-      comments need a second pass once the rows exist. Jira XML/JSON if anybody asks.
+- [x] **The parts CSV could not carry.** A `Parent`, `Blocks` or `Blocked by` column is resolved on
+      a second pass, once every row exists — by key where the file has one, by title otherwise.
+      Anything naming a task that is not in the file is reported rather than guessed at: a parent
+      link to the wrong task is harder to notice than a missing one. Comments still need the JSON
+      format, below.
 - [x] **Outgoing webhooks** — the generic answer, rather than one integration per service. Signed
       with HMAC-SHA256 so a receiver can tell the call came from this instance, fire-and-forget with
       a five-second timeout, failures recorded on the row and never retried.
@@ -272,7 +275,14 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       task, not four nobody will do.
 - [ ] **Incoming** integrations — a commit message that closes a task needs a route in, which is
       the opposite direction from the webhooks that now exist.
-- [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.
+- [x] **A plain JSON round trip.** A project exports as one readable document — structure, tasks,
+      relations, comments, pages, fields and their answers, templates and rules — and imports back
+      as a new project with every reference rewritten. Deliberately not the backup format: a backup
+      has to be exact and copies the database, while this survives a schema that has moved on.
+      People are matched by email address, the only identifier that means the same thing on two
+      instances; anybody not found is named in the report and their work arrives unassigned, rather
+      than being given to somebody who is not there.
+      Still open: reading Jira, Linear, Plane or OpenProject's own formats.
 - [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).
 - [x] **Object-storage migration command.** `kolibri files move <disk|s3>` reads each blob from
       wherever its row says it is and updates the row only once the bytes have landed, so an

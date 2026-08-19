@@ -7,6 +7,7 @@ import { uid } from '../lib/ids.ts';
 import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
 import { importCsv } from '../lib/import.ts';
 import { copyProject, type CopyOptions } from '../lib/copy.ts';
+import { exportProject, importProject, type ProjectDoc } from '../lib/transfer.ts';
 import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 
 /**
@@ -162,6 +163,36 @@ export function registerEntityRoutes(router: Router): void {
       include: body.include,
     });
     return { project: serialize('project', report.project), counts: report.counts };
+  });
+
+  /**
+   * A project as a JSON document — for moving it to another instance, and for
+   * reading it. Deliberately not the backup format: `kolibri backup` copies the
+   * database because a backup has to be exact, while this is a portable
+   * description that survives a schema that has moved on.
+   */
+  router.get('/api/workspaces/:ws/projects/:id/export', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws);
+    const project = get<Row>(`SELECT id FROM projects WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+      ctx.params.id, ctx.params.ws);
+    if (!project) throw notFound('Project not found');
+    if (!canSeeProject(auth.userId, project.id)) throw forbidden('That project is private');
+    return exportProject(ctx.params.ws, String(project.id));
+  });
+
+  /** Read such a document back, as a new project. */
+  router.post('/api/workspaces/:ws/import/json', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const body = await readJson<{ document?: ProjectDoc; name?: string; key?: string; match_people?: boolean }>(ctx, 24 * 1024 * 1024);
+    const report = importProject(ctx.params.ws, auth.userId, body.document as ProjectDoc, {
+      name: body.name,
+      key: body.key,
+      matchPeople: body.match_people !== false,
+    });
+    return { project: serialize('project', report.project), counts: report.counts, unmatched: report.unmatched };
   });
 
   router.get('/api/workspaces/:ws/:collection', (ctx: Ctx) => {

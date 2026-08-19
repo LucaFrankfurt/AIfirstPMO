@@ -64,7 +64,7 @@ which Plane does not have in this form.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
+| **Import** from Jira/Linear/Plane's own formats | Medium | CSV is built — with a preview, a per-row report, and a second pass that resolves parents and blockers — and so is a JSON round trip between Kolibri instances |
 | **Named integrations** — GitHub/GitLab commit linking, Slack | Medium | Signed outgoing webhooks are built; what is missing is the per-service message shape and a route *in* |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
 
