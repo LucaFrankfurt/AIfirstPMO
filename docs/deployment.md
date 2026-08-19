@@ -280,7 +280,7 @@ log, expired rows nobody swept, and whether every stored file's bytes are still 
 | Command | What it does |
 |---|---|
 | `doctor` | Reports. `--json` for monitoring; exits non-zero only on a *damaged* database or missing bytes, not on a warning |
-| `doctor --fix` | Rebuilds the search index, removes expired sessions and old replay records, then compacts the file — and re-checks, so what it prints is the state afterwards |
+| `doctor --fix` | Rebuilds the search index, removes expired sessions and old replay records, folds away deleted text in page bodies (see [`sync.md`](sync.md)), then compacts the file — and re-checks, so what it prints is the state afterwards |
 | `reindex` | Rebuilds the full-text index alone. This is the supported way back if the index ever drifts |
 | `vacuum` | Checkpoints the write-ahead log and returns free pages to the disk |
 | `backup <dir>` / `verify <dir>` / `restore <dir>` | Above |

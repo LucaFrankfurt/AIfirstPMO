@@ -55,6 +55,16 @@ export interface EntityDef {
   private?: boolean;
   /** Columns holding JSON-encoded values. */
   json?: readonly string[];
+  /**
+   * Columns that are **merged** rather than replaced.
+   *
+   * Last-writer-wins is right for almost everything: a title has one value and
+   * the newer one is it. A page body does not — two people typing at once want
+   * both changes, and picking one of them is a merge in name only. A field
+   * named here carries a state-based CRDT and is combined with what is already
+   * stored, on the server and on every device. See `text-crdt.ts`.
+   */
+  crdt?: readonly string[];
 }
 
 export const ENTITIES = {
@@ -182,11 +192,18 @@ export const ENTITIES = {
   page: {
     table: 'pages',
     fields: [
-      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content',
+      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'body',
       'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template',
       'created_by', 'cover_url',
     ],
-    json: ['labels', 'watchers'],
+    json: ['labels', 'watchers', 'body'],
+    /**
+     * `body` is the page text as a CRDT and `content` is what it reads as.
+     * Keeping both means every other thing that touches a page — search, export,
+     * the share document, the markdown renderer, the API — carries on reading
+     * plain text and knows nothing about any of this.
+     */
+    crdt: ['body'],
   },
   comment: {
     table: 'comments',

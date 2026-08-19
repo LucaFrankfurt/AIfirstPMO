@@ -53,6 +53,11 @@ async function doctor(flags: Set<string>): Promise<Exit> {
     repairs.push(`rebuilt the search index over ${indexed} row(s)`);
     const pruned = maintenance.prune();
     repairs.push(`removed ${pruned.sessions} expired session(s), ${pruned.mutations} old mutation record(s), ${pruned.emails} sent message(s)`);
+    // Only under --fix, and never on a sweep: dropping a tombstone a device
+    // that has been away still refers to would land its pending edit in the
+    // wrong place. A person choosing to run this knows who has been away.
+    const folded = maintenance.compactPages();
+    if (folded.pages) repairs.push(`folded away deleted text in ${folded.pages} page(s), saving ${maintenance.mb(folded.saved)}`);
     const { before, after } = maintenance.vacuum();
     repairs.push(`compacted the database from ${maintenance.mb(before)} to ${maintenance.mb(after)}`);
     // Re-check, so what is printed is the state after the repairs rather than

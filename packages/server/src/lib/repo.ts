@@ -1,4 +1,4 @@
-import { ENTITIES, entityDef, hlcGreater, reschedule, type EntityName } from '@kolibri/shared';
+import { ENTITIES, crdt, entityDef, hlcGreater, reschedule, type CrdtState, type EntityName } from '@kolibri/shared';
 import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, forbidden, notFound } from './http.ts';
 import { shareToken, token, uid } from './ids.ts';
@@ -101,9 +101,18 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     if (opts.system) for (const f of def.serverOnly ?? []) writable.add(f);
     else for (const f of def.serverOnly ?? []) writable.delete(f);
 
+    const merging = new Set<string>(def.crdt ?? []);
     const values: Record<string, unknown> = {};
     for (const [field, value] of Object.entries(patch)) {
       if (!writable.has(field)) continue;
+      // A merged field has no stale write. Two devices that edited the same
+      // page while apart both have something to contribute, and whichever
+      // arrives second is not the loser — that is the whole point of it.
+      if (merging.has(field)) {
+        values[field] = mergeCrdt(existing?.[field], value);
+        clocks[field] = opts.hlc;
+        continue;
+      }
       if (!opts.system && !hlcGreater(opts.hlc, clocks[field])) continue; // stale write, drop it
       values[field] = isJsonField(entity, field) && typeof value === 'object' ? JSON.stringify(value) : normalize(value);
       clocks[field] = opts.hlc;
@@ -259,7 +268,46 @@ function applyInvariants(entity: EntityName, values: Record<string, unknown>, ex
     }
   }
   if (entity === 'task') applyTaskInvariants(values, existing, forced);
+  if (entity === 'page') applyPageInvariants(values, existing, forced);
 }
+
+/**
+ * Keep a page's text and its CRDT saying the same thing.
+ *
+ * Two directions, and which one applies is decided by what the writer sent:
+ *
+ * - A **`body`** means an editor that understands the CRDT. `content` is
+ *   whatever the merged state reads as, and any `content` sent alongside is
+ *   ignored — it was computed before the merge and is now out of date.
+ * - A **`content`** on its own means somebody who does not: the API, MCP, an
+ *   import, a rule. That is a replacement and it says so — the CRDT is rebuilt
+ *   from the text, because a caller who sent a whole document meant the whole
+ *   document, and quietly merging it into somebody's half-finished paragraph
+ *   would be the surprising reading of it.
+ */
+function applyPageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  if (values.body !== undefined && values.body !== null) {
+    const text = crdt.textOf(safeCrdt(values.body));
+    values.content = text;
+    forced.content = text;
+    return;
+  }
+  if (values.content !== undefined) {
+    const state = crdt.fromText(String(values.content ?? ''), 'server');
+    values.body = JSON.stringify(state);
+    forced.body = state;
+  } else if (existing && !existing.body && existing.content) {
+    // A page written before any of this existed gets its CRDT the first time
+    // anything else about it is touched, rather than on a migration that would
+    // have to rewrite every row at once.
+    values.body = JSON.stringify(crdt.fromText(String(existing.content), 'server'));
+  }
+}
+
+const safeCrdt = (value: unknown): CrdtState | null => {
+  if (typeof value !== 'string') return (value ?? null) as CrdtState | null;
+  try { return JSON.parse(value) as CrdtState; } catch { return null; }
+};
 
 const ROLE_RANK: Record<string, number> = { guest: 0, member: 1, admin: 2, owner: 3 };
 
@@ -360,6 +408,28 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
  * The rule and the arithmetic are `@kolibri/shared`'s, so there is exactly one
  * of each. What is here is reading the rows and writing the answers back.
  */
+/**
+ * Combine two states of a merged field.
+ *
+ * Stored as text because that is what the column holds, and parsed on the way
+ * in and out rather than kept as an object: this runs once per page save, not
+ * once per keystroke, and a column that is sometimes a string and sometimes an
+ * object is a bug waiting for a Tuesday.
+ */
+function mergeCrdt(stored: unknown, incoming: unknown): string | null {
+  const parse = (value: unknown): CrdtState | null => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'string') {
+      try { return JSON.parse(value) as CrdtState; } catch { return null; }
+    }
+    return value as CrdtState;
+  };
+  const next = parse(incoming);
+  const before = parse(stored);
+  if (!next) return before ? JSON.stringify(before) : null;
+  return JSON.stringify(crdt.merge(before, next));
+}
+
 let cascading = false;
 
 function cascadeSchedule(row: Row, opts: WriteOpts): void {

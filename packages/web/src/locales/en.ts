@@ -717,6 +717,7 @@ export const en = {
   'page.workspaceLevel': 'Workspace level',
   'page.delete': 'Delete page',
   'page.deleteConfirm': 'Delete “{title}”? Sub-pages stay but lose their parent.',
+  'page.mergedIn': 'Somebody else’s change was merged in just now.',
   'page.startWriting': 'This page is empty — start writing',
   'page.subpages': 'Sub-pages',
   'page.labels': 'Labels',

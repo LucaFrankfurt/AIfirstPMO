@@ -1,4 +1,5 @@
 import type { EntityName } from './entities.ts';
+import type { CrdtState } from './text-crdt.ts';
 import type { HLC } from './hlc.ts';
 import type { Anchor } from './anchor.ts';
 
@@ -388,7 +389,18 @@ export interface Page extends Base {
   parent_id: ID | null;
   title: string;
   icon: string | null;
+  /**
+   * What the page says. Derived from `body` whenever there is one, so that
+   * everything reading a page — search, export, the share document, the
+   * renderer, the API — carries on reading plain text.
+   */
   content: string;
+  /**
+   * The same text as a CRDT, which is what makes two people typing at once a
+   * merge rather than a race. Merged rather than replaced on write; see
+   * `text-crdt.ts`. Null on a page nobody has edited since this existed.
+   */
+  body: CrdtState | null;
   sort_order: string;
   archived: number;
   access: 'workspace' | 'project' | 'private';

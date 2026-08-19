@@ -722,6 +722,7 @@ export const fr: Catalogue = {
   'page.workspaceLevel': 'Niveau espace de travail',
   'page.delete': 'Supprimer la page',
   'page.deleteConfirm': 'Supprimer « {title} » ? Les sous-pages restent mais perdent leur parent.',
+  'page.mergedIn': 'La modification de quelqu’un d’autre vient d’être fusionnée.',
   'page.startWriting': 'Cette page est vide — commencez à écrire',
   'page.subpages': 'Sous-pages',
   'page.labels': 'Étiquettes',

@@ -279,9 +279,29 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P3 — bigger bets, only with a reason
 
-- [ ] **Real-time collaborative page editing.** Page bodies merge last-writer-wins; simultaneous
-      typing resolves to one version with the other kept in history. A text CRDT (Yjs/Automerge) on
-      the `content` field would fix it — see the closing section of [`docs/sync.md`](docs/sync.md).
+- [x] **Real-time collaborative page editing.** A page body is now a **text CRDT** — RGA, stored as
+      runs, written from first principles like everything else hard in this project. Two people
+      typing at once is a merge rather than a race: both paragraphs survive, in the same order on
+      every device, whichever order the rows arrived in.
+      The shape fits the sync engine rather than fighting it. This app syncs *rows*, each reaching
+      every device exactly once in any order, which is an unusually good fit for a **state-based**
+      CRDT where merging is a pure function of two states: the document lives in one column, the
+      merge replaces last-writer-wins for that one column, and nothing else about sync changes. An
+      operation per keystroke as its own row would have grown without bound and needed a compaction
+      scheme nobody can make safe, because "every device has certainly seen this" is not knowable
+      offline-first.
+      `pages.content` stays as what the CRDT reads as, so search, export, sharing, the renderer, the
+      REST API and MCP all carry on reading plain text and know nothing about it. Plain text written
+      by the API *replaces* the CRDT, because somebody who sent a whole document meant it.
+      Convergence is proved rather than asserted: commutativity, associativity and idempotence each
+      have their own case, and three replicas gossip at random from five seeds and must read
+      identically at the end.
+      Still open, and stated in [`docs/sync.md`](docs/sync.md) rather than left to be discovered:
+      two people typing at the *same instant at the same position* can interleave at run boundaries
+      — RGA keeps each person's run together, which a position-key scheme does not, but Fugue and
+      Peritext handle the last cases properly and this does not. There is no cursor presence. And
+      tombstones accumulate: `kolibri doctor --fix` folds away the ones nothing points at, on
+      purpose rather than on a schedule.
 - [ ] **Multi-node deployment.** The sequence counter, the SSE bus and the mail worker live in the
       process. Running two replicas needs an external counter, a shared bus and a locked queue —
       this is the one scenario where Redis or Postgres genuinely earns its place.

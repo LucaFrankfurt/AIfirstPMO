@@ -16,6 +16,7 @@ import { relativeTime, shortDate } from '../lib/format';
 import { createPage, remove, update } from '../lib/mutations';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
+import { useCollaborativeText } from '../lib/collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { useT } from '../lib/i18n';
 
@@ -182,11 +183,9 @@ export function PageDetail() {
   const { confirm, dialog } = useConfirm();
 
   const [editing, setEditing] = useState(false);
-  const [content, setContent] = useState(page?.content ?? '');
   const [title, setTitle] = useState(page?.title ?? '');
   const [history, setHistory] = useState<any[] | null>(null);
   const [diffing, setDiffing] = useState<string | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const children = useQuery(() => list('page', (p) => p.parent_id === id && !p.archived), [id]);
   const labels = usePageLabels((page ?? { project_id: null }) as any);
@@ -201,25 +200,21 @@ export function PageDetail() {
   const projects = useQuery(() => list('project'), []);
   const pageComments = useQuery(() => list('comment', (entry) => entry.page_id === id), [id]);
 
+  // The body is a CRDT, so two people typing at once is a merge rather than a
+  // race. Everything else on this screen still reads `page.content`, which the
+  // server derives from it.
+  const { text: content, setText: setContent, fieldRef, flush, merged } = useCollaborativeText(
+    id, page?.body, page?.content ?? '', editing,
+  );
+
   // Selecting a passage offers a comment on it; the anchored passages are
   // painted back onto the rendered page afterwards.
   const { bubble } = useSelectionAnchor(body, page?.content ?? '', setAnchor);
   useHighlights(body, page?.content ?? '', pageComments, activeComment, setActiveComment);
 
   useEffect(() => {
-    setContent(page?.content ?? '');
     setTitle(page?.title ?? '');
-  }, [id, page?.content, page?.title]);
-
-  // Autosave while typing: the sync engine debounces the network on top.
-  useEffect(() => {
-    if (!editing || !page || content === page.content) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => update('page', id, { content }), 900);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, [content, editing, id, page]);
+  }, [id, page?.title]);
 
   if (!page) {
     return (
@@ -236,7 +231,10 @@ export function PageDetail() {
     <>
       <Header title={<span className="row" style={{ gap: 6 }}><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
         <button className="btn sm" hidden={!canWrite} onClick={() => {
-          if (editing) update('page', id, { content, title });
+          if (editing) {
+            flush();
+            if (title !== page.title) update('page', id, { title });
+          }
           setEditing(!editing);
         }}>
           {editing ? <><Icon name="check" size={14} /> {t('action.done')}</> : <>{t('action.edit')}</>}
@@ -315,7 +313,11 @@ export function PageDetail() {
                 onBlur={() => update('page', id, { title: title.trim() || t('common.untitled') })}
               />
             </div>
-            <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} />
+            <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} fieldRef={fieldRef} />
+            {/* Quiet, and only while it is true: somebody wanting to know why a
+                sentence appeared under their cursor should be able to find out,
+                and nobody else should have to look at it. */}
+            {merged && <span className="hint" style={{ display: 'block', marginTop: 6 }}>{t('page.mergedIn')}</span>}
           </>
         ) : (
           <>

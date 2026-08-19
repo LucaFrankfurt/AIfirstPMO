@@ -132,6 +132,17 @@ one. `group_by` takes `field:<field_id>` alongside the usual `state`, `type` and
 `select`, `multi_select`, `checkbox` and `person` are offered, because grouping by a note is one
 heading per task.
 
+### Page bodies
+
+A page carries both `content` — plain text, which is what to read and what to write — and `body`,
+the same text as a CRDT. **An API caller wants `content`**, and writing it replaces the CRDT:
+somebody sending a whole document means the whole document.
+
+`body` exists for editors that merge rather than replace. It is the one field in the system that is
+*merged* on write instead of following last-writer-wins, which is what lets two people type in one
+page at the same time and keep both changes. `content` is always kept saying whatever the merged
+state reads as, so nothing else has to know. See [`sync.md`](sync.md).
+
 ### Scheduling
 
 A `blocks` relation carries a `lag` — working days of breathing room between the blocker finishing

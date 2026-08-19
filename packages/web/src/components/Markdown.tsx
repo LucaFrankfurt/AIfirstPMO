@@ -29,6 +29,14 @@ interface EditorProps {
   /** Attach uploaded images to this task/page. */
   attachTo?: { task_id?: string; page_id?: string };
   onSubmit?: () => void;
+  /**
+   * The textarea itself, for a caller that has to touch the caret.
+   *
+   * The page editor does: when somebody else's paragraph arrives while you are
+   * typing, the text under your cursor changes, and a caret that jumps to the
+   * end of the document every time a colleague saves is not collaboration.
+   */
+  fieldRef?: { current: HTMLTextAreaElement | null };
 }
 
 const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[] = [
@@ -46,9 +54,10 @@ const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[
  * they are downscaled in the browser first so a phone photo does not push a
  * 12 MB original through a mobile connection.
  */
-export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit }: EditorProps) {
+export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, fieldRef }: EditorProps) {
   const t = useT();
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const own = useRef<HTMLTextAreaElement>(null);
+  const ref = fieldRef ?? own;
   const [preview, setPreview] = useState(false);
   const [dropping, setDropping] = useState(false);
   const [busy, setBusy] = useState(false);

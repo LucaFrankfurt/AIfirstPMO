@@ -718,6 +718,7 @@ export const de: Catalogue = {
   'page.workspaceLevel': 'Workspace-Ebene',
   'page.delete': 'Seite löschen',
   'page.deleteConfirm': '„{title}“ löschen? Unterseiten bleiben erhalten, verlieren aber ihre übergeordnete Seite.',
+  'page.mergedIn': 'Gerade wurde die Änderung von jemand anderem eingefügt.',
   'page.startWriting': 'Diese Seite ist leer — jetzt schreiben',
   'page.subpages': 'Unterseiten',
   'page.labels': 'Labels',

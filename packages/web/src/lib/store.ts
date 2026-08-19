@@ -6,7 +6,7 @@
  * The sync engine is the only thing that writes to them.
  */
 import { useCallback, useSyncExternalStore } from 'react';
-import { ENTITY_NAMES, type ChangeSet, type EntityMap, type EntityName } from '@kolibri/shared';
+import { ENTITY_NAMES, crdt, entityDef, type ChangeSet, type EntityMap, type EntityName } from '@kolibri/shared';
 
 type Tables = { [K in EntityName]: Map<string, any> };
 
@@ -83,8 +83,13 @@ export function applyChanges(changes: ChangeSet): void {
     const rows = (changes as Record<string, any[]>)[entity];
     if (!rows?.length) continue;
     const table = tables[entity];
+    const merging = entityDef(entity)?.crdt;
     for (const row of rows) {
       const existing = table.get(row.id);
+      // A merged field is combined rather than overwritten, here as well as on
+      // the server: a device with an unsent edit must not lose it to the row
+      // coming back from a pull, which is exactly when it would happen.
+      if (existing && merging) for (const field of merging) row[field] = crdt.merge(existing[field], row[field]);
       table.set(row.id, existing ? { ...existing, ...row } : row);
       touched = true;
     }

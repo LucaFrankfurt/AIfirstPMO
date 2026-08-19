@@ -211,3 +211,37 @@ describe('a restore', () => {
     assert.match(forced, /kept at/, 'and what was replaced is still on disk');
   });
 });
+
+describe('folding away deleted page text', () => {
+  it('shrinks a page that has been rewritten, without changing what it says', async () => {
+    const { compactPages } = await import('../src/lib/maintenance.ts');
+    const { crdt } = await import('@kolibri/shared');
+    const { get, run } = await import('../src/db/index.ts');
+    const { uid } = await import('../src/lib/ids.ts');
+
+    // A page written and rewritten several times: every draft is still in there,
+    // which is exactly what lets a device that was away merge without
+    // resurrecting anything.
+    let state = crdt.fromText('the first draft, which was long and rambling and went on', 'ada');
+    for (const text of ['a shorter second draft', 'the third', 'final: two words']) {
+      state = crdt.edit(state, text, 'ada');
+    }
+    const id = uid();
+    const now = Date.now();
+    run(
+      `INSERT INTO pages (id, workspace_id, title, content, body, created_at, updated_at, seq, clocks)
+       VALUES (?, 'ws', 'Drafts', ?, ?, ?, ?, 0, '{}')`,
+      id, crdt.textOf(state), JSON.stringify(state), now, now,
+    );
+    const before = String(get<any>(`SELECT body FROM pages WHERE id = ?`, id).body).length;
+
+    const folded = compactPages();
+    assert.ok(folded.pages >= 1);
+    const after = String(get<any>(`SELECT body FROM pages WHERE id = ?`, id).body);
+    assert.ok(after.length < before, `expected it to shrink from ${before}, got ${after.length}`);
+    assert.equal(
+      crdt.textOf(JSON.parse(after)), 'final: two words',
+      'and the page still says exactly what it said',
+    );
+  });
+});

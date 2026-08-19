@@ -428,7 +428,12 @@ CREATE TABLE IF NOT EXISTS pages (
   parent_id    TEXT,
   title        TEXT NOT NULL DEFAULT 'Untitled',
   icon         TEXT,
+  -- What the page says. Derived from `body` when there is one, so that search,
+  -- export, sharing and the API all carry on reading plain text.
   content      TEXT NOT NULL DEFAULT '',
+  -- The same text as a CRDT. Merged rather than replaced on write, which is
+  -- what makes two people typing at once a merge instead of a race.
+  body         TEXT,
   sort_order   TEXT NOT NULL DEFAULT 'V',
   archived     INTEGER NOT NULL DEFAULT 0,
   access       TEXT NOT NULL DEFAULT 'workspace',

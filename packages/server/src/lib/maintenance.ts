@@ -8,8 +8,8 @@
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { db, all, pluck, run } from '../db/index.ts';
-import { ENTITIES, type EntityName } from '@kolibri/shared';
+import { db, all, pluck, run, type Row } from '../db/index.ts';
+import { ENTITIES, crdt, type CrdtState, type EntityName } from '@kolibri/shared';
 import { env } from '../env.ts';
 import { indexForSearch, SEARCHABLE } from './repo.ts';
 import { keyFor } from './storage.ts';
@@ -212,6 +212,46 @@ export function prune(now = Date.now()): { sessions: number; mutations: number; 
   run(`DELETE FROM applied_mutations WHERE applied_at < ?`, month);
   run(`DELETE FROM email_queue WHERE sent_at IS NOT NULL AND sent_at < ?`, month);
   return before;
+}
+
+/**
+ * Fold away the tombstones in page bodies.
+ *
+ * A page body is a CRDT, and every character anybody has ever deleted is still
+ * in it — that is what lets a device that was offline for a week merge without
+ * resurrecting text. It is also unbounded: a page rewritten fifty times carries
+ * fifty drafts nobody will ever read.
+ *
+ * There is no safe automatic moment for this. "Every device has seen the
+ * delete" is not knowable in an offline-first system, and dropping a tombstone
+ * a device still refers to means its pending insert lands at the start of the
+ * page instead of where it was typed. So it is a `--fix` and not a sweep: a
+ * person, on a Tuesday, who knows whether anybody has been away for a month.
+ * Tombstones something visible still points at are kept regardless.
+ */
+export function compactPages(): { pages: number; saved: number } {
+  let pages = 0;
+  let saved = 0;
+  for (const row of all<Row>(`SELECT id, body FROM pages WHERE body IS NOT NULL AND deleted_at IS NULL`)) {
+    const before = String(row.body ?? '');
+    let state: CrdtState;
+    try {
+      state = JSON.parse(before) as CrdtState;
+    } catch {
+      continue;
+    }
+    const text = crdt.textOf(state);
+    const after = JSON.stringify(crdt.compact(state));
+    if (after.length >= before.length) continue;
+    // Belt and braces: a compaction that changed what the page says would be a
+    // bug in the CRDT, and finding out here is much better than finding out
+    // from whoever wrote the page.
+    if (crdt.textOf(JSON.parse(after) as CrdtState) !== text) continue;
+    run(`UPDATE pages SET body = ? WHERE id = ?`, after, row.id);
+    pages++;
+    saved += before.length - after.length;
+  }
+  return { pages, saved };
 }
 
 /** Fold the write-ahead log back in and give the free pages back to the disk. */
