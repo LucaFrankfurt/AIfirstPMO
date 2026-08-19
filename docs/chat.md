@@ -168,14 +168,30 @@ somebody has just read unread again on their other device.
 
 ## Guests
 
-A guest can **read** an open channel and cannot write anywhere — that is the workspace-wide guest
-rule, not a chat rule. Chat says so before somebody types rather than after: no composer, no *new
-channel* button, no list of people to start a conversation with, and a line explaining why.
+A guest can **read** an open channel and cannot write in it — that is the workspace-wide guest rule,
+not a chat rule. Chat says so before somebody types rather than after: no composer, no *new channel*
+button, no list of people to start a conversation with, and a line explaining why.
 
-Unread counts are **hidden** from guests, and not because there is nothing to read. A read marker is
-itself a write, so a guest's count would climb and never come down; a number that cannot reach zero
-is worse than no number. Letting guests keep their own private read state would be a change to the
-permission model, which is a decision rather than something to slip in here — it is in `TODO.md`.
+**With one exception: a guest may write their own read marker.** Not because chat is special, but
+because that row is not content — it is a note somebody keeps about their own position in a
+conversation, private to them and read by nobody else. Without it a guest's unread count would climb
+and never come down, and a number that cannot reach zero is worse than no number.
+
+The exception is declared where every other entity rule lives, as `guestWritable` on the entity in
+the registry, and it is currently true of exactly one entity:
+
+```ts
+GUEST_WRITABLE  // ['channelRead']
+```
+
+Both write paths ask that question rather than the role alone — the REST routes and, per mutation,
+the sync push. Per mutation matters: a read marker batched beside something a guest may not write
+still goes through, and the rest come back in the `rejected` list the client already knows how to
+undo.
+
+One thing this does *not* fix, and it is the same problem: a guest cannot mark a **notification**
+read either, so the Inbox badge has the flaw the chat badge just lost. It is one word in the
+registry when somebody wants it.
 
 ## In a project export
 

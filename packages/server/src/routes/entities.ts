@@ -1,5 +1,5 @@
 import {
-  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat,
+  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat, isGuestWritable,
   type EntityName, type ImportField, type Mapping,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
@@ -443,10 +443,13 @@ export function registerEntityRoutes(router: Router): void {
   /** Create. Projects get their default states/labels for free. */
   router.post('/api/workspaces/:ws/:collection', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
-    const role = requireWorkspace(ctx, ctx.params.ws, 'member');
+    const role = requireWorkspace(ctx, ctx.params.ws);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    if (!hasRole(role, 'member')) throw forbidden('Guests cannot create content');
     const entity = resolve(ctx.params.collection);
+    // A guest may write the rows that are only about themselves — a read marker
+    // is not content, it is a note somebody keeps about their own position in
+    // one. Everything else is still refused.
+    if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot create content');
     const body = await readJson<Record<string, unknown>>(ctx);
 
     if (entity === 'project') {
@@ -486,9 +489,9 @@ export function registerEntityRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     const entity = resolve(ctx.params.collection);
     const row = workspaceOf(entity, ctx.params.id);
-    const role = requireWorkspace(ctx, row.workspace_id, 'member');
+    const role = requireWorkspace(ctx, row.workspace_id);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    if (!hasRole(role, 'member')) throw forbidden('Guests cannot edit content');
+    if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot edit content');
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');

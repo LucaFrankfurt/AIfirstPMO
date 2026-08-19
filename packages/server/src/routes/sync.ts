@@ -2,6 +2,7 @@ import {
   ENTITY_NAMES,
   ENTITIES,
   entityDef,
+  isGuestWritable,
   type ChangeSet,
   type EntityName,
   type Mutation,
@@ -153,7 +154,12 @@ export function registerSyncRoutes(router: Router): void {
     const workspaceId = body.workspaceId;
     const role = requireWorkspace(ctx, workspaceId);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    if (!hasRole(role, 'member')) throw forbidden('Guests cannot modify this workspace');
+    // A guest writes nothing except the rows that are entirely about themselves
+    // — see `guestWritable` in the registry. Refused per mutation rather than
+    // per push: a read marker batched beside something a guest may not write
+    // should still go, and the rejection of the rest already has a shape the
+    // client understands.
+    const guest = !hasRole(role, 'member');
     if (!Array.isArray(body.mutations)) throw badRequest('mutations must be an array');
     if (body.mutations.length > 500) throw badRequest('Too many mutations in one push (max 500)');
 
@@ -163,6 +169,9 @@ export function registerSyncRoutes(router: Router): void {
 
     for (const mutation of body.mutations) {
       try {
+        if (guest && !isGuestWritable(mutation.entity as EntityName)) {
+          throw forbidden('Guests cannot modify this workspace');
+        }
         const result = applyMutation(mutation, workspaceId, auth.userId, body.clientId);
         accepted.push(mutation.id);
         if (result) {

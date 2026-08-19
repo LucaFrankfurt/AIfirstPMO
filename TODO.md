@@ -625,6 +625,17 @@ confused later.
       animation of the case that is hard to believe — two people opening the same conversation with
       no signal and ending up in one room — plus `channel`, `message` and the read marker as nodes in
       the containment tree, which `hierarchy.tsx` says in its own header it should track.
+- [x] **A guest may write their own read marker, and nothing else.** Not a chat exception but a
+      general one, declared as `guestWritable` on the entity in the registry and currently true of
+      exactly one entity. The reasoning: that row is not content — it is a note somebody keeps about
+      their own position in a conversation, private to them and read by nobody. Without it a guest's
+      unread count climbed and could never come down, and a number that cannot reach zero is worse
+      than no number. Both write paths ask the registry rather than the role alone, and the sync push
+      asks it *per mutation*, so a read marker batched beside something a guest may not write still
+      goes through while the rest come back rejected.
+      Noted while doing it: a guest cannot mark a **notification** read either, so the Inbox badge
+      still has the flaw the chat badge just lost. One word in the registry fixes it, and it was left
+      alone because it was not what was asked for.
 - [x] **A project export takes its conversations.** The open ones, and what was said in them, read
       back on import. Private channels are left out on purpose: an export is a document somebody
       emails, and a private room's point is that seeing the project is not enough to be in it.
@@ -634,12 +645,6 @@ confused later.
 
 ## The chat's decisions still open
 
-- [ ] **Guests and their own read state.** A guest can read an open channel and cannot write
-      anything — including a read marker, which is their own private "I have read up to here". So
-      their unread count would climb and never come down, and it is hidden from them instead, since
-      a number that cannot reach zero is worse than none. The question is narrow: should a guest be
-      allowed to write **only** that one private row, so their chat has a working unread badge?
-      Nothing else about the guest role would change. Currently: no, and the badge is hidden.
 - [ ] **How much history a device keeps.** Decided for now as *everything*, and recorded here to be
       looked at again. Every message ever sent is synced to every device that may see it and held in
       memory — the same rule as tasks, except chat is the one entity whose volume grows without

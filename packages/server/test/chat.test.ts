@@ -528,3 +528,78 @@ describe('reacting to somebody else\'s message', () => {
     assert.equal(refused.status, 403);
   });
 });
+
+/* ---------------------------------------------------------------- guests */
+
+describe('a guest and their own read marker', () => {
+  let guest: Person;
+  let channel = '';
+
+  before(async () => {
+    const ada$ = people.ada.cookie;
+    guest = await register('gil@example.com', 'Gil');
+    people.ada.cookie = ada$;
+    run(
+      `INSERT INTO workspace_members (id, workspace_id, user_id, role, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, ?, 'guest', ?, ?, 0, '{}')`,
+      `wm-${guest.id}`, workspaceId, guest.id, Date.now(), Date.now(),
+    );
+    channel = (await post(people.ada, 'channels', { name: 'lobby' })).id;
+    await post(people.ada, 'messages', { channel_id: channel, body: 'anybody here' });
+  });
+
+  it('can write the one row that is only about them', async () => {
+    const marker = await post(guest, 'channel-reads', {
+      id: readStateId(channel, guest.id), channel_id: channel, last_read_at: Date.now(),
+    });
+    assert.equal(marker.user_id, guest.id);
+    // Without this a guest's unread count climbs and can never come down.
+    assert.ok(marker.last_read_at > 0);
+  });
+
+  it('can still change how much it tells them', async () => {
+    const updated = await as(guest, `/api/channel-reads/${readStateId(channel, guest.id)}`, { notify: 'none' }, 'PATCH');
+    assert.equal(updated.notify, 'none');
+  });
+
+  it('cannot write anything else', async () => {
+    for (const [collection, body] of [
+      ['messages', { channel_id: channel, body: 'hello?' }],
+      ['channels', { name: 'guest-channel' }],
+      ['pages', { title: 'A page' }],
+    ] as const) {
+      const result = await raw(guest, `/api/workspaces/${workspaceId}/${collection}`, body);
+      assert.equal(result.status, 403, `a guest wrote a ${collection.slice(0, -1)}`);
+    }
+  });
+
+  it('cannot write somebody else\'s read marker either', async () => {
+    const result = await raw(guest, `/api/workspaces/${workspaceId}/channel-reads`, {
+      id: readStateId(channel, people.ada.id), channel_id: channel,
+    });
+    assert.equal(result.status, 403);
+  });
+
+  it('is refused through the sync push, mutation by mutation', async () => {
+    const push = async (mutations: unknown[]) => raw(guest, '/api/sync/push', {
+      workspaceId, clientId: 'guest-device', mutations,
+    });
+    const result = await push([
+      {
+        id: 'm1', entity: 'channelRead', entityId: readStateId(channel, guest.id), op: 'upsert',
+        hlc: '9999999999999:0:guest', patch: { channel_id: channel, last_read_at: 42 },
+      },
+      {
+        id: 'm2', entity: 'message', entityId: 'nope', op: 'upsert',
+        hlc: '9999999999999:1:guest', patch: { channel_id: channel, body: 'sneaking in' },
+      },
+    ]);
+    assert.equal(result.status, 200);
+    // The marker goes through; the message beside it is refused rather than
+    // taking the whole push down with it.
+    assert.deepEqual(result.body.accepted, ['m1']);
+    assert.equal(result.body.rejected.length, 1);
+    assert.equal(result.body.rejected[0].id, 'm2');
+    assert.equal(get<any>(`SELECT body FROM messages WHERE id = 'nope'`), undefined);
+  });
+});

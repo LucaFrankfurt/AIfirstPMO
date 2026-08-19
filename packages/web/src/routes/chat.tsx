@@ -55,16 +55,9 @@ function useConversations(me: string) {
   }, [me]);
 }
 
-/**
- * How many messages in this conversation this person has not seen.
- *
- * Zero for somebody who cannot write, for the same reason the sidebar badge is
- * — see `useUnreadMessages`. A guest cannot write a read marker, so a count
- * shown to them would only ever climb.
- */
-function useUnread(channelId: string, me: string, canWrite: boolean): number {
+/** How many messages in this conversation this person has not seen. */
+function useUnread(channelId: string, me: string): number {
   return useQuery(() => {
-    if (!canWrite) return 0;
     const marker = byId('channelRead', readStateId(channelId, me));
     if (marker?.notify === 'none') return 0;
     return unreadCount(
@@ -72,21 +65,19 @@ function useUnread(channelId: string, me: string, canWrite: boolean): number {
       marker?.last_read_at ?? 0,
       me,
     );
-  }, [channelId, me, canWrite]);
+  }, [channelId, me]);
 }
 
 /**
  * Everything unread, for the badge in the sidebar.
  *
- * Zero for a guest, and not because they have nothing to read. A read marker is
- * a *write*, and a guest has none — so their count would go up and never come
- * down. A number that cannot reach zero is worse than no number, and letting
- * guests keep their own private read state is a change to the permission model
- * rather than something to slip in here.
+ * Counted for a guest too. A read marker is the one thing somebody with no
+ * write access may still write — it is a note they keep about their own
+ * position, not content anybody else reads — and without it their count would
+ * climb and never come down. See `guestWritable` in the entity registry.
  */
-export function useUnreadMessages(me: string, canWrite = true): number {
+export function useUnreadMessages(me: string): number {
   return useQuery(() => {
-    if (!canWrite) return 0;
     const markers = new Map(list('channelRead', (marker) => marker.user_id === me).map((m) => [m.channel_id, m]));
     const byChannel = new Map<string, Message[]>();
     for (const message of list('message', (message) => !message.deleted_at)) {
@@ -143,7 +134,6 @@ export function Chat() {
             active={channel.id === id}
             title={channelTitle(channel, me, nameOf)}
             onOpen={() => navigate(`/chat/${channel.id}`)}
-            canWrite={canWrite}
           />
         ))}
 
@@ -188,15 +178,14 @@ function openDirect(me: string, them: string): string {
   return id;
 }
 
-function ConversationRow({ channel, me, active, title, onOpen, canWrite }: {
+function ConversationRow({ channel, me, active, title, onOpen }: {
   channel: Channel;
   me: string;
   active: boolean;
   title: string;
   onOpen: () => void;
-  canWrite: boolean;
 }) {
-  const unread = useUnread(channel.id, me, canWrite);
+  const unread = useUnread(channel.id, me);
   return (
     <button className={`nav-item${active ? ' active' : ''}`} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
