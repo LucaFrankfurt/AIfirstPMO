@@ -217,7 +217,21 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       one: a task may not start before everything blocking it has finished. Nothing is ever pulled
       *earlier*; a plan that snaps backwards the moment a dependency lands early is arguing with
       whoever wrote it. Rescheduling is written as ordinary local changes, so it works offline.
-      Still open: lag other than "the next day", and durations in working days rather than days.
+      A `blocks` link can carry a **wait** in working days — "the paint has to
+      dry" — and never a negative one, because a lead time is permission to start before the blocker
+      finishes, which is the sentence the whole file exists to keep. A project says which weekdays it
+      works on, and the scheduler counts those: a task pushed across a weekend keeps its length in
+      *working* days rather than being stretched to five, and lands on a day the team actually works.
+      Off days are shaded on the timeline rather than blocked — a bar dragged onto a Saturday stays
+      there, because somebody who did that meant it. The calendar sits on the project rather than the
+      workspace, since a support rota and an office team disagree about it inside one company, and
+      the team planner looks it up per task for the same reason.
+- [x] **The schedule applied where the interface is not the caller.** The Gantt has always written
+      the shifted successors itself, so it works offline — which left a hole nobody could see from
+      inside the app: a date set over REST, over MCP, by an import or by a rule moved one task and
+      left everything waiting on it behind its blocker. The server now runs the same shared rule on
+      the write path. The cascade writes as the system, so it earns no activity entry, no
+      notification and no rule of its own: the schedule moving a task is not a person editing it.
 - [x] **Internationalisation.** English and German, both as catalogue files — the interface, the
       notification titles and the emails, each written in the recipient's own language. Other
       locales are typed against English, so a missing key is a compile error.

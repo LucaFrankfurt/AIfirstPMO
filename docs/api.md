@@ -132,6 +132,21 @@ one. `group_by` takes `field:<field_id>` alongside the usual `state`, `type` and
 `select`, `multi_select`, `checkbox` and `person` are offered, because grouping by a note is one
 heading per task.
 
+### Scheduling
+
+A `blocks` relation carries a `lag` — working days of breathing room between the blocker finishing
+and the next thing starting. Never negative: a lead time would mean a task may start before what
+blocks it has finished, and that is the one rule the scheduler exists to keep.
+
+A project carries `working_days`, a JSON array of `Date.getUTCDay()` numbers (Monday to Friday by
+default, `[]` or all seven for a team that works every day).
+
+Setting a date through the API moves everything waiting on that task, exactly as dragging a bar in
+the timeline does — the rule and the arithmetic live in `@kolibri/shared` so there is one of each. A
+pushed task keeps its length in *working* days rather than being stretched across a weekend, and
+lands on a day its own project works. Nothing is ever pulled earlier. The cascade is written as the
+server rather than as you, so it produces no activity entries and triggers no rules.
+
 ### Task extras
 
 ```

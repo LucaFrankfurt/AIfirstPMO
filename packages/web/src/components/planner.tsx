@@ -63,7 +63,7 @@ export function Planner() {
   );
   const dependencies = useQuery<Dependency[]>(
     () => list('relation', (relation) => relation.kind === 'blocks')
-      .map((relation) => ({ from: relation.task_id, to: relation.related_task_id })),
+      .map((relation) => ({ from: relation.task_id, to: relation.related_task_id, lag: relation.lag ?? 0 })),
     [workspaceId],
   );
 
@@ -162,6 +162,10 @@ export function Planner() {
         task.due_date ? addDays(bounds.end, state.days) : null,
         scheduled,
         dependencies,
+        // The planner crosses projects, so the calendar is looked up per task:
+        // the project a task belongs to is the one that decides whether its
+        // Saturday counts.
+        { workingDays: (taskId) => byId('project', byId('task', taskId)?.project_id)?.working_days ?? null },
       );
       for (const move of moves) update('task', move.id, { start_date: move.start_date, due_date: move.due_date });
     }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { orderKey, type Task } from '@kolibri/shared';
+import { DEFAULT_WORKING_DAYS, orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
@@ -33,6 +33,13 @@ const TAB_KEY: Record<string, TranslationKey> = {
 };
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
+
+/** Monday first, because a working week starts on one. `day` is getUTCDay. */
+const WEEKDAYS: { day: number; key: TranslationKey }[] = [
+  { day: 1, key: 'view.weekdayMon' }, { day: 2, key: 'view.weekdayTue' }, { day: 3, key: 'view.weekdayWed' },
+  { day: 4, key: 'view.weekdayThu' }, { day: 5, key: 'view.weekdayFri' }, { day: 6, key: 'view.weekdaySat' },
+  { day: 0, key: 'view.weekdaySun' },
+];
 
 /**
  * The view this project is being looked at through.
@@ -690,6 +697,33 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           <input id="s-target" className="input" type="date" value={project.target_date ?? ''}
             onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
         </div>
+      </div>
+
+      {/* Which days the *scheduler* counts. Not a lock: a bar dragged onto a
+          Saturday stays there, because somebody who did that meant it. */}
+      <div className="field">
+        <label>{t('project.workingDays')}</label>
+        <div className="row wrap" style={{ gap: 4 }} role="group" aria-label={t('project.workingDays')}>
+          {WEEKDAYS.map(({ day, key }) => {
+            const days = project.working_days ?? DEFAULT_WORKING_DAYS;
+            const on = days.includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                className={`btn ghost sm${on ? ' active' : ''}`}
+                style={on ? { background: 'var(--bg-active)' } : undefined}
+                aria-pressed={on}
+                onClick={() => update('project', projectId, {
+                  working_days: on ? days.filter((d) => d !== day) : [...days, day].sort(),
+                })}
+              >
+                {t(key)}
+              </button>
+            );
+          })}
+        </div>
+        <span className="hint">{t('project.workingDaysHint')}</span>
       </div>
 
       <div className="row" style={{ margin: '18px 0 8px' }}>

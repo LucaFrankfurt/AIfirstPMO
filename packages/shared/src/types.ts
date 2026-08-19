@@ -155,6 +155,12 @@ export interface Project extends Base {
    * answer instead of two rows both claiming to be the default.
    */
   default_view_id: ID | null;
+  /**
+   * Which weekdays this project works on, as `Date.getUTCDay()` numbers. On the
+   * project rather than the workspace because a support rota and an office team
+   * can genuinely disagree inside one company. Empty means every day counts.
+   */
+  working_days: number[] | null;
   sort_order: string;
 }
 
@@ -342,6 +348,11 @@ export interface Relation extends Base {
   task_id: ID;
   related_task_id: ID;
   kind: RelationKind;
+  /**
+   * Working days of breathing room, on a `blocks` link. Never negative — see
+   * `schedule.ts`. Ignored on the other kinds, which say nothing about time.
+   */
+  lag: number;
 }
 
 export interface Cycle extends Base {

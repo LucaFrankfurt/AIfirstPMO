@@ -81,8 +81,9 @@ export const ENTITIES = {
     fields: [
       'workspace_id', 'team_id', 'parent_id', 'name', 'key', 'description', 'icon', 'color',
       'lead_id', 'start_date', 'target_date', 'status', 'visibility', 'archived',
-      'default_state_id', 'default_view_id', 'sort_order',
+      'default_state_id', 'default_view_id', 'working_days', 'sort_order',
     ],
+    json: ['working_days'],
   },
   projectMember: {
     table: 'project_members',
@@ -165,7 +166,7 @@ export const ENTITIES = {
   },
   relation: {
     table: 'task_relations',
-    fields: ['workspace_id', 'task_id', 'related_task_id', 'kind'],
+    fields: ['workspace_id', 'task_id', 'related_task_id', 'kind', 'lag'],
   },
   cycle: {
     table: 'cycles',

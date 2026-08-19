@@ -36,6 +36,74 @@ export interface Dependency {
   from: string;
   /** The task that waits. */
   to: string;
+  /**
+   * Working days of breathing room between the two — "the paint has to dry".
+   *
+   * Never negative. A lead time would say a task may start *before* its blocker
+   * finishes, which is the one sentence this file exists to enforce; somebody
+   * who means that has two tasks, not one with a clever number on it.
+   */
+  lag?: number;
+}
+
+/**
+ * Which weekdays are working days, as `Date.getUTCDay()` numbers — 0 is Sunday.
+ *
+ * Monday to Friday unless a project says otherwise. An empty or missing list
+ * means every day counts, which is also what every caller written before this
+ * existed gets, so nothing changes for a plan nobody has told about weekends.
+ */
+export const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5];
+export const EVERY_DAY = [0, 1, 2, 3, 4, 5, 6];
+
+export interface ScheduleOptions {
+  /**
+   * The weekdays that count — or a lookup by task, for a plan that spans
+   * projects. The team planner needs the second: two projects in one company
+   * can genuinely disagree about whether Saturday is a working day, and the
+   * task's own project is the one that decides for it.
+   */
+  workingDays?: number[] | null | ((taskId: string) => number[] | null | undefined);
+}
+
+const workdaysOf = (options: ScheduleOptions | undefined, taskId: string): number[] => {
+  const asked = options?.workingDays;
+  const days = typeof asked === 'function' ? asked(taskId) : asked;
+  return days && days.length && days.length < 7 ? days : EVERY_DAY;
+};
+
+export const isWorkingDay = (date: string, days: number[]): boolean =>
+  days.includes(new Date(dayOf(date)).getUTCDay());
+
+/** This day if it is a working one, otherwise the next that is. */
+export function nextWorkingDay(date: string, days: number[]): string {
+  if (days.length === 7) return date;
+  let day = date;
+  // Seven is enough by construction: a non-empty set contains some weekday.
+  for (let i = 0; i < 7 && !isWorkingDay(day, days); i++) day = addDays(day, 1);
+  return day;
+}
+
+/** `n` working days after `date`, landing on a working day. */
+export function addWorkingDays(date: string, n: number, days: number[]): string {
+  if (days.length === 7) return addDays(date, n);
+  let day = nextWorkingDay(date, days);
+  for (let i = 0; i < n; i++) day = nextWorkingDay(addDays(day, 1), days);
+  return day;
+}
+
+/**
+ * Working days from `from` to `to` inclusive — a Monday to a Friday is five.
+ *
+ * Bounded, because two dates a century apart is a typo rather than a plan and
+ * counting it a day at a time would be a hung tab.
+ */
+export function workingDaysBetween(from: string, to: string, days: number[]): number {
+  if (days.length === 7) return daysBetween(from, to) + 1;
+  const span_ = Math.min(Math.abs(daysBetween(from, to)), 3650);
+  let count = 0;
+  for (let i = 0; i <= span_; i++) if (isWorkingDay(addDays(from, i), days)) count++;
+  return count;
 }
 
 export interface Shift {
@@ -71,12 +139,13 @@ export function reschedule(
   changed: string[],
   tasks: Scheduled[],
   dependencies: Dependency[],
+  options?: ScheduleOptions,
 ): Shift[] {
   const byId = new Map(tasks.map((task) => [task.id, { ...task }]));
-  const successors = new Map<string, string[]>();
+  const successors = new Map<string, Dependency[]>();
   for (const link of dependencies) {
     if (!successors.has(link.from)) successors.set(link.from, []);
-    successors.get(link.from)!.push(link.to);
+    successors.get(link.from)!.push(link);
   }
 
   const moved = new Map<string, Shift>();
@@ -91,18 +160,29 @@ export function reschedule(
     const blockerSpan = blocker && span(blocker);
     if (!blockerSpan) continue;
 
-    for (const next of successors.get(id) ?? []) {
+    for (const link of successors.get(id) ?? []) {
+      const next = link.to;
       const task = byId.get(next);
       const taskSpan = task && span(task);
       if (!task || !taskSpan) continue;
+      // The waiting task's own calendar, not its blocker's.
+      const days = workdaysOf(options, next);
 
-      // The day after the blocker ends is the earliest this may start.
-      const earliest = addDays(blockerSpan.end, 1);
+      // The working day after the blocker ends, plus whatever lag the link
+      // asks for, is the earliest this may start.
+      const earliest = addWorkingDays(blockerSpan.end, 1 + Math.max(0, Math.round(link.lag ?? 0)), days);
       if (taskSpan.start >= earliest) continue;
 
-      const shift = daysBetween(taskSpan.start, earliest);
-      const next_start = task.start_date ? addDays(task.start_date, shift) : null;
-      const next_due = task.due_date ? addDays(task.due_date, shift) : null;
+      // The task keeps its *length in working days* rather than its length in
+      // calendar days: three days of work pushed across a weekend is still
+      // three days of work, and stretching it to five would be the schedule
+      // inventing effort nobody planned.
+      const length = Math.max(1, workingDaysBetween(taskSpan.start, taskSpan.end, days));
+      const end = addWorkingDays(earliest, length - 1, days);
+      // A task with only one of the two dates keeps having only that one —
+      // `span` filled the other in to do the arithmetic, not to write it back.
+      const next_start = task.start_date ? earliest : null;
+      const next_due = task.due_date ? end : null;
       task.start_date = next_start;
       task.due_date = next_due;
       moved.set(next, { id: next, start_date: next_start, due_date: next_due });
@@ -123,9 +203,13 @@ export function moveTask(
   due: string | null,
   tasks: Scheduled[],
   dependencies: Dependency[],
+  options?: ScheduleOptions,
 ): Shift[] {
   const next = tasks.map((task) => (task.id === id ? { ...task, start_date: start, due_date: due } : task));
-  return [{ id, start_date: start, due_date: due }, ...reschedule([id], next, dependencies)];
+  // The dragged task lands exactly where it was dropped, weekend or not: the
+  // scheduler avoids non-working days when *it* moves something, and somebody
+  // who deliberately drags a bar onto a Saturday has said what they meant.
+  return [{ id, start_date: start, due_date: due }, ...reschedule([id], next, dependencies, options)];
 }
 
 /* ------------------------------------------------------------- packing */

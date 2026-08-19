@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  DAY, addDays, dayOf, daysBetween, isoDay, moveTask as planMove, span,
+  DAY, addDays, dayOf, daysBetween, isWorkingDay, isoDay, moveTask as planMove, span,
   type Dependency, type Task,
 } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
@@ -61,10 +61,20 @@ export function GanttView({ tasks, onOpen, projectId }: {
   // are cross-references, and drawing them as arrows would imply an order that
   // nobody wrote down.
   const ids = useMemo(() => new Set(tasks.map((task) => task.id)), [tasks]);
+  /**
+   * The days this project works on. Used when the *scheduler* moves something;
+   * a bar dragged onto a Saturday by hand stays there, because somebody who
+   * did that has said what they meant.
+   */
+  const workingDays = useQuery(
+    () => (projectId ? byId('project', projectId)?.working_days ?? null : null),
+    [projectId],
+  );
+
   const dependencies = useQuery<Dependency[]>(
     () => list('relation', (relation) => relation.kind === 'blocks')
       .filter((relation) => ids.has(relation.task_id) && ids.has(relation.related_task_id))
-      .map((relation) => ({ from: relation.task_id, to: relation.related_task_id })),
+      .map((relation) => ({ from: relation.task_id, to: relation.related_task_id, lag: relation.lag ?? 0 })),
     [ids],
   );
 
@@ -94,6 +104,29 @@ export function GanttView({ tasks, onOpen, projectId }: {
 
   const totalDays = Math.max(1, daysBetween(range.from, range.to) + 1);
   const x = (date: string): number => daysBetween(range.from, date) * dayWidth;
+
+  /**
+   * The stretches this project does not work on, as one band per run of days,
+   * so a weekend is one element rather than two and a fortnight's holiday
+   * shutdown is still one.
+   */
+  const offDays = useMemo(() => {
+    const days = workingDays;
+    if (!days?.length || days.length >= 7 || dayWidth < 6) return [];
+    const bands: { left: number; width: number }[] = [];
+    let run: string | null = null;
+    for (let i = 0; i < totalDays; i++) {
+      const date = addDays(range.from, i);
+      if (!isWorkingDay(date, days)) {
+        if (run === null) run = date;
+      } else if (run !== null) {
+        bands.push({ left: x(run), width: x(date) - x(run) });
+        run = null;
+      }
+    }
+    if (run !== null) bands.push({ left: x(run), width: totalDays * dayWidth - x(run) });
+    return bands;
+  }, [workingDays, range.from, totalDays, dayWidth]);
 
   /** Month strips across the top, so a bar can be placed without counting days. */
   const months = useMemo(() => {
@@ -170,6 +203,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
       task.due_date ? bounds.end : (task.start_date ? null : bounds.end),
       scheduled,
       dependencies,
+      { workingDays },
     );
     for (const move of moves) {
       const patch: Record<string, unknown> = {};
@@ -267,6 +301,12 @@ export function GanttView({ tasks, onOpen, projectId }: {
           </div>
 
           <div className="gantt-rows" style={{ width, height: dated.length * ROW }}>
+            {/* Days the project does not work on, shaded rather than blocked:
+                the scheduler avoids them, and somebody dragging a bar onto a
+                Saturday on purpose has said what they meant. */}
+            {offDays.map((day) => (
+              <span key={day.left} className="gantt-off" style={{ insetInlineStart: day.left, width: day.width }} aria-hidden="true" />
+            ))}
             {nowX >= 0 && nowX <= width && <span className="gantt-today" style={{ insetInlineStart: nowX }} aria-hidden="true" />}
 
             {/* Arrows first, so a bar being dragged passes over them. */}

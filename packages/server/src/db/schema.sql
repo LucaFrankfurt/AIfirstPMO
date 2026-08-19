@@ -407,6 +407,8 @@ CREATE TABLE IF NOT EXISTS task_relations (
   task_id         TEXT NOT NULL,
   related_task_id TEXT NOT NULL,
   kind            TEXT NOT NULL DEFAULT 'relates_to',
+  -- Working days of breathing room on a `blocks` link. Never negative.
+  lag             INTEGER NOT NULL DEFAULT 0,
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL,
   deleted_at      INTEGER,
