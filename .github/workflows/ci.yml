@@ -1,14 +1,14 @@
 name: CI
 
 on:
-  # A branch push and a pull request against it both fire, so a branch with an
-  # open PR ran the whole thing twice on the same commit. Collapsing them into
-  # one concurrency group only traded that for a run reported as cancelled.
-  # Narrowing the push trigger to main is the honest fix: work on a branch is
-  # covered by its pull request, and main is covered on the way in.
+  # Two moments matter, and only two: a change proposed for main, and a change
+  # landing on main. A push to a working branch is neither — it is covered when
+  # that branch opens a pull request. Running on every branch push also fired
+  # both triggers on the same commit, which ran the whole thing twice.
   push:
     branches: [main]
   pull_request:
+    branches: [main]
 
 # Successive pushes to the same PR supersede each other; only the newest commit
 # is worth a runner.
