@@ -1,13 +1,17 @@
 name: CI
 
 on:
+  # A branch push and a pull request against it both fire, so a branch with an
+  # open PR ran the whole thing twice on the same commit. Collapsing them into
+  # one concurrency group only traded that for a run reported as cancelled.
+  # Narrowing the push trigger to main is the honest fix: work on a branch is
+  # covered by its pull request, and main is covered on the way in.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
 
-# A push to a branch with an open PR fires both triggers, which ran the whole
-# thing twice on the same commit. `head_ref || ref_name` is the branch name
-# under either, so the two collapse into one group.
+# Successive pushes to the same PR supersede each other; only the newest commit
+# is worth a runner.
 concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
