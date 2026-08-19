@@ -38,6 +38,14 @@ const TRIGGER_KEY: Record<string, TranslationKey> = {
   state_entered: 'auto.triggerStateEntered',
   state_group_entered: 'auto.triggerGroupEntered',
   task_created: 'auto.triggerCreated',
+  due_in: 'auto.triggerDueIn',
+  page_changed: 'auto.triggerPageChanged',
+  comment_added: 'auto.triggerCommentAdded',
+};
+
+const ACTION_KEY: Record<string, TranslationKey> = {
+  file_template: 'auto.actionFileTemplate',
+  set_fields: 'auto.actionSetFields',
 };
 const RECIPIENT_KEY: Record<RecipientKind, TranslationKey> = {
   user: 'auto.recipientUser', assignees: 'auto.recipientAssignees', creator: 'auto.recipientCreator',
@@ -360,6 +368,9 @@ function RuleEditor({
     name: existing?.name ?? '',
     project_id: (existing?.project_id ?? projects[0]?.id ?? null) as string | null,
     trigger_kind: (existing?.trigger_kind ?? 'state_entered') as AutomationTriggerKind,
+    trigger_days: Number(existing?.trigger_days ?? 1),
+    action_kind: (existing?.action_kind ?? 'file_template') as 'file_template' | 'set_fields',
+    action_priority: String((existing?.action_patch as any)?.priority ?? 'urgent'),
     trigger_state_id: (existing?.trigger_state_id ?? null) as string | null,
     trigger_group: (existing?.trigger_group ?? 'started') as StateGroup,
     template_id: existing?.template_id ?? (templates[0]?.id ?? ''),
@@ -380,6 +391,7 @@ function RuleEditor({
   );
   const needsState = form.trigger_kind === 'state_entered';
   const stateMissing = needsState && !form.trigger_state_id;
+  const filesTemplate = form.action_kind === 'file_template';
 
   const save = () => {
     const payload = {
@@ -390,7 +402,10 @@ function RuleEditor({
       trigger_kind: form.trigger_kind,
       trigger_state_id: needsState ? form.trigger_state_id : null,
       trigger_group: form.trigger_kind === 'state_group_entered' ? form.trigger_group : null,
-      template_id: form.template_id,
+      trigger_days: form.trigger_days,
+      action_kind: form.action_kind,
+      action_patch: form.action_kind === 'set_fields' ? { priority: form.action_priority } : {},
+      template_id: filesTemplate ? form.template_id : '',
       recipients: form.recipients,
       fan_out: form.fan_out,
       exclude_actor: form.exclude_actor,
@@ -472,6 +487,17 @@ function RuleEditor({
             {!form.project_id && <span className="hint">{t('auto.stateNeedsProject')}</span>}
           </div>
         )}
+        {form.trigger_kind === 'due_in' && (
+          <div className="field grow">
+            <label htmlFor="rule-days">{t('auto.daysBefore')}</label>
+            <input
+              id="rule-days" className="input" type="number" min={0} max={90} style={{ width: 90 }}
+              value={form.trigger_days}
+              onChange={(e) => set('trigger_days', Math.max(0, Number(e.target.value) || 0))}
+            />
+            <span className="hint">{t('auto.daysBeforeHint')}</span>
+          </div>
+        )}
         {form.trigger_kind === 'state_group_entered' && (
           <div className="field grow">
             <label htmlFor="rule-group">{t('auto.group')}</label>
@@ -487,11 +513,32 @@ function RuleEditor({
 
       <h4 className="auto-h">{t('auto.then')}</h4>
       <div className="field">
-        <label htmlFor="rule-template">{t('tpl.one')}</label>
-        <select id="rule-template" className="select" value={form.template_id} onChange={(e) => set('template_id', e.target.value)}>
-          {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+        <label htmlFor="rule-action">{t('auto.action')}</label>
+        <select id="rule-action" className="select" value={form.action_kind}
+          onChange={(e) => set('action_kind', e.target.value as 'file_template' | 'set_fields')}>
+          {Object.keys(ACTION_KEY).map((kind) => <option key={kind} value={kind}>{t(ACTION_KEY[kind])}</option>)}
         </select>
       </div>
+      {filesTemplate ? (
+        <div className="field">
+          <label htmlFor="rule-template">{t('tpl.one')}</label>
+          <select id="rule-template" className="select" value={form.template_id} onChange={(e) => set('template_id', e.target.value)}>
+            {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
+          </select>
+        </div>
+      ) : (
+        <div className="field">
+          <label htmlFor="rule-priority">{t('task.priority')}</label>
+          <select id="rule-priority" className="select" value={form.action_priority}
+            onChange={(e) => set('action_priority', e.target.value)}>
+            {PRIORITIES.map((priority) => <option key={priority} value={priority}>{t(priorityKey(priority))}</option>)}
+          </select>
+          {/* Only the priority for now. A rule that could set any field is a
+              rule that can set the state, and two rules moving one task is a
+              merge problem rather than a feature. */}
+          <span className="hint">{t('auto.actionSetFieldsHint')}</span>
+        </div>
+      )}
 
       <h4 className="auto-h">{t('auto.recipients')}</h4>
       <p className="hint" style={{ marginTop: -4 }}>{t('auto.recipientsHint')}</p>

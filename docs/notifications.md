@@ -12,6 +12,7 @@ missing something — it just means you have to look.
 | `mention` | Your `@handle` appears in a comment, a task description or a page | yes |
 | `comment` | A comment on a task you are assigned to, subscribed to, or created | no |
 | `comment` | A comment on a page you wrote, or on one you have already commented on | no |
+| `due_soon` | A task you are on is due within two days, or is already past due | yes |
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
 
 Mentions accept what people actually type: `@ada`, `@adalovelace`, `@ada@example.com`. Unknown
@@ -25,8 +26,17 @@ A page has no assignees, so its audience is the people who have shown up: whoeve
 whoever has commented on it. Everyone who *can* see a page is the whole workspace, and notifying
 them all would teach people to ignore the bell.
 
+A due-date reminder is sent **once per task per due date**. Moving a deadline is a new deadline and
+earns a new reminder; missing one does not earn a daily repeat of the same sentence.
+
 Notifications are ordinary synced rows, so the inbox works offline and marking something read on
 your phone marks it read on your laptop.
+
+## A summary instead of each one
+
+**Settings → Notifications → A summary instead of each one**: off, daily or weekly. It widens the
+batching window for that person only. Mentions and assignments still go out on the normal window —
+a digest that swallows those is a digest people turn off.
 
 ## Email
 

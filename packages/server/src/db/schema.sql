@@ -267,6 +267,11 @@ CREATE TABLE IF NOT EXISTS tasks (
   description  TEXT,
   state_id     TEXT,
   type_id      TEXT,
+  -- How this task repeats, if it does: 'daily' | 'weekly' | 'monthly' with an
+  -- interval, e.g. `weekly:2`. Empty means it happens once.
+  recurrence   TEXT,
+  -- Set on the copy so the chain can be followed back.
+  recurred_from TEXT,
   priority     TEXT NOT NULL DEFAULT 'none',
   assignees    TEXT NOT NULL DEFAULT '[]',
   labels       TEXT NOT NULL DEFAULT '[]',
@@ -463,6 +468,15 @@ CREATE TABLE IF NOT EXISTS templates (
 CREATE INDEX IF NOT EXISTS templates_seq ON templates (workspace_id, seq);
 
 -- When something happens to a task, make a task from a template.
+-- What the scheduler has already done. Not synced: it is bookkeeping, and the
+-- effect it guards (a notification, a task) is the thing people see.
+CREATE TABLE IF NOT EXISTS reminders (
+  marker     TEXT NOT NULL,
+  user_id    TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (marker, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS automations (
   id                 TEXT PRIMARY KEY,
   workspace_id       TEXT NOT NULL,
@@ -472,13 +486,22 @@ CREATE TABLE IF NOT EXISTS automations (
   trigger_kind       TEXT NOT NULL DEFAULT 'state_entered',
   trigger_state_id   TEXT,
   trigger_group      TEXT,
-  template_id        TEXT NOT NULL,
+  -- For `due_in`: how many days before the due date it fires.
+  trigger_days       INTEGER NOT NULL DEFAULT 1,
+  -- What it does: file a template, or set fields on the task that triggered it.
+  action_kind        TEXT NOT NULL DEFAULT 'file_template',
+  -- For `set_fields`: a JSON patch, e.g. {"priority":"urgent"}.
+  action_patch       TEXT NOT NULL DEFAULT '{}',
+  -- `template_id` is only required for `file_template`.
+  template_id        TEXT NOT NULL DEFAULT '',
   recipients         TEXT NOT NULL DEFAULT '[]',
   fan_out            TEXT NOT NULL DEFAULT 'single',
   exclude_actor      INTEGER NOT NULL DEFAULT 1,
   link_kind          TEXT NOT NULL DEFAULT 'relates_to',
   apply_to_generated INTEGER NOT NULL DEFAULT 0,
   once               INTEGER NOT NULL DEFAULT 0,
+  -- The last day a `due_in` rule swept, so a restart does not re-fire it.
+  last_run_day       TEXT,
   sort_order         TEXT NOT NULL DEFAULT 'V',
   created_at         INTEGER NOT NULL,
   updated_at         INTEGER NOT NULL,

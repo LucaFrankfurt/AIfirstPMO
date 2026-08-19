@@ -143,6 +143,20 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
           <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+            <span className="muted">{t('task.repeats')}</span>
+            <select
+              className="select" style={{ width: 130 }}
+              value={task.recurrence ?? ''}
+              onChange={(event) => update('task', task.id, { recurrence: event.target.value || null })}
+            >
+              <option value="">{t('task.repeatsNever')}</option>
+              <option value="daily">{t('task.repeatsDaily')}</option>
+              <option value="weekly">{t('task.repeatsWeekly')}</option>
+              <option value="weekly:2">{t('task.repeatsFortnightly')}</option>
+              <option value="monthly">{t('task.repeatsMonthly')}</option>
+            </select>
+          </label>
+          <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
             <span className="muted">{t('task.estimate')}</span>
             <input
               className="input" type="number" min={0} step={1} style={{ width: 84 }}

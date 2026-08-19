@@ -149,12 +149,19 @@ export function batchNotifications(now = Date.now()): number {
 
   let queued = 0;
   for (const { user_id: userId } of users) {
-    const user = get<Row>(`SELECT id, email, name, email_prefs, locale FROM users WHERE id = ? AND deleted_at IS NULL`, userId);
+    const user = get<Row>(`SELECT id, email, name, email_prefs, locale, digest FROM users WHERE id = ? AND deleted_at IS NULL`, userId);
+    // Somebody on a digest waits a day or a week rather than the batching
+    // window — except for the things that are worth interrupting for, which
+    // still go out on the normal window.
+    const digest = String(user?.digest ?? 'off');
+    const holdFor = digest === 'daily' ? 86_400_000 : digest === 'weekly' ? 7 * 86_400_000 : 0;
+    const own = holdFor ? now - holdFor : cutoff;
     const pending = all<Row>(
       `SELECT * FROM notifications
-        WHERE user_id = ? AND emailed_at IS NULL AND deleted_at IS NULL AND read_at IS NULL AND created_at <= ?
+        WHERE user_id = ? AND emailed_at IS NULL AND deleted_at IS NULL AND read_at IS NULL
+          AND (created_at <= ? OR (kind IN ('mention','assigned') AND created_at <= ?))
         ORDER BY created_at`,
-      userId, cutoff,
+      userId, own, cutoff,
     );
     if (!pending.length) continue;
 

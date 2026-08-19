@@ -109,19 +109,23 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       question. Nothing here aggregates beyond one project.
 - [x] **Mention autocomplete in the editor.** Typing `@` offers the workspace members; arrows and
       Enter or Tab pick one.
-- [ ] **Scheduled digests** (daily/weekly summary) on top of the existing batching window.
-- [ ] **Due-date reminders.** The `due_soon` notification kind is reserved but nothing emits it.
+- [x] **Scheduled digests** — off, daily or weekly, on top of the batching window. Mentions and
+      assignments still arrive on their own; a digest that swallows those is one people turn off.
+- [x] **Due-date reminders.** Swept hourly, once per task per due date — moving a deadline earns a
+      new reminder, missing one does not earn a daily repeat of the same sentence.
 - [x] **Task templates and automation rules.** Templates with a checklist that becomes sub-tasks,
       usable by hand, from the quick-add sheet and over MCP; rules that file one when a task enters
       a state or is created, with recipients as selectors rather than names.
       See [`docs/automation.md`](docs/automation.md).
-- [ ] **More rule actions than "file a task".** Setting a field, adding a label or moving a task
-      would all be useful, and all raise the same question: two rules editing one row is a merge
-      problem, not a feature flag.
-- [ ] **Scheduled triggers.** Nothing fires because a date passed — a rule needs something to
-      happen to a task. "Three days before the due date" would need a poller like the mail worker.
-- [ ] **Rules that watch anything but tasks.** A page edit or a comment could reasonably trigger
-      one; only task writes are wired up.
+- [x] **A second rule action: change the task it watched.** Deliberately narrow — the priority
+      only. `state_id` is not settable, because a rule that moves a task can trigger a rule that
+      moves it back, and two rules editing one row is a merge problem rather than a feature flag.
+- [ ] **Rule actions beyond the priority** — a label, an assignee, a date. Each is one line in the
+      allow-list; what needs deciding first is what two rules touching one row should do.
+- [x] **Scheduled triggers.** `due_in`, swept once a day by `lib/scheduler.ts`. It records the day
+      it ran, so a restart does not re-fire it.
+- [x] **Rules that watch a page edit or a comment.** Both fire against the task or page they hang
+      off; previously only a task changing state could trigger one.
 - [x] **Bulk actions in the list and table views.** Tick a row, shift-click for a range, long press
       on a touch screen; then state, labels, cycle, priority, assignee, archive or delete for all of
       them. The actions that belong to a project disappear when the selection spans two, because
@@ -195,7 +199,9 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [ ] **Sub-projects and project templates.** Projects are flat; teams group them but do not nest
       them, and copying a whole project is not possible.
 - [ ] **Status transition rules per role** — who may move a task from where to where.
-- [ ] **Recurring tasks** and **task templates**.
+- [x] **Recurring tasks.** Daily, weekly, fortnightly or monthly. The next one is created when the
+      last is *finished*, not when a date passes: a weekly task nobody did four times is one late
+      task, not four nobody will do.
 - [ ] **Webhooks and integrations** (GitHub/GitLab commit linking, Slack notifications).
 - [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.
 - [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).

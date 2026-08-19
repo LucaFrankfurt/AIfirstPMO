@@ -69,7 +69,6 @@ which Plane does not have in this form.
 | **Integrations** — GitHub/GitLab commit linking, Slack | High | |
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
-| Recurring tasks | Medium | |
 
 ## Against OpenProject
 

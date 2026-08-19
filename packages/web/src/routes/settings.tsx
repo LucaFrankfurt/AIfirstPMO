@@ -226,6 +226,8 @@ function Notifications() {
   const toast = useToast();
   const [status, setStatus] = useState<MailStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const { user } = useSession();
+  const [digest, setDigest] = useState<string>(user?.digest ?? 'off');
 
   const load = () => api.get<MailStatus>('/api/mail/status').then(setStatus).catch(() => setStatus(null));
   useEffect(() => {
@@ -243,6 +245,26 @@ function Notifications() {
       <p className="muted" style={{ fontSize: 13 }}>
         {t('notify.intro', { window: batchWindow(t, status?.batchSeconds ?? 120) })}
       </p>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.digest')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('notify.digestHint')}</p>
+      <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
+        {(['off', 'daily', 'weekly'] as const).map((option) => (
+          <button
+            key={option}
+            className={`btn sm${digest === option ? ' active' : ''}`}
+            style={digest === option ? { background: 'var(--bg-active)' } : undefined}
+            aria-pressed={digest === option}
+            onClick={async () => {
+              setDigest(option);
+              await api.patch('/api/me', { digest: option });
+              toast(t('notify.saved'));
+            }}
+          >
+            {t(option === 'off' ? 'notify.digestOff' : option === 'daily' ? 'notify.digestDaily' : 'notify.digestWeekly')}
+          </button>
+        ))}
+      </div>
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.emailAbout')}</h3>
       <div className="col" style={{ gap: 6 }}>

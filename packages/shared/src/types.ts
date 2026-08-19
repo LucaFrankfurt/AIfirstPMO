@@ -33,7 +33,19 @@ export type ProjectStatus = (typeof PROJECT_STATUS)[number];
 export const TEMPLATE_KINDS = ['feedback', 'review', 'task', 'bug', 'checklist'] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
-export const AUTOMATION_TRIGGERS = ['state_entered', 'state_group_entered', 'task_created'] as const;
+export const AUTOMATION_TRIGGERS = [
+  'state_entered', 'state_group_entered', 'task_created',
+  /** A number of days before the due date — the one trigger a clock fires. */
+  'due_in',
+  /** Somebody edited a page's body. */
+  'page_changed',
+  /** Somebody commented on a task. */
+  'comment_added',
+] as const;
+
+/** What a rule does when it fires. */
+export const AUTOMATION_ACTIONS = ['file_template', 'set_fields'] as const;
+export type AutomationAction = (typeof AUTOMATION_ACTIONS)[number];
 export type AutomationTriggerKind = (typeof AUTOMATION_TRIGGERS)[number];
 
 /**
@@ -76,6 +88,8 @@ export interface User extends Base {
   /** Interface and email language, e.g. `en` or `de`. Empty means "ask the browser". */
   locale: string | null;
   bio: string | null;
+  /** `off` | `daily` | `weekly` — how often the inbox is summarised by email. */
+  digest: string;
 }
 
 export interface Member extends Base {
@@ -194,6 +208,15 @@ export interface Task extends Base {
   completed_at: number | null;
   archived: number;
   created_by: ID;
+  /**
+   * How this repeats, if it does: `daily`, `weekly:2`, `monthly`.
+   *
+   * The next one is created when this one is finished, not on a calendar. A
+   * weekly task nobody did four times is one task that is late, not four.
+   */
+  recurrence: string | null;
+  /** The task this one was created from, when it is a repeat. */
+  recurred_from: ID | null;
 }
 
 export interface Relation extends Base {
@@ -367,6 +390,13 @@ export interface Automation extends Base {
   trigger_state_id: ID | null;
   /** For `state_group_entered`. */
   trigger_group: StateGroup | null;
+  /** For `due_in`: how many days before the due date. */
+  trigger_days: number;
+  /** What it does when it fires. */
+  action_kind: AutomationAction;
+  /** For `set_fields`: the patch to apply to the task that triggered it. */
+  action_patch: Record<string, unknown>;
+  /** Required for `file_template`; empty otherwise. */
   template_id: ID;
   recipients: Recipient[];
   fan_out: FanOut;

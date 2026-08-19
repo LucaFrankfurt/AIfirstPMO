@@ -134,6 +134,9 @@ export function registerAuthRoutes(router: Router): void {
     }
     // Email preference is not part of the synced profile: it is private to the
     // account and lives only on the server.
+    if (typeof body.digest === 'string' && ['off', 'daily', 'weekly'].includes(body.digest)) {
+      run(`UPDATE users SET digest = ? WHERE id = ?`, body.digest, auth.userId);
+    }
     if (typeof body.email_prefs === 'string' && ['all', 'important', 'none'].includes(body.email_prefs)) {
       run(`UPDATE users SET email_prefs = ? WHERE id = ?`, body.email_prefs, auth.userId);
     }

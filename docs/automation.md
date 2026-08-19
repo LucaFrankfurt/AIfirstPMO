@@ -18,7 +18,8 @@ Find both under **Settings → Templates & rules**.
 | | |
 |---|---|
 | **Scope** | One project, or the whole workspace so every project behaves the same |
-| **When** | A task enters a named state · a task enters a state *group* · a task is created |
+| **When** | A task enters a named state · a task enters a state *group* · a task is created · a task is due in *n* days · a page is edited · somebody comments |
+| **What it does** | File a task from a template, or change the priority of the task it watched |
 | **File this** | Which template |
 | **Give it to** | A list of selectors — see below |
 | **How many** | One task with everybody on it, or one task each |
@@ -126,8 +127,11 @@ WEB-42" produces exactly what a person would.
   its rule when the device syncs, not before — so the feedback task appears a
   moment after the board move reaches the server, not on the device that made
   it.
-- There is no schedule trigger. Nothing fires because a date passed; something
-  has to happen to a task.
-- A rule cannot yet change the task it watched — it only files new ones. Adding
-  an "also set the priority" action is a bigger idea than it looks, because two
-  rules editing one task is a merge problem.
+- **One trigger is a clock**: `due in n days`, swept once a day. It records the
+  day it ran, so a restart does not re-fire it — and "skip whoever triggered it"
+  does not apply to it, because nobody did: excluding the actor there would
+  exclude the task's creator, usually the only recipient such a rule has.
+- A rule **can** change the task it watched, but only its priority. The state is
+  deliberately not settable: a rule that moves a task can trigger a rule that
+  moves it back, and two rules editing one row is a merge problem rather than a
+  feature flag.

@@ -31,7 +31,7 @@ import { uid } from './ids.ts';
 import { canSeeProject, writeEntity, type WriteOpts } from './repo.ts';
 
 /** Why a run produced nothing. Empty string means it produced a task. */
-type SkipReason = 'no-recipients' | 'already-run' | 'generated-task' | 'no-template' | '';
+type SkipReason = 'no-fields' | 'no-recipients' | 'already-run' | 'generated-task' | 'no-template' | '';
 
 const parseJson = <T>(raw: unknown, fallback: T): T => {
   if (typeof raw !== 'string') return Array.isArray(raw) ? (raw as T) : fallback;
@@ -179,7 +179,18 @@ export function instantiateTemplate(template: Row, options: InstantiateOptions):
 /* --------------------------------------------------------------- the engine */
 
 /** Which of a rule's triggers this write matches, if any. */
-function matches(rule: Row, event: { created: boolean; stateChanged: boolean; groupChanged: boolean; stateId: string | null; group: StateGroup | null }): boolean {
+interface TriggerEvent {
+  created: boolean;
+  stateChanged: boolean;
+  groupChanged: boolean;
+  stateId: string | null;
+  group: StateGroup | null;
+  /** Set for the triggers that are not about a task changing state. */
+  kind?: 'page_changed' | 'comment_added' | 'due_in';
+}
+
+function matches(rule: Row, event: TriggerEvent): boolean {
+  if (event.kind) return rule.trigger_kind === event.kind;
   switch (rule.trigger_kind) {
     case 'task_created':
       return event.created;
@@ -223,8 +234,29 @@ export function runAutomations(
   changed: Record<string, unknown>,
   opts: WriteOpts,
 ): void {
-  if (entity !== 'task' || opts.op === 'delete' || row.deleted_at) return;
+  if (opts.op === 'delete' || row.deleted_at) return;
   if (depth >= MAX_DEPTH) return;
+
+  // Rules that watch something other than a task changing state. The task the
+  // rule acts on is the one the page or comment hangs off; a page comment has
+  // no task, so those rules simply find nothing to act on.
+  if (entity === 'page' || entity === 'comment') {
+    const kind = entity === 'page' ? 'page_changed' : 'comment_added';
+    if (entity === 'page' && (before === undefined || changed.content === undefined)) return;
+    if (entity === 'comment' && before !== undefined) return;
+    const task = entity === 'comment' && row.task_id
+      ? get<Row>(`SELECT * FROM tasks WHERE id = ? AND deleted_at IS NULL`, row.task_id)
+      : undefined;
+    const subject = task ?? (entity === 'page' ? row : undefined);
+    if (!subject) return;
+
+    for (const rule of watchingRules(String(row.workspace_id), subject.project_id, kind)) {
+      fireOne(rule, subject, opts.actorId, { kind });
+    }
+    return;
+  }
+
+  if (entity !== 'task') return;
 
   const created = !before;
   const stateChanged = !created && changed.state_id !== undefined && before?.state_id !== row.state_id;
@@ -249,66 +281,180 @@ export function runAutomations(
   );
   if (!rules.length) return;
 
-  const generated = wasGeneratedByAutomation(row.id as string);
-  const project = get<Row>(`SELECT * FROM projects WHERE id = ?`, row.project_id);
-  const actor = get<Row>(`SELECT name FROM users WHERE id = ?`, opts.actorId);
-  const vars = templateVars(row, project, actor, newState);
-
   depth++;
   try {
-    for (const rule of rules) {
-      if (!matches(rule, event)) continue;
-      if (generated && !rule.apply_to_generated) {
-        record(rule, row, opts.actorId, null, 'generated-task');
-        continue;
-      }
-      if (rule.once && hasRunBefore(rule.id as string, row.id as string)) {
-        record(rule, row, opts.actorId, null, 'already-run');
-        continue;
-      }
+    for (const rule of rules) runOneRule(rule, row, opts.actorId, event);
+  } finally {
+    depth--;
+  }
+}
 
-      const template = get<Row>(`SELECT * FROM templates WHERE id = ? AND deleted_at IS NULL`, rule.template_id);
-      if (!template) {
-        record(rule, row, opts.actorId, null, 'no-template');
-        continue;
-      }
+/**
+ * One rule against one task.
+ *
+ * Shared by the write path and the daily sweep, so a `due_in` rule and a
+ * `state_entered` rule behave identically once they have decided to fire.
+ */
+function runOneRule(rule: Row, row: Row, actorId: string, event: TriggerEvent): void {
+  const generated = wasGeneratedByAutomation(row.id as string);
+  const project = get<Row>(`SELECT * FROM projects WHERE id = ?`, row.project_id);
+  const actor = get<Row>(`SELECT name FROM users WHERE id = ?`, actorId);
+  const newState = row.state_id ? get<Row>(`SELECT * FROM states WHERE id = ?`, row.state_id) : undefined;
+  const vars = templateVars(row, project, actor, newState);
+  const opts = { actorId };
 
-      const targetProjectId = String(template.target_project_id ?? row.project_id);
-      const people = resolveRecipients(parseJson<Recipient[]>(rule.recipients, []), {
-        workspaceId: String(row.workspace_id),
-        task: row,
-        project,
-        actorId: opts.actorId,
-        excludeActor: !!rule.exclude_actor,
-        targetProjectId,
-      });
-
-      // A ticket nobody is on is a ticket nobody reads. Say so instead.
-      if (!people.length) {
-        record(rule, row, opts.actorId, null, 'no-recipients');
-        continue;
-      }
-
-      const groups = (rule.fan_out as FanOut) === 'each' ? people.map((id) => [id]) : [people];
-      for (const assignees of groups) {
-        const task = instantiateTemplate(template, {
-          workspaceId: String(row.workspace_id),
-          actorId: opts.actorId,
-          projectId: targetProjectId,
-          assignees,
-          vars,
-        });
-        if (rule.link_kind) {
-          writeEntity('relation', uid(), {
-            workspace_id: row.workspace_id,
-            task_id: task.id,
-            related_task_id: row.id,
-            kind: rule.link_kind as RelationKind,
-          }, { workspaceId: String(row.workspace_id), actorId: opts.actorId, hlc: serverClock.now(), system: true });
-        }
-        record(rule, row, opts.actorId, String(task.id), '');
-      }
+    if (!matches(rule, event)) return;
+    if (generated && !rule.apply_to_generated) {
+      record(rule, row, opts.actorId, null, 'generated-task');
+      return;
     }
+    if (rule.once && hasRunBefore(rule.id as string, row.id as string)) {
+      record(rule, row, opts.actorId, null, 'already-run');
+      return;
+    }
+
+    // A rule that changes the task it watched rather than filing a new one.
+    // Deliberately narrow: only fields whose value is a plain scalar, and
+    // never `state_id`, because a rule that moves a task can trigger a rule
+    // that moves it back, and two rules editing one row is a merge problem
+    // rather than a feature flag.
+    if (rule.action_kind === 'set_fields') {
+      const patch = settableFields(parseJson<Record<string, unknown>>(rule.action_patch, {}));
+      if (!Object.keys(patch).length) {
+        record(rule, row, opts.actorId, null, 'no-fields');
+        return;
+      }
+      writeEntity('task', String(row.id), patch, {
+        workspaceId: String(row.workspace_id), actorId: opts.actorId, hlc: serverClock.now(), system: true,
+      });
+      record(rule, row, opts.actorId, String(row.id), '');
+      return;
+    }
+
+    const template = get<Row>(`SELECT * FROM templates WHERE id = ? AND deleted_at IS NULL`, rule.template_id);
+    if (!template) {
+      record(rule, row, opts.actorId, null, 'no-template');
+      return;
+    }
+
+    const targetProjectId = String(template.target_project_id ?? row.project_id);
+    const people = resolveRecipients(parseJson<Recipient[]>(rule.recipients, []), {
+      workspaceId: String(row.workspace_id),
+      task: row,
+      project,
+      actorId: opts.actorId,
+      // "Skip whoever triggered it" means nothing when a clock did. A
+      // `due_in` rule that excluded the actor would exclude the task's
+      // creator, who is usually the only recipient such a rule has.
+      excludeActor: !!rule.exclude_actor && event.kind !== 'due_in',
+      targetProjectId,
+    });
+
+    // A ticket nobody is on is a ticket nobody reads. Say so instead.
+    if (!people.length) {
+      record(rule, row, opts.actorId, null, 'no-recipients');
+      return;
+    }
+
+    const groups = (rule.fan_out as FanOut) === 'each' ? people.map((id) => [id]) : [people];
+    for (const assignees of groups) {
+      const task = instantiateTemplate(template, {
+        workspaceId: String(row.workspace_id),
+        actorId: opts.actorId,
+        projectId: targetProjectId,
+        assignees,
+        vars,
+      });
+      if (rule.link_kind) {
+        writeEntity('relation', uid(), {
+          workspace_id: row.workspace_id,
+          task_id: task.id,
+          related_task_id: row.id,
+          kind: rule.link_kind as RelationKind,
+        }, { workspaceId: String(row.workspace_id), actorId: opts.actorId, hlc: serverClock.now(), system: true });
+      }
+      record(rule, row, opts.actorId, String(task.id), '');
+    }
+
+}
+
+
+/**
+ * The fields a `set_fields` rule is allowed to write.
+ *
+ * A short list on purpose. `state_id` is missing because a rule that moves a
+ * task can trigger a rule that moves it back; the depth guard would stop the
+ * loop, but the task would still end up somewhere nobody chose.
+ */
+const SETTABLE = new Set(['priority', 'assignees', 'labels', 'due_date', 'estimate', 'type_id', 'archived']);
+
+function settableFields(patch: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [field, value] of Object.entries(patch)) {
+    if (!SETTABLE.has(field)) continue;
+    if (value === null || typeof value === 'string' || typeof value === 'number' || Array.isArray(value)) {
+      out[field] = value;
+    }
+  }
+  return out;
+}
+
+/**
+ * The rules a clock fires: `due_in`, once per task per day.
+ *
+ * Swept rather than triggered, because nothing happens to a task when a date
+ * arrives — that is the whole difficulty with a time trigger, and the reason
+ * this is the only one.
+ */
+export function runAutomationsForDue(today: string): number {
+  const rules = all<Row>(
+    `SELECT * FROM automations
+      WHERE enabled = 1 AND deleted_at IS NULL AND trigger_kind = 'due_in'
+        AND (last_run_day IS NULL OR last_run_day <> ?)`,
+    today,
+  );
+  if (!rules.length) return 0;
+
+  let fired = 0;
+  for (const rule of rules) {
+    const days = Math.max(0, Number(rule.trigger_days ?? 1));
+    const target = new Date(new Date(`${today}T00:00:00Z`).getTime() + days * 86_400_000).toISOString().slice(0, 10);
+    const tasks = all<Row>(
+      `SELECT t.* FROM tasks t
+        WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.archived = 0
+          AND t.due_date = ? AND t.completed_at IS NULL
+          AND (? IS NULL OR t.project_id = ?)`,
+      rule.workspace_id, target, rule.project_id, rule.project_id,
+    );
+    for (const task of tasks) {
+      fireOne(rule, task, String(task.created_by ?? ''), { kind: 'due_in' });
+      fired++;
+    }
+    // Marked whether or not anything matched: a rule that swept today has
+    // swept today, and a restart must not run it again.
+    run(`UPDATE automations SET last_run_day = ? WHERE id = ?`, today, rule.id);
+  }
+  return fired;
+}
+
+/** Enabled rules of one kind that cover a project. */
+const watchingRules = (workspaceId: string, projectId: unknown, kind: string): Row[] =>
+  all<Row>(
+    `SELECT * FROM automations
+      WHERE workspace_id = ? AND enabled = 1 AND deleted_at IS NULL AND trigger_kind = ?
+        AND (project_id IS NULL OR project_id = ?)
+      ORDER BY sort_order, created_at`,
+    workspaceId, kind, projectId ?? null,
+  );
+
+/** Run one rule against one task, outside the write path. */
+function fireOne(rule: Row, row: Row, actorId: string, event: Partial<TriggerEvent>): void {
+  if (depth >= MAX_DEPTH) return;
+  depth++;
+  try {
+    runOneRule(rule, row, actorId, {
+      created: false, stateChanged: false, groupChanged: false, stateId: null, group: null, ...event,
+    });
   } finally {
     depth--;
   }

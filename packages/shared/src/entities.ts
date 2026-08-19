@@ -47,7 +47,7 @@ export interface EntityDef {
 export const ENTITIES = {
   user: {
     table: 'users',
-    fields: ['name', 'email', 'avatar_url', 'timezone', 'locale', 'bio'],
+    fields: ['name', 'email', 'avatar_url', 'timezone', 'locale', 'bio', 'digest'],
     readOnly: true,
   },
   member: {
@@ -93,7 +93,7 @@ export const ENTITIES = {
       'workspace_id', 'project_id', 'title', 'description', 'state_id', 'type_id', 'priority',
       'assignees', 'labels', 'parent_id', 'cycle_id', 'module_id', 'estimate',
       'start_date', 'due_date', 'sort_order', 'completed_at', 'archived', 'created_by',
-      'subscribers',
+      'subscribers', 'recurrence', 'recurred_from',
     ],
     serverOnly: ['number', 'identifier'],
     json: ['assignees', 'labels', 'subscribers'],
@@ -162,6 +162,7 @@ export const ENTITIES = {
     table: 'automations',
     fields: [
       'workspace_id', 'project_id', 'name', 'enabled', 'trigger_kind', 'trigger_state_id',
+      'trigger_days', 'action_kind', 'action_patch',
       'trigger_group', 'template_id', 'recipients', 'fan_out', 'exclude_actor',
       'link_kind', 'apply_to_generated', 'once', 'sort_order',
     ],
