@@ -16,7 +16,7 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import { LOCALE_NAMES, useI18n, type Locale, type TranslationKey } from '../lib/i18n';
+import { LOCALE_NAMES, localeLabel, useI18n, type Locale, type TranslationKey } from '../lib/i18n';
 import { list, useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useMembers, useSession } from '../session';
@@ -152,7 +152,7 @@ export function WelcomeTour() {
                 await refresh();
               }}
             >
-              {Object.entries(LOCALE_NAMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
             </select>
           </div>
 

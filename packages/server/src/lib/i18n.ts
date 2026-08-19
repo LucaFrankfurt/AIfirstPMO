@@ -137,7 +137,73 @@ const de: Catalogue = {
   'seed.starterProject': 'Erste Schritte',
 };
 
-export const LOCALES = { en, de } as const;
+/**
+ * French, written by machine and not yet read back by a native speaker.
+ *
+ * Shipping it is a judgement call: an unreviewed catalogue is worse than a good
+ * one and better than none, and the app says which this is where somebody picks
+ * it. Corrections are the cheapest contribution this project accepts — one file,
+ * no build step, and the types refuse a missing key.
+ */
+const fr: Catalogue = {
+  'notify.assigned': 'Assigné : {identifier} {title}',
+  'notify.mentionedIn': 'Vous avez été mentionné dans {context}',
+  'notify.newComment': 'Nouveau commentaire sur {identifier}',
+  'notify.newPageComment': 'Nouveau commentaire sur « {title} »',
+  'notify.pageChanged': '« {title} » a été modifiée',
+  'notify.dueSoon': '{identifier} {title} est à rendre le {date}',
+  'notify.overdue': '{identifier} {title} était à rendre le {date}',
+  'notify.intake': 'Quelqu’un de l’extérieur a signalé quelque chose',
+  'notify.sharedNote': 'Une note sur la page partagée « {title} »',
+
+  'mail.digestSubject': '{count} nouveautés dans Kolibri',
+  'mail.greeting': 'Bonjour {name},',
+  'mail.by': 'par {name}',
+  'mail.openInbox': 'Ouvrir votre boîte de réception : {url}',
+  'mail.turnOff': 'Désactiver ces e-mails : {url}',
+  'mail.turnOffLabel': 'Désactiver ces e-mails',
+  'mail.openKolibri': 'Ouvrir Kolibri',
+  'mail.why': 'Vous recevez ce message parce que vous participez à ce travail.',
+
+  'mail.inviteSubject': '{inviter} vous invite à rejoindre {workspace} sur Kolibri',
+  'mail.inviteTitle': 'Rejoindre {workspace}',
+  'mail.inviteBody': '{inviter} vous invite à rejoindre « {workspace} » sur Kolibri.',
+  'mail.inviteAccept': 'Accepter l’invitation',
+  'mail.inviteAcceptLink': 'Accepter l’invitation : {url}',
+  'mail.inviteIgnore': 'Si vous ne vous y attendiez pas, vous pouvez ignorer ce message.',
+
+  'mail.testSubject': 'E-mail de test Kolibri',
+  'mail.testTitle': 'Le SMTP fonctionne',
+  'mail.testText': 'Ceci est un message de test envoyé par Kolibri.\n\nSi vous le lisez, le SMTP est correctement configuré.',
+  'mail.testBody': 'Ceci est un message de test envoyé par votre instance Kolibri.',
+  'mail.testRelay': 'Relais : {relay}',
+  'mail.backToSettings': 'Retour aux réglages',
+
+  'seed.stateBacklog': 'À trier',
+  'seed.stateTodo': 'À faire',
+  'seed.stateInProgress': 'En cours',
+  'seed.stateInReview': 'En relecture',
+  'seed.stateDone': 'Terminé',
+  'seed.stateCancelled': 'Annulé',
+  'seed.typeTask': 'Tâche',
+  'seed.typeBug': 'Bogue',
+  'seed.typeFeature': 'Fonctionnalité',
+  'seed.labelBug': 'bogue',
+  'seed.labelFeature': 'fonctionnalité',
+  'seed.labelImprovement': 'amélioration',
+  'seed.labelDocumentation': 'documentation',
+
+  'seed.feedbackTemplate': 'Demande de retour',
+  'seed.feedbackTitle': 'Retour : {identifier} {title}',
+  'seed.feedbackBody': '{identifier} **{title}** est passée en *{state}* et attend un regard.\n\nLa tâche : {url}\n\nLaissez vos remarques en commentaire sur cette tâche, puis fermez celle-ci quand vous avez terminé.',
+  'seed.feedbackSub1': 'Est-ce que cela fait ce que la tâche demandait ?',
+  'seed.feedbackSub2': 'Y a-t-il quelque chose ici qui surprendra quelqu’un plus tard ?',
+  'seed.feedbackSub3': 'Est-ce noté là où la prochaine personne ira chercher ?',
+  'seed.feedbackRule': 'Demander un retour quand une tâche passe en relecture',
+  'seed.starterProject': 'Premiers pas',
+};
+
+export const LOCALES = { en, de, fr } as const;
 export type Locale = keyof typeof LOCALES;
 export type ServerKey = keyof typeof en;
 

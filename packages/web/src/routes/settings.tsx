@@ -10,7 +10,7 @@ import { Trash } from '../components/trash';
 import { AuditLog, Webhooks } from '../components/admin';
 import { Sessions, TwoFactor } from '../components/security';
 import { downscale } from '../components/Markdown';
-import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
+import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 import { PushToggle } from '../components/push';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
@@ -149,9 +149,14 @@ function Profile() {
           await refresh();
         }}
       >
-        {Object.entries(LOCALE_NAMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
       </select>
       <span className="hint" style={{ display: 'block', marginTop: 4 }}>{t('profile.languageHint')}</span>
+      {/* Said where it is chosen, so nobody finds out from an odd sentence
+          three screens later. */}
+      {UNREVIEWED[locale] && (
+        <span className="hint warn" style={{ display: 'block', marginTop: 2 }}>{t('profile.languageUnreviewed')}</span>
+      )}
 
       <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.appearance')}</h3>
       <div className="row" style={{ gap: 6 }}>

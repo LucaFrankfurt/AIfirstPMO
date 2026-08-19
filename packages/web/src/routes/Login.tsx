@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useSession } from '../session';
-import { LOCALE_NAMES, useI18n, type Locale } from '../lib/i18n';
+import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../lib/i18n';
 import { Icon } from '../components/ui';
 
 export function Login() {
@@ -176,7 +176,7 @@ export function Login() {
             onChange={(event) => setLocale(event.target.value as Locale)}
             style={{ width: 'auto', padding: '2px 4px', fontSize: 12, border: 'none', background: 'none' }}
           >
-            {Object.entries(LOCALE_NAMES).map(([value, name]) => <option key={value} value={value}>{name}</option>)}
+            {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
           </select>
         </div>
       </form>

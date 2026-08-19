@@ -854,6 +854,7 @@ export const de: Catalogue = {
   'profile.themeLight': 'hell',
   'profile.themeDark': 'dunkel',
   'profile.language': 'Sprache',
+  'profile.languageUnreviewed': 'maschinell übersetzt, ungeprüft',
   'profile.languageHint': 'Gilt für diesen Browser und für die E-Mails, die du bekommst.',
   'profile.password': 'Passwort',
   'profile.currentPassword': 'Aktuelles Passwort',

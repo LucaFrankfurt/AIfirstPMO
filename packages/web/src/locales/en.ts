@@ -853,6 +853,7 @@ export const en = {
   'profile.themeLight': 'light',
   'profile.themeDark': 'dark',
   'profile.language': 'Language',
+  'profile.languageUnreviewed': 'machine-written, unreviewed',
   'profile.languageHint': 'Applies to this browser, and to the emails you receive.',
   'profile.password': 'Password',
   'profile.currentPassword': 'Current password',

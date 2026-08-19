@@ -245,10 +245,15 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       notification titles and the emails, each written in the recipient's own language. Other
       locales are typed against English, so a missing key is a compile error.
       See [`docs/i18n.md`](docs/i18n.md).
-- [ ] **More languages than English and German.** The scaffolding takes a third in one typed file
-      and nothing else, but a catalogue nobody can read back is worse than none — this one is
-      waiting on a speaker, not on code. Languages with more plural forms than `_one`/`_other` are
-      supported by `Intl.PluralRules` but have never been exercised.
+- [x] **A third language: French.** The scaffolding did take one typed file and nothing else, which
+      was the claim. What was left was the judgement, and it went the other way in the end: a
+      catalogue nobody has read back is worse than a good one and *better than none* — provided the
+      app says which it is. It does, under the language picker, in the language somebody has just
+      chosen. All 1 335 keys, machine-written, and a correction is now the cheapest contribution
+      this project accepts: one file, no build step, and the types refuse a missing key.
+      The claim that `Intl.PluralRules` handles languages with more than `_one`/`_other` is no
+      longer untested: `i18n.test.ts` drives Polish's four categories through the same two lines the
+      interface uses — proved against the real ones, rather than found out from a Polish speaker.
 - [x] **Right-to-left groundwork.** The stylesheet is free of physical properties, the root carries
       `dir` from `LOCALE_DIR`, and icons that mean *forwards* mirror. Verified only by forcing
       `dir="rtl"` — with no RTL locale to ship, nobody has seen it with real text, and the
