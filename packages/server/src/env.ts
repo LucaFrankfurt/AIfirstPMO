@@ -122,6 +122,20 @@ export const env = {
     /** Hide the password form entirely. */
     only: bool(process.env.KOLIBRI_OIDC_ONLY, false),
   },
+  /**
+   * Web Push. On by default: the key pair is generated into the data directory
+   * on first use, and a browser that never asks for permission never hears
+   * about it. Set the pair explicitly to keep subscriptions across a restore.
+   */
+  push: {
+    enabled: bool(process.env.KOLIBRI_PUSH, true),
+    publicKey: process.env.KOLIBRI_VAPID_PUBLIC ?? '',
+    privateKey: (process.env.KOLIBRI_VAPID_PRIVATE ?? '').replace(/\\n/g, '\n'),
+    /** Who a push service should complain to. */
+    subject: process.env.KOLIBRI_VAPID_SUBJECT ?? '',
+  },
+  /** A shared secret a mail provider posts bounce reports with. Empty disables it. */
+  bounceToken: process.env.KOLIBRI_BOUNCE_TOKEN ?? '',
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,

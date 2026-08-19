@@ -4,7 +4,7 @@
  * the HTTP cache because it lives in IndexedDB and syncs through /api/sync.
  * Uploaded files are content-addressed, so they are safe to cache forever.
  */
-const VERSION = 'kolibri-v1';
+const VERSION = 'kolibri-v2';
 const SHELL = `${VERSION}-shell`;
 const FILES = `${VERSION}-files`;
 const PRECACHE = ['/', '/index.html', '/icon.svg', '/manifest.webmanifest'];
@@ -27,6 +27,63 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data === 'skip-waiting') self.skipWaiting();
+});
+
+/* A push carries nothing.
+ *
+ * The server sends an empty notification on purpose: encrypting a payload would
+ * mean a whole cryptography stack on the server to deliver a sentence this
+ * worker can simply ask for. Same origin, same session — so the message is
+ * fetched here, and never sits encrypted on a push service's disk.
+ */
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    let title = 'Kolibri';
+    let body = 'Something happened in your workspace.';
+    let url = '/inbox';
+
+    try {
+      const response = await fetch('/api/notifications/latest', { credentials: 'include' });
+      if (response.ok) {
+        const latest = await response.json();
+        if (!latest || !latest.title) return; // nothing unread: say nothing
+        title = latest.title;
+        body = latest.body || '';
+        url = latest.url || '/inbox';
+      }
+    } catch {
+      // Offline, or signed out. The generic line above is still true, and a
+      // silent push is worse than a vague one.
+    }
+
+    await self.registration.showNotification(title, {
+      body,
+      icon: '/icon.svg',
+      badge: '/icon.svg',
+      // One at a time: a phone that was off for an hour should not stack
+      // fifteen identical banners.
+      tag: 'kolibri',
+      renotify: true,
+      data: { url },
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/inbox';
+  event.waitUntil((async () => {
+    const clients = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // A tab that is already open is focused rather than a second one opened.
+    for (const client of clients) {
+      if (client.url.includes(self.location.origin)) {
+        await client.focus();
+        if ('navigate' in client) await client.navigate(url).catch(() => undefined);
+        return;
+      }
+    }
+    await self.clients.openWindow(url);
+  })());
 });
 
 self.addEventListener('fetch', (event) => {

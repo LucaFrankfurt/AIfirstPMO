@@ -734,6 +734,32 @@ CREATE INDEX IF NOT EXISTS files_workspace ON files (workspace_id);
 
 -- Outgoing mail. Queued rather than sent inline so a slow or broken relay can
 -- never block a request, and a failed send can be retried with backoff.
+-- Devices that asked to be woken. A subscription is a URL the push service
+-- gave the browser; it is not a secret of ours, and it is thrown away the
+-- moment that service says it is gone.
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id           TEXT PRIMARY KEY,
+  user_id      TEXT NOT NULL,
+  endpoint     TEXT NOT NULL UNIQUE,
+  p256dh       TEXT,
+  auth         TEXT,
+  failures     INTEGER NOT NULL DEFAULT 0,
+  last_error   TEXT,
+  last_sent_at INTEGER,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS push_subscriptions_user ON push_subscriptions (user_id);
+
+-- Addresses that must not be written to again: a hard bounce or a complaint.
+-- Keyed by address rather than by user, because an invite goes to somebody who
+-- has no account yet and bounces just the same.
+CREATE TABLE IF NOT EXISTS email_suppressions (
+  email      TEXT PRIMARY KEY,
+  reason     TEXT NOT NULL DEFAULT 'bounce',
+  detail     TEXT,
+  created_at INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS email_queue (
   id           TEXT PRIMARY KEY,
   user_id      TEXT,

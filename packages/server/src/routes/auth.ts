@@ -15,7 +15,10 @@ import {
 import { shortCode, token, uid } from '../lib/ids.ts';
 import { byAddress, byValue, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { defaultLocale, isLocale, translate } from '../lib/i18n.ts';
-import { pendingCount, queueInvite, queueTestMail, verifyUnsubscribe } from '../lib/mail.ts';
+import {
+  pendingCount, queueInvite, queueTestMail, suppress, suppressions, unsuppress, verifyUnsubscribe,
+} from '../lib/mail.ts';
+import { keys as pushKeys, subscribe as subscribeDevice, unsubscribe as unsubscribeDevice } from '../lib/push.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -585,6 +588,128 @@ export function registerAuthRoutes(router: Router): void {
     }
     return { sent: true, to: user!.email };
   });
+
+  /* ------------------------------------------------------------ push */
+
+  /**
+   * What a browser needs to subscribe, and where to say it did.
+   *
+   * The key is public by definition — it is what the push service checks the
+   * signature against — so this is readable by anybody with a session.
+   */
+  router.get('/api/push/key', (ctx) => {
+    requireAuth(ctx);
+    return { enabled: env.push.enabled, key: env.push.enabled ? pushKeys().publicKey : null };
+  });
+
+  router.post('/api/push/subscribe', async (ctx) => {
+    const auth = requireAuth(ctx);
+    if (!env.push.enabled) throw badRequest('Push is turned off on this instance');
+    const body = await readJson<{ endpoint?: string; keys?: { p256dh?: string; auth?: string } }>(ctx);
+    if (!body.endpoint) throw badRequest('endpoint is required');
+    subscribeDevice(auth.userId, body as { endpoint: string });
+    return { ok: true };
+  });
+
+  router.post('/api/push/unsubscribe', async (ctx) => {
+    requireAuth(ctx);
+    const body = await readJson<{ endpoint?: string }>(ctx);
+    if (body.endpoint) unsubscribeDevice(body.endpoint);
+    return { ok: true };
+  });
+
+  /* --------------------------------------------------------- bounces */
+
+  /**
+   * Bounce and complaint reports from a mail provider.
+   *
+   * Guarded by a shared secret rather than a per-provider signature, because
+   * every provider signs differently and this endpoint does one thing: it
+   * reads an address and stops writing to it. The shapes below are Postmark's
+   * and Amazon SES's, plus the obvious generic one.
+   */
+  router.post('/api/mail/bounces', async (ctx) => {
+    if (!env.bounceToken) throw notFound('Bounce reporting is not configured');
+    const offered = String(ctx.req.headers.authorization ?? '').replace(/^Bearer /i, '');
+    if (offered !== env.bounceToken) throw unauthorized('Wrong token');
+
+    const body = await readJson<any>(ctx, 512 * 1024);
+    const reports = readBounces(body);
+    for (const report of reports) suppress(report.email, report.reason, report.detail);
+    return { ok: true, suppressed: reports.length };
+  });
+
+  /** What is being refused, and a way to allow an address again. */
+  router.get('/api/mail/suppressions', (ctx) => {
+    requireAuth(ctx);
+    return suppressions();
+  });
+
+  router.delete('/api/mail/suppressions/:email', (ctx) => {
+    const auth = requireAuth(ctx);
+    // Anybody may un-suppress their own address; an admin may clear any of
+    // them. A bounce is usually a full mailbox, and the person it happened to
+    // is the one who knows it is fixed.
+    const address = decodeURIComponent(ctx.params.email).toLowerCase();
+    const me = get<Row>(`SELECT email FROM users WHERE id = ?`, auth.userId);
+    const mine = String(me?.email ?? '').toLowerCase() === address;
+    if (!mine && !auth.isAdmin && ![...auth.memberships.values()].some((role) => role === 'owner' || role === 'admin')) {
+      throw forbidden('Only an admin can clear somebody else’s address');
+    }
+    unsuppress(address);
+    return { ok: true };
+  });
+}
+
+/**
+ * The address and the verdict, out of whichever shape arrived.
+ *
+ * Only *hard* bounces and complaints suppress: a full mailbox or a greylisting
+ * is a bad afternoon, and cutting somebody off for one is worse than the
+ * retry.
+ */
+function readBounces(body: any): { email: string; reason: 'bounce' | 'complaint'; detail?: string }[] {
+  const out: { email: string; reason: 'bounce' | 'complaint'; detail?: string }[] = [];
+  const add = (email: unknown, reason: 'bounce' | 'complaint', detail?: unknown) => {
+    if (typeof email === 'string' && email.includes('@')) {
+      out.push({ email, reason, detail: typeof detail === 'string' ? detail : undefined });
+    }
+  };
+
+  // Postmark: one object, `RecordType` and `Type`.
+  if (typeof body?.Type === 'string' || typeof body?.RecordType === 'string') {
+    const type = String(body.Type ?? body.RecordType);
+    if (/spam|complaint/i.test(type)) add(body.Email ?? body.Recipient, 'complaint', body.Description);
+    else if (/hardbounce|bademail|blocked|unsubscribe/i.test(type)) add(body.Email ?? body.Recipient, 'bounce', body.Description);
+    return out;
+  }
+
+  // Amazon SES via SNS: the interesting part is a JSON string inside `Message`.
+  if (typeof body?.Message === 'string') {
+    try {
+      const inner = JSON.parse(body.Message);
+      const kind = String(inner?.notificationType ?? '');
+      if (kind === 'Complaint') {
+        for (const entry of inner?.complaint?.complainedRecipients ?? []) add(entry?.emailAddress, 'complaint');
+      } else if (kind === 'Bounce' && String(inner?.bounce?.bounceType) === 'Permanent') {
+        for (const entry of inner?.bounce?.bouncedRecipients ?? []) {
+          add(entry?.emailAddress, 'bounce', entry?.diagnosticCode);
+        }
+      }
+    } catch {
+      // Not JSON after all. Nothing to do, and nothing worth failing over.
+    }
+    return out;
+  }
+
+  // The obvious shape, for anybody wiring this up by hand.
+  const entries = Array.isArray(body) ? body : [body];
+  for (const entry of entries) {
+    const kind = String(entry?.type ?? entry?.event ?? 'bounce');
+    if (/soft|transient|deferred/i.test(kind)) continue;
+    add(entry?.email ?? entry?.recipient, /complaint|spam/i.test(kind) ? 'complaint' : 'bounce', entry?.reason);
+  }
+  return out;
 }
 
 export function acceptInvite(code: string, userId: string): string {

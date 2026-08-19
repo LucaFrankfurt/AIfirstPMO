@@ -11,6 +11,7 @@ import { AuditLog, Webhooks } from '../components/admin';
 import { Sessions, TwoFactor } from '../components/security';
 import { downscale } from '../components/Markdown';
 import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
+import { PushToggle } from '../components/push';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
 
@@ -226,6 +227,47 @@ const batchWindow = (t: Translate, seconds: number): string => {
   return minutes === 1 ? t('notify.windowMinute') : t('notify.windowMinutes', { count: minutes });
 };
 
+/**
+ * Addresses the instance has stopped writing to.
+ *
+ * Shown rather than hidden, because "they never got the invite" is otherwise an
+ * unanswerable question — and clearable, because a full mailbox is temporary
+ * and the person it happened to is the one who knows it is fixed.
+ */
+function Suppressions() {
+  const t = useT();
+  const toast = useToast();
+  const [rows, setRows] = useState<{ email: string; reason: string; detail: string | null }[]>([]);
+
+  const load = () => api.get<any[]>('/api/mail/suppressions').then(setRows).catch(() => setRows([]));
+  useEffect(() => { void load(); }, []);
+
+  if (!rows.length) return null;
+
+  return (
+    <>
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('mail.suppressed')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('mail.suppressedHint')}</p>
+      {rows.map((row) => (
+        <div className="row" key={row.email} style={{ gap: 8, padding: '5px 0' }}>
+          <span className="grow truncate" style={{ fontSize: 13 }}>{row.email}</span>
+          <span className="muted" style={{ fontSize: 12 }} title={row.detail ?? ''}>{row.reason}</span>
+          <button
+            className="btn sm"
+            onClick={async () => {
+              await api.delete(`/api/mail/suppressions/${encodeURIComponent(row.email)}`);
+              toast(t('notify.saved'));
+              void load();
+            }}
+          >
+            {t('mail.allowAgain')}
+          </button>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function Notifications() {
   const t = useT();
   const toast = useToast();
@@ -292,6 +334,10 @@ function Notifications() {
           </button>
         ))}
       </div>
+
+      <PushToggle />
+
+      <Suppressions />
 
       <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('notify.delivery')}</h3>
       {status?.mode === 'test-inbox' && (

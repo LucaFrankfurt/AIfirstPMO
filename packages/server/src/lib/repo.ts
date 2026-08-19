@@ -4,6 +4,7 @@ import { badRequest, forbidden, notFound } from './http.ts';
 import { shareToken, token, uid } from './ids.ts';
 import { publish } from './bus.ts';
 import { runAutomations } from './automation.ts';
+import { notifyDevices } from './push.ts';
 import { translatorFor } from './i18n.ts';
 import { env } from '../env.ts';
 import { dispatch } from './webhooks.ts';
@@ -550,6 +551,9 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       entity === 'page' ? row.id : row.page_id ?? null,
       opts.actorId, Date.now(), Date.now(), nextSeq(),
     );
+    // And wake whatever devices asked to be woken. The push carries nothing —
+    // the service worker reads the notification it just found out about.
+    notifyDevices(userId);
   }
 }
 

@@ -195,6 +195,32 @@ export function registerEntityRoutes(router: Router): void {
     return { project: serialize('project', report.project), counts: report.counts, unmatched: report.unmatched };
   });
 
+  /**
+   * The newest thing this person has not read, for the service worker.
+   *
+   * One row, already worded for them, so a push can carry nothing and the
+   * worker can still show a sentence rather than "something happened".
+   */
+  router.get('/api/notifications/latest', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const row = get<Row>(
+      `SELECT * FROM notifications
+        WHERE user_id = ? AND read_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL
+        ORDER BY created_at DESC LIMIT 1`,
+      auth.userId,
+    );
+    if (!row) return null;
+    return {
+      title: row.title,
+      body: row.body,
+      url: row.task_id ? `/t/${row.task_id}` : row.page_id ? `/pages/${row.page_id}` : '/inbox',
+      unread: Number(get<Row>(
+        `SELECT count(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND deleted_at IS NULL`,
+        auth.userId,
+      )?.n ?? 0),
+    };
+  });
+
   router.get('/api/workspaces/:ws/:collection', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws);

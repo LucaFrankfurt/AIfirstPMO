@@ -240,8 +240,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [ ] **Multi-node deployment.** The sequence counter, the SSE bus and the mail worker live in the
       process. Running two replicas needs an external counter, a shared bus and a locked queue —
       this is the one scenario where Redis or Postgres genuinely earns its place.
-- [ ] **Bounce and complaint handling.** Failed sends are recorded in `email_queue.last_error`, but
-      a hard bounce does not disable that address automatically.
+- [x] **Bounce and complaint handling.** A 5xx from the relay is treated as final — retrying it
+      five more times only tells the receiving domain that nobody here is listening — and the
+      address is suppressed. Providers can report the rest: `POST /api/mail/bounces` reads Postmark's
+      shape, Amazon SES-over-SNS, and an obvious generic one, behind a shared secret rather than a
+      per-provider signature. Only *permanent* bounces and complaints suppress; a full mailbox is a
+      bad afternoon. Suppressed addresses are listed in Settings and can be cleared, because the
+      person it happened to is the one who knows it is fixed.
 - [x] **Custom fields** per project — see P2 above.
 - [x] **Time tracking.** Log time on a task, or run a timer — which is a row with a start and no
       minutes yet, so it survives a reload, a second device and a tunnel. One clock per person.
@@ -290,7 +295,14 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       instances; anybody not found is named in the report and their work arrives unassigned, rather
       than being given to somebody who is not there.
       Still open: reading Jira, Linear, Plane or OpenProject's own formats.
-- [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).
+- [x] **Native push notifications.** Web Push, with no encryption stack: the push carries **no
+      payload at all**, which the spec allows, and the service worker asks `/api/notifications/latest`
+      what to say — same origin, same session. That removes several hundred lines of ECDH, HKDF and
+      AES-GCM, and means nothing of anybody's sits encrypted on a push service's disk. The VAPID key
+      pair is generated into the data directory on first use (or set explicitly, to survive a
+      restore), a subscription that returns 404 or 410 is deleted because that is how a push service
+      says "gone", and permission is asked for only when somebody presses the switch — a site that
+      asks on load is a site people block, and a blocked permission cannot be asked for twice.
 - [x] **Object-storage migration command.** `kolibri files move <disk|s3>` reads each blob from
       wherever its row says it is and updates the row only once the bytes have landed, so an
       interrupted move leaves an instance that still works. The old copies are left in place on

@@ -63,6 +63,10 @@ export interface QueuedMail {
 export function queueMail(mail: QueuedMail): string | null {
   if (!env.mailEnabled) return null;
   if (!mail.to?.includes('@')) return null;
+  // An address that hard-bounced or complained is not written to again. Sending
+  // anyway is how a domain's reputation goes, and it is not as if the message
+  // would arrive.
+  if (isSuppressed(mail.to)) return null;
   const id = uid();
   run(
     `INSERT INTO email_queue (id, user_id, workspace_id, to_email, subject, body_text, body_html, headers, kind, send_after, created_at)
@@ -73,6 +77,46 @@ export function queueMail(mail: QueuedMail): string | null {
   );
   return id;
 }
+
+/* --------------------------------------------------------- bounce handling */
+
+export type SuppressionReason = 'bounce' | 'complaint' | 'manual';
+
+/** Stop writing to this address, and say why. */
+export function suppress(email: string, reason: SuppressionReason, detail?: string): void {
+  const address = email.trim().toLowerCase();
+  if (!address.includes('@')) return;
+  run(
+    `INSERT INTO email_suppressions (email, reason, detail, created_at) VALUES (?, ?, ?, ?)
+       ON CONFLICT (email) DO UPDATE SET reason = excluded.reason, detail = excluded.detail`,
+    address, reason, detail?.slice(0, 300) ?? null, Date.now(),
+  );
+  // Anything already queued for that address is abandoned rather than retried
+  // until it gives up on its own.
+  run(
+    `UPDATE email_queue SET failed_at = ?, last_error = ? WHERE lower(to_email) = ? AND sent_at IS NULL AND failed_at IS NULL`,
+    Date.now(), `suppressed: ${reason}`, address,
+  );
+}
+
+export const isSuppressed = (email: string): boolean =>
+  !!get<Row>(`SELECT email FROM email_suppressions WHERE email = ?`, email.trim().toLowerCase());
+
+export const unsuppress = (email: string): void => {
+  run(`DELETE FROM email_suppressions WHERE email = ?`, email.trim().toLowerCase());
+};
+
+export const suppressions = (): Row[] =>
+  all<Row>(`SELECT * FROM email_suppressions ORDER BY created_at DESC LIMIT 500`);
+
+/**
+ * Whether a relay's refusal is final.
+ *
+ * A 5xx reply means "this address, this message, never" — retrying it five more
+ * times only tells the receiving domain that nobody here is listening. A 4xx is
+ * a bad moment, and those are exactly what the backoff is for.
+ */
+export const isPermanent = (message: string): boolean => /\b5\d\d\b/.test(message);
 
 export function pendingCount(): number {
   return Number(get<Row>(`SELECT count(*) c FROM email_queue WHERE sent_at IS NULL AND failed_at IS NULL`)?.c ?? 0);
@@ -107,7 +151,11 @@ export async function flushQueue(limit = 20): Promise<{ sent: number; failed: nu
     } catch (error) {
       const attempts = Number(row.attempts ?? 0) + 1;
       const message = error instanceof Error ? error.message : 'send failed';
-      const giveUp = attempts >= env.mail.maxAttempts;
+      const permanent = isPermanent(message);
+      const giveUp = permanent || attempts >= env.mail.maxAttempts;
+      // A permanent refusal is the address's problem, not this message's: the
+      // address stops being written to at all.
+      if (permanent) suppress(String(row.to_email), 'bounce', message);
       run(
         `UPDATE email_queue SET attempts = ?, last_error = ?, send_after = ?, failed_at = ? WHERE id = ?`,
         attempts, message.slice(0, 500),
