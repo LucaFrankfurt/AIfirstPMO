@@ -294,6 +294,30 @@ await step('mobile layout', async () => {
   await m.screenshot({ path: `${shots}/5-mobile.png` });
   await m.emulateMedia({ colorScheme: 'dark' });
   await m.screenshot({ path: `${shots}/6-mobile-dark.png` });
+  await m.emulateMedia({ colorScheme: 'light' });
+
+  /*
+   * Everything the sidebar reaches, a phone reaches too.
+   *
+   * The bottom bar holds five things and the sidebar holds a dozen, so
+   * "More" is the rest of the app rather than a convenience — anything the
+   * sidebar has and this screen has not is *unreachable* on a phone. Chat
+   * was, and nobody noticed until somebody tried to use it on a phone. So
+   * the desktop sidebar is read for its destinations and this screen is
+   * asked for the same ones, instead of a list here that has to be
+   * remembered when the sidebar grows.
+   */
+  const wanted = await page.locator('.sidebar a[href]').evaluateAll((links) => [...new Set(links
+    .map((a) => a.getAttribute('href'))
+    .filter((href) => href && href !== '/' && !href.startsWith('/t/')))]);
+  await m.click('.tabbar a[href="/more"]');
+  await m.waitForSelector('.page a[href="/chat"]', { timeout: 5000 });
+  const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('.tabbar a[href], .page a[href]')]
+    .map((a) => a.getAttribute('href'))));
+  const missing = wanted.filter((href) => !reachable.has(href));
+  if (missing.length) throw new Error(`the sidebar reaches these and a phone does not: ${missing.join(', ')}`);
+  console.log('     reachable on a phone:', wanted.length, 'of', wanted.length, 'sidebar destinations');
+  await m.screenshot({ path: `${shots}/7-mobile-more.png` });
   await mobile.close();
 });
 
