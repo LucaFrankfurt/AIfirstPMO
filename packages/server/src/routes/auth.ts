@@ -6,7 +6,9 @@ import {
   loadMemberships, requireAuth, requireWorkspace, verifyPassword,
 } from '../lib/auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
-import { badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
+import { generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../lib/totp.ts';
+import {
+  HttpError, badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
 import { byAddress, byValue, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { defaultLocale, isLocale, translate } from '../lib/i18n.ts';
@@ -16,6 +18,16 @@ import { serialize, writeEntity } from '../lib/repo.ts';
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const publicUser = (row: Row | undefined) => (row ? serialize('user', row) : null);
+
+/** Recovery codes are stored hashed, as a JSON array. */
+function readCodes(value: unknown): string[] {
+  try {
+    const parsed = JSON.parse(String(value ?? '[]'));
+    return Array.isArray(parsed) ? parsed.filter((item) => typeof item === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 function sessionInfo(userId: string): SessionInfo {
   const user = get<Row>(`SELECT * FROM users WHERE id = ?`, userId);
@@ -31,7 +43,12 @@ function sessionInfo(userId: string): SessionInfo {
     id: w.id, name: w.name, slug: w.slug, logo_url: w.logo_url ?? null, created_at: w.created_at,
     role: (memberships.get(w.id) ?? 'member') as WorkspaceRole,
   }));
-  return { user: publicUser(user) as SessionInfo['user'], workspaces };
+  return {
+    // `two_factor` rather than the secret: the registry keeps `totp_secret` and
+    // the recovery codes out of the serialised user, and they stay out.
+    user: { ...(publicUser(user) as SessionInfo['user']), two_factor: !!user.totp_confirmed_at },
+    workspaces,
+  };
 }
 
 function setSessionCookie(ctx: Ctx, raw: string): void {
@@ -92,7 +109,7 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.post('/api/auth/login', async (ctx) => {
-    const body = await readJson<{ email?: string; password?: string }>(ctx);
+    const body = await readJson<{ email?: string; password?: string; code?: string }>(ctx);
     const email = (body.email ?? '').trim().toLowerCase();
     // Two buckets: one machine working through a password list, and a thousand
     // machines working through one account. An IP limit alone is blind to the
@@ -103,6 +120,23 @@ export function registerAuthRoutes(router: Router): void {
     if (!user || !verifyPassword(body.password ?? '', user.password_hash)) {
       throw unauthorized('Email or password is incorrect');
     }
+
+    // Only a *confirmed* second factor gates the door. A half-finished setup
+    // must never be able to lock somebody out of their own account.
+    if (user.totp_confirmed_at && user.totp_secret) {
+      const code = String(body.code ?? '').trim();
+      if (!code) throw new HttpError(401, 'A code from your authenticator is needed', 'totp_required');
+      if (!verifyCode(String(user.totp_secret), code)) {
+        // A recovery code is one use: it is removed whether or not the rest of
+        // the sign-in succeeds, because it has been said out loud by then.
+        const codes = readCodes(user.recovery_codes);
+        const index = codes.indexOf(hashToken(code.toLowerCase().replace(/\s/g, '')));
+        if (index === -1) throw unauthorized('That code is not right');
+        codes.splice(index, 1);
+        run(`UPDATE users SET recovery_codes = ? WHERE id = ?`, JSON.stringify(codes), user.id);
+      }
+    }
+
     setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
     return sessionInfo(user.id);
   });
@@ -115,6 +149,84 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.get('/api/session', (ctx) => sessionInfo(requireAuth(ctx).userId));
+
+  /**
+   * The devices signed in as you.
+   *
+   * The token itself is never returned — only its hash is stored — so the
+   * current session is marked by comparing hashes rather than by handing one
+   * back and asking the client to match it.
+   */
+  /**
+   * Start setting up a second factor. Returns the secret and the URI to scan;
+   * nothing is enforced until a code has been typed back.
+   */
+  router.post('/api/me/2fa', (ctx) => {
+    const auth = requireAuth(ctx);
+    const user = get<Row>(`SELECT email, totp_confirmed_at FROM users WHERE id = ?`, auth.userId)!;
+    if (user.totp_confirmed_at) throw badRequest('Two-factor is already on');
+
+    const secret = generateSecret();
+    run(`UPDATE users SET totp_secret = ? WHERE id = ?`, secret, auth.userId);
+    return { secret, uri: otpauthUri(secret, String(user.email)) };
+  });
+
+  /** Confirm it by typing a code, and get the recovery codes once. */
+  router.post('/api/me/2fa/confirm', async (ctx) => {
+    const auth = requireAuth(ctx);
+    const body = await readJson<{ code?: string }>(ctx);
+    const user = get<Row>(`SELECT totp_secret, totp_confirmed_at FROM users WHERE id = ?`, auth.userId)!;
+    if (!user.totp_secret) throw badRequest('Start the setup first');
+    if (user.totp_confirmed_at) throw badRequest('Two-factor is already on');
+    if (!verifyCode(String(user.totp_secret), String(body.code ?? ''))) throw badRequest('That code is not right');
+
+    // Shown once, stored hashed like any other credential.
+    const codes = generateRecoveryCodes();
+    run(
+      `UPDATE users SET totp_confirmed_at = ?, recovery_codes = ? WHERE id = ?`,
+      Date.now(), JSON.stringify(codes.map(hashToken)), auth.userId,
+    );
+    return { recovery_codes: codes };
+  });
+
+  /** Turn it off. The current password is required, not just the session. */
+  router.post('/api/me/2fa/off', async (ctx) => {
+    const auth = requireAuth(ctx);
+    const body = await readJson<{ password?: string }>(ctx);
+    const user = get<Row>(`SELECT password_hash FROM users WHERE id = ?`, auth.userId)!;
+    if (!verifyPassword(body.password ?? '', user.password_hash)) throw unauthorized('That password is not right');
+    run(
+      `UPDATE users SET totp_secret = NULL, totp_confirmed_at = NULL, recovery_codes = '[]' WHERE id = ?`,
+      auth.userId,
+    );
+    return { ok: true };
+  });
+
+  router.get('/api/sessions', (ctx) => {
+    const auth = requireAuth(ctx);
+    const raw = parseCookies(ctx.req)[SESSION_COOKIE];
+    const mine = raw ? hashToken(raw) : '';
+    return all<Row>(
+      `SELECT id, user_agent, created_at, expires_at, last_used_at, token_hash
+         FROM sessions WHERE user_id = ? AND expires_at > ? ORDER BY last_used_at DESC`,
+      auth.userId, Date.now(),
+    ).map(({ token_hash, ...row }) => ({ ...row, current: token_hash === mine }));
+  });
+
+  router.delete('/api/sessions/:id', (ctx) => {
+    const auth = requireAuth(ctx);
+    const raw = parseCookies(ctx.req)[SESSION_COOKIE];
+    const session = get<Row>(`SELECT * FROM sessions WHERE id = ? AND user_id = ?`, ctx.params.id, auth.userId);
+    if (!session) throw notFound('Session not found');
+
+    run(`DELETE FROM sessions WHERE id = ?`, ctx.params.id);
+    // Revoking the one you are using signs you out here too, which is what
+    // somebody means when they revoke it from this list.
+    if (raw && session.token_hash === hashToken(raw)) {
+      ctx.res.setHeader('set-cookie', cookie(SESSION_COOKIE, '', { maxAge: 0 }));
+    }
+    return { ok: true };
+  });
 
   router.patch('/api/me', async (ctx) => {
     const auth = requireAuth(ctx);

@@ -66,7 +66,7 @@ which Plane does not have in this form.
 | **Gantt layout** | High | `LAYOUTS` declares five; four are built. Gantt needs scheduling, not a layout |
 | **Analytics across projects** | Medium | Per project is built — throughput, burn-up, cycle time. Nothing aggregates a portfolio |
 | **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
-| **Integrations** — GitHub/GitLab commit linking, Slack | High | |
+| **Named integrations** — GitHub/GitLab commit linking, Slack | Medium | Signed outgoing webhooks are built; what is missing is the per-service message shape and a route *in* |
 | **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
 
@@ -102,10 +102,6 @@ types used to head this list and are now built.
 | Missing | Note |
 |---|---|
 | **SSO** (OIDC / SAML / LDAP) | Non-negotiable past roughly fifty people |
-| **Two-factor authentication** | |
-| **Workspace-wide audit log** | Activity is recorded per task; there is no global view |
-| **Session management** — list devices, revoke one | Changing the password invalidates all of them, which is the blunt version |
-| **Outgoing webhooks** | Rules only act inwards |
 | Multi-node / high availability | Deliberate: the sequence counter, the SSE bus and the mail worker live in the process |
 
 ## What to build next

@@ -14,7 +14,7 @@ import { excerpt } from '../lib/markdown';
 import { createPage, remove, update } from '../lib/mutations';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
-import { useMe, useMemberMap, useSession } from '../session';
+import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- tree */
@@ -75,6 +75,7 @@ export function PagesIndex() {
   const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
   const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
   const [filter, setFilter] = useState<string>('');
+  const canWrite = useCanWrite();
 
   // Templates are kept out of the tree: they are starting points, not content,
   // and a handbook with three half-written templates in it reads as a mess.
@@ -129,9 +130,11 @@ export function PagesIndex() {
             <span className="hide-sm">{t('page.newFromTemplate')}</span>
           </MenuButton>
         )}
-        <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
-          <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
-        </button>
+        {canWrite && (
+          <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
+            <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
+          </button>
+        )}
       </Header>
       <div className="page">
         {!pages.length ? (
@@ -187,6 +190,7 @@ export function PageDetail() {
   const labels = usePageLabels((page ?? { project_id: null }) as any);
   const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
   const exportPage = useExport();
+  const canWrite = useCanWrite();
   const projects = useQuery(() => list('project'), []);
 
   useEffect(() => {
@@ -218,7 +222,7 @@ export function PageDetail() {
   return (
     <>
       <Header title={<span className="row" style={{ gap: 6 }}><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
-        <button className="btn sm" onClick={() => {
+        <button className="btn sm" hidden={!canWrite} onClick={() => {
           if (editing) update('page', id, { content, title });
           setEditing(!editing);
         }}>

@@ -411,6 +411,20 @@ export interface Automation extends Base {
   sort_order: string;
 }
 
+/** An HTTP call out when something happens. Rules act inwards; this acts out. */
+export interface Webhook extends Base {
+  workspace_id: ID;
+  project_id: ID | null;
+  name: string;
+  url: string;
+  /** Comma-separated event names. */
+  events: string;
+  enabled: number;
+  last_status: number | null;
+  last_error: string | null;
+  last_sent_at: number | null;
+}
+
 export interface Notification extends Base {
   workspace_id: ID;
   user_id: ID;
@@ -457,6 +471,7 @@ export interface EntityMap {
   timeEntry: TimeEntry;
   template: Template;
   automation: Automation;
+  webhook: Webhook;
   notification: Notification;
   activity: Activity;
 }
@@ -508,7 +523,8 @@ export interface PullResponse {
 }
 
 export interface SessionInfo {
-  user: User;
+  /** `two_factor` is derived rather than stored on the row: the secret itself never leaves the server. */
+  user: User & { two_factor?: boolean };
   workspaces: (Workspace & { role: WorkspaceRole })[];
   token?: string;
 }

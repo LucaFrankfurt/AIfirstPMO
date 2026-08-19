@@ -19,6 +19,13 @@ CREATE TABLE IF NOT EXISTS users (
   bio           TEXT,
   is_admin      INTEGER NOT NULL DEFAULT 0,
   last_seen_at  INTEGER,
+  digest        TEXT NOT NULL DEFAULT 'off',
+  -- Second factor. `totp_secret` is set the moment somebody starts setting one
+  -- up; `totp_confirmed_at` only once they have typed a code that worked, so an
+  -- abandoned setup never locks anybody out.
+  totp_secret   TEXT,
+  totp_confirmed_at INTEGER,
+  recovery_codes TEXT NOT NULL DEFAULT '[]',
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
   deleted_at    INTEGER,
@@ -470,6 +477,29 @@ CREATE INDEX IF NOT EXISTS templates_seq ON templates (workspace_id, seq);
 -- When something happens to a task, make a task from a template.
 -- What the scheduler has already done. Not synced: it is bookkeeping, and the
 -- effect it guards (a notification, a task) is the thing people see.
+-- Outgoing webhooks. Rules act inwards; this is the way out.
+CREATE TABLE IF NOT EXISTS webhooks (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT,
+  name         TEXT NOT NULL DEFAULT '',
+  url          TEXT NOT NULL,
+  -- Comma-separated: task.created, task.updated, comment.created, page.updated.
+  events       TEXT NOT NULL DEFAULT 'task.created,task.updated',
+  -- Signs the body so the receiver can tell it came from here.
+  secret       TEXT NOT NULL DEFAULT '',
+  enabled      INTEGER NOT NULL DEFAULT 1,
+  last_status  INTEGER,
+  last_error   TEXT,
+  last_sent_at INTEGER,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS webhooks_seq ON webhooks (workspace_id, seq);
+
 CREATE TABLE IF NOT EXISTS reminders (
   marker     TEXT NOT NULL,
   user_id    TEXT NOT NULL,

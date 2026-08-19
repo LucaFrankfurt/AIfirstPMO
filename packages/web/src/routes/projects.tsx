@@ -18,7 +18,7 @@ import { byOrder, create, createPage, remove, update } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
-import { useMe, useMembers, useSession } from '../session';
+import { useCanWrite, useMe, useMembers, useSession } from '../session';
 import { groupKey, useT, type TranslationKey } from '../lib/i18n';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
@@ -55,11 +55,14 @@ export function ProjectList() {
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId), [workspaceId]);
+  const canWrite = useCanWrite();
 
   return (
     <>
       <Header title={t('project.listTitle')}>
-        <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</button>
+        {canWrite && (
+          <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</button>
+        )}
       </Header>
       <div className="page">
         <div className="grid two">
@@ -68,7 +71,9 @@ export function ProjectList() {
         {!projects.length && (
           <Empty
             emoji="📁" title={t('project.emptyTitle')} hint={t('project.emptyHint')} guide="overview"
-            action={<button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>}
+            action={canWrite
+              ? <button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>
+              : undefined}
           />
         )}
       </div>
@@ -185,6 +190,7 @@ export function ProjectPage() {
   const project = useRow('project', id);
   const [view, setView] = useStoredView(id);
   const selection = useSelection();
+  const canWrite = useCanWrite();
   const [tab, setTab] = useState<Tab>('tasks');
   const [adding, setAdding] = useState(false);
 
@@ -204,9 +210,11 @@ export function ProjectPage() {
     <>
       <Header title={<span className="row" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
         {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
-        <button className="btn primary sm" onClick={() => setAdding(true)}>
-          <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
-        </button>
+        {canWrite && (
+          <button className="btn primary sm" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
+          </button>
+        )}
       </Header>
 
       <div className="tabs" style={{ padding: '0 12px' }}>

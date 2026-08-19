@@ -560,6 +560,14 @@ p { margin: 0 0 0.75em; }
    under the pointer is not the target, the space next to it is. */
 .drop-line { height: 2px; border-radius: 2px; background: var(--accent); margin: 2px 0; }
 
+.recovery-codes {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; margin-top: 8px;
+}
+.recovery-codes code {
+  padding: 5px 8px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg-sunken); font-family: var(--mono); font-size: 12.5px; text-align: center;
+}
+
 .reactions { margin-top: 5px; }
 .reaction {
   display: inline-flex; align-items: center; gap: 4px;

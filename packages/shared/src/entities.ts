@@ -26,6 +26,7 @@ export type EntityName =
   | 'timeEntry'
   | 'template'
   | 'automation'
+  | 'webhook'
   | 'notification'
   | 'activity';
 
@@ -36,6 +37,12 @@ export interface EntityDef {
   fields: readonly string[];
   /** Fields only the server may write. Clients that try are ignored. */
   serverOnly?: readonly string[];
+  /**
+   * Fields that never leave the server at all — not written by a client and
+   * not sent to one. A signing secret is the case: the receiver has it, and
+   * nobody's browser needs it.
+   */
+  secret?: readonly string[];
   /** Entity rows are never created or edited by clients. */
   readOnly?: boolean;
   /** Rows belong to a single user and are not shared with the workspace. */
@@ -167,6 +174,14 @@ export const ENTITIES = {
       'link_kind', 'apply_to_generated', 'once', 'sort_order',
     ],
     json: ['recipients'],
+  },
+  webhook: {
+    table: 'webhooks',
+    fields: ['workspace_id', 'project_id', 'name', 'url', 'events', 'enabled'],
+    /** The delivery result is worth showing; it is just not the client's to set. */
+    serverOnly: ['last_status', 'last_error', 'last_sent_at'],
+    /** The signing secret is the receiver's and this server's. Nobody else's. */
+    secret: ['secret'],
   },
   notification: {
     table: 'notifications',

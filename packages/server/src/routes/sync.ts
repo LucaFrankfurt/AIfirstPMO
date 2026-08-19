@@ -52,6 +52,7 @@ function filterFor(entity: EntityName): string {
       return `AND ${table}.id IN (${VISIBLE_PROJECTS})`;
     case 'label':
     case 'view':
+    case 'webhook':
     case 'timeEntry':
       // Time is not private: a lead has to be able to add up the project. It is
       // scoped to the project like everything else, and an entry with no

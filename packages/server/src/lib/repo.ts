@@ -5,6 +5,8 @@ import { uid } from './ids.ts';
 import { publish } from './bus.ts';
 import { runAutomations } from './automation.ts';
 import { translatorFor } from './i18n.ts';
+import { env } from '../env.ts';
+import { dispatch } from './webhooks.ts';
 
 type Translator = ReturnType<typeof translatorFor>;
 
@@ -37,7 +39,11 @@ export function serialize(entity: EntityName, row: Row | undefined): Row | undef
   if (!row) return undefined;
   const def = ENTITIES[entity];
   const out: Row = { id: row.id };
+  // `secret` fields are absent by construction rather than deleted afterwards:
+  // a field that is never added cannot be forgotten in one code path.
+  const hidden = new Set((def as { secret?: readonly string[] }).secret ?? []);
   for (const field of [...def.fields, ...((def as { serverOnly?: readonly string[] }).serverOnly ?? [])]) {
+    if (hidden.has(field)) continue;
     let value = row[field];
     if (isJsonField(entity, field)) {
       try {
@@ -248,6 +254,7 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   recordActivity(entity, row, before, changed, opts);
   notify(entity, row, before, changed, opts);
   runAutomations(entity, row, before, changed, opts);
+  fireWebhooks(entity, row, before, changed, opts);
 }
 
 /**
@@ -458,6 +465,60 @@ function commentContext(row: Row): Row | undefined {
   if (row.task_id) return get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id);
   if (row.page_id) return get<Row>(`SELECT title FROM pages WHERE id = ?`, row.page_id);
   return undefined;
+}
+
+/**
+ * Tell anybody who asked that something happened.
+ *
+ * After the write, never before: a slow receiver must not slow down the person
+ * who pressed the button, and a webhook that can fail a write is a webhook that
+ * takes the app down when somebody else's endpoint dies.
+ */
+function fireWebhooks(
+  entity: EntityName,
+  row: Row,
+  before: Row | undefined,
+  changed: Record<string, unknown>,
+  opts: WriteOpts,
+): void {
+  if (opts.op === 'delete' || row.deleted_at) return;
+  const workspaceId = String(row.workspace_id ?? opts.workspaceId);
+
+  if (entity === 'task') {
+    const state = row.state_id ? get<Row>(`SELECT group_key FROM states WHERE id = ?`, row.state_id) : undefined;
+    const finished = state?.group_key === 'completed';
+    const wasFinished = before?.state_id
+      ? get<Row>(`SELECT group_key FROM states WHERE id = ?`, before.state_id)?.group_key === 'completed'
+      : false;
+    const payload = {
+      id: row.id,
+      identifier: row.identifier,
+      title: row.title,
+      project_id: row.project_id,
+      state: state?.group_key ?? null,
+      priority: row.priority,
+      url: env.publicUrl ? `${env.publicUrl}/t/${row.id}` : null,
+      actor_id: opts.actorId,
+    };
+    if (!before) dispatch(workspaceId, 'task.created', payload);
+    else if (finished && !wasFinished) dispatch(workspaceId, 'task.completed', payload);
+    else dispatch(workspaceId, 'task.updated', payload);
+    return;
+  }
+
+  if (entity === 'comment' && !before) {
+    dispatch(workspaceId, 'comment.created', {
+      id: row.id, task_id: row.task_id, page_id: row.page_id, author_id: row.author_id,
+      body: String(row.body ?? '').slice(0, 500), project_id: null, actor_id: opts.actorId,
+    });
+    return;
+  }
+
+  if (entity === 'page' && before && changed.content !== undefined) {
+    dispatch(workspaceId, 'page.updated', {
+      id: row.id, title: row.title, project_id: row.project_id, actor_id: opts.actorId,
+    });
+  }
 }
 
 /**

@@ -7,6 +7,8 @@ import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
 import { AutomationSettings } from './automation';
 import { Trash } from '../components/trash';
+import { AuditLog, Webhooks } from '../components/admin';
+import { Sessions, TwoFactor } from '../components/security';
 import { downscale } from '../components/Markdown';
 import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 
@@ -192,6 +194,9 @@ function Profile() {
           {t('profile.changePassword')}
         </button>
       </div>
+
+      <TwoFactor />
+      <Sessions />
     </>
   );
 }
@@ -619,6 +624,14 @@ function DataSettings() {
 
   return (
     <>
+      <AuditLog />
+
+      <div className="divider" style={{ margin: '22px 0' }} />
+
+      <Webhooks />
+
+      <div className="divider" style={{ margin: '22px 0' }} />
+
       <Trash />
 
       <div className="divider" style={{ margin: '22px 0' }} />

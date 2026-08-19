@@ -94,6 +94,15 @@ export const api = {
   }) => request<ImportResult>(`/api/workspaces/${workspaceId}/import`, json(body)),
   members: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/members`),
   tokens: () => request<any[]>('/api/tokens'),
+  sessions: () => request<any[]>('/api/sessions'),
+  revokeSession: (id: string) => request<{ ok: boolean }>(`/api/sessions/${id}`, { method: 'DELETE' }),
+  audit: (workspaceId: string, before?: number) =>
+    request<{ entries: any[]; oldest: number | null }>(
+      `/api/workspaces/${workspaceId}/audit${before ? `?before=${before}` : ''}`,
+    ),
+  startTwoFactor: () => request<{ secret: string; uri: string }>('/api/me/2fa', json({})),
+  confirmTwoFactor: (code: string) => request<{ recovery_codes: string[] }>('/api/me/2fa/confirm', json({ code })),
+  disableTwoFactor: (password: string) => request<{ ok: boolean }>('/api/me/2fa/off', json({ password })),
   createToken: (body: { name: string; workspaceId?: string; scopes?: string }) => request<{ token: string; id: string }>('/api/tokens', json(body)),
   revokeToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
   invites: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/invites`),

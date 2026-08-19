@@ -23,14 +23,17 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Explicit `content-type` check on JSON routes.** The three types a cross-site form can
       produce (`x-www-form-urlencoded`, `multipart/form-data`, `text/plain`) are refused with 415,
       so CSRF no longer rests on the `SameSite=Lax` default alone.
-- [ ] **Session management UI** — list active sessions per device and revoke individually.
-      Changing the password already invalidates all of them, which is the blunt version.
-- [ ] Optional **2FA (TOTP)** for owner/admin accounts.
+- [x] **Session management UI** — every browser signed in as you, which one you are reading it on,
+      and revoke one at a time. Revoking the current one signs you out here too, which is what
+      somebody means when they revoke it from this list.
+- [x] **2FA (TOTP)**, for any account. Written out against RFC 6238's published vectors rather
+      than against itself, so it agrees with the app on somebody's phone. A half-finished setup
+      never gates the door; recovery codes are shown once and stored hashed, one use each.
 - [ ] **Single sign-on** (OIDC, SAML or LDAP). All three tools Kolibri is compared to have it, and
       past roughly fifty people it stops being optional. Nothing in the auth layer anticipates it
       yet, so this is a project rather than a patch.
-- [ ] **Workspace-wide audit log.** Activity is recorded per task; there is no view that answers
-      "what happened in this workspace last week", which is the first thing an auditor asks for.
+- [x] **Workspace-wide audit log**, admins only, paged backwards. Private projects an admin is not
+      a member of stay out of it: being an admin is not the same as being invited.
 
 ### Operations
 
@@ -56,8 +59,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       certain because it asks for one row more than a page. The client no longer guesses from
       "was any page exactly full", which was right until a workspace had exactly one page of
       changes. Covered by a test that actually creates 2 025 rows.
-- [ ] **Guest role in the UI.** Guests are correctly refused by the server, but the interface still
-      shows them buttons that will fail. Hide or disable write affordances when `role === 'guest'`.
+- [x] **Guest role in the UI.** One `useCanWrite()` hook rather than `role !== 'guest'` repeated in
+      fifteen components; the write affordances a guest cannot use are not shown.
 - [ ] **Client-side tests.** The store, the outbox and the merge path have no unit tests of their
       own; they are only covered indirectly through the API tests and the browser smoke run.
 
@@ -100,8 +103,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       See [`docs/import.md`](docs/import.md).
 - [ ] **Import beyond CSV**, and the parts CSV cannot carry: sub-task parents, relations and
       comments need a second pass once the rows exist. Jira XML/JSON if anybody asks.
-- [ ] **Repository and chat integrations** — GitHub/GitLab commit linking, Slack. Outgoing webhooks
-      would cover most of it generically; rules only act inwards today.
+- [x] **Outgoing webhooks** — the generic answer, rather than one integration per service. Signed
+      with HMAC-SHA256 so a receiver can tell the call came from this instance, fire-and-forget with
+      a five-second timeout, failures recorded on the row and never retried.
+- [ ] **Named integrations on top of webhooks** — GitHub/GitLab commit linking, Slack formatting.
+      The transport exists; what is missing is the per-service shape of the message.
 - [x] **Analytics.** Project → Insights: open/finished counts, median cycle time, time logged,
       throughput per week, a burn-up over the active cycle, and breakdowns by kind and by person.
       Computed from the local mirror, so it works offline. See [`docs/insights.md`](docs/insights.md).
@@ -202,7 +208,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Recurring tasks.** Daily, weekly, fortnightly or monthly. The next one is created when the
       last is *finished*, not when a date passes: a weekly task nobody did four times is one late
       task, not four nobody will do.
-- [ ] **Webhooks and integrations** (GitHub/GitLab commit linking, Slack notifications).
+- [ ] **Incoming** integrations — a commit message that closes a task needs a route in, which is
+      the opposite direction from the webhooks that now exist.
 - [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.
 - [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).
 - [ ] **Object-storage migration command.** Switching `disk` → `s3` keeps serving old files from

@@ -28,6 +28,7 @@ export const REST_ENTITIES: Record<string, EntityName> = {
   'time-entries': 'timeEntry',
   templates: 'template',
   automations: 'automation',
+  webhooks: 'webhook',
   notifications: 'notification',
 };
 
@@ -52,6 +53,50 @@ function guardProject(userId: string, entity: EntityName, row: Row): void {
 }
 
 export function registerEntityRoutes(router: Router): void {
+  /* ----------------------------------------------------- audit log */
+
+  /**
+   * What happened in this workspace.
+   *
+   * Activity has always been recorded per task; this is the same rows read
+   * across the whole workspace, which is the question an auditor actually asks.
+   * Admins only — "who did what" is not something every member should browse,
+   * and the per-task trail is already visible to anybody who can see the task.
+   */
+  router.get('/api/workspaces/:ws/audit', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const role = requireWorkspace(ctx, ctx.params.ws, 'admin');
+    void role;
+
+    const limit = Math.min(Number(ctx.query.get('limit') ?? 100) || 100, 500);
+    const before = Number(ctx.query.get('before') ?? 0) || Date.now() + 1;
+    const actor = ctx.query.get('actor');
+    const project = ctx.query.get('project');
+
+    const where = ['a.workspace_id = ?', 'a.deleted_at IS NULL', 'a.created_at < ?'];
+    const params: unknown[] = [ctx.params.ws, before];
+    if (actor) { where.push('a.actor_id = ?'); params.push(actor); }
+    if (project) { where.push('a.project_id = ?'); params.push(project); }
+
+    const rows = all<Row>(
+      `SELECT a.*, u.name AS actor_name, t.identifier AS task_identifier, t.title AS task_title,
+              p.title AS page_title, pr.name AS project_name
+         FROM activities a
+         LEFT JOIN users u ON u.id = a.actor_id
+         LEFT JOIN tasks t ON t.id = a.task_id
+         LEFT JOIN pages p ON p.id = a.page_id
+         LEFT JOIN projects pr ON pr.id = a.project_id
+        WHERE ${where.join(' AND ')}
+        ORDER BY a.created_at DESC
+        LIMIT ?`,
+      ...params, limit,
+    );
+    // The private projects this admin is not a member of stay out: being an
+    // admin is not the same as being invited.
+    const visible = rows.filter((row) => !row.project_id || canSeeProject(auth.userId, String(row.project_id)));
+    return { entries: visible, oldest: visible[visible.length - 1]?.created_at ?? null };
+  });
+
   /* -------------------------------------------------------- import */
 
   /**
