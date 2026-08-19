@@ -84,6 +84,15 @@ For the smallest possible install — one container, uploads on the volume, no m
 
 Kolibri speaks OpenID Connect — the authorization-code flow with PKCE, and
 nothing else: no implicit flow, no SAML, no refresh tokens held on the server.
+
+SAML and LDAP are not on the list. SAML means verifying XML digital signatures,
+which means XML canonicalisation — a specification with a long history of
+signature-wrapping bugs in libraries maintained by people who work on nothing
+else; LDAP means an ASN.1/BER client. Both are security-critical parsers well
+past what a project with no runtime dependencies can honestly carry. Every
+provider named below speaks OIDC, and an LDAP directory reaches Kolibri through
+one of them. If yours speaks SAML and nothing else, put a broker in front of
+it — that is a better answer than a hand-rolled signature verifier here.
 Anything with a discovery document works — Keycloak, Authentik, Authelia,
 Zitadel, Entra ID, Google Workspace, Okta.
 

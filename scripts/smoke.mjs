@@ -3,9 +3,10 @@
  * checks that it survived a round trip — then does it again on a phone-sized
  * viewport and with the network switched off.
  *
- * Set KOLIBRI_LOCALE=de to walk the same path through the German interface; the
- * labels below are the only thing that changes, which is the point of the run —
- * a missing translation shows up as a selector that no longer matches.
+ * Set KOLIBRI_LOCALE to `de` or `fr` to walk the same path through that
+ * interface; the labels below are the only thing that changes, which is the
+ * point of the run — a missing translation shows up as a selector that no
+ * longer matches.
  *
  * Prerequisites: a seeded instance on KOLIBRI_URL and `npx playwright install chromium`.
  * Run: node scripts/smoke.mjs
@@ -24,6 +25,10 @@ const LABELS = {
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
+  },
+  fr: {
+    board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
+    guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
   },
 }[locale];
 

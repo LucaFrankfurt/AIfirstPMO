@@ -45,7 +45,16 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       how "only these groups may sign in" is written. And an account made through the provider now
       joins the instance's only workspace rather than starting a private one, which was the
       behaviour that made single sign-on look configured and useless.
-      Still open: SAML and LDAP.
+      **SAML and LDAP are deliberate non-goals, not a to-do.** SAML means verifying XML digital
+      signatures, which means XML canonicalisation — a specification with a long history of
+      signature-wrapping bugs in libraries written by people who work on nothing else. LDAP means an
+      ASN.1/BER client. Both are security-critical parsers, both are far past what this project's
+      zero-dependency rule can honestly carry, and a hand-rolled XML DSig verifier is exactly the
+      kind of thing that looks fine until it does not. Every provider worth naming — Entra, Okta,
+      Keycloak, Authentik, Google Workspace, Authelia, Zitadel — speaks OpenID Connect, and an
+      LDAP directory reaches this through one of those. If your identity provider speaks SAML and
+      nothing else, put a broker in front of it; that is a better answer than this project pretending
+      to a competence it does not have.
 - [x] **Workspace-wide audit log**, admins only, paged backwards. Private projects an admin is not
       a member of stay out of it: being an admin is not the same as being invited.
 
@@ -422,8 +431,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 188 cases across the server and the client) or by the browser walkthrough
-(`node scripts/smoke.mjs`):
+(`npm test`, 381 cases across the server and the client) or by the browser walkthrough
+(`node scripts/smoke.mjs`, which runs in English, German and French):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -440,6 +449,19 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Notification batching, per-user preferences, unsubscribe signature, retry with backoff
 - [x] S3 against a fake store that **verifies the SigV4 signature**: bucket creation, round trip,
       percent-encoded keys, delete, pre-signed URL, tampered-secret rejection
+- [x] Single sign-on against a provider that signs real RS256 tokens, including every refusal — a
+      forged signature, `alg: none`, wrong audience, wrong issuer, expired, replayed state — and the
+      directory-to-role mapping, demotion and last-owner rule
+- [x] The text CRDT: commutativity, associativity and idempotence each on their own, three replicas
+      gossiping at random from five seeds and having to agree, and two real browsers typing ten
+      characters each into the same position at once
+- [x] The dependency scheduler applied on the server, not only in the timeline: a chain, a wait on a
+      link, a plan that must not snap backwards, and a circular one that has to return at all
+- [x] Emptying the trash: the marker that makes every device forget the same row, the blob that
+      survives because a page still shows it, and the audit entry that goes because it was the last
+      copy of a deleted title
+- [x] Intake from outside: the honeypot answered politely, the rate limit reached, a report that
+      cannot be triaged twice, and a page-share link refusing to take one
 - [x] First-run provisioning: owner account, workspace and starter project created from the
       environment, idempotent on restart, storage retry with backoff before giving up
 - [x] Browser: login → board → task detail → create task → server round trip → pages → ⌘K
