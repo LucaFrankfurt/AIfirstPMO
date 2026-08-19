@@ -1,7 +1,7 @@
 /** Shared primitives: icons, menus, sheets, avatars, toasts. */
 import {
   createContext, useCallback, useContext, useEffect, useId, useLayoutEffect,
-  useMemo, useRef, useState, type ReactNode,
+  useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
@@ -12,7 +12,7 @@ import { guideHref, type GuideTarget } from '../lib/guide';
 
 /* ------------------------------------------------------------------- icons */
 
-const PATHS: Record<string, string> = {
+const PATHS = {
   home: 'M3 10.5 12 3l9 7.5M5 9.5V20h14V9.5',
   inbox: 'M4 13h4l2 3h4l2-3h4M4 13 6 5h12l2 8v6H4z',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3',
@@ -44,6 +44,9 @@ const PATHS: Record<string, string> = {
   bell: 'M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M10.5 20a2 2 0 0 0 3 0',
   menu: 'M4 7h16M4 12h16M4 17h16',
   bolt: 'M13 3 5 14h6l-1 7 8-11h-6z',
+  bookmark: 'M6 4h12v17l-6-4-6 4z',
+  table: 'M3 5h18v14H3zM3 10h18M9 10v9M3 15h18',
+  gantt: 'M4 6h9M7 12h11M4 18h7M3 3v18',
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   grip: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
@@ -52,7 +55,8 @@ const PATHS: Record<string, string> = {
   pause: 'M9 5v14M15 5v14',
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4M12 17.2h.01',
   sparkle: 'M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9zM18.5 3v3M20 4.5h-3',
-};
+  shield: 'M12 3l7.5 3v5.6c0 4-3 7.7-7.5 9.4-4.5-1.7-7.5-5.4-7.5-9.4V6zM9 12l2.2 2.2L15.5 10',
+} satisfies Record<string, string>;
 
 /**
  * Icons that mean "forwards" or "away" rather than naming a thing. They are
@@ -60,7 +64,15 @@ const PATHS: Record<string, string> = {
  */
 const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout']);
 
-export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
+/**
+ * The names above, as a type. `Icon` itself still takes any string — plenty of
+ * callers pass a name that came out of the database — but a hard-coded list of
+ * icons can be typed against this and a shape that does not exist becomes a
+ * compile error rather than a row of three quiet dots.
+ */
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 16, className }: { name: IconName | string; size?: number; className?: string }) {
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
@@ -68,7 +80,7 @@ export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS 
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
       style={{ flex: 'none' }}
     >
-      <path d={PATHS[name] ?? PATHS.dots} />
+      <path d={(PATHS as Record<string, string>)[name] ?? PATHS.dots} />
     </svg>
   );
 }
@@ -166,6 +178,59 @@ export function Sheet({
   );
 }
 
+/* -------------------------------------------------------------- lightbox */
+
+/**
+ * A picture at the size it was uploaded, over everything else.
+ *
+ * Opened by clicking any image in rendered markdown. Escape and a click on the
+ * backdrop both close it, because both are what people try.
+ */
+export function Lightbox({ src, alt, onClose }: { src: string; alt?: string; onClose: () => void }) {
+  const t = useT();
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = '';
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div className="lightbox" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
+      <img src={src} alt={alt ?? ''} />
+      <button className="btn ghost icon lightbox-close" onClick={onClose} aria-label={t('action.close')}>
+        <Icon name="close" />
+      </button>
+      <a className="btn sm lightbox-open" href={src} target="_blank" rel="noreferrer">{t('common.openOriginal')}</a>
+    </div>,
+    document.body,
+  );
+}
+
+/**
+ * Click-to-enlarge for every image inside a subtree.
+ *
+ * A delegated listener rather than a prop on each image, because the markdown
+ * renderer produces plain HTML and has no components to hand one to.
+ */
+export function useLightbox(): { open: (event: ReactMouseEvent) => void; lightbox: ReactNode } {
+  const [shown, setShown] = useState<{ src: string; alt?: string } | null>(null);
+  return {
+    open: (event: ReactMouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (target.tagName !== 'IMG') return;
+      const image = target as HTMLImageElement;
+      // An image inside a link is the link's business.
+      if (image.closest('a')) return;
+      setShown({ src: image.currentSrc || image.src, alt: image.alt });
+    },
+    lightbox: shown ? <Lightbox src={shown.src} alt={shown.alt} onClose={() => setShown(null)} /> : null,
+  };
+}
+
 /* ------------------------------------------------------------------- menus */
 
 export interface MenuItem {
@@ -255,13 +320,26 @@ export function Menu({
 
 /** Button that opens a menu anchored to itself. */
 export function MenuButton({
-  items, children, className = 'btn ghost', title, search, disabled, empty,
-}: { items: MenuItem[]; children: ReactNode; className?: string; title?: string; search?: boolean; disabled?: boolean; empty?: string }) {
+  items, children, className = 'btn ghost', title, label, search, disabled, empty,
+}: {
+  items: MenuItem[];
+  children: ReactNode;
+  className?: string;
+  title?: string;
+  /**
+   * Accessible name. An icon-only menu button otherwise announces as "button"
+   * and nothing else, which is the whole of what a screen reader gets.
+   */
+  label?: string;
+  search?: boolean;
+  disabled?: boolean;
+  empty?: string;
+}) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   return (
     <>
       <button
-        className={className} title={title} disabled={disabled} type="button"
+        className={className} title={title} aria-label={label ?? title} disabled={disabled} type="button"
         onClick={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
       >
         {children}

@@ -4,12 +4,15 @@ import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
-import { comment as postComment, createTask, remove, update } from '../lib/mutations';
+import { createTask, remove, update } from '../lib/mutations';
 import { useMe, useMemberMap, useSession } from '../session';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
+import { Comments } from './comments';
 import { Relations } from './Relations';
+import { TaskTime } from './time';
+import { TaskFields } from './fields';
 import {
-  AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, stateOf,
+  AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, TypePicker, stateOf,
 } from './task-parts';
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from './ui';
 
@@ -25,7 +28,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const [title, setTitle] = useState(task?.title ?? '');
   const [editingDescription, setEditingDescription] = useState(false);
   const [description, setDescription] = useState(task?.description ?? '');
-  const [draft, setDraft] = useState('');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
   const [activity, setActivity] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
@@ -98,6 +100,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}>
           <StatePicker task={task} />
+          <TypePicker task={task} />
           <PriorityPicker task={task} />
           <AssigneePicker task={task} />
           <LabelPicker task={task} />
@@ -105,12 +108,23 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           <ModulePicker task={task} />
           <MenuButton
             className="btn ghost sm"
+            label={t('common.moreActions')}
             items={[
               { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
                 void navigator.clipboard?.writeText(`${location.origin}/t/${task.id}`);
                 toast(t('common.copied'));
               } },
-              { id: 'archive', label: task.archived ? t('action.unarchive') : t('action.archive'), icon: <Icon name="archive" size={14} />,
+              { id: 'subscribe',
+              label: (task.subscribers ?? []).includes(me) ? t('task.unsubscribe') : t('task.subscribe'),
+              icon: <Icon name="bell" size={14} />,
+              hint: (task.subscribers ?? []).includes(me) ? '✓' : undefined,
+              onSelect: () => {
+                const current = task.subscribers ?? [];
+                update('task', task.id, {
+                  subscribers: current.includes(me) ? current.filter((id) => id !== me) : [...current, me],
+                });
+              } },
+            { id: 'archive', label: task.archived ? t('action.unarchive') : t('action.archive'), icon: <Icon name="archive" size={14} />,
                 onSelect: () => update('task', task.id, { archived: task.archived ? 0 : 1 }) },
               { id: 'delete', label: t('task.delete'), icon: <Icon name="trash" size={14} />, danger: true, onSelect: async () => {
                 if (await confirm(t('task.deleteConfirm', { identifier: task.identifier }))) {
@@ -130,6 +144,20 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
           <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+            <span className="muted">{t('task.repeats')}</span>
+            <select
+              className="select" style={{ width: 130 }}
+              value={task.recurrence ?? ''}
+              onChange={(event) => update('task', task.id, { recurrence: event.target.value || null })}
+            >
+              <option value="">{t('task.repeatsNever')}</option>
+              <option value="daily">{t('task.repeatsDaily')}</option>
+              <option value="weekly">{t('task.repeatsWeekly')}</option>
+              <option value="weekly:2">{t('task.repeatsFortnightly')}</option>
+              <option value="monthly">{t('task.repeatsMonthly')}</option>
+            </select>
+          </label>
+          <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
             <span className="muted">{t('task.estimate')}</span>
             <input
               className="input" type="number" min={0} step={1} style={{ width: 84 }}
@@ -138,6 +166,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             />
           </label>
         </div>
+
+        <TaskTime taskId={task.id} projectId={task.project_id} />
+
+        <TaskFields task={task} />
 
         {/* description */}
         <section style={{ marginBottom: 18 }}>
@@ -243,60 +275,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </div>
 
           {tab === 'comments' ? (
-            <>
-              {comments.map((entry) => {
-                const author = members.get(entry.author_id);
-                return (
-                  <div className="comment" key={entry.id}>
-                    <Avatar user={author} size={26} />
-                    <div className="body">
-                      <div className="row" style={{ gap: 6 }}>
-                        <span className="who">{author?.name ?? t('common.someone')}</span>
-                        <span className="when">{relativeTime(entry.created_at)}</span>
-                        {entry.author_id === me && (
-                          <button
-                            className="btn ghost sm"
-                            style={{ marginInlineStart: 'auto' }}
-                            onClick={async () => {
-                              if (await confirm(t('task.deleteComment'))) remove('comment', entry.id);
-                            }}
-                          >
-                            <Icon name="trash" size={13} />
-                          </button>
-                        )}
-                      </div>
-                      <Markdown source={entry.body} />
-                    </div>
-                  </div>
-                );
-              })}
-              <div style={{ marginTop: 10 }}>
-                <MarkdownEditor
-                  value={draft}
-                  onChange={setDraft}
-                  minHeight={70}
-                  placeholder={t('task.commentPlaceholder')}
-                  attachTo={{ task_id: task.id }}
-                  onSubmit={() => {
-                    if (!draft.trim()) return;
-                    postComment({ task_id: task.id }, draft.trim(), me);
-                    setDraft('');
-                  }}
-                />
-                <div className="row" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
-                  <button
-                    className="btn primary sm"
-                    disabled={!draft.trim()}
-                    onClick={() => {
-                      postComment({ task_id: task.id }, draft.trim(), me);
-                      setDraft('');
-                    }}
-                  >
-                    <Icon name="send" size={14} /> {t('task.comment')}
-                  </button>
-                </div>
-              </div>
-            </>
+            <Comments target={{ task_id: task.id }} />
           ) : (
             <div className="col" style={{ gap: 8 }}>
               {activity.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>{t('task.noActivity')}</span>}

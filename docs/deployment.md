@@ -63,6 +63,7 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_DATA_DIR` | `/data` | SQLite file, uploads, generated secret |
 | `KOLIBRI_LOG_LEVEL` | `info` | `debug` `info` `warn` `error` |
 | `KOLIBRI_DEFAULT_LOCALE` | `en` | Language for notifications and emails to someone who has not picked one (`en`, `de`). See [`i18n.md`](i18n.md). |
+| `KOLIBRI_TRUST_PROXY` | `true` | Read the client address from `x-forwarded-for`. Correct behind the bundled Caddy; **set it to `false` if the container is published directly**, or every client can pick its own address. See below. |
 | `TZ` | `UTC` | Affects date rendering on the server side |
 
 ### Email (optional — see [`notifications.md`](notifications.md))
@@ -78,6 +79,82 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_SMTP_INSECURE` | `false` | Accept a self-signed certificate on an internal relay |
 
 `KOLIBRI_PUBLIC_URL` must be set for the links in those emails to point anywhere useful.
+
+### Single sign-on (optional)
+
+Kolibri speaks OpenID Connect — the authorization-code flow with PKCE, and
+nothing else: no implicit flow, no SAML, no refresh tokens held on the server.
+
+SAML and LDAP are not on the list. SAML means verifying XML digital signatures,
+which means XML canonicalisation — a specification with a long history of
+signature-wrapping bugs in libraries maintained by people who work on nothing
+else; LDAP means an ASN.1/BER client. Both are security-critical parsers well
+past what a project with no runtime dependencies can honestly carry. Every
+provider named below speaks OIDC, and an LDAP directory reaches Kolibri through
+one of them. If yours speaks SAML and nothing else, put a broker in front of
+it — that is a better answer than a hand-rolled signature verifier here.
+Anything with a discovery document works — Keycloak, Authentik, Authelia,
+Zitadel, Entra ID, Google Workspace, Okta.
+
+Register Kolibri at your provider as a **confidential web application** with the
+redirect URI `https://your-domain/api/auth/oidc/callback`, then:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_OIDC_ISSUER` | empty | Issuer URL, e.g. `https://id.example.com/realms/main`. Empty disables single sign-on entirely. |
+| `KOLIBRI_OIDC_CLIENT_ID` | empty | Client ID from the provider |
+| `KOLIBRI_OIDC_CLIENT_SECRET` | empty | Client secret; keep it out of the compose file and in the secret store |
+| `KOLIBRI_OIDC_SCOPE` | `openid email profile` | Scopes requested. `email` is required — it is how an account is matched. |
+| `KOLIBRI_OIDC_LABEL` | `Single sign-on` | What the button on the sign-in screen says |
+| `KOLIBRI_OIDC_AUTO_CREATE` | `true` | Create an account for anybody the provider vouches for. Set `false` to admit only people invited first. |
+| `KOLIBRI_OIDC_ONLY` | `false` | Hide the password form, and refuse password sign-in and sign-up server-side |
+
+`KOLIBRI_PUBLIC_URL` should be set: the redirect URI is built from it, and a
+provider will refuse a redirect URI it does not recognise.
+
+Accounts created this way carry no password, so they can only be signed into
+through the provider. An address is accepted only if the provider marks it
+verified — otherwise anyone who can type their own address at the provider could
+claim an existing Kolibri account. Turning `KOLIBRI_OIDC_ONLY` on closes the
+password door for accounts that still carry one from before the switch, so make
+sure the provider can actually let you back in before you set it.
+
+#### Which workspace, and which role
+
+By default an account made through the provider joins the instance's **only**
+workspace, because a company directory pointed at a one-workspace instance means
+that workspace — not one empty workspace per colleague. With several and nothing
+configured it gets its own, exactly like signing up; name one to be sure:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_OIDC_WORKSPACE` | empty | Slug or id of the workspace new accounts join. Empty: the only workspace, if there is exactly one. |
+| `KOLIBRI_OIDC_GROUPS_CLAIM` | `groups` | Where the groups are in the token. A dotted path — Keycloak puts them at `resource_access.<client>.roles`. |
+| `KOLIBRI_OIDC_ROLE_MAP` | empty | `group=role` pairs, comma-separated. Empty leaves roles alone. |
+| `KOLIBRI_OIDC_DEFAULT_ROLE` | `member` | The role for somebody in no mapped group. `none` refuses the sign-in. |
+
+```bash
+KOLIBRI_OIDC_ROLE_MAP="kolibri-admins=admin, kolibri-users=member, contractors=guest"
+KOLIBRI_OIDC_DEFAULT_ROLE=none      # only those three groups may sign in at all
+```
+
+The **highest** matching role wins: somebody in both `kolibri-users` and
+`kolibri-admins` is an admin, because a person's access is the union of what they
+have been given and taking the lowest would make adding a group able to quietly
+remove access.
+
+Two things worth knowing before you set a map:
+
+- **It is applied on every sign-in, and it demotes.** Once the directory is the
+  authority on roles it has to be the authority both ways, or the map is
+  decoration — so a role changed inside Kolibri is overwritten the next time that
+  person signs in. Leave `KOLIBRI_OIDC_ROLE_MAP` empty if you would rather manage
+  roles here.
+- **The last owner of a workspace is never demoted.** A misspelt group name
+  should cost somebody an afternoon, not the instance.
+
+Groups are read from the ID token. If your provider only puts them in the
+userinfo response, add the claim to the token — every provider named above can.
 
 ### Object storage (optional — see [`storage.md`](storage.md))
 
@@ -152,21 +229,94 @@ mapping from the app service so only the proxy is exposed.
 
 Everything is in the data volume: `kolibri.sqlite`, `uploads/`, `.secret`. (With `KOLIBRI_STORAGE=s3`
 the uploads live in the bucket instead — back that up with the object store's own tooling, and note
-that the database still holds the metadata that makes those objects findable.) With the container
-running, take a consistent copy through SQLite rather than `cp`:
+that the database still holds the metadata that makes those objects findable.)
+
+Do not `cp` the database while the container is running: SQLite may be halfway through a write, and
+the copy restores into a corrupt file. `kolibri backup` takes the copy through SQLite instead, which
+is consistent by construction, and puts the uploads beside it:
 
 ```bash
-docker compose exec kolibri sh -c \
-  'node --experimental-sqlite -e "
-     const {DatabaseSync}=require(\"node:sqlite\");
-     new DatabaseSync(\"/data/kolibri.sqlite\").exec(\"VACUUM INTO \\\"/data/backup.sqlite\\\"\")
-   "'
-docker compose cp kolibri:/data/backup.sqlite ./backup-$(date +%F).sqlite
-tar czf uploads-$(date +%F).tar.gz -C "$(docker volume inspect -f '{{.Mountpoint}}' kolibri_kolibri-data)" uploads
+docker compose exec kolibri kolibri backup /data/backups/$(date +%F)
+docker compose cp kolibri:/data/backups/$(date +%F) ./kolibri-$(date +%F)
+tar czf kolibri-$(date +%F).tar.gz kolibri-$(date +%F)
 ```
 
-Restoring is putting those files back and starting the container. Keep `.secret` with the backup
-(or set `KOLIBRI_SECRET` explicitly) — without it, existing sessions and API tokens are void.
+The snapshot is a directory holding `kolibri.sqlite`, `uploads/` and a `manifest.json` saying when it
+was taken and what is in it. Check it before you trust it — this reads the copy and asks SQLite
+whether it is intact:
+
+```bash
+docker compose exec kolibri kolibri verify /data/backups/2026-08-19
+```
+
+Outside a container the same commands are `npm run kolibri -- <command>` from the repository, with
+`KOLIBRI_DATA_DIR` pointing at the instance.
+
+### Restoring
+
+With the server **stopped**, and `KOLIBRI_DATA_DIR` pointing at the instance being restored into:
+
+```bash
+docker compose stop kolibri
+docker compose run --rm --entrypoint kolibri kolibri restore /data/backups/2026-08-19 --force
+docker compose start kolibri
+```
+
+The snapshot is verified before anything is replaced, and a database that was already there is moved
+aside rather than deleted (`kolibri.sqlite.replaced-<timestamp>`) — the moment somebody restores the
+wrong snapshot is the moment they want the old one back. Stale `-wal`/`-shm` files are removed, since
+a write-ahead log belonging to the previous database would otherwise be replayed into the new one.
+Uploads are merged rather than replaced: they are content-addressed, so a name that exists in both
+holds the same bytes.
+
+Keep `.secret` with the backup (or set `KOLIBRI_SECRET` explicitly) — without it, existing sessions
+and API tokens are void. It is deliberately *not* in the snapshot: a copy of the database and the key
+that signs its sessions, in one tarball, is a worse trade than an operator remembering one file.
+
+This procedure is rehearsed by `packages/server/test/maintenance.test.ts`, which backs one instance
+up, restores it into an empty one in a separate process, and asks that instance what it holds.
+
+## Maintenance
+
+```bash
+docker compose exec kolibri kolibri doctor
+```
+
+Checks the database's internal consistency, that every foreign key points at something, that the
+full-text index matches the tables, how much of the file is free space, the size of the write-ahead
+log, expired rows nobody swept, and whether every stored file's bytes are still readable.
+
+| Command | What it does |
+|---|---|
+| `doctor` | Reports. `--json` for monitoring; exits non-zero only on a *damaged* database or missing bytes, not on a warning |
+| `doctor --fix` | Rebuilds the search index, removes expired sessions and old replay records, folds away deleted text in page bodies (see [`sync.md`](sync.md)), then compacts the file — and re-checks, so what it prints is the state afterwards |
+| `reindex` | Rebuilds the full-text index alone. This is the supported way back if the index ever drifts |
+| `vacuum` | Checkpoints the write-ahead log and returns free pages to the disk |
+| `backup <dir>` / `verify <dir>` / `restore <dir>` | Above |
+| `files move <disk\|s3>` | Moves stored blobs onto the other backend — see [`storage.md`](storage.md) |
+
+`doctor --json` is the one to put on a schedule; a `status` of `fail` is the only thing that should
+page anybody.
+
+### The trash, and how long it keeps
+
+A delete is reversible: the row is marked and kept, which is what lets two devices agree it is gone,
+and **Settings → Data** lists everything deleted or archived with a way back.
+
+Admins can end that with **Empty the trash**. It removes the rows, the uploaded bytes nothing else
+points at, and the audit entries that quoted the deleted thing by name — a button whose promise is
+"gone" cannot leave the last copy of a title in a list. Every other device forgets the same things on
+its next sync, through the purge markers described in [`sync.md`](sync.md).
+
+`KOLIBRI_TRASH_DAYS` does the same thing on a clock:
+
+```bash
+KOLIBRI_TRASH_DAYS=90    # deleted things are removed for good after ninety days
+```
+
+It is **off by default** (`0`). A default that quietly destroyed things after a month would be a
+retention policy this project has no business choosing for somebody else's data — and it is the sort
+of default nobody discovers until the thing they wanted back is not there.
 
 ## Upgrades
 
@@ -207,9 +357,44 @@ The limits worth knowing:
   team's volume; it is not a bulk sender.
 - **One instance per host process.** Multiple containers must not share the same SQLite file.
 
+## What the server does to protect itself
+
+Two things, both on by default and neither of them configurable — there is no
+setting to get wrong.
+
+**Rate limits** on the routes where guessing is the attack: signing in,
+registering, and looking up an invite code. Each is a token bucket, in memory,
+and a refusal costs a token too, so hammering after a `429` does not reset the
+clock. The response says how many seconds to wait.
+
+Signing in is limited **per account as well as per address**. An address-only
+limit is blind to the case that actually takes accounts over: one account, a
+thousand machines, ten attempts each.
+
+The address a request claims is not necessarily where it came from. When
+`KOLIBRI_TRUST_PROXY` is on — the default, because the bundled Caddy needs it —
+`x-forwarded-for` is believed, so an instance published *without* a proxy would
+let a client invent a fresh address, and a fresh allowance, per request. The
+socket address is therefore charged as well, against a much wider bucket: wide
+enough that everybody behind one proxy never meets it, finite enough that
+inventing addresses buys a bounded number of attempts. Setting
+`KOLIBRI_TRUST_PROXY=false` when nothing is in front is still the right answer;
+this is what happens if you forget.
+
+**A Content-Security-Policy** on every response: `default-src 'self'`, no inline
+script and no `eval`, `frame-ancestors 'none'`. Markdown is escaped before it is
+rendered, so this is the second lock rather than the first — it turns a future
+injection bug into a console message instead of a stolen session.
+
+The policy is computed, not fixed. With `KOLIBRI_S3_PRESIGN` on, a download
+redirects the browser to MinIO or S3, so that origin is named in `img-src`,
+`media-src` and `connect-src` — otherwise attachments would arrive and be
+discarded. Nothing widens `script-src`, ever.
+
 ## Hardening checklist
 
 - [ ] `KOLIBRI_ALLOW_SIGNUP=false` after your team has signed up
+- [ ] `KOLIBRI_TRUST_PROXY=false` if nothing terminates TLS in front of the container
 - [ ] `KOLIBRI_SECRET` set explicitly and stored in your secret manager
 - [ ] TLS terminated in front, `KOLIBRI_PUBLIC_URL` set to the https URL
 - [ ] Volume backed up on a schedule, restore tested once

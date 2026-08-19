@@ -1,5 +1,16 @@
 export * from './types.ts';
 export * from './entities.ts';
 export * from './order.ts';
+export * from './duration.ts';
+export * from './csv.ts';
+export * from './import.ts';
+export * from './diff.ts';
+export * from './fields.ts';
+export * from './schedule.ts';
+export * from './markdown.ts';
+export * from './anchor.ts';
+export * from './foreign.ts';
+export * as crdt from './text-crdt.ts';
+export type { CrdtState } from './text-crdt.ts';
 export { Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './hlc.ts';
 export type { HLC } from './hlc.ts';

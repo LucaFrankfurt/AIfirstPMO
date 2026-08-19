@@ -90,6 +90,17 @@ services:
       KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-Kolibri}"
       KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
 
+      # --- single sign-on ---------------------------------------------------
+      # Empty issuer means the sign-in screen stays a password form. See
+      # docs/deployment.md for what to register at the provider.
+      KOLIBRI_OIDC_ISSUER: "${KOLIBRI_OIDC_ISSUER:-}"
+      KOLIBRI_OIDC_CLIENT_ID: "${KOLIBRI_OIDC_CLIENT_ID:-}"
+      KOLIBRI_OIDC_CLIENT_SECRET: "${KOLIBRI_OIDC_CLIENT_SECRET:-}"
+      KOLIBRI_OIDC_SCOPE: "${KOLIBRI_OIDC_SCOPE:-openid email profile}"
+      KOLIBRI_OIDC_LABEL: "${KOLIBRI_OIDC_LABEL:-Single sign-on}"
+      KOLIBRI_OIDC_AUTO_CREATE: "${KOLIBRI_OIDC_AUTO_CREATE:-true}"
+      KOLIBRI_OIDC_ONLY: "${KOLIBRI_OIDC_ONLY:-false}"
+
       TZ: "${TZ:-UTC}"
     volumes:
       - kolibri-data:/data

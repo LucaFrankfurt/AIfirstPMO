@@ -62,6 +62,7 @@ export function Teams() {
                   <span className="chip mono">{team.key}</span>
                   <MenuButton
                     className="btn ghost sm icon"
+                    label={t('common.moreActions')}
                     search
                     items={[
                       ...members.map((member) => {

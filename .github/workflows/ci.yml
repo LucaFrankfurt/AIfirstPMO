@@ -1,13 +1,25 @@
 name: CI
 
 on:
+  # Two moments matter, and only two: a change proposed for main, and a change
+  # landing on main. A push to a working branch is neither — it is covered when
+  # that branch opens a pull request. Running on every branch push also fired
+  # both triggers on the same commit, which ran the whole thing twice.
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
+    branches: [main]
+
+# Successive pushes to the same PR supersede each other; only the newest commit
+# is worth a runner.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,6 +35,8 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     needs: test
+    # Without this a hung step sits on a runner until the six-hour default.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,28 +46,66 @@ jobs:
       - run: npm ci
       - run: npm run build
       # Playwright is only needed here, so it stays out of the manifest.
-      - run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - name: A browser to walk with
+        # Bounded, because this step is what hung the job for hours.
+        timeout-minutes: 10
+        run: |
+          npm install --no-save playwright
+          # Not `--with-deps`: that shells out to apt, and apt on this runner
+          # answers `Ign:` for every InRelease on the Azure mirror and retries
+          # until something kills it. Nothing here needs a package manager.
+          # The image already ships Google Chrome, which is the same engine and
+          # brings the shared libraries Playwright's chromium would have wanted,
+          # so walk with that and download nothing.
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "CHROMIUM_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else
+            # And if a future image drops it, fetch the browser over HTTPS from
+            # Playwright's CDN — still no apt.
+            npx playwright install chromium
+          fi
       - name: Seed and start the server
         run: |
           npm run seed
-          PORT=4400 npm start &
+          # The log goes to a file, and that is not tidiness. A background
+          # process started here inherits this step's stdout, the runner reads
+          # that pipe until it closes, and the pipe cannot close while the
+          # server holds it — so the step hangs until the job times out, having
+          # already printed everything it meant to.
+          PORT=4400 npm start > /tmp/kolibri-server.log 2>&1 &
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:4400/api/health && break; sleep 2; done
+          # And say so here rather than in a walkthrough that cannot reach it.
+          curl -fs http://127.0.0.1:4400/api/health > /dev/null || {
+            echo "the server never became healthy"; cat /tmp/kolibri-server.log; exit 1
+          }
       - name: Browser walkthrough
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
-      # The same walk in German: a missing translation shows up as a selector
-      # that no longer matches, which is exactly what should fail the build.
+      # The same walk in the other languages: a missing translation shows up as
+      # a selector that no longer matches, which is exactly what should fail the
+      # build.
       - name: Browser walkthrough (German)
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
           KOLIBRI_LOCALE: de
 
+      - name: Browser walkthrough (French)
+        run: node scripts/smoke.mjs
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+          KOLIBRI_LOCALE: fr
+
+      - name: What the server thought, if anything went wrong
+        if: failure()
+        run: cat /tmp/kolibri-server.log || true
+
   # The deployment itself is the thing under test here: one command has to
   # produce a working instance with storage and mail already wired up.
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -110,6 +162,27 @@ jobs:
           users=$(docker compose exec -T kolibri node --experimental-sqlite -e \
             "const{DatabaseSync}=require('node:sqlite');console.log(new DatabaseSync('/data/kolibri.sqlite').prepare('select count(*) c from users').get().c)")
           test "$users" -eq 1 || { echo "provisioning was not idempotent: $users users"; exit 1; }
+
+      # A backup nobody has restored is a hope. This takes one inside the
+      # container, verifies it, and restores it over the running instance —
+      # against the real image, on a real volume, with the real object store.
+      - name: A snapshot can be taken, checked and put back
+        run: |
+          docker compose exec -T kolibri kolibri doctor | tee doctor.txt
+          if grep -q '✗' doctor.txt; then echo "the doctor found something broken"; exit 1; fi
+
+          docker compose exec -T kolibri kolibri backup /data/snapshot
+          docker compose exec -T kolibri kolibri verify /data/snapshot | grep -q 'readable Kolibri snapshot'
+
+          docker compose stop kolibri
+          docker compose run --rm --entrypoint kolibri kolibri restore /data/snapshot --force | grep -q 'Restored'
+          docker compose start kolibri
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:4000/api/health | grep -q '"ready":true' && break; sleep 2; done
+
+          # The proof is signing in afterwards: the account survived the round trip.
+          curl -fsS -c jar3 -X POST http://127.0.0.1:4000/api/auth/login \
+            -H 'content-type: application/json' \
+            -d '{"email":"owner@example.com","password":"a good long password"}' | grep -q '"role":"owner"'
 
       # The dev overlay is what makes email demonstrable: it adds the capture
       # inbox and wires the app to it in one command.

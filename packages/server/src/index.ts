@@ -5,13 +5,17 @@ import { close, currentSeq, run } from './db/index.ts';
 import { env } from './env.ts';
 import { authenticate } from './lib/auth.ts';
 import { startMailWorker, stopMailWorker } from './lib/mail.ts';
+import { startScheduler, stopScheduler } from './lib/scheduler.ts';
 import { provision } from './lib/provision.ts';
+import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
 import { registerFileRoutes } from './routes/files.ts';
 import { registerMcpRoutes } from './routes/mcp.ts';
 import { registerSearchRoutes } from './routes/search.ts';
+import { registerInboundRoutes } from './routes/inbound.ts';
+import { registerShareRoutes } from './routes/share.ts';
 import { registerSyncRoutes } from './routes/sync.ts';
 
 const router = new Router();
@@ -24,6 +28,8 @@ registerSearchRoutes(router);
 registerFileRoutes(router);
 registerMcpRoutes(router);
 registerEntityRoutes(router);
+registerShareRoutes(router);
+registerInboundRoutes(router);
 
 /**
  * `ready` turns true once provisioning finished (bucket reachable, owner
@@ -82,7 +88,17 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
 
 /* -------------------------------------------------------------- the server */
 
+const CSP = buildCsp(env.storage);
+
+function securityHeaders(res: ServerResponse): void {
+  res.setHeader('content-security-policy', CSP);
+  res.setHeader('x-content-type-options', 'nosniff');
+  res.setHeader('referrer-policy', 'same-origin');
+  res.setHeader('x-frame-options', 'DENY');
+}
+
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+  securityHeaders(res);
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader('access-control-allow-origin', origin);
@@ -169,6 +185,7 @@ if (process.env.NODE_ENV !== 'test') {
     .then(() => {
       ready = true;
       startMailWorker();
+  startScheduler();
     })
     .catch(() => {
       log('error', 'Provisioning failed — exiting so the restart policy can try again');
@@ -182,6 +199,7 @@ if (process.env.NODE_ENV !== 'test') {
 const shutdown = (signal: string) => {
   log('info', `${signal} received, shutting down`);
   stopMailWorker();
+  stopScheduler();
   server.close(() => {
     close();
     process.exit(0);

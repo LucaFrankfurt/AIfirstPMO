@@ -106,6 +106,62 @@ export const env = {
   /** Language for notifications and emails when a recipient has not chosen one. */
   defaultLocale: (process.env.KOLIBRI_DEFAULT_LOCALE ?? 'en').toLowerCase().split('-')[0],
   trustProxy: bool(process.env.KOLIBRI_TRUST_PROXY, true),
+  /**
+   * Single sign-on. Off unless an issuer and a client are configured; the
+   * password form stays available either way unless `oidcOnly` is set.
+   */
+  oidc: {
+    issuer: (process.env.KOLIBRI_OIDC_ISSUER ?? '').replace(/\/$/, ''),
+    clientId: process.env.KOLIBRI_OIDC_CLIENT_ID ?? '',
+    clientSecret: process.env.KOLIBRI_OIDC_CLIENT_SECRET ?? '',
+    scope: process.env.KOLIBRI_OIDC_SCOPE ?? 'openid email profile',
+    /** What to call the button. */
+    label: process.env.KOLIBRI_OIDC_LABEL ?? 'Single sign-on',
+    /** Create an account for anybody the provider vouches for. */
+    autoCreate: bool(process.env.KOLIBRI_OIDC_AUTO_CREATE, true),
+    /** Hide the password form entirely. */
+    only: bool(process.env.KOLIBRI_OIDC_ONLY, false),
+    /**
+     * Where the groups live in the token. A dotted path, because Keycloak puts
+     * them at `resource_access.kolibri.roles` and Entra at `groups`, and
+     * neither is going to change for us.
+     */
+    groupsClaim: process.env.KOLIBRI_OIDC_GROUPS_CLAIM ?? 'groups',
+    /** `group=role, group=role` — see `oidc.ts`. Empty leaves roles alone. */
+    roleMap: process.env.KOLIBRI_OIDC_ROLE_MAP ?? '',
+    /**
+     * The role somebody in none of the mapped groups gets. `none` refuses the
+     * sign-in, which is how "only these groups may in" is written.
+     */
+    defaultRole: (process.env.KOLIBRI_OIDC_DEFAULT_ROLE ?? 'member').trim().toLowerCase(),
+    /**
+     * The workspace an account made through the provider joins, by slug or id.
+     * Without it, a lone workspace on the instance is joined and anything else
+     * gets its own — see `joinWorkspace` in `auth.ts`.
+     */
+    workspace: process.env.KOLIBRI_OIDC_WORKSPACE ?? '',
+  },
+  /**
+   * Web Push. On by default: the key pair is generated into the data directory
+   * on first use, and a browser that never asks for permission never hears
+   * about it. Set the pair explicitly to keep subscriptions across a restore.
+   */
+  push: {
+    enabled: bool(process.env.KOLIBRI_PUSH, true),
+    publicKey: process.env.KOLIBRI_VAPID_PUBLIC ?? '',
+    privateKey: (process.env.KOLIBRI_VAPID_PRIVATE ?? '').replace(/\\n/g, '\n'),
+    /** Who a push service should complain to. */
+    subject: process.env.KOLIBRI_VAPID_SUBJECT ?? '',
+  },
+  /** A shared secret a mail provider posts bounce reports with. Empty disables it. */
+  bounceToken: process.env.KOLIBRI_BOUNCE_TOKEN ?? '',
+  /**
+   * Days a deleted thing stays in the trash before it goes for good. `0` — the
+   * default — keeps it until somebody empties the trash themselves. A default
+   * that quietly destroyed things after a month would be a policy this project
+   * has no business choosing for somebody else's data.
+   */
+  trashDays: Math.max(0, Number(process.env.KOLIBRI_TRASH_DAYS ?? 0) || 0),
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,

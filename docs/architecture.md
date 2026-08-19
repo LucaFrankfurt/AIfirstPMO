@@ -36,6 +36,9 @@ runs the TypeScript sources directly, so there is no build step and no `dist/` t
 | `lib/repo.ts` | **the only write path** — per-field LWW merge, side effects, search index |
 | `lib/bootstrap.ts` | workspace/project creation with default states and labels |
 | `lib/mcp.ts` | MCP tools, prompts, resources; plain JSON-RPC, no SDK |
+| `lib/automation.ts` | rules: what fired, who it resolves to, and why it did nothing |
+| `lib/ratelimit.ts` | token buckets per address **and** per account, in memory |
+| `lib/csp.ts` | the content policy, computed because the object store may be off-origin |
 | `routes/sync.ts` | `pull`, `push` and the SSE change stream |
 | `routes/entities.ts` | generic REST CRUD for every registry entity |
 | `routes/files.ts` | content-addressed uploads and downloads |
@@ -144,8 +147,8 @@ an embedded video or a pile of screenshots — both of which go stale the day af
 - `components/hierarchy.tsx` — the containment tree, transcribed from `ENTITIES`. If a relationship
   changes in the registry it should change here too.
 
-Adding a feature means adding a card: a lead sentence, a scene, four how-to steps and a link into
-the screen. Every string is a catalogue key, so a new language gets an explained product rather
+Adding a feature means adding a card: a lead sentence, a scene, a handful of how-to steps and a
+link into the screen. Every string is a catalogue key, so a new language gets an explained product rather
 than a translated menu bar.
 
 Two things point at it from the rest of the app:
@@ -160,6 +163,26 @@ Two things point at it from the rest of the app:
   what has been clicked, so it stays honest on a second device and after a restore, and hides
   itself when there is nothing left to say. Both can be summoned again from the guide by a window
   event, so nothing else has to own their state.
+
+### Templates and rules
+
+`lib/automation.ts` hangs off the same write path as notifications: `afterWrite` sees every
+non-system task write, works out whether a state was entered or a task created, and asks the
+enabled rules whether they care.
+
+Three decisions shape it:
+
+- **Recipients are selectors, not ids.** "Whoever leads the project" survives a change of lead;
+  a stored id does not. They combine, de-duplicate, and are filtered through `canSeeProject`, so a
+  rule cannot hand somebody a task inside a private project they are not in.
+- **Generated tasks are recognisable.** Every run is written to `automation_runs` with the id of
+  what it made, so "did a rule create this?" is one indexed lookup — and rules skip such tasks
+  unless deliberately told otherwise. A depth counter backs that up.
+- **Deciding to do nothing is a result.** A rule whose recipients all resolve away looks identical
+  to a broken one from outside, so the skip and its reason are written down and shown in the UI.
+
+`automation_runs` is server-side bookkeeping and is deliberately *not* in the entity registry: it is
+an audit trail, not shared state, and syncing it would put every rule's history on every device.
 
 ## MCP bridge
 

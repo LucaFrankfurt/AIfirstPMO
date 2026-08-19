@@ -6,18 +6,37 @@
  * a `[missing]` in the interface. Interpolation is `{name}`; plurals pick
  * `key_one` / `key_other` through Intl.PluralRules.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { en } from '../locales/en';
 import { de } from '../locales/de';
+import { fr } from '../locales/fr';
 
-export const LOCALES = { en, de } as const;
+export const LOCALES = { en, de, fr } as const;
 export type Locale = keyof typeof LOCALES;
 type RawKey = keyof typeof en;
 /** `task.labelCount_one` / `_other` are addressed as `task.labelCount`. */
 type PluralBase<K> = K extends `${infer B}_one` ? B : K extends `${infer B}_other` ? B : never;
 export type TranslationKey = RawKey | PluralBase<RawKey>;
 
-export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch' };
+export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsch', fr: 'Français' };
+
+/**
+ * Locales nobody has read back yet.
+ *
+ * Named rather than hidden: a translation written by a machine is worth having
+ * and worth admitting to, and somebody choosing it should find that out in the
+ * picker rather than in an odd sentence three screens later.
+ */
+export const UNREVIEWED: Partial<Record<Locale, boolean>> = { fr: true };
+
+/**
+ * The name to put in a picker.
+ *
+ * Plain: the warning about an unreviewed catalogue goes in a line *under* the
+ * picker rather than inside it, because a closed `select` truncates and a
+ * caveat that reads "Français — traduction autom…" is worse than none.
+ */
+export const localeLabel = (locale: Locale): string => LOCALE_NAMES[locale];
 
 /**
  * Writing direction per locale. Both current locales are left-to-right, so this
@@ -25,7 +44,7 @@ export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', de: 'Deutsc
  * logical properties throughout, so adding an RTL locale is a catalogue file
  * plus one entry here. Untested against a real RTL language; see docs/i18n.md.
  */
-export const LOCALE_DIR: Record<Locale, 'ltr' | 'rtl'> = { en: 'ltr', de: 'ltr' };
+export const LOCALE_DIR: Record<Locale, 'ltr' | 'rtl'> = { en: 'ltr', de: 'ltr', fr: 'ltr' };
 
 const STORAGE_KEY = 'kolibri.locale';
 
@@ -104,7 +123,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback<Translate>((key, vars) => translate(locale, key, vars), [locale]);
   const value = useMemo(() => ({ locale, setLocale, adoptLocale, t }), [locale, setLocale, adoptLocale, t]);
 
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  // `createElement` rather than JSX so this module is plain TypeScript: the
+  // sync engine and the API client import it, and both are exercised in tests
+  // that run under Node, which strips types but does not compile JSX.
+  return createElement(Context.Provider, { value }, children);
 }
 
 export function useI18n(): I18nValue {

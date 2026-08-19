@@ -1,4 +1,4 @@
-import type { SessionInfo } from '@kolibri/shared';
+import type { ImportResult, SessionInfo } from '@kolibri/shared';
 import { currentLocale, translate } from './i18n';
 
 export class ApiError extends Error {
@@ -53,11 +53,16 @@ export const api = {
   patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 
-  config: () => request<{ allowSignup: boolean; hasUsers: boolean; maxUploadBytes: number; version: string }>('/api/config'),
+  config: () => request<{
+    allowSignup: boolean; hasUsers: boolean; maxUploadBytes: number; version: string;
+    sso: { label: string; only: boolean } | null;
+  }>('/api/config'),
   session: () => request<SessionInfo>('/api/session'),
   login: (email: string, password: string) => request<SessionInfo>('/api/auth/login', json({ email, password })),
   register: (body: { email: string; name: string; password: string; workspace?: string; invite?: string }) =>
-    request<SessionInfo>('/api/auth/register', json(body)),
+    // The language goes with the sign-up so the starter project's workflow,
+    // labels and templates are seeded in it rather than in English.
+    request<SessionInfo>('/api/auth/register', json({ ...body, locale: currentLocale() })),
   logout: () => request<{ ok: boolean }>('/api/auth/logout', json({})),
 
   /**
@@ -87,13 +92,29 @@ export const api = {
     ),
 
   activity: (taskId: string) => request<any[]>(`/api/tasks/${taskId}/activity`),
+  import: (workspaceId: string, body: {
+    csv: string; project_id: string; mapping: Record<string, string>; delimiter?: string; dry_run: boolean;
+  }) => request<ImportResult>(`/api/workspaces/${workspaceId}/import`, json(body)),
   members: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/members`),
   tokens: () => request<any[]>('/api/tokens'),
+  sessions: () => request<any[]>('/api/sessions'),
+  revokeSession: (id: string) => request<{ ok: boolean }>(`/api/sessions/${id}`, { method: 'DELETE' }),
+  audit: (workspaceId: string, before?: number) =>
+    request<{ entries: any[]; oldest: number | null }>(
+      `/api/workspaces/${workspaceId}/audit${before ? `?before=${before}` : ''}`,
+    ),
+  startTwoFactor: () => request<{ secret: string; uri: string }>('/api/me/2fa', json({})),
+  confirmTwoFactor: (code: string) => request<{ recovery_codes: string[] }>('/api/me/2fa/confirm', json({ code })),
+  disableTwoFactor: (password: string) => request<{ ok: boolean }>('/api/me/2fa/off', json({ password })),
   createToken: (body: { name: string; workspaceId?: string; scopes?: string }) => request<{ token: string; id: string }>('/api/tokens', json(body)),
   revokeToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
   invites: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/invites`),
   createInvite: (workspaceId: string, role: string) => request<{ code: string; url: string }>(`/api/workspaces/${workspaceId}/invites`, json({ role })),
   acceptInvite: (code: string) => request<{ workspaceId: string; session: SessionInfo }>(`/api/invites/${code}/accept`, json({})),
+  automationRuns: (id: string) => request<any[]>(`/api/automations/${id}/runs`),
+  applyTemplate: (id: string, body: { project_id?: string; assignees?: string[] }) =>
+    request<any>(`/api/templates/${id}/apply`, json(body)),
   pageVersions: (pageId: string) => request<any[]>(`/api/pages/${pageId}/versions`),
+  pageVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions/${versionId}`),
   restoreVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions`, json({ restore: versionId })),
 };

@@ -3,9 +3,10 @@
  * checks that it survived a round trip — then does it again on a phone-sized
  * viewport and with the network switched off.
  *
- * Set KOLIBRI_LOCALE=de to walk the same path through the German interface; the
- * labels below are the only thing that changes, which is the point of the run —
- * a missing translation shows up as a selector that no longer matches.
+ * Set KOLIBRI_LOCALE to `de` or `fr` to walk the same path through that
+ * interface; the labels below are the only thing that changes, which is the
+ * point of the run — a missing translation shows up as a selector that no
+ * longer matches.
  *
  * Prerequisites: a seeded instance on KOLIBRI_URL and `npx playwright install chromium`.
  * Run: node scripts/smoke.mjs
@@ -17,8 +18,18 @@ const shots = process.env.KOLIBRI_SHOT_DIR ?? (locale === 'en' ? '/tmp/shots' : 
 
 /** Only the strings the walkthrough clicks on — not a second catalogue. */
 const LABELS = {
-  en: { board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages', guide: 'Guide', welcome: 'Welcome' },
-  de: { board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten', guide: 'Anleitung', welcome: 'Willkommen' },
+  en: {
+    board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
+    guide: 'Guide', welcome: 'Welcome', log: 'Log',
+  },
+  de: {
+    board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
+    guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
+  },
+  fr: {
+    board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
+    guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
+  },
 }[locale];
 
 /** The first-run tour opens over everything; every later step needs it gone. */
@@ -36,7 +47,24 @@ const page = await ctx.newPage();
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 
-const step = async (name, fn) => { try { await fn(); console.log('OK  ', name); } catch (e) { console.log('FAIL', name, '-', e.message); } };
+/**
+ * Run one step, and remember if it failed.
+ *
+ * Every step is attempted even after one fails — a walkthrough that stops at
+ * the first problem tells you about one problem — but the failures are counted,
+ * and the script exits non-zero at the end. It used to swallow them and exit 0,
+ * which meant the CI job could not go red no matter what the app did.
+ */
+const failures = [];
+const step = async (name, fn) => {
+  try {
+    await fn();
+    console.log('OK  ', name);
+  } catch (e) {
+    console.log('FAIL', name, '-', e.message);
+    failures.push(`${name}: ${e.message}`);
+  }
+};
 
 await step('login', async () => {
   await page.goto(base, { waitUntil: 'domcontentloaded' });
@@ -193,6 +221,33 @@ await step('setup checklist reflects the workspace, empty screens offer help', a
   console.log('     settings deep link opened:', tab);
 });
 
+await step('templates and rules are set up and readable', async () => {
+  await page.goto(`${base}/settings?tab=automation`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.auto-row', { timeout: 5000 });
+  const templates = await page.locator('.auto-row .auto-glyph').count();
+  const rules = await page.locator('.auto-switch').count();
+  console.log('     templates:', templates, ' rules:', rules);
+  if (!templates || !rules) throw new Error('the seeded template or rule is missing');
+  if (!await page.locator('.auto-switch.on').count()) throw new Error('the seeded rule is off');
+
+  // The log opens and says something, even before the rule has ever fired.
+  await page.locator(`.auto-row .btn:has-text("${LABELS.log}")`).first().click();
+  await page.waitForSelector('.sheet');
+  const log = await page.locator('.sheet .body').innerText();
+  if (/auto\.[a-z]|tpl\.[a-z]/i.test(log)) throw new Error(`untranslated key in the log: ${log.slice(0, 60)}`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(250);
+
+  // The rule editor opens with its recipient rows.
+  await page.locator('.auto-row').last().locator('.btn').last().click();
+  await page.waitForSelector('#rule-name', { timeout: 5000 });
+  const recipients = await page.locator('.auto-recipient').count();
+  if (!recipients) throw new Error('the rule editor shows no recipients');
+  console.log('     recipient rows in the editor:', recipients);
+  await page.keyboard.press('Escape');
+});
+await page.screenshot({ path: `${shots}/8-automation.png` });
+
 await step('guide opens, explains itself, and leaks no keys', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.sidebar');
@@ -254,6 +309,15 @@ await step('interface is in the chosen language', async () => {
 });
 
 console.log(`\nlocale: ${locale}  ·  screenshots: ${shots}`);
+// Reported, not fatal: an unauthenticated probe on load answers 401, and the
+// offline step disconnects the network on purpose. Both are console errors and
+// neither is a fault.
 console.log('console errors:', errors.length);
 errors.slice(0, 8).forEach((e) => console.log('  -', e));
 await browser.close();
+
+if (failures.length) {
+  console.log(`\n${failures.length} step(s) failed in ${locale}:`);
+  failures.forEach((f) => console.log('  -', f));
+  process.exit(1);
+}

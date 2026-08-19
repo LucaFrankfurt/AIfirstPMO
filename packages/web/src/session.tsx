@@ -8,7 +8,8 @@ import { signOutLocal, start } from './lib/sync';
 interface SessionValue {
   ready: boolean;
   session: SessionInfo | null;
-  user: User | null;
+  /** `two_factor` is derived by the server; the secret itself never leaves it. */
+  user: (User & { two_factor?: boolean }) | null;
   workspaceId: string;
   role: WorkspaceRole;
   setWorkspace: (id: string) => void;
@@ -109,6 +110,18 @@ export function useSession(): SessionValue {
   const value = useContext(Context);
   if (!value) throw new Error('useSession must be used inside SessionProvider');
   return value;
+}
+
+/**
+ * Whether this person may write in this workspace.
+ *
+ * A guest is refused by the server, correctly — but showing them a New task
+ * button that will fail is a worse experience than not showing it. One hook, so
+ * the answer is in one place rather than repeated as `role !== 'guest'` in
+ * fifteen components.
+ */
+export function useCanWrite(): boolean {
+  return useSession().role !== 'guest';
 }
 
 /** The signed-in user's id — used constantly, so it gets its own hook. */

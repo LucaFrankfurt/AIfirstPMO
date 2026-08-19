@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import type { Task } from '@kolibri/shared';
+import { excerpt, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { TaskRow } from '../components/task-parts';
 import { TaskViews, useVisibleTasks, ViewControls, DEFAULT_VIEW, type ViewConfig } from '../components/views';
+import { useSelection } from '../components/selection';
+import { SelectionBar } from '../components/selection-bar';
 import { Avatar, Empty, Icon, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { relativeTime, today } from '../lib/format';
-import { excerpt } from '../lib/markdown';
+
 import { markAllRead, markNotificationRead } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
@@ -30,6 +32,7 @@ export function MyWork() {
   const openTask = useOpenTask();
   const { workspaceId } = useSession();
   const [view, setView] = useState<ViewConfig>({ ...DEFAULT_VIEW, groupBy: 'project', orderBy: 'due_date', showDone: false });
+  const selection = useSelection();
 
   const mine = useQuery(
     () => list('task', (t) => t.workspace_id === workspaceId && (t.assignees ?? []).includes(me)),
@@ -51,7 +54,7 @@ export function MyWork() {
   return (
     <>
       <Header title={t('myWork.title')}>
-        <ViewControls view={view} onChange={setView} />
+        <ViewControls view={view} onChange={setView} saveable />
       </Header>
       <div className="page">
         <SetupChecklist />
@@ -86,8 +89,10 @@ export function MyWork() {
         {visible.length === 0 ? (
           <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} guide="capture" />
         ) : (
-          <TaskViews tasks={visible} view={view} onOpen={openTask} showProject />
+          <TaskViews tasks={visible} view={view} onOpen={openTask} showProject onChange={setView} selection={selection} />
         )}
+
+        <SelectionBar selection={selection} tasks={visible} />
 
         {created.length > 0 && (
           <section style={{ marginTop: 26 }}>
@@ -143,6 +148,9 @@ export function Inbox() {
                   markNotificationRead(notification.id);
                   if (notification.task_id) openTask({ id: notification.task_id });
                   else if (notification.page_id) navigate(`/pages/${notification.page_id}`);
+                  // A report from outside is about a project's queue rather
+                  // than a row, so it opens the tab that holds it.
+                  else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);
                 }}
               >
                 <Avatar user={actor} size={26} />

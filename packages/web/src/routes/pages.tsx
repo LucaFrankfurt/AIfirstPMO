@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { compareOrder, type Page } from '@kolibri/shared';
+import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
+import { Comments } from '../components/comments';
+import {
+  ACCESS_KEY, PageLabelChips, VersionDiff, labelItems, useExport, usePageLabels, usePrint, useWatching,
+} from '../components/page-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
+import { ShareSheet } from '../components/share';
+import { useHighlights, useSelectionAnchor } from '../components/annotate';
 import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
-import { excerpt } from '../lib/markdown';
+
 import { createPage, remove, update } from '../lib/mutations';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
-import { useMe, useMemberMap, useSession } from '../session';
+import { useCollaborativeText } from '../lib/collab';
+import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- tree */
@@ -68,16 +75,69 @@ export function PagesIndex() {
   const { workspaceId } = useSession();
   const me = useMe();
   const navigate = useNavigate();
-  const pages = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
+  const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
+  const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
+  const [filter, setFilter] = useState<string>('');
+  const canWrite = useCanWrite();
+
+  // Templates are kept out of the tree: they are starting points, not content,
+  // and a handbook with three half-written templates in it reads as a mess.
+  const templates = useMemo(() => all.filter((page) => page.is_template), [all]);
+  const pages = useMemo(
+    () => all.filter((page) => !page.is_template && (!filter || (page.labels ?? []).includes(filter))),
+    [all, filter],
+  );
   const tree = useMemo(() => buildTree(pages), [pages]);
   const recent = useMemo(() => [...pages].sort((a, b) => b.updated_at - a.updated_at).slice(0, 6), [pages]);
+  const inUse = useMemo(() => {
+    const used = new Set(all.flatMap((page) => page.labels ?? []));
+    return labels.filter((label) => used.has(label.id));
+  }, [all, labels]);
 
   return (
     <>
       <Header title={t('page.listTitle')}>
-        <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
-          <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
-        </button>
+        {inUse.length > 0 && (
+          <MenuButton
+            className="btn sm"
+            items={[
+              { id: 'all', label: t('page.allPages'), hint: filter ? undefined : '✓', onSelect: () => setFilter('') },
+              ...inUse.map((label) => ({
+                id: label.id,
+                section: t('page.filterByLabel'),
+                label: label.name,
+                icon: <span className="dot" style={{ background: label.color }} />,
+                hint: filter === label.id ? '✓' : undefined,
+                onSelect: () => setFilter(label.id),
+              })),
+            ]}
+          >
+            <Icon name="filter" size={14} />
+            <span className="hide-sm">{filter ? byId('label', filter)?.name ?? t('page.filterByLabel') : t('page.filterByLabel')}</span>
+          </MenuButton>
+        )}
+        {templates.length > 0 && (
+          <MenuButton
+            className="btn sm"
+            items={templates.map((template) => ({
+              id: template.id,
+              label: `${template.icon ?? '📄'} ${template.title}`,
+              // A copy, not a link: a template is a starting point, and editing
+              // the new page must not edit the template.
+              onSelect: () => navigate(`/pages/${createPage({
+                title: template.title, content: template.content, project_id: template.project_id,
+              }, me)}`),
+            }))}
+          >
+            <Icon name="copy" size={14} />
+            <span className="hide-sm">{t('page.newFromTemplate')}</span>
+          </MenuButton>
+        )}
+        {canWrite && (
+          <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
+            <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
+          </button>
+        )}
       </Header>
       <div className="page">
         {!pages.length ? (
@@ -123,28 +183,38 @@ export function PageDetail() {
   const { confirm, dialog } = useConfirm();
 
   const [editing, setEditing] = useState(false);
-  const [content, setContent] = useState(page?.content ?? '');
   const [title, setTitle] = useState(page?.title ?? '');
   const [history, setHistory] = useState<any[] | null>(null);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [diffing, setDiffing] = useState<string | null>(null);
 
   const children = useQuery(() => list('page', (p) => p.parent_id === id && !p.archived), [id]);
+  const labels = usePageLabels((page ?? { project_id: null }) as any);
+  const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
+  const exportPage = useExport();
+  const printPage = usePrint();
+  const [sharing, setSharing] = useState(false);
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [activeComment, setActiveComment] = useState<string | null>(null);
+  const canWrite = useCanWrite();
   const projects = useQuery(() => list('project'), []);
+  const pageComments = useQuery(() => list('comment', (entry) => entry.page_id === id), [id]);
+
+  // The body is a CRDT, so two people typing at once is a merge rather than a
+  // race. Everything else on this screen still reads `page.content`, which the
+  // server derives from it.
+  const { text: content, setText: setContent, fieldRef, flush, merged } = useCollaborativeText(
+    id, page?.body, page?.content ?? '', editing,
+  );
+
+  // Selecting a passage offers a comment on it; the anchored passages are
+  // painted back onto the rendered page afterwards.
+  const { bubble } = useSelectionAnchor(body, page?.content ?? '', setAnchor);
+  useHighlights(body, page?.content ?? '', pageComments, activeComment, setActiveComment);
 
   useEffect(() => {
-    setContent(page?.content ?? '');
     setTitle(page?.title ?? '');
-  }, [id, page?.content, page?.title]);
-
-  // Autosave while typing: the sync engine debounces the network on top.
-  useEffect(() => {
-    if (!editing || !page || content === page.content) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => update('page', id, { content }), 900);
-    return () => {
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-    };
-  }, [content, editing, id, page]);
+  }, [id, page?.title]);
 
   if (!page) {
     return (
@@ -160,19 +230,50 @@ export function PageDetail() {
   return (
     <>
       <Header title={<span className="row" style={{ gap: 6 }}><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
-        <button className="btn sm" onClick={() => {
-          if (editing) update('page', id, { content, title });
+        <button className="btn sm" hidden={!canWrite} onClick={() => {
+          if (editing) {
+            flush();
+            if (title !== page.title) update('page', id, { title });
+          }
           setEditing(!editing);
         }}>
           {editing ? <><Icon name="check" size={14} /> {t('action.done')}</> : <>{t('action.edit')}</>}
         </button>
         <MenuButton
           className="btn ghost sm icon"
+          label={t('common.moreActions')}
           items={[
             { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
             { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
               onSelect: () => api.pageVersions(id).then(setHistory).catch(() => toast(t('page.historyFailed'))) },
+            { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
+              hint: watching ? '✓' : undefined, onSelect: toggleWatch },
+            { id: 'export', label: t('page.export'), icon: <Icon name="page" size={14} />,
+              onSelect: () => exportPage(page) },
+            { id: 'print', label: t('page.print'), icon: <Icon name="page" size={14} />,
+              onSelect: () => printPage(page) },
+            { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
+              onSelect: () => setSharing(true) },
+            { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
+              icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
+              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
+            ...labelItems(page, labels, t('page.labels')),
+            ...(['workspace', 'project', 'private'] as const).map((access) => ({
+              id: `access-${access}`,
+              section: t('page.access'),
+              label: t(ACCESS_KEY[access]),
+              hint: page.access === access ? '✓' : undefined,
+              onSelect: () => {
+                // `project` access on a page that belongs to no project would
+                // hide it from everybody, including its author.
+                if (access === 'project' && !page.project_id) {
+                  toast(t('page.accessNeedsProject'));
+                  return;
+                }
+                update('page', id, { access });
+              },
+            })),
             { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
               void navigator.clipboard?.writeText(`${location.origin}/pages/${id}`);
               toast(t('common.copied'));
@@ -212,7 +313,11 @@ export function PageDetail() {
                 onBlur={() => update('page', id, { title: title.trim() || t('common.untitled') })}
               />
             </div>
-            <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} />
+            <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} fieldRef={fieldRef} />
+            {/* Quiet, and only while it is true: somebody wanting to know why a
+                sentence appeared under their cursor should be able to find out,
+                and nobody else should have to look at it. */}
+            {merged && <span className="hint" style={{ display: 'block', marginTop: 6 }}>{t('page.mergedIn')}</span>}
           </>
         ) : (
           <>
@@ -221,9 +326,18 @@ export function PageDetail() {
               <span>{author ? t('page.byAuthor', { name: author.name }) : ''}</span>
               <span>· {t('page.updatedAgo', { time: relativeTime(page.updated_at) })}</span>
               {page.project_id && <span>· {byId('project', page.project_id)?.name}</span>}
+              {page.access !== 'workspace' && <span>· {t(ACCESS_KEY[page.access])}</span>}
+              {watching && <span>· {t('page.watching')}</span>}
+              {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
+            <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}><PageLabelChips page={page} /></div>
             {page.content?.trim()
-              ? <Markdown source={page.content} />
+              ? (
+                <div className="annotatable" ref={setBody}>
+                  <Markdown source={page.content} />
+                  {bubble}
+                </div>
+              )
               : <button className="btn" onClick={() => setEditing(true)}>{t('page.startWriting')}</button>}
           </>
         )}
@@ -239,7 +353,38 @@ export function PageDetail() {
             ))}
           </section>
         )}
+
+        {/* Last, and only while reading: the page is the point, the thread is
+            what people said about it — and mid-edit it is simply in the way. */}
+        {!editing && (
+          <section style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
+            <div className="row" style={{ marginBottom: 12 }}>
+              <h3 style={{ fontSize: 14, margin: 0 }}>{t('page.discussion')}</h3>
+              <span className="muted" style={{ fontSize: 12 }}>· {t('annotate.hint')}</span>
+            </div>
+            <Comments
+              target={{ page_id: id }}
+              empty={t('page.noComments')}
+              source={page.content ?? ''}
+              anchor={anchor}
+              onAnchorDone={() => setAnchor(null)}
+              active={activeComment}
+              onPick={(commentId) => {
+                setActiveComment(commentId);
+                body?.querySelector(`mark.anchor[data-comment="${commentId}"]`)
+                  ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              }}
+            />
+          </section>
+        )}
       </div>
+
+      {sharing && (
+        <ShareSheet
+          target={{ kind: 'page', page_id: id, project_id: page.project_id ?? null, name: page.title }}
+          onClose={() => setSharing(false)}
+        />
+      )}
 
       {history && (
         <Sheet title={t('page.history')} onClose={() => setHistory(null)}>
@@ -252,6 +397,7 @@ export function PageDetail() {
                   {shortDate(version.created_at)} · {members.get(version.author_id)?.name ?? t('common.someone')} · {t('page.versionSize', { count: version.size })}
                 </div>
               </div>
+              <button className="btn ghost sm" onClick={() => setDiffing(version.id)}>{t('page.compare')}</button>
               <button
                 className="btn sm"
                 onClick={async () => {
@@ -268,6 +414,7 @@ export function PageDetail() {
           ))}
         </Sheet>
       )}
+      {diffing && <VersionDiff page={page} versionId={diffing} onClose={() => setDiffing(null)} />}
       {dialog}
     </>
   );

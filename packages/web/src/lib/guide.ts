@@ -8,7 +8,7 @@
  */
 export type GuideTarget =
   | 'overview' | 'hierarchy' | 'shortcuts'
-  | 'capture' | 'views' | 'planning' | 'sync' | 'pages' | 'collab' | 'teams' | 'assistant';
+  | 'capture' | 'views' | 'planning' | 'sync' | 'pages' | 'collab' | 'teams' | 'automation' | 'assistant';
 
 export type GuideSection = 'overview' | 'hierarchy' | 'features' | 'shortcuts';
 

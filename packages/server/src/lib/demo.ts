@@ -92,15 +92,19 @@ export function seedDemoData(): boolean {
     return { ...team, id: teamId };
   });
 
+  // Dates that overlap and disagree, so the roadmap has something to show:
+  // one nearly finished, one just starting, one already past its target.
   const projects = [
-    { name: 'Website', key: 'WEB', icon: '🌐', color: '#6366f1', team: teams[0].id, lead: ada },
-    { name: 'Public API', key: 'API', icon: '🔌', color: '#0ea5e9', team: teams[1].id, lead: grace },
-    { name: 'Mobile app', key: 'MOB', icon: '📱', color: '#f59e0b', team: teams[0].id, lead: margaret },
+    { name: 'Website', key: 'WEB', icon: '🌐', color: '#6366f1', team: teams[0].id, lead: ada, from: -60, to: 20 },
+    { name: 'Public API', key: 'API', icon: '🔌', color: '#0ea5e9', team: teams[1].id, lead: grace, from: -20, to: 70 },
+    { name: 'Mobile app', key: 'MOB', icon: '📱', color: '#f59e0b', team: teams[0].id, lead: margaret, from: -90, to: -5 },
   ].map((project) => {
     const row = createProject(ws, project.lead, {
       name: project.name, key: project.key, icon: project.icon, color: project.color, teamId: project.team,
       description: `Everything we ship for ${project.name.toLowerCase()}.`,
     });
+    writeEntity('project', row.id, { start_date: isoDate(project.from), target_date: isoDate(project.to) },
+      { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
     for (const userId of ids) {
       if (userId === project.lead) continue;
       writeEntity('projectMember', uid(), { workspace_id: ws, project_id: row.id, user_id: userId, role: 'member' },
@@ -113,6 +117,14 @@ export function seedDemoData(): boolean {
     const states = all<Row>(`SELECT * FROM states WHERE project_id = ? ORDER BY sort_order`, project.id);
     const stateByGroup = (group: string) => states.find((s) => s.group_key === group) ?? states[0];
     const labels = all<Row>(`SELECT * FROM labels WHERE project_id = ?`, project.id);
+
+    // One column with an agreed limit, so a fresh demo shows what one looks
+    // like — including a column that is over it, which is the interesting case.
+    const started = states.find((state) => state.group_key === 'started');
+    if (started) {
+      writeEntity('state', String(started.id), { wip_limit: 2 },
+        { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
+    }
 
     const cycleId = uid();
     writeEntity('cycle', cycleId, {
@@ -133,6 +145,7 @@ export function seedDemoData(): boolean {
 
     const items = BACKLOG[project.key] ?? [];
     const orders = orderKeys(items.length);
+    let blockedBy: string | null = null;
     items.forEach(([title, group, priority, estimate], index) => {
       const assignee = ids[(index + projects.indexOf(project)) % ids.length];
       const inCycle = group === 'started' || (group === 'unstarted' && index % 2 === 0);
@@ -148,10 +161,31 @@ export function seedDemoData(): boolean {
         labels: index % 3 === 0 && labels.length ? [labels[index % labels.length].id] : [],
         cycle_id: inCycle ? cycleId : null,
         module_id: index % 3 === 0 ? moduleId : null,
-        due_date: index % 4 === 0 ? isoDate(index - 2) : null,
+        // Dated work in pairs — a start and a due date — so the timeline has
+        // bars to draw rather than a row of single days.
+        start_date: index % 2 === 0 ? isoDate(index * 2 - 6) : null,
+        due_date: index % 2 === 0 ? isoDate(index * 2 + 2) : isoDate(index - 2),
         sort_order: orders[index],
         created_by: project.lead,
       }, { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
+
+      // A little time against the work in flight, so the totals and the
+      // timesheet are not a row of zeros on a fresh demo.
+      if (group === 'started' || group === 'completed') {
+        writeEntity('timeEntry', uid(), {
+          workspace_id: ws, project_id: project.id, task_id: row.id, user_id: assignee,
+          minutes: 45 + ((index * 35) % 180), spent_on: isoDate(-(index % 7) - 1),
+          note: null, billable: 1,
+        }, { workspaceId: ws, actorId: assignee, hlc: hlc(), system: true });
+      }
+
+      // A chain of two, so the chart has a dependency to draw and to enforce.
+      if (index === 2) blockedBy = row.id;
+      if (index === 4 && blockedBy) {
+        writeEntity('relation', uid(), {
+          workspace_id: ws, task_id: blockedBy, related_task_id: row.id, kind: 'blocks',
+        }, { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
+      }
 
       if (index === 0) {
         writeEntity('comment', uid(), {

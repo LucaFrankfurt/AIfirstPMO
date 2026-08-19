@@ -41,8 +41,15 @@ function filterFor(entity: EntityName): string {
       return `AND EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.user_id = ${table}.id AND wm.workspace_id = ?1 AND wm.deleted_at IS NULL)`;
     case 'notification':
       return `AND ${table}.user_id = ?2`;
+    case 'intake':
+      // A report about a project is only visible to people who can see the
+      // project — the same rule the tasks it may become already follow.
     case 'task':
     case 'state':
+    case 'taskType':
+    case 'field':
+    case 'fieldValue':
+    case 'baseline':
     case 'cycle':
     case 'module':
     case 'projectMember':
@@ -51,6 +58,12 @@ function filterFor(entity: EntityName): string {
       return `AND ${table}.id IN (${VISIBLE_PROJECTS})`;
     case 'label':
     case 'view':
+    case 'webhook':
+    case 'share':
+    case 'timeEntry':
+      // Time is not private: a lead has to be able to add up the project. It is
+      // scoped to the project like everything else, and an entry with no
+      // project is the writer's own loose time.
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
     case 'page':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
@@ -66,7 +79,7 @@ function filterFor(entity: EntityName): string {
   }
 }
 
-function fetchChanges(scope: Scope, since: number, upto: number): { changes: ChangeSet; cursor: number } {
+function fetchChanges(scope: Scope, since: number, upto: number): { changes: ChangeSet; cursor: number; hasMore: boolean } {
   const raw = new Map<EntityName, Row[]>();
   let cursor = upto;
 
@@ -93,7 +106,11 @@ function fetchChanges(scope: Scope, since: number, upto: number): { changes: Cha
     const included = rows.filter((row) => Number(row.seq) <= cursor).map((row) => serialize(entity, row)!);
     if (included.length) (changes as Record<string, unknown[]>)[entity] = included;
   }
-  return { changes, cursor };
+  // The server is the only side that knows it truncated: it asked for one row
+  // more than a page and got it. The client used to infer this from a page
+  // being exactly full, which is right until a workspace has exactly PAGE_SIZE
+  // changes — and a wrong guess there means a client silently stops syncing.
+  return { changes, cursor, hasMore: cursor < upto };
 }
 
 export function registerSyncRoutes(router: Router): void {
@@ -104,8 +121,8 @@ export function registerSyncRoutes(router: Router): void {
     requireWorkspace(ctx, workspaceId);
     const since = Number(ctx.query.get('since') ?? 0) || 0;
     const upto = currentSeq();
-    const { changes, cursor } = fetchChanges({ workspaceId, userId: auth.userId }, since, upto);
-    const response: PullResponse = { changes, cursor, now: Date.now(), reset: since === 0 };
+    const { changes, cursor, hasMore } = fetchChanges({ workspaceId, userId: auth.userId }, since, upto);
+    const response: PullResponse = { changes, cursor, hasMore, now: Date.now(), reset: since === 0 };
     return response;
   });
 

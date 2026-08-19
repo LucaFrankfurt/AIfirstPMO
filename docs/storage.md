@@ -86,16 +86,30 @@ every uploaded file world-readable to anyone who learns a hash.
 ## Switching backends
 
 Each row in the `files` table records the backend that holds it, so switching is safe: old files
-keep being served from disk while new ones go to S3. To move the existing ones, copy the upload
-directory into the bucket with the same layout (`ab/cd/<hash><ext>`) and update the column:
+keep being served from disk while new ones go to S3. Set `KOLIBRI_STORAGE=s3`, restart, and nothing
+breaks — but the old files are still only on the volume, which is the thing people forget before
+deleting it.
+
+To move them:
+
+```bash
+docker compose exec kolibri kolibri files move s3
+```
+
+It reads each blob from wherever its row says it is, writes it to the new backend, and only then
+updates the row — so an interrupted move leaves an instance that still works, with the rest to do
+next time. The copies on the old backend are left in place on purpose; delete them once a few
+downloads have proved the new ones. `kolibri doctor` counts what is still on the backend this
+instance no longer uses, and `files move disk` goes the other way.
+
+The manual equivalent, if you would rather do it with the object store's own tooling, is to mirror
+the directory into the bucket keeping the `ab/cd/<hash><ext>` layout and then set the column:
 
 ```bash
 mc mirror /var/lib/docker/volumes/kolibri_kolibri-data/_data/uploads local/kolibri
 # then, in the database:
 #   UPDATE files SET storage = 's3';
 ```
-
-Verify a few downloads before deleting anything from the old location.
 
 ## Client-side image handling
 

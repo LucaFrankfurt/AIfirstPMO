@@ -13,8 +13,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '../components/AppShell';
 import {
-  AssistantDiagram, CaptureDiagram, CollaborationDiagram, OverviewDiagram,
-  PagesDiagram, PlanningDiagram, SyncDiagram, ViewsDiagram,
+  AssistantDiagram, AutomationDiagram, CaptureDiagram, CollaborationDiagram,
+  OverviewDiagram, PagesDiagram, PlanningDiagram, SyncDiagram, ViewsDiagram,
 } from '../components/diagrams';
 import { HierarchyExplorer } from '../components/hierarchy';
 import { Icon } from '../components/ui';
@@ -157,7 +157,7 @@ function Features() {
         lead="guide.capture.lead"
         to="/"
         linkLabel="guide.capture.cta"
-        steps={['guide.capture.h1', 'guide.capture.h2', 'guide.capture.h3', 'guide.capture.h4']}
+        steps={['guide.capture.h1', 'guide.capture.h2', 'guide.capture.h3', 'guide.capture.h4', 'guide.capture.h5']}
       >
         <CaptureDiagram />
       </Feature>
@@ -169,7 +169,7 @@ function Features() {
         lead="guide.views.lead"
         to="/projects"
         linkLabel="guide.views.cta"
-        steps={['guide.views.h1', 'guide.views.h2', 'guide.views.h3', 'guide.views.h4']}
+        steps={['guide.views.h1', 'guide.views.h2', 'guide.views.h3', 'guide.views.h4', 'guide.views.h5', 'guide.views.h6', 'guide.views.h7', 'guide.views.h8']}
       >
         <ViewsDiagram />
       </Feature>
@@ -181,7 +181,7 @@ function Features() {
         lead="guide.planning.lead"
         to="/projects"
         linkLabel="guide.planning.cta"
-        steps={['guide.planning.h1', 'guide.planning.h2', 'guide.planning.h3', 'guide.planning.h4']}
+        steps={['guide.planning.h1', 'guide.planning.h2', 'guide.planning.h3', 'guide.planning.h4', 'guide.planning.h5', 'guide.planning.h6']}
       >
         <PlanningDiagram />
       </Feature>
@@ -193,7 +193,7 @@ function Features() {
         lead="guide.sync.lead"
         to="/settings"
         linkLabel="guide.sync.cta"
-        steps={['guide.sync.h1', 'guide.sync.h2', 'guide.sync.h3', 'guide.sync.h4']}
+        steps={['guide.sync.h1', 'guide.sync.h2', 'guide.sync.h3', 'guide.sync.h4', 'guide.sync.h5']}
       >
         <SyncDiagram />
       </Feature>
@@ -205,7 +205,7 @@ function Features() {
         lead="guide.pages.lead"
         to="/pages"
         linkLabel="guide.pages.cta"
-        steps={['guide.pages.h1', 'guide.pages.h2', 'guide.pages.h3', 'guide.pages.h4']}
+        steps={['guide.pages.h1', 'guide.pages.h2', 'guide.pages.h3', 'guide.pages.h4', 'guide.pages.h5', 'guide.pages.h6']}
       >
         <PagesDiagram />
       </Feature>
@@ -239,6 +239,19 @@ function Features() {
             </div>
           ))}
         </div>
+      </Feature>
+
+      <Feature
+        id="automation"
+        icon="refresh"
+        title="guide.automation.title"
+        lead="guide.automation.lead"
+        to="/settings?tab=automation"
+        linkLabel="guide.automation.cta"
+        steps={['guide.automation.h1', 'guide.automation.h2', 'guide.automation.h3', 'guide.automation.h4']}
+      >
+        <AutomationDiagram />
+        <p className="soft" style={{ fontSize: 12.5, marginTop: 10 }}>{t('guide.automation.newProject')}</p>
       </Feature>
 
       <Feature

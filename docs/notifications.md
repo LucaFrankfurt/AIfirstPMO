@@ -9,15 +9,34 @@ missing something — it just means you have to look.
 | Kind | When | Counts as "important" |
 |---|---|---|
 | `assigned` | Someone assigns a task to you (on creation or later) | yes |
-| `mention` | Your `@handle` appears in a comment or a task description | yes |
+| `mention` | Your `@handle` appears in a comment, a task description or a page | yes |
 | `comment` | A comment on a task you are assigned to, subscribed to, or created | no |
+| `comment` | A comment on a page you wrote, or on one you have already commented on | no |
+| `due_soon` | A task you are on is due within two days, or is already past due | yes |
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
 
 Mentions accept what people actually type: `@ada`, `@adalovelace`, `@ada@example.com`. Unknown
 handles are left alone, and mentioning yourself does nothing.
 
+Only a **newly added** handle notifies. A page saves itself while you type, so a rule of "notify
+whoever is named" would ping the same person once a second for a name they were told about at the
+first keystroke; editing the paragraph around a mention says nothing new.
+
+A page has no assignees, so its audience is the people who have shown up: whoever wrote it, and
+whoever has commented on it. Everyone who *can* see a page is the whole workspace, and notifying
+them all would teach people to ignore the bell.
+
+A due-date reminder is sent **once per task per due date**. Moving a deadline is a new deadline and
+earns a new reminder; missing one does not earn a daily repeat of the same sentence.
+
 Notifications are ordinary synced rows, so the inbox works offline and marking something read on
 your phone marks it read on your laptop.
+
+## A summary instead of each one
+
+**Settings → Notifications → A summary instead of each one**: off, daily or weekly. It widens the
+batching window for that person only. Mentions and assignments still go out on the normal window —
+a digest that swallows those is a digest people turn off.
 
 ## Email
 
@@ -98,10 +117,55 @@ Kolibri talks to a relay; it is not a mail server. If mail lands in spam, the fi
 The queue is visible in Settings → Notifications (`pending`), and every attempt records the relay's
 error in `email_queue.last_error`.
 
+## Push
+
+Settings → Notifications turns on a banner for **this device**. Permission belongs to a browser, and
+somebody who wants banners on their phone rarely wants them on the machine the app is already open
+on all day. Permission is only asked for when the switch is pressed: a site that asks on load is a
+site people block, and a blocked permission cannot be asked for a second time.
+
+The push itself **carries nothing**. The usual way to send one encrypts a payload, which means ECDH
+against the browser's key, HKDF, AES-128-GCM and a padding scheme — several hundred lines of
+cryptography to deliver a sentence the app can ask for itself. So Kolibri sends an empty push, which
+the specification allows, and the service worker fetches `/api/notifications/latest` over the same
+origin and the same session. Same notification, none of the crypto, and nothing of yours sitting
+encrypted on a push service's disk.
+
+What is still needed is VAPID: a signed claim that this server is the one that asked to be allowed
+to push. The key pair is generated into the data directory on first use.
+
+| Variable | Meaning |
+|---|---|
+| `KOLIBRI_PUSH` | `false` turns push off entirely |
+| `KOLIBRI_VAPID_PUBLIC` / `KOLIBRI_VAPID_PRIVATE` | Set them to keep subscriptions across a restore into a fresh data directory. Otherwise generated and stored in `vapid.json` |
+| `KOLIBRI_VAPID_SUBJECT` | `mailto:` or a URL, for a push service that wants to complain to somebody |
+
+A subscription that answers `404` or `410` is deleted: that is how a push service says the browser
+threw it away.
+
+## When an address stops working
+
+A `5xx` from the relay is final — retrying it five more times only tells the receiving domain that
+nobody here is listening — so the address is **suppressed** and nothing is queued for it again.
+
+Providers can report the rest. Set `KOLIBRI_BOUNCE_TOKEN` and point the provider's webhook at:
+
+```
+POST /api/mail/bounces
+Authorization: Bearer <KOLIBRI_BOUNCE_TOKEN>
+```
+
+It reads Postmark's shape, Amazon SES over SNS, and an obvious generic one (`{"email":…,
+"type":"bounce"}`). A shared secret rather than a per-provider signature, because every provider
+signs differently and this endpoint does exactly one thing.
+
+Only **permanent** bounces and complaints suppress. A full mailbox or a greylisting is a bad
+afternoon, and cutting somebody off for one is worse than the retry. Suppressed addresses are listed
+in Settings → Notifications and can be cleared — the person it happened to is the one who knows it
+is fixed.
+
 ## What is deliberately not here
 
-- **No daily/weekly digest.** The batching window covers the "too many emails" problem; a scheduled
-  digest is a different feature and is listed in [`TODO.md`](../TODO.md).
 - **No email-to-task inbound.** Receiving mail means running an MTA, which is a much bigger
-  commitment than sending.
-- **No web push.** It needs VAPID keys and a subscription store; also in the to-do list.
+  commitment than sending. A commit *can* reach a task — see the incoming hooks in
+  [`api.md`](api.md).

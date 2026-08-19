@@ -6,11 +6,15 @@
  * handler — the HTTP route and the stdio bridge in `packages/mcp` both call
  * `handleRpc`, so tools only exist in one place.
  */
-import { PRIORITIES, orderKey, type EntityName } from '@kolibri/shared';
+import {
+  PRIORITIES, fieldAppliesTo, fieldValueId, orderKey, parseDuration, readFieldValue, writeFieldValue,
+  type EntityName,
+} from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
 import { createProject, serverClock } from './bootstrap.ts';
+import { instantiateTemplate } from './automation.ts';
 import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, writeEntity } from './repo.ts';
 import { searchWorkspace } from '../routes/search.ts';
 import { uid } from './ids.ts';
@@ -118,11 +122,22 @@ function requireWrite(ctx: McpCtx): void {
   if (!ctx.auth.scopes.has('write')) throw new McpError('This token is read-only', -32000);
 }
 
+/** A JSON column read straight from SQLite, without trusting it to be valid. */
+const safeList = (raw: unknown): string[] => {
+  try {
+    const parsed = JSON.parse(String(raw ?? '[]'));
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
 const taskView = (row: Row) => ({
   id: row.id,
   identifier: row.identifier,
   title: row.title,
   state: get<Row>(`SELECT name, group_key FROM states WHERE id = ?`, row.state_id)?.name ?? null,
+  type: row.type_id ? get<Row>(`SELECT name FROM task_types WHERE id = ?`, row.type_id)?.name ?? null : null,
   priority: row.priority,
   assignees: JSON.parse(row.assignees ?? '[]'),
   labels: JSON.parse(row.labels ?? '[]'),
@@ -135,6 +150,36 @@ const taskView = (row: Row) => ({
   updated_at: row.updated_at,
   url: `${env.publicUrl}/t/${row.id}`,
 });
+
+/**
+ * Answers to a project's own fields, addressed by name because a name is what
+ * an assistant has been told. An unknown name is an error rather than a silent
+ * no-op: a rule that quietly writes nothing is worse than one that complains.
+ */
+function writeCustomFields(task: Row, answers: Record<string, unknown>, workspaceId: string, ctx: McpCtx): void {
+  const fields = all<Row>(
+    `SELECT * FROM custom_fields WHERE project_id = ? AND deleted_at IS NULL AND archived = 0`,
+    task.project_id,
+  );
+  for (const [name, value] of Object.entries(answers)) {
+    const field = fields.find((f) => String(f.name).toLowerCase() === name.toLowerCase() || f.id === name);
+    if (!field) throw new McpError(`No field called "${name}" in this project`);
+    if (!fieldAppliesTo({ type_ids: safeList(field.type_ids) }, task.type_id)) {
+      throw new McpError(`"${field.name}" is not asked on this kind of task`);
+    }
+    writeEntity(
+      'fieldValue',
+      fieldValueId(String(task.id), String(field.id)),
+      {
+        project_id: task.project_id,
+        task_id: task.id,
+        field_id: field.id,
+        value: writeFieldValue(field.kind, value),
+      },
+      writeOpts(workspaceId, ctx),
+    );
+  }
+}
 
 /* -------------------------------------------------------------------- tools */
 
@@ -216,6 +261,7 @@ const TOOLS: ToolDef[] = [
         workspace_id: { type: 'string' },
         project: { type: 'string', description: 'Project id, key or name' },
         state: { type: 'string', description: 'State name or group: backlog, unstarted, started, completed, cancelled' },
+        type: { type: 'string', description: "Kind of work, e.g. Bug — matched by name across the workspace" },
         assignee: { type: 'string', description: 'User id, email or name; use "me" for the token owner' },
         priority: { type: 'string', enum: [...PRIORITIES] },
         cycle: { type: 'string', description: 'Cycle id or name, or "current"' },
@@ -244,6 +290,12 @@ const TOOLS: ToolDef[] = [
           where.push(`EXISTS (SELECT 1 FROM states s WHERE s.id = t.state_id AND (s.group_key = lower(?) OR lower(s.name) = lower(?)))`);
           params.push(String(args.state), String(args.state));
         }
+      }
+      if (args.type) {
+        // By name across the workspace, not by id: "show me the bugs" should
+        // work without knowing that each project has its own Bug row.
+        where.push(`EXISTS (SELECT 1 FROM task_types tt WHERE tt.id = t.type_id AND lower(tt.name) = lower(?))`);
+        params.push(String(args.type));
       }
       if (args.assignee) {
         const userId = args.assignee === 'me' ? ctx.auth.userId : resolveUsers(workspaceId, [args.assignee])[0];
@@ -301,6 +353,18 @@ const TOOLS: ToolDef[] = [
         created_at: task.created_at,
         completed_at: task.completed_at,
         project: get<Row>(`SELECT id, key, name FROM projects WHERE id = ?`, task.project_id),
+        // Only the fields this task's type is actually asked for, so an agent
+        // reading a bug is not offered a feature's questions.
+        fields: all<Row>(
+          `SELECT f.id, f.name, f.kind, f.type_ids, v.value
+             FROM custom_fields f
+             LEFT JOIN field_values v ON v.field_id = f.id AND v.task_id = ? AND v.deleted_at IS NULL
+            WHERE f.project_id = ? AND f.deleted_at IS NULL AND f.archived = 0
+            ORDER BY f.sort_order`,
+          task.id, task.project_id,
+        )
+          .filter((field) => fieldAppliesTo({ type_ids: safeList(field.type_ids) }, task.type_id))
+          .map((field) => ({ name: field.name, kind: field.kind, value: readFieldValue(field.kind, field.value) })),
         subtasks: all<Row>(`SELECT * FROM tasks WHERE parent_id = ? AND deleted_at IS NULL`, task.id).map(taskView),
         relations: all<Row>(
           `SELECT r.kind, t.id, t.identifier, t.title FROM task_relations r JOIN tasks t ON t.id = r.related_task_id
@@ -329,6 +393,7 @@ const TOOLS: ToolDef[] = [
         title: { type: 'string' },
         description: { type: 'string', description: 'Markdown' },
         state: { type: 'string' },
+        type: { type: 'string', description: "Kind of work, e.g. Bug or Feature — see the project's own list" },
         priority: { type: 'string', enum: [...PRIORITIES] },
         assignees: { type: 'array', items: { type: 'string' }, description: 'User ids, emails or names' },
         labels: { type: 'array', items: { type: 'string' }, description: 'Label names; unknown ones are created' },
@@ -353,6 +418,7 @@ const TOOLS: ToolDef[] = [
         title: String(args.title).slice(0, 500),
         description: str(args.description) ?? null,
         state_id: state?.id,
+        type_id: resolveType(project.id, str(args.type))?.id,
         priority: PRIORITIES.includes(args.priority) ? args.priority : 'none',
         assignees: resolveUsers(workspaceId, args.assignees),
         labels: resolveLabels(workspaceId, project.id, args.labels, ctx),
@@ -377,6 +443,7 @@ const TOOLS: ToolDef[] = [
         title: { type: 'string' },
         description: { type: 'string' },
         state: { type: 'string' },
+        type: { type: 'string', description: "Kind of work — see the project's own list" },
         priority: { type: 'string', enum: [...PRIORITIES] },
         assignees: { type: 'array', items: { type: 'string' } },
         labels: { type: 'array', items: { type: 'string' } },
@@ -385,6 +452,11 @@ const TOOLS: ToolDef[] = [
         estimate: { type: ['number', 'null'] },
         cycle: { type: ['string', 'null'] },
         archived: { type: 'boolean' },
+        fields: {
+          type: 'object',
+          description: "The project's own fields, by name — e.g. {\"Severity\": \"Major\"}. Null clears one.",
+          additionalProperties: true,
+        },
         workspace_id: { type: 'string' },
       },
     },
@@ -402,6 +474,11 @@ const TOOLS: ToolDef[] = [
       if (args.archived !== undefined) patch.archived = args.archived ? 1 : 0;
       if (args.assignees !== undefined) patch.assignees = resolveUsers(workspaceId, args.assignees);
       if (args.labels !== undefined) patch.labels = resolveLabels(workspaceId, task.project_id, args.labels, ctx);
+      if (args.type !== undefined) {
+        const type = resolveType(task.project_id, String(args.type));
+        if (!type) throw new McpError(`No kind of work matching "${args.type}" in this project`);
+        patch.type_id = type.id;
+      }
       if (args.state !== undefined) {
         const state = resolveState(task.project_id, String(args.state));
         if (!state) throw new McpError(`No state matching "${args.state}" in this project`);
@@ -411,6 +488,7 @@ const TOOLS: ToolDef[] = [
         patch.cycle_id = args.cycle === null ? null : resolveCycle(workspaceId, String(args.cycle))?.id ?? null;
       }
       const { row } = writeEntity('task', task.id, patch, writeOpts(workspaceId, ctx));
+      if (args.fields && typeof args.fields === 'object') writeCustomFields(row, args.fields, workspaceId, ctx);
       return taskView(row);
     },
   },
@@ -447,6 +525,99 @@ const TOOLS: ToolDef[] = [
     },
   },
   {
+    name: 'log_time',
+    title: 'Log time on a task',
+    description:
+      'Record time already spent. Accepts "90", "1h30", "1.5h" or "1:30". '
+      + 'Defaults to today and to the calling token\'s own user.',
+    schema: {
+      type: 'object',
+      required: ['task', 'amount'],
+      properties: {
+        task: { type: 'string' },
+        amount: { type: 'string', description: 'How long, e.g. 45m, 1h30, 2h' },
+        spent_on: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        note: { type: 'string' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      requireWrite(ctx);
+      const workspaceId = workspaceOf(args, ctx);
+      const task = findTask(String(args.task), workspaceId, ctx);
+      const minutes = parseDuration(String(args.amount));
+      // An unparseable duration must not become a silent zero-minute entry.
+      if (minutes === null || minutes <= 0) throw new McpError(`Cannot read "${args.amount}" as a duration`);
+      const spentOn = args.spent_on ? String(args.spent_on) : new Date().toISOString().slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(spentOn)) throw new McpError('spent_on must be YYYY-MM-DD');
+
+      const { row } = writeEntity('timeEntry', uid(), {
+        workspace_id: workspaceId,
+        project_id: task.project_id,
+        task_id: task.id,
+        user_id: ctx.auth.userId,
+        minutes,
+        spent_on: spentOn,
+        note: args.note ? String(args.note) : null,
+        started_at: null,
+        billable: 1,
+      }, writeOpts(workspaceId, ctx));
+      return { id: row.id, task: task.identifier, minutes, spent_on: spentOn };
+    },
+  },
+  {
+    name: 'list_time',
+    title: 'List logged time',
+    description: 'Time logged, optionally narrowed to one task, one project or a date range.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string' },
+        project: { type: 'string', description: 'Project key or name' },
+        from: { type: 'string', description: 'YYYY-MM-DD, inclusive' },
+        to: { type: 'string', description: 'YYYY-MM-DD, inclusive' },
+        mine: { type: 'boolean', description: 'Only the calling user\'s own entries' },
+        limit: { type: 'number', default: 100 },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const where: string[] = ['t.workspace_id = ?', 't.deleted_at IS NULL'];
+      const params: unknown[] = [workspaceId];
+
+      if (args.task) {
+        where.push('t.task_id = ?');
+        params.push(findTask(String(args.task), workspaceId, ctx).id);
+      }
+      if (args.project) {
+        where.push('t.project_id = ?');
+        params.push(findProject(String(args.project), workspaceId, ctx).id);
+      }
+      if (args.from) { where.push('t.spent_on >= ?'); params.push(String(args.from)); }
+      if (args.to) { where.push('t.spent_on <= ?'); params.push(String(args.to)); }
+      if (args.mine) { where.push('t.user_id = ?'); params.push(ctx.auth.userId); }
+
+      const rows = all<Row>(
+        `SELECT t.id, t.minutes, t.spent_on, t.note, t.started_at, t.user_id,
+                u.name AS user_name, k.identifier AS task, p.name AS project
+           FROM time_entries t
+           LEFT JOIN users u ON u.id = t.user_id
+           LEFT JOIN tasks k ON k.id = t.task_id
+           LEFT JOIN projects p ON p.id = t.project_id
+          WHERE ${where.join(' AND ')}
+          ORDER BY t.spent_on DESC, t.created_at DESC
+          LIMIT ?`,
+        ...params, Math.min(Number(args.limit ?? 100) || 100, 500),
+      );
+      return {
+        entries: rows.map((row) => ({ ...row, running: !!row.started_at })),
+        total_minutes: rows.reduce((sum, row) => sum + Number(row.minutes ?? 0), 0),
+      };
+    },
+  },
+  {
     name: 'search',
     title: 'Search',
     description: 'Full-text search across tasks, pages, projects, cycles and comments.',
@@ -464,6 +635,71 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       return searchWorkspace(workspaceId, ctx.auth.userId, String(args.query), Math.min(Number(args.limit ?? 20) || 20, 100), args.kinds);
+    },
+  },
+  {
+    name: 'list_templates',
+    title: 'List task templates',
+    description: 'Pre-written tasks that can be filed with apply_template, including the checklist each one carries.',
+    readOnly: true,
+    schema: { type: 'object', properties: { project: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      return all<Row>(
+        `SELECT * FROM templates
+          WHERE workspace_id = ? AND archived = 0 AND deleted_at IS NULL
+            ${project ? 'AND (project_id IS NULL OR project_id = ?)' : ''}
+          ORDER BY name`,
+        ...(project ? [workspaceId, project.id] : [workspaceId]),
+      ).map((template) => ({
+        id: template.id,
+        name: template.name,
+        kind: template.kind,
+        project_id: template.project_id,
+        title: template.title,
+        description: template.description,
+        subtasks: JSON.parse(String(template.subtasks ?? '[]')),
+      }));
+    },
+  },
+  {
+    name: 'apply_template',
+    title: 'File a task from a template',
+    description: 'Creates a real task from a template, with its checklist as sub-tasks. Same path the automations use.',
+    schema: {
+      type: 'object',
+      required: ['template'],
+      properties: {
+        template: { type: 'string', description: 'Template id or exact name' },
+        project: { type: 'string', description: 'Project key or name; defaults to the template\'s own project' },
+        assignees: { type: 'array', items: { type: 'string' }, description: 'User ids' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const needle = String(args.template);
+      const template = get<Row>(
+        `SELECT * FROM templates WHERE workspace_id = ? AND deleted_at IS NULL AND (id = ? OR name = ?) LIMIT 1`,
+        workspaceId, needle, needle,
+      );
+      if (!template) throw new McpError(`No template called ${needle}`);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      const projectId = project?.id ?? template.target_project_id ?? template.project_id;
+      if (!projectId) throw new McpError('This template has no project — pass one');
+      if (!canSeeProject(ctx.auth.userId, String(projectId))) throw new McpError('Project is private');
+
+      const row = get<Row>(`SELECT name FROM projects WHERE id = ?`, projectId);
+      const actor = get<Row>(`SELECT name FROM users WHERE id = ?`, ctx.auth.userId);
+      const task = instantiateTemplate(template, {
+        workspaceId,
+        actorId: ctx.auth.userId,
+        projectId: String(projectId),
+        assignees: Array.isArray(args.assignees) ? (args.assignees as string[]) : undefined,
+        vars: { project: String(row?.name ?? ''), actor: String(actor?.name ?? '') },
+      });
+      return { id: task.id, identifier: task.identifier, title: task.title, url: `${env.publicUrl}/t/${task.id}` };
     },
   },
   {
@@ -712,6 +948,19 @@ function resolveCycle(workspaceId: string, ref: string): Row | undefined {
     );
   }
   return get<Row>(`SELECT * FROM cycles WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL`, workspaceId, ref, ref);
+}
+
+/**
+ * A kind of work, by name or id. Unknown names resolve to nothing rather than
+ * creating a type: labels are cheap to invent, the list of what a team calls
+ * its work is not.
+ */
+function resolveType(projectId: string, ref?: string): Row | undefined {
+  if (!ref) return undefined;
+  return get<Row>(
+    `SELECT * FROM task_types WHERE project_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?)) LIMIT 1`,
+    projectId, ref, ref,
+  );
 }
 
 function resolveLabels(workspaceId: string, projectId: string, refs: unknown, ctx: McpCtx): string[] {

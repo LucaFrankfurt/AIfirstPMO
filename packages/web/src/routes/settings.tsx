@@ -5,14 +5,20 @@ import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../
 import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useSession } from '../session';
-import { LOCALE_NAMES, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
+import { AutomationSettings } from './automation';
+import { Trash } from '../components/trash';
+import { AuditLog, Webhooks } from '../components/admin';
+import { Sessions, TwoFactor } from '../components/security';
+import { downscale } from '../components/Markdown';
+import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
+import { PushToggle } from '../components/push';
 
-type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'api' | 'data';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
 
 const TAB_KEY: Record<Tab, TranslationKey> = {
   profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
   workspace: 'settings.tabWorkspace', members: 'settings.tabMembers',
-  api: 'settings.tabApi', data: 'settings.tabData',
+  automation: 'settings.tabAutomation', api: 'settings.tabApi', data: 'settings.tabData',
 };
 
 const ROLES = ['owner', 'admin', 'member', 'guest'] as const;
@@ -43,6 +49,7 @@ export function Settings() {
         {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
         {tab === 'members' && <Members />}
+        {tab === 'automation' && <AutomationSettings />}
         {tab === 'api' && <ApiSettings />}
         {tab === 'data' && <DataSettings />}
       </div>
@@ -54,21 +61,59 @@ export function Settings() {
 
 function Profile() {
   const { t, locale, setLocale } = useI18n();
-  const { user, refresh } = useSession();
+  const { user, refresh, workspaceId } = useSession();
   const [theme, setTheme] = useTheme();
   const toast = useToast();
   const [name, setName] = useState(user?.name ?? '');
   const [bio, setBio] = useState(user?.bio ?? '');
   const [passwords, setPasswords] = useState({ current: '', next: '' });
+  const [uploading, setUploading] = useState(false);
 
   return (
     <>
       <div className="row" style={{ marginBottom: 18 }}>
         <Avatar user={user ?? undefined} size={48} />
-        <div>
+        <div className="grow">
           <strong>{user?.name}</strong>
           <div className="muted" style={{ fontSize: 12.5 }}>{user?.email}</div>
         </div>
+        <label className="btn sm">
+          {uploading ? t('editor.uploading') : t('profile.changePicture')}
+          <input
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={async (event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (!file || !workspaceId) return;
+              setUploading(true);
+              try {
+                // Through the same downscale as an inline image: a 4 MB photo
+                // as a 24px avatar is bytes nobody asked for.
+                const result = await api.upload(workspaceId, await downscale(file, 256), file.name);
+                await api.patch('/api/me', { avatar_url: result.url });
+                await refresh();
+                toast(t('profile.pictureChanged'));
+              } catch (error) {
+                toast(error instanceof Error ? error.message : String(error));
+              } finally {
+                setUploading(false);
+              }
+            }}
+          />
+        </label>
+        {user?.avatar_url && (
+          <button
+            className="btn ghost sm"
+            onClick={async () => {
+              await api.patch('/api/me', { avatar_url: null });
+              await refresh();
+            }}
+          >
+            {t('profile.removePicture')}
+          </button>
+        )}
       </div>
 
       <div className="field">
@@ -104,9 +149,14 @@ function Profile() {
           await refresh();
         }}
       >
-        {Object.entries(LOCALE_NAMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
       </select>
       <span className="hint" style={{ display: 'block', marginTop: 4 }}>{t('profile.languageHint')}</span>
+      {/* Said where it is chosen, so nobody finds out from an odd sentence
+          three screens later. */}
+      {UNREVIEWED[locale] && (
+        <span className="hint warn" style={{ display: 'block', marginTop: 2 }}>{t('profile.languageUnreviewed')}</span>
+      )}
 
       <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.appearance')}</h3>
       <div className="row" style={{ gap: 6 }}>
@@ -150,6 +200,9 @@ function Profile() {
           {t('profile.changePassword')}
         </button>
       </div>
+
+      <TwoFactor />
+      <Sessions />
     </>
   );
 }
@@ -179,11 +232,54 @@ const batchWindow = (t: Translate, seconds: number): string => {
   return minutes === 1 ? t('notify.windowMinute') : t('notify.windowMinutes', { count: minutes });
 };
 
+/**
+ * Addresses the instance has stopped writing to.
+ *
+ * Shown rather than hidden, because "they never got the invite" is otherwise an
+ * unanswerable question — and clearable, because a full mailbox is temporary
+ * and the person it happened to is the one who knows it is fixed.
+ */
+function Suppressions() {
+  const t = useT();
+  const toast = useToast();
+  const [rows, setRows] = useState<{ email: string; reason: string; detail: string | null }[]>([]);
+
+  const load = () => api.get<any[]>('/api/mail/suppressions').then(setRows).catch(() => setRows([]));
+  useEffect(() => { void load(); }, []);
+
+  if (!rows.length) return null;
+
+  return (
+    <>
+      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('mail.suppressed')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('mail.suppressedHint')}</p>
+      {rows.map((row) => (
+        <div className="row" key={row.email} style={{ gap: 8, padding: '5px 0' }}>
+          <span className="grow truncate" style={{ fontSize: 13 }}>{row.email}</span>
+          <span className="muted" style={{ fontSize: 12 }} title={row.detail ?? ''}>{row.reason}</span>
+          <button
+            className="btn sm"
+            onClick={async () => {
+              await api.delete(`/api/mail/suppressions/${encodeURIComponent(row.email)}`);
+              toast(t('notify.saved'));
+              void load();
+            }}
+          >
+            {t('mail.allowAgain')}
+          </button>
+        </div>
+      ))}
+    </>
+  );
+}
+
 function Notifications() {
   const t = useT();
   const toast = useToast();
   const [status, setStatus] = useState<MailStatus | null>(null);
   const [busy, setBusy] = useState(false);
+  const { user } = useSession();
+  const [digest, setDigest] = useState<string>(user?.digest ?? 'off');
 
   const load = () => api.get<MailStatus>('/api/mail/status').then(setStatus).catch(() => setStatus(null));
   useEffect(() => {
@@ -201,6 +297,26 @@ function Notifications() {
       <p className="muted" style={{ fontSize: 13 }}>
         {t('notify.intro', { window: batchWindow(t, status?.batchSeconds ?? 120) })}
       </p>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.digest')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('notify.digestHint')}</p>
+      <div className="row wrap" style={{ gap: 6, marginBottom: 6 }}>
+        {(['off', 'daily', 'weekly'] as const).map((option) => (
+          <button
+            key={option}
+            className={`btn sm${digest === option ? ' active' : ''}`}
+            style={digest === option ? { background: 'var(--bg-active)' } : undefined}
+            aria-pressed={digest === option}
+            onClick={async () => {
+              setDigest(option);
+              await api.patch('/api/me', { digest: option });
+              toast(t('notify.saved'));
+            }}
+          >
+            {t(option === 'off' ? 'notify.digestOff' : option === 'daily' ? 'notify.digestDaily' : 'notify.digestWeekly')}
+          </button>
+        ))}
+      </div>
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.emailAbout')}</h3>
       <div className="col" style={{ gap: 6 }}>
@@ -223,6 +339,10 @@ function Notifications() {
           </button>
         ))}
       </div>
+
+      <PushToggle />
+
+      <Suppressions />
 
       <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('notify.delivery')}</h3>
       {status?.mode === 'test-inbox' && (
@@ -555,6 +675,18 @@ function DataSettings() {
 
   return (
     <>
+      <AuditLog />
+
+      <div className="divider" style={{ margin: '22px 0' }} />
+
+      <Webhooks />
+
+      <div className="divider" style={{ margin: '22px 0' }} />
+
+      <Trash />
+
+      <div className="divider" style={{ margin: '22px 0' }} />
+
       <h3 style={{ fontSize: 14, marginBottom: 8 }}>{t('data.offlineCopy')}</h3>
       <p className="muted" style={{ fontSize: 13 }}>{t('data.offlineIntro')}</p>
       <GuideHint to="sync" />

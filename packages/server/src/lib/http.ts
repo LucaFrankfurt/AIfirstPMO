@@ -87,7 +87,25 @@ export async function readBody(req: IncomingMessage, limit: number): Promise<Buf
   return Buffer.concat(chunks);
 }
 
+/**
+ * Content types a browser will send cross-site without asking permission first.
+ *
+ * A cross-site form or `sendBeacon` can only produce these three. Anything
+ * else — `application/json` included — has to pass a CORS preflight, which this
+ * server does not grant to other origins.
+ */
+const SIMPLE_TYPES = new Set(['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain']);
+
 export async function readJson<T = unknown>(ctx: Ctx, limit = 8 * 1024 * 1024): Promise<T> {
+  // CSRF is already prevented by `SameSite=Lax` cookies, which is one browser
+  // default away from being the only thing standing there. Refusing the three
+  // content types a cross-site form can produce costs nothing and removes the
+  // dependency: a forged POST cannot dress itself up as JSON.
+  const declared = String(ctx.req.headers['content-type'] ?? '').split(';')[0].trim().toLowerCase();
+  if (SIMPLE_TYPES.has(declared)) {
+    throw new HttpError(415, 'Send this as application/json', 'unsupported_media_type');
+  }
+
   const raw = await readBody(ctx.req, limit);
   if (!raw.length) return {} as T;
   try {

@@ -48,6 +48,16 @@ async function api<T = any>(path: string, options: Options = {}): Promise<T> {
   return payload as T;
 }
 
+/** How many mention notifications one person is holding, counted as them. */
+async function countMentions(workspace: string, email: string, password: string): Promise<number> {
+  const caller = cookie;
+  cookie = '';
+  await api('/api/auth/login', { body: { email, password } });
+  const notifications = await api<any[]>(`/api/workspaces/${workspace}/notifications`);
+  cookie = caller;
+  return notifications.filter((n) => n.kind === 'mention').length;
+}
+
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -215,6 +225,38 @@ describe('kolibri api', () => {
     assert.equal(versions[0].title, 'Runbook');
   });
 
+  it('stores a saved view with every part of what it shows', async () => {
+    // `show_done` was added after the first release. A column missing from the
+    // entity registry is not an error anywhere — it is simply dropped on the
+    // way in — so the interesting assertion is that it comes back at all.
+    const view = await api(`/api/workspaces/${workspaceId}/views`, {
+      body: {
+        project_id: projectId,
+        name: 'Mine, unfinished',
+        layout: 'board',
+        group_by: 'assignee',
+        order_by: 'due_date',
+        filters: { priority: ['urgent'] },
+        show_done: 0,
+        shared: 0,
+      },
+    });
+
+    const [stored] = await api(`/api/workspaces/${workspaceId}/views`);
+    assert.equal(stored.id, view.id);
+    assert.equal(stored.show_done, 0, 'the column survived the registry');
+    assert.equal(stored.shared, 0);
+    assert.equal(stored.layout, 'board');
+    assert.deepEqual(stored.filters, { priority: ['urgent'] }, 'filters are JSON, not a string');
+
+    // Saving over a view has to be able to turn a flag back on. A patch that
+    // treats 0 as "unset" would make a hidden-done view impossible to undo.
+    await api(`/api/views/${view.id}`, { method: 'PATCH', body: { show_done: 1, shared: 1 } });
+    const [updated] = await api(`/api/workspaces/${workspaceId}/views`);
+    assert.equal(updated.show_done, 1);
+    assert.equal(updated.shared, 1);
+  });
+
   it('issues API tokens and speaks MCP', async () => {
     const created = await api('/api/tokens', { body: { name: 'mcp', workspaceId } });
     apiToken = created.token;
@@ -248,6 +290,56 @@ describe('kolibri api', () => {
       body: { jsonrpc: '2.0', id: 4, method: 'initialize', params: { protocolVersion: '2025-06-18' } },
     });
     assert.equal(initialize.result.serverInfo.name, 'kolibri');
+  });
+
+  it('gives a new project its kinds of work, and a new task the default one', async () => {
+    const types = await api(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
+    assert.deepEqual(types.map((type: any) => type.name), ['Task', 'Bug', 'Feature']);
+    assert.equal(types.filter((type: any) => type.is_default).length, 1, 'exactly one is the default');
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Typed by default' } });
+    assert.equal(task.type_id, types.find((type: any) => type.is_default).id);
+
+    // And an explicit type is kept rather than overwritten by the default.
+    const bug = types.find((type: any) => type.name === 'Bug');
+    const explicit = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: projectId, title: 'A real bug', type_id: bug.id },
+    });
+    assert.equal(explicit.type_id, bug.id);
+  });
+
+  it('files and finds work by its kind over MCP', async () => {
+    const filed = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 30, method: 'tools/call',
+        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Crash on save', type: 'Bug' } },
+      },
+    });
+    assert.equal(filed.result.structuredContent.type, 'Bug', 'the view says what kind it is');
+
+    const bugs = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 31, method: 'tools/call',
+        params: { name: 'list_tasks', arguments: { project: 'WEB', type: 'Bug' } },
+      },
+    });
+    // `list_tasks` returns an array, which the dispatcher wraps as `result`.
+    const titles = bugs.result.structuredContent.result.map((task: any) => task.title);
+    assert.ok(titles.includes('Crash on save'));
+    assert.ok(!titles.includes('Typed by default'), 'and only that kind');
+
+    // A kind the project does not have is refused rather than invented: the
+    // list of what a team calls its work is not something a tool should add to.
+    const invented = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 32, method: 'tools/call',
+        params: { name: 'update_task', arguments: { task: 'WEB-1', type: 'Epic' } },
+      },
+    });
+    assert.ok(invented.error, 'an unknown kind is an error, not a new type');
   });
 
   it('refuses writes from a read-only token', async () => {
@@ -284,6 +376,136 @@ describe('kolibri api', () => {
     assert.ok(mention, 'the mentioned user gets a notification');
     assert.equal(mention.user_id, linId);
     assert.match(mention.title, /mentioned/i);
+
+    cookie = adaCookie;
+  });
+
+  it('tracks time spent, and adds it up', async () => {
+    const first = await api(`/api/workspaces/${workspaceId}/time-entries`, {
+      body: { task_id: taskId, project_id: projectId, minutes: 90, spent_on: '2026-08-17', note: 'pairing' },
+    });
+    assert.equal(first.minutes, 90);
+    assert.equal(first.spent_on, '2026-08-17');
+
+    // A running timer is a row with a start and no minutes yet, which is what
+    // lets it survive a reload, a second device and being offline.
+    const timer = await api(`/api/workspaces/${workspaceId}/time-entries`, {
+      body: { task_id: taskId, project_id: projectId, minutes: 0, spent_on: '2026-08-18', started_at: 1_755_500_000_000 },
+    });
+    assert.equal(timer.started_at, 1_755_500_000_000);
+    assert.equal(timer.minutes, 0);
+
+    const stopped = await api(`/api/time-entries/${timer.id}`, {
+      method: 'PATCH', body: { minutes: 25, started_at: null },
+    });
+    assert.equal(stopped.minutes, 25);
+    assert.equal(stopped.started_at, null, 'stopping clears the clock rather than leaving it running');
+
+    const entries = await api(`/api/workspaces/${workspaceId}/time-entries`);
+    assert.equal(entries.reduce((sum: number, entry: any) => sum + entry.minutes, 0), 115);
+  });
+
+  it('logs time over MCP the way a person does over the form', async () => {
+    const logged = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 20, method: 'tools/call',
+        params: { name: 'log_time', arguments: { task: 'WEB-1', amount: '1h30', note: 'review' } },
+      },
+    });
+    assert.equal(logged.result.structuredContent.minutes, 90, 'the same shorthand the form takes');
+
+    // A duration nobody can read must not become a silent zero-minute entry.
+    const nonsense = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 21, method: 'tools/call',
+        params: { name: 'log_time', arguments: { task: 'WEB-1', amount: 'a while' } },
+      },
+    });
+    assert.ok(nonsense.error, 'an unreadable amount is refused, not rounded to nothing');
+    assert.match(nonsense.error.message, /duration/i, 'and the message says what was wrong');
+
+    const listed = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 22, method: 'tools/call',
+        params: { name: 'list_time', arguments: { task: 'WEB-1' } },
+      },
+    });
+    // WEB-1 is the task the previous case logged 115 minutes against, so the
+    // total is everybody's time on it, not just what this token just added.
+    assert.equal(listed.result.structuredContent.total_minutes, 205);
+    assert.ok(listed.result.structuredContent.entries.every((entry: any) => entry.task === 'WEB-1'));
+
+    const mine = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 23, method: 'tools/call',
+        params: { name: 'list_time', arguments: { task: 'WEB-1', from: '2026-08-18' } },
+      },
+    });
+    assert.ok(
+      mine.result.structuredContent.entries.every((entry: any) => entry.spent_on >= '2026-08-18'),
+      'a date range narrows it',
+    );
+  });
+
+  it('carries a conversation on a page, not only on a task', async () => {
+    const adaCookie = cookie;
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Release checklist', content: 'Steps to follow before shipping.' },
+    });
+
+    // Lin joins the conversation first, so Ada has somebody to be told about.
+    cookie = '';
+    await api('/api/auth/login', { body: { email: 'lin@example.com', password: 'yet another pass' } });
+    const linCookie = cookie;
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { page_id: page.id, body: 'Should the database backup step come first?' },
+    });
+
+    cookie = adaCookie;
+    const adaInbox = await api(`/api/workspaces/${workspaceId}/notifications`);
+    const told = adaInbox.find((n: any) => n.page_id === page.id && n.kind === 'comment');
+    assert.ok(told, 'the person who wrote the page hears about a comment on it');
+    assert.match(told.title, /Release checklist/, 'and the title says which page');
+
+    // Ada replies. Lin has spoken on this page, so Lin is part of its audience
+    // now — a page has no assignees for the audience to be read from.
+    await api(`/api/workspaces/${workspaceId}/comments`, {
+      body: { page_id: page.id, body: 'Yes — I will reorder it.' },
+    });
+    cookie = linCookie;
+    const linInbox = await api(`/api/workspaces/${workspaceId}/notifications`);
+    assert.ok(
+      linInbox.some((n: any) => n.page_id === page.id && n.kind === 'comment'),
+      'whoever has commented is part of the conversation from then on',
+    );
+
+    cookie = adaCookie;
+  });
+
+  it('notices a mention written into a page, and only says so once', async () => {
+    const adaCookie = cookie;
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Onboarding', content: 'First draft.' },
+    });
+    const before = (await countMentions(workspaceId, 'lin@example.com', 'yet another pass'));
+
+    cookie = adaCookie;
+    await api(`/api/pages/${page.id}`, {
+      method: 'PATCH', body: { content: 'First draft. @lin can you check the account section?' },
+    });
+    assert.equal(await countMentions(workspaceId, 'lin@example.com', 'yet another pass') - before, 1, 'a mention in a page body counts');
+
+    // A page autosaves while you type, so every keystroke arrives as another
+    // write with the same name in it. Being told once is the whole point.
+    cookie = adaCookie;
+    await api(`/api/pages/${page.id}`, {
+      method: 'PATCH', body: { content: 'First draft. @lin can you check the account section? Thanks.' },
+    });
+    assert.equal(await countMentions(workspaceId, 'lin@example.com', 'yet another pass') - before, 1, 'editing around it says nothing new');
 
     cookie = adaCookie;
   });

@@ -1,9 +1,13 @@
-import { ENTITIES, entityDef, hlcGreater, type EntityName } from '@kolibri/shared';
+import { ENTITIES, crdt, entityDef, hlcGreater, reschedule, type CrdtState, type EntityName } from '@kolibri/shared';
 import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
-import { badRequest, notFound } from './http.ts';
-import { uid } from './ids.ts';
+import { badRequest, forbidden, notFound } from './http.ts';
+import { shareToken, token, uid } from './ids.ts';
 import { publish } from './bus.ts';
+import { runAutomations } from './automation.ts';
+import { notifyDevices } from './push.ts';
 import { translatorFor } from './i18n.ts';
+import { env } from '../env.ts';
+import { dispatch } from './webhooks.ts';
 
 type Translator = ReturnType<typeof translatorFor>;
 
@@ -36,7 +40,11 @@ export function serialize(entity: EntityName, row: Row | undefined): Row | undef
   if (!row) return undefined;
   const def = ENTITIES[entity];
   const out: Row = { id: row.id };
+  // `secret` fields are absent by construction rather than deleted afterwards:
+  // a field that is never added cannot be forgotten in one code path.
+  const hidden = new Set((def as { secret?: readonly string[] }).secret ?? []);
   for (const field of [...def.fields, ...((def as { serverOnly?: readonly string[] }).serverOnly ?? [])]) {
+    if (hidden.has(field)) continue;
     let value = row[field];
     if (isJsonField(entity, field)) {
       try {
@@ -93,9 +101,18 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     if (opts.system) for (const f of def.serverOnly ?? []) writable.add(f);
     else for (const f of def.serverOnly ?? []) writable.delete(f);
 
+    const merging = new Set<string>(def.crdt ?? []);
     const values: Record<string, unknown> = {};
     for (const [field, value] of Object.entries(patch)) {
       if (!writable.has(field)) continue;
+      // A merged field has no stale write. Two devices that edited the same
+      // page while apart both have something to contribute, and whichever
+      // arrives second is not the loser — that is the whole point of it.
+      if (merging.has(field)) {
+        values[field] = mergeCrdt(existing?.[field], value);
+        clocks[field] = opts.hlc;
+        continue;
+      }
       if (!opts.system && !hlcGreater(opts.hlc, clocks[field])) continue; // stale write, drop it
       values[field] = isJsonField(entity, field) && typeof value === 'object' ? JSON.stringify(value) : normalize(value);
       clocks[field] = opts.hlc;
@@ -112,6 +129,10 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
 
     if (!created && Object.keys(values).length === 0) {
       return { row: existing!, forced: {}, created: false };
+    }
+
+    if (entity === 'task' && values.state_id !== undefined && !opts.system) {
+      guardTransition(String(values.state_id), opts);
     }
 
     const forced = created ? applyCreateDefaults(entity, id, values, opts) : {};
@@ -187,6 +208,17 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
         ?? get<Row>(`SELECT id FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id)?.id;
       if (fallback) setForced('state_id', fallback);
     }
+    if (!values.type_id) {
+      // Whichever the project marked default, or simply the first one. A task
+      // with no type is allowed — projects created before types existed have
+      // none — but a new one should not start that way.
+      const fallback = get<Row>(
+        `SELECT id FROM task_types WHERE project_id = ? AND deleted_at IS NULL
+          ORDER BY is_default DESC, sort_order LIMIT 1`,
+        project.id,
+      )?.id;
+      if (fallback) setForced('type_id', fallback);
+    }
     if (!values.created_by) setForced('created_by', opts.actorId);
     if (!values.sort_order) setForced('sort_order', 'V');
     if (!values.subscribers) values.subscribers = JSON.stringify([opts.actorId]);
@@ -196,16 +228,135 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
   if (entity === 'comment' && !values.author_id) setForced('author_id', opts.actorId);
   if (entity === 'attachment' && !values.uploaded_by) setForced('uploaded_by', opts.actorId);
   if (entity === 'view' && !values.owner_id) setForced('owner_id', opts.actorId);
+  // Time is logged by whoever is logging it. Filing it under somebody else is
+  // a timesheet-approval feature, not a field a client gets to set casually.
+  if (entity === 'timeEntry') {
+    setForced('user_id', opts.actorId);
+    if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
+  }
   if (entity === 'project') {
     if (!values.key) setForced('key', `P${id.slice(0, 4).toUpperCase()}`);
     if (!values.name) setForced('name', 'Untitled project');
+  }
+  if (entity === 'webhook') {
+    // Outgoing: what the receiver verifies the signature with. Incoming: the
+    // unguessable part of the URL. Minted here either way, because a secret a
+    // client chose is a secret somebody else can guess.
+    setForced('secret', token());
+    if (!values.created_by) setForced('created_by', opts.actorId);
+    // An incoming hook has no URL to post to — it *is* one.
+    if (!values.url) setForced('url', '');
+  }
+  if (entity === 'share') {
+    // The token is the whole of the authorisation, so it is minted here from
+    // the system's randomness — never taken from whoever asked for the link.
+    setForced('token', shareToken());
+    if (!values.created_by) setForced('created_by', opts.actorId);
   }
   return forced;
 }
 
 /** Rules the server enforces regardless of what a client sent. */
 function applyInvariants(entity: EntityName, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
-  if (entity !== 'task') return;
+  // A project cannot sit under itself, directly or at any remove. Two devices
+  // can each make a legal move that is a loop together, so this is checked on
+  // write rather than trusted to the interface.
+  if (entity === 'project' && values.parent_id !== undefined && existing) {
+    if (wouldLoop(String(existing.id), values.parent_id as string | null)) {
+      values.parent_id = existing.parent_id ?? null;
+      forced.parent_id = values.parent_id;
+    }
+  }
+  if (entity === 'task') applyTaskInvariants(values, existing, forced);
+  if (entity === 'page') applyPageInvariants(values, existing, forced);
+}
+
+/**
+ * Keep a page's text and its CRDT saying the same thing.
+ *
+ * Two directions, and which one applies is decided by what the writer sent:
+ *
+ * - A **`body`** means an editor that understands the CRDT. `content` is
+ *   whatever the merged state reads as, and any `content` sent alongside is
+ *   ignored — it was computed before the merge and is now out of date.
+ * - A **`content`** on its own means somebody who does not: the API, MCP, an
+ *   import, a rule. That is a replacement and it says so — the CRDT is rebuilt
+ *   from the text, because a caller who sent a whole document meant the whole
+ *   document, and quietly merging it into somebody's half-finished paragraph
+ *   would be the surprising reading of it.
+ */
+function applyPageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  if (values.body !== undefined && values.body !== null) {
+    const text = crdt.textOf(safeCrdt(values.body));
+    values.content = text;
+    forced.content = text;
+    return;
+  }
+  if (values.content !== undefined) {
+    const state = crdt.fromText(String(values.content ?? ''), 'server');
+    values.body = JSON.stringify(state);
+    forced.body = state;
+  } else if (existing && !existing.body && existing.content) {
+    // A page written before any of this existed gets its CRDT the first time
+    // anything else about it is touched, rather than on a migration that would
+    // have to rewrite every row at once.
+    values.body = JSON.stringify(crdt.fromText(String(existing.content), 'server'));
+  }
+}
+
+const safeCrdt = (value: unknown): CrdtState | null => {
+  if (typeof value !== 'string') return (value ?? null) as CrdtState | null;
+  try { return JSON.parse(value) as CrdtState; } catch { return null; }
+};
+
+const ROLE_RANK: Record<string, number> = { guest: 0, member: 1, admin: 2, owner: 3 };
+
+/**
+ * Who may move a task into a column.
+ *
+ * A state can name the workspace roles allowed to receive work — "only a lead
+ * marks something done". Empty means anybody who can write, which is every
+ * column until somebody says otherwise. Checked here rather than in the
+ * interface, because the interface is not the only way in: REST, MCP and a
+ * phone that was offline all come through this function.
+ *
+ * Rules never apply to the server's own writes: an automation, an import or a
+ * recurrence rolling a task forward is not a person moving a card.
+ */
+function guardTransition(stateId: string, opts: WriteOpts): void {
+  const state = get<Row>(`SELECT name, allowed_roles FROM states WHERE id = ?`, stateId);
+  if (!state) return;
+  let allowed: string[] = [];
+  try {
+    const parsed = JSON.parse(String(state.allowed_roles ?? '[]'));
+    if (Array.isArray(parsed)) allowed = parsed.map(String);
+  } catch { /* a column with an unreadable rule is a column with no rule */ }
+  if (!allowed.length) return;
+
+  const role = get<Row>(
+    `SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    opts.workspaceId, opts.actorId,
+  )?.role as string | undefined;
+  // A role that outranks every role named is allowed: naming "member" and
+  // meaning "and not an owner" is not what anybody writes down.
+  const bar = Math.min(...allowed.map((name) => ROLE_RANK[name] ?? 99));
+  if (role && (allowed.includes(role) || (ROLE_RANK[role] ?? -1) >= bar)) return;
+
+  throw forbidden(`Only ${allowed.join(' or ')} may move work into “${state.name}”`);
+}
+
+/** Whether making `parentId` the parent of `id` closes a circle. */
+function wouldLoop(id: string, parentId: string | null): boolean {
+  let cursor = parentId;
+  for (let hops = 0; cursor && hops < 50; hops++) {
+    if (cursor === id) return true;
+    cursor = get<Row>(`SELECT parent_id FROM projects WHERE id = ?`, cursor)?.parent_id ?? null;
+  }
+  // A chain longer than fifty is a loop somebody already made; refuse to add to it.
+  return !!cursor;
+}
+
+function applyTaskInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   const stateId = (values.state_id ?? existing?.state_id) as string | undefined;
   if (values.state_id !== undefined && stateId) {
     const state = get<{ group_key: string }>(`SELECT group_key FROM states WHERE id = ?`, stateId);
@@ -226,9 +377,149 @@ function applyInvariants(entity: EntityName, values: Record<string, unknown>, ex
 function afterWrite(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {
   indexForSearch(entity, row);
   if (entity === 'page' && before && changed.content !== undefined) snapshotPage(before, opts.actorId);
+  if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
+  if (entity === 'task' && (changed.start_date !== undefined || changed.due_date !== undefined)) {
+    cascadeSchedule(row, opts);
+  }
+  // A new `blocks` link, or a wait somebody put on one, is a change to the
+  // plan as much as a date is — and the blocker is where the cascade starts.
+  if (entity === 'relation' && row.kind === 'blocks' && !row.deleted_at
+    && (changed.lag !== undefined || changed.related_task_id !== undefined || changed.kind !== undefined)) {
+    const blocker = get<Row>(`SELECT id, project_id FROM tasks WHERE id = ?`, row.task_id);
+    if (blocker) cascadeSchedule(blocker, opts);
+  }
   if (opts.system) return;
   recordActivity(entity, row, before, changed, opts);
   notify(entity, row, before, changed, opts);
+  runAutomations(entity, row, before, changed, opts);
+  fireWebhooks(entity, row, before, changed, opts);
+}
+
+/**
+ * Move a date, and everything waiting on it moves too.
+ *
+ * The interface already does this — it writes each shifted task itself, so the
+ * Gantt works offline. This is the same rule applied where the interface is not
+ * the caller: a date set over REST, over MCP, by an import or by an automation
+ * used to leave every dependent task sitting behind its blocker, which made the
+ * promise a Gantt chart is only true when it was a Gantt chart doing the
+ * moving.
+ *
+ * The rule and the arithmetic are `@kolibri/shared`'s, so there is exactly one
+ * of each. What is here is reading the rows and writing the answers back.
+ */
+/**
+ * Combine two states of a merged field.
+ *
+ * Stored as text because that is what the column holds, and parsed on the way
+ * in and out rather than kept as an object: this runs once per page save, not
+ * once per keystroke, and a column that is sometimes a string and sometimes an
+ * object is a bug waiting for a Tuesday.
+ */
+function mergeCrdt(stored: unknown, incoming: unknown): string | null {
+  const parse = (value: unknown): CrdtState | null => {
+    if (value === null || value === undefined || value === '') return null;
+    if (typeof value === 'string') {
+      try { return JSON.parse(value) as CrdtState; } catch { return null; }
+    }
+    return value as CrdtState;
+  };
+  const next = parse(incoming);
+  const before = parse(stored);
+  if (!next) return before ? JSON.stringify(before) : null;
+  return JSON.stringify(crdt.merge(before, next));
+}
+
+let cascading = false;
+
+function cascadeSchedule(row: Row, opts: WriteOpts): void {
+  // A cascade writes tasks, which would cascade again. One level is all that is
+  // wanted: `reschedule` already walks the whole chain in one pass.
+  if (cascading) return;
+
+  const projectId = String(row.project_id ?? '');
+  if (!projectId) return;
+
+  const links = all<Row>(
+    `SELECT r.task_id, r.related_task_id, r.lag FROM task_relations r
+      JOIN tasks t ON t.id = r.task_id
+     WHERE r.kind = 'blocks' AND r.deleted_at IS NULL AND t.workspace_id = ?`,
+    opts.workspaceId,
+  );
+  if (!links.length) return;
+
+  // Only the tasks the graph actually mentions, plus the one that moved. A
+  // workspace's whole dated backlog would be read on every date anybody types.
+  const involved = new Set<string>([String(row.id)]);
+  for (const link of links) {
+    involved.add(String(link.task_id));
+    involved.add(String(link.related_task_id));
+  }
+  const ids = [...involved];
+  const tasks = all<Row>(
+    `SELECT id, project_id, start_date, due_date FROM tasks
+      WHERE id IN (${ids.map(() => '?').join(', ')}) AND deleted_at IS NULL AND archived = 0
+        AND (start_date IS NOT NULL OR due_date IS NOT NULL)`,
+    ...ids,
+  );
+  const projectOf = new Map(tasks.map((task) => [String(task.id), String(task.project_id ?? '')]));
+  const calendars = new Map<string, number[] | null>();
+  const workingDays = (taskId: string): number[] | null => {
+    const project = projectOf.get(taskId) ?? '';
+    if (!calendars.has(project)) {
+      const raw = get<Row>(`SELECT working_days FROM projects WHERE id = ?`, project)?.working_days;
+      let days: number[] | null = null;
+      try {
+        const parsed = JSON.parse(String(raw ?? 'null'));
+        if (Array.isArray(parsed)) days = parsed.map(Number).filter((n) => Number.isInteger(n) && n >= 0 && n <= 6);
+      } catch { /* a project with an unreadable calendar works every day */ }
+      calendars.set(project, days);
+    }
+    return calendars.get(project) ?? null;
+  };
+
+  const moves = reschedule(
+    [String(row.id)],
+    tasks.map((task) => ({
+      id: String(task.id),
+      start_date: (task.start_date as string) ?? null,
+      due_date: (task.due_date as string) ?? null,
+    })),
+    links.map((link) => ({
+      from: String(link.task_id),
+      to: String(link.related_task_id),
+      lag: Number(link.lag ?? 0),
+    })),
+    { workingDays },
+  );
+  if (!moves.length) return;
+
+  cascading = true;
+  try {
+    for (const move of moves) {
+      // `system`, because the schedule moving a task is not a person editing
+      // it: it earns no activity entry, no notification and no rule of its own.
+      writeEntity('task', move.id, { start_date: move.start_date, due_date: move.due_date }, {
+        ...opts, op: 'upsert', system: true, silent: true,
+      });
+    }
+  } finally {
+    cascading = false;
+  }
+}
+
+/**
+ * A field that is gone takes its answers with it.
+ *
+ * Tombstones rather than a `DELETE`, because every other device has those rows
+ * too and only a tombstone tells them. Written through the same path, so they
+ * get a sequence number and reach the clients on the next pull.
+ */
+function tombstoneValuesOf(field: Row, opts: WriteOpts): void {
+  const values = all<Row>(`SELECT id FROM field_values WHERE field_id = ? AND deleted_at IS NULL`, field.id);
+  for (const value of values) {
+    writeEntity('fieldValue', String(value.id), {}, { ...opts, op: 'delete', system: true, silent: true });
+  }
 }
 
 /**
@@ -252,7 +543,7 @@ function snapshotPage(before: Row, actorId: string): void {
   );
 }
 
-const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body: string }>> = {
+export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body: string }>> = {
   task: (row) => ({ title: `${row.identifier ?? ''} ${row.title ?? ''}`.trim(), body: row.description ?? '' }),
   page: (row) => ({ title: row.title ?? '', body: row.content ?? '' }),
   project: (row) => ({ title: `${row.key ?? ''} ${row.name ?? ''}`.trim(), body: row.description ?? '' }),
@@ -261,7 +552,7 @@ const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body
   module: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),
 };
 
-function indexForSearch(entity: EntityName, row: Row): void {
+export function indexForSearch(entity: EntityName, row: Row): void {
   const project = SEARCHABLE[entity];
   if (!project) return;
   run(`DELETE FROM search_index WHERE kind = ? AND ref_id = ?`, entity, row.id);
@@ -337,13 +628,18 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
-  const mentionSource = entity === 'comment' ? changed.body : entity === 'task' ? changed.description : undefined;
-  if (mentionSource !== undefined) {
-    const context = entity === 'comment'
-      ? get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id)
-      : row;
+  // Where a mention can be written: a comment, a task's description, a page's
+  // body. Anything else is a field nobody writes prose into.
+  const mentionField = entity === 'comment' ? 'body' : entity === 'task' ? 'description' : entity === 'page' ? 'content' : null;
+  const mentionSource = mentionField ? changed[mentionField] : undefined;
+  if (mentionField && mentionSource !== undefined) {
+    const context = entity === 'comment' ? commentContext(row) : row;
+    // Only handles that were not there before. A page autosaves while you type,
+    // so notifying on every write would ping the same person once a second for
+    // a name they were already told about.
+    const already = new Set(before ? findMentions(opts.workspaceId, String(before[mentionField] ?? '')) : []);
     for (const userId of findMentions(opts.workspaceId, String(mentionSource ?? ''))) {
-      if (userId === opts.actorId) continue;
+      if (userId === opts.actorId || already.has(userId)) continue;
       targets.set(userId, {
         kind: 'mention',
         title: (t) => t('notify.mentionedIn', { context: context?.identifier ?? context?.title ?? 'Kolibri' }),
@@ -362,6 +658,44 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
         targets.set(userId, {
           kind: 'comment',
           title: (t) => t('notify.newComment', { identifier: task.identifier }),
+          body: String(row.body ?? '').slice(0, 280),
+        });
+      }
+    }
+  }
+
+  // Somebody watching a page hears about a change to its body. Not about every
+  // field: renaming a page or moving it between projects is bookkeeping, and a
+  // notification for it teaches people to ignore the bell.
+  if (entity === 'page' && before && changed.content !== undefined && String(before.content ?? '') !== String(row.content ?? '')) {
+    for (const userId of parseIds(row.watchers)) {
+      if (!userId || userId === opts.actorId) continue;
+      if (targets.has(userId)) continue; // a mention in the same edit is the stronger signal
+      targets.set(userId, {
+        kind: 'page_changed',
+        title: (t) => t('notify.pageChanged', { title: row.title }),
+        body: null,
+      });
+    }
+  }
+
+  // A page has no assignees to fall back on, so its audience is the people who
+  // have shown up: whoever wrote it, and whoever has said something on it.
+  // Everybody who *can* see a page is the whole workspace, and notifying them
+  // would teach people to ignore the bell.
+  if (entity === 'comment' && !before && row.page_id) {
+    const page = get<Row>(`SELECT id, title, created_by FROM pages WHERE id = ?`, row.page_id);
+    if (page) {
+      const talkers = all<Row>(
+        `SELECT DISTINCT author_id FROM comments WHERE page_id = ? AND deleted_at IS NULL`,
+        row.page_id,
+      ).map((entry) => entry.author_id);
+      for (const userId of new Set([page.created_by, ...talkers, ...parseIds(page.watchers)])) {
+        if (!userId || userId === opts.actorId) continue;
+        if (targets.get(userId)?.kind === 'mention') continue;
+        targets.set(userId, {
+          kind: 'comment',
+          title: (t) => t('notify.newPageComment', { title: page.title }),
           body: String(row.body ?? '').slice(0, 280),
         });
       }
@@ -388,6 +722,70 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       entity === 'page' ? row.id : row.page_id ?? null,
       opts.actorId, Date.now(), Date.now(), nextSeq(),
     );
+    // And wake whatever devices asked to be woken. The push carries nothing —
+    // the service worker reads the notification it just found out about.
+    notifyDevices(userId);
+  }
+}
+
+/** What a comment is about — a task or a page — for a notification title. */
+function commentContext(row: Row): Row | undefined {
+  if (row.task_id) return get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id);
+  if (row.page_id) return get<Row>(`SELECT title FROM pages WHERE id = ?`, row.page_id);
+  return undefined;
+}
+
+/**
+ * Tell anybody who asked that something happened.
+ *
+ * After the write, never before: a slow receiver must not slow down the person
+ * who pressed the button, and a webhook that can fail a write is a webhook that
+ * takes the app down when somebody else's endpoint dies.
+ */
+function fireWebhooks(
+  entity: EntityName,
+  row: Row,
+  before: Row | undefined,
+  changed: Record<string, unknown>,
+  opts: WriteOpts,
+): void {
+  if (opts.op === 'delete' || row.deleted_at) return;
+  const workspaceId = String(row.workspace_id ?? opts.workspaceId);
+
+  if (entity === 'task') {
+    const state = row.state_id ? get<Row>(`SELECT group_key FROM states WHERE id = ?`, row.state_id) : undefined;
+    const finished = state?.group_key === 'completed';
+    const wasFinished = before?.state_id
+      ? get<Row>(`SELECT group_key FROM states WHERE id = ?`, before.state_id)?.group_key === 'completed'
+      : false;
+    const payload = {
+      id: row.id,
+      identifier: row.identifier,
+      title: row.title,
+      project_id: row.project_id,
+      state: state?.group_key ?? null,
+      priority: row.priority,
+      url: env.publicUrl ? `${env.publicUrl}/t/${row.id}` : null,
+      actor_id: opts.actorId,
+    };
+    if (!before) dispatch(workspaceId, 'task.created', payload);
+    else if (finished && !wasFinished) dispatch(workspaceId, 'task.completed', payload);
+    else dispatch(workspaceId, 'task.updated', payload);
+    return;
+  }
+
+  if (entity === 'comment' && !before) {
+    dispatch(workspaceId, 'comment.created', {
+      id: row.id, task_id: row.task_id, page_id: row.page_id, author_id: row.author_id,
+      body: String(row.body ?? '').slice(0, 500), project_id: null, actor_id: opts.actorId,
+    });
+    return;
+  }
+
+  if (entity === 'page' && before && changed.content !== undefined) {
+    dispatch(workspaceId, 'page.updated', {
+      id: row.id, title: row.title, project_id: row.project_id, actor_id: opts.actorId,
+    });
   }
 }
 

@@ -1,9 +1,15 @@
-import { useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { orderKey, type Task } from '@kolibri/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { DEFAULT_WORKING_DAYS, orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
+import { useSelection } from '../components/selection';
+import { SelectionBar } from '../components/selection-bar';
+import { ProjectTime } from '../components/time';
+import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
+import { ProjectInsights } from '../components/insights';
+import { useTypes } from '../components/task-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -12,19 +18,48 @@ import { byOrder, create, createPage, remove, update } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
-import { useMe, useMembers, useSession } from '../session';
-import { groupKey, useT, type TranslationKey } from '../lib/i18n';
+import { useCanWrite, useMe, useMembers, useSession } from '../session';
+import { groupKey, roleKey, useT, type TranslationKey } from '../lib/i18n';
+import { ProjectFields } from '../components/fields';
+import { CopyProjectSheet } from '../components/copy-project';
+import { configOf, useProjectDefaultView } from '../components/saved-views';
+import { Triage, useNewIntakeCount } from '../components/intake';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
 const TAB_KEY: Record<string, TranslationKey> = {
   tasks: 'project.tabTasks', cycles: 'project.tabCycles', modules: 'project.tabModules',
-  pages: 'project.tabPages', settings: 'project.tabSettings',
+  pages: 'project.tabPages', intake: 'intake.tab', insights: 'insights.tab', settings: 'project.tabSettings',
 };
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
 
+/** Monday first, because a working week starts on one. `day` is getUTCDay. */
+const WEEKDAYS: { day: number; key: TranslationKey }[] = [
+  { day: 1, key: 'view.weekdayMon' }, { day: 2, key: 'view.weekdayTue' }, { day: 3, key: 'view.weekdayWed' },
+  { day: 4, key: 'view.weekdayThu' }, { day: 5, key: 'view.weekdayFri' }, { day: 6, key: 'view.weekdaySat' },
+  { day: 0, key: 'view.weekdaySun' },
+];
+
+/**
+ * The view this project is being looked at through.
+ *
+ * Three answers, in order: what this device last chose, what the project was
+ * pinned to open on, and the plain list. The device wins because a view is a
+ * way of *looking* — somebody who switched to the board and came back tomorrow
+ * meant it, and a project default that overruled them every morning would be a
+ * setting that fights its users.
+ */
 function useStoredView(projectId: string): [ViewConfig, (next: ViewConfig) => void] {
+  const me = useMe();
+  const pinned = useProjectDefaultView(projectId, me);
+  const [chosenHere] = useState<boolean>(() => {
+    try {
+      return !!localStorage.getItem(VIEW_KEY(projectId));
+    } catch {
+      return false;
+    }
+  });
   const [view, setView] = useState<ViewConfig>(() => {
     try {
       const raw = localStorage.getItem(VIEW_KEY(projectId));
@@ -33,10 +68,22 @@ function useStoredView(projectId: string): [ViewConfig, (next: ViewConfig) => vo
       return DEFAULT_VIEW;
     }
   });
+
+  // The pin arrives with the sync rather than with the first render, so it is
+  // applied when it turns up — once, and never over a choice made on this
+  // device, including one made in the second between the two.
+  const applied = useRef('');
+  useEffect(() => {
+    if (chosenHere || !pinned || applied.current === projectId) return;
+    applied.current = projectId;
+    setView(configOf(pinned));
+  }, [chosenHere, pinned, projectId]);
+
   return [
     view,
     (next: ViewConfig) => {
       setView(next);
+      applied.current = projectId;
       localStorage.setItem(VIEW_KEY(projectId), JSON.stringify(next));
     },
   ];
@@ -49,11 +96,14 @@ export function ProjectList() {
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId), [workspaceId]);
+  const canWrite = useCanWrite();
 
   return (
     <>
       <Header title={t('project.listTitle')}>
-        <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</button>
+        {canWrite && (
+          <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</button>
+        )}
       </Header>
       <div className="page">
         <div className="grid two">
@@ -62,7 +112,9 @@ export function ProjectList() {
         {!projects.length && (
           <Empty
             emoji="📁" title={t('project.emptyTitle')} hint={t('project.emptyHint')} guide="overview"
-            action={<button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>}
+            action={canWrite
+              ? <button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>
+              : undefined}
           />
         )}
       </div>
@@ -169,7 +221,8 @@ export function ProjectNew() {
 
 /* ---------------------------------------------------------------- project */
 
-type Tab = 'tasks' | 'cycles' | 'modules' | 'pages' | 'settings';
+const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'settings'] as const;
+type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
   const t = useT();
@@ -178,11 +231,18 @@ export function ProjectPage() {
   const navigate = useNavigate();
   const project = useRow('project', id);
   const [view, setView] = useStoredView(id);
-  const [tab, setTab] = useState<Tab>('tasks');
+  const selection = useSelection();
+  const canWrite = useCanWrite();
+  // `?tab=` so a link can point at one — a notification about a report has to
+  // land on the reports, not on the task list beside them.
+  const [search, setSearch] = useSearchParams();
+  const asked = search.get('tab');
+  const [tab, setTab] = useState<Tab>(TABS.includes(asked as Tab) ? asked as Tab : 'tasks');
   const [adding, setAdding] = useState(false);
 
   const tasks = useQuery(() => list('task', (t) => t.project_id === id && !t.parent_id), [id]);
   const visible = useVisibleTasks(tasks, view);
+  const waitingReports = useNewIntakeCount(id);
 
   if (!project) {
     return (
@@ -196,16 +256,31 @@ export function ProjectPage() {
   return (
     <>
       <Header title={<span className="row" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
-        {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} />}
-        <button className="btn primary sm" onClick={() => setAdding(true)}>
-          <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
-        </button>
+        {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
+        {canWrite && (
+          <button className="btn primary sm" onClick={() => setAdding(true)}>
+            <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
+          </button>
+        )}
       </Header>
 
       <div className="tabs" style={{ padding: '0 12px' }}>
-        {(['tasks', 'cycles', 'modules', 'pages', 'settings'] as Tab[]).map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+        {/* Reports is always here, even for a project that will never use it.
+            Hiding it until an intake link exists would make the one screen that
+            explains how to get one the screen nobody can find. */}
+        {TABS.map((name) => (
+          <button
+            key={name}
+            className={tab === name ? 'active' : ''}
+            onClick={() => {
+              setTab(name);
+              // The URL follows the tab, so a reload and a back button both
+              // land where the person was rather than on the task list.
+              setSearch(name === 'tasks' ? {} : { tab: name }, { replace: true });
+            }}
+          >
             {t(TAB_KEY[name])}
+            {name === 'intake' && waitingReports > 0 && <span className="tab-count">{waitingReports}</span>}
           </button>
         ))}
       </div>
@@ -216,12 +291,18 @@ export function ProjectPage() {
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
           : <div className="page" style={{ paddingInline: 0 }}>
-            <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
+            <TaskViews
+              tasks={visible} view={view} projectId={id} onOpen={openTask}
+              onChange={setView} selection={selection}
+            />
           </div>
       )}
+      {tab === 'tasks' && <SelectionBar selection={selection} tasks={visible} />}
       {tab === 'cycles' && <Cycles projectId={id} />}
       {tab === 'modules' && <Modules projectId={id} />}
       {tab === 'pages' && <ProjectPages projectId={id} />}
+      {tab === 'intake' && <Triage projectId={id} />}
+      {tab === 'insights' && <ProjectInsights projectId={id} />}
       {tab === 'settings' && <ProjectSettings projectId={id} />}
 
       {adding && <QuickAdd projectId={id} onClose={() => setAdding(false)} />}
@@ -261,6 +342,7 @@ function Cycles({ projectId }: { projectId: string }) {
                 {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
                   className="btn ghost sm icon"
+                  label={t('common.moreActions')}
                   items={[
                     { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
                     { id: 'open', label: t('cycle.showTasks'), onSelect: () => navigate(`/cycles/${cycle.id}`) },
@@ -425,6 +507,7 @@ function Modules({ projectId }: { projectId: string }) {
                 {lead && <Avatar user={lead} size={20} />}
                 <MenuButton
                   className="btn ghost sm icon"
+                  label={t('common.moreActions')}
                   items={[
                     ...members.map((member) => ({
                       id: member.id, section: t('project.lead'), label: member.name,
@@ -511,13 +594,84 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const project = useRow('project', projectId);
   const navigate = useNavigate();
   const members = useMembers();
+  const toast = useToast();
+  const { workspaceId } = useSession();
   const { confirm, dialog } = useConfirm();
   const states = useQuery(
     () => list('state', (s) => s.project_id === projectId).sort(byOrder),
     [projectId],
   );
   const labels = useQuery(() => list('label', (l) => l.project_id === projectId), [projectId]);
+  const types = useTypes(projectId);
   const [newLabel, setNewLabel] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [foreign, setForeign] = useState<{ document: unknown; found: Inspection } | null>(null);
+
+  /**
+   * A project as a document: for moving it to another instance, and for reading
+   * it. The download is built here rather than by navigating to the endpoint,
+   * so it goes through the same authenticated fetch as everything else.
+   */
+  async function exportJson(): Promise<void> {
+    try {
+      const doc = await api.get<unknown>(`/api/workspaces/${workspaceId}/projects/${projectId}/export`);
+      const blob = new Blob([JSON.stringify(doc, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${(project?.key ?? 'project').toLowerCase()}.kolibri.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
+
+  /**
+   * Read a file first, import it second.
+   *
+   * A Kolibri document goes straight in — it is this app's own shape and there
+   * is nothing to warn anybody about. Anything from another tool is *converted*,
+   * and what a converter leaves behind is the part worth reading before a
+   * project appears, not after.
+   */
+  async function importJson(file: File): Promise<void> {
+    try {
+      const document_ = JSON.parse(await file.text());
+      const found = await api.post<Inspection>(`/api/workspaces/${workspaceId}/import/json/inspect`, { document: document_ });
+      if (found.from === 'kolibri') return finishJsonImport(document_);
+      setForeign({ document: document_, found });
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
+
+  async function finishJsonImport(document_: unknown): Promise<void> {
+    setForeign(null);
+    try {
+      const result = await api.post<{ project: { id: string }; counts: Record<string, number>; unmatched: string[] }>(
+        `/api/workspaces/${workspaceId}/import/json`,
+        { document: document_ },
+      );
+      await pull();
+      const rows = Object.values(result.counts).reduce((sum, count) => sum + count, 0);
+      toast(result.unmatched.length
+        ? t('transfer.importedWithGaps', { count: rows, names: result.unmatched.join(', ') })
+        : t('transfer.imported', { count: rows }));
+      navigate(`/projects/${result.project.id}`);
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
+  // A project cannot be its own parent, and the server refuses a longer loop —
+  // this list only keeps the obvious case out of the menu.
+  const siblings = useQuery(
+    () => list('project', (other) => other.id !== projectId && !other.archived && other.parent_id !== projectId),
+    [projectId],
+  );
   if (!project) return null;
 
   return (
@@ -533,6 +687,25 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       </div>
       <div className="row" style={{ gap: 10 }}>
         <div className="field grow">
+          <label htmlFor="s-parent">{t('project.parent')}</label>
+          <select
+            id="s-parent" className="select" value={project.parent_id ?? ''}
+            onChange={(event) => update('project', projectId, { parent_id: event.target.value || null })}
+          >
+            <option value="">{t('project.parentNone')}</option>
+            {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
+          </select>
+          <span className="hint">{t('project.parentHint')}</span>
+        </div>
+        <div className="field grow">
+          <label htmlFor="s-start">{t('project.startDate')}</label>
+          <input id="s-start" className="input" type="date" value={project.start_date ?? ''}
+            onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
+        </div>
+      </div>
+
+      <div className="row" style={{ gap: 10 }}>
+        <div className="field grow">
           <label htmlFor="s-lead">{t('project.lead')}</label>
           <select id="s-lead" className="select" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
             <option value="">{t('common.nobody')}</option>
@@ -546,32 +719,88 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
 
+      {/* Which days the *scheduler* counts. Not a lock: a bar dragged onto a
+          Saturday stays there, because somebody who did that meant it. */}
+      <div className="field">
+        <label>{t('project.workingDays')}</label>
+        <div className="row wrap" style={{ gap: 4 }} role="group" aria-label={t('project.workingDays')}>
+          {WEEKDAYS.map(({ day, key }) => {
+            const days = project.working_days ?? DEFAULT_WORKING_DAYS;
+            const on = days.includes(day);
+            return (
+              <button
+                key={day}
+                type="button"
+                className={`btn ghost sm${on ? ' active' : ''}`}
+                style={on ? { background: 'var(--bg-active)' } : undefined}
+                aria-pressed={on}
+                onClick={() => update('project', projectId, {
+                  working_days: on ? days.filter((d) => d !== day) : [...days, day].sort(),
+                })}
+              >
+                {t(key)}
+              </button>
+            );
+          })}
+        </div>
+        <span className="hint">{t('project.workingDaysHint')}</span>
+      </div>
+
       <div className="row" style={{ margin: '18px 0 8px' }}>
         <h3 style={{ fontSize: 14, margin: 0 }}>{t('project.workflowStates')}</h3>
         <span className="grow" />
         <GuideHint to="hierarchy" />
       </div>
       {states.map((state) => (
-        <div className="row" key={state.id} style={{ padding: '5px 0' }}>
-          <input
-            type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
-            onChange={(event) => update('state', state.id, { color: event.target.value })}
-          />
-          <input className="input grow" value={state.name} onChange={(event) => update('state', state.id, { name: event.target.value })} />
-          <select className="select" style={{ width: 140 }} value={state.group_key}
-            onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
-            {STATE_GROUPS.map((group) => (
-              <option key={group} value={group}>{t(groupKey(group))}</option>
-            ))}
-          </select>
-          <button className="btn ghost icon" onClick={async () => {
-            if (states.length <= 1) return;
-            if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
-          }}>
-            <Icon name="trash" size={14} />
-          </button>
+        <div className="stack-card" key={state.id}>
+          <div className="row">
+            <input
+              type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
+              aria-label={t('project.stateColour')}
+              onChange={(event) => update('state', state.id, { color: event.target.value })}
+            />
+            <input className="input grow" value={state.name} aria-label={t('project.name')}
+              onChange={(event) => update('state', state.id, { name: event.target.value })} />
+            <select className="select" style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
+              onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
+              {STATE_GROUPS.map((group) => (
+                <option key={group} value={group}>{t(groupKey(group))}</option>
+              ))}
+            </select>
+            <button className="btn ghost icon" aria-label={t('project.deleteState')} onClick={async () => {
+              if (states.length <= 1) return;
+              if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
+            }}>
+              <Icon name="trash" size={14} />
+            </button>
+          </div>
+          <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
+            <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+              <span className="muted">{t('state.wipLimit')}</span>
+              <input
+                className="input" type="number" min={0} max={99} style={{ width: 70 }}
+                value={state.wip_limit || ''} placeholder="0"
+                onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
+              />
+            </label>
+            <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+              <span className="muted">{t('state.allowedRoles')}</span>
+              <select
+                className="select" style={{ width: 200 }}
+                value={state.allowed_roles?.[0] ?? ''}
+                onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
+              >
+                <option value="">{t('state.allowedAnyone')}</option>
+                {(['member', 'admin', 'owner'] as const).map((role) => (
+                  <option key={role} value={role}>{t(roleKey(role))}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       ))}
+      <p className="hint" style={{ marginTop: 4 }}>{t('state.wipLimitHint')}</p>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('state.allowedHint')}</p>
       <button
         className="btn sm" style={{ marginTop: 6 }}
         onClick={() => create('state', {
@@ -581,6 +810,56 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       >
         <Icon name="plus" size={14} /> {t('project.addState')}
       </button>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('type.settingsTitle')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('type.settingsHint')}</p>
+      {types.map((type) => (
+        <div className="row" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
+          <input
+            className="input" style={{ width: 56, textAlign: 'center' }} maxLength={4}
+            aria-label={t('type.label')}
+            value={type.icon ?? ''}
+            onChange={(event) => update('taskType', type.id, { icon: event.target.value || null })}
+          />
+          <input
+            className="input grow"
+            value={type.name}
+            aria-label={type.name}
+            onChange={(event) => update('taskType', type.id, { name: event.target.value })}
+          />
+          <button
+            className={`btn sm${type.is_default ? ' active' : ''}`}
+            style={type.is_default ? { background: 'var(--bg-active)' } : undefined}
+            aria-pressed={!!type.is_default}
+            title={t('type.makeDefault')}
+            onClick={() => {
+              // Exactly one default, so setting one clears the others.
+              for (const other of types) {
+                if (other.is_default && other.id !== type.id) update('taskType', other.id, { is_default: 0 });
+              }
+              update('taskType', type.id, { is_default: 1 });
+            }}
+          >
+            {t('type.isDefault')}
+          </button>
+          <button className="btn ghost sm icon" title={t('type.removeHint')} aria-label={t('type.removeHint')}
+            onClick={() => remove('taskType', type.id)}>
+            <Icon name="trash" size={13} />
+          </button>
+        </div>
+      ))}
+      <button
+        className="btn sm"
+        onClick={() => create('taskType', {
+          project_id: projectId, name: t('type.newName'), icon: '◇', color: '#6366f1', is_default: 0,
+          sort_order: orderKey(types[types.length - 1]?.sort_order ?? null, null),
+        })}
+      >
+        <Icon name="plus" size={14} /> {t('type.add')}
+      </button>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('field.settingsTitle')}</h3>
+      <ProjectFields projectId={projectId} />
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.labels')}</h3>
       <div className="row wrap" style={{ gap: 6, marginBottom: 8 }}>
@@ -602,6 +881,51 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <input className="input" placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
         <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
       </form>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('time.title')}</h3>
+      <ProjectTime projectId={projectId} />
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('import.title')}</h3>
+      <div className="row wrap" style={{ gap: 8 }}>
+        <button className="btn" onClick={() => setImporting(true)}>
+          <Icon name="attach" size={14} /> {t('import.action')}
+        </button>
+        <button className="btn" onClick={() => void exportJson()}>
+          <Icon name="page" size={14} /> {t('transfer.export')}
+        </button>
+        <label className="btn" style={{ cursor: 'pointer' }}>
+          <Icon name="plus" size={14} /> {t('transfer.import')}
+          <input
+            type="file" accept=".json,application/json" style={{ display: 'none' }}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              if (file) void importJson(file);
+            }}
+          />
+        </label>
+      </div>
+      <p className="hint" style={{ marginTop: 6 }}>{t('transfer.hint')}</p>
+      {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
+      {foreign && (
+        <ForeignImportSheet
+          found={foreign.found}
+          onClose={() => setForeign(null)}
+          onImport={() => void finishJsonImport(foreign.document)}
+        />
+      )}
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('copy.title')}</h3>
+      <button className="btn" onClick={() => setCopying(true)}>
+        <Icon name="copy" size={14} /> {t('copy.action')}
+      </button>
+      {copying && (
+        <CopyProjectSheet
+          projectId={projectId}
+          onClose={() => setCopying(false)}
+          onCopied={(id) => navigate(`/projects/${id}`)}
+        />
+      )}
 
       <div className="divider" style={{ margin: '22px 0' }} />
       <div className="row">

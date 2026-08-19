@@ -6,7 +6,7 @@
  * The sync engine is the only thing that writes to them.
  */
 import { useCallback, useSyncExternalStore } from 'react';
-import { ENTITY_NAMES, type ChangeSet, type EntityMap, type EntityName } from '@kolibri/shared';
+import { ENTITY_NAMES, crdt, entityDef, type ChangeSet, type EntityMap, type EntityName } from '@kolibri/shared';
 
 type Tables = { [K in EntityName]: Map<string, any> };
 
@@ -83,13 +83,48 @@ export function applyChanges(changes: ChangeSet): void {
     const rows = (changes as Record<string, any[]>)[entity];
     if (!rows?.length) continue;
     const table = tables[entity];
+    const merging = entityDef(entity)?.crdt;
     for (const row of rows) {
       const existing = table.get(row.id);
+      // A merged field is combined rather than overwritten, here as well as on
+      // the server: a device with an unsent edit must not lose it to the row
+      // coming back from a pull, which is exactly when it would happen.
+      if (existing && merging) for (const field of merging) row[field] = crdt.merge(existing[field], row[field]);
       table.set(row.id, existing ? { ...existing, ...row } : row);
       touched = true;
     }
   }
+  if (applyPurges(changes)) touched = true;
   if (touched) emit();
+}
+
+/**
+ * A purge is a tombstone that has itself been thrown away.
+ *
+ * The row it names is dropped outright rather than marked, because there is
+ * nothing left to mark: the trash screen reads the tombstones, so leaving one
+ * behind would keep offering to restore a thing the server no longer has.
+ */
+function applyPurges(changes: ChangeSet): boolean {
+  const purges = (changes as Record<string, any[]>).purge;
+  if (!purges?.length) return false;
+  let touched = false;
+  for (const purge of purges) {
+    const table = (tables as Record<string, Map<string, any>>)[purge.entity];
+    if (table?.delete(purge.row_id)) touched = true;
+  }
+  return touched;
+}
+
+/** The rows a changeset's purges named, so the same thing leaves IndexedDB. */
+export function purgedRows(changes: ChangeSet): { store: string; keys: string[] }[] {
+  const byStore = new Map<string, string[]>();
+  for (const purge of ((changes as Record<string, any[]>).purge ?? [])) {
+    const keys = byStore.get(purge.entity) ?? [];
+    keys.push(purge.row_id);
+    byStore.set(purge.entity, keys);
+  }
+  return [...byStore].map(([store, keys]) => ({ store, keys }));
 }
 
 /** Merge one row locally (optimistic update). */

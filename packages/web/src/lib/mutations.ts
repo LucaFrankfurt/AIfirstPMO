@@ -19,7 +19,7 @@ export function update(entity: EntityName, id: string, patch: Record<string, unk
   enqueue(entity, id, patch);
 }
 
-export function create(entity: EntityName, patch: Record<string, unknown>, id = crypto.randomUUID()): string {
+export function create(entity: EntityName, patch: Record<string, unknown>, id: string = crypto.randomUUID()): string {
   const full = { workspace_id: currentWorkspace(), created_at: Date.now(), deleted_at: null, ...patch, id };
   persistLocal(entity, id, full);
   enqueue(entity, id, full);
@@ -125,13 +125,19 @@ export function createPage(input: { title?: string; project_id?: string | null; 
 
 /* ----------------------------------------------------------------- comments */
 
-export function comment(target: { task_id?: string; page_id?: string }, body: string, actorId: string): string {
+export function comment(
+  target: { task_id?: string; page_id?: string },
+  body: string,
+  actorId: string,
+  anchor: unknown = null,
+): string {
   return create('comment', {
     task_id: target.task_id ?? null,
     page_id: target.page_id ?? null,
     body,
     author_id: actorId,
     reactions: {},
+    anchor,
   });
 }
 

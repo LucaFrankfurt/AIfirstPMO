@@ -40,19 +40,22 @@ around three convictions:
 
 | | |
 |---|---|
-| **Work tracking** | Projects with their own workflow states, tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving |
-| **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), teams that own projects |
-| **Views** | List, Kanban board with drag & drop, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; per-project preferences remembered |
-| **Pages** | Nested markdown wiki with version history, drag & drop images, project or workspace scope, private pages |
-| **Collaboration** | Comments with markdown and attachments, `@mentions`, activity trail per task, invite links, roles (owner / admin / member / guest), private projects |
-| **Notifications** | In-app inbox plus optional email — batched into one message per person, per-user preferences, signed one-click unsubscribe, queued with retry |
+| **Work tracking** | Projects with their own workflow states, kinds of work (bug / feature / chore, editable per project) and custom fields — nine kinds, each limited to the types it belongs on — tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, CSV import with a preview before anything is written — parents and blockers resolved on a second pass — exports from Jira, Linear, Plane and OpenProject read by shape, with what cannot come across listed before you commit to it, and a JSON round trip for moving a whole project to another Kolibri |
+| **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), a timeline where dragging a task moves everything blocked by it — counted in the days the project actually works, with an optional wait on each dependency, and applied on the server too so a date set over the API moves the plan the same way — baselines to draw the plan behind the work, work-in-progress limits, projects that nest under projects, teams that own them, any project copyable as a template, time tracking with a timer that survives a reload, an Insights tab per project — throughput, burn-up, cycle time — a portfolio roadmap across all of them, and a team planner where dragging a task between rows hands it over — all computed from the local mirror |
+| **Templates & rules** | Task templates with a checklist that becomes sub-tasks, repeating tasks, and rules that file one when something happens — including *n* days before a due date — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
+| **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project — or by a custom field, where dropping a card into a column writes the answer; filter and sort, custom fields included; select several tasks and change them together; save a view under a name with an icon, pin one as what a project opens on, and share it |
+| **Pages** | Nested markdown wiki that two people can edit at the same time — the body is a CRDT, so both sets of changes survive and every device reads the same thing — with version history, restore and a what-changed diff; labels and filtering; watch a page; page templates; per-page visibility; export as a markdown bundle; print or save as PDF; read-only share links for people outside the workspace, which can invite a note back without showing them the thread; comments and `@mentions`, including inline comments on a selected passage that survive the text being edited around them; drag & drop images |
+| **Intake** | A link that is a form, for people who have no account and should not need one — no session, no script, works on any phone. What arrives waits in a queue and becomes a task only when somebody accepts it, so nothing from outside lands on the board on its own |
+| **Collaboration** | Comments with markdown, attachments and reactions on tasks *and* pages, `@mentions` with autocomplete in comments, descriptions and page bodies, following a task or a page, activity trail per task, invite links, roles (owner / admin / member / guest), private projects |
+| **Notifications** | In-app inbox, optional email — batched into one message per person, an optional daily or weekly digest, reminders before a due date, per-user preferences, signed one-click unsubscribe, queued with retry, hard bounces suppressed automatically — and native push per device, sent with no payload so nothing of yours sits on a push service |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling, offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads |
-| **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field, Server-Sent-Events live updates, installable PWA |
+| **Offline & sync** | Full IndexedDB mirror, outbox with retry, hybrid-logical-clock last-writer-wins merge per field — except a page body, which is a text CRDT, so two people typing at once keep both paragraphs — Server-Sent-Events live updates, installable PWA. Deletes are tombstones, so nothing is really gone — Settings → Data lists it and brings it back, until an admin empties the trash or a retention window does, which every device then honours |
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects and cycles |
-| **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of every feature plus an explorer for how the pieces nest. Every empty screen links to the card that explains it. Press `?` |
-| **Languages** | English and German throughout — interface, notifications and emails, each written in the recipient's own language. Adding a third is one typed catalogue file |
-| **Integration** | REST API for every entity, scoped API tokens, MCP server over HTTP and stdio with 19 tools, 3 prompts and page resources |
+| **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area of the app plus an explorer for how the pieces nest. A screen with nothing on it yet links to the card that explains what goes there. Press `?` |
+| **Languages** | English, German and French throughout — interface, notifications and emails, each written in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. Adding a fourth is one typed catalogue file |
+| **Integration** | REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
+| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log |
 
 ## Quick start
 
@@ -154,9 +157,10 @@ Clients that speak streamable HTTP can skip the bridge and talk to `POST /mcp` d
 `Authorization: Bearer kol_…` header.
 
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
-`create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_cycles`,
-`create_cycle`, `list_pages`, `get_page`, `create_page`, `update_page`, `list_members`,
-`project_status`, `my_work`. Prompts: `standup`, `sprint_planning`, `triage`.
+`create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,
+`apply_template`, `list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`,
+`update_page`, `list_members`, `project_status`, `my_work`.
+Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant
 a view of the backlog without handing it a pen.
@@ -184,10 +188,16 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 ## Documentation
 
 - [`TODO.md`](TODO.md) — what is missing, what is unverified, what was deferred on purpose
+- [`docs/comparison.md`](docs/comparison.md) — an honest gap analysis against Confluence, Plane and
+  OpenProject, and the order those gaps are worth closing in
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
   [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
+- [`docs/automation.md`](docs/automation.md) — task templates, rules, who gets the task and why one might not fire
 - [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
+- [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
+- [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV, and what it does with a row it cannot read
+- [`docs/insights.md`](docs/insights.md) — throughput, burn-up and cycle time, and the rules the charts follow
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the

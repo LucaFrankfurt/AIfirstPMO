@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, type NavLinkProps } from 'react-router-dom';
 import { list, useQuery } from '../lib/store';
 import { pull, subscribeSync, type SyncStatus } from '../lib/sync';
-import { useMe, useSession } from '../session';
+import { useCanWrite, useMe, useSession } from '../session';
 import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
@@ -73,12 +73,33 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [theme, setTheme] = useTheme();
   const [adding, setAdding] = useState(false);
+  const canWrite = useCanWrite();
   const [palette, setPalette] = useState(false);
 
   const projects = useQuery(
     () => list('project', (p) => p.workspace_id === workspaceId && !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
     [workspaceId],
   );
+  // Sub-projects sit under their parent, and a project whose parent is archived
+  // or invisible comes back to the top rather than disappearing with it.
+  const nested = useMemo(() => {
+    const known = new Set(projects.map((project) => project.id));
+    const children = new Map<string | null, typeof projects>();
+    for (const project of projects) {
+      const parent = project.parent_id && known.has(project.parent_id) ? project.parent_id : null;
+      if (!children.has(parent)) children.set(parent, []);
+      children.get(parent)!.push(project);
+    }
+    const out: { project: (typeof projects)[number]; depth: number }[] = [];
+    const walk = (parent: string | null, depth: number): void => {
+      for (const project of children.get(parent) ?? []) {
+        out.push({ project, depth });
+        if (depth < 3) walk(project.id, depth + 1);
+      }
+    };
+    walk(null, 0);
+    return out;
+  }, [projects]);
   const unread = useQuery(() => list('notification', (n) => n.user_id === me && !n.read_at).length, [me]);
   const myOpen = useQuery(
     () => list('task', (t) => (t.assignees ?? []).includes(me) && !t.archived).length,
@@ -142,9 +163,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <Icon name="chevronDown" size={14} />
         </MenuButton>
 
-        <button className="btn primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
-          <Icon name="plus" size={15} /> {t('nav.newTask')}
-        </button>
+        {canWrite && (
+          <button className="btn primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
+            <Icon name="plus" size={15} /> {t('nav.newTask')}
+          </button>
+        )}
 
         <Item to="/" icon="home" count={myOpen}>{t('nav.myWork')}</Item>
         <Item to="/inbox" icon="inbox" count={unread}>{t('nav.inbox')}</Item>
@@ -159,12 +182,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon name="plus" size={13} />
           </button>
         </div>
-        {projects.map((project) => (
-          <NavLink key={project.id} to={`/projects/${project.id}`} className="nav-item">
+        {nested.map(({ project, depth }) => (
+          <NavLink
+            key={project.id} to={`/projects/${project.id}`} className="nav-item"
+            style={depth ? { paddingInlineStart: 10 + depth * 13 } : undefined}
+          >
             <span style={{ width: 16, textAlign: 'center' }}>{project.icon ?? '•'}</span>
             <span className="grow truncate">{project.name}</span>
           </NavLink>
         ))}
+        {projects.length > 1 && (
+          <NavLink to="/portfolio" className="nav-item">
+            <Icon name="target" size={15} />
+            <span className="grow truncate">{t('nav.portfolio')}</span>
+          </NavLink>
+        )}
+        <NavLink to="/planner" className="nav-item">
+          <Icon name="users" size={15} />
+          <span className="grow truncate">{t('nav.planner')}</span>
+        </NavLink>
         {!projects.length && (
           <button className="nav-item" onClick={() => navigate('/projects/new')}>
             <Icon name="plus" size={15} /> {t('nav.firstProject')}
@@ -189,7 +225,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {unread > 0 && <span className="badge-dot" />}
             {t('nav.inbox')}
           </NavLink>
-          <button className="nav-item" style={{ width: 'auto', justifyContent: 'center' }} onClick={() => setAdding(true)} aria-label={t('nav.newTask')}>
+          <button
+            className="nav-item" style={{ width: 'auto', justifyContent: 'center' }}
+            onClick={() => setAdding(true)} aria-label={t('nav.newTask')}
+            hidden={!canWrite}
+          >
             <span style={{ background: 'var(--accent)', color: '#fff', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
               <Icon name="plus" size={19} />
             </span>

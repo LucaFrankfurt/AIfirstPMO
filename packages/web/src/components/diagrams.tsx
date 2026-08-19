@@ -448,6 +448,74 @@ export function CollaborationDiagram() {
   );
 }
 
+/* ----------------------------------------------------------- automation */
+
+/** A template, a rule, and the task that comes out the other end. */
+export function AutomationDiagram() {
+  const t = useT();
+  return (
+    <Stage
+      label="guide.automation.label"
+      minHeight={276}
+      interval={3400}
+      captions={[
+        'guide.automation.s0', 'guide.automation.s1', 'guide.automation.s2',
+        'guide.automation.s3', 'guide.automation.s4',
+      ]}
+    >
+      {(step) => (
+        <div className="gx-scene gx-auto">
+          <Frame className="gx-tpl">
+            <Row className="gx-device-head">
+              <span>🔍</span>
+              <strong>{t('guide.autoScene.template')}</strong>
+            </Row>
+            <div className="gx-field small">{t('guide.autoScene.templateTitle')}</div>
+            <div className="gx-checks">
+              {[0, 1, 2].map((index) => (
+                <span className="gx-check" key={index}><i /> <span className="gx-line" style={{ width: `${68 - index * 12}%` }} /></span>
+              ))}
+            </div>
+          </Frame>
+
+          <div className="gx-auto-middle">
+            <Frame className="gx-rule" data-on={step >= 1 ? 'true' : 'false'}>
+              <Row className="gx-wrap">
+                <MiniChip tone="accent">{t('guide.autoScene.when')}</MiniChip>
+                <MiniChip>{t('guide.autoScene.review')}</MiniChip>
+              </Row>
+              <Row className="gx-wrap">
+                <MiniChip tone={step >= 3 ? 'ok' : undefined}>{t('auto.recipientLead')}</MiniChip>
+                <MiniChip tone={step >= 3 ? 'ok' : undefined}>{t('auto.recipientAssignees')}</MiniChip>
+              </Row>
+            </Frame>
+            <Conn on={step >= 2} dir="right" tone={step >= 4 ? 'ok' : 'accent'} />
+          </div>
+
+          <div className="gx-auto-out">
+            <MiniTask id="WEB-1" title={t('guide.sample.task1')} dim>
+              <MiniChip tone={step >= 1 ? 'accent' : undefined}>{t('guide.autoScene.review')}</MiniChip>
+            </MiniTask>
+            <Frame className="gx-made" data-on={step >= 2 ? 'true' : 'false'}>
+              <MiniTask id="WEB-7" title={t('guide.autoScene.made')} accent />
+              <Row className="gx-wrap">
+                <MiniChip tone="ok">@lin</MiniChip>
+                {step >= 4 && <MiniChip tone="ok">@ada</MiniChip>}
+                <span className="grow" />
+                <MiniChip>{t('relation.relates_to')}</MiniChip>
+              </Row>
+            </Frame>
+            <Row className="gx-runlog" data-on={step >= 4 ? 'true' : 'false'}>
+              <span className="gx-run-dot" />
+              <span className="gx-muted">{t('guide.autoScene.logged')}</span>
+            </Row>
+          </div>
+        </div>
+      )}
+    </Stage>
+  );
+}
+
 /* ------------------------------------------------------------ assistant */
 
 /** MCP: what a token can do is exactly what its scope says. */

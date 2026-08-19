@@ -49,11 +49,13 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 |---|---|
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
-| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `cycle` (`"current"` works), `due_before`, `query` |
+| `list_tasks` | filter by `project`, `state` (name or group), `type` (Bug, Feature, …), `assignee` (`"me"` works), `priority`, `cycle` (`"current"` works), `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_pages` / `get_page` | wiki pages, markdown included |
+| `list_templates` | pre-written tasks, with the checklist each one carries |
+| `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
 | `list_members` | people with role and open task count |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
@@ -62,13 +64,15 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 
 | Tool | Notes |
 |---|---|
-| `create_task` | project + title required; labels that do not exist yet are created |
-| `update_task` | any field, including `state`, `assignees`, `cycle`, `due_date`, `archived` |
+| `create_task` | project + title required; `type` names one of the project's kinds of work; labels that do not exist yet are created |
+| `update_task` | any field, including `state`, `type`, `assignees`, `cycle`, `due_date`, `archived`. An unknown `type` is refused rather than created |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
 | `create_cycle` | sprint with start/end dates |
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
+| `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
+| `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.

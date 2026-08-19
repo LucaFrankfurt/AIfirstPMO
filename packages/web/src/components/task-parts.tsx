@@ -1,9 +1,10 @@
-import { PRIORITIES, type Label, type Priority, type State, type Task } from '@kolibri/shared';
+import { PRIORITIES, fieldKeys, mayEnter, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
-import { useMemberMap, useMembers } from '../session';
+import { useMemberMap, useMembers, useSession } from '../session';
+import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
 /* ----------------------------------------------------------------- lookups */
@@ -13,6 +14,15 @@ export const useStates = (projectId?: string | null): State[] =>
     () => list('state', (s) => !projectId || s.project_id === projectId).sort(byOrder),
     [projectId],
   );
+
+/** The kinds of work a project recognises, in the order it put them in. */
+export const useTypes = (projectId?: string | null): TaskType[] =>
+  useQuery(
+    () => list('taskType', (type) => !projectId || type.project_id === projectId).sort(byOrder),
+    [projectId],
+  );
+
+export const typeOf = (task: Task): TaskType | undefined => byId('taskType', task.type_id ?? undefined);
 
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
@@ -28,7 +38,10 @@ export function StatePicker({ task, compact }: { task: Task; compact?: boolean }
   const t = useT();
   const states = useStates(task.project_id);
   const current = stateOf(task);
-  const items: MenuItem[] = states.map((state) => ({
+  const { role } = useSession();
+  // A column somebody may not move work into is not offered. The server refuses
+  // it as well; this is so nobody has to find that out by being told no.
+  const items: MenuItem[] = states.filter((state) => mayEnter(state.allowed_roles, role)).map((state) => ({
     id: state.id,
     label: state.name,
     section: t(groupKey(state.group_key)),
@@ -39,6 +52,33 @@ export function StatePicker({ task, compact }: { task: Task; compact?: boolean }
     <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('task.state')}>
       <StateDot group={current?.group_key} color={current?.color} />
       {!compact && <span className="truncate">{current?.name ?? t('task.noState')}</span>}
+    </MenuButton>
+  );
+}
+
+export function TypePicker({ task, compact }: { task: Task; compact?: boolean }) {
+  const t = useT();
+  const types = useTypes(task.project_id);
+  const current = typeOf(task);
+  if (!types.length) return null;
+
+  const items: MenuItem[] = [
+    ...types.map((type) => ({
+      id: type.id,
+      label: type.name,
+      icon: <span aria-hidden>{type.icon ?? '•'}</span>,
+      hint: task.type_id === type.id ? '✓' : undefined,
+      onSelect: () => update('task', task.id, { type_id: type.id }),
+    })),
+    // Clearing is offered because a task that predates the project's types has
+    // none, and pretending otherwise would make that state unreachable again.
+    { id: 'none', section: t('view.reset'), label: t('type.none'), onSelect: () => update('task', task.id, { type_id: null }) },
+  ];
+
+  return (
+    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('type.label')}>
+      <span aria-hidden>{current?.icon ?? '◇'}</span>
+      {!compact && <span className="truncate">{current?.name ?? t('type.none')}</span>}
     </MenuButton>
   );
 }
@@ -169,7 +209,16 @@ export function LabelChips({ ids, projectId }: { ids: string[]; projectId?: stri
   );
 }
 
-export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (task: Task) => void; showProject?: boolean }) {
+export function TaskRow({
+  task, onOpen, showProject, selection, order,
+}: {
+  task: Task;
+  onOpen: (task: Task) => void;
+  showProject?: boolean;
+  selection?: Selection;
+  /** The visible order, so a shift-click knows what "in between" means. */
+  order?: string[];
+}) {
   const t = useT();
   const state = stateOf(task);
   const members = useMemberMap();
@@ -177,10 +226,22 @@ export function TaskRow({ task, onOpen, showProject }: { task: Task; onOpen: (ta
   const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   const subtasks = useQuery(() => list('task', (t) => t.parent_id === task.id), [task.id]);
+  const picked = !!selection?.has(task.id);
+  const press = useLongPressSelect(task.id, order ?? [task.id], selection ?? EMPTY_SELECTION);
 
   return (
-    <div className={`task-row${done ? ' done' : ''}`} onClick={() => onOpen(task)} role="button" tabIndex={0}
-      onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onOpen(task)}>
+    <div
+      className={`task-row${done ? ' done' : ''}${picked ? ' selected' : ''}`}
+      role="button"
+      tabIndex={0}
+      {...(selection ? press : {})}
+      onClick={() => {
+        if (selection && press.swallowClick()) return;
+        onOpen(task);
+      }}
+      onKeyDown={(event) => (event.key === 'Enter' || event.key === ' ') && onOpen(task)}
+    >
+      {selection && <SelectBox id={task.id} order={order ?? [task.id]} selection={selection} label={t('select.selectRow')} />}
       <StateDot group={state?.group_key} color={state?.color} />
       <span className="id" title={project?.name}>{task.identifier}</span>
       <span className="title">{task.title}</span>
@@ -250,7 +311,20 @@ export function TaskCard({
 
 /* --------------------------------------------------------------- grouping */
 
-export type GroupBy = 'state' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
+/** The groupings every project has. */
+export type BaseGroupBy = 'state' | 'type' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
+
+/**
+ * `field:<id>` groups by a custom field the project invented for itself. It is
+ * a string rather than a second parameter so that a saved view stores one
+ * value, and so that a grouping whose field was deleted simply finds nothing
+ * instead of crashing the screen that reads it back.
+ */
+export type GroupBy = BaseGroupBy | `field:${string}`;
+
+export const fieldGroupId = (fieldId: string): GroupBy => `field:${fieldId}`;
+export const groupedField = (groupBy: GroupBy): string | null =>
+  groupBy.startsWith('field:') ? groupBy.slice(6) : null;
 
 export interface Group {
   id: string;
@@ -258,6 +332,49 @@ export interface Group {
   color?: string;
   group?: string;
   tasks: Task[];
+}
+
+/**
+ * Group by one project's own field.
+ *
+ * The groups are the answers the field *offers*, in the order somebody wrote
+ * them down, rather than the answers that happen to be in use: an empty column
+ * for a choice nobody has made is the useful half of a board. A multi-select
+ * puts its task in every group it names, which is the same thing labels do.
+ */
+function groupByField(
+  tasks: Task[],
+  fieldId: string,
+  context: { members: { id: string; name: string }[]; t: Translate },
+): Group[] {
+  const { t } = context;
+  const field = byId('field', fieldId);
+  if (!field) return [{ id: 'all', title: t('view.allTasks'), tasks }];
+
+  const answers = new Map<string, string[]>();
+  for (const row of list('fieldValue', (value) => value.field_id === fieldId)) {
+    answers.set(row.task_id, fieldKeys(field.kind, row.value));
+  }
+  const inGroup = (task: Task, key: string) => (answers.get(task.id) ?? []).includes(key);
+
+  const choices: { id: string; title: string }[] = field.kind === 'person'
+    ? context.members.map((member) => ({ id: member.id, title: member.name }))
+    : field.kind === 'checkbox'
+      ? [{ id: 'true', title: t('field.yes') }]
+      : (field.options ?? []).map((option) => ({ id: option, title: option }));
+
+  const groups: Group[] = choices.map((choice) => ({
+    ...choice,
+    tasks: tasks.filter((task) => inGroup(task, choice.id)),
+  }));
+  groups.push({
+    id: 'none',
+    // A checkbox that is not ticked is not "no answer", it is "no" — the row is
+    // deleted rather than stored as false, but nobody thinks of it that way.
+    title: field.kind === 'checkbox' ? t('field.no') : t('field.noAnswer'),
+    tasks: tasks.filter((task) => !(answers.get(task.id) ?? []).length),
+  });
+  return groups;
 }
 
 export function groupTasks(
@@ -268,6 +385,9 @@ export function groupTasks(
   const { t } = context;
   if (groupBy === 'none') return [{ id: 'all', title: t('view.allTasks'), tasks }];
 
+  const fieldId = groupedField(groupBy);
+  if (fieldId) return groupByField(tasks, fieldId, context);
+
   if (groupBy === 'state') {
     return context.states.map((state) => ({
       id: state.id,
@@ -276,6 +396,19 @@ export function groupTasks(
       group: state.group_key,
       tasks: tasks.filter((task) => task.state_id === state.id),
     }));
+  }
+
+  if (groupBy === 'type') {
+    const types = list('taskType').sort(byOrder);
+    const groups: Group[] = types.map((type) => ({
+      id: type.id,
+      title: `${type.icon ?? ''} ${type.name}`.trim(),
+      color: type.color,
+      tasks: tasks.filter((task) => task.type_id === type.id),
+    }));
+    // Tasks from before the project had types, and any deliberately cleared.
+    groups.push({ id: 'none', title: t('type.none'), tasks: tasks.filter((task) => !task.type_id) });
+    return groups;
   }
 
   if (groupBy === 'priority') {

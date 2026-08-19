@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { PRIORITIES, type Priority } from '@kolibri/shared';
 import { list, useQuery } from '../lib/store';
 import { createTask, defaultStateId } from '../lib/mutations';
+import { api } from '../lib/api';
+import { pull } from '../lib/sync';
 import { priorityKey, useT } from '../lib/i18n';
 import { useMe, useMembers, useSession } from '../session';
 import { MarkdownEditor } from './Markdown';
@@ -36,6 +38,14 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   const [stateId, setStateId] = useState<string | undefined>(undefined);
   const [due, setDue] = useState('');
   const [more, setMore] = useState(false);
+  const [applying, setApplying] = useState(false);
+
+  // Templates for this project, plus the workspace-wide ones.
+  const templates = useQuery(
+    () => list('template', (row) => row.workspace_id === workspaceId && !row.archived
+      && (!row.project_id || row.project_id === projectId)),
+    [workspaceId, projectId],
+  );
 
   const states = useStates(projectId);
   const project = projects.find((p) => p.id === projectId);
@@ -153,6 +163,31 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             </MenuButton>
 
             <input className="input" type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
+
+            <MenuButton
+              className="btn sm"
+              disabled={applying}
+              empty={t('tpl.pickEmpty')}
+              items={templates.map((template) => ({
+                id: template.id,
+                label: `${template.icon ?? '📋'} ${template.name}`,
+                onSelect: async () => {
+                  setApplying(true);
+                  try {
+                    const task = await api.applyTemplate(template.id, { project_id: projectId, assignees });
+                    await pull();
+                    toast(t('tpl.used', { identifier: task.identifier }));
+                    onClose();
+                  } catch (error) {
+                    toast(error instanceof Error ? error.message : t('common.somethingWentWrong'));
+                  } finally {
+                    setApplying(false);
+                  }
+                },
+              }))}
+            >
+              <Icon name="copy" size={13} /> {t('tpl.pick')}
+            </MenuButton>
           </div>
 
           {more ? (

@@ -126,6 +126,20 @@ const TREE: Node[] = [
             ],
           },
           {
+            id: 'template',
+            glyph: 'copy',
+            name: 'guide.node.template',
+            what: 'guide.node.templateWhat',
+            rule: 'guide.node.templateRule',
+          },
+          {
+            id: 'automation',
+            glyph: 'refresh',
+            name: 'guide.node.automation',
+            what: 'guide.node.automationWhat',
+            rule: 'guide.node.automationRule',
+          },
+          {
             id: 'projectPage',
             glyph: 'page',
             name: 'guide.node.projectPage',
@@ -154,6 +168,22 @@ const ASIDE: Node[] = [
     what: 'guide.node.notificationWhat',
     rule: 'guide.node.notificationRule',
     belongsTo: 'guide.hierarchy.aPerson',
+  },
+  {
+    id: 'taskType',
+    glyph: 'target',
+    name: 'guide.node.type',
+    what: 'guide.node.typeWhat',
+    rule: 'guide.node.typeRule',
+    belongsTo: 'guide.hierarchy.aProject',
+  },
+  {
+    id: 'timeEntry',
+    glyph: 'cycle',
+    name: 'guide.node.time',
+    what: 'guide.node.timeWhat',
+    rule: 'guide.node.timeRule',
+    belongsTo: 'guide.hierarchy.aTask',
   },
   {
     id: 'view',
