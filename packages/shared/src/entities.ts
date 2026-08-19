@@ -16,6 +16,7 @@ export type EntityName =
   | 'taskType'
   | 'field'
   | 'fieldValue'
+  | 'baseline'
   | 'label'
   | 'task'
   | 'relation'
@@ -86,7 +87,11 @@ export const ENTITIES = {
   },
   state: {
     table: 'states',
-    fields: ['workspace_id', 'project_id', 'name', 'group_key', 'color', 'sort_order'],
+    fields: [
+      'workspace_id', 'project_id', 'name', 'group_key', 'color', 'sort_order',
+      'wip_limit', 'allowed_roles',
+    ],
+    json: ['allowed_roles'],
   },
   taskType: {
     table: 'task_types',
@@ -130,6 +135,15 @@ export const ENTITIES = {
     ],
     serverOnly: ['number', 'identifier'],
     json: ['assignees', 'labels', 'subscribers'],
+  },
+  /**
+   * A plan, kept. Dates as they were on the day it was taken, so the chart can
+   * draw what was promised behind what is happening.
+   */
+  baseline: {
+    table: 'baselines',
+    fields: ['workspace_id', 'project_id', 'name', 'taken_at', 'entries'],
+    json: ['entries'],
   },
   relation: {
     table: 'task_relations',
@@ -234,3 +248,39 @@ export function entityDef(name: string): EntityDef | undefined {
 export function tableFor(name: EntityName): string {
   return ENTITIES[name].table;
 }
+
+/**
+ * The URL segment each entity is served under.
+ *
+ * Here rather than in the server's routes because the client needs it too: when
+ * the server rejects a mutation, the client has to re-read the row it was wrong
+ * about, and it can only do that if both sides agree on the word.
+ */
+export const COLLECTIONS: Record<EntityName, string> = {
+  user: 'users',
+  member: 'members',
+  team: 'teams',
+  teamMember: 'team-members',
+  project: 'projects',
+  projectMember: 'project-members',
+  state: 'states',
+  taskType: 'task-types',
+  field: 'fields',
+  fieldValue: 'field-values',
+  baseline: 'baselines',
+  label: 'labels',
+  task: 'tasks',
+  relation: 'relations',
+  cycle: 'cycles',
+  module: 'modules',
+  page: 'pages',
+  comment: 'comments',
+  attachment: 'attachments',
+  view: 'views',
+  timeEntry: 'time-entries',
+  template: 'templates',
+  automation: 'automations',
+  webhook: 'webhooks',
+  notification: 'notifications',
+  activity: 'activities',
+};

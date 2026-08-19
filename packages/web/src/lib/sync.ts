@@ -6,7 +6,10 @@
  * server merges per field with last-writer-wins, so a phone that was offline
  * for a day merges cleanly instead of clobbering the team's work.
  */
-import { Clock, ENTITY_NAMES, type ChangeSet, type EntityName, type Mutation, type PullResponse, type PushResponse } from '@kolibri/shared';
+import {
+  Clock, COLLECTIONS, ENTITY_NAMES,
+  type ChangeSet, type EntityName, type Mutation, type PullResponse, type PushResponse,
+} from '@kolibri/shared';
 import { api, ApiError } from './api';
 import * as idb from './idb';
 import { currentLocale, translate } from './i18n';
@@ -186,6 +189,11 @@ export async function flush(): Promise<void> {
     if (response.rejected.length) {
       console.warn('[sync] server rejected mutations', response.rejected);
       setStatus({ message: response.rejected[0].reason });
+      // The change was already applied locally, and a row the server did not
+      // change will not come back in a delta pull — so the rows a rejection
+      // touched are re-read by hand. Without this the screen keeps showing an
+      // edit the server refused.
+      await undo(batch.filter((mutation) => response.rejected.some((r) => r.id === mutation.id)));
     }
     // The server may have decided values for us (task identifiers, defaults).
     applyChanges(response.patched);
@@ -197,6 +205,29 @@ export async function flush(): Promise<void> {
     else await pull();
   } catch (err) {
     handleError(err);
+  }
+}
+
+/**
+ * Put back what the server would not take.
+ *
+ * One read per rejected row, which is fine: a rejection is rare by design — the
+ * interface does not offer moves the rules forbid, so this is the path for the
+ * API, another device, or a rule that changed while somebody was offline.
+ */
+async function undo(rejected: Mutation[]): Promise<void> {
+  const seen = new Set<string>();
+  for (const mutation of rejected) {
+    const key = `${mutation.entity}:${mutation.entityId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    try {
+      const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[mutation.entity]}/${mutation.entityId}`);
+      applyChanges({ [mutation.entity]: [row] } as ChangeSet);
+      await persist({ [mutation.entity]: [row] } as ChangeSet);
+    } catch {
+      // The row is gone, or unreadable now. The next full sync settles it.
+    }
   }
 }
 

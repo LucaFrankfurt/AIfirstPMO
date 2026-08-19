@@ -1,9 +1,9 @@
-import { PRIORITIES, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
+import { PRIORITIES, mayEnter, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
-import { useMemberMap, useMembers } from '../session';
+import { useMemberMap, useMembers, useSession } from '../session';
 import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
@@ -38,7 +38,10 @@ export function StatePicker({ task, compact }: { task: Task; compact?: boolean }
   const t = useT();
   const states = useStates(task.project_id);
   const current = stateOf(task);
-  const items: MenuItem[] = states.map((state) => ({
+  const { role } = useSession();
+  // A column somebody may not move work into is not offered. The server refuses
+  // it as well; this is so nobody has to find that out by being told no.
+  const items: MenuItem[] = states.filter((state) => mayEnter(state.allowed_roles, role)).map((state) => ({
     id: state.id,
     label: state.name,
     section: t(groupKey(state.group_key)),

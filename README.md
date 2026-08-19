@@ -41,7 +41,7 @@ around three convictions:
 | | |
 |---|---|
 | **Work tracking** | Projects with their own workflow states, kinds of work (bug / feature / chore, editable per project) and custom fields — nine kinds, each limited to the types it belongs on — tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, and CSV import with a preview before anything is written |
-| **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), projects that nest under projects, teams that own them, any project copyable as a template, time tracking with a timer that survives a reload, an Insights tab per project — throughput, burn-up, cycle time — and a portfolio roadmap across all of them, all computed from the local mirror |
+| **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), a timeline where dragging a task moves everything blocked by it, baselines to draw the plan behind the work, work-in-progress limits, projects that nest under projects, teams that own them, any project copyable as a template, time tracking with a timer that survives a reload, an Insights tab per project — throughput, burn-up, cycle time — and a portfolio roadmap across all of them, all computed from the local mirror |
 | **Templates & rules** | Task templates with a checklist that becomes sub-tasks, repeating tasks, and rules that file one when something happens — including *n* days before a due date — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
 | **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project; filter and sort; select several tasks and change them together; save a view under a name and share it |
 | **Pages** | Nested markdown wiki with version history, restore and a what-changed diff; labels and filtering; watch a page; page templates; per-page visibility; export as a markdown bundle; comments and `@mentions`; drag & drop images |
@@ -54,7 +54,7 @@ around three convictions:
 | **Languages** | English and German throughout — interface, notifications and emails, each written in the recipient's own language. Adding a third is one typed catalogue file |
 | **Integration** | REST API for every entity, scoped API tokens, signed outgoing webhooks, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
-| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect, and a workspace audit log |
+| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect, per-column rules for who may move work where, and a workspace audit log |
 
 ## Quick start
 

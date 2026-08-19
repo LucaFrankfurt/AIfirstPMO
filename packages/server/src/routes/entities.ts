@@ -1,4 +1,4 @@
-import { ENTITIES, IMPORT_FIELDS, type EntityName, type ImportField, type Mapping } from '@kolibri/shared';
+import { COLLECTIONS, ENTITIES, IMPORT_FIELDS, type EntityName, type ImportField, type Mapping } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { serverClock, createProject } from '../lib/bootstrap.ts';
@@ -9,31 +9,18 @@ import { importCsv } from '../lib/import.ts';
 import { copyProject, type CopyOptions } from '../lib/copy.ts';
 import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 
-/** URL segment -> entity. Everything the sync engine knows is also plain REST. */
-export const REST_ENTITIES: Record<string, EntityName> = {
-  teams: 'team',
-  'team-members': 'teamMember',
-  projects: 'project',
-  'project-members': 'projectMember',
-  states: 'state',
-  'task-types': 'taskType',
-  fields: 'field',
-  'field-values': 'fieldValue',
-  labels: 'label',
-  tasks: 'task',
-  relations: 'relation',
-  cycles: 'cycle',
-  modules: 'module',
-  pages: 'page',
-  comments: 'comment',
-  attachments: 'attachment',
-  views: 'view',
-  'time-entries': 'timeEntry',
-  templates: 'template',
-  automations: 'automation',
-  webhooks: 'webhook',
-  notifications: 'notification',
-};
+/**
+ * URL segment -> entity. Everything the sync engine knows is also plain REST.
+ *
+ * Derived from the shared `COLLECTIONS` map rather than written out again, so a
+ * new entity is one line in one file. `user`, `member` and `activity` are read
+ * through their own routes and are not in this table.
+ */
+export const REST_ENTITIES: Record<string, EntityName> = Object.fromEntries(
+  (Object.entries(COLLECTIONS) as [EntityName, string][])
+    .filter(([entity]) => entity !== 'user' && entity !== 'member' && entity !== 'activity')
+    .map(([entity, segment]) => [segment, entity]),
+);
 
 const resolve = (segment: string): EntityName => {
   const entity = REST_ENTITIES[segment];

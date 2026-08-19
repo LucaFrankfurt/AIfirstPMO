@@ -118,6 +118,14 @@ export function seedDemoData(): boolean {
     const stateByGroup = (group: string) => states.find((s) => s.group_key === group) ?? states[0];
     const labels = all<Row>(`SELECT * FROM labels WHERE project_id = ?`, project.id);
 
+    // One column with an agreed limit, so a fresh demo shows what one looks
+    // like — including a column that is over it, which is the interesting case.
+    const started = states.find((state) => state.group_key === 'started');
+    if (started) {
+      writeEntity('state', String(started.id), { wip_limit: 2 },
+        { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
+    }
+
     const cycleId = uid();
     writeEntity('cycle', cycleId, {
       workspace_id: ws, project_id: project.id, name: `Cycle ${new Date().getUTCFullYear()}-${Math.ceil((new Date().getUTCMonth() + 1) / 1)}`,
@@ -137,6 +145,7 @@ export function seedDemoData(): boolean {
 
     const items = BACKLOG[project.key] ?? [];
     const orders = orderKeys(items.length);
+    let blockedBy: string | null = null;
     items.forEach(([title, group, priority, estimate], index) => {
       const assignee = ids[(index + projects.indexOf(project)) % ids.length];
       const inCycle = group === 'started' || (group === 'unstarted' && index % 2 === 0);
@@ -152,7 +161,10 @@ export function seedDemoData(): boolean {
         labels: index % 3 === 0 && labels.length ? [labels[index % labels.length].id] : [],
         cycle_id: inCycle ? cycleId : null,
         module_id: index % 3 === 0 ? moduleId : null,
-        due_date: index % 4 === 0 ? isoDate(index - 2) : null,
+        // Dated work in pairs — a start and a due date — so the timeline has
+        // bars to draw rather than a row of single days.
+        start_date: index % 2 === 0 ? isoDate(index * 2 - 6) : null,
+        due_date: index % 2 === 0 ? isoDate(index * 2 + 2) : isoDate(index - 2),
         sort_order: orders[index],
         created_by: project.lead,
       }, { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
@@ -165,6 +177,14 @@ export function seedDemoData(): boolean {
           minutes: 45 + ((index * 35) % 180), spent_on: isoDate(-(index % 7) - 1),
           note: null, billable: 1,
         }, { workspaceId: ws, actorId: assignee, hlc: hlc(), system: true });
+      }
+
+      // A chain of two, so the chart has a dependency to draw and to enforce.
+      if (index === 2) blockedBy = row.id;
+      if (index === 4 && blockedBy) {
+        writeEntity('relation', uid(), {
+          workspace_id: ws, task_id: blockedBy, related_task_id: row.id, kind: 'blocks',
+        }, { workspaceId: ws, actorId: project.lead, hlc: hlc(), system: true });
       }
 
       if (index === 0) {

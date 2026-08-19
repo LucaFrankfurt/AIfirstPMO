@@ -176,9 +176,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       column. Fractional indexing already supports inserting between two neighbours — the drop
       handler just needs the index under the cursor.
 - [x] **Comment reactions.** Six of them, counted, with who reacted in the tooltip.
-- [ ] **Gantt layout.** `LAYOUTS` declares five; four are built (list, board, table, calendar).
-      Gantt is the one left, and it is not a layout so much as a scheduler — see the entry on
-      dependency scheduling below. Either build it or trim the type.
+- [x] **Gantt layout, and the scheduling behind it.** All five layouts are built. Bars are dragged
+      to move and resized at the edges, `blocks` relations are drawn as arrows, and moving a task
+      moves everything waiting on it — one rule, in `@kolibri/shared` so the server applies the same
+      one: a task may not start before everything blocking it has finished. Nothing is ever pulled
+      *earlier*; a plan that snaps backwards the moment a dependency lands early is arguing with
+      whoever wrote it. Rescheduling is written as ordinary local changes, so it works offline.
+      Still open: lag other than "the next day", and durations in working days rather than days.
 - [x] **Internationalisation.** English and German, both as catalogue files — the interface, the
       notification titles and the emails, each written in the recipient's own language. Other
       locales are typed against English, so a missing key is a compile error.
@@ -228,8 +232,10 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       reports, and a timesheet view across projects and weeks. Also: `tasks.estimate` is in points,
       so "spent vs. estimated" cannot be shown until an estimate carries a unit — which is a
       decision about how a team plans, not a formatting problem.
-- [ ] **Gantt with real scheduling.** Relations exist but nothing reschedules — moving a
-      predecessor moves nothing. Baselines (plan vs. actual) sit on top of the same work.
+- [x] **Gantt with real scheduling, and baselines.** See P2 above. A baseline keeps the dates as
+      they stood under a name — the whole plan in one row, because it is something somebody *took*
+      and must not drift as tasks are added afterwards — and the timeline draws it as a thin rule
+      under each bar, so a task that has not moved shows nothing worth looking at.
 - [ ] **Resource and capacity planning**, a team planner.
 - [x] **Sub-projects and project templates.** A project can sit under another — nesting in the
       sidebar and in the portfolio, deliberately *not* a permission boundary, and the server refuses
@@ -238,7 +244,15 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       works better than a form somebody filled in once. Structure always comes across; members,
       rules, pages and tasks are each a choice. One transaction on the server, because half a copied
       project is worse than none.
-- [ ] **Status transition rules per role** — who may move a task from where to where.
+- [x] **Status transition rules per role.** A column can name the roles allowed to move work into
+      it. Enforced on the write path, so it holds for REST, for MCP and for a phone that was offline
+      while the rule was written — and the interface simply does not offer a column somebody may not
+      use, so nobody finds out by being refused. A rejected mutation now re-reads the row it was
+      wrong about, because an optimistic change the server refused would otherwise sit on screen
+      until the next full sync.
+- [x] **Work-in-progress limits** per column. Shown as a fraction and marked when it is broken,
+      never enforced by refusing a drop: a board that will not take a card teaches people to keep
+      their work somewhere it cannot be seen.
 - [x] **Recurring tasks.** Daily, weekly, fortnightly or monthly. The next one is created when the
       last is *finished*, not when a date passes: a weekly task nobody did four times is one late
       task, not four nobody will do.

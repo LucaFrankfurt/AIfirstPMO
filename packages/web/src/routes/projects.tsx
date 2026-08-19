@@ -19,7 +19,7 @@ import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useCanWrite, useMe, useMembers, useSession } from '../session';
-import { groupKey, useT, type TranslationKey } from '../lib/i18n';
+import { groupKey, roleKey, useT, type TranslationKey } from '../lib/i18n';
 import { ProjectFields } from '../components/fields';
 import { CopyProjectSheet } from '../components/copy-project';
 
@@ -604,26 +604,55 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <GuideHint to="hierarchy" />
       </div>
       {states.map((state) => (
-        <div className="row" key={state.id} style={{ padding: '5px 0' }}>
-          <input
-            type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
-            onChange={(event) => update('state', state.id, { color: event.target.value })}
-          />
-          <input className="input grow" value={state.name} onChange={(event) => update('state', state.id, { name: event.target.value })} />
-          <select className="select" style={{ width: 140 }} value={state.group_key}
-            onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
-            {STATE_GROUPS.map((group) => (
-              <option key={group} value={group}>{t(groupKey(group))}</option>
-            ))}
-          </select>
-          <button className="btn ghost icon" onClick={async () => {
-            if (states.length <= 1) return;
-            if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
-          }}>
-            <Icon name="trash" size={14} />
-          </button>
+        <div className="stack-card" key={state.id}>
+          <div className="row">
+            <input
+              type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
+              aria-label={t('project.stateColour')}
+              onChange={(event) => update('state', state.id, { color: event.target.value })}
+            />
+            <input className="input grow" value={state.name} aria-label={t('project.name')}
+              onChange={(event) => update('state', state.id, { name: event.target.value })} />
+            <select className="select" style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
+              onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
+              {STATE_GROUPS.map((group) => (
+                <option key={group} value={group}>{t(groupKey(group))}</option>
+              ))}
+            </select>
+            <button className="btn ghost icon" aria-label={t('project.deleteState')} onClick={async () => {
+              if (states.length <= 1) return;
+              if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
+            }}>
+              <Icon name="trash" size={14} />
+            </button>
+          </div>
+          <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
+            <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+              <span className="muted">{t('state.wipLimit')}</span>
+              <input
+                className="input" type="number" min={0} max={99} style={{ width: 70 }}
+                value={state.wip_limit || ''} placeholder="0"
+                onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
+              />
+            </label>
+            <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+              <span className="muted">{t('state.allowedRoles')}</span>
+              <select
+                className="select" style={{ width: 200 }}
+                value={state.allowed_roles?.[0] ?? ''}
+                onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
+              >
+                <option value="">{t('state.allowedAnyone')}</option>
+                {(['member', 'admin', 'owner'] as const).map((role) => (
+                  <option key={role} value={role}>{t(roleKey(role))}</option>
+                ))}
+              </select>
+            </label>
+          </div>
         </div>
       ))}
+      <p className="hint" style={{ marginTop: 4 }}>{t('state.wipLimitHint')}</p>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('state.allowedHint')}</p>
       <button
         className="btn sm" style={{ marginTop: 6 }}
         onClick={() => create('state', {

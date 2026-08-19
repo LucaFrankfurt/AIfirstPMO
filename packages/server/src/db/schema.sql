@@ -183,6 +183,10 @@ CREATE TABLE IF NOT EXISTS states (
   group_key    TEXT NOT NULL DEFAULT 'backlog',
   color        TEXT NOT NULL DEFAULT '#94a3b8',
   sort_order   TEXT NOT NULL DEFAULT 'V',
+  -- How many tasks may sit in this column at once; 0 means no limit.
+  wip_limit    INTEGER NOT NULL DEFAULT 0,
+  -- Workspace roles allowed to move a task *into* it. Empty means anybody.
+  allowed_roles TEXT NOT NULL DEFAULT '[]',
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,
@@ -258,6 +262,25 @@ CREATE TABLE IF NOT EXISTS field_values (
 );
 CREATE INDEX IF NOT EXISTS field_values_seq ON field_values (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS field_values_task ON field_values (task_id);
+
+-- A plan as it stood on one day, so the timeline can draw what was promised
+-- behind what is happening. Whole snapshots rather than per-task history: a
+-- baseline is a thing somebody *took*, and it is read all at once.
+CREATE TABLE IF NOT EXISTS baselines (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  taken_at     INTEGER NOT NULL DEFAULT 0,
+  entries      TEXT NOT NULL DEFAULT '{}',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS baselines_seq ON baselines (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS baselines_project ON baselines (project_id);
 
 CREATE TABLE IF NOT EXISTS labels (
   id           TEXT PRIMARY KEY,

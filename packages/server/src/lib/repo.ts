@@ -1,6 +1,6 @@
 import { ENTITIES, entityDef, hlcGreater, type EntityName } from '@kolibri/shared';
 import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
-import { badRequest, notFound } from './http.ts';
+import { badRequest, forbidden, notFound } from './http.ts';
 import { uid } from './ids.ts';
 import { publish } from './bus.ts';
 import { runAutomations } from './automation.ts';
@@ -121,6 +121,10 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
       return { row: existing!, forced: {}, created: false };
     }
 
+    if (entity === 'task' && values.state_id !== undefined && !opts.system) {
+      guardTransition(String(values.state_id), opts);
+    }
+
     const forced = created ? applyCreateDefaults(entity, id, values, opts) : {};
     applyInvariants(entity, values, existing, forced);
 
@@ -239,6 +243,42 @@ function applyInvariants(entity: EntityName, values: Record<string, unknown>, ex
     }
   }
   if (entity === 'task') applyTaskInvariants(values, existing, forced);
+}
+
+const ROLE_RANK: Record<string, number> = { guest: 0, member: 1, admin: 2, owner: 3 };
+
+/**
+ * Who may move a task into a column.
+ *
+ * A state can name the workspace roles allowed to receive work — "only a lead
+ * marks something done". Empty means anybody who can write, which is every
+ * column until somebody says otherwise. Checked here rather than in the
+ * interface, because the interface is not the only way in: REST, MCP and a
+ * phone that was offline all come through this function.
+ *
+ * Rules never apply to the server's own writes: an automation, an import or a
+ * recurrence rolling a task forward is not a person moving a card.
+ */
+function guardTransition(stateId: string, opts: WriteOpts): void {
+  const state = get<Row>(`SELECT name, allowed_roles FROM states WHERE id = ?`, stateId);
+  if (!state) return;
+  let allowed: string[] = [];
+  try {
+    const parsed = JSON.parse(String(state.allowed_roles ?? '[]'));
+    if (Array.isArray(parsed)) allowed = parsed.map(String);
+  } catch { /* a column with an unreadable rule is a column with no rule */ }
+  if (!allowed.length) return;
+
+  const role = get<Row>(
+    `SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    opts.workspaceId, opts.actorId,
+  )?.role as string | undefined;
+  // A role that outranks every role named is allowed: naming "member" and
+  // meaning "and not an owner" is not what anybody writes down.
+  const bar = Math.min(...allowed.map((name) => ROLE_RANK[name] ?? 99));
+  if (role && (allowed.includes(role) || (ROLE_RANK[role] ?? -1) >= bar)) return;
+
+  throw forbidden(`Only ${allowed.join(' or ')} may move work into “${state.name}”`);
 }
 
 /** Whether making `parentId` the parent of `id` closes a circle. */

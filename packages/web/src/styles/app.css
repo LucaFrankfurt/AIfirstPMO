@@ -538,6 +538,66 @@ p { margin: 0 0 0.75em; }
 }
 .chart-tip.pinned { bottom: auto; top: 0; }
 
+/* ------------------------------------------------------------------ gantt */
+
+/* The one view that scrolls sideways on purpose. The names stay put; only the
+   plot moves, so a row can always be identified. */
+.gantt { display: flex; flex-direction: column; min-height: 0; }
+.gantt-toolbar { padding: 0 0 8px; gap: 6px; }
+.gantt-scroll { display: flex; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.gantt-names { position: sticky; inset-inline-start: 0; z-index: 2; flex: none; width: 210px; background: var(--bg); border-inline-end: 1px solid var(--line); }
+.gantt-head { height: 26px; position: relative; border-bottom: 1px solid var(--line); background: var(--bg); }
+.gantt-name {
+  display: flex; align-items: center; gap: 6px; height: 34px; width: 100%;
+  padding: 0 10px; border: none; background: none; font: inherit; font-size: 12.5px;
+  color: var(--fg); text-align: start; cursor: pointer; overflow: hidden;
+}
+.gantt-name .truncate { min-width: 0; }
+.gantt-name .state-dot { flex: none; }
+.gantt-name:hover { background: var(--bg-hover); }
+.gantt-plot { position: relative; flex: none; }
+.gantt-month {
+  position: absolute; top: 0; height: 26px; display: flex; align-items: center;
+  padding-inline-start: 6px; font-size: 11.5px; color: var(--fg-muted);
+  border-inline-start: 1px solid var(--line); white-space: nowrap; overflow: hidden;
+}
+.gantt-rows { position: relative; }
+.gantt-today { position: absolute; inset-block: 0; width: 1px; background: var(--accent); opacity: .55; z-index: 1; }
+.gantt-links { position: absolute; inset: 0; overflow: visible; color: var(--fg-muted); pointer-events: none; }
+.gantt-links .link { fill: none; stroke: var(--fg-muted); stroke-width: 1.2; opacity: .65; }
+/* A dependency that is already violated — the successor starts before its
+   blocker ends — is the one thing on this chart worth colouring. */
+.gantt-links .link.late { stroke: var(--danger); color: var(--danger); opacity: .9; }
+.gantt-links marker path { fill: currentColor; }
+
+.gantt-bar {
+  position: absolute; height: 18px; border-radius: 4px; z-index: 1;
+  display: flex; align-items: center; padding: 0 6px;
+  background: color-mix(in srgb, var(--chart-1) 82%, transparent);
+  color: #fff; font-size: 11px; cursor: grab; touch-action: none; overflow: hidden;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.gantt-bar.dragging { cursor: grabbing; opacity: .9; }
+.gantt-bar.done { background: color-mix(in srgb, var(--chart-2) 78%, transparent); }
+.gantt-bar.late { background: var(--danger); }
+.gantt-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gantt-label { pointer-events: none; }
+/* Wide enough to grab with a thumb, invisible so it does not read as a part. */
+.gantt-grip { position: absolute; inset-block: 0; width: 9px; cursor: ew-resize; }
+.gantt-grip.start { inset-inline-start: -2px; }
+.gantt-grip.end { inset-inline-end: -2px; }
+/* The plan a baseline recorded: a thin rule under the bar rather than a box
+   around it, so a task that has not moved shows nothing worth looking at. */
+.gantt-plan {
+  position: absolute; height: 4px; border-radius: 2px;
+  background: color-mix(in srgb, var(--fg-muted) 45%, transparent);
+}
+.gantt-undated { margin-top: 12px; }
+
+/* A work-in-progress limit: a fraction, and a colour only once it is broken. */
+.wip { font-size: 11.5px; color: var(--fg-muted); }
+.wip.over { color: var(--danger); font-weight: 600; }
+
 /* ---------------------------------------------------------------- roadmap */
 
 /* A timeline, not a chart of magnitudes: nothing is compared by length here, so

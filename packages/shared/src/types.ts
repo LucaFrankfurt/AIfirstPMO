@@ -165,6 +165,23 @@ export interface State extends Base {
   group_key: StateGroup;
   color: string;
   sort_order: string;
+  /** How many tasks may sit here at once. 0 means no limit. */
+  wip_limit: number;
+  /**
+   * Who may move a task *into* this column. Empty means anybody who can write.
+   * Workspace roles, so "only a lead signs work off" is one entry.
+   */
+  allowed_roles: WorkspaceRole[];
+}
+
+/** Dates as they were when somebody said "this is the plan". */
+export interface Baseline extends Base {
+  workspace_id: ID;
+  project_id: ID;
+  name: string;
+  taken_at: number;
+  /** `taskId → [start, due]`, with `null` for a date the task did not have. */
+  entries: Record<ID, [ISODate | null, ISODate | null]>;
 }
 
 /**
@@ -504,6 +521,7 @@ export interface EntityMap {
   taskType: TaskType;
   field: Field;
   fieldValue: FieldValue;
+  baseline: Baseline;
   task: Task;
   relation: Relation;
   cycle: Cycle;

@@ -10,6 +10,7 @@ import { groupTasks, LabelChips, TaskCard, TaskRow, useLabels, useStates, useTyp
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
+import { GanttView } from './gantt';
 
 export interface ViewConfig {
   layout: Layout;
@@ -30,11 +31,11 @@ export const DEFAULT_VIEW: ViewConfig = {
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 
 const LAYOUT_KEY: Record<string, TranslationKey> = {
-  list: 'view.list', board: 'view.board', calendar: 'view.calendar', table: 'view.table',
+  list: 'view.list', board: 'view.board', calendar: 'view.calendar', table: 'view.table', gantt: 'view.gantt',
 };
 
-/** The layouts that are built. `LAYOUTS` also declares `gantt`, which is not. */
-const BUILT_LAYOUTS: Layout[] = ['list', 'board', 'table', 'calendar'];
+/** Every layout `LAYOUTS` declares is built. */
+const BUILT_LAYOUTS: Layout[] = ['list', 'board', 'table', 'calendar', 'gantt'];
 
 const GROUP_BY_KEY: Record<GroupBy, TranslationKey> = {
   state: 'view.groupState', type: 'type.groupBy', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
@@ -374,7 +375,19 @@ export function BoardView({
           <header>
             {group.color && <StateDot group={group.group} color={group.color} size={10} />}
             <span className="grow truncate">{group.title}</span>
-            <span className="muted">{group.tasks.length}</span>
+            {(() => {
+              // A limit is a number the team agreed, so it is shown as a
+              // fraction and marked when it is broken — never enforced by
+              // refusing a drop, which only teaches people to work elsewhere.
+              const limit = view.groupBy === 'state' ? byId('state', group.id)?.wip_limit ?? 0 : 0;
+              if (!limit) return <span className="muted">{group.tasks.length}</span>;
+              const over = group.tasks.length > limit;
+              return (
+                <span className={over ? 'wip over' : 'wip'} title={t('state.wipHint', { limit })}>
+                  {group.tasks.length}/{limit}
+                </span>
+              );
+            })()}
           </header>
           <div className="items">
             {group.tasks.map((task, position) => (
@@ -651,6 +664,9 @@ export function TaskViews(props: {
   if (props.view.layout === 'board') return <BoardView {...props} />;
   if (props.view.layout === 'calendar') return <CalendarView tasks={props.tasks} onOpen={props.onOpen} />;
   if (props.view.layout === 'table') return <TableView {...props} />;
+  if (props.view.layout === 'gantt') {
+    return <GanttView tasks={props.tasks} onOpen={props.onOpen} projectId={props.projectId} />;
+  }
   return <ListView {...props} />;
 }
 

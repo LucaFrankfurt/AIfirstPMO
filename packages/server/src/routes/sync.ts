@@ -46,6 +46,7 @@ function filterFor(entity: EntityName): string {
     case 'taskType':
     case 'field':
     case 'fieldValue':
+    case 'baseline':
     case 'cycle':
     case 'module':
     case 'projectMember':

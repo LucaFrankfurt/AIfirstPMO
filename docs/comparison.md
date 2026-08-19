@@ -63,7 +63,6 @@ which Plane does not have in this form.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Gantt layout** | High | `LAYOUTS` declares five; four are built. Gantt needs scheduling, not a layout |
 | **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
 | **Named integrations** — GitHub/GitLab commit linking, Slack | Medium | Signed outgoing webhooks are built; what is missing is the per-service message shape and a route *in* |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
@@ -78,15 +77,11 @@ management with money in it.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Gantt with real scheduling** | High | Relations exist (`blocks`, `relates_to`, …) but nothing reschedules: moving a predecessor moves nothing |
 | **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
 | **Reports** — cost and utilisation | High | Progress across projects is built (the portfolio); money is not |
 | **Resource and capacity planning**, team planner | High | |
 | **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
-| **Status transition rules per role** (who may move what, where) | Medium–high | |
-| **Baselines** (plan vs. actual) | Medium | |
 | Meetings module (agenda, minutes), forums, news, documents | Depends on audience | |
-| WIP limits on boards | Low | |
 | ~30 interface languages | Low each | Kolibri has two, and adding one is a typed catalogue file |
 | BITV / WCAG certification | Unverified | Kolibri has never been audited |
 
@@ -118,10 +113,10 @@ value per unit of work rather than by size.
 | ~~4c~~ | ~~Sub-projects, project copying, portfolio~~ | **Done** — nesting, any project as a template, and a roadmap across all of them | |
 | ~~5~~ | ~~SSO (OIDC first)~~ | **Done** — code flow with PKCE, optional password lockout, tested against a real signing provider | |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
-| 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |
+| ~~7~~ | ~~Gantt with dependency scheduling~~ | **Done** — drag to move, arrows for `blocks`, successors follow, baselines behind | |
 | ~~8~~ | ~~Trash / archive browser~~ | **Done** — Settings → Data, with a way back | |
 
-Item 7 is the last project on this list; item 6 is a sitting and a half.
+Item 6 is what is left of this list, and the user has parked it.
 
 ## What has been closed
 
