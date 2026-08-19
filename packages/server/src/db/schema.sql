@@ -92,6 +92,41 @@ CREATE TABLE IF NOT EXISTS api_tokens (
 );
 CREATE INDEX IF NOT EXISTS tokens_user ON api_tokens (user_id);
 
+-- OAuth clients that registered themselves (RFC 7591).
+--
+-- Registration is open, and it has to be: a remote assistant has no way to
+-- exist here before somebody pastes this instance's URL into it, and there is
+-- no admin standing by to approve an app nobody has heard of yet. Registering
+-- grants nothing — a client is a name and a set of redirect URIs. What grants
+-- anything is a person signing in and pressing Allow, which is the step this
+-- whole table exists to lead up to.
+CREATE TABLE IF NOT EXISTS oauth_clients (
+  id            TEXT PRIMARY KEY,
+  name          TEXT NOT NULL DEFAULT '',
+  redirect_uris TEXT NOT NULL DEFAULT '[]',
+  uri           TEXT,
+  created_at    INTEGER NOT NULL,
+  last_used_at  INTEGER
+);
+
+-- One authorization code, in flight. Single use and short-lived: it is handed
+-- back through a browser redirect, which means through the address bar, the
+-- history and possibly a referrer header.
+CREATE TABLE IF NOT EXISTS oauth_codes (
+  code_hash    TEXT PRIMARY KEY,
+  client_id    TEXT NOT NULL,
+  user_id      TEXT NOT NULL,
+  workspace_id TEXT,
+  redirect_uri TEXT NOT NULL,
+  -- PKCE, S256 only. A public client cannot keep a secret, so the proof that
+  -- the caller redeeming the code is the one that asked for it is this.
+  challenge    TEXT NOT NULL,
+  scopes       TEXT NOT NULL DEFAULT 'read,write',
+  resource     TEXT,
+  created_at   INTEGER NOT NULL,
+  expires_at   INTEGER NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS invites (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

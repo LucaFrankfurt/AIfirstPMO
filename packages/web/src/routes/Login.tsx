@@ -66,7 +66,14 @@ export function Login() {
         });
       if (code && mode === 'login') await api.acceptInvite(code);
       await signIn(session);
-      navigate('/');
+      // A server-rendered page can send somebody here to sign in and ask to be
+      // returned — the OAuth consent screen does, because a connector's popup
+      // has no session yet. Only a path on this instance is honoured, and it
+      // leaves the app rather than routing inside it, because the page waiting
+      // at the other end is not part of the app.
+      const next = new URLSearchParams(window.location.search).get('next');
+      if (next?.startsWith('/oauth/')) window.location.assign(next);
+      else navigate('/');
     } catch (err) {
       setError(err instanceof Error ? err.message : t('common.somethingWentWrong'));
     } finally {

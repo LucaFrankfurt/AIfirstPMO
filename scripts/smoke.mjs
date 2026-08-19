@@ -11,6 +11,7 @@
  * Prerequisites: a seeded instance on KOLIBRI_URL and `npx playwright install chromium`.
  * Run: node scripts/smoke.mjs
  */
+import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const locale = process.env.KOLIBRI_LOCALE ?? 'en';
@@ -338,6 +339,72 @@ await step('editor: Enter continues a list, and a box can be ticked', async () =
   if (ticked.includes('- [x] one')) throw new Error('ticking one box ticked another');
   console.log('     the list wrote itself, and the box that was clicked is the box that changed');
   await box.fill('');
+});
+
+/**
+ * Signing in an assistant that cannot hold a header.
+ *
+ * `test/oauth.test.ts` proves the protocol — discovery, PKCE, single-use codes,
+ * rotation. What only a browser can prove is that somebody can actually press
+ * the button: the instance sends `form-action 'self'` on everything, and a
+ * browser applies that to where a form's *redirect* lands, so the consent page
+ * silently refused to submit until its policy named the client. Nothing on the
+ * server could see that.
+ */
+await step('a connector can be authorised in a browser', async () => {
+  const redirect = 'https://claude.example/callback';
+  const verifier = 'smoke-verifier-that-is-long-enough-to-be-one';
+  const challenge = createHash('sha256').update(verifier).digest('base64url');
+
+  const meta = await (await fetch(`${base}/.well-known/oauth-authorization-server`)).json();
+  const client = await (await fetch(meta.registration_endpoint, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'Smoke', redirect_uris: [redirect] }),
+  })).json();
+
+  const query = new URLSearchParams({
+    response_type: 'code', client_id: client.client_id, redirect_uri: redirect,
+    code_challenge: challenge, code_challenge_method: 'S256', scope: 'read write', state: 'smoke',
+  });
+
+  // A fresh context carrying the signed-in session, the way a connector's popup
+  // arrives once somebody is already signed in here.
+  const popup = await browser.newContext({ viewport: { width: 900, height: 800 }, locale, storageState: await ctx.storageState() });
+  const view = await popup.newPage();
+  let code = '';
+  await view.route(`${redirect}*`, (route) => {
+    code = new URL(route.request().url()).searchParams.get('code') ?? '';
+    route.fulfill({ status: 200, contentType: 'text/html', body: 'ok' });
+  });
+  try {
+    await view.goto(`${base}/oauth/authorize?${query}`);
+    await view.waitForSelector('.box form', { timeout: 10000 });
+    await view.locator('button.primary').click();
+    await view.waitForTimeout(1200);
+    if (!code) throw new Error('pressing Allow produced no code — check the page\'s form-action policy');
+
+    const granted = await (await fetch(`${base}/oauth/token`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code', code, client_id: client.client_id,
+        redirect_uri: redirect, code_verifier: verifier,
+      }).toString(),
+    })).json();
+    if (granted.token_type !== 'Bearer') throw new Error(`the token endpoint said ${JSON.stringify(granted)}`);
+
+    const call = await (await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${granted.access_token}` },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list' }),
+    })).json();
+    const tools = call.result?.tools?.length ?? 0;
+    if (tools < 10) throw new Error(`the granted token reached ${tools} tools`);
+    console.log('     authorised in a browser, and the token reaches', tools, 'tools');
+  } finally {
+    await popup.close();
+  }
 });
 
 await step('command palette', async () => {

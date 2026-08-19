@@ -146,7 +146,9 @@ claude mcp add --transport http kolibri https://kolibri.example.com/mcp \
 ```
 
 A client that only speaks stdio runs the bridge in `packages/mcp`, which pipes JSON-RPC to that same
-endpoint. See [`docs/mcp.md`](docs/mcp.md).
+endpoint. And **Claude on the web** takes neither: add the instance URL as a custom connector and
+sign in when it asks — the instance is an OAuth authorization server for exactly that case, and what
+it grants is an ordinary token you can revoke in Settings. See [`docs/mcp.md`](docs/mcp.md).
 
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
 `create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,

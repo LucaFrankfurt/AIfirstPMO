@@ -640,6 +640,12 @@ function ApiSettings() {
           {t('api.orDirect')}
         </span>
       </div>
+      {/* Claude on the web has one box for a URL and nowhere to put a token, so
+          it signs in instead. Nothing to configure here — the address is the
+          whole of it. */}
+      <p className="muted" style={{ fontSize: 12.5, marginTop: 12 }}>
+        {t('api.onTheWeb', { url: location.origin })}
+      </p>
 
       {created && (
         <Sheet title={t('api.copyNow')} onClose={() => setCreated(null)}>

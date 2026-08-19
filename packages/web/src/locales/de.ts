@@ -1006,6 +1006,7 @@ export const de: Catalogue = {
   'api.copyConfig': 'Befehl kopieren',
   'api.configCopied': 'Befehl kopiert',
   'api.orDirect': 'Ein Client, der nur stdio spricht, startet stattdessen die Brücke in packages/mcp — siehe docs/mcp.md.',
+  'api.onTheWeb': 'Auf claude.ai {url} als eigenen Connector hinzufügen — mehr als die Adresse gibt es nicht einzutragen, angemeldet wird sich hier, wenn danach gefragt wird.',
   'api.copyNow': 'Token jetzt kopieren',
   'api.copyNowHint': 'Das Token wird nur dieses eine Mal angezeigt. Sicher aufbewahren.',
   'api.copyToken': 'Token kopieren',

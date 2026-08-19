@@ -1009,6 +1009,7 @@ export const fr: Catalogue = {
   'api.copyConfig': 'Copier la commande',
   'api.configCopied': 'Commande copiée',
   'api.orDirect': 'Un client qui ne parle que stdio lance plutôt le pont dans packages/mcp — voir docs/mcp.md.',
+  'api.onTheWeb': 'Sur claude.ai, ajoutez {url} comme connecteur personnalisé — il n’y a que l’adresse à coller, et vous vous connectez ici quand il le demande.',
   'api.copyNow': 'Copiez votre jeton maintenant',
   'api.copyNowHint': 'C’est la seule fois où le jeton est affiché. Rangez-le en lieu sûr.',
   'api.copyToken': 'Copier le jeton',

@@ -299,6 +299,15 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P3 — bigger bets, only with a reason
 
+- [ ] **The consent screen grants everything or nothing.** A connector asks for `read` or
+      `read write` and the person says yes or no; there is no way to hand out a narrower grant —
+      one project, say, or no time tracking. The token already carries a workspace, which is the
+      coarse version of this, and the honest next step is per-project rather than per-tool: a list
+      of tools nobody can predict the effect of is a consent screen nobody reads.
+- [ ] **Nothing lists the connectors as connectors.** They appear in Settings as tokens with the
+      client's name on them, which is enough to revoke one and not enough to see that an app has
+      three live tokens because it refreshed twice. A grant is the thing somebody means to revoke,
+      not a token.
 - [ ] **Publish `@kolibri/mcp` to npm.** The stdio bridge is a single file with no dependencies, and
       until it is published a stdio client has to be pointed at a path inside a checkout. The docs
       and the in-app snippet said `npx -y @kolibri/mcp` for a while, which failed with a 404 for

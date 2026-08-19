@@ -1005,6 +1005,7 @@ export const en = {
   'api.copyConfig': 'Copy command',
   'api.configCopied': 'Command copied',
   'api.orDirect': 'A client that speaks only stdio runs the bridge in packages/mcp instead — see docs/mcp.md.',
+  'api.onTheWeb': 'On claude.ai, add {url} as a custom connector — there is nothing to paste but the address, and you sign in here when it asks.',
   'api.copyNow': 'Copy your token now',
   'api.copyNowHint': 'This is the only time the token is shown. Store it somewhere safe.',
   'api.copyToken': 'Copy token',
