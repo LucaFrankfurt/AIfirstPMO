@@ -128,6 +128,29 @@ export function moveTask(
   return [{ id, start_date: start, due_date: due }, ...reschedule([id], next, dependencies)];
 }
 
+/* ------------------------------------------------------------- packing */
+
+/**
+ * Stack overlapping work into as few rows as it takes.
+ *
+ * First fit by start date: an item goes on the first row whose last item has
+ * already finished. That is what makes a week of three parallel jobs legible
+ * instead of one bar with two hidden behind it. Used by the team planner.
+ */
+export function packRows(items: Scheduled[]): { row: Map<string, number>; rows: number } {
+  const row = new Map<string, number>();
+  const endOf: string[] = [];
+  const ordered = [...items].filter((item) => span(item)).sort((a, b) => span(a)!.start.localeCompare(span(b)!.start));
+  for (const item of ordered) {
+    const bounds = span(item)!;
+    let index = endOf.findIndex((end) => end < bounds.start);
+    if (index === -1) index = endOf.length;
+    endOf[index] = bounds.end;
+    row.set(item.id, index);
+  }
+  return { row, rows: Math.max(1, endOf.length) };
+}
+
 /* ------------------------------------------------------- transition rules */
 
 const ROLE_RANK: Record<string, number> = { guest: 0, member: 1, admin: 2, owner: 3 };

@@ -236,7 +236,14 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       they stood under a name — the whole plan in one row, because it is something somebody *took*
       and must not drift as tasks are added afterwards — and the timeline draws it as a thin rule
       under each bar, so a task that has not moved shows nothing worth looking at.
-- [ ] **Resource and capacity planning**, a team planner.
+- [x] **A team planner, and capacity in the units this app has.** One row per person, their dated
+      work stacked so nothing hides behind anything, and a load strip counting how many tasks are
+      running on each day. Dragging a bar sideways moves the dates through the same scheduler the
+      timeline uses; dropping it on another row hands the task over. Load is counted in **tasks at
+      once, not hours**: `tasks.estimate` is in points, so an hour figure here would be invented,
+      and an invented number in a capacity report is how a team ends up planning against a
+      spreadsheet nobody believes. The comfortable number is set by whoever is looking, because it
+      is their judgement rather than a property of the data.
 - [x] **Sub-projects and project templates.** A project can sit under another — nesting in the
       sidebar and in the portfolio, deliberately *not* a permission boundary, and the server refuses
       a loop rather than trusting the interface. And any project can be copied, which is what a

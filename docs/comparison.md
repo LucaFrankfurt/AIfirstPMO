@@ -79,7 +79,7 @@ management with money in it.
 |---|---|---|
 | **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
 | **Reports** — cost and utilisation | High | Progress across projects is built (the portfolio); money is not |
-| **Resource and capacity planning**, team planner | High | |
+| **Capacity in hours** | Medium | A team planner is built — a row per person, load counted in tasks running at once. Hours would need estimates to carry a unit, which is a decision about how a team plans |
 | **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
 | Meetings module (agenda, minutes), forums, news, documents | Depends on audience | |
 | ~30 interface languages | Low each | Kolibri has two, and adding one is a typed catalogue file |

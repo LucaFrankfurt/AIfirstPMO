@@ -197,6 +197,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="grow truncate">{t('nav.portfolio')}</span>
           </NavLink>
         )}
+        <NavLink to="/planner" className="nav-item">
+          <Icon name="users" size={15} />
+          <span className="grow truncate">{t('nav.planner')}</span>
+        </NavLink>
         {!projects.length && (
           <button className="nav-item" onClick={() => navigate('/projects/new')}>
             <Icon name="plus" size={15} /> {t('nav.firstProject')}

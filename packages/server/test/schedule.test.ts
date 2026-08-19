@@ -8,7 +8,10 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { addDays, daysBetween, moveTask, reschedule, span, type Dependency, type Scheduled } from '@kolibri/shared';
+import {
+  addDays, daysBetween, moveTask, packRows, reschedule, span,
+  type Dependency, type Scheduled,
+} from '@kolibri/shared';
 
 const task = (id: string, start: string | null, due: string | null): Scheduled => ({ id, start_date: start, due_date: due });
 const dep = (from: string, to: string): Dependency => ({ from, to });
@@ -92,6 +95,34 @@ describe('rescheduling', () => {
     // Both ends of a circle get pushed; the point is that this returns at all.
     assert.ok(moves.length >= 1);
     assert.ok(moves.every((move) => move.start_date && move.start_date >= '2026-08-10'));
+  });
+});
+
+describe('packing overlapping work into rows', () => {
+  it('gives everything running at once a row of its own, and reuses one that is free', () => {
+    const { row, rows } = packRows([
+      task('a', '2026-08-01', '2026-08-05'),
+      task('b', '2026-08-03', '2026-08-08'),
+      task('c', '2026-08-04', '2026-08-06'),
+      task('d', '2026-08-20', '2026-08-22'),
+    ]);
+    assert.equal(rows, 3, 'three run at once at the busiest moment');
+    assert.equal(row.get('a'), 0);
+    assert.equal(row.get('b'), 1, 'it starts before a has finished');
+    assert.equal(row.get('c'), 2);
+    assert.equal(row.get('d'), 0, 'and the first row is free again by then');
+  });
+
+  it('is one row when nothing overlaps, and one row when there is nothing', () => {
+    const spaced = packRows([task('a', '2026-08-01', '2026-08-02'), task('b', '2026-08-03', '2026-08-04')]);
+    assert.equal(spaced.rows, 1);
+    assert.equal(packRows([]).rows, 1, 'an empty lane still has a height');
+  });
+
+  it('ignores what has no dates instead of stacking it at day zero', () => {
+    const { row, rows } = packRows([task('a', '2026-08-01', '2026-08-02'), task('b', null, null)]);
+    assert.equal(rows, 1);
+    assert.equal(row.has('b'), false);
   });
 });
 

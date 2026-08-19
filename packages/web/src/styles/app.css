@@ -598,6 +598,35 @@ p { margin: 0 0 0.75em; }
 .wip { font-size: 11.5px; color: var(--fg-muted); }
 .wip.over { color: var(--danger); font-weight: 600; }
 
+/* ---------------------------------------------------------------- planner */
+
+.planner-scroll { display: flex; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.planner-names { position: sticky; inset-inline-start: 0; z-index: 2; flex: none; width: 180px; background: var(--bg); border-inline-end: 1px solid var(--line); }
+.planner-head { height: 24px; position: relative; border-bottom: 1px solid var(--line); background: var(--bg); }
+.planner-name { display: flex; align-items: center; gap: 7px; padding: 0 10px; font-size: 12.5px; overflow: hidden; border-bottom: 1px solid var(--line); }
+.planner-name .truncate { min-width: 0; flex: 1; }
+.planner-plot { position: relative; flex: none; }
+.planner-week {
+  position: absolute; top: 0; height: 24px; display: flex; align-items: center; padding-inline-start: 5px;
+  font-size: 11px; color: var(--fg-muted); border-inline-start: 1px solid var(--line); overflow: hidden; white-space: nowrap;
+}
+.planner-rows { position: relative; }
+.planner-today { position: absolute; inset-block: 0; width: 1px; background: var(--accent); opacity: .55; z-index: 3; }
+.planner-lane { position: absolute; border-bottom: 1px solid var(--line); }
+/* The load strip: one block per day at the foot of the lane, darker the more is
+   running. Under the bars rather than behind them, so neither hides the other. */
+.planner-load { position: absolute; bottom: 2px; height: 5px; background: var(--chart-1); }
+.planner-load.over { background: var(--danger); }
+.planner-bar {
+  position: absolute; height: 20px; z-index: 1;
+  display: flex; align-items: center; gap: 5px; padding: 0 7px;
+  border-radius: 5px; border: 1px solid var(--line-strong); background: var(--bg-raised);
+  font: inherit; font-size: 11.5px; color: var(--fg); cursor: grab; touch-action: none;
+  overflow: hidden; white-space: nowrap;
+}
+.planner-bar.dragging { cursor: grabbing; box-shadow: var(--shadow); z-index: 4; }
+.planner-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* ---------------------------------------------------------------- roadmap */
 
 /* A timeline, not a chart of magnitudes: nothing is compared by length here, so
