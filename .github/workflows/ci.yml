@@ -46,7 +46,24 @@ jobs:
       - run: npm ci
       - run: npm run build
       # Playwright is only needed here, so it stays out of the manifest.
-      - run: npm install --no-save playwright && npx playwright install --with-deps chromium
+      - name: A browser to walk with
+        # Bounded, because this step is what hung the job for hours.
+        timeout-minutes: 10
+        run: |
+          npm install --no-save playwright
+          # Not `--with-deps`: that shells out to apt, and apt on this runner
+          # answers `Ign:` for every InRelease on the Azure mirror and retries
+          # until something kills it. Nothing here needs a package manager.
+          # The image already ships Google Chrome, which is the same engine and
+          # brings the shared libraries Playwright's chromium would have wanted,
+          # so walk with that and download nothing.
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "CHROMIUM_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else
+            # And if a future image drops it, fetch the browser over HTTPS from
+            # Playwright's CDN — still no apt.
+            npx playwright install chromium
+          fi
       - name: Seed and start the server
         run: |
           npm run seed
