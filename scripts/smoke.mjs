@@ -47,7 +47,24 @@ const page = await ctx.newPage();
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 page.on('pageerror', (e) => errors.push(`pageerror: ${e.message}`));
 
-const step = async (name, fn) => { try { await fn(); console.log('OK  ', name); } catch (e) { console.log('FAIL', name, '-', e.message); } };
+/**
+ * Run one step, and remember if it failed.
+ *
+ * Every step is attempted even after one fails — a walkthrough that stops at
+ * the first problem tells you about one problem — but the failures are counted,
+ * and the script exits non-zero at the end. It used to swallow them and exit 0,
+ * which meant the CI job could not go red no matter what the app did.
+ */
+const failures = [];
+const step = async (name, fn) => {
+  try {
+    await fn();
+    console.log('OK  ', name);
+  } catch (e) {
+    console.log('FAIL', name, '-', e.message);
+    failures.push(`${name}: ${e.message}`);
+  }
+};
 
 await step('login', async () => {
   await page.goto(base, { waitUntil: 'domcontentloaded' });
@@ -292,6 +309,15 @@ await step('interface is in the chosen language', async () => {
 });
 
 console.log(`\nlocale: ${locale}  ·  screenshots: ${shots}`);
+// Reported, not fatal: an unauthenticated probe on load answers 401, and the
+// offline step disconnects the network on purpose. Both are console errors and
+// neither is a fault.
 console.log('console errors:', errors.length);
 errors.slice(0, 8).forEach((e) => console.log('  -', e));
 await browser.close();
+
+if (failures.length) {
+  console.log(`\n${failures.length} step(s) failed in ${locale}:`);
+  failures.forEach((f) => console.log('  -', f));
+  process.exit(1);
+}

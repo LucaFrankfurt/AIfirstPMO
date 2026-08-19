@@ -5,9 +5,17 @@ on:
     branches: ["**"]
   pull_request:
 
+# A push to a branch with an open PR fires both triggers, which ran the whole
+# thing twice on the same commit. `head_ref || ref_name` is the branch name
+# under either, so the two collapse into one group.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,6 +31,8 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     needs: test
+    # Without this a hung step sits on a runner until the six-hour default.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,24 +46,45 @@ jobs:
       - name: Seed and start the server
         run: |
           npm run seed
-          PORT=4400 npm start &
+          # The log goes to a file, and that is not tidiness. A background
+          # process started here inherits this step's stdout, the runner reads
+          # that pipe until it closes, and the pipe cannot close while the
+          # server holds it — so the step hangs until the job times out, having
+          # already printed everything it meant to.
+          PORT=4400 npm start > /tmp/kolibri-server.log 2>&1 &
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:4400/api/health && break; sleep 2; done
+          # And say so here rather than in a walkthrough that cannot reach it.
+          curl -fs http://127.0.0.1:4400/api/health > /dev/null || {
+            echo "the server never became healthy"; cat /tmp/kolibri-server.log; exit 1
+          }
       - name: Browser walkthrough
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
-      # The same walk in German: a missing translation shows up as a selector
-      # that no longer matches, which is exactly what should fail the build.
+      # The same walk in the other languages: a missing translation shows up as
+      # a selector that no longer matches, which is exactly what should fail the
+      # build.
       - name: Browser walkthrough (German)
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
           KOLIBRI_LOCALE: de
 
+      - name: Browser walkthrough (French)
+        run: node scripts/smoke.mjs
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+          KOLIBRI_LOCALE: fr
+
+      - name: What the server thought, if anything went wrong
+        if: failure()
+        run: cat /tmp/kolibri-server.log || true
+
   # The deployment itself is the thing under test here: one command has to
   # produce a working instance with storage and mail already wired up.
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
