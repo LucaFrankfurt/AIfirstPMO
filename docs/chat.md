@@ -14,7 +14,7 @@ here to get right, and no second thing to be down.
 | Named | `#design-review`, lowercase and dash-joined | no name of its own |
 | Who is in it | the workspace, or a member list if private | exactly two people |
 | Who may change that list | per channel: anybody in it, or only its creator and workspace admins | nobody — its members are its id |
-| Where it lives | the workspace, or a project | between the two of you |
+| Where it lives | the workspace, or a project | nowhere — see below |
 | Notifies | when you are named, or if you asked for all of it | always, unless you say otherwise |
 
 A conversation between **three or more people is a private channel with a name**, not a bigger
@@ -191,37 +191,57 @@ marker, not counting your own. No endpoint, no polling, and it is right while of
 The marker only ever moves **forwards**. A marker that went backwards would make a conversation
 somebody has just read unread again on their other device.
 
-## Two accounts, one workspace
+## Where a direct conversation lives
 
-Chat is scoped to a workspace: the People list is the workspace's members, and every
-visibility rule here starts by asking whether you are still one of them. That makes one
-thing worth saying out loud, because it is the first thing anybody hits when they try
-this out with two accounts of their own:
+Nowhere, and that is the point.
 
-**Signing up a second time makes a second workspace. It does not join the first one.**
-Two accounts made that way share nothing at all — no members, no projects, nobody in
-each other's sidebar — and no amount of looking at the chat screen will change that.
-The way they come together is an invite: *Settings → Members → create invite link*, and
-the other account opens it.
+Every other row here belongs to a workspace: a task, a page, a label only mean anything inside one,
+and `workspace_id` is how sync, permissions and export all find them. A conversation between two
+people is not like that. They may share no workspace — that is the *normal* state on a fresh
+instance, because signing up a second time makes a second workspace rather than joining the first —
+and they may share several, in which case filing the conversation under one of them would make it
+disappear the moment either switched.
 
-Two things had to be fixed before that actually worked:
+So a direct channel carries `workspace_id = NULL`, and so do the messages in it, the read markers,
+and the notifications about them. The entities allowed to do that are marked `crossWorkspace` in the
+registry rather than special-cased in the four places that ask, so the next query cannot forget the
+case.
 
-- **An invite link opened by somebody already signed in used to redirect to the home
-  page.** The endpoint existed, the client function existed, and the one person who
-  most needed them — an account that already exists, which is exactly who a second
-  account is — was bounced silently past both. There is a screen now: it names the
-  workspace, names the account you are signed in as, and offers the other one.
-- **Joining late left the new colleague nameless.** Membership is what allows a device
-  to see somebody's `user` row, and a delta pull only carries rows newer than that
-  device's cursor. An account that existed *before* it joined has a sequence everybody
-  already walked past while the row was still invisible to them — so it arrived as a
-  member with no user row behind it: a raw id where a name belongs, and in chat no
-  entry at all, because the People list looks each member up and drops the ones it
-  cannot find. `addMember` now restamps the sequence. Nothing about the person changed;
-  what changed is who is allowed to see them.
+**"No workspace" widens where a conversation is delivered, never to whom.** The lock is the id: a
+direct channel is always private, and its two members are read back *out of its id* on every write,
+so the question "is this person in it" is one the id itself answers and cannot be talked out of. A
+delta pull carries it whichever workspace the device happens to have open; everybody else's pull
+does not carry it at all, in either workspace.
 
-Alone in a workspace, the People list has nothing in it, and a heading over nothing is a
-dead end. It says so instead, and points at the invite.
+Two smaller things had to follow:
+
+- **The other person's name has to travel with the conversation.** A `user` row is normally visible
+  to people who share a workspace with it; that now also includes anybody you are in a direct
+  conversation with. Not a directory — you learn about people you are already talking to, and about
+  nobody else. And the row is *restamped* when the conversation opens, because being allowed to see
+  a row is not the same as receiving one: an account whose sequence a device already walked past
+  would arrive as an id with no name behind it. Same fix as joining a workspace late; see
+  [`sync.md`](sync.md).
+- **Which workspace a row is in stopped being something a client may say.** It always came from the
+  write's own scope, but the override was written in a way that a `null` could have slipped past —
+  and an *open* channel outside every workspace would have been delivered to every device on the
+  instance. It is refused now, and tested.
+
+## Finding somebody to write to
+
+The **People** list beside a conversation is the workspace's members: the people somebody works with
+every day, one click away. It is the right shortcut and the wrong answer to *"can I message this
+colleague at all"*, so under it is **Find somebody…**, which searches every account on the instance.
+
+That reach is deliberate. A self-hosted instance *is* a set of people who work together — the setup
+checklist tells you to close sign-up once everybody has an account — and requiring two of them to be
+put in the same project before they can say hello is a rule that exists in no messenger anybody
+likes. Two limits on it:
+
+- **A guest gets nothing.** The only thing the list is for is starting a conversation, and a guest
+  cannot write one. Handing them the instance's address book instead would be a straight leak.
+- **It is a search, not a dump.** A hundred rows at a time, by name or email, from the server rather
+  than the synced cache — a way to find one person, not a copy of the address book on every device.
 
 ## Guests
 
@@ -287,4 +307,5 @@ nothing here.
 | `packages/shared/src/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
 | `packages/web/src/components/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |
 | `packages/web/src/routes/Login.tsx` | `AcceptInvite` — the invite link, opened by an account that already exists |
+| `packages/server/src/routes/auth.ts` | `GET /api/people` — the instance's directory, for starting a conversation |
 | `packages/server/src/lib/bootstrap.ts` | `addMember`, which is what makes somebody appear in the People list at all |

@@ -669,6 +669,18 @@ confused later.
       ephemeral transport rather than widening this one — see [`docs/chat.md`](docs/chat.md).
 - [ ] **Read receipts.** The read marker exists and is private. Making it visible to others is a
       one-way door socially, so it stays a decision rather than a feature.
+- [ ] **A deleted direct conversation is never actually purged.** Emptying the trash is scoped to a
+      workspace, and a direct conversation belongs to none — so a deleted one would sit soft-deleted
+      for ever. Not reachable from the interface, which offers no way to delete one: a direct
+      conversation has no settings sheet. It is written down because the API can do it, and because
+      "the trash is where things are actually gone" should be true of everything or of nothing. The
+      honest fix is probably a sweep that belongs to the pair rather than to a workspace.
+- [ ] **Who may write to whom is fixed at "everybody on the instance".** Right for a self-hosted
+      instance with sign-up closed, which is what the setup checklist steers towards, and wrong for
+      an instance with open sign-up — where every newcomer can reach every account. The narrower
+      rule (know the exact email address, no browsable list) is a small change to one endpoint and
+      one sheet; an instance setting would be a slightly larger one. Worth revisiting the first time
+      somebody runs this with sign-up left open.
 
 ## Known-unknowns
 

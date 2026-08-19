@@ -22,16 +22,19 @@ const LABELS = {
     board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
+    findPerson: 'Find somebody',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
+    findPerson: 'Jemanden suchen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
+    findPerson: 'Trouver quelqu',
   },
 }[locale];
 
@@ -172,7 +175,7 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 
   // And a direct conversation names the other person rather than showing a key.
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
-  await page.locator('.chat-list .nav-item').last().click();
+  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
   await page.waitForSelector('.chat-header', { timeout: 5000 });
   const title = await page.locator('.chat-header strong').innerText();
   if (!title.trim() || title.includes('.')) throw new Error(`direct conversation titled "${title}"`);
@@ -234,7 +237,7 @@ await page.screenshot({ path: `${shots}/4b-chat.png` });
 await step('chat: a message can point at a task and a project', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item').last().click();
+  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
   await page.waitForSelector('.chat-composer textarea');
 
   // The `#` menu offers projects and tasks, and puts in the bare token.
@@ -268,6 +271,31 @@ await step('chat: a message can point at a task and a project', async () => {
   await page.keyboard.press('Escape');
 });
 
+/**
+ * Starting a conversation with somebody who is not beside you in the sidebar.
+ *
+ * The People list is the workspace's members, which is the right shortcut and
+ * the wrong answer to "can I write to this colleague at all" — a direct
+ * conversation belongs to no workspace, so it needs none in common. The
+ * cross-workspace rules are proved in `test/chat.test.ts`; what this walks is
+ * the way in, which no server test can see.
+ */
+await step('chat: anybody on the instance can be written to', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.click(`.chat-list button:has-text("${LABELS.findPerson}")`);
+  await page.waitForSelector('#find-person', { timeout: 5000 });
+  await page.fill('#find-person', 'grace');
+  await page.waitForTimeout(700);
+  const found = await page.locator('.sheet .nav-item').allInnerTexts();
+  if (!found.some((row) => /grace/i.test(row))) throw new Error(`the search offered ${JSON.stringify(found)}`);
+  await page.locator('.sheet .nav-item').first().click();
+  await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+  const title = await page.locator('.chat-header strong').innerText();
+  if (!/grace/i.test(title)) throw new Error(`opened a conversation with "${title}"`);
+  console.log('     opened a conversation with:', title);
+});
+
 await step('command palette', async () => {
   await page.keyboard.press('Control+k');
   await page.waitForSelector('.palette input');
@@ -294,6 +322,30 @@ await step('mobile layout', async () => {
   await m.screenshot({ path: `${shots}/5-mobile.png` });
   await m.emulateMedia({ colorScheme: 'dark' });
   await m.screenshot({ path: `${shots}/6-mobile-dark.png` });
+  await m.emulateMedia({ colorScheme: 'light' });
+
+  /*
+   * Everything the sidebar reaches, a phone reaches too.
+   *
+   * The bottom bar holds five things and the sidebar holds a dozen, so
+   * "More" is the rest of the app rather than a convenience — anything the
+   * sidebar has and this screen has not is *unreachable* on a phone. Chat
+   * was, and nobody noticed until somebody tried to use it on a phone. So
+   * the desktop sidebar is read for its destinations and this screen is
+   * asked for the same ones, instead of a list here that has to be
+   * remembered when the sidebar grows.
+   */
+  const wanted = await page.locator('.sidebar a[href]').evaluateAll((links) => [...new Set(links
+    .map((a) => a.getAttribute('href'))
+    .filter((href) => href && href !== '/' && !href.startsWith('/t/')))]);
+  await m.click('.tabbar a[href="/more"]');
+  await m.waitForSelector('.page a[href="/chat"]', { timeout: 5000 });
+  const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('.tabbar a[href], .page a[href]')]
+    .map((a) => a.getAttribute('href'))));
+  const missing = wanted.filter((href) => !reachable.has(href));
+  if (missing.length) throw new Error(`the sidebar reaches these and a phone does not: ${missing.join(', ')}`);
+  console.log('     reachable on a phone:', wanted.length, 'of', wanted.length, 'sidebar destinations');
+  await m.screenshot({ path: `${shots}/7-mobile-more.png` });
   await mobile.close();
 });
 

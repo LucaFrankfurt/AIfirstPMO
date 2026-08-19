@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { excerpt, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { TaskRow } from '../components/task-parts';
@@ -13,7 +13,8 @@ import { relativeTime, today } from '../lib/format';
 import { markAllRead, markNotificationRead } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
-import { useMe, useMemberMap, useSession } from '../session';
+import { useMe, usePeople, useSession } from '../session';
+import { useUnreadMessages } from './chat';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { SetupChecklist } from '../components/tour';
 
@@ -112,7 +113,10 @@ export function Inbox() {
   const me = useMe();
   const navigate = useNavigate();
   const openTask = useOpenTask();
-  const members = useMemberMap();
+  // Everybody known rather than the workspace's members: a direct message can
+  // come from somebody in none of your workspaces, and a notification from a
+  // nameless "?" is worse than the message it announces.
+  const members = usePeople();
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
 
   const notifications = useQuery(
@@ -273,6 +277,8 @@ export function More() {
   const t = useT();
   const navigate = useNavigate();
   const { session, workspaceId, setWorkspace, signOut, user } = useSession();
+  const me = useMe();
+  const unreadMessages = useUnreadMessages(me);
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
 
   return (
@@ -287,21 +293,38 @@ export function More() {
           </div>
         </div>
 
+        {/* Everything the sidebar has and the bottom bar does not. A phone has
+            room for five things at the bottom, so this screen is the rest of
+            the app — and anything missing here is unreachable on a phone
+            rather than merely inconvenient. Chat was, for a while. */}
+        {/* Links rather than buttons that navigate: a long-press to open in a
+            new tab is a thing people do, and it also means "can a phone reach
+            this?" is a question about hrefs that a test can ask. */}
         <div className="card" style={{ padding: 6, marginBottom: 14 }}>
-          <button className="nav-item" onClick={() => navigate('/pages')}><Icon name="page" size={16} /> {t('nav.pages')}</button>
-          <button className="nav-item" onClick={() => navigate('/teams')}><Icon name="users" size={16} /> {t('nav.teams')}</button>
-          <button className="nav-item" onClick={() => navigate('/projects/new')}><Icon name="plus" size={16} /> {t('nav.newProject')}</button>
-          <button className="nav-item" onClick={() => navigate('/settings')}><Icon name="settings" size={16} /> {t('nav.settings')}</button>
-          <button className="nav-item" onClick={() => navigate('/guide')}><Icon name="help" size={16} /> {t('nav.guide')}</button>
+          <Link className="nav-item" to="/chat">
+            <Icon name="chat" size={16} /> <span className="grow">{t('nav.chat')}</span>
+            {unreadMessages > 0 && <span className="count">{unreadMessages}</span>}
+          </Link>
+          <Link className="nav-item" to="/pages"><Icon name="page" size={16} /> {t('nav.pages')}</Link>
+          <Link className="nav-item" to="/teams"><Icon name="users" size={16} /> {t('nav.teams')}</Link>
+          <Link className="nav-item" to="/planner"><Icon name="users" size={16} /> {t('nav.planner')}</Link>
+          <Link className="nav-item" to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
+          <Link className="nav-item" to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
+          <Link className="nav-item" to="/guide"><Icon name="help" size={16} /> {t('nav.guide')}</Link>
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>
         <div className="card" style={{ padding: 6, marginBottom: 14 }}>
           {projects.map((project) => (
-            <button key={project.id} className="nav-item" onClick={() => navigate(`/projects/${project.id}`)}>
+            <Link key={project.id} className="nav-item" to={`/projects/${project.id}`}>
               <span style={{ width: 18 }}>{project.icon ?? '•'}</span> {project.name}
-            </button>
+            </Link>
           ))}
+          {projects.length > 1 && (
+            <Link className="nav-item" to="/portfolio">
+              <Icon name="target" size={16} /> {t('nav.portfolio')}
+            </Link>
+          )}
         </div>
 
         {(session?.workspaces.length ?? 0) > 1 && (

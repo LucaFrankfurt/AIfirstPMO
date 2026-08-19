@@ -76,6 +76,65 @@ for (const [table, column, definition] of [
   }
 }
 
+/**
+ * Columns that were `NOT NULL` and should not have been.
+ *
+ * SQLite cannot relax a constraint in place, so the table is rebuilt — the
+ * standard copy, drop, rename — and only when `PRAGMA table_info` still shows
+ * the old one, so a restart on an already-migrated database costs one pragma
+ * and nothing else.
+ *
+ * The case is chat. A direct conversation belongs to no workspace, and neither
+ * do the messages in it or the notifications about them: two people may share
+ * no workspace, or several, and filing their conversation under one of them
+ * would make it disappear the moment either switched. See `crossWorkspace` in
+ * the entity registry.
+ */
+let rebuilt = false;
+for (const [table, column] of [
+  ['channels', 'workspace_id'],
+  ['messages', 'workspace_id'],
+  ['channel_reads', 'workspace_id'],
+  ['notifications', 'workspace_id'],
+] as const) {
+  const info = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; notnull: number }[];
+  if (!info.some((c) => c.name === column && c.notnull)) continue;
+  const create = (db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`).get(table) as { sql: string }).sql;
+  const columns = info.map((c) => c.name).join(', ');
+  const relaxed = create
+    .replace(new RegExp(`^(\\s*${column}\\s+\\w+)\\s+NOT NULL`, 'im'), '$1')
+    .replace(new RegExp(`\\b${table}\\b`), `${table}__relaxing`);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.exec(relaxed);
+    db.exec(`INSERT INTO ${table}__relaxing (${columns}) SELECT ${columns} FROM ${table}`);
+    db.exec(`DROP TABLE ${table}`);
+    db.exec(`ALTER TABLE ${table}__relaxing RENAME TO ${table}`);
+    db.exec('COMMIT');
+    rebuilt = true;
+  } catch (err) {
+    db.exec('ROLLBACK');
+    throw err;
+  }
+}
+if (rebuilt) {
+  // Dropping a table takes its indexes with it. The schema is `IF NOT EXISTS`
+  // throughout, so running it again puts those back and changes nothing else.
+  db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
+  // And a conversation written before any of this belongs outside a workspace
+  // now, along with what was said in it — otherwise the same instance would
+  // hold two kinds of direct message and only the new ones would work.
+  db.exec(`
+    UPDATE channels SET workspace_id = NULL WHERE kind = 'direct' AND workspace_id IS NOT NULL;
+    UPDATE messages SET workspace_id = NULL
+     WHERE workspace_id IS NOT NULL
+       AND channel_id IN (SELECT id FROM channels WHERE kind = 'direct');
+    UPDATE channel_reads SET workspace_id = NULL
+     WHERE workspace_id IS NOT NULL
+       AND channel_id IN (SELECT id FROM channels WHERE kind = 'direct');
+  `);
+}
+
 const stmtCache = new Map<string, StatementSync>();
 
 function prepare(sql: string): StatementSync {

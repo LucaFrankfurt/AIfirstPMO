@@ -556,6 +556,47 @@ export function registerAuthRoutes(router: Router): void {
     return { ok: true };
   });
 
+  /* ---------------------------------------------------------------- people */
+
+  /**
+   * Everybody with an account here.
+   *
+   * A direct conversation is between two people rather than inside an
+   * organisation, so who you can write to is not "who shares a workspace with
+   * you" — that would mean two colleagues on the same instance had to be put in
+   * the same project before they could say hello. It is everybody on the
+   * instance, which is what a self-hosted instance *is*: a set of people who
+   * work together, with sign-up closed once they all have an account.
+   *
+   * Two limits on that, both deliberate:
+   *
+   * - **A guest gets nothing.** The only thing this list is for is starting a
+   *   conversation, and a guest cannot write one. Handing them the instance's
+   *   address book instead would be a straight leak.
+   * - **It is a search, not a dump.** A hundred rows at a time, ordered by
+   *   name, so this is a way to find somebody rather than a way to take the
+   *   list away.
+   */
+  router.get('/api/people', (ctx) => {
+    const auth = requireAuth(ctx);
+    const colleague = get(
+      `SELECT 1 FROM workspace_members
+        WHERE user_id = ? AND role <> 'guest' AND deleted_at IS NULL`,
+      auth.userId,
+    );
+    if (!colleague) throw forbidden('Guests cannot start conversations');
+
+    const query = (ctx.query.get('q') ?? '').trim().toLowerCase();
+    const like = `%${query.replace(/[%_]/g, '')}%`;
+    return all<Row>(
+      `SELECT id, name, email, avatar_url FROM users
+        WHERE deleted_at IS NULL AND id <> ?1
+          AND (?2 = '' OR lower(name) LIKE ?3 OR lower(email) LIKE ?3)
+        ORDER BY name LIMIT 100`,
+      auth.userId, query, like,
+    );
+  });
+
   /* --------------------------------------------------------------- invites */
 
   router.get('/api/workspaces/:id/invites', (ctx) => {

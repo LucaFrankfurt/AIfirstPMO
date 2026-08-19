@@ -683,7 +683,11 @@ CREATE INDEX IF NOT EXISTS automation_runs_created ON automation_runs (created_t
 
 CREATE TABLE IF NOT EXISTS notifications (
   id           TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
+  -- Null when the row belongs to no workspace at all. That is a direct
+  -- conversation and everything about it: two people may share no workspace,
+  -- or several, and filing their conversation under one of them would make it
+  -- vanish when either switched. See `crossWorkspace` in the entity registry.
+  workspace_id TEXT,
   user_id      TEXT NOT NULL,
   kind         TEXT NOT NULL,
   title        TEXT NOT NULL,
@@ -788,7 +792,11 @@ CREATE INDEX IF NOT EXISTS activities_task ON activities (task_id, created_at);
 -- keeping that list right as people join and leave.
 CREATE TABLE IF NOT EXISTS channels (
   id           TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
+  -- Null when the row belongs to no workspace at all. That is a direct
+  -- conversation and everything about it: two people may share no workspace,
+  -- or several, and filing their conversation under one of them would make it
+  -- vanish when either switched. See `crossWorkspace` in the entity registry.
+  workspace_id TEXT,
   -- A channel can belong to a project, and then it is only visible to people
   -- who can see that project. Null is a workspace-wide channel.
   project_id   TEXT,
@@ -814,7 +822,11 @@ CREATE INDEX IF NOT EXISTS channels_seq ON channels (workspace_id, seq);
 
 CREATE TABLE IF NOT EXISTS messages (
   id           TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
+  -- Null when the row belongs to no workspace at all. That is a direct
+  -- conversation and everything about it: two people may share no workspace,
+  -- or several, and filing their conversation under one of them would make it
+  -- vanish when either switched. See `crossWorkspace` in the entity registry.
+  workspace_id TEXT,
   channel_id   TEXT NOT NULL,
   author_id    TEXT,
   body         TEXT NOT NULL DEFAULT '',
@@ -842,7 +854,11 @@ CREATE INDEX IF NOT EXISTS messages_channel ON messages (channel_id, created_at)
 -- read converge on one row instead of racing to create two.
 CREATE TABLE IF NOT EXISTS channel_reads (
   id           TEXT PRIMARY KEY,
-  workspace_id TEXT NOT NULL,
+  -- Null when the row belongs to no workspace at all. That is a direct
+  -- conversation and everything about it: two people may share no workspace,
+  -- or several, and filing their conversation under one of them would make it
+  -- vanish when either switched. See `crossWorkspace` in the entity registry.
+  workspace_id TEXT,
   channel_id   TEXT NOT NULL,
   user_id      TEXT NOT NULL,
   last_read_at INTEGER NOT NULL DEFAULT 0,

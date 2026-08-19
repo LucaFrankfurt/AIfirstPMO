@@ -16,7 +16,7 @@
  * `docs/chat.md` says so out loud rather than leaving it to be noticed.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   canManageMembers,
   channelTitle,
@@ -27,11 +27,12 @@ import {
   type Channel,
   type Message,
 } from '@kolibri/shared';
+import { api } from '../lib/api';
 import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
-import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
+import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
@@ -102,14 +103,20 @@ export function Chat() {
   const me = useMe();
   const navigate = useNavigate();
   const { id } = useParams();
-  const members = useMemberMap();
+  // Two different lists, deliberately. Names are looked up in everybody this
+  // device knows, because a conversation can be with somebody in none of your
+  // workspaces. The shortcut below is the workspace's people — the ones you
+  // work with — and somebody outside it is reached through the search.
+  const members = usePeople();
+  const colleagues = useMemberMap();
   const canWrite = useCanWrite();
   const conversations = useConversations(me);
   const [creating, setCreating] = useState(false);
+  const [finding, setFinding] = useState(false);
 
   const current = useQuery(() => (id ? byId('channel', id) : undefined), [id]);
   const nameOf = (userId: string) => members.get(userId)?.name;
-  const others = useMemo(() => [...members.values()].filter((member) => member.id !== me), [members, me]);
+  const others = useMemo(() => [...colleagues.values()].filter((member) => member.id !== me), [colleagues, me]);
 
   return (
     <div className="page chat">
@@ -144,15 +151,12 @@ export function Chat() {
         {/* Starting a conversation is a write, and a guest has none. A list of
             people that refuses on click is worse than no list. */}
         {canWrite && <h2 className="nav-section" style={{ marginTop: 14 }}>{t('chat.people')}</h2>}
-        {/* Alone in a workspace, this list is empty and a heading over nothing
-            is a dead end — and it is the *usual* state on a fresh instance,
-            because signing up a second time makes a second workspace rather
-            than joining the first. Say where the other person comes from. */}
+        {/* Alone in this workspace, the list below is empty — the usual state
+            on a fresh instance, because signing up a second time makes a second
+            workspace rather than joining the first. It is no longer a dead end:
+            a direct conversation does not need a workspace in common. */}
         {canWrite && others.length === 0 && (
-          <p className="hint" style={{ fontSize: 12.5 }}>
-            {t('chat.aloneHint')}{' '}
-            <Link to="/settings?tab=members">{t('chat.aloneInvite')}</Link>
-          </p>
+          <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
           <button
@@ -164,6 +168,12 @@ export function Chat() {
             <span className="grow truncate">{member.name}</span>
           </button>
         ))}
+        {canWrite && (
+          <button className="nav-item chat-find" onClick={() => setFinding(true)}>
+            <Icon name="search" size={16} />
+            <span className="grow truncate">{t('chat.findPerson')}</span>
+          </button>
+        )}
       </aside>
 
       <section className="chat-main">
@@ -173,6 +183,13 @@ export function Chat() {
       </section>
 
       {creating && <NewChannel onClose={() => setCreating(false)} onCreated={(created) => navigate(`/chat/${created}`)} />}
+      {finding && (
+        <FindPerson
+          me={me}
+          onClose={() => setFinding(false)}
+          onPick={(them) => navigate(`/chat/${openDirect(me, them)}`)}
+        />
+      )}
     </div>
   );
 }
@@ -186,7 +203,13 @@ export function Chat() {
  */
 function openDirect(me: string, them: string): string {
   const id = directChannelId(me, them);
-  if (!byId('channel', id)) create('channel', { id, kind: 'direct', is_private: 1, members: [me, them] }, id);
+  // No workspace, deliberately: the other person may not be in the one that is
+  // open, and may be in none of the same ones. The server enforces this too —
+  // it is here so the row this device shows before the round trip is the row
+  // that comes back. See `crossWorkspace` in the entity registry.
+  if (!byId('channel', id)) {
+    create('channel', { id, kind: 'direct', is_private: 1, members: [me, them], workspace_id: null }, id);
+  }
   return id;
 }
 
@@ -211,7 +234,7 @@ function ConversationRow({ channel, me, active, title, onOpen }: {
 
 function Conversation({ channel, me, onBack }: { channel: Channel; me: string; onBack: () => void }) {
   const t = useT();
-  const members = useMemberMap();
+  const members = usePeople();
   const { confirm, dialog } = useConfirm();
   const canWrite = useCanWrite();
   const [draft, setDraft] = useState('');
@@ -236,7 +259,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   useEffect(() => {
     if (!latest || latest <= (marker?.last_read_at ?? 0)) return;
     if (marker) update('channelRead', markerId, { last_read_at: latest });
-    else create('channelRead', { id: markerId, channel_id: channel.id, last_read_at: latest }, markerId);
+    else create('channelRead', { id: markerId, channel_id: channel.id, last_read_at: latest, workspace_id: channel.workspace_id ?? null }, markerId);
   }, [latest, marker, markerId, channel.id]);
 
   useEffect(() => {
@@ -246,7 +269,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const send = () => {
     const body = draft.trim();
     if (!body) return;
-    create('message', { channel_id: channel.id, body, reply_to: replyTo });
+    create('message', { channel_id: channel.id, body, reply_to: replyTo, workspace_id: channel.workspace_id ?? null });
     setDraft('');
     setReplyTo(null);
   };
@@ -411,7 +434,7 @@ function NotifyMenu({ channel, me }: { channel: Channel; me: string }) {
 
   const choose = (notify: 'all' | 'mentions' | 'none') => {
     if (marker) update('channelRead', markerId, { notify });
-    else create('channelRead', { id: markerId, channel_id: channel.id, notify, last_read_at: 0 }, markerId);
+    else create('channelRead', { id: markerId, channel_id: channel.id, notify, last_read_at: 0, workspace_id: channel.workspace_id ?? null }, markerId);
   };
 
   return (
@@ -447,7 +470,7 @@ const toggleReaction = (message: Message, emoji: string, me: string): void => {
 
 function Reactions({ message, me, canWrite }: { message: Message; me: string; canWrite: boolean }) {
   const t = useT();
-  const members = useMemberMap();
+  const members = usePeople();
   const used = Object.entries(message.reactions ?? {}).filter(([, people]) => people?.length);
   if (!used.length) return null;
 
@@ -504,15 +527,18 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
 }) {
   const t = useT();
   const toast = useToast();
-  const members = useMemberMap();
+  const members = usePeople();
   const { confirm, dialog } = useConfirm();
+  const colleagues = useMemberMap();
   const { role } = useSession();
   const isAdmin = role === 'owner' || role === 'admin';
   const mayManage = canManageMembers(channel, me, isAdmin);
   const mayRetitle = channel.created_by === me || isAdmin;
 
   const inside = (channel.members ?? []);
-  const outside = [...members.values()].filter((member) => !inside.includes(member.id));
+  // Whom you may add is the workspace's people: a private channel lives in a
+  // workspace, so somebody outside it has nothing to be added to.
+  const outside = [...colleagues.values()].filter((member) => !inside.includes(member.id));
 
   const setMembers = (next: string[]) => update('channel', channel.id, { members: next });
 
@@ -694,6 +720,77 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
             <span className="hint">{t('chat.privateHint')}</span>
           </span>
         </label>
+    </Sheet>
+  );
+}
+
+/**
+ * Find somebody to write to, anywhere on this instance.
+ *
+ * The list beside this one is the workspace's members, which is the right
+ * shortcut for the people somebody works with every day — and the wrong answer
+ * to "can I message this colleague at all". A direct conversation is between
+ * two people, not inside an organisation: it needs no workspace in common, and
+ * requiring one would mean two people on the same instance had to be put in the
+ * same project before they could say hello.
+ *
+ * So the search asks the server rather than the synced cache. Everybody's
+ * account is not workspace data and is deliberately not synced to every device
+ * — this is a way to find one person, not a copy of the address book.
+ */
+function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; onPick: (userId: string) => void }) {
+  const t = useT();
+  const [query, setQuery] = useState('');
+  const [people, setPeople] = useState<{ id: string; name: string; email: string; avatar_url?: string | null }[]>([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    // A short wait, so typing a name is one request rather than eight.
+    const timer = setTimeout(() => {
+      api.get<typeof people>(`/api/people?q=${encodeURIComponent(query.trim())}`)
+        .then((found) => {
+          if (!cancelled) setPeople(found.filter((person) => person.id !== me));
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err instanceof Error ? err.message : t('common.somethingWentWrong'));
+        });
+    }, query ? 200 : 0);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, me, t]);
+
+  return (
+    <Sheet title={t('chat.findTitle')} onClose={onClose}>
+      <div className="field">
+        <label htmlFor="find-person">{t('chat.findLabel')}</label>
+        <input
+          id="find-person"
+          className="input"
+          value={query}
+          autoFocus
+          placeholder={t('chat.findPlaceholder')}
+          onChange={(event) => setQuery(event.target.value)}
+        />
+      </div>
+      {error && <p className="hint warn">{error}</p>}
+      {!error && people.length === 0 && <p className="hint">{t('chat.findNobody')}</p>}
+      {people.map((person) => (
+        <button
+          key={person.id}
+          className="nav-item"
+          onClick={() => {
+            onPick(person.id);
+            onClose();
+          }}
+        >
+          <Avatar user={person} size={22} />
+          <span className="grow truncate">{person.name}</span>
+          <span className="muted truncate" style={{ fontSize: 11.5 }}>{person.email}</span>
+        </button>
+      ))}
     </Sheet>
   );
 }

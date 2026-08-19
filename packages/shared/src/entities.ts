@@ -69,6 +69,21 @@ export interface EntityDef {
    * is "a note somebody keeps about themselves is not content".
    */
   guestWritable?: boolean;
+  /**
+   * A row of this entity may belong to **no workspace at all**.
+   *
+   * Almost everything here is inside an organisation: a task, a page, a label
+   * only mean anything within one, and `workspace_id` is how sync, permissions
+   * and export all find them. A direct conversation is not. It is between two
+   * people, who may have no workspace in common and may each have several, and
+   * filing it under one of them would mean it disappeared when they switched —
+   * or, worse, that it could not exist at all until somebody invited somebody.
+   *
+   * So a direct channel carries `workspace_id = NULL`, and so do its messages
+   * and read markers. Named here rather than special-cased in the four places
+   * that ask, so that the *next* query cannot forget the case.
+   */
+  crossWorkspace?: boolean;
   /** Columns holding JSON-encoded values. */
   json?: readonly string[];
   /**
@@ -280,6 +295,9 @@ export const ENTITIES = {
     fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'actor_id', 'read_at', 'archived_at'],
     serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'actor_id'],
     private: true,
+    // A notification about a direct message has no workspace either: it has to
+    // reach somebody who may not be in the one it was written from.
+    crossWorkspace: true,
   },
   /**
    * A conversation. Either a named channel or the direct one between two
@@ -297,11 +315,13 @@ export const ENTITIES = {
       'invite_policy', 'archived_at', 'created_by',
     ],
     json: ['members'],
+    crossWorkspace: true,
   },
   message: {
     table: 'messages',
     fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'reactions', 'edited_at'],
     json: ['reactions'],
+    crossWorkspace: true,
   },
   /**
    * How far somebody has read, and what they want to hear about. One row per
@@ -315,6 +335,7 @@ export const ENTITIES = {
     serverOnly: ['user_id'],
     private: true,
     guestWritable: true,
+    crossWorkspace: true,
   },
   activity: {
     table: 'activities',
@@ -363,6 +384,13 @@ export const GUEST_WRITABLE: readonly EntityName[] = ENTITY_NAMES.filter(
 );
 
 export const isGuestWritable = (entity: EntityName): boolean => GUEST_WRITABLE.includes(entity);
+
+/** Entities whose rows may sit outside any workspace. See `crossWorkspace`. */
+export const CROSS_WORKSPACE: readonly EntityName[] = ENTITY_NAMES.filter(
+  (name) => (ENTITIES[name] as { crossWorkspace?: boolean }).crossWorkspace === true,
+);
+
+export const isCrossWorkspace = (entity: EntityName): boolean => CROSS_WORKSPACE.includes(entity);
 
 /** Columns present on every syncable table. */
 export const SYSTEM_FIELDS = ['id', 'created_at', 'updated_at', 'deleted_at', 'seq', 'clocks'] as const;

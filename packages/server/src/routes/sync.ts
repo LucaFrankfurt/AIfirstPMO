@@ -2,6 +2,7 @@ import {
   ENTITY_NAMES,
   ENTITIES,
   entityDef,
+  isCrossWorkspace,
   isGuestWritable,
   type ChangeSet,
   type EntityName,
@@ -38,8 +39,18 @@ interface Scope {
 function filterFor(entity: EntityName): string {
   const table = ENTITIES[entity].table;
   switch (entity) {
+    // Somebody in this workspace — or somebody you are in a direct conversation
+    // with, who may be in none of yours. Without the second half their name
+    // never reaches this device and the conversation is titled with a raw id.
+    // It is not a directory: you only learn about people you are already
+    // talking to.
     case 'user':
-      return `AND EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.user_id = ${table}.id AND wm.workspace_id = ?1 AND wm.deleted_at IS NULL)`;
+      return `AND (EXISTS (SELECT 1 FROM workspace_members wm
+                            WHERE wm.user_id = ${table}.id AND wm.workspace_id = ?1 AND wm.deleted_at IS NULL)
+                   OR EXISTS (SELECT 1 FROM channels c
+                               WHERE c.kind = 'direct' AND c.deleted_at IS NULL
+                                 AND EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ${table}.id)
+                                 AND EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;
     case 'notification':
       return `AND ${table}.user_id = ?2`;
     case 'intake':
@@ -100,13 +111,33 @@ function filterFor(entity: EntityName): string {
   }
 }
 
+/**
+ * Which workspace a row has to be in to come down this pull.
+ *
+ * This one, for almost everything. Two exceptions, and both are old news by
+ * now: a `user` is not owned by a workspace, and neither is a direct
+ * conversation — it is between two people who may share no workspace at all,
+ * so it carries none and arrives whichever one the device happens to have
+ * open. The entities that may do that say so in the registry rather than
+ * being listed here, so the next one cannot be forgotten.
+ *
+ * The `filterFor` clause is what keeps that safe: a workspace-less channel is
+ * always private and always has exactly two members, so "no workspace" widens
+ * *where* it is delivered, never *to whom*.
+ */
+function workspaceClause(entity: EntityName, table: string): string {
+  if (entity === 'user') return '';
+  if (isCrossWorkspace(entity)) return `AND (${table}.workspace_id = ?1 OR ${table}.workspace_id IS NULL)`;
+  return `AND ${table}.workspace_id = ?1`;
+}
+
 function fetchChanges(scope: Scope, since: number, upto: number): { changes: ChangeSet; cursor: number; hasMore: boolean } {
   const raw = new Map<EntityName, Row[]>();
   let cursor = upto;
 
   for (const entity of SYNCED) {
     const table = ENTITIES[entity].table;
-    const ws = entity === 'user' ? '' : `AND ${table}.workspace_id = ?1`;
+    const ws = workspaceClause(entity, table);
     const rows = all<Row>(
       `SELECT ${table}.* FROM ${table}
         WHERE ${table}.seq > ?3 AND ${table}.seq <= ?4 ${ws} ${filterFor(entity)}

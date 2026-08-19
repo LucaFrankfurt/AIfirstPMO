@@ -35,11 +35,12 @@ never wrote the sync cursor, therefore started from zero next time and got a sna
 snapshot empties the tables before it refills them. The version is derived from the store list now:
 the client opens the database, asks whether every entity has a store, and upgrades if not.
 
-Three flags on an entity are worth knowing about, because they are how an exception stays declared
+Four flags on an entity are worth knowing about, because they are how an exception stays declared
 rather than scattered: `serverOnly` (a field a client may not write), `private` (rows belong to one
-person and are not shared with the workspace) and `guestWritable` (a row somebody with no write
-access may still write, because it is a note they keep about themselves — currently `channelRead`
-and only that).
+person and are not shared with the workspace), `guestWritable` (a row somebody with no write access
+may still write, because it is a note they keep about themselves — currently `channelRead` and only
+that) and `crossWorkspace` (a row that may belong to *no* workspace: a direct conversation is
+between two people who may share none, along with its messages, read markers and notifications).
 
 ## Server
 
