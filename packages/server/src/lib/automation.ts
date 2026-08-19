@@ -319,7 +319,7 @@ function runOneRule(rule: Row, row: Row, actorId: string, event: TriggerEvent): 
     // that moves it back, and two rules editing one row is a merge problem
     // rather than a feature flag.
     if (rule.action_kind === 'set_fields') {
-      const patch = settableFields(parseJson<Record<string, unknown>>(rule.action_patch, {}));
+      const patch = actionPatch(parseJson<Record<string, unknown>>(rule.action_patch, {}), row);
       if (!Object.keys(patch).length) {
         record(rule, row, opts.actorId, null, 'no-fields');
         return;
@@ -387,6 +387,34 @@ function runOneRule(rule: Row, row: Row, actorId: string, event: TriggerEvent): 
  * loop, but the task would still end up somewhere nobody chose.
  */
 const SETTABLE = new Set(['priority', 'assignees', 'labels', 'due_date', 'estimate', 'type_id', 'archived']);
+
+/**
+ * What a `set_fields` rule actually writes.
+ *
+ * Two of the four things people want are not fields at all. "Add a label" is an
+ * append, not an assignment — a rule that *replaced* the labels would quietly
+ * strip whatever somebody had put there. And "due in three days" is a date that
+ * depends on when the rule ran, which is a calculation rather than a value.
+ * Both are resolved here, against the row as it stands.
+ */
+function actionPatch(stored: Record<string, unknown>, row: Row): Record<string, unknown> {
+  const out = settableFields(stored);
+
+  const add = Array.isArray(stored.add_labels) ? stored.add_labels.map(String).filter(Boolean) : [];
+  if (add.length) {
+    const already = parseJson<string[]>(row.labels, []);
+    const merged = [...already];
+    for (const id of add) if (!merged.includes(id)) merged.push(id);
+    out.labels = merged;
+  }
+
+  if (typeof stored.due_in_days === 'number' && Number.isFinite(stored.due_in_days)) {
+    const when = new Date(Date.now() + stored.due_in_days * 86_400_000);
+    out.due_date = when.toISOString().slice(0, 10);
+  }
+
+  return out;
+}
 
 function settableFields(patch: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};

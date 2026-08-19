@@ -370,7 +370,10 @@ function RuleEditor({
     trigger_kind: (existing?.trigger_kind ?? 'state_entered') as AutomationTriggerKind,
     trigger_days: Number(existing?.trigger_days ?? 1),
     action_kind: (existing?.action_kind ?? 'file_template') as 'file_template' | 'set_fields',
-    action_priority: String((existing?.action_patch as any)?.priority ?? 'urgent'),
+    action_priority: String((existing?.action_patch as any)?.priority ?? ''),
+    action_label: String((existing?.action_patch as any)?.add_labels?.[0] ?? ''),
+    action_assignee: String((existing?.action_patch as any)?.assignees?.[0] ?? ''),
+    action_due_in: String((existing?.action_patch as any)?.due_in_days ?? ''),
     trigger_state_id: (existing?.trigger_state_id ?? null) as string | null,
     trigger_group: (existing?.trigger_group ?? 'started') as StateGroup,
     template_id: existing?.template_id ?? (templates[0]?.id ?? ''),
@@ -389,6 +392,20 @@ function RuleEditor({
     () => (form.project_id ? list('state', (s) => s.project_id === form.project_id) : []),
     [form.project_id],
   );
+  // Labels a rule may add: this project's, plus the workspace-wide ones.
+  const actionLabels = useQuery(
+    () => list('label', (label) => !label.project_id || label.project_id === form.project_id),
+    [form.project_id],
+  );
+  // Only what was filled in. An empty control is "leave it alone", not a value.
+  const actionPatch: Record<string, unknown> = {};
+  if (form.action_priority) actionPatch.priority = form.action_priority;
+  if (form.action_label) actionPatch.add_labels = [form.action_label];
+  if (form.action_assignee) actionPatch.assignees = [form.action_assignee];
+  if (form.action_due_in !== '' && Number.isFinite(Number(form.action_due_in))) {
+    actionPatch.due_in_days = Number(form.action_due_in);
+  }
+
   const needsState = form.trigger_kind === 'state_entered';
   const stateMissing = needsState && !form.trigger_state_id;
   const filesTemplate = form.action_kind === 'file_template';
@@ -404,7 +421,7 @@ function RuleEditor({
       trigger_group: form.trigger_kind === 'state_group_entered' ? form.trigger_group : null,
       trigger_days: form.trigger_days,
       action_kind: form.action_kind,
-      action_patch: form.action_kind === 'set_fields' ? { priority: form.action_priority } : {},
+      action_patch: form.action_kind === 'set_fields' ? actionPatch : {},
       template_id: filesTemplate ? form.template_id : '',
       recipients: form.recipients,
       fan_out: form.fan_out,
@@ -527,17 +544,45 @@ function RuleEditor({
           </select>
         </div>
       ) : (
-        <div className="field">
-          <label htmlFor="rule-priority">{t('task.priority')}</label>
-          <select id="rule-priority" className="select" value={form.action_priority}
-            onChange={(e) => set('action_priority', e.target.value)}>
-            {PRIORITIES.map((priority) => <option key={priority} value={priority}>{t(priorityKey(priority))}</option>)}
-          </select>
-          {/* Only the priority for now. A rule that could set any field is a
-              rule that can set the state, and two rules moving one task is a
-              merge problem rather than a feature. */}
+        <>
+          <div className="row wrap" style={{ gap: 10 }}>
+            <div className="field">
+              <label htmlFor="rule-priority">{t('task.priority')}</label>
+              <select id="rule-priority" className="select" style={{ width: 150 }} value={form.action_priority}
+                onChange={(e) => set('action_priority', e.target.value)}>
+                <option value="">{t('auto.actionLeave')}</option>
+                {PRIORITIES.map((priority) => <option key={priority} value={priority}>{t(priorityKey(priority))}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="rule-label">{t('auto.actionAddLabel')}</label>
+              <select id="rule-label" className="select" style={{ width: 170 }} value={form.action_label}
+                onChange={(e) => set('action_label', e.target.value)}>
+                <option value="">{t('auto.actionLeave')}</option>
+                {actionLabels.map((label) => <option key={label.id} value={label.id}>{label.name}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="rule-assignee">{t('auto.actionAssign')}</label>
+              <select id="rule-assignee" className="select" style={{ width: 170 }} value={form.action_assignee}
+                onChange={(e) => set('action_assignee', e.target.value)}>
+                <option value="">{t('auto.actionLeave')}</option>
+                {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="rule-due">{t('auto.actionDueIn')}</label>
+              <input
+                id="rule-due" className="input" type="number" style={{ width: 96 }} placeholder="—"
+                value={form.action_due_in} onChange={(e) => set('action_due_in', e.target.value)}
+              />
+            </div>
+          </div>
+          {/* Still never the state: a rule that moves a task can trigger a rule
+              that moves it back, and two rules editing one row is a merge
+              problem rather than a feature flag. */}
           <span className="hint">{t('auto.actionSetFieldsHint')}</span>
-        </div>
+        </>
       )}
 
       <h4 className="auto-h">{t('auto.recipients')}</h4>

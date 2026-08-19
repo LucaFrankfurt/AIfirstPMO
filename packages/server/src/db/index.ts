@@ -50,6 +50,9 @@ for (const [table, column, definition] of [
   ['states', 'wip_limit', 'INTEGER NOT NULL DEFAULT 0'],
   ['states', 'allowed_roles', `TEXT NOT NULL DEFAULT '[]'`],
   ['comments', 'anchor', 'TEXT'],
+  ['webhooks', 'direction', `TEXT NOT NULL DEFAULT 'out'`],
+  ['webhooks', 'format', `TEXT NOT NULL DEFAULT 'kolibri'`],
+  ['webhooks', 'created_by', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

@@ -586,6 +586,12 @@ CREATE TABLE IF NOT EXISTS webhooks (
   -- Signs the body so the receiver can tell it came from here.
   secret       TEXT NOT NULL DEFAULT '',
   enabled      INTEGER NOT NULL DEFAULT 1,
+  -- 'out' posts to somebody else; 'in' gives another service a URL to post to.
+  direction    TEXT NOT NULL DEFAULT 'out',
+  -- The message shape: 'kolibri' is the signed JSON; 'slack' and 'discord' are
+  -- what those two will actually render.
+  format       TEXT NOT NULL DEFAULT 'kolibri',
+  created_by   TEXT,
   last_status  INTEGER,
   last_error   TEXT,
   last_sent_at INTEGER,

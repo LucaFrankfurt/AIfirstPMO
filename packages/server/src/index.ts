@@ -14,6 +14,7 @@ import { registerEntityRoutes } from './routes/entities.ts';
 import { registerFileRoutes } from './routes/files.ts';
 import { registerMcpRoutes } from './routes/mcp.ts';
 import { registerSearchRoutes } from './routes/search.ts';
+import { registerInboundRoutes } from './routes/inbound.ts';
 import { registerShareRoutes } from './routes/share.ts';
 import { registerSyncRoutes } from './routes/sync.ts';
 
@@ -28,6 +29,7 @@ registerFileRoutes(router);
 registerMcpRoutes(router);
 registerEntityRoutes(router);
 registerShareRoutes(router);
+registerInboundRoutes(router);
 
 /**
  * `ready` turns true once provisioning finished (bucket reachable, owner

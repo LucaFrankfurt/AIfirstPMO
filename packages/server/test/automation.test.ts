@@ -258,4 +258,49 @@ describe('templates and automations', () => {
     await move(task.id, states['In Review']);
     assert.equal((await tasksIn()).length, before + 1, 'only the task itself');
   });
+
+  it('adds a label without losing the ones somebody put there', async () => {
+    const labels = await api(`/api/workspaces/${workspaceId}/labels?project_id=${projectId}`);
+    const [first, second] = labels;
+
+    await api(`/api/workspaces/${workspaceId}/automations`, {
+      body: {
+        project_id: projectId,
+        name: 'Tag on review',
+        trigger_kind: 'state_entered',
+        trigger_state_id: states['In Review'],
+        action_kind: 'set_fields',
+        action_patch: { add_labels: [second.id] },
+        enabled: 1,
+      },
+    });
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: projectId, title: 'Keeps its labels', labels: [first.id] },
+    });
+    await move(task.id, states['In Review']);
+
+    const after = await api(`/api/tasks/${task.id}`);
+    assert.deepEqual(after.labels, [first.id, second.id], 'appended, not replaced');
+  });
+
+  it('sets a due date counted from the day it ran', async () => {
+    await api(`/api/workspaces/${workspaceId}/automations`, {
+      body: {
+        project_id: projectId,
+        name: 'Due in three',
+        trigger_kind: 'task_created',
+        action_kind: 'set_fields',
+        action_patch: { due_in_days: 3 },
+        enabled: 1,
+      },
+    });
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: projectId, title: 'Soon' },
+    });
+    const after = await api(`/api/tasks/${task.id}`);
+    assert.equal(after.due_date, new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
+  });
+
 });

@@ -38,7 +38,7 @@ export const sign = (secret: string, body: string): string =>
 export function dispatch(workspaceId: string, event: WebhookEvent, payload: Record<string, unknown>): void {
   const hooks = all<Row>(
     `SELECT * FROM webhooks
-      WHERE workspace_id = ? AND enabled = 1 AND deleted_at IS NULL`,
+      WHERE workspace_id = ? AND enabled = 1 AND direction = 'out' AND deleted_at IS NULL`,
     workspaceId,
   ).filter((hook) => String(hook.events ?? '').split(',').map((name) => name.trim()).includes(event));
   if (!hooks.length) return;
@@ -51,8 +51,42 @@ export function dispatch(workspaceId: string, event: WebhookEvent, payload: Reco
   }
 }
 
+/**
+ * What the message looks like on the other side.
+ *
+ * Slack and Discord will not read our envelope: they render one field and
+ * ignore everything else. So the *transport* stays the same and only the body
+ * changes — which is the whole of what "a named integration" means here, and a
+ * great deal less than one client library per service.
+ */
+function bodyFor(hook: Row, event: WebhookEvent, payload: Record<string, unknown>): string {
+  const format = String(hook.format ?? 'kolibri');
+  if (format === 'kolibri') {
+    return JSON.stringify({ event, at: Date.now(), instance: env.publicUrl || null, data: payload });
+  }
+
+  const title = String(payload.title ?? payload.name ?? '');
+  const identifier = payload.identifier ? `${payload.identifier} ` : '';
+  const link = payload.id && env.publicUrl ? `${env.publicUrl}/t/${payload.id}` : '';
+  const who = payload.actor ? ` — ${payload.actor}` : '';
+  const text = `*${LABEL[event] ?? event}*: ${identifier}${title}${who}${link ? `\n${link}` : ''}`;
+
+  // Slack and Mattermost read `text`; Discord reads `content`. Both ignore the
+  // other, so one object suits both and neither needs a special case.
+  return JSON.stringify(format === 'discord' ? { content: text } : { text });
+}
+
+/** How each event reads to a human in a chat window. */
+const LABEL: Partial<Record<WebhookEvent, string>> = {
+  'task.created': 'New task',
+  'task.updated': 'Task updated',
+  'task.completed': 'Task finished',
+  'comment.created': 'New comment',
+  'page.updated': 'Page updated',
+};
+
 async function deliver(hook: Row, event: WebhookEvent, payload: Record<string, unknown>): Promise<void> {
-  const body = JSON.stringify({ event, at: Date.now(), instance: env.publicUrl || null, data: payload });
+  const body = bodyFor(hook, event, payload);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 

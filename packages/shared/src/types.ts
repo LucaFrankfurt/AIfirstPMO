@@ -499,6 +499,20 @@ export interface Automation extends Base {
 }
 
 /** An HTTP call out when something happens. Rules act inwards; this acts out. */
+/**
+ * Which way an integration points.
+ *
+ * `out` posts to somebody else when something happens here. `in` gives another
+ * service a URL to post *to* — the same row, because both are "this workspace
+ * talks to that service", and one screen for both beats two that look alike.
+ */
+export const HOOK_DIRECTIONS = ['out', 'in'] as const;
+export type HookDirection = (typeof HOOK_DIRECTIONS)[number];
+
+/** The shape of the message, for receivers that will not read ours. */
+export const HOOK_FORMATS = ['kolibri', 'slack', 'discord'] as const;
+export type HookFormat = (typeof HOOK_FORMATS)[number];
+
 export interface Webhook extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -507,9 +521,13 @@ export interface Webhook extends Base {
   /** Comma-separated event names. */
   events: string;
   enabled: number;
+  direction: HookDirection;
+  format: HookFormat;
   last_status: number | null;
   last_error: string | null;
   last_sent_at: number | null;
+  /** Incoming hooks only, and only for the person who can already see the row. */
+  secret?: string;
 }
 
 export interface Notification extends Base {

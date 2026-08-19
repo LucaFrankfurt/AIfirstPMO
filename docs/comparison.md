@@ -65,7 +65,6 @@ which Plane does not have in this form.
 | Missing | Weight | Note |
 |---|---|---|
 | **Import** from Jira/Linear/Plane's own formats | Medium | CSV is built — with a preview, a per-row report, and a second pass that resolves parents and blockers — and so is a JSON round trip between Kolibri instances |
-| **Named integrations** — GitHub/GitLab commit linking, Slack | Medium | Signed outgoing webhooks are built; what is missing is the per-service message shape and a route *in* |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
 
 Custom fields used to head this list and are now built — nine kinds, per project, and each can be

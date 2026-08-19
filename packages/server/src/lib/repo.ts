@@ -1,7 +1,7 @@
 import { ENTITIES, entityDef, hlcGreater, type EntityName } from '@kolibri/shared';
 import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, forbidden, notFound } from './http.ts';
-import { shareToken, uid } from './ids.ts';
+import { shareToken, token, uid } from './ids.ts';
 import { publish } from './bus.ts';
 import { runAutomations } from './automation.ts';
 import { translatorFor } from './i18n.ts';
@@ -227,6 +227,15 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
   if (entity === 'project') {
     if (!values.key) setForced('key', `P${id.slice(0, 4).toUpperCase()}`);
     if (!values.name) setForced('name', 'Untitled project');
+  }
+  if (entity === 'webhook') {
+    // Outgoing: what the receiver verifies the signature with. Incoming: the
+    // unguessable part of the URL. Minted here either way, because a secret a
+    // client chose is a secret somebody else can guess.
+    setForced('secret', token());
+    if (!values.created_by) setForced('created_by', opts.actorId);
+    // An incoming hook has no URL to post to — it *is* one.
+    if (!values.url) setForced('url', '');
   }
   if (entity === 'share') {
     // The token is the whole of the authorisation, so it is minted here from

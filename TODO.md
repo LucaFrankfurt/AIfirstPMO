@@ -141,8 +141,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Outgoing webhooks** — the generic answer, rather than one integration per service. Signed
       with HMAC-SHA256 so a receiver can tell the call came from this instance, fire-and-forget with
       a five-second timeout, failures recorded on the row and never retried.
-- [ ] **Named integrations on top of webhooks** — GitHub/GitLab commit linking, Slack formatting.
-      The transport exists; what is missing is the per-service shape of the message.
+- [x] **Named integrations, both directions.** Outgoing: a hook can send Slack/Mattermost or
+      Discord's shape instead of the signed Kolibri envelope — the transport is unchanged and only
+      the body differs, which is the whole of what a named integration needs to be. Incoming: a hook
+      can be given a URL to *receive* on, and a commit message naming a task gets commented on it —
+      `fixes SRV-12` moves it to Done. Reads GitHub and GitLab push payloads, and anything sending
+      the same three fields; a payload it does not recognise is accepted and ignored, because
+      answering with an error trains people to turn the integration off.
 - [x] **Analytics.** Project → Insights: open/finished counts, median cycle time, time logged,
       throughput per week, a burn-up over the active cycle, and breakdowns by kind and by person.
       Computed from the local mirror, so it works offline. See [`docs/insights.md`](docs/insights.md).
@@ -165,8 +170,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **A second rule action: change the task it watched.** Deliberately narrow — the priority
       only. `state_id` is not settable, because a rule that moves a task can trigger a rule that
       moves it back, and two rules editing one row is a merge problem rather than a feature flag.
-- [ ] **Rule actions beyond the priority** — a label, an assignee, a date. Each is one line in the
-      allow-list; what needs deciding first is what two rules touching one row should do.
+- [x] **Rule actions beyond the priority.** A rule can now add a label, assign somebody, and set a
+      due date a number of days out. Two of those are not fields: adding a label is an *append*,
+      because replacing the list would quietly strip what somebody had put there, and "due in three
+      days" is a calculation against the day the rule ran. Still never the state, for the reason it
+      never was: two rules editing one row is a merge problem rather than a feature flag.
 - [x] **Scheduled triggers.** `due_in`, swept once a day by `lib/scheduler.ts`. It records the day
       it ran, so a restart does not re-fire it.
 - [x] **Rules that watch a page edit or a comment.** Both fire against the task or page they hang
@@ -273,8 +281,7 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Recurring tasks.** Daily, weekly, fortnightly or monthly. The next one is created when the
       last is *finished*, not when a date passes: a weekly task nobody did four times is one late
       task, not four nobody will do.
-- [ ] **Incoming** integrations — a commit message that closes a task needs a route in, which is
-      the opposite direction from the webhooks that now exist.
+- [x] **Incoming** integrations — see the named-integrations entry above.
 - [x] **A plain JSON round trip.** A project exports as one readable document — structure, tasks,
       relations, comments, pages, fields and their answers, templates and rules — and imports back
       as a new project with every reference rewritten. Deliberately not the backup format: a backup

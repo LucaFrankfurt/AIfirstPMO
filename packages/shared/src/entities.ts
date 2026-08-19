@@ -233,7 +233,7 @@ export const ENTITIES = {
   },
   webhook: {
     table: 'webhooks',
-    fields: ['workspace_id', 'project_id', 'name', 'url', 'events', 'enabled'],
+    fields: ['workspace_id', 'project_id', 'name', 'url', 'events', 'enabled', 'direction', 'format'],
     /** The delivery result is worth showing; it is just not the client's to set. */
     serverOnly: ['last_status', 'last_error', 'last_sent_at'],
     /** The signing secret is the receiver's and this server's. Nobody else's. */

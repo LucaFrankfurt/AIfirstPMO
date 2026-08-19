@@ -77,7 +77,15 @@ export function Webhooks() {
   const toast = useToast();
   const { workspaceId } = useSession();
   const { confirm, dialog } = useConfirm();
-  const hooks = useQuery(() => list('webhook', (hook) => hook.workspace_id === workspaceId), [workspaceId]);
+  const outgoing = useQuery(
+    () => list('webhook', (hook) => hook.workspace_id === workspaceId && hook.direction !== 'in'),
+    [workspaceId],
+  );
+  const incoming = useQuery(
+    () => list('webhook', (hook) => hook.workspace_id === workspaceId && hook.direction === 'in'),
+    [workspaceId],
+  );
+  const hooks = outgoing;
   const [url, setUrl] = useState('');
 
   return (
@@ -114,6 +122,20 @@ export function Webhooks() {
         />
         <button className="btn" type="submit"><Icon name="plus" size={14} /> {t('hooks.add')}</button>
       </form>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('hooks.inTitle')}</h3>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('hooks.inHint')}</p>
+      {incoming.map((hook) => <Hook key={hook.id} hook={hook} onRemove={async (id, name) => {
+        if (await confirm(t('hooks.remove') + ` — ${name}?`)) remove('webhook', id);
+      }} />)}
+      <button
+        className="btn"
+        onClick={() => create('webhook', {
+          workspace_id: workspaceId, url: '', name: 'GitHub', events: '', enabled: 1, direction: 'in',
+        })}
+      >
+        <Icon name="plus" size={14} /> {t('hooks.inAdd')}
+      </button>
       {dialog}
     </>
   );
@@ -121,7 +143,10 @@ export function Webhooks() {
 
 function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: string) => void }) {
   const t = useT();
+  const toast = useToast();
   const chosen = new Set(String(hook.events ?? '').split(',').map((name) => name.trim()));
+  const inbound = hook.direction === 'in';
+  const [secret, setSecret] = useState<{ secret: string; url: string | null } | null>(null);
 
   return (
     <div className="card" style={{ marginBottom: 8 }}>
@@ -141,8 +166,51 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
           <Icon name="trash" size={13} />
         </button>
       </div>
-      <div className="muted truncate" style={{ fontSize: 12, margin: '4px 0 6px' }}>{hook.url}</div>
-      <div className="row wrap" style={{ gap: 6 }}>
+      {inbound ? (
+        <div className="row" style={{ gap: 8, margin: '6px 0' }}>
+          <input
+            className="input grow" readOnly value={secret?.url ?? t('hooks.inHidden')}
+            aria-label={t('hooks.inUrl')} onFocus={(event) => event.currentTarget.select()}
+          />
+          <button
+            className="btn sm"
+            onClick={async () => {
+              try {
+                const found = await api.get<{ secret: string; url: string | null }>(`/api/webhooks/${hook.id}/secret`);
+                setSecret(found);
+                if (found.url) {
+                  void navigator.clipboard?.writeText(found.url);
+                  toast(t('common.copied'));
+                }
+              } catch {
+                toast(t('hooks.inFailed'));
+              }
+            }}
+          >
+            <Icon name="link" size={13} /> {t('hooks.inReveal')}
+          </button>
+        </div>
+      ) : (
+        <div className="muted truncate" style={{ fontSize: 12, margin: '4px 0 6px' }}>{hook.url}</div>
+      )}
+
+      {!inbound && (
+        <div className="row" style={{ gap: 8, marginBottom: 6 }}>
+          <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
+            <span className="muted">{t('hooks.format')}</span>
+            <select
+              className="select" style={{ width: 150 }} value={hook.format ?? 'kolibri'}
+              onChange={(event) => update('webhook', hook.id, { format: event.target.value })}
+            >
+              <option value="kolibri">{t('hooks.formatKolibri')}</option>
+              <option value="slack">Slack / Mattermost</option>
+              <option value="discord">Discord</option>
+            </select>
+          </label>
+        </div>
+      )}
+
+      <div className="row wrap" style={{ gap: 6, display: inbound ? 'none' : undefined }}>
         {EVENTS.map((event) => (
           <label key={event} className="chip button" style={{ cursor: 'pointer' }}>
             <input
