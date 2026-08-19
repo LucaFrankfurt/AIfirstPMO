@@ -348,6 +348,11 @@ p { margin: 0 0 0.75em; }
 .check-row input { margin-top: 2px; flex: none; }
 .check-row .hint { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
 
+/* Picking a shape for a saved view. Square buttons so the row reads as a set of
+   choices rather than as a sentence of icons. */
+.icon-choices { gap: 4px; margin-top: 2px; }
+.icon-choices .btn { padding: 0; width: 32px; height: 32px; justify-content: center; }
+
 /* Marks a saved view that has been changed since it was saved. */
 .dot-modified {
   width: 6px; height: 6px; border-radius: 50%;

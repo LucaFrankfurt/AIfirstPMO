@@ -118,6 +118,20 @@ offline write one row and merge, rather than two rows and a question. `value` is
 `multi_select` holds a JSON array, `checkbox` holds `"true"` or nothing, and a cleared field is
 `null` rather than an empty string. Deleting a field tombstones its answers.
 
+A saved view can filter and group by one. In a view's `filters`, `field` maps a field's id to the
+answers that pass — several on one field are an OR, two fields are an AND, like every other filter:
+
+```json
+{"field": {"<severity_id>": ["Major", "Critical"], "<steps_id>": [""]}}
+```
+
+Two answers are reserved, so a filter can ask something of a field that has no list of options.
+`""` is **no answer** — safe because a blank answer is deleted rather than stored — and `"*"` is
+**any answer**, safe for a happier reason: a field whose answer is literally an asterisk does have
+one. `group_by` takes `field:<field_id>` alongside the usual `state`, `type` and so on; only
+`select`, `multi_select`, `checkbox` and `person` are offered, because grouping by a note is one
+heading per task.
+
 ### Task extras
 
 ```
@@ -200,6 +214,15 @@ See [`sync.md`](sync.md) for the protocol. `EventSource` cannot set headers, so 
 accepts `?access_token=` for token clients.
 
 ## Misc
+
+```
+GET  /api/workspaces/:ws/trash          what is waiting to go; ?days=N asks of an age
+POST /api/workspaces/:ws/trash/empty    remove it for good — admins only
+```
+
+Emptying is not reversible and is not a local change: the server removes the rows and writes a
+**purge marker** in each one's place, which is how every other device learns to forget the same
+things. See [`sync.md`](sync.md).
 
 ```
 GET /api/health     { status, seq, uptime }

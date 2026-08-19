@@ -153,6 +153,53 @@ describe('a shared task list', () => {
     assert.equal(shorter.includes('Already done'), false);
   });
 
+  it('honours the view’s own filters, which is the point of sharing a view', async () => {
+    const states = await ok(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const backlog = states[0];
+    const other = states[1];
+    await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'In the backlog', state_id: backlog.id });
+    await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Somewhere else', state_id: other.id });
+
+    const view = await ok(`/api/workspaces/${workspaceId}/views`, {
+      project_id: projectId, name: 'Backlog only', filters: { state: [backlog.id] },
+    });
+    const share = await makeShare({ kind: 'tasks', project_id: projectId, view_id: view.id, include_done: 1 });
+    const body = await (await open(`/s/${share.token}`)).text();
+    assert.match(body, /In the backlog/);
+    assert.equal(body.includes('Somewhere else'), false, 'a shared link showing more than the view is a leak by another name');
+  });
+
+  it('filters on a custom field, including the two questions a note can answer', async () => {
+    const severity = await ok(`/api/workspaces/${workspaceId}/fields`, {
+      project_id: projectId, name: 'Severity', kind: 'select', options: ['Low', 'High'],
+    });
+    const steps = await ok(`/api/workspaces/${workspaceId}/fields`, {
+      project_id: projectId, name: 'Steps', kind: 'long_text',
+    });
+    const bad = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Severe and described' });
+    const mild = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Mild and bare' });
+    const answer = (task: any, field: any, value: string) => ok(`/api/workspaces/${workspaceId}/field-values`, {
+      project_id: projectId, task_id: task.id, field_id: field.id, value,
+    });
+    await answer(bad, severity, 'High');
+    await answer(bad, steps, 'Open it, then close it.');
+    await answer(mild, severity, 'Low');
+
+    const high = await ok(`/api/workspaces/${workspaceId}/views`, {
+      project_id: projectId, name: 'Severe', filters: { field: { [severity.id]: ['High'] } },
+    });
+    const body = await (await open(`/s/${(await makeShare({ kind: 'tasks', project_id: projectId, view_id: high.id, include_done: 1 })).token}`)).text();
+    assert.match(body, /Severe and described/);
+    assert.equal(body.includes('Mild and bare'), false);
+
+    const missing = await ok(`/api/workspaces/${workspaceId}/views`, {
+      project_id: projectId, name: 'No steps', filters: { field: { [steps.id]: [''] } },
+    });
+    const bare = await (await open(`/s/${(await makeShare({ kind: 'tasks', project_id: projectId, view_id: missing.id, include_done: 1 })).token}`)).text();
+    assert.match(bare, /Mild and bare/, 'which bugs are missing their steps is the question a note filter is for');
+    assert.equal(bare.includes('Severe and described'), false);
+  });
+
   it('shows nothing from a project it does not point at', async () => {
     const other = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Private matters', key: 'PM' });
     await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: other.id, title: 'Not for sharing' });

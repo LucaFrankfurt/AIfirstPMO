@@ -13,7 +13,10 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { fieldValueId, fieldsForTask, readFieldValue, writeFieldValue } from '@kolibri/shared';
+import {
+  FIELD_ANSWERED, FIELD_EMPTY, fieldChoices, fieldKeys, fieldMatches, fieldValueId,
+  fieldsForTask, isGroupable, readFieldValue, writeFieldValue,
+} from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 const { get } = await import('../src/db/index.ts');
@@ -203,5 +206,47 @@ describe('reading and writing a value', () => {
   it('refuses to turn nonsense into a number', () => {
     assert.equal(writeFieldValue('number', 'twelve'), null);
     assert.equal(readFieldValue('number', 'twelve'), null);
+  });
+});
+
+describe('filtering and grouping by a field', () => {
+  it('puts a several-of answer in every group it names, and a missing one in none', () => {
+    assert.deepEqual(fieldKeys('multi_select', '["a","b"]'), ['a', 'b']);
+    assert.deepEqual(fieldKeys('select', 'High'), ['High']);
+    assert.deepEqual(fieldKeys('checkbox', 'true'), ['true']);
+    assert.deepEqual(fieldKeys('text', null), [], 'no answer is no groups, not one called ""');
+    assert.deepEqual(fieldKeys('text', ''), []);
+  });
+
+  it('matches on any of the wanted answers, which is how every other filter reads', () => {
+    assert.equal(fieldMatches('select', 'High', ['High', 'Urgent']), true);
+    assert.equal(fieldMatches('select', 'Low', ['High', 'Urgent']), false);
+    assert.equal(fieldMatches('multi_select', '["a","c"]', ['c']), true, 'one of several is enough');
+    assert.equal(fieldMatches('select', 'Low', []), true, 'an empty filter filters nothing');
+  });
+
+  it('can ask a free-text field the only two questions it has', () => {
+    assert.equal(fieldMatches('long_text', null, [FIELD_EMPTY]), true);
+    assert.equal(fieldMatches('long_text', 'steps: …', [FIELD_EMPTY]), false);
+    assert.equal(fieldMatches('long_text', 'steps: …', [FIELD_ANSWERED]), true);
+    assert.equal(fieldMatches('long_text', null, [FIELD_ANSWERED]), false);
+    // The one collision the tokens allow gives the right answer anyway: a field
+    // whose answer is literally an asterisk does have an answer.
+    assert.equal(fieldMatches('text', '*', [FIELD_ANSWERED]), true);
+  });
+
+  it('offers grouping only where the answers come from a list', () => {
+    assert.deepEqual(
+      ['select', 'multi_select', 'checkbox', 'person', 'text', 'long_text', 'number', 'date', 'url']
+        .filter((kind) => isGroupable(kind as never)),
+      ['select', 'multi_select', 'checkbox', 'person'],
+      'grouping by a note would be one heading per task',
+    );
+  });
+
+  it('offers a field’s own choices, and nothing for a field that has none', () => {
+    assert.deepEqual(fieldChoices({ kind: 'select', options: ['Low', 'High'] } as never), ['Low', 'High']);
+    assert.deepEqual(fieldChoices({ kind: 'checkbox', options: null } as never), ['true']);
+    assert.deepEqual(fieldChoices({ kind: 'long_text', options: null } as never), []);
   });
 });

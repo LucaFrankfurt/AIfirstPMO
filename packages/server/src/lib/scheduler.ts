@@ -16,6 +16,7 @@ import { uid } from './ids.ts';
 import { translatorFor } from './i18n.ts';
 import { canSeeProject, writeEntity } from './repo.ts';
 import { runAutomationsForDue } from './automation.ts';
+import { applyRetention } from './trash.ts';
 
 const HOUR = 3_600_000;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -146,11 +147,15 @@ export function rollRecurringTasks(): number {
 
 /* ------------------------------------------------------------------ sweep */
 
-export function sweep(now = Date.now()): { reminders: number; recurred: number; rules: number } {
+export function sweep(now = Date.now()): { reminders: number; recurred: number; rules: number; purged: number } {
   return {
     reminders: remindAboutDueTasks(now),
     recurred: rollRecurringTasks(),
     rules: runAutomationsForDue(todayISO(now)),
+    // Off unless somebody set a window. It runs on the hourly tick rather than
+    // on a daily one because the cutoff is an age, not a date: running it
+    // twice in one day purges nothing the first pass did not already take.
+    purged: applyRetention(now),
   };
 }
 
@@ -159,8 +164,8 @@ export function startScheduler(): void {
   const tick = () => {
     try {
       const done = sweep();
-      if (done.reminders || done.recurred || done.rules) {
-        console.log(`[scheduler] ${done.reminders} reminders, ${done.recurred} repeats, ${done.rules} rules`);
+      if (done.reminders || done.recurred || done.rules || done.purged) {
+        console.log(`[scheduler] ${done.reminders} reminders, ${done.recurred} repeats, ${done.rules} rules, ${done.purged} purged`);
       }
     } catch (error) {
       console.error('[scheduler] sweep failed', error);

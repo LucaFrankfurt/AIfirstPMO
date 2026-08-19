@@ -139,11 +139,52 @@ function tasksBody(share: Row): string {
     params.push(share.workspace_id);
   }
   if (!share.include_done) where.push(`s.group_key NOT IN ('completed', 'cancelled')`);
-  for (const [field, values] of Object.entries(filters)) {
-    if (!Array.isArray(values) || !values.length) continue;
-    if (!['state_id', 'priority', 'type_id', 'cycle_id', 'module_id'].includes(field)) continue;
-    where.push(`t.${field} IN (${values.map(() => '?').join(', ')})`);
+  // The saved view names things the way the interface does — `state`, `type`,
+  // `cycle` — and the table names them `state_id` and so on. Mapping the two is
+  // the whole of it, and getting it wrong shows a shared link *more* tasks than
+  // the view it was made from.
+  const COLUMNS: Record<string, string> = {
+    state: 'state_id', type: 'type_id', cycle: 'cycle_id', module: 'module_id',
+    project: 'project_id', priority: 'priority',
+  };
+  for (const [key, values] of Object.entries(filters)) {
+    const column = COLUMNS[key];
+    if (!column || !Array.isArray(values) || !values.length) continue;
+    where.push(`t.${column} IN (${values.map(() => '?').join(', ')})`);
     params.push(...values.map(String));
+  }
+  // Custom fields, which live in a table of their own. Each field is a separate
+  // condition, because two fields are an AND and two answers to one are an OR.
+  const fieldFilters = (filters.field && typeof filters.field === 'object' ? filters.field : {}) as Record<string, unknown>;
+  for (const [fieldId, wanted] of Object.entries(fieldFilters)) {
+    if (!Array.isArray(wanted) || !wanted.length) continue;
+    const kind = get<Row>(`SELECT kind FROM custom_fields WHERE id = ? AND deleted_at IS NULL`, fieldId)?.kind;
+    if (!kind) continue;
+    const clauses: string[] = [];
+    const answers = wanted.map(String);
+    const exists = (test: string) => `EXISTS (SELECT 1 FROM field_values fv WHERE fv.task_id = t.id
+        AND fv.field_id = ? AND fv.deleted_at IS NULL AND fv.value IS NOT NULL AND fv.value != '' AND (${test}))`;
+
+    if (answers.includes('')) {
+      clauses.push(`NOT ${exists('1 = 1')}`);
+      params.push(fieldId);
+    }
+    if (answers.includes('*')) {
+      clauses.push(exists('1 = 1'));
+      params.push(fieldId);
+    }
+    const values = answers.filter((value) => value !== '' && value !== '*');
+    if (values.length) {
+      // A multi-select is stored as a JSON array, so membership is a LIKE on
+      // the quoted value rather than equality. Ugly, and correct: the quotes
+      // are what stop `"do"` matching `"done"`.
+      const test = String(kind) === 'multi_select'
+        ? values.map(() => `fv.value LIKE ?`).join(' OR ')
+        : `fv.value IN (${values.map(() => '?').join(', ')})`;
+      clauses.push(exists(test));
+      params.push(fieldId, ...(String(kind) === 'multi_select' ? values.map((value) => `%"${value}"%`) : values));
+    }
+    where.push(`(${clauses.join(' OR ')})`);
   }
 
   const tasks = all<Row>(

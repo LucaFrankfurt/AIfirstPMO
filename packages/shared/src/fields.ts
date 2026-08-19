@@ -97,3 +97,65 @@ export function formatFieldValue(
     default: return String(value ?? '');
   }
 }
+
+/* ------------------------------------------------ filtering and grouping */
+
+/**
+ * Two reserved answers, so a filter can ask a question of a field that has no
+ * list of options to offer.
+ *
+ * `''` is safe as "nothing here": a blank answer is deleted rather than stored,
+ * so no task can have it. `'*'` is safe as "something here" for a happier
+ * reason — a field whose answer is literally an asterisk does, in fact, have
+ * an answer, so the one collision possible gives the right result anyway.
+ */
+export const FIELD_EMPTY = '';
+export const FIELD_ANSWERED = '*';
+
+/**
+ * The values one stored answer counts as.
+ *
+ * A multi-select counts as every choice it names — it belongs in each of those
+ * groups and matches a filter naming any of them. Everything else is one value,
+ * and a missing answer is no values at all rather than an empty-string one.
+ */
+export function fieldKeys(kind: FieldKind, raw: string | null | undefined): string[] {
+  if (raw === null || raw === undefined || raw === '') return [];
+  const value = readFieldValue(kind, raw);
+  if (kind === 'multi_select') return (value as string[]).map(String);
+  if (kind === 'checkbox') return value ? ['true'] : [];
+  return value === null || value === '' ? [] : [String(value)];
+}
+
+/**
+ * Does a task's answer pass this field's filter?
+ *
+ * Several wanted values on one field are an OR, matching every other filter in
+ * this app; two fields are an AND, applied by the caller.
+ */
+export function fieldMatches(kind: FieldKind, raw: string | null | undefined, wanted: string[]): boolean {
+  if (!wanted.length) return true;
+  const keys = fieldKeys(kind, raw);
+  if (wanted.includes(FIELD_EMPTY) && !keys.length) return true;
+  if (wanted.includes(FIELD_ANSWERED) && keys.length) return true;
+  return keys.some((key) => wanted.includes(key));
+}
+
+/**
+ * The kinds worth grouping by: the ones whose answers come from a short list
+ * somebody wrote down. Grouping by a free-text field, a date or a number makes
+ * one group per task, which is a list with headings in the way.
+ */
+export const GROUPABLE_KINDS: FieldKind[] = ['select', 'multi_select', 'checkbox', 'person'];
+export const isGroupable = (kind: FieldKind): boolean => GROUPABLE_KINDS.includes(kind);
+
+/**
+ * The answers a filter can offer for a field, before the reserved two.
+ * Person is missing on purpose: its choices are the workspace's members, which
+ * this package does not know about.
+ */
+export function fieldChoices(field: Pick<Field, 'kind' | 'options'>): string[] {
+  if (field.kind === 'checkbox') return ['true'];
+  if (field.kind === 'select' || field.kind === 'multi_select') return field.options ?? [];
+  return [];
+}

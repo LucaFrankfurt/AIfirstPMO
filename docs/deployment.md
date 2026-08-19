@@ -252,6 +252,26 @@ log, expired rows nobody swept, and whether every stored file's bytes are still 
 `doctor --json` is the one to put on a schedule; a `status` of `fail` is the only thing that should
 page anybody.
 
+### The trash, and how long it keeps
+
+A delete is reversible: the row is marked and kept, which is what lets two devices agree it is gone,
+and **Settings → Data** lists everything deleted or archived with a way back.
+
+Admins can end that with **Empty the trash**. It removes the rows, the uploaded bytes nothing else
+points at, and the audit entries that quoted the deleted thing by name — a button whose promise is
+"gone" cannot leave the last copy of a title in a list. Every other device forgets the same things on
+its next sync, through the purge markers described in [`sync.md`](sync.md).
+
+`KOLIBRI_TRASH_DAYS` does the same thing on a clock:
+
+```bash
+KOLIBRI_TRASH_DAYS=90    # deleted things are removed for good after ninety days
+```
+
+It is **off by default** (`0`). A default that quietly destroyed things after a month would be a
+retention policy this project has no business choosing for somebody else's data — and it is the sort
+of default nobody discovers until the thing they wanted back is not there.
+
 ## Upgrades
 
 ```bash

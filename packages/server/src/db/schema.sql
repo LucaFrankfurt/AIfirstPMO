@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS projects (
   visibility       TEXT NOT NULL DEFAULT 'public',
   archived         INTEGER NOT NULL DEFAULT 0,
   default_state_id TEXT,
+  default_view_id  TEXT,
   sort_order       TEXT NOT NULL DEFAULT 'V',
   next_number      INTEGER NOT NULL DEFAULT 1,
   created_at       INTEGER NOT NULL,
@@ -680,6 +681,23 @@ CREATE TABLE IF NOT EXISTS notifications (
   clocks       TEXT NOT NULL DEFAULT '{}'
 );
 CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, seq);
+
+-- A tombstone that was itself thrown away. Emptying the trash removes the row
+-- and leaves one of these, because a device holding the tombstone would
+-- otherwise keep it in its own trash and be able to put it back.
+CREATE TABLE IF NOT EXISTS purges (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  entity       TEXT NOT NULL,
+  row_id       TEXT NOT NULL,
+  reason       TEXT NOT NULL DEFAULT 'manual',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_purges_workspace ON purges(workspace_id, seq);
 
 CREATE TABLE IF NOT EXISTS activities (
   id           TEXT PRIMARY KEY,

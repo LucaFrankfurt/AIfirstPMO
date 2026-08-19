@@ -149,6 +149,12 @@ export interface Project extends Base {
   visibility: 'public' | 'private';
   archived: number;
   default_state_id: ID | null;
+  /**
+   * The saved view this project opens on. On the project rather than a flag on
+   * the view, so that two people pinning two different views merge into one
+   * answer instead of two rows both claiming to be the default.
+   */
+  default_view_id: ID | null;
   sort_order: string;
 }
 
@@ -390,6 +396,12 @@ export interface Filters {
   module?: ID[];
   project?: ID[];
   created_by?: ID[];
+  /**
+   * Custom field answers: the field's id, then the answers that pass. Two
+   * reserved tokens let a filter ask about a field with no list of options —
+   * `''` is "nothing here" and `'*'` is "something here". See `fields.ts`.
+   */
+  field?: Record<ID, string[]>;
   text?: string;
   due?: 'overdue' | 'today' | 'week' | 'none';
 }
@@ -555,6 +567,22 @@ export interface Activity extends Base {
   new_value: string | null;
 }
 
+/**
+ * A tombstone that was itself thrown away.
+ *
+ * Emptying the trash cannot simply drop the row: deletion here *is* the
+ * tombstone, and a device holding one would keep offering to put the thing back.
+ * So the row goes and this marker takes its place — small enough to keep, and
+ * enough for every device to forget the same thing.
+ */
+export interface Purge extends Base {
+  workspace_id: ID;
+  entity: EntityName;
+  row_id: ID;
+  /** `manual` if somebody pressed the button, `retention` if the clock did. */
+  reason: 'manual' | 'retention';
+}
+
 export interface EntityMap {
   user: User;
   member: Member;
@@ -583,6 +611,7 @@ export interface EntityMap {
   webhook: Webhook;
   notification: Notification;
   activity: Activity;
+  purge: Purge;
 }
 
 /* --------------------------------------------------------- sync protocol */

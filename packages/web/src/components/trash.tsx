@@ -12,13 +12,15 @@
  */
 import { useMemo, useState } from 'react';
 import type { EntityName } from '@kolibri/shared';
+import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { restore, update } from '../lib/mutations';
 import { byId, tables } from '../lib/store';
 import { useQuery } from '../lib/store';
+import { pull } from '../lib/sync';
 import { useMemberMap, useSession } from '../session';
-import { Empty, Icon, useToast } from './ui';
+import { Empty, Icon, useConfirm, useToast } from './ui';
 
 /** What can end up in here, and what to call it. */
 const KINDS: { entity: EntityName; label: TranslationKey; icon: string }[] = [
@@ -75,11 +77,14 @@ function useRecoverable(workspaceId: string, mode: 'deleted' | 'archived'): Entr
 
 export function Trash() {
   const t = useT();
-  const { workspaceId } = useSession();
+  const { workspaceId, role } = useSession();
   const toast = useToast();
   const members = useMemberMap();
+  const { confirm, dialog } = useConfirm();
   const [mode, setMode] = useState<'deleted' | 'archived'>('deleted');
   const [query, setQuery] = useState('');
+  const [emptying, setEmptying] = useState(false);
+  const canEmpty = role === 'owner' || role === 'admin';
 
   const entries = useRecoverable(workspaceId, mode);
   const shown = useMemo(() => {
@@ -91,6 +96,30 @@ export function Trash() {
     if (mode === 'deleted') restore(entry.entity, entry.id);
     else update(entry.entity, entry.id, { archived: 0 });
     toast(t('trash.restored', { title: entry.title }));
+  };
+
+  /**
+   * The one irreversible button in the app, so it says so.
+   *
+   * It is a server call rather than a local change: a purge is the server
+   * removing the rows and putting a marker in their place, which is then how
+   * every other device learns to forget the same things. Pulling straight
+   * afterwards is what makes this screen empty itself.
+   */
+  const empty = async () => {
+    const count = entries.length;
+    if (!count) return;
+    if (!await confirm(t('trash.emptyConfirm', { count }), t('trash.emptyAction'))) return;
+    setEmptying(true);
+    try {
+      const done = await api.post<{ purged: number }>(`/api/workspaces/${workspaceId}/trash/empty`, {});
+      await pull();
+      toast(t('trash.emptied', { count: done.purged }));
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('trash.emptyFailed'));
+    } finally {
+      setEmptying(false);
+    }
   };
 
   return (
@@ -120,6 +149,12 @@ export function Trash() {
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
+        {mode === 'deleted' && canEmpty && entries.length > 0 && (
+          <button className="btn sm danger" disabled={emptying} onClick={() => void empty()}>
+            <Icon name="trash" size={13} />
+            {emptying ? t('action.working') : t('trash.emptyAction')}
+          </button>
+        )}
       </div>
 
       {shown.length === 0 ? (
@@ -149,6 +184,8 @@ export function Trash() {
       )}
 
       <p className="hint" style={{ marginTop: 10 }}>{t('trash.retentionHint')}</p>
+      {mode === 'deleted' && canEmpty && <p className="hint">{t('trash.emptyHintWhat')}</p>}
+      {dialog}
       {/* `members` is read so a future "deleted by" column has it to hand; the
           delete itself is not attributed on the row today. */}
       <span hidden>{members.size}</span>

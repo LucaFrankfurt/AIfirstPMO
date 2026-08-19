@@ -99,6 +99,25 @@ comes back.
 | Mutation rejected (e.g. permission) | Reported in `rejected[]`, dropped from the outbox, logged and surfaced in the status pill |
 | Tab in background | Polls every 60s; pulls immediately when it becomes visible again |
 
+## Deletion, and the end of it
+
+A delete stamps `deleted_at` and the row keeps syncing. That is not squeamishness — it is the only
+way two devices ever *agree* something is gone. A row that simply vanished from the server would
+still be sitting in every client's IndexedDB, with nothing to tell them otherwise.
+
+Which means emptying the trash cannot just drop the row either: every device holding the tombstone
+would keep showing it in its own trash, with a button offering to put it back. So a purge writes a
+**`purge` marker** in its place — `{ entity, row_id, reason }` — and that marker syncs like anything
+else. A client applying one deletes its copy of the row the marker names, from the store and from
+IndexedDB.
+
+The markers are small and are kept. They are the only remaining record that the thing was ever here,
+and dropping them would bring the original problem back one level up.
+
+What this does not fix, and does not claim to: a device that has been offline since before the purge
+still holds its copy. It drops it the moment it syncs. Until then the bytes are on that device —
+which is true of anything anybody has ever had a copy of.
+
 ## Testing it
 
 `packages/server/test/api.test.ts` covers the parts that are easy to get wrong:

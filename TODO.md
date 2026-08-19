@@ -88,9 +88,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 ## P2 — the obvious next features
 
 - [x] **Saved views UI.** Save the current filter set under a name, from a project or from My work,
-      shared with the team by default. A dot marks a view you have changed since saving. Still open:
-      pinning one as a project's default, and an icon per view (`views.icon` is stored, nothing sets
-      it).
+      shared with the team by default. A dot marks a view you have changed since saving. One view can
+      be pinned as what a project *opens* on — stored on the project rather than as a flag on the
+      view, so two people pinning two different ones merge into one answer instead of two rows both
+      claiming to be the default; a device that has chosen for itself keeps its choice, because a
+      setting that overruled somebody every morning is one that fights its users. And a dozen icons,
+      typed against the icon set so a shape that does not exist is a compile error rather than a row
+      of three quiet dots.
 - [x] **@mentions in comments and descriptions**, with notifications. Handles resolve by first
       name, display name or email address.
 - [x] **Email notifications** — batched per person, per-user preferences, signed one-click
@@ -128,7 +132,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       derived from the task and the field, so two people filling in two different fields merge and
       two devices answering the same one converge. `required` is a prompt rather than a gate — a
       task can arrive from a rule, the API or a phone that was offline, and a form that refuses to
-      save teaches people to type a full stop. Still open: filtering and grouping by a custom field.
+      save teaches people to type a full stop. Views filter and group by one: several answers on a
+      field are an OR and two fields an AND, a several-of answer counts in every group it names, and
+      a field with no list of options is asked the only two questions it has — is there an answer,
+      and is there not, which is how you find the bugs missing their steps to reproduce. Dropping a
+      card into a column on a board grouped by a field writes the answer, adding to a several-of
+      rather than replacing it for the same reason a rule appends a label.
 - [x] **CSV import.** Column mapping guessed from the header names in both languages and in Jira /
       Plane / OpenProject's words, a dry run that writes nothing, and a report that names the
       spreadsheet row of everything it could not read. Semicolon files from a German Excel included.
@@ -184,10 +193,18 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       them. The actions that belong to a project disappear when the selection spans two, because
       states and labels do. Written locally like every other change, so it works offline —
       `POST /tasks/bulk` stays for API and MCP callers, who have no outbox.
-- [x] **Trash and archive browser.** Settings → Data lists what was deleted or archived, with a way
-      back. It needed no new endpoint: a delete keeps the row and syncs it as a tombstone — that is
-      how two devices agree it is gone — so the data was already on the device and simply had no
-      screen asking for it. Still open: emptying the trash on purpose, and a retention policy.
+- [x] **Trash and archive browser, and the end of the trash.** Settings → Data lists what was
+      deleted or archived, with a way back. The browser needed no new endpoint: a delete keeps the
+      row and syncs it as a tombstone — that is how two devices agree it is gone — so the data was
+      already on the device and simply had no screen asking for it. Admins can now end that:
+      **emptying the trash** removes the rows, the uploaded bytes nothing else still points at, and
+      the audit entries that quoted the deleted thing by name — a button whose promise is "gone"
+      cannot leave the last copy of a title in a list an admin can read. It cannot simply drop the
+      rows, because the tombstone *is* the deletion: every device holding one would keep showing the
+      thing in its own trash with a button offering to put it back. So a purge leaves a marker in
+      each row's place, which syncs like anything else and tells every device to forget the same
+      things. `KOLIBRI_TRASH_DAYS` does it on a clock, and is **off** by default — a retention
+      policy is a decision about somebody else's data, not one this project gets to make quietly.
 - [x] **Avatar upload.** In the profile, downscaled in the browser like any other image.
 - [x] **Precise drop position on the board.** A line shows the gap the card will land in, and it
       lands there. It used to append to the end of the target
@@ -308,6 +325,10 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       interrupted move leaves an instance that still works. The old copies are left in place on
       purpose; `kolibri doctor` counts what is stranded on the backend no longer in use.
 - [x] **Roadmap / portfolio view** across projects — see P2 above.
+- [x] **A shared task view shows what the view shows.** The filter set was read with the interface's
+      names (`state`, `type`, `cycle`) against the table's (`state_id`…), so only `priority` ever
+      applied and a shared link quietly showed *more* tasks than the view it was made from — a leak
+      by another name. Fixed, custom fields included.
 - [x] **Public share links** for a page or a saved task view. Rendered by the *server* as one
       small self-contained document rather than handed to the app: somebody outside the workspace
       has no session, a link that opens as a document works in any browser, and the smaller the

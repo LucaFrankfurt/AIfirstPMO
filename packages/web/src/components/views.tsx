@@ -1,12 +1,19 @@
 import { Fragment, useMemo, useState } from 'react';
-import type { Filters, Layout, Task } from '@kolibri/shared';
-import { formatFieldValue, orderKey, PRIORITIES } from '@kolibri/shared';
+import type { Field, Filters, Layout, Task } from '@kolibri/shared';
+import {
+  FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId,
+  formatFieldValue, isGroupable, orderKey, PRIORITIES, readFieldValue,
+} from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
 import { useMemberMap, useMembers } from '../session';
-import { groupTasks, LabelChips, TaskCard, TaskRow, useLabels, useStates, useTypes, type GroupBy } from './task-parts';
+import {
+  fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
+  useLabels, useStates, useTypes, type BaseGroupBy, type GroupBy,
+} from './task-parts';
+import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
@@ -37,7 +44,7 @@ const LAYOUT_KEY: Record<string, TranslationKey> = {
 /** Every layout `LAYOUTS` declares is built. */
 const BUILT_LAYOUTS: Layout[] = ['list', 'board', 'table', 'calendar', 'gantt'];
 
-const GROUP_BY_KEY: Record<GroupBy, TranslationKey> = {
+const GROUP_BY_KEY: Record<BaseGroupBy, TranslationKey> = {
   state: 'view.groupState', type: 'type.groupBy', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
   label: 'view.groupLabel', cycle: 'view.groupCycle', project: 'view.groupProject', none: 'view.noGrouping',
 };
@@ -57,6 +64,13 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
   return useMemo(() => {
     const { filters } = view;
     const day = today();
+    // Answers are read once for the whole pass rather than per task: a project
+    // with a few hundred tasks and half a dozen fields is a few thousand rows,
+    // and this runs on every keystroke in the search box.
+    const fieldFilters = Object.entries(filters.field ?? {}).filter(([, wanted]) => wanted?.length);
+    const answers = fieldFilters.length
+      ? new Map(list('fieldValue').map((row) => [`${row.task_id}.${row.field_id}`, row.value]))
+      : new Map<string, string | null>();
     const filtered = tasks.filter((task) => {
       if (task.archived) return false;
       const state = byId('state', task.state_id);
@@ -78,6 +92,15 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
         const haystack = `${task.identifier} ${task.title} ${task.description ?? ''}`.toLowerCase();
         if (!haystack.includes(needle)) return false;
       }
+      if (fieldFilters.length) {
+        for (const [fieldId, wanted] of fieldFilters) {
+          const field = byId('field', fieldId);
+          // A filter on a field that has since been deleted is ignored rather
+          // than obeyed: it would silently hide everything.
+          if (!field) continue;
+          if (!fieldMatches(field.kind, answers.get(`${task.id}.${fieldId}`), wanted)) return false;
+        }
+      }
       return true;
     });
 
@@ -94,6 +117,44 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
 }
 
 /* --------------------------------------------------------------- controls */
+
+/**
+ * One menu section per custom field.
+ *
+ * A field with a list of options offers them. A field without one — a note, a
+ * number, a date — offers the only two questions worth asking of it: is there
+ * an answer, and is there not. That is what somebody actually wants from
+ * "steps to reproduce": which bugs are missing them.
+ */
+function fieldFilterItems(
+  field: Field,
+  view: ViewConfig,
+  t: ReturnType<typeof useT>,
+  members: { id: string; name: string }[],
+  toggle: (fieldId: string, value: string) => void,
+): MenuItem[] {
+  const chosen = view.filters.field?.[field.id] ?? [];
+  const choices: { value: string; label: string }[] = field.kind === 'person'
+    ? members.map((member) => ({ value: member.id, label: member.name }))
+    : field.kind === 'checkbox'
+      ? [{ value: 'true', label: t('field.yes') }]
+      : fieldChoices(field).map((option) => ({ value: option, label: option }));
+
+  const tail = field.kind === 'checkbox'
+    ? [{ value: FIELD_EMPTY, label: t('field.no') }]
+    : [
+      ...(choices.length ? [] : [{ value: FIELD_ANSWERED, label: t('field.answered') }]),
+      { value: FIELD_EMPTY, label: t('field.noAnswer') },
+    ];
+
+  return [...choices, ...tail].map(({ value, label }) => ({
+    id: `field-${field.id}-${value || 'empty'}`,
+    section: field.name,
+    label,
+    hint: chosen.includes(value) ? '✓' : undefined,
+    onSelect: () => toggle(field.id, value),
+  }));
+}
 
 export function ViewControls({
   view, onChange, projectId, saveable,
@@ -113,11 +174,24 @@ export function ViewControls({
   const types = useTypes(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
+  const fields = useFields(projectId);
 
   const toggle = <K extends keyof Filters>(key: K, value: string) => {
     const current = (view.filters[key] as string[] | undefined) ?? [];
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
     onChange({ ...view, filters: { ...view.filters, [key]: next.length ? next : undefined } });
+  };
+
+  const toggleField = (fieldId: string, value: string) => {
+    const current = view.filters.field?.[fieldId] ?? [];
+    const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
+    const field = { ...view.filters.field };
+    if (next.length) field[fieldId] = next;
+    else delete field[fieldId];
+    onChange({
+      ...view,
+      filters: { ...view.filters, field: Object.keys(field).length ? field : undefined },
+    });
   };
 
   const filterItems: MenuItem[] = [
@@ -157,10 +231,16 @@ export function ViewControls({
       hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
       onSelect: () => toggle('label', label.id),
     })),
+    ...fields.flatMap((field) => fieldFilterItems(field, view, t, members, toggleField)),
     { id: 'clear', section: t('view.reset'), label: t('view.clearFilters'), onSelect: () => onChange({ ...view, filters: {} }) },
   ];
 
-  const activeFilters = Object.values(view.filters).filter((value) => (Array.isArray(value) ? value.length : !!value)).length;
+  const activeFilters = Object.entries(view.filters)
+    // A field filter is one entry holding several, and counting it as one would
+    // under-report the badge that tells somebody why the list is short.
+    .reduce((count, [key, value]) => count
+      + (key === 'field' ? Object.values(value as Record<string, string[]>).filter((v) => v.length).length
+        : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
 
   return (
     <div className="row wrap" style={{ gap: 6 }}>
@@ -208,12 +288,21 @@ export function ViewControls({
       <MenuButton
         className="btn sm"
         items={[
-          ...(['state', 'type', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as GroupBy[]).map((groupBy) => ({
+          ...(['state', 'type', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as BaseGroupBy[]).map((groupBy) => ({
             id: groupBy,
             section: t('view.groupBy'),
             label: t(GROUP_BY_KEY[groupBy]),
             hint: view.groupBy === groupBy ? '✓' : undefined,
             onSelect: () => onChange({ ...view, groupBy }),
+          })),
+          // Only the fields whose answers come from a short list: grouping by a
+          // free-text field is one heading per task.
+          ...fields.filter((field) => isGroupable(field.kind)).map((field) => ({
+            id: fieldGroupId(field.id),
+            section: t('view.groupBy'),
+            label: field.name,
+            hint: view.groupBy === fieldGroupId(field.id) ? '✓' : undefined,
+            onSelect: () => onChange({ ...view, groupBy: fieldGroupId(field.id) }),
           })),
           ...(['manual', 'priority', 'due_date', 'updated_at', 'title'] as ViewConfig['orderBy'][]).map((orderBy) => ({
             id: `order-${orderBy}`,
@@ -306,6 +395,7 @@ export function BoardView({
   const states = useStates(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
+  const fields = useFields(projectId);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<string | null>(null);
   /** Where in the column the card would land — the gap the line is drawn in. */
@@ -338,9 +428,31 @@ export function BoardView({
     };
     if (view.groupBy === 'state' || view.groupBy === 'none') patch.state_id = groupId;
     if (view.groupBy === 'priority') patch.priority = groupId;
+    if (view.groupBy === 'type') patch.type_id = groupId === 'none' ? null : groupId;
     if (view.groupBy === 'cycle') patch.cycle_id = groupId === 'none' ? null : groupId;
     if (view.groupBy === 'assignee') patch.assignees = groupId === 'none' ? [] : [groupId];
+    if (view.groupBy === 'label') {
+      // Adding rather than replacing, for the reason a rule adds one: a task can
+      // carry several labels, and a drag that quietly stripped the rest would be
+      // a destructive gesture that looks like a tidy-up. The "no label" column
+      // is the one place that clears them, because that is what it says.
+      patch.labels = groupId === 'none' ? [] : [...new Set([...(task.labels ?? []), groupId])];
+    }
     update('task', task.id, patch);
+
+    const field = byId('field', groupedField(view.groupBy) ?? undefined);
+    if (field) {
+      const current = readFieldValue(field.kind, byId('fieldValue', fieldValueId(task.id, field.id))?.value);
+      // Same rule as labels: a several-of field gains the column it was dropped
+      // on and keeps what it had, so the card stays in the columns it belongs
+      // to rather than losing them to a drag.
+      const next = groupId === 'none'
+        ? emptyValue(field.kind)
+        : field.kind === 'multi_select'
+          ? [...new Set([...(current as string[]), groupId])]
+          : field.kind === 'checkbox' ? true : groupId;
+      setFieldValue(task, field, next);
+    }
   };
 
   return (

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
@@ -22,6 +22,7 @@ import { useCanWrite, useMe, useMembers, useSession } from '../session';
 import { groupKey, roleKey, useT, type TranslationKey } from '../lib/i18n';
 import { ProjectFields } from '../components/fields';
 import { CopyProjectSheet } from '../components/copy-project';
+import { configOf, useProjectDefaultView } from '../components/saved-views';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
@@ -32,7 +33,25 @@ const TAB_KEY: Record<string, TranslationKey> = {
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
 
+/**
+ * The view this project is being looked at through.
+ *
+ * Three answers, in order: what this device last chose, what the project was
+ * pinned to open on, and the plain list. The device wins because a view is a
+ * way of *looking* — somebody who switched to the board and came back tomorrow
+ * meant it, and a project default that overruled them every morning would be a
+ * setting that fights its users.
+ */
 function useStoredView(projectId: string): [ViewConfig, (next: ViewConfig) => void] {
+  const me = useMe();
+  const pinned = useProjectDefaultView(projectId, me);
+  const [chosenHere] = useState<boolean>(() => {
+    try {
+      return !!localStorage.getItem(VIEW_KEY(projectId));
+    } catch {
+      return false;
+    }
+  });
   const [view, setView] = useState<ViewConfig>(() => {
     try {
       const raw = localStorage.getItem(VIEW_KEY(projectId));
@@ -41,10 +60,22 @@ function useStoredView(projectId: string): [ViewConfig, (next: ViewConfig) => vo
       return DEFAULT_VIEW;
     }
   });
+
+  // The pin arrives with the sync rather than with the first render, so it is
+  // applied when it turns up — once, and never over a choice made on this
+  // device, including one made in the second between the two.
+  const applied = useRef('');
+  useEffect(() => {
+    if (chosenHere || !pinned || applied.current === projectId) return;
+    applied.current = projectId;
+    setView(configOf(pinned));
+  }, [chosenHere, pinned, projectId]);
+
   return [
     view,
     (next: ViewConfig) => {
       setView(next);
+      applied.current = projectId;
       localStorage.setItem(VIEW_KEY(projectId), JSON.stringify(next));
     },
   ];

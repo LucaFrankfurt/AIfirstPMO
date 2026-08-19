@@ -12,7 +12,7 @@ import { guideHref, type GuideTarget } from '../lib/guide';
 
 /* ------------------------------------------------------------------- icons */
 
-const PATHS: Record<string, string> = {
+const PATHS = {
   home: 'M3 10.5 12 3l9 7.5M5 9.5V20h14V9.5',
   inbox: 'M4 13h4l2 3h4l2-3h4M4 13 6 5h12l2 8v6H4z',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3',
@@ -56,7 +56,7 @@ const PATHS: Record<string, string> = {
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.4-2.8 4M12 17.2h.01',
   sparkle: 'M12 3.5 13.7 9l5.3 1.7-5.3 1.7L12 18l-1.7-5.6L5 10.7 10.3 9zM18.5 3v3M20 4.5h-3',
   shield: 'M12 3l7.5 3v5.6c0 4-3 7.7-7.5 9.4-4.5-1.7-7.5-5.4-7.5-9.4V6zM9 12l2.2 2.2L15.5 10',
-};
+} satisfies Record<string, string>;
 
 /**
  * Icons that mean "forwards" or "away" rather than naming a thing. They are
@@ -64,7 +64,15 @@ const PATHS: Record<string, string> = {
  */
 const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout']);
 
-export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS | string; size?: number; className?: string }) {
+/**
+ * The names above, as a type. `Icon` itself still takes any string — plenty of
+ * callers pass a name that came out of the database — but a hard-coded list of
+ * icons can be typed against this and a shape that does not exist becomes a
+ * compile error rather than a row of three quiet dots.
+ */
+export type IconName = keyof typeof PATHS;
+
+export function Icon({ name, size = 16, className }: { name: IconName | string; size?: number; className?: string }) {
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
@@ -72,7 +80,7 @@ export function Icon({ name, size = 16, className }: { name: keyof typeof PATHS 
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
       style={{ flex: 'none' }}
     >
-      <path d={PATHS[name] ?? PATHS.dots} />
+      <path d={(PATHS as Record<string, string>)[name] ?? PATHS.dots} />
     </svg>
   );
 }

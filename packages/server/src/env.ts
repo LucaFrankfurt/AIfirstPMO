@@ -136,6 +136,13 @@ export const env = {
   },
   /** A shared secret a mail provider posts bounce reports with. Empty disables it. */
   bounceToken: process.env.KOLIBRI_BOUNCE_TOKEN ?? '',
+  /**
+   * Days a deleted thing stays in the trash before it goes for good. `0` — the
+   * default — keeps it until somebody empties the trash themselves. A default
+   * that quietly destroyed things after a month would be a policy this project
+   * has no business choosing for somebody else's data.
+   */
+  trashDays: Math.max(0, Number(process.env.KOLIBRI_TRASH_DAYS ?? 0) || 0),
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,

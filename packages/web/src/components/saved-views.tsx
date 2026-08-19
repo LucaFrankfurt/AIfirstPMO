@@ -18,9 +18,9 @@ import type { Filters, Layout, View } from '@kolibri/shared';
 import { orderKey } from '@kolibri/shared';
 import { useT } from '../lib/i18n';
 import { byOrder, create, remove, update } from '../lib/mutations';
-import { list, useQuery } from '../lib/store';
-import { useMe, useSession } from '../session';
-import { Icon, MenuButton, Sheet, useConfirm, useToast, type MenuItem } from './ui';
+import { byId, list, useQuery } from '../lib/store';
+import { useCanWrite, useMe, useSession } from '../session';
+import { Icon, MenuButton, Sheet, useConfirm, useToast, type IconName, type MenuItem } from './ui';
 import type { GroupBy } from './task-parts';
 import { ShareSheet, type ShareTarget } from './share';
 import { DEFAULT_VIEW, type ViewConfig } from './views';
@@ -59,6 +59,37 @@ function sortedFilters(filters: Filters): [string, unknown][] {
 /** Remembering which view is open is a per-device preference, not shared state. */
 const ACTIVE_KEY = (scope: string) => `kolibri.view.active.${scope}`;
 
+/**
+ * Icons a view can wear.
+ *
+ * A short list rather than an open field: the point of an icon here is to make
+ * one row in a menu findable at a glance, which a hundred choices actively work
+ * against. Chosen for the shapes of work people actually save a view for.
+ */
+export const VIEW_ICONS: readonly IconName[] = [
+  'bookmark', 'bolt', 'target', 'bell', 'shield', 'sparkle',
+  'board', 'calendar', 'users', 'inbox', 'cycle', 'archive',
+];
+
+/**
+ * The view a project opens on, if somebody pinned one.
+ *
+ * Stored on the *project* rather than as a flag on the view, so two people
+ * pinning two different views merge into one answer instead of leaving two rows
+ * each claiming to be the default. A pin pointing at a view that has since been
+ * deleted or made private simply finds nothing, which is the right amount of
+ * fuss to make about it.
+ */
+export function useProjectDefaultView(projectId: string | undefined, me: string): View | undefined {
+  return useQuery(() => {
+    if (!projectId) return undefined;
+    const pinned = byId('project', projectId)?.default_view_id;
+    if (!pinned) return undefined;
+    const view = byId('view', pinned);
+    return view && (view.shared !== 0 || view.owner_id === me) ? view : undefined;
+  }, [projectId, me]);
+}
+
 export function SavedViews({
   view, onChange, projectId,
 }: { view: ViewConfig; onChange: (next: ViewConfig) => void; projectId?: string }) {
@@ -70,8 +101,10 @@ export function SavedViews({
   const scope = projectId ?? 'workspace';
 
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem(ACTIVE_KEY(scope)) ?? '');
-  const [editing, setEditing] = useState<{ id?: string; name: string; shared: boolean } | null>(null);
+  const [editing, setEditing] = useState<{ id?: string; name: string; shared: boolean; icon: string | null } | null>(null);
   const [sharing, setSharing] = useState<ShareTarget | null>(null);
+  const canWrite = useCanWrite();
+  const pinned = useProjectDefaultView(projectId, me);
 
   const views = useQuery(
     () => list('view', (row) => row.workspace_id === workspaceId
@@ -81,7 +114,11 @@ export function SavedViews({
     [workspaceId, projectId, me],
   );
 
-  const active = views.find((row) => row.id === activeId);
+  // What is open: this device's own choice, or — if it has never made one —
+  // the view the project is pinned to. A fallback rather than a write, so
+  // clearing the pin puts everybody back on the plain list without leaving a
+  // stale name in the button.
+  const active = views.find((row) => row.id === (activeId || pinned?.id));
   // Applying a view then nudging a filter should not silently rewrite it.
   const modified = useMemo(() => !!active && !sameConfig(view, configOf(active)), [active, view]);
 
@@ -96,9 +133,9 @@ export function SavedViews({
     onChange(configOf(row));
   };
 
-  const save = (name: string, shared: boolean, id?: string) => {
+  const save = (name: string, shared: boolean, icon: string | null, id?: string) => {
     if (id) {
-      update('view', id, { name, shared: shared ? 1 : 0, ...rowOf(view) });
+      update('view', id, { name, icon, shared: shared ? 1 : 0, ...rowOf(view) });
       toast(t('view.saveUpdated', { name }));
       return;
     }
@@ -107,7 +144,7 @@ export function SavedViews({
       project_id: projectId ?? null,
       team_id: null,
       name,
-      icon: null,
+      icon,
       owner_id: me,
       shared: shared ? 1 : 0,
       sort_order: orderKey(views[views.length - 1]?.sort_order ?? null, null),
@@ -117,12 +154,27 @@ export function SavedViews({
     toast(t('view.saveCreated', { name }));
   };
 
+  /**
+   * Pin this view as what the project opens on.
+   *
+   * Only for a shared view: a default nobody else can see is a project that
+   * opens on an empty list for everybody but its author.
+   */
+  const pin = (row: View | undefined) => {
+    if (!projectId) return;
+    update('project', projectId, { default_view_id: row?.id ?? null });
+    toast(row ? t('view.pinned', { name: row.name }) : t('view.unpinned'));
+  };
+
   const items: MenuItem[] = [
     ...views.map((row) => ({
       id: row.id,
       section: t('view.saved'),
       label: row.name,
-      hint: row.id === activeId ? '✓' : row.shared === 0 ? t('view.private') : undefined,
+      icon: <Icon name={row.icon ?? 'bookmark'} size={14} />,
+      hint: row.id === activeId ? '✓'
+        : row.id === pinned?.id ? t('view.isDefault')
+          : row.shared === 0 ? t('view.private') : undefined,
       onSelect: () => apply(row),
     })),
     ...(active
@@ -131,14 +183,23 @@ export function SavedViews({
           id: 'update',
           section: t('view.savedActions'),
           label: t('view.updateSaved', { name: active.name }),
-          onSelect: () => save(active.name, active.shared !== 0, active.id),
+          onSelect: () => save(active.name, active.shared !== 0, active.icon, active.id),
         },
         {
           id: 'rename',
           section: t('view.savedActions'),
           label: t('view.renameSaved'),
-          onSelect: () => setEditing({ id: active.id, name: active.name, shared: active.shared !== 0 }),
+          onSelect: () => setEditing({ id: active.id, name: active.name, shared: active.shared !== 0, icon: active.icon }),
         },
+        // Only where a project can hold one, and only for a view everybody has.
+        ...(projectId && canWrite && active.shared !== 0
+          ? [{
+            id: 'pin',
+            section: t('view.savedActions'),
+            label: active.id === pinned?.id ? t('view.unpin') : t('view.pin'),
+            onSelect: () => pin(active.id === pinned?.id ? undefined : active),
+          }]
+          : []),
         {
           id: 'share',
           section: t('view.savedActions'),
@@ -165,14 +226,17 @@ export function SavedViews({
       id: 'save-new',
       section: t('view.savedActions'),
       label: t('view.saveAsNew'),
-      onSelect: () => setEditing({ name: '', shared: true }),
+      onSelect: () => setEditing({ name: '', shared: true, icon: null }),
     },
-    ...(activeId
+    // "Back to the default view" means whatever this project opens on: the
+    // pinned view where there is one, the plain list where there is not. It is
+    // hidden when the open view already *is* the pin, where it would do nothing.
+    ...(activeId && activeId !== pinned?.id
       ? [{
         id: 'clear-active',
         section: t('view.savedActions'),
         label: t('view.leaveSaved'),
-        onSelect: () => { select(''); onChange(DEFAULT_VIEW); },
+        onSelect: () => { select(''); onChange(pinned ? configOf(pinned) : DEFAULT_VIEW); },
       }]
       : []),
   ];
@@ -180,7 +244,7 @@ export function SavedViews({
   return (
     <>
       <MenuButton className="btn sm" items={items} search={views.length > 6}>
-        <Icon name="bookmark" size={14} />
+        <Icon name={active?.icon ?? 'bookmark'} size={14} />
         <span className={`truncate saved-view-name${active ? '' : ' hide-sm'}`} style={{ maxWidth: 140 }}>
           {active ? active.name : t('view.saved')}
         </span>
@@ -193,7 +257,7 @@ export function SavedViews({
           initial={editing}
           existing={views.filter((row) => row.id !== editing.id).map((row) => row.name)}
           onClose={() => setEditing(null)}
-          onSave={(name, shared) => { save(name, shared, editing.id); setEditing(null); }}
+          onSave={(name, shared, icon) => { save(name, shared, icon, editing.id); setEditing(null); }}
         />
       )}
       {dialog}
@@ -204,17 +268,19 @@ export function SavedViews({
 function ViewNameSheet({
   initial, existing, onClose, onSave,
 }: {
-  initial: { id?: string; name: string; shared: boolean };
+  initial: { id?: string; name: string; shared: boolean; icon: string | null };
   existing: string[];
   onClose: () => void;
-  onSave: (name: string, shared: boolean) => void;
+  onSave: (name: string, shared: boolean, icon: string | null) => void;
 }) {
   const t = useT();
   const [name, setName] = useState(initial.name);
   const [shared, setShared] = useState(initial.shared);
+  const [icon, setIcon] = useState<string | null>(initial.icon);
   const trimmed = name.trim();
   // Two views called "Mine" in one menu is a trap, so say so before saving.
   const duplicate = existing.some((other) => other.toLowerCase() === trimmed.toLowerCase());
+  const done = () => onSave(trimmed, shared, icon);
 
   return (
     <Sheet
@@ -223,7 +289,7 @@ function ViewNameSheet({
       footer={
         <>
           <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button className="btn primary" disabled={!trimmed || duplicate} onClick={() => onSave(trimmed, shared)}>
+          <button className="btn primary" disabled={!trimmed || duplicate} onClick={done}>
             {t('action.save')}
           </button>
         </>
@@ -237,10 +303,34 @@ function ViewNameSheet({
           value={name}
           placeholder={t('view.namePlaceholder')}
           onChange={(event) => setName(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter' && trimmed && !duplicate) onSave(trimmed, shared); }}
+          onKeyDown={(event) => { if (event.key === 'Enter' && trimmed && !duplicate) done(); }}
         />
         {duplicate && <span className="hint warn">{t('view.nameTaken')}</span>}
       </div>
+
+      {/* A dozen shapes, not a picker: the icon is here to make one row in a
+          menu findable at a glance, and more choices make that harder. */}
+      <div className="field">
+        <label>{t('view.icon')}</label>
+        <div className="row wrap icon-choices" role="radiogroup" aria-label={t('view.icon')}>
+          {VIEW_ICONS.map((choice) => (
+            <button
+              key={choice}
+              type="button"
+              role="radio"
+              aria-checked={icon === choice}
+              aria-label={choice}
+              className={`btn ghost sm${icon === choice ? ' active' : ''}`}
+              style={icon === choice ? { background: 'var(--bg-active)' } : undefined}
+              onClick={() => setIcon(icon === choice ? null : choice)}
+            >
+              <Icon name={choice} size={15} />
+            </button>
+          ))}
+        </div>
+        <span className="hint">{t('view.iconHint')}</span>
+      </div>
+
       <label className="check-row">
         <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
         <span>

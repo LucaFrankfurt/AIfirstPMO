@@ -9,6 +9,8 @@ import { importCsv } from '../lib/import.ts';
 import { copyProject, type CopyOptions } from '../lib/copy.ts';
 import { exportProject, importProject, type ProjectDoc } from '../lib/transfer.ts';
 import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
+import { emptyTrash, purgeable } from '../lib/trash.ts';
+import { env } from '../env.ts';
 
 /**
  * URL segment -> entity. Everything the sync engine knows is also plain REST.
@@ -193,6 +195,35 @@ export function registerEntityRoutes(router: Router): void {
       matchPeople: body.match_people !== false,
     });
     return { project: serialize('project', report.project), counts: report.counts, unmatched: report.unmatched };
+  });
+
+  /**
+   * What is waiting in the trash, and how much disk it is holding.
+   *
+   * `days` asks the same question of an age — "what would a thirty-day policy
+   * take", so the number in the confirmation is the number that will go.
+   */
+  router.get('/api/workspaces/:ws/trash', (ctx: Ctx) => {
+    requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'admin');
+    const days = Math.max(0, Number(ctx.query.get('days') ?? 0) || 0);
+    const before = days ? Date.now() - days * 86_400_000 : Date.now();
+    return { ...purgeable(ctx.params.ws, before), retentionDays: env.trashDays };
+  });
+
+  /**
+   * Empty it. Admins only, and not because the interface says so: a delete is
+   * reversible until this runs, and this is the one call in the app that ends
+   * that.
+   */
+  router.post('/api/workspaces/:ws/trash/empty', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'admin');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const body = await readJson<{ days?: number }>(ctx);
+    const days = Math.max(0, Number(body.days ?? 0) || 0);
+    const before = days ? Date.now() - days * 86_400_000 : Date.now();
+    return emptyTrash(ctx.params.ws, 'manual', before);
   });
 
   /**

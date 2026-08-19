@@ -1,4 +1,4 @@
-import { PRIORITIES, mayEnter, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
+import { PRIORITIES, fieldKeys, mayEnter, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
@@ -311,7 +311,20 @@ export function TaskCard({
 
 /* --------------------------------------------------------------- grouping */
 
-export type GroupBy = 'state' | 'type' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
+/** The groupings every project has. */
+export type BaseGroupBy = 'state' | 'type' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
+
+/**
+ * `field:<id>` groups by a custom field the project invented for itself. It is
+ * a string rather than a second parameter so that a saved view stores one
+ * value, and so that a grouping whose field was deleted simply finds nothing
+ * instead of crashing the screen that reads it back.
+ */
+export type GroupBy = BaseGroupBy | `field:${string}`;
+
+export const fieldGroupId = (fieldId: string): GroupBy => `field:${fieldId}`;
+export const groupedField = (groupBy: GroupBy): string | null =>
+  groupBy.startsWith('field:') ? groupBy.slice(6) : null;
 
 export interface Group {
   id: string;
@@ -321,6 +334,49 @@ export interface Group {
   tasks: Task[];
 }
 
+/**
+ * Group by one project's own field.
+ *
+ * The groups are the answers the field *offers*, in the order somebody wrote
+ * them down, rather than the answers that happen to be in use: an empty column
+ * for a choice nobody has made is the useful half of a board. A multi-select
+ * puts its task in every group it names, which is the same thing labels do.
+ */
+function groupByField(
+  tasks: Task[],
+  fieldId: string,
+  context: { members: { id: string; name: string }[]; t: Translate },
+): Group[] {
+  const { t } = context;
+  const field = byId('field', fieldId);
+  if (!field) return [{ id: 'all', title: t('view.allTasks'), tasks }];
+
+  const answers = new Map<string, string[]>();
+  for (const row of list('fieldValue', (value) => value.field_id === fieldId)) {
+    answers.set(row.task_id, fieldKeys(field.kind, row.value));
+  }
+  const inGroup = (task: Task, key: string) => (answers.get(task.id) ?? []).includes(key);
+
+  const choices: { id: string; title: string }[] = field.kind === 'person'
+    ? context.members.map((member) => ({ id: member.id, title: member.name }))
+    : field.kind === 'checkbox'
+      ? [{ id: 'true', title: t('field.yes') }]
+      : (field.options ?? []).map((option) => ({ id: option, title: option }));
+
+  const groups: Group[] = choices.map((choice) => ({
+    ...choice,
+    tasks: tasks.filter((task) => inGroup(task, choice.id)),
+  }));
+  groups.push({
+    id: 'none',
+    // A checkbox that is not ticked is not "no answer", it is "no" — the row is
+    // deleted rather than stored as false, but nobody thinks of it that way.
+    title: field.kind === 'checkbox' ? t('field.no') : t('field.noAnswer'),
+    tasks: tasks.filter((task) => !(answers.get(task.id) ?? []).length),
+  });
+  return groups;
+}
+
 export function groupTasks(
   tasks: Task[],
   groupBy: GroupBy,
@@ -328,6 +384,9 @@ export function groupTasks(
 ): Group[] {
   const { t } = context;
   if (groupBy === 'none') return [{ id: 'all', title: t('view.allTasks'), tasks }];
+
+  const fieldId = groupedField(groupBy);
+  if (fieldId) return groupByField(tasks, fieldId, context);
 
   if (groupBy === 'state') {
     return context.states.map((state) => ({

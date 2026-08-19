@@ -13,7 +13,7 @@ import {
 import { api, ApiError } from './api';
 import * as idb from './idb';
 import { currentLocale, translate } from './i18n';
-import { applyChanges, hydrate, notifyStore, reset, tables } from './store';
+import { applyChanges, hydrate, notifyStore, purgedRows, reset, tables } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
@@ -148,6 +148,10 @@ async function persist(changes: ChangeSet): Promise<void> {
     .filter(([, rows]) => rows?.length)
     .map(([entity, rows]) => ({ store: entity, values: rows as unknown[] }));
   if (entries.length) await idb.putMany(entries);
+  // A purge names a row that is gone for good, so it leaves the device too —
+  // otherwise a reload would read the tombstone straight back out of IndexedDB
+  // and put it in the trash again.
+  for (const { store, keys } of purgedRows(changes)) await idb.removeMany(store, keys);
 }
 
 /* -------------------------------------------------------------------- push */

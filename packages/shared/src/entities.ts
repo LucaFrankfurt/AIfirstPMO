@@ -32,7 +32,8 @@ export type EntityName =
   | 'automation'
   | 'webhook'
   | 'notification'
-  | 'activity';
+  | 'activity'
+  | 'purge';
 
 export interface EntityDef {
   /** SQL table name. */
@@ -79,7 +80,7 @@ export const ENTITIES = {
     fields: [
       'workspace_id', 'team_id', 'parent_id', 'name', 'key', 'description', 'icon', 'color',
       'lead_id', 'start_date', 'target_date', 'status', 'visibility', 'archived',
-      'default_state_id', 'sort_order',
+      'default_state_id', 'default_view_id', 'sort_order',
     ],
   },
   projectMember: {
@@ -250,6 +251,23 @@ export const ENTITIES = {
     fields: ['workspace_id', 'project_id', 'task_id', 'page_id', 'actor_id', 'verb', 'field', 'old_value', 'new_value'],
     readOnly: true,
   },
+  /**
+   * A tombstone that has itself been thrown away.
+   *
+   * Deleting a row here means stamping `deleted_at` and letting the tombstone
+   * keep syncing — that is the only way two devices ever agree something is
+   * gone. So emptying the trash cannot simply drop the row: a device that has
+   * it would show it in *its* trash forever and could put it back.
+   *
+   * This is the marker that says the tombstone is finished with. It syncs like
+   * anything else, and a client that receives one deletes its copy of the row
+   * it names. Tiny, and kept: it is the only record that the thing ever existed.
+   */
+  purge: {
+    table: 'purges',
+    fields: ['workspace_id', 'entity', 'row_id', 'reason'],
+    readOnly: true,
+  },
 } as const satisfies Record<EntityName, EntityDef>;
 
 export const ENTITY_NAMES = Object.keys(ENTITIES) as EntityName[];
@@ -300,4 +318,5 @@ export const COLLECTIONS: Record<EntityName, string> = {
   webhook: 'webhooks',
   notification: 'notifications',
   activity: 'activities',
+  purge: 'purges',
 };
