@@ -47,16 +47,26 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       were authored in. The `deploy` job in CI brings the whole stack up and asserts the wiring
       (provisioned owner account, upload landing in MinIO, mail refused while no relay is
       configured, the dev overlay delivering into the capture inbox, restart idempotence, plus the
-      lite variant); that job has not run yet.
+      lite variant, and now a backup taken, verified and restored inside the container); that job
+      has not run yet.
 - [ ] **Verify the Coolify deployment.** `docker-compose.coolify.yml` is written against Coolify's
       documented behaviour (no `container_name`, `expose` instead of `ports`, `SERVICE_FQDN_*` and
       `SERVICE_PASSWORD_*` magic variables) but has never been deployed to a real Coolify instance.
       The magic-variable substitution in particular is the part most likely to need a tweak.
-- [ ] **Test a restore.** The backup procedure in `docs/deployment.md` (`VACUUM INTO` + uploads
-      tarball) is written from first principles, not from a rehearsed restore.
-- [ ] **`kolibri doctor` / maintenance commands** — integrity check, `VACUUM`, and a search-index
-      rebuild. If the FTS table ever drifts from the tables (a crash mid-transaction, a manual
-      edit), there is currently no supported way to rebuild it.
+- [x] **Rehearsed the restore.** `kolibri backup` takes the copy through `VACUUM INTO` — the only
+      way to copy a live SQLite database that is consistent by construction — and puts the uploads
+      and a manifest beside it. `verify` opens the copy and asks SQLite whether it is intact before
+      anything is replaced; `restore` moves the existing database aside rather than deleting it and
+      drops the stale `-wal`. `test/maintenance.test.ts` backs one instance up, restores it into an
+      empty one *in a separate process*, and asks that instance what it holds. The CI `deploy` job
+      does the same against the real image on a real volume.
+- [x] **`kolibri doctor` and the rest of the maintenance commands.** Integrity check, foreign-key
+      check, search-index drift in *both* directions, free space, write-ahead log size, expired rows,
+      and whether every stored file's bytes are still readable. `--fix` rebuilds the index, prunes
+      and compacts, then re-checks so what it prints is the state afterwards. `--json` for
+      monitoring, which exits non-zero only on a damaged database or missing bytes — a warning is a
+      thing to do on a Tuesday. Also `reindex`, `vacuum`, `backup`, `verify`, `restore` and
+      `files move`. See the maintenance section of [`docs/deployment.md`](docs/deployment.md).
 
 ### Correctness
 
@@ -66,8 +76,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       changes. Covered by a test that actually creates 2 025 rows.
 - [x] **Guest role in the UI.** One `useCanWrite()` hook rather than `role !== 'guest'` repeated in
       fifteen components; the write affordances a guest cannot use are not shown.
-- [ ] **Client-side tests.** The store, the outbox and the merge path have no unit tests of their
-      own; they are only covered indirectly through the API tests and the browser smoke run.
+- [x] **Client-side tests.** `packages/web/test` runs the *real* store, outbox and sync engine
+      under Node against the *real* server, with a shim for the four browser things they touch and a
+      network that can be switched off mid-test. It proves what a server test cannot: a change typed
+      offline is visible immediately, survives in IndexedDB, arrives when the network returns, and
+      merges per field with an edit somebody else made meanwhile. A reload is modelled honestly — a
+      second copy of the sync module over the same IndexedDB — and the queued change is still there.
 
 ---
 
@@ -217,9 +231,10 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       the opposite direction from the webhooks that now exist.
 - [ ] **Import/export** from Jira, Linear, Plane, OpenProject, and a plain JSON round-trip.
 - [ ] **Native push notifications** (Web Push needs VAPID keys and a subscription store).
-- [ ] **Object-storage migration command.** Switching `disk` → `s3` keeps serving old files from
-      disk, but moving them is a manual `mc mirror` plus an `UPDATE` today (see
-      [`docs/storage.md`](docs/storage.md)).
+- [x] **Object-storage migration command.** `kolibri files move <disk|s3>` reads each blob from
+      wherever its row says it is and updates the row only once the bytes have landed, so an
+      interrupted move leaves an instance that still works. The old copies are left in place on
+      purpose; `kolibri doctor` counts what is stranded on the backend no longer in use.
 - [ ] **Roadmap / portfolio view** across projects.
 - [ ] **Public share links** for a page or a filtered task list.
 
@@ -228,7 +243,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 45 cases) or by the browser walkthrough (`node scripts/smoke.mjs`):
+(`npm test`, 188 cases across the server and the client) or by the browser walkthrough
+(`node scripts/smoke.mjs`):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -268,6 +284,16 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Catalogue parity: same keys both ways, no placeholder lost in translation, plural pairs
       complete, every key the interface uses exists, and no user-visible string left hard-coded
 - [x] A notification written for a German recipient by an English actor arrives in German
+- [x] Single sign-on against a provider signing real RS256 tokens: a forged signature, `alg: none`,
+      the wrong audience or issuer, an expired token, a mismatched nonce, an unverified email and a
+      replayed state are each refused, and `KOLIBRI_OIDC_ONLY` closes the password door server-side
+- [x] The client, run for real under Node against a real server: an offline write is visible at
+      once, survives in IndexedDB, arrives when the network returns, and merges per field with an
+      edit another device made in the meantime — reload included
+- [x] A snapshot taken with `kolibri backup`, verified, and restored into an empty instance in a
+      separate process, which then reports a healthy database holding the rows that were backed up
+- [x] The doctor notices a search index that has drifted in either direction, a file row whose bytes
+      are gone, and rows the housekeeping sweep would have removed
 
 ## Known-unknowns
 

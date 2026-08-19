@@ -111,6 +111,27 @@ jobs:
             "const{DatabaseSync}=require('node:sqlite');console.log(new DatabaseSync('/data/kolibri.sqlite').prepare('select count(*) c from users').get().c)")
           test "$users" -eq 1 || { echo "provisioning was not idempotent: $users users"; exit 1; }
 
+      # A backup nobody has restored is a hope. This takes one inside the
+      # container, verifies it, and restores it over the running instance —
+      # against the real image, on a real volume, with the real object store.
+      - name: A snapshot can be taken, checked and put back
+        run: |
+          docker compose exec -T kolibri kolibri doctor | tee doctor.txt
+          if grep -q '✗' doctor.txt; then echo "the doctor found something broken"; exit 1; fi
+
+          docker compose exec -T kolibri kolibri backup /data/snapshot
+          docker compose exec -T kolibri kolibri verify /data/snapshot | grep -q 'readable Kolibri snapshot'
+
+          docker compose stop kolibri
+          docker compose run --rm --entrypoint kolibri kolibri restore /data/snapshot --force | grep -q 'Restored'
+          docker compose start kolibri
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:4000/api/health | grep -q '"ready":true' && break; sleep 2; done
+
+          # The proof is signing in afterwards: the account survived the round trip.
+          curl -fsS -c jar3 -X POST http://127.0.0.1:4000/api/auth/login \
+            -H 'content-type: application/json' \
+            -d '{"email":"owner@example.com","password":"a good long password"}' | grep -q '"role":"owner"'
+
       # The dev overlay is what makes email demonstrable: it adds the capture
       # inbox and wires the app to it in one command.
       - name: The dev overlay delivers mail into the capture inbox

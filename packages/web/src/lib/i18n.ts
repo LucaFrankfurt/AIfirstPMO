@@ -6,7 +6,7 @@
  * a `[missing]` in the interface. Interpolation is `{name}`; plurals pick
  * `key_one` / `key_other` through Intl.PluralRules.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { en } from '../locales/en';
 import { de } from '../locales/de';
 
@@ -104,7 +104,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const t = useCallback<Translate>((key, vars) => translate(locale, key, vars), [locale]);
   const value = useMemo(() => ({ locale, setLocale, adoptLocale, t }), [locale, setLocale, adoptLocale, t]);
 
-  return <Context.Provider value={value}>{children}</Context.Provider>;
+  // `createElement` rather than JSX so this module is plain TypeScript: the
+  // sync engine and the API client import it, and both are exercised in tests
+  // that run under Node, which strips types but does not compile JSX.
+  return createElement(Context.Provider, { value }, children);
 }
 
 export function useI18n(): I18nValue {

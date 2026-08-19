@@ -183,21 +183,74 @@ mapping from the app service so only the proxy is exposed.
 
 Everything is in the data volume: `kolibri.sqlite`, `uploads/`, `.secret`. (With `KOLIBRI_STORAGE=s3`
 the uploads live in the bucket instead — back that up with the object store's own tooling, and note
-that the database still holds the metadata that makes those objects findable.) With the container
-running, take a consistent copy through SQLite rather than `cp`:
+that the database still holds the metadata that makes those objects findable.)
+
+Do not `cp` the database while the container is running: SQLite may be halfway through a write, and
+the copy restores into a corrupt file. `kolibri backup` takes the copy through SQLite instead, which
+is consistent by construction, and puts the uploads beside it:
 
 ```bash
-docker compose exec kolibri sh -c \
-  'node --experimental-sqlite -e "
-     const {DatabaseSync}=require(\"node:sqlite\");
-     new DatabaseSync(\"/data/kolibri.sqlite\").exec(\"VACUUM INTO \\\"/data/backup.sqlite\\\"\")
-   "'
-docker compose cp kolibri:/data/backup.sqlite ./backup-$(date +%F).sqlite
-tar czf uploads-$(date +%F).tar.gz -C "$(docker volume inspect -f '{{.Mountpoint}}' kolibri_kolibri-data)" uploads
+docker compose exec kolibri kolibri backup /data/backups/$(date +%F)
+docker compose cp kolibri:/data/backups/$(date +%F) ./kolibri-$(date +%F)
+tar czf kolibri-$(date +%F).tar.gz kolibri-$(date +%F)
 ```
 
-Restoring is putting those files back and starting the container. Keep `.secret` with the backup
-(or set `KOLIBRI_SECRET` explicitly) — without it, existing sessions and API tokens are void.
+The snapshot is a directory holding `kolibri.sqlite`, `uploads/` and a `manifest.json` saying when it
+was taken and what is in it. Check it before you trust it — this reads the copy and asks SQLite
+whether it is intact:
+
+```bash
+docker compose exec kolibri kolibri verify /data/backups/2026-08-19
+```
+
+Outside a container the same commands are `npm run kolibri -- <command>` from the repository, with
+`KOLIBRI_DATA_DIR` pointing at the instance.
+
+### Restoring
+
+With the server **stopped**, and `KOLIBRI_DATA_DIR` pointing at the instance being restored into:
+
+```bash
+docker compose stop kolibri
+docker compose run --rm --entrypoint kolibri kolibri restore /data/backups/2026-08-19 --force
+docker compose start kolibri
+```
+
+The snapshot is verified before anything is replaced, and a database that was already there is moved
+aside rather than deleted (`kolibri.sqlite.replaced-<timestamp>`) — the moment somebody restores the
+wrong snapshot is the moment they want the old one back. Stale `-wal`/`-shm` files are removed, since
+a write-ahead log belonging to the previous database would otherwise be replayed into the new one.
+Uploads are merged rather than replaced: they are content-addressed, so a name that exists in both
+holds the same bytes.
+
+Keep `.secret` with the backup (or set `KOLIBRI_SECRET` explicitly) — without it, existing sessions
+and API tokens are void. It is deliberately *not* in the snapshot: a copy of the database and the key
+that signs its sessions, in one tarball, is a worse trade than an operator remembering one file.
+
+This procedure is rehearsed by `packages/server/test/maintenance.test.ts`, which backs one instance
+up, restores it into an empty one in a separate process, and asks that instance what it holds.
+
+## Maintenance
+
+```bash
+docker compose exec kolibri kolibri doctor
+```
+
+Checks the database's internal consistency, that every foreign key points at something, that the
+full-text index matches the tables, how much of the file is free space, the size of the write-ahead
+log, expired rows nobody swept, and whether every stored file's bytes are still readable.
+
+| Command | What it does |
+|---|---|
+| `doctor` | Reports. `--json` for monitoring; exits non-zero only on a *damaged* database or missing bytes, not on a warning |
+| `doctor --fix` | Rebuilds the search index, removes expired sessions and old replay records, then compacts the file — and re-checks, so what it prints is the state afterwards |
+| `reindex` | Rebuilds the full-text index alone. This is the supported way back if the index ever drifts |
+| `vacuum` | Checkpoints the write-ahead log and returns free pages to the disk |
+| `backup <dir>` / `verify <dir>` / `restore <dir>` | Above |
+| `files move <disk\|s3>` | Moves stored blobs onto the other backend — see [`storage.md`](storage.md) |
+
+`doctor --json` is the one to put on a schedule; a `status` of `fail` is the only thing that should
+page anybody.
 
 ## Upgrades
 

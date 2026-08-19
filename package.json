@@ -2,7 +2,7 @@
   "name": "kolibri",
   "version": "0.1.0",
   "private": true,
-  "description": "Kolibri — open source work OS: projects, tasks, cycles, pages. Offline-first, self-hosted, MCP-native.",
+  "description": "Kolibri \u2014 open source work OS: projects, tasks, cycles, pages. Offline-first, self-hosted, MCP-native.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -21,8 +21,12 @@
     "build": "npm run build -w @kolibri/web",
     "start": "npm run start -w @kolibri/server",
     "seed": "npm run seed -w @kolibri/server",
-    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && tsc --noEmit -p packages/mcp",
-    "test": "node --test packages/server/test/*.test.ts"
+    "doctor": "npm run doctor -w @kolibri/server",
+    "kolibri": "npm run cli -w @kolibri/server --",
+    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && tsc --noEmit -p packages/web/tsconfig.test.json && tsc --noEmit -p packages/mcp",
+    "test": "npm run test:server && npm run test:web",
+    "test:server": "node --test packages/server/test/*.test.ts",
+    "test:web": "node --import ./packages/web/test/loader.mjs --test packages/web/test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

@@ -278,7 +278,7 @@ function snapshotPage(before: Row, actorId: string): void {
   );
 }
 
-const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body: string }>> = {
+export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body: string }>> = {
   task: (row) => ({ title: `${row.identifier ?? ''} ${row.title ?? ''}`.trim(), body: row.description ?? '' }),
   page: (row) => ({ title: row.title ?? '', body: row.content ?? '' }),
   project: (row) => ({ title: `${row.key ?? ''} ${row.name ?? ''}`.trim(), body: row.description ?? '' }),
@@ -287,7 +287,7 @@ const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body
   module: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),
 };
 
-function indexForSearch(entity: EntityName, row: Row): void {
+export function indexForSearch(entity: EntityName, row: Row): void {
   const project = SEARCHABLE[entity];
   if (!project) return;
   run(`DELETE FROM search_index WHERE kind = ? AND ref_id = ?`, entity, row.id);

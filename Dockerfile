@@ -42,6 +42,12 @@ RUN mkdir -p node_modules/@kolibri \
     && ln -s /app/packages/server node_modules/@kolibri/server \
     && chown -R node:node /app/node_modules
 
+# The maintenance commands, as one word. `docker compose exec kolibri kolibri
+# doctor` is what the documentation says, so it had better be what the image has.
+RUN printf '#!/bin/sh\nexec node --experimental-sqlite --disable-warning=ExperimentalWarning /app/packages/server/src/cli.ts "$@"\n' \
+      > /usr/local/bin/kolibri \
+    && chmod +x /usr/local/bin/kolibri
+
 USER node
 VOLUME ["/data"]
 EXPOSE 4000
