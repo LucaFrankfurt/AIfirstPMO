@@ -153,6 +153,25 @@ export const env = {
     /** Who a push service should complain to. */
     subject: process.env.KOLIBRI_VAPID_SUBJECT ?? '',
   },
+  /**
+   * Telegram. A third way to be told, next to the bell, email and Web Push.
+   *
+   * Off without a bot token, and the token is the only thing that has to be
+   * configured: the link between an account and a chat is made by the person
+   * themselves, from their own Telegram. Updates are collected by long-polling
+   * `getUpdates` rather than by a webhook, because a self-hosted instance
+   * behind NAT has no public URL to give Telegram — and the ones that do have
+   * one still should not need to expose an endpoint for this.
+   */
+  telegram: {
+    botToken: process.env.KOLIBRI_TELEGRAM_BOT_TOKEN ?? '',
+    /** Overridable so a test can point at a local stand-in. */
+    apiBase: (process.env.KOLIBRI_TELEGRAM_API ?? 'https://api.telegram.org').replace(/\/$/, ''),
+    /** How long one long-poll waits. Telegram allows up to 50. */
+    pollSeconds: Math.min(50, Math.max(1, int(process.env.KOLIBRI_TELEGRAM_POLL_SECONDS, 25))),
+    /** Give up on one notification after this many failed sends. */
+    maxAttempts: int(process.env.KOLIBRI_TELEGRAM_MAX_ATTEMPTS, 5),
+  },
   /** A shared secret a mail provider posts bounce reports with. Empty disables it. */
   bounceToken: process.env.KOLIBRI_BOUNCE_TOKEN ?? '',
   /**
@@ -180,6 +199,10 @@ export const env = {
   /** Mail is configured; without a host nothing is ever sent. */
   get mailEnabled(): boolean {
     return !!mail.host;
+  },
+  /** A bot token is the whole of the Telegram configuration. */
+  get telegramEnabled(): boolean {
+    return !!this.telegram.botToken;
   },
 };
 

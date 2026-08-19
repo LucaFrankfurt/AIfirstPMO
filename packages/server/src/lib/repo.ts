@@ -4,7 +4,7 @@ import { badRequest, forbidden, notFound } from './http.ts';
 import { shareToken, token, uid } from './ids.ts';
 import { publish } from './bus.ts';
 import { runAutomations } from './automation.ts';
-import { notifyDevices } from './push.ts';
+import { createNotification } from './notify.ts';
 import { translatorFor } from './i18n.ts';
 import { env } from '../env.ts';
 import { dispatch } from './webhooks.ts';
@@ -714,17 +714,16 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
   }
 
   for (const [userId, payload] of targets) {
-    run(
-      `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, task_id, page_id, actor_id, created_at, updated_at, seq, clocks)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
-      uid(), opts.workspaceId, userId, payload.kind, payload.title(translatorFor(userId)), payload.body,
-      entity === 'task' ? row.id : row.task_id ?? null,
-      entity === 'page' ? row.id : row.page_id ?? null,
-      opts.actorId, Date.now(), Date.now(), nextSeq(),
-    );
-    // And wake whatever devices asked to be woken. The push carries nothing —
-    // the service worker reads the notification it just found out about.
-    notifyDevices(userId);
+    createNotification({
+      workspaceId: opts.workspaceId,
+      userId,
+      kind: payload.kind,
+      title: payload.title(translatorFor(userId)),
+      body: payload.body,
+      taskId: entity === 'task' ? row.id : row.task_id ?? null,
+      pageId: entity === 'page' ? row.id : row.page_id ?? null,
+      actorId: opts.actorId,
+    });
   }
 }
 

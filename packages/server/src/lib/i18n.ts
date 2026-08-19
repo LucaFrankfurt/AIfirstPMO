@@ -24,6 +24,18 @@ const en = {
   'notify.overdue': '{identifier} {title} was due {date}',
   'notify.intake': 'Somebody reported something from outside',
   'notify.sharedNote': 'A note on the shared “{title}”',
+  'notify.message': '{name} in {channel}',
+  'notify.directMessage': '{name} sent you a message',
+
+  /* Telegram. Short on purpose: these are read on a phone, in a chat, next to
+     messages from actual people. */
+  'telegram.open': 'Open in Kolibri',
+  'telegram.connected': 'Connected. Kolibri will send your notifications here. Send /stop to disconnect.',
+  'telegram.disconnected': 'Disconnected. Kolibri will not message you here again.',
+  'telegram.needCode': 'This link is missing its code. Open Kolibri, go to Settings → Notifications and press Connect.',
+  'telegram.codeExpired': 'That code has expired or was already used. Open Kolibri and press Connect again.',
+  'telegram.testTitle': 'Telegram is working',
+  'telegram.testBody': 'This is a test message from your Kolibri instance.',
 
   'mail.digestSubject': '{count} updates in Kolibri',
   'mail.greeting': 'Hello {name},',
@@ -88,6 +100,16 @@ const de: Catalogue = {
   'notify.overdue': '{identifier} {title} war am {date} fällig',
   'notify.intake': 'Jemand von außerhalb hat etwas gemeldet',
   'notify.sharedNote': 'Eine Notiz zur geteilten Seite „{title}“',
+  'notify.message': '{name} in {channel}',
+  'notify.directMessage': '{name} hat dir geschrieben',
+
+  'telegram.open': 'In Kolibri öffnen',
+  'telegram.connected': 'Verbunden. Kolibri schickt deine Benachrichtigungen hierher. Zum Trennen /stop senden.',
+  'telegram.disconnected': 'Getrennt. Kolibri schreibt dir hier nicht mehr.',
+  'telegram.needCode': 'Diesem Link fehlt der Code. Öffne Kolibri, geh zu Einstellungen → Benachrichtigungen und drücke Verbinden.',
+  'telegram.codeExpired': 'Der Code ist abgelaufen oder wurde schon benutzt. Öffne Kolibri und drücke noch einmal Verbinden.',
+  'telegram.testTitle': 'Telegram funktioniert',
+  'telegram.testBody': 'Das ist eine Testnachricht deiner Kolibri-Instanz.',
 
   'mail.digestSubject': '{count} Neuigkeiten in Kolibri',
   'mail.greeting': 'Hallo {name},',
@@ -155,6 +177,16 @@ const fr: Catalogue = {
   'notify.overdue': '{identifier} {title} était à rendre le {date}',
   'notify.intake': 'Quelqu’un de l’extérieur a signalé quelque chose',
   'notify.sharedNote': 'Une note sur la page partagée « {title} »',
+  'notify.message': '{name} dans {channel}',
+  'notify.directMessage': '{name} vous a envoyé un message',
+
+  'telegram.open': 'Ouvrir dans Kolibri',
+  'telegram.connected': 'Connecté. Kolibri enverra vos notifications ici. Envoyez /stop pour vous déconnecter.',
+  'telegram.disconnected': 'Déconnecté. Kolibri ne vous écrira plus ici.',
+  'telegram.needCode': 'Il manque le code à ce lien. Ouvrez Kolibri, allez dans Paramètres → Notifications et appuyez sur Connecter.',
+  'telegram.codeExpired': 'Ce code a expiré ou a déjà été utilisé. Ouvrez Kolibri et appuyez de nouveau sur Connecter.',
+  'telegram.testTitle': 'Telegram fonctionne',
+  'telegram.testBody': 'Ceci est un message de test de votre instance Kolibri.',
 
   'mail.digestSubject': '{count} nouveautés dans Kolibri',
   'mail.greeting': 'Bonjour {name},',

@@ -1,8 +1,8 @@
 # Notifications
 
-Two channels, one source of truth: everything lands in the **in-app inbox**, and email is an
-optional delivery of the same events. Nothing is ever email-only, so turning email off never means
-missing something — it just means you have to look.
+Four channels, one source of truth: everything lands in the **in-app inbox**, and email, Web Push
+and Telegram are optional deliveries of the same events. Nothing is ever delivery-only, so turning
+every channel off never means missing something — it just means you have to look.
 
 ## What triggers a notification
 
@@ -14,6 +14,9 @@ missing something — it just means you have to look.
 | `comment` | A comment on a page you wrote, or on one you have already commented on | no |
 | `due_soon` | A task you are on is due within two days, or is already past due | yes |
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
+
+"Important" is what the *email* and *Telegram* channels fall back to when somebody chooses "only
+what needs me". The in-app inbox always gets everything — it is the source of truth, not a channel.
 
 Mentions accept what people actually type: `@ada`, `@adalovelace`, `@ada@example.com`. Unknown
 handles are left alone, and mentioning yourself does nothing.
@@ -142,6 +145,57 @@ to push. The key pair is generated into the data directory on first use.
 
 A subscription that answers `404` or `410` is deleted: that is how a push service says the browser
 threw it away.
+
+## Telegram
+
+The bell only works while the app is open, email is slow on purpose, and Web Push needs a browser
+that asked for permission. Telegram is the one that reaches a phone in a second without any of
+that — which is also why it needs a limit, and has one: an "important only" setting, the same set
+of kinds email uses.
+
+An operator configures **one thing**, a bot token from [@BotFather](https://t.me/botfather):
+
+```
+KOLIBRI_TELEGRAM_BOT_TOKEN=123456:AA...
+```
+
+Everything else is per person, in Settings → Notifications → Telegram. **Connect** asks the server
+for a single-use code and opens `https://t.me/<yourbot>?start=<code>`; tapping *Start* there sends
+the code to the bot, and the update it arrives in carries the chat id. The page notices within a few
+seconds.
+
+That order is not decoration. A bot **cannot message a chat that has never written to it**, so
+there is no version of this where an admin points somebody else's notifications anywhere. Kolibri
+never learns a phone number, and the code lasts fifteen minutes and works once — a stolen one would
+only connect the thief's own chat to the account it was issued for, and only inside that window.
+
+Disconnecting works from either end: the button in Settings, or `/stop` in the chat. An account that
+blocks the bot is disconnected automatically — Telegram answers `403`, and retrying that forever is
+how a queue fills with something that will never succeed.
+
+### Long polling, not a webhook
+
+Updates are collected with `getUpdates`, held open for `KOLIBRI_TELEGRAM_POLL_SECONDS` (25 by
+default). A webhook would be fewer moving parts and is the wrong shape here: it needs a public HTTPS
+URL, which a self-hosted instance behind NAT does not have. Long polling needs only an outbound
+request, which is what this app already makes for object storage and SMTP.
+
+One consequence worth knowing: `getUpdates` has a single consumer. **Two instances sharing one bot
+token will steal each other's updates** — give each instance its own bot.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_TELEGRAM_BOT_TOKEN` | — | The bot. Empty turns the channel off entirely |
+| `KOLIBRI_TELEGRAM_POLL_SECONDS` | `25` | How long one long-poll waits. Telegram allows up to 50 |
+| `KOLIBRI_TELEGRAM_MAX_ATTEMPTS` | `5` | Failed sends are retried on the hourly sweep until this |
+| `KOLIBRI_TELEGRAM_API` | `https://api.telegram.org` | Overridable, which is how the tests point it at a local stand-in |
+
+Delivery is recorded on the notification row itself — `telegram_sent_at`, an attempt count and the
+last error — rather than in a second queue. The row already exists and already belongs to one
+recipient, so it is the thing being delivered.
+
+Sends are **not awaited** by the write that caused them. Somebody else's chat service must never sit
+in the path of somebody's edit.
 
 ## When an address stops working
 

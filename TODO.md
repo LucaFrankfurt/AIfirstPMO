@@ -73,12 +73,15 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       inside the container, with a sign-in afterwards as the proof the account survived the round
       trip; the dev overlay reports `mail: test-inbox` and a message reaches Mailpit; and the lite
       variant comes up with `storage: disk`.
-      What is still only a compose file is the Coolify variant, below.
-- [ ] **Verify the Coolify deployment.** The one deployment claim still resting on documentation
-      rather than on a run. `docker-compose.coolify.yml` is written against Coolify's
-      documented behaviour (no `container_name`, `expose` instead of `ports`, `SERVICE_FQDN_*` and
-      `SERVICE_PASSWORD_*` magic variables) but has never been deployed to a real Coolify instance.
-      The magic-variable substitution in particular is the part most likely to need a tweak.
+- [x] **Coolify deploys, from the compose file.** This carried the caveat that
+      `docker-compose.coolify.yml` was written against Coolify's documented behaviour — no
+      `container_name`, `expose` instead of `ports`, the `SERVICE_FQDN_*` / `SERVICE_PASSWORD_*`
+      magic variables — and had never met a real Coolify instance, with the magic-variable
+      substitution named as the part most likely to need a tweak. The maintainer has now deployed it
+      on their own instance through the Docker Compose build pack and reports it working. That is
+      somebody else's run rather than a job in this repository, so it is written down as what it is:
+      confirmed in the field, not covered by CI. Nothing here can regression-test it — CI has no
+      Coolify — so a future change to the compose file is still worth deploying once by hand.
 - [x] **Rehearsed the restore.** `kolibri backup` takes the copy through `VACUUM INTO` — the only
       way to copy a live SQLite database that is consistent by construction — and puts the uploads
       and a manifest beside it. `verify` opens the copy and asks SQLite whether it is intact before
@@ -400,6 +403,25 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       restore), a subscription that returns 404 or 410 is deleted because that is how a push service
       says "gone", and permission is asked for only when somebody presses the switch — a site that
       asks on load is a site people block, and a blocked permission cannot be asked for twice.
+- [x] **Telegram notifications.** A fourth channel, next to the bell, email and Web Push, and the
+      only one that reaches a phone in a second without a browser being open. An operator configures
+      exactly one thing — a bot token — and every person connects their own chat from Settings.
+      The consent model is Telegram's own and happens to be the right one: **a bot cannot message a
+      chat that has never written to it**, so there is no version of this where an admin points
+      somebody else's notifications anywhere. Kolibri hands out a single-use code, the person taps
+      `t.me/<bot>?start=<code>`, and the chat id arrives with the update. Fifteen minutes, one use.
+      Kolibri never learns a phone number.
+      Updates are collected by **long-polling `getUpdates`, not a webhook**: a webhook needs a public
+      HTTPS URL, which a self-hosted instance behind NAT does not have, and long polling needs only
+      the outbound request this app already makes for S3 and SMTP. The cost is that `getUpdates` has
+      one consumer, so two instances must not share a bot — written down in `docs/notifications.md`
+      rather than left to be discovered.
+      Disconnecting works from either end: the button, or `/stop` in the chat. An account that blocks
+      the bot is disconnected on the `403` rather than retried forever, because that is consent being
+      withdrawn. Delivery is recorded on the notification row itself — sent-at, attempts, last error
+      — and retried on the hourly sweep up to a limit; a send is never awaited by the write that
+      caused it. An "important only" setting exists and uses the same set of kinds email does, since
+      a rule that differs per channel is a rule nobody can predict.
 - [x] **Object-storage migration command.** `kolibri files move <disk|s3>` reads each blob from
       wherever its row says it is and updates the row only once the bytes have landed, so an
       interrupted move leaves an instance that still works. The old copies are left in place on

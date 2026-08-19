@@ -14,9 +14,11 @@ import { all, get, nextSeq, run, type Row } from '../db/index.ts';
 import { serverClock } from './bootstrap.ts';
 import { uid } from './ids.ts';
 import { translatorFor } from './i18n.ts';
+import { createNotification } from './notify.ts';
 import { canSeeProject, writeEntity } from './repo.ts';
 import { runAutomationsForDue } from './automation.ts';
 import { applyRetention } from './trash.ts';
+import { expireLinks as expireTelegramLinks, retryPending as retryPendingTelegram } from './telegram.ts';
 
 const HOUR = 3_600_000;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -65,13 +67,13 @@ export function remindAboutDueTasks(now = Date.now()): number {
 
       const t = translatorFor(userId);
       const overdue = String(task.due_date) < today;
-      run(
-        `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, task_id, page_id, actor_id, created_at, updated_at, seq, clocks)
-         VALUES (?, ?, ?, 'due_soon', ?, ?, ?, NULL, NULL, ?, ?, ?, '{}')`,
-        uid(), task.workspace_id, userId,
-        t(overdue ? 'notify.overdue' : 'notify.dueSoon', { identifier: task.identifier, title: task.title, date: task.due_date }),
-        null, task.id, Date.now(), Date.now(), nextSeq(),
-      );
+      createNotification({
+        workspaceId: String(task.workspace_id),
+        userId,
+        kind: 'due_soon',
+        title: t(overdue ? 'notify.overdue' : 'notify.dueSoon', { identifier: task.identifier, title: task.title, date: task.due_date }),
+        taskId: String(task.id),
+      });
       run(`INSERT OR IGNORE INTO reminders (marker, user_id, created_at) VALUES (?, ?, ?)`, marker, userId, Date.now());
       sent++;
     }
@@ -147,7 +149,12 @@ export function rollRecurringTasks(): number {
 
 /* ------------------------------------------------------------------ sweep */
 
-export function sweep(now = Date.now()): { reminders: number; recurred: number; rules: number; purged: number } {
+export function sweep(now = Date.now()): { reminders: number; recurred: number; rules: number; purged: number; codes: number } {
+  // Telegram messages that failed on the way out get another go, and the
+  // link codes nobody used are dropped. Both are deliberately fire-and-forget:
+  // the sweep's own result is about the work it did to the database, and an
+  // unreachable chat service is not a reason for it to report a failure.
+  void retryPendingTelegram(now);
   return {
     reminders: remindAboutDueTasks(now),
     recurred: rollRecurringTasks(),
@@ -156,6 +163,7 @@ export function sweep(now = Date.now()): { reminders: number; recurred: number; 
     // on a daily one because the cutoff is an age, not a date: running it
     // twice in one day purges nothing the first pass did not already take.
     purged: applyRetention(now),
+    codes: expireTelegramLinks(now),
   };
 }
 

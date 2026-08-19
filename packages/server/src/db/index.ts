@@ -60,6 +60,12 @@ for (const [table, column, definition] of [
   ['shares', 'allow_comments', 'INTEGER NOT NULL DEFAULT 0'],
   ['pages', 'body', 'TEXT'],
   ['projects', 'working_days', `TEXT NOT NULL DEFAULT '[1,2,3,4,5]'`],
+  ['users', 'telegram_chat_id', 'TEXT'],
+  ['users', 'telegram_prefs', `TEXT NOT NULL DEFAULT 'all'`],
+  ['users', 'telegram_linked_at', 'INTEGER'],
+  ['notifications', 'telegram_sent_at', 'INTEGER'],
+  ['notifications', 'telegram_attempts', 'INTEGER NOT NULL DEFAULT 0'],
+  ['notifications', 'telegram_error', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

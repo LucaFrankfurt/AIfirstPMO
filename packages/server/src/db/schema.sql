@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS users (
   totp_secret   TEXT,
   totp_confirmed_at INTEGER,
   recovery_codes TEXT NOT NULL DEFAULT '[]',
+  -- Telegram. `telegram_chat_id` is set once the person has started the bot
+  -- themselves; until then there is nowhere to send to and the channel is off
+  -- regardless of the preference.
+  telegram_chat_id TEXT,
+  telegram_prefs TEXT NOT NULL DEFAULT 'all',
+  telegram_linked_at INTEGER,
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
   deleted_at    INTEGER,
@@ -690,6 +696,13 @@ CREATE TABLE IF NOT EXISTS notifications (
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,
+  -- Telegram delivery, tracked on the notification rather than in a second
+  -- queue: the row already exists, already belongs to one recipient, and is
+  -- the thing being delivered. `telegram_sent_at` null with attempts below the
+  -- limit is what the retry sweep looks for.
+  telegram_sent_at INTEGER,
+  telegram_attempts INTEGER NOT NULL DEFAULT 0,
+  telegram_error TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,
@@ -838,3 +851,30 @@ CREATE TABLE IF NOT EXISTS email_queue (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS email_queue_pending ON email_queue (sent_at, failed_at, send_after);
+
+-- One-time codes that connect a Kolibri account to a Telegram chat.
+--
+-- The account holder starts the conversation from their own Telegram, which is
+-- the only way round that works: the server cannot message a chat it has never
+-- heard of, and asking somebody to paste a numeric chat id is asking them to
+-- find something Telegram does not show. So Kolibri hands out a code, the
+-- person taps a link that sends `/start <code>` to the bot, and the update
+-- carries the chat id with it.
+--
+-- Short-lived and single-use. A code that survived would be a way to point
+-- somebody else's notifications at your own chat.
+CREATE TABLE IF NOT EXISTS telegram_links (
+  code       TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS telegram_links_user ON telegram_links (user_id);
+
+-- Where the long poll got to. One row, id 1: `getUpdates` is a cursor, and
+-- losing it would replay every update the bot ever received.
+CREATE TABLE IF NOT EXISTS telegram_cursor (
+  id        INTEGER PRIMARY KEY CHECK (id = 1),
+  offset    INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);

@@ -6,6 +6,7 @@ import { env } from './env.ts';
 import { authenticate } from './lib/auth.ts';
 import { startMailWorker, stopMailWorker } from './lib/mail.ts';
 import { startScheduler, stopScheduler } from './lib/scheduler.ts';
+import { startTelegram, stopTelegram } from './lib/telegram.ts';
 import { provision } from './lib/provision.ts';
 import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
@@ -185,7 +186,8 @@ if (process.env.NODE_ENV !== 'test') {
     .then(() => {
       ready = true;
       startMailWorker();
-  startScheduler();
+      startScheduler();
+      startTelegram();
     })
     .catch(() => {
       log('error', 'Provisioning failed — exiting so the restart policy can try again');
@@ -200,6 +202,7 @@ const shutdown = (signal: string) => {
   log('info', `${signal} received, shutting down`);
   stopMailWorker();
   stopScheduler();
+  stopTelegram();
   server.close(() => {
     close();
     process.exit(0);
