@@ -27,7 +27,7 @@ returned exactly once — only its hash is stored. A `read` token is rejected on
 Every entity in the registry gets the same five routes. Collections: `tasks`, `projects`, `states`,
 `labels`, `cycles`, `modules`, `pages`, `comments`, `attachments`, `views`, `templates`,
 `automations`, `time-entries`, `teams`, `team-members`, `project-members`, `relations`,
-`notifications`.
+`task-types`, `fields`, `field-values`, `webhooks`, `notifications`.
 
 ```
 GET    /api/workspaces/:ws/:collection      list, filterable by any field
@@ -53,6 +53,35 @@ curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
 
 Creating a **project** is special-cased: it also creates the default workflow states, the default
 labels and the creator's membership, in one transaction.
+
+### Custom fields
+
+A project can add fields of its own. `type_ids` is the type-dependent part: empty means every kind
+of work item, otherwise only the ones listed.
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"project_id":"'$PROJECT'","name":"Severity","kind":"select",
+       "options":["Minor","Major","Critical"],"type_ids":["'$BUG_TYPE'"]}' \
+  "$URL/api/workspaces/$WS/fields"
+```
+
+Kinds: `text`, `long_text`, `number`, `select`, `multi_select`, `date`, `checkbox`, `url`, `person`.
+
+An answer is a row in `field-values`, and **its id is `<task_id>.<field_id>`**. Send that id when
+creating one:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"id":"'$TASK.$FIELD'","project_id":"'$PROJECT'","task_id":"'$TASK'",
+       "field_id":"'$FIELD'","value":"Major"}' \
+  "$URL/api/workspaces/$WS/field-values"
+```
+
+That is not a convention for tidiness: it is what makes two devices answering the same field while
+offline write one row and merge, rather than two rows and a question. `value` is always text —
+`multi_select` holds a JSON array, `checkbox` holds `"true"` or nothing, and a cleared field is
+`null` rather than an empty string. Deleting a field tombstones its answers.
 
 ### Task extras
 

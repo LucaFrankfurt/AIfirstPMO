@@ -67,8 +67,10 @@ which Plane does not have in this form.
 | **Analytics across projects** | Medium | Per project is built — throughput, burn-up, cycle time. Nothing aggregates a portfolio |
 | **Import** beyond CSV | Medium | CSV is built, with a preview and a per-row report. Sub-task parents, relations and comments need a second pass |
 | **Named integrations** — GitHub/GitLab commit linking, Slack | Medium | Signed outgoing webhooks are built; what is missing is the per-service message shape and a route *in* |
-| **Custom fields** | High | Invasive in the data model |
 | **Intake / triage** — an inbox for reports from outside | Medium | |
+
+Custom fields used to head this list and are now built — nine kinds, per project, and each can be
+limited to particular work item types. Filtering and grouping *by* one is still open.
 
 ## Against OpenProject
 
@@ -81,7 +83,7 @@ management with money in it.
 | **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
 | **Reports** — cost, utilisation, progress *across* projects | High | Per-project progress is built; money and portfolio-wide are not |
 | **Resource and capacity planning**, team planner | High | |
-| **Type-dependent forms and workflows** | High | Types themselves are built; a form that changes per type is custom fields with a visibility rule |
+| **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
 | **Status transition rules per role** (who may move what, where) | Medium–high | |
 | **Sub-projects** | Medium | Projects are flat; teams group them but do not nest them |
 | **Project templates** | Medium | Task templates exist; copying a whole project does not |
@@ -116,6 +118,7 @@ value per unit of work rather than by size.
 | ~~2~~ | ~~Work item types~~ | **Done** — per project, grouped and filtered by. Type-*dependent fields* are custom fields, below | |
 | ~~3~~ | ~~Analytics~~ | **Done** — per project, computed from the local mirror | |
 | ~~4~~ | ~~Page extras~~ | **Done** — labels, watching, diff, templates, access, markdown export | |
+| ~~4b~~ | ~~Custom fields, type-dependent~~ | **Done** — nine kinds, per project, limited to work item types, over MCP too | |
 | ~~5~~ | ~~SSO (OIDC first)~~ | **Done** — code flow with PKCE, optional password lockout, tested against a real signing provider | |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
 | 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |

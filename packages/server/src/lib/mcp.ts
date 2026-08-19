@@ -6,7 +6,10 @@
  * handler — the HTTP route and the stdio bridge in `packages/mcp` both call
  * `handleRpc`, so tools only exist in one place.
  */
-import { PRIORITIES, orderKey, parseDuration, type EntityName } from '@kolibri/shared';
+import {
+  PRIORITIES, fieldAppliesTo, fieldValueId, orderKey, parseDuration, readFieldValue, writeFieldValue,
+  type EntityName,
+} from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
@@ -119,6 +122,16 @@ function requireWrite(ctx: McpCtx): void {
   if (!ctx.auth.scopes.has('write')) throw new McpError('This token is read-only', -32000);
 }
 
+/** A JSON column read straight from SQLite, without trusting it to be valid. */
+const safeList = (raw: unknown): string[] => {
+  try {
+    const parsed = JSON.parse(String(raw ?? '[]'));
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
+
 const taskView = (row: Row) => ({
   id: row.id,
   identifier: row.identifier,
@@ -137,6 +150,36 @@ const taskView = (row: Row) => ({
   updated_at: row.updated_at,
   url: `${env.publicUrl}/t/${row.id}`,
 });
+
+/**
+ * Answers to a project's own fields, addressed by name because a name is what
+ * an assistant has been told. An unknown name is an error rather than a silent
+ * no-op: a rule that quietly writes nothing is worse than one that complains.
+ */
+function writeCustomFields(task: Row, answers: Record<string, unknown>, workspaceId: string, ctx: McpCtx): void {
+  const fields = all<Row>(
+    `SELECT * FROM custom_fields WHERE project_id = ? AND deleted_at IS NULL AND archived = 0`,
+    task.project_id,
+  );
+  for (const [name, value] of Object.entries(answers)) {
+    const field = fields.find((f) => String(f.name).toLowerCase() === name.toLowerCase() || f.id === name);
+    if (!field) throw new McpError(`No field called "${name}" in this project`);
+    if (!fieldAppliesTo({ type_ids: safeList(field.type_ids) }, task.type_id)) {
+      throw new McpError(`"${field.name}" is not asked on this kind of task`);
+    }
+    writeEntity(
+      'fieldValue',
+      fieldValueId(String(task.id), String(field.id)),
+      {
+        project_id: task.project_id,
+        task_id: task.id,
+        field_id: field.id,
+        value: writeFieldValue(field.kind, value),
+      },
+      writeOpts(workspaceId, ctx),
+    );
+  }
+}
 
 /* -------------------------------------------------------------------- tools */
 
@@ -310,6 +353,18 @@ const TOOLS: ToolDef[] = [
         created_at: task.created_at,
         completed_at: task.completed_at,
         project: get<Row>(`SELECT id, key, name FROM projects WHERE id = ?`, task.project_id),
+        // Only the fields this task's type is actually asked for, so an agent
+        // reading a bug is not offered a feature's questions.
+        fields: all<Row>(
+          `SELECT f.id, f.name, f.kind, f.type_ids, v.value
+             FROM custom_fields f
+             LEFT JOIN field_values v ON v.field_id = f.id AND v.task_id = ? AND v.deleted_at IS NULL
+            WHERE f.project_id = ? AND f.deleted_at IS NULL AND f.archived = 0
+            ORDER BY f.sort_order`,
+          task.id, task.project_id,
+        )
+          .filter((field) => fieldAppliesTo({ type_ids: safeList(field.type_ids) }, task.type_id))
+          .map((field) => ({ name: field.name, kind: field.kind, value: readFieldValue(field.kind, field.value) })),
         subtasks: all<Row>(`SELECT * FROM tasks WHERE parent_id = ? AND deleted_at IS NULL`, task.id).map(taskView),
         relations: all<Row>(
           `SELECT r.kind, t.id, t.identifier, t.title FROM task_relations r JOIN tasks t ON t.id = r.related_task_id
@@ -397,6 +452,11 @@ const TOOLS: ToolDef[] = [
         estimate: { type: ['number', 'null'] },
         cycle: { type: ['string', 'null'] },
         archived: { type: 'boolean' },
+        fields: {
+          type: 'object',
+          description: "The project's own fields, by name — e.g. {\"Severity\": \"Major\"}. Null clears one.",
+          additionalProperties: true,
+        },
         workspace_id: { type: 'string' },
       },
     },
@@ -428,6 +488,7 @@ const TOOLS: ToolDef[] = [
         patch.cycle_id = args.cycle === null ? null : resolveCycle(workspaceId, String(args.cycle))?.id ?? null;
       }
       const { row } = writeEntity('task', task.id, patch, writeOpts(workspaceId, ctx));
+      if (args.fields && typeof args.fields === 'object') writeCustomFields(row, args.fields, workspaceId, ctx);
       return taskView(row);
     },
   },

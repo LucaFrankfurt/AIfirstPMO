@@ -16,6 +16,8 @@ export const REST_ENTITIES: Record<string, EntityName> = {
   'project-members': 'projectMember',
   states: 'state',
   'task-types': 'taskType',
+  fields: 'field',
+  'field-values': 'fieldValue',
   labels: 'label',
   tasks: 'task',
   relations: 'relation',

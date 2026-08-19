@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import type { Filters, Layout, Task } from '@kolibri/shared';
-import { orderKey, PRIORITIES } from '@kolibri/shared';
+import { formatFieldValue, orderKey, PRIORITIES } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
@@ -514,6 +514,24 @@ export function TableView({
   const labels = useLabels(undefined);
   const members = useMembers();
   const memberMap = useMemberMap();
+  const nameMap = useMemo(() => new Map([...memberMap].map(([id, user]) => [id, user.name])), [memberMap]);
+  // Custom columns are per project, so they only appear when the rows on screen
+  // come from one — a mixed list has no shared set of fields to line up.
+  const project = tasks.length && tasks.every((task) => task.project_id === tasks[0].project_id) ? tasks[0].project_id : undefined;
+  const extra = useQuery(
+    () => (project
+      ? list('field', (f) => f.project_id === project && !f.archived && !!f.show_in_table)
+        .sort((a, b) => (a.sort_order < b.sort_order ? -1 : 1))
+      : []),
+    [project],
+  );
+  const values = useQuery(() => {
+    const map = new Map<string, string | null>();
+    for (const row of list('fieldValue', (v) => !!extra.length && v.project_id === project)) {
+      map.set(`${row.task_id}.${row.field_id}`, row.value);
+    }
+    return map;
+  }, [project, extra.length]);
 
   const groups = useMemo(
     () => groupTasks(tasks, view.groupBy, { states, members, labels, t }).filter((group) => group.tasks.length),
@@ -539,8 +557,9 @@ export function TableView({
                 />
               </th>
             )}
-            {COLUMNS.map((column) => (
-              <th key={column.id} className={`${column.id}${column.narrow ? ' narrow' : ''}`}>
+            {[...COLUMNS, ...extra.map((field) => ({ id: field.id, label: null, orderBy: null, narrow: true, field }))].map((column: any) => (
+              <th key={column.id} className={`${column.field ? 'custom' : column.id}${column.narrow ? ' narrow' : ''}`}>
+                {column.field ? column.field.name : null}
                 {column.orderBy && onChange ? (
                   <button
                     className="sort"
@@ -550,7 +569,7 @@ export function TableView({
                     {t(column.label)}
                     {view.orderBy === column.orderBy && <Icon name="chevronDown" size={11} />}
                   </button>
-                ) : t(column.label)}
+                ) : column.label ? t(column.label) : null}
               </th>
             ))}
           </tr>
@@ -559,7 +578,7 @@ export function TableView({
           <tbody key={group.id}>
             {view.groupBy !== 'none' && (
               <tr className="group">
-                <th colSpan={COLUMNS.length + (selection ? 1 : 0)}>
+                <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)}>
                   {group.color && <StateDot group={group.group} color={group.color} size={9} />}
                   <span>{group.title}</span>
                   <span className="count">{group.tasks.length}</span>
@@ -600,6 +619,11 @@ export function TableView({
                   <td className="estimate narrow">{task.estimate ?? ''}</td>
                   <td className="labels narrow"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></td>
                   <td className="updated_at narrow">{shortDate(task.updated_at)}</td>
+                  {extra.map((field) => (
+                    <td className="custom narrow" key={field.id}>
+                      {formatFieldValue(field.kind, values.get(`${task.id}.${field.id}`), nameMap)}
+                    </td>
+                  ))}
                 </tr>
               );
             })}

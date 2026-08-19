@@ -27,6 +27,14 @@ export type Layout = (typeof LAYOUTS)[number];
 export const PROJECT_STATUS = ['planned', 'in_progress', 'paused', 'completed', 'cancelled'] as const;
 export type ProjectStatus = (typeof PROJECT_STATUS)[number];
 
+/**
+ * What a custom field holds. Deliberately short: every kind here is one input
+ * a person already knows how to use, and each has an obvious empty value. A
+ * formula or a rollup is a different feature wearing the same word.
+ */
+export const FIELD_KINDS = ['text', 'long_text', 'number', 'select', 'multi_select', 'date', 'checkbox', 'url', 'person'] as const;
+export type FieldKind = (typeof FIELD_KINDS)[number];
+
 /* ------------------------------------------------- templates + automation */
 
 /** What a template is for. Only affects the icon and how it is grouped. */
@@ -174,6 +182,38 @@ export interface TaskType extends Base {
   /** The one new tasks get. Exactly one per project should carry it. */
   is_default: number;
   sort_order: string;
+}
+
+export interface Field extends Base {
+  workspace_id: ID;
+  project_id: ID;
+  name: string;
+  kind: FieldKind;
+  /** Choices, for the two select kinds. Ignored by every other kind. */
+  options: string[];
+  /** Which work item types show this field. Empty means all of them. */
+  type_ids: ID[];
+  help: string | null;
+  /**
+   * A prompt, not a gate. Nothing refuses to save a task without it: a task
+   * created offline, by a rule or over the API would otherwise be impossible
+   * to write, and a required field that only sometimes applies teaches people
+   * to type a full stop into it.
+   */
+  required: number;
+  /** Offer it as a column in the table view. */
+  show_in_table: number;
+  archived: number;
+  sort_order: string;
+}
+
+export interface FieldValue extends Base {
+  workspace_id: ID;
+  project_id: ID;
+  task_id: ID;
+  field_id: ID;
+  /** Always text on the wire; `readFieldValue` turns it back into its kind. */
+  value: string | null;
 }
 
 export interface Label extends Base {
@@ -460,6 +500,8 @@ export interface EntityMap {
   state: State;
   label: Label;
   taskType: TaskType;
+  field: Field;
+  fieldValue: FieldValue;
   task: Task;
   relation: Relation;
   cycle: Cycle;

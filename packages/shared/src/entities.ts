@@ -14,6 +14,8 @@ export type EntityName =
   | 'projectMember'
   | 'state'
   | 'taskType'
+  | 'field'
+  | 'fieldValue'
   | 'label'
   | 'task'
   | 'relation'
@@ -89,6 +91,30 @@ export const ENTITIES = {
   taskType: {
     table: 'task_types',
     fields: ['workspace_id', 'project_id', 'name', 'icon', 'color', 'is_default', 'sort_order'],
+  },
+  /**
+   * A field a project adds to its tasks. `type_ids` is what OpenProject calls a
+   * type-dependent field: empty means every work item type, otherwise only
+   * those — a Bug asks for steps to reproduce, a Feature does not.
+   */
+  field: {
+    table: 'custom_fields',
+    fields: [
+      'workspace_id', 'project_id', 'name', 'kind', 'options', 'type_ids',
+      'help', 'required', 'show_in_table', 'archived', 'sort_order',
+    ],
+    json: ['options', 'type_ids'],
+  },
+  /**
+   * One task's answer to one field. Its own row rather than a map on the task,
+   * so two people filling in two different fields on the same task merge
+   * instead of overwriting each other. The id is derived from the pair, so two
+   * devices answering the same field offline converge on one row rather than
+   * two.
+   */
+  fieldValue: {
+    table: 'field_values',
+    fields: ['workspace_id', 'project_id', 'task_id', 'field_id', 'value'],
   },
   label: {
     table: 'labels',

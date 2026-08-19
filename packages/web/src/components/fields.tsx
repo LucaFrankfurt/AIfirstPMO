@@ -1,0 +1,322 @@
+/**
+ * Custom fields — the ones a project invents for itself.
+ *
+ * Two screens: the editor in project settings, and the answers on a task. A
+ * field can be limited to particular work item types, which is what makes a Bug
+ * ask for steps to reproduce while a Feature does not.
+ */
+import { useState } from 'react';
+import {
+  FIELD_KINDS, emptyValue, fieldValueId, fieldsForTask, orderKey, readFieldValue, writeFieldValue,
+  type Field, type FieldKind, type Task,
+} from '@kolibri/shared';
+import { useT, type TranslationKey } from '../lib/i18n';
+import { byId, list, useQuery } from '../lib/store';
+import { create, remove, update } from '../lib/mutations';
+import { useCanWrite, useMemberMap } from '../session';
+import { Icon, useConfirm } from './ui';
+import { DateField } from './task-parts';
+
+export const kindKey = (kind: string): TranslationKey => `field.kind.${kind}` as TranslationKey;
+
+/** The fields of one project, in order, ignoring the archived ones. */
+export const useFields = (projectId: string | undefined) =>
+  useQuery(
+    () => list('field', (f) => f.project_id === projectId && !f.archived)
+      .sort((a, b) => (a.sort_order < b.sort_order ? -1 : 1)),
+    [projectId],
+  );
+
+/* ------------------------------------------------------------- the answers */
+
+/** One task's answers, keyed by field. */
+export const useValues = (taskId: string) =>
+  useQuery(() => {
+    const map = new Map<string, string | null>();
+    for (const row of list('fieldValue', (v) => v.task_id === taskId)) map.set(row.field_id, row.value);
+    return map;
+  }, [taskId]);
+
+/**
+ * Write one answer.
+ *
+ * The row id is derived from the task and the field, so two devices answering
+ * the same field while offline write the same row and merge, rather than
+ * leaving two rows and a question.
+ */
+export function setFieldValue(task: Task, field: Field, value: unknown): void {
+  const id = fieldValueId(task.id, field.id);
+  const text = writeFieldValue(field.kind, value);
+  const existing = byId('fieldValue', id);
+  if (existing) update('fieldValue', id, { value: text });
+  else if (text !== null) {
+    create('fieldValue', {
+      project_id: task.project_id, task_id: task.id, field_id: field.id, value: text,
+    }, id);
+  }
+}
+
+function FieldInput({ field, value, onChange }: { field: Field; value: unknown; onChange: (next: unknown) => void }) {
+  const t = useT();
+  const members = useMemberMap();
+  const id = `cf-${field.id}`;
+
+  switch (field.kind) {
+    case 'long_text':
+      return (
+        <textarea id={id} className="textarea" rows={3} value={String(value ?? '')}
+          onChange={(event) => onChange(event.target.value)} />
+      );
+    case 'number':
+      return (
+        <input id={id} className="input" type="number" style={{ width: 120 }} value={value === null ? '' : String(value)}
+          onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} />
+      );
+    case 'date':
+      return <DateField label={field.name} value={(value as string) || null} onChange={(next) => onChange(next ?? '')} />;
+    case 'checkbox':
+      return (
+        <input id={id} type="checkbox" checked={!!value} onChange={(event) => onChange(event.target.checked)} />
+      );
+    case 'url':
+      return (
+        <div className="row" style={{ gap: 6 }}>
+          <input id={id} className="input grow" type="url" placeholder="https://" value={String(value ?? '')}
+            onChange={(event) => onChange(event.target.value)} />
+          {!!value && (
+            <a className="btn ghost sm icon" href={String(value)} target="_blank" rel="noreferrer noopener"
+              aria-label={t('field.open')} title={t('field.open')}>
+              <Icon name="link" size={13} />
+            </a>
+          )}
+        </div>
+      );
+    case 'select':
+      return (
+        <select id={id} className="select" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+          <option value="">{t('field.noValue')}</option>
+          {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      );
+    case 'multi_select': {
+      const chosen = (value as string[]) ?? [];
+      return (
+        <div className="row wrap" style={{ gap: 5 }}>
+          {field.options.map((option) => (
+            <button
+              key={option} type="button"
+              className={`chip button${chosen.includes(option) ? ' on' : ''}`}
+              aria-pressed={chosen.includes(option)}
+              onClick={() => onChange(chosen.includes(option) ? chosen.filter((o) => o !== option) : [...chosen, option])}
+            >
+              {option}
+            </button>
+          ))}
+          {!field.options.length && <span className="muted" style={{ fontSize: 12 }}>{t('field.noOptions')}</span>}
+        </div>
+      );
+    }
+    case 'person':
+      return (
+        <select id={id} className="select" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+          <option value="">{t('common.nobody')}</option>
+          {[...members.values()].map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+        </select>
+      );
+    default:
+      return (
+        <input id={id} className="input" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />
+      );
+  }
+}
+
+/** The custom fields on a task — only the ones its type asks for. */
+export function TaskFields({ task }: { task: Task }) {
+  const t = useT();
+  const canWrite = useCanWrite();
+  const all = useFields(task.project_id);
+  const values = useValues(task.id);
+  const fields = fieldsForTask(all, task.type_id);
+  if (!fields.length) return null;
+
+  return (
+    <section style={{ marginBottom: 18 }}>
+      <strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>{t('field.sectionTitle')}</strong>
+      <div className="field-grid">
+        {fields.map((field) => {
+          const value = readFieldValue(field.kind, values.get(field.id));
+          const empty = field.kind === 'multi_select'
+            ? !(value as string[]).length
+            : value === '' || value === null || value === false;
+          return (
+            <div className="field" key={field.id} style={{ marginBottom: 0 }}>
+              <label htmlFor={`cf-${field.id}`}>
+                {field.name}
+                {/* A prompt, not a gate: the task saves either way. */}
+                {!!field.required && empty && <span className="muted" style={{ marginInlineStart: 5 }}>{t('field.wanted')}</span>}
+              </label>
+              {canWrite
+                ? <FieldInput field={field} value={value} onChange={(next) => setFieldValue(task, field, next)} />
+                : <span>{field.kind === 'checkbox' ? (value ? '✓' : '—') : String(value || '—')}</span>}
+              {field.help && <span className="hint">{field.help}</span>}
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------- the editor */
+
+export function ProjectFields({ projectId }: { projectId: string }) {
+  const t = useT();
+  const fields = useFields(projectId);
+  const types = useQuery(
+    () => list('taskType', (type) => type.project_id === projectId).sort((a, b) => (a.sort_order < b.sort_order ? -1 : 1)),
+    [projectId],
+  );
+  const [open, setOpen] = useState<string | null>(null);
+  const { confirm, dialog } = useConfirm();
+
+  return (
+    <>
+      <p className="hint" style={{ marginBottom: 8 }}>{t('field.settingsHint')}</p>
+
+      {fields.map((field) => (
+        <div key={field.id} className="stack-card">
+          <div className="row" style={{ gap: 8 }}>
+            <input
+              className="input grow" value={field.name} aria-label={t('field.name')}
+              onChange={(event) => update('field', field.id, { name: event.target.value })}
+            />
+            <select
+              className="select" style={{ width: 150 }} value={field.kind} aria-label={t('field.kind')}
+              onChange={(event) => update('field', field.id, { kind: event.target.value as FieldKind })}
+            >
+              {FIELD_KINDS.map((kind) => <option key={kind} value={kind}>{t(kindKey(kind))}</option>)}
+            </select>
+            <button
+              className="btn ghost sm icon" aria-expanded={open === field.id} aria-label={t('field.options')}
+              onClick={() => setOpen(open === field.id ? null : field.id)}
+            >
+              <Icon name={open === field.id ? 'chevronDown' : 'chevronRight'} size={14} />
+            </button>
+            <button
+              className="btn ghost sm icon" aria-label={t('field.remove')} title={t('field.remove')}
+              onClick={async () => {
+                if (await confirm(t('field.removeConfirm', { name: field.name }))) remove('field', field.id);
+              }}
+            >
+              <Icon name="trash" size={13} />
+            </button>
+          </div>
+
+          {open === field.id && (
+            <div style={{ marginTop: 10 }}>
+              {(field.kind === 'select' || field.kind === 'multi_select') && (
+                <div className="field">
+                  <label htmlFor={`opt-${field.id}`}>{t('field.choices')}</label>
+                  <input
+                    id={`opt-${field.id}`} className="input" value={field.options.join(', ')}
+                    placeholder={t('field.choicesPlaceholder')}
+                    onChange={(event) => update('field', field.id, {
+                      options: event.target.value.split(',').map((o) => o.trim()).filter(Boolean),
+                    })}
+                  />
+                </div>
+              )}
+
+              <div className="field">
+                <label htmlFor={`help-${field.id}`}>{t('field.help')}</label>
+                <input
+                  id={`help-${field.id}`} className="input" value={field.help ?? ''}
+                  onChange={(event) => update('field', field.id, { help: event.target.value || null })}
+                />
+              </div>
+
+              <div className="field">
+                <label>{t('field.appliesTo')}</label>
+                <div className="row wrap" style={{ gap: 5 }}>
+                  <button
+                    type="button" className={`chip button${field.type_ids.length ? '' : ' on'}`}
+                    aria-pressed={!field.type_ids.length}
+                    onClick={() => update('field', field.id, { type_ids: [] })}
+                  >
+                    {t('field.appliesToAll')}
+                  </button>
+                  {types.map((type) => (
+                    <button
+                      key={type.id} type="button"
+                      className={`chip button${field.type_ids.includes(type.id) ? ' on' : ''}`}
+                      aria-pressed={field.type_ids.includes(type.id)}
+                      onClick={() => update('field', field.id, {
+                        type_ids: field.type_ids.includes(type.id)
+                          ? field.type_ids.filter((id) => id !== type.id)
+                          : [...field.type_ids, type.id],
+                      })}
+                    >
+                      {type.icon} {type.name}
+                    </button>
+                  ))}
+                </div>
+                <span className="hint">{t('field.appliesToHint')}</span>
+              </div>
+
+              <label className="row" style={{ gap: 7, fontSize: 13 }}>
+                <input
+                  type="checkbox" checked={!!field.required}
+                  onChange={(event) => update('field', field.id, { required: event.target.checked ? 1 : 0 })}
+                />
+                {t('field.required')}
+              </label>
+              <span className="hint" style={{ display: 'block', marginBottom: 8 }}>{t('field.requiredHint')}</span>
+
+              <label className="row" style={{ gap: 7, fontSize: 13 }}>
+                <input
+                  type="checkbox" checked={!!field.show_in_table}
+                  onChange={(event) => update('field', field.id, { show_in_table: event.target.checked ? 1 : 0 })}
+                />
+                {t('field.showInTable')}
+              </label>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <button
+        className="btn sm" style={{ marginTop: 8 }}
+        onClick={() => {
+          const id = create('field', {
+            project_id: projectId,
+            name: t('field.newName'),
+            kind: 'text' as FieldKind,
+            options: [],
+            type_ids: [],
+            help: null,
+            required: 0,
+            show_in_table: 0,
+            archived: 0,
+            sort_order: orderKey(fields[fields.length - 1]?.sort_order ?? null, null),
+          });
+          setOpen(id);
+        }}
+      >
+        <Icon name="plus" size={14} /> {t('field.add')}
+      </button>
+      {dialog}
+    </>
+  );
+}
+
+/** What a field's answer looks like in one line — used by the table view. */
+export function fieldCell(kind: FieldKind, raw: string | null | undefined, people: Map<string, string>): string {
+  const value = readFieldValue(kind, raw);
+  if (kind === 'checkbox') return value ? '✓' : '';
+  if (kind === 'multi_select') return (value as string[]).join(', ');
+  if (kind === 'person') return people.get(String(value)) ?? '';
+  if (value === null || value === undefined) return '';
+  return String(value);
+}
+
+export { emptyValue };

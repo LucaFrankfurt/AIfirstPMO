@@ -20,6 +20,7 @@ import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useCanWrite, useMe, useMembers, useSession } from '../session';
 import { groupKey, useT, type TranslationKey } from '../lib/i18n';
+import { ProjectFields } from '../components/fields';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
@@ -652,6 +653,9 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       >
         <Icon name="plus" size={14} /> {t('type.add')}
       </button>
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('field.settingsTitle')}</h3>
+      <ProjectFields projectId={projectId} />
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.labels')}</h3>
       <div className="row wrap" style={{ gap: 6, marginBottom: 8 }}>

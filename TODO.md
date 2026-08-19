@@ -113,9 +113,15 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Work item types.** Every project starts with Task, Bug and Feature and can edit the list;
       a task carries one, and views group and filter by it. Deliberately *not* type-dependent
       fields: a form that changes per type is custom fields, which is the next entry.
-- [ ] **Type-dependent fields.** What OpenProject means by work-package types: a Bug asks for steps
-      to reproduce, a Feature does not. That is custom fields with a visibility rule, not a bigger
-      version of what is built.
+- [x] **Custom fields, including the type-dependent ones.** Nine kinds (text, long text, number,
+      one-of, several-of, date, yes/no, link, person), edited in project settings, shown on a task,
+      offered as a table column, readable and writable over MCP by name. A field can name the work
+      item types it applies to, which is what OpenProject means by a type-dependent field: a Bug
+      asks for steps to reproduce, a Feature does not. An answer is a row of its own with an id
+      derived from the task and the field, so two people filling in two different fields merge and
+      two devices answering the same one converge. `required` is a prompt rather than a gate — a
+      task can arrive from a rule, the API or a phone that was offline, and a form that refuses to
+      save teaches people to type a full stop. Still open: filtering and grouping by a custom field.
 - [x] **CSV import.** Column mapping guessed from the header names in both languages and in Jira /
       Plane / OpenProject's words, a dry run that writes nothing, and a report that names the
       spreadsheet row of everything it could not read. Semicolon files from a German Excel included.
@@ -210,7 +216,7 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       this is the one scenario where Redis or Postgres genuinely earns its place.
 - [ ] **Bounce and complaint handling.** Failed sends are recorded in `email_queue.last_error`, but
       a hard bounce does not disable that address automatically.
-- [ ] **Custom fields** per project.
+- [x] **Custom fields** per project — see P2 above.
 - [x] **Time tracking.** Log time on a task, or run a timer — which is a row with a start and no
       minutes yet, so it survives a reload, a second device and a tunnel. One clock per person.
       Totals per task and per project, and `log_time` / `list_time` over MCP.

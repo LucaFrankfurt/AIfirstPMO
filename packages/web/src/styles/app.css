@@ -447,6 +447,8 @@ p { margin: 0 0 0.75em; }
 .task-table .title { white-space: normal; min-width: 240px; }
 .task-table .identifier { font-family: var(--mono); font-size: 11.5px; color: var(--fg-muted); }
 .task-table .pick { width: 30px; }
+/* A column a project invented. Truncated rather than allowed to set the width. */
+.task-table .custom { max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
 .task-table .sort {
   display: inline-flex; align-items: center; gap: 3px;
   border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer;
@@ -628,6 +630,26 @@ p { margin: 0 0 0.75em; }
 .chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
 .chip.button { cursor: pointer; }
 .chip.button:hover { background: var(--bg-active); }
+/* A chip that is switched on — a chosen option, a type a field applies to. */
+.chip.on {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  color: var(--accent);
+}
+
+/* Custom fields on a task: as many columns as fit, and no wider than a form
+   control wants to be — one field should not stretch across the whole sheet. */
+.field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 300px)); gap: 12px 16px; }
+.field-grid .textarea { min-width: 0; }
+
+/* One editable thing in a settings list, boxed so its expanded half stays with it. */
+.stack-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 9px 10px;
+  margin-bottom: 8px;
+  background: var(--bg-raised);
+}
 
 .avatar {
   display: inline-flex;

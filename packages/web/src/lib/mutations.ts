@@ -19,7 +19,7 @@ export function update(entity: EntityName, id: string, patch: Record<string, unk
   enqueue(entity, id, patch);
 }
 
-export function create(entity: EntityName, patch: Record<string, unknown>, id = crypto.randomUUID()): string {
+export function create(entity: EntityName, patch: Record<string, unknown>, id: string = crypto.randomUUID()): string {
   const full = { workspace_id: currentWorkspace(), created_at: Date.now(), deleted_at: null, ...patch, id };
   persistLocal(entity, id, full);
   enqueue(entity, id, full);

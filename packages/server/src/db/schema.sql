@@ -213,6 +213,49 @@ CREATE TABLE IF NOT EXISTS task_types (
 CREATE INDEX IF NOT EXISTS task_types_seq ON task_types (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS task_types_project ON task_types (project_id);
 
+-- A field a project adds to its tasks. `type_ids` is the type-dependent part:
+-- empty means every work item type, otherwise only the ones listed.
+CREATE TABLE IF NOT EXISTS custom_fields (
+  id            TEXT PRIMARY KEY,
+  workspace_id  TEXT NOT NULL,
+  project_id    TEXT NOT NULL,
+  name          TEXT NOT NULL DEFAULT '',
+  kind          TEXT NOT NULL DEFAULT 'text',
+  options       TEXT NOT NULL DEFAULT '[]',
+  type_ids      TEXT NOT NULL DEFAULT '[]',
+  help          TEXT,
+  required      INTEGER NOT NULL DEFAULT 0,
+  show_in_table INTEGER NOT NULL DEFAULT 0,
+  archived      INTEGER NOT NULL DEFAULT 0,
+  sort_order    TEXT NOT NULL DEFAULT 'V',
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL,
+  deleted_at    INTEGER,
+  seq           INTEGER NOT NULL DEFAULT 0,
+  clocks        TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS custom_fields_seq ON custom_fields (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS custom_fields_project ON custom_fields (project_id);
+
+-- One task's answer to one field. A row of its own rather than a map on the
+-- task, so two people filling in two different fields on the same task merge
+-- instead of overwriting each other.
+CREATE TABLE IF NOT EXISTS field_values (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT NOT NULL,
+  task_id      TEXT NOT NULL,
+  field_id     TEXT NOT NULL,
+  value        TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS field_values_seq ON field_values (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS field_values_task ON field_values (task_id);
+
 CREATE TABLE IF NOT EXISTS labels (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

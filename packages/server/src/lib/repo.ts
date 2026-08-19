@@ -250,11 +250,26 @@ function applyInvariants(entity: EntityName, values: Record<string, unknown>, ex
 function afterWrite(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {
   indexForSearch(entity, row);
   if (entity === 'page' && before && changed.content !== undefined) snapshotPage(before, opts.actorId);
+  if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
   if (opts.system) return;
   recordActivity(entity, row, before, changed, opts);
   notify(entity, row, before, changed, opts);
   runAutomations(entity, row, before, changed, opts);
   fireWebhooks(entity, row, before, changed, opts);
+}
+
+/**
+ * A field that is gone takes its answers with it.
+ *
+ * Tombstones rather than a `DELETE`, because every other device has those rows
+ * too and only a tombstone tells them. Written through the same path, so they
+ * get a sequence number and reach the clients on the next pull.
+ */
+function tombstoneValuesOf(field: Row, opts: WriteOpts): void {
+  const values = all<Row>(`SELECT id FROM field_values WHERE field_id = ? AND deleted_at IS NULL`, field.id);
+  for (const value of values) {
+    writeEntity('fieldValue', String(value.id), {}, { ...opts, op: 'delete', system: true, silent: true });
+  }
 }
 
 /**

@@ -10,6 +10,7 @@ import { Markdown, MarkdownEditor, downscale } from './Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
 import { TaskTime } from './time';
+import { TaskFields } from './fields';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, TypePicker, stateOf,
 } from './task-parts';
@@ -167,6 +168,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         </div>
 
         <TaskTime taskId={task.id} projectId={task.project_id} />
+
+        <TaskFields task={task} />
 
         {/* description */}
         <section style={{ marginBottom: 18 }}>
