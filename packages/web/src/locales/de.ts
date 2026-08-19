@@ -1230,6 +1230,7 @@ export const de: Catalogue = {
   'guide.collab.h3': 'Der Posteingang zeigt Ungelesenes zuerst, Alle als gelesen markieren räumt auf.',
   'guide.collab.h4': 'Unter Einstellungen, Benachrichtigungen legst du fest, was eine E-Mail wert ist. Im Posteingang steht es so oder so.',
   'guide.collab.h5': 'Schreib #, um auf ein Projekt oder eine Aufgabe zu zeigen — oder tipp einfach WEB-42, das wird von selbst zum Link. Gilt im Chat, in Kommentaren und auf Seiten.',
+  'guide.collab.h6': 'Enter setzt eine Liste fort — nächster Aufzählungspunkt, nächste Nummer, nächste Checkbox — ein zweites Enter beendet sie. Tab rückt ein. Eine Checkbox lässt sich in der Vorschau und in einer Aufgabenbeschreibung abhaken, ohne einen Editor zu öffnen.',
 
   'guide.teams.title': 'Teams, Einladungen und Rollen',
   'guide.teams.lead': 'Teams bündeln Menschen und die Projekte, die ihnen gehören — sinnvoll, sobald mehr als eine Handvoll Leute den Workspace teilen. Rollen entscheiden, wer was ändern darf.',

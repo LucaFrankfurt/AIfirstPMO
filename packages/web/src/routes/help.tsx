@@ -218,7 +218,7 @@ function Features() {
         lead="guide.collab.lead"
         to="/inbox"
         linkLabel="guide.collab.cta"
-        steps={['guide.collab.h1', 'guide.collab.h2', 'guide.collab.h5', 'guide.collab.h3', 'guide.collab.h4']}
+        steps={['guide.collab.h1', 'guide.collab.h6', 'guide.collab.h2', 'guide.collab.h5', 'guide.collab.h3', 'guide.collab.h4']}
       >
         <CollaborationDiagram />
       </Feature>

@@ -28,12 +28,24 @@ function safeUrl(raw: string): string | null {
  * the server wants when it renders a shared page for a reader who has no
  * workspace to link into.
  */
-export interface MarkdownRefs {
+export interface MarkdownOptions {
   /** Project keys, as written in an identifier: `['WEB', 'APP']`. */
   keys?: readonly string[];
   /** Where a project lives, by key. Without this `#WEB` stays plain text. */
   projectHref?: (key: string) => string | undefined;
+  /**
+   * Whether a checkbox can be ticked where it is rendered.
+   *
+   * Off by default, and that is the safe way round: an enabled checkbox with
+   * nothing listening toggles on screen and then silently disagrees with the
+   * text it came from. Switched on, each box carries its index — counted top to
+   * bottom, skipping fenced code — and `toggleTask` in `editor.ts` counts the
+   * same way, which is what keeps a click and a line of markdown pointing at
+   * each other.
+   */
+  interactiveTasks?: boolean;
 }
+
 
 const KEY_SHAPE = /^[A-Z][A-Z0-9]{0,9}$/;
 
@@ -45,7 +57,7 @@ const KEY_SHAPE = /^[A-Z][A-Z0-9]{0,9}$/;
  * something identifier-shaped would grow a second anchor inside the first, and
  * a nested `<a>` is a link that swallows the one around it.
  */
-function references(html: string, refs: MarkdownRefs): string {
+function references(html: string, refs: MarkdownOptions): string {
   const keys = (refs.keys ?? []).filter((key) => KEY_SHAPE.test(key));
   if (!keys.length) return html;
   const known = new Set(keys);
@@ -73,7 +85,7 @@ function references(html: string, refs: MarkdownRefs): string {
   return out.replace(/\uE001(\d+)\uE001/g, (_, index: string) => links[Number(index)]);
 }
 
-function inline(text: string, refs?: MarkdownRefs): string {
+function inline(text: string, refs?: MarkdownOptions): string {
   let out = escapeHtml(text);
 
   // code spans first: their content must not be touched by later rules
@@ -113,7 +125,7 @@ interface ListContext {
   indent: number;
 }
 
-export function renderMarkdown(source: string, refs?: MarkdownRefs): string {
+export function renderMarkdown(source: string, refs?: MarkdownOptions): string {
   const lines = String(source ?? '').replace(/\r\n?/g, '\n').split('\n');
   const html: string[] = [];
   const lists: ListContext[] = [];
@@ -122,6 +134,7 @@ export function renderMarkdown(source: string, refs?: MarkdownRefs): string {
   let codeLanguage = '';
   let codeLines: string[] = [];
   let inQuote = false;
+  let tasks = 0;
 
   const closeParagraph = () => {
     if (paragraph.length) {
@@ -217,8 +230,12 @@ export function renderMarkdown(source: string, refs?: MarkdownRefs): string {
       const checkbox = /^\[([ xX])\]\s+(.*)$/.exec(item[3]);
       if (checkbox) {
         const checked = checkbox[1].toLowerCase() === 'x';
+        // Counted here rather than anywhere else, because this is the one place
+        // that has already skipped fenced code — which is exactly the counting
+        // `toggleTask` repeats over the source.
+        const index = tasks++;
         html.push(
-          `<li class="md-task"><input type="checkbox" disabled${checked ? ' checked' : ''} /><span${checked ? ' class="md-done"' : ''}>${inline(checkbox[2], refs)}</span></li>`,
+          `<li class="md-task"><input type="checkbox" data-task="${index}"${refs?.interactiveTasks ? '' : ' disabled'}${checked ? ' checked' : ''} /><span${checked ? ' class="md-done"' : ''}>${inline(checkbox[2], refs)}</span></li>`,
         );
       } else {
         html.push(`<li>${inline(item[3], refs)}</li>`);

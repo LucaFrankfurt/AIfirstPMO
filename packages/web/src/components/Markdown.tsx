@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { renderMarkdown, type MarkdownRefs } from '@kolibri/shared';
+import { enterInList, indentList, renderMarkdown, toggleTask, type Edit, type MarkdownOptions } from '@kolibri/shared';
 
 import { api } from '../lib/api';
 import { list, useQuery } from '../lib/store';
@@ -17,7 +17,7 @@ import { Avatar, Icon, useLightbox, useToast } from './ui';
  * not sprout a link to a task nobody has. Both come out of the synced cache, so
  * a reference resolves on a train like everything else here.
  */
-export function useMarkdownRefs(): MarkdownRefs {
+export function useMarkdownRefs(): MarkdownOptions {
   const { workspaceId } = useSession();
   const projects = useQuery(
     () => list('project', (project) => project.workspace_id === workspaceId && !project.deleted_at),
@@ -35,9 +35,24 @@ export function useMarkdownRefs(): MarkdownRefs {
   }, [projects]);
 }
 
-export function Markdown({ source, className = '' }: { source?: string | null; className?: string }) {
+export function Markdown({ source, className = '', onChange }: {
+  source?: string | null;
+  className?: string;
+  /**
+   * Given, the checkboxes can be ticked where they are rendered and this is
+   * called with the rewritten markdown.
+   *
+   * Only where the reader owns the text. A checklist in a task description is
+   * meant to be ticked off, and making somebody open an editor to do it is the
+   * kind of friction that ends with the checklist going stale. Somebody else's
+   * chat message is the opposite case, and stays read-only — the one thing you
+   * may do to another person's words here is react to them.
+   */
+  onChange?: (next: string) => void;
+}) {
   const refs = useMarkdownRefs();
-  const html = useMemo(() => renderMarkdown(source ?? '', refs), [source, refs]);
+  const options = useMemo(() => ({ ...refs, interactiveTasks: !!onChange }), [refs, onChange]);
+  const html = useMemo(() => renderMarkdown(source ?? '', options), [source, options]);
   // Click-to-enlarge is delegated: the renderer produces plain HTML, so there
   // are no image components to hand a handler to.
   const { open, lightbox } = useLightbox();
@@ -55,6 +70,16 @@ export function Markdown({ source, className = '' }: { source?: string | null; c
    */
   const click = (event: React.MouseEvent<HTMLDivElement>) => {
     open(event);
+    // A checkbox does not open a lightbox and is not a link, and on a task
+    // description the click behind it opens the editor — so it is answered here
+    // and goes no further.
+    const box = (event.target as HTMLElement).closest?.('input[type=checkbox][data-task]');
+    if (box && onChange) {
+      event.preventDefault();
+      event.stopPropagation();
+      onChange(toggleTask(source ?? '', Number(box.getAttribute('data-task'))));
+      return;
+    }
     const anchor = (event.target as HTMLElement).closest?.('a');
     const href = anchor?.getAttribute('href');
     if (!anchor || !href?.startsWith('/') || anchor.target === '_blank') return;
@@ -124,6 +149,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = fieldRef ?? own;
   const [preview, setPreview] = useState(false);
+  /** Where the caret belongs after the next render, set by `rewrite`. */
+  const pending = useRef<[number, number] | null>(null);
   const [dropping, setDropping] = useState(false);
   const [busy, setBusy] = useState(false);
   const { workspaceId } = useSession();
@@ -183,18 +210,43 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     if (autoFocus) ref.current?.focus();
   }, [autoFocus]);
 
+  useLayoutEffect(() => {
+    if (!pending.current) return;
+    const [from, to] = pending.current;
+    pending.current = null;
+    const field = ref.current;
+    field?.focus();
+    field?.setSelectionRange(from, to);
+  });
+
+  /**
+   * Change the text and say where the caret ends up.
+   *
+   * The caret is restored in a layout effect rather than on the next animation
+   * frame, and that is not tidiness: a frame is long enough to type in. Somebody
+   * holding Enter down through a checklist types the next character before the
+   * frame arrives, and it lands at the *old* caret — which produced lists like
+   * `- [ ] wo` with the `t` somewhere at the end. A layout effect runs in the
+   * same commit as the text it belongs to, so there is no gap to type into.
+   */
+  const rewrite = (text: string, from: number, to = from) => {
+    pending.current = [from, to];
+    onChange(text);
+  };
+
   const surround = (before: string, after: string) => {
     const field = ref.current;
     if (!field) return;
     const { selectionStart: start, selectionEnd: end } = field;
     const selected = value.slice(start, end);
-    const next = `${value.slice(0, start)}${before}${selected}${after}${value.slice(end)}`;
-    onChange(next);
-    requestAnimationFrame(() => {
-      field.focus();
-      field.setSelectionRange(start + before.length, start + before.length + selected.length);
-    });
+    rewrite(
+      `${value.slice(0, start)}${before}${selected}${after}${value.slice(end)}`,
+      start + before.length,
+      start + before.length + selected.length,
+    );
   };
+
+  const apply = (edit: Edit) => rewrite(edit.text, edit.caret);
 
   const insert = (text: string) => {
     const field = ref.current;
@@ -224,14 +276,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     const caret = field?.selectionStart ?? value.length;
     // The handle people read back is the first name; `findMentions` accepts it.
     const handle = member.name.split(/\s+/)[0] || member.email.split('@')[0];
-    const next = `${value.slice(0, mention.at)}@${handle} ${value.slice(caret)}`;
-    onChange(next);
     setMention(null);
-    requestAnimationFrame(() => {
-      field?.focus();
-      const to = mention.at + handle.length + 2;
-      field?.setSelectionRange(to, to);
-    });
+    rewrite(`${value.slice(0, mention.at)}@${handle} ${value.slice(caret)}`, mention.at + handle.length + 2);
   };
 
   /**
@@ -259,13 +305,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     if (!hash) return;
     const field = ref.current;
     const caret = field?.selectionStart ?? value.length;
-    onChange(`${value.slice(0, hash.at)}${choice.token} ${value.slice(caret)}`);
     setHash(null);
-    requestAnimationFrame(() => {
-      field?.focus();
-      const to = hash.at + choice.token.length + 1;
-      field?.setSelectionRange(to, to);
-    });
+    rewrite(`${value.slice(0, hash.at)}${choice.token} ${value.slice(caret)}`, hash.at + choice.token.length + 1);
   };
 
   async function upload(files: File[]): Promise<void> {
@@ -315,7 +356,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
 
       {preview ? (
         <div className="md" style={{ minHeight, border: '1px solid var(--line-strong)', borderTop: 'none', borderRadius: '0 0 7px 7px', padding: 12 }}>
-          <Markdown source={value || `_${t('editor.nothingToPreview')}_`} />
+          <Markdown source={value || `_${t('editor.nothingToPreview')}_`} onChange={onChange} />
         </div>
       ) : (
         <>
@@ -369,13 +410,39 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
                 return;
               }
             }
+            const field = ref.current;
+            if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+              // The toolbar's three most-used buttons, where hands already are.
+              const shortcut = { b: ['**', '**'], i: ['_', '_'], k: ['[', '](url)'] }[event.key.toLowerCase()];
+              if (shortcut) {
+                event.preventDefault();
+                surround(shortcut[0], shortcut[1]);
+                return;
+              }
+            }
             if (onSubmit && (event.metaKey || event.ctrlKey) && event.key === 'Enter') {
               event.preventDefault();
               onSubmit();
+              return;
             }
-            if (event.key === 'Tab') {
+            // Enter continues the list somebody is in — another bullet, the next
+            // number, another empty checkbox — and ends it on an item they left
+            // empty. Both are one pure rewrite of the text; see `editor.ts`.
+            if (event.key === 'Enter' && !event.shiftKey && field && field.selectionStart === field.selectionEnd) {
+              const edit = enterInList(value, field.selectionStart);
+              if (edit) {
+                event.preventDefault();
+                apply(edit);
+                return;
+              }
+            }
+            if (event.key === 'Tab' && field) {
               event.preventDefault();
-              surround('  ', '');
+              // Inside a list, Tab is nesting. Everywhere else it stays an
+              // indent, which is what somebody writing a code block wants.
+              const edit = indentList(value, field.selectionStart, field.selectionEnd, event.shiftKey);
+              if (edit) apply(edit);
+              else if (!event.shiftKey) surround('  ', '');
             }
           }}
           onPaste={(event) => {
