@@ -34,6 +34,9 @@ export type EntityName =
   | 'notification'
   | 'activity'
   | 'intake'
+  | 'channel'
+  | 'message'
+  | 'channelRead'
   | 'purge';
 
 export interface EntityDef {
@@ -53,6 +56,19 @@ export interface EntityDef {
   readOnly?: boolean;
   /** Rows belong to a single user and are not shared with the workspace. */
   private?: boolean;
+  /**
+   * Writable by a guest, who may otherwise write nothing at all.
+   *
+   * Only for a row that is **entirely about the person writing it** and is not
+   * content anybody else will read. A read marker is the case: it says "I have
+   * got this far", it is private to them, and without it a guest's unread count
+   * climbs and can never come down — a number that cannot reach zero is worse
+   * than no number.
+   *
+   * This is deliberately narrow. It is not "guests may write some things"; it
+   * is "a note somebody keeps about themselves is not content".
+   */
+  guestWritable?: boolean;
   /** Columns holding JSON-encoded values. */
   json?: readonly string[];
   /**
@@ -261,9 +277,44 @@ export const ENTITIES = {
   },
   notification: {
     table: 'notifications',
-    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'actor_id', 'read_at', 'archived_at'],
-    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id'],
+    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'actor_id', 'read_at', 'archived_at'],
+    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'actor_id'],
     private: true,
+  },
+  /**
+   * A conversation. Either a named channel or the direct one between two
+   * people — see `chat.ts` for why a direct channel's id is derived from its
+   * members rather than invented.
+   *
+   * `members` empty means *the workspace*, not nobody: an open channel is
+   * open, and writing every member into every channel would mean keeping that
+   * list correct as people join and leave.
+   */
+  channel: {
+    table: 'channels',
+    fields: [
+      'workspace_id', 'project_id', 'kind', 'name', 'topic', 'is_private', 'members',
+      'invite_policy', 'archived_at', 'created_by',
+    ],
+    json: ['members'],
+  },
+  message: {
+    table: 'messages',
+    fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'reactions', 'edited_at'],
+    json: ['reactions'],
+  },
+  /**
+   * How far somebody has read, and what they want to hear about. One row per
+   * person per conversation, private to them: where you have got to in a
+   * channel is nobody else's business, and a read receipt is a feature this
+   * has deliberately not got.
+   */
+  channelRead: {
+    table: 'channel_reads',
+    fields: ['workspace_id', 'channel_id', 'user_id', 'last_read_at', 'notify'],
+    serverOnly: ['user_id'],
+    private: true,
+    guestWritable: true,
   },
   activity: {
     table: 'activities',
@@ -305,6 +356,13 @@ export const ENTITIES = {
 } as const satisfies Record<EntityName, EntityDef>;
 
 export const ENTITY_NAMES = Object.keys(ENTITIES) as EntityName[];
+
+/** What somebody with the guest role may still write. See `guestWritable`. */
+export const GUEST_WRITABLE: readonly EntityName[] = ENTITY_NAMES.filter(
+  (name) => (ENTITIES[name] as { guestWritable?: boolean }).guestWritable === true,
+);
+
+export const isGuestWritable = (entity: EntityName): boolean => GUEST_WRITABLE.includes(entity);
 
 /** Columns present on every syncable table. */
 export const SYSTEM_FIELDS = ['id', 'created_at', 'updated_at', 'deleted_at', 'seq', 'clocks'] as const;
@@ -351,6 +409,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   automation: 'automations',
   webhook: 'webhooks',
   notification: 'notifications',
+  channel: 'channels',
+  message: 'messages',
+  channelRead: 'channel-reads',
   activity: 'activities',
   intake: 'intakes',
   purge: 'purges',

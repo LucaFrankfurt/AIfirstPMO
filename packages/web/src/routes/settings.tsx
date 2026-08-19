@@ -12,6 +12,7 @@ import { Sessions, TwoFactor } from '../components/security';
 import { downscale } from '../components/Markdown';
 import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
 import { PushToggle } from '../components/push';
+import { TelegramConnection } from '../components/telegram';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
 
@@ -341,6 +342,8 @@ function Notifications() {
       </div>
 
       <PushToggle />
+
+      <TelegramConnection />
 
       <Suppressions />
 

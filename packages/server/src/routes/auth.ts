@@ -21,6 +21,12 @@ import {
 } from '../lib/mail.ts';
 import { keys as pushKeys, subscribe as subscribeDevice, unsubscribe as unsubscribeDevice } from '../lib/push.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
+import {
+  isPreference as isTelegramPreference,
+  sendTest as sendTelegramTest,
+  startLink,
+  unlink as unlinkTelegram,
+} from '../lib/telegram.ts';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -437,6 +443,9 @@ export function registerAuthRoutes(router: Router): void {
     if (typeof body.email_prefs === 'string' && ['all', 'important', 'none'].includes(body.email_prefs)) {
       run(`UPDATE users SET email_prefs = ? WHERE id = ?`, body.email_prefs, auth.userId);
     }
+    if (isTelegramPreference(body.telegram_prefs)) {
+      run(`UPDATE users SET telegram_prefs = ? WHERE id = ?`, body.telegram_prefs, auth.userId);
+    }
     return sessionInfo(auth.userId);
   });
 
@@ -661,6 +670,66 @@ export function registerAuthRoutes(router: Router): void {
       throw badRequest(failure?.last_error ?? 'The relay did not accept the message');
     }
     return { sent: true, to: user!.email };
+  });
+
+  /* --------------------------------------------------------------- Telegram */
+
+  /**
+   * What this account's Telegram connection looks like right now.
+   *
+   * `enabled` is about the instance — whether an operator configured a bot at
+   * all — and `linked` is about this person. Both are needed: "no bot token"
+   * and "you have not connected yet" are different problems with different
+   * people to talk to, and one message covering both helps neither.
+   */
+  router.get('/api/telegram/status', (ctx) => {
+    const auth = requireAuth(ctx);
+    const user = get<Row>(
+      `SELECT telegram_chat_id, telegram_prefs, telegram_linked_at FROM users WHERE id = ?`,
+      auth.userId,
+    );
+    return {
+      enabled: env.telegramEnabled,
+      linked: !!user?.telegram_chat_id,
+      linkedAt: user?.telegram_linked_at ?? null,
+      preference: user?.telegram_prefs ?? 'all',
+    };
+  });
+
+  /**
+   * Hand out a code and the link that carries it.
+   *
+   * The chat id never comes from the client — it arrives with the update the
+   * person's own Telegram sends. So there is nothing here to forge: the worst
+   * a stolen code does is connect the thief's chat to the account it was
+   * issued for, which is why it lasts fifteen minutes and is used once.
+   */
+  router.post('/api/telegram/link', async (ctx) => {
+    const auth = requireAuth(ctx);
+    if (!env.telegramEnabled) throw badRequest('No Telegram bot is configured on this instance');
+    try {
+      const link = await startLink(auth.userId);
+      return { url: link.url, code: link.code, expiresAt: link.expiresAt };
+    } catch (error) {
+      throw badRequest((error as Error).message);
+    }
+  });
+
+  router.post('/api/telegram/unlink', (ctx) => {
+    const auth = requireAuth(ctx);
+    unlinkTelegram(auth.userId);
+    return { ok: true };
+  });
+
+  router.post('/api/telegram/test', async (ctx) => {
+    const auth = requireAuth(ctx);
+    if (!env.telegramEnabled) throw badRequest('No Telegram bot is configured on this instance');
+    try {
+      await sendTelegramTest(auth.userId);
+    } catch (error) {
+      throw badRequest((error as Error).message);
+    }
+    return { sent: true };
   });
 
   /* ------------------------------------------------------------ push */

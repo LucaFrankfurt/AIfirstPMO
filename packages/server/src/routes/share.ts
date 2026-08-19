@@ -13,6 +13,7 @@
 import { renderMarkdown } from '@kolibri/shared';
 import { all, get, nextSeq, run, type Row } from '../db/index.ts';
 import { translatorFor } from '../lib/i18n.ts';
+import { createNotification } from '../lib/notify.ts';
 import { uid } from '../lib/ids.ts';
 import { notifyDevices } from '../lib/push.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
@@ -351,14 +352,14 @@ function leaveNote(share: Row, body: string, who: string): void {
 
   for (const userId of audience) {
     const t = translatorFor(userId);
-    run(
-      `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, page_id, created_at, updated_at, seq, clocks)
-       VALUES (?, ?, ?, 'comment', ?, ?, ?, ?, ?, ?, '{}')`,
-      uid(), page.workspace_id, userId,
-      t('notify.sharedNote', { title: String(page.title ?? '') }),
-      body.slice(0, 200), page.id, now, now, nextSeq(),
-    );
-    notifyDevices(userId);
+    createNotification({
+      workspaceId: String(page.workspace_id),
+      userId,
+      kind: 'comment',
+      title: t('notify.sharedNote', { title: String(page.title ?? '') }),
+      body: body.slice(0, 200),
+      pageId: String(page.id),
+    });
   }
 }
 
@@ -510,12 +511,13 @@ function tellSomebody(share: Row, title: string): void {
 
   for (const userId of new Set(people)) {
     const t = translatorFor(userId);
-    const now = Date.now();
-    run(
-      `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, project_id, created_at, updated_at, seq, clocks)
-       VALUES (?, ?, ?, 'intake', ?, ?, ?, ?, ?, ?, '{}')`,
-      uid(), share.workspace_id, userId, t('notify.intake'), title.slice(0, 200), share.project_id, now, now, nextSeq(),
-    );
-    notifyDevices(userId);
+    createNotification({
+      workspaceId: String(share.workspace_id),
+      userId,
+      kind: 'intake',
+      title: t('notify.intake'),
+      body: title.slice(0, 200),
+      projectId: share.project_id ? String(share.project_id) : null,
+    });
   }
 }

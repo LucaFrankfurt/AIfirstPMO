@@ -41,6 +41,16 @@ export interface ProjectDoc {
   templates: Record<string, unknown>[];
   automations: Record<string, unknown>[];
   time_entries: Record<string, unknown>[];
+  /**
+   * Conversations tied to this project, and what was said in them.
+   *
+   * A **private** channel is left out on purpose: a project export is a
+   * document somebody emails, and a private room's whole point is that being
+   * able to see the project is not enough to be in it. Only the open ones
+   * travel — see `docs/chat.md`.
+   */
+  channels?: Record<string, unknown>[];
+  messages?: Record<string, unknown>[];
   /** Names for the ids that point outside the document, so an import can try. */
   people: { id: string; name: string; email: string }[];
 }
@@ -69,6 +79,10 @@ export function exportProject(workspaceId: string, projectId: string): ProjectDo
 
   const tasks = live('tasks', 'project_id = ?', projectId);
   const taskIds = new Set(tasks.map((task) => String(task.id)));
+  // Open channels only. A private room travels with nobody in it or with a
+  // membership list that means nothing on the other instance, and either way
+  // exporting it hands its contents to whoever opens the file.
+  const channels = live('channels', 'project_id = ? AND is_private = 0', projectId);
   const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, workspaceId);
 
   const people = all<Row>(
@@ -99,6 +113,10 @@ export function exportProject(workspaceId: string, projectId: string): ProjectDo
     templates: live('templates', 'project_id = ?', projectId).map(clean),
     automations: live('automations', 'project_id = ?', projectId).map(clean),
     time_entries: live('time_entries', 'project_id = ?', projectId).map(clean),
+    channels: channels.map(clean),
+    messages: channels.length
+      ? live('messages', `channel_id IN (${channels.map(() => '?').join(', ')})`, ...channels.map((c) => c.id)).map(clean)
+      : [],
     people,
   };
 }
@@ -278,6 +296,33 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
       const user = who(row.user_id);
       if (!user) continue; // time belonging to nobody here is not time this instance can report on
       write('timeEntry', row, { task_id: to(row.task_id), user_id: user });
+    }
+
+    // Conversations, and what was said in them. Only open channels are ever in
+    // the document, so there is no membership to translate — which is just as
+    // well: a member list from another instance names people who may not exist
+    // here, and guessing would be inventing a room's guest list.
+    for (const row of doc.channels ?? []) {
+      write('channel', row, {
+        kind: 'channel',
+        is_private: 0,
+        members: [],
+        created_by: who(row.created_by) ?? actorId,
+        archived_at: undefined,
+      });
+    }
+    for (const row of doc.messages ?? []) {
+      const channel = to(row.channel_id);
+      if (!channel) continue;
+      write('message', row, {
+        channel_id: channel,
+        reply_to: to(row.reply_to),
+        // An author this instance does not know becomes the importer, the same
+        // rule comments already follow — and who reacted does not survive,
+        // because those ids mean nothing here.
+        author_id: who(row.author_id) ?? actorId,
+        reactions: {},
+      });
     }
 
     return { project: get<Row>(`SELECT * FROM projects WHERE id = ?`, projectId)!, counts, unmatched };

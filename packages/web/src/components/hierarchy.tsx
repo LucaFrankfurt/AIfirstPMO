@@ -155,6 +155,22 @@ const TREE: Node[] = [
         what: 'guide.node.pageWhat',
         rule: 'guide.node.pageRule',
       },
+      {
+        id: 'channel',
+        glyph: 'chat',
+        name: 'guide.node.channel',
+        what: 'guide.node.channelWhat',
+        rule: 'guide.node.channelRule',
+        children: [
+          {
+            id: 'message',
+            glyph: 'send',
+            name: 'guide.node.message',
+            what: 'guide.node.messageWhat',
+            rule: 'guide.node.messageRule',
+          },
+        ],
+      },
     ],
   },
 ];
@@ -167,6 +183,14 @@ const ASIDE: Node[] = [
     name: 'guide.node.notification',
     what: 'guide.node.notificationWhat',
     rule: 'guide.node.notificationRule',
+    belongsTo: 'guide.hierarchy.aPerson',
+  },
+  {
+    id: 'channelRead',
+    glyph: 'chat',
+    name: 'guide.node.channelRead',
+    what: 'guide.node.channelReadWhat',
+    rule: 'guide.node.channelReadRule',
     belongsTo: 'guide.hierarchy.aPerson',
   },
   {

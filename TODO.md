@@ -73,12 +73,15 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       inside the container, with a sign-in afterwards as the proof the account survived the round
       trip; the dev overlay reports `mail: test-inbox` and a message reaches Mailpit; and the lite
       variant comes up with `storage: disk`.
-      What is still only a compose file is the Coolify variant, below.
-- [ ] **Verify the Coolify deployment.** The one deployment claim still resting on documentation
-      rather than on a run. `docker-compose.coolify.yml` is written against Coolify's
-      documented behaviour (no `container_name`, `expose` instead of `ports`, `SERVICE_FQDN_*` and
-      `SERVICE_PASSWORD_*` magic variables) but has never been deployed to a real Coolify instance.
-      The magic-variable substitution in particular is the part most likely to need a tweak.
+- [x] **Coolify deploys, from the compose file.** This carried the caveat that
+      `docker-compose.coolify.yml` was written against Coolify's documented behaviour — no
+      `container_name`, `expose` instead of `ports`, the `SERVICE_FQDN_*` / `SERVICE_PASSWORD_*`
+      magic variables — and had never met a real Coolify instance, with the magic-variable
+      substitution named as the part most likely to need a tweak. The maintainer has now deployed it
+      on their own instance through the Docker Compose build pack and reports it working. That is
+      somebody else's run rather than a job in this repository, so it is written down as what it is:
+      confirmed in the field, not covered by CI. Nothing here can regression-test it — CI has no
+      Coolify — so a future change to the compose file is still worth deploying once by hand.
 - [x] **Rehearsed the restore.** `kolibri backup` takes the copy through `VACUUM INTO` — the only
       way to copy a live SQLite database that is consistent by construction — and puts the uploads
       and a manifest beside it. `verify` opens the copy and asks SQLite whether it is intact before
@@ -266,7 +269,7 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       was the claim. What was left was the judgement, and it went the other way in the end: a
       catalogue nobody has read back is worse than a good one and *better than none* — provided the
       app says which it is. It does, under the language picker, in the language somebody has just
-      chosen. All 1 335 keys, machine-written, and a correction is now the cheapest contribution
+      chosen. Every key, machine-written, and a correction is now the cheapest contribution
       this project accepts: one file, no build step, and the types refuse a missing key.
       The claim that `Intl.PluralRules` handles languages with more than `_one`/`_other` is no
       longer untested: `i18n.test.ts` drives Polish's four categories through the same two lines the
@@ -295,6 +298,30 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 ---
 
 ## P3 — bigger bets, only with a reason
+
+- [ ] **A real GitHub integration.** Backlogged deliberately rather than forgotten, and worth being
+      precise about what is already here, because the generic machinery covers more of it than the
+      word "integration" suggests:
+      **Already working, today, with no GitHub-specific code.** An *incoming* hook is a URL you give
+      GitHub as a webhook; a commit message naming a task gets commented on that task, and
+      `fixes SRV-12` moves it to Done. GitHub's and GitLab's push payload shapes are both read, and a
+      payload neither recognises is accepted and ignored rather than answered with an error — an
+      integration that returns 500 is an integration somebody switches off. An *outgoing* hook posts
+      task and comment events anywhere, signed with HMAC-SHA256, and can wear Slack's or Discord's
+      body shape instead of Kolibri's. See [`docs/api.md`](docs/api.md).
+      **What a named integration would add beyond that**, roughly in the order it is worth having:
+      a pull request linked to the task it names, with its state — open, in review, merged — shown on
+      the task rather than only mentioned in a comment; a branch created from a task, named after its
+      identifier; check status surfaced next to the task; a two-way issue link, so an issue filed on
+      GitHub becomes an intake row and a task filed here can open an issue; and a repository picker
+      instead of pasting a webhook URL, which means a GitHub App, an installation token and the token
+      refresh that goes with it.
+      **Why it is not being done now.** Everything on that list needs *outbound authenticated* calls
+      to GitHub, which is a different thing from receiving a webhook: an App registration, an
+      installation flow, token storage and rotation, and rate-limit handling — for one vendor. This
+      project has no runtime dependencies and one generic webhook mechanism that already carries the
+      cheap half of the value. The honest sequencing is to do it when somebody is actually using the
+      hooks and can say which of those five things they wanted first, rather than guessing all five.
 
 - [x] **Real-time collaborative page editing.** A page body is now a **text CRDT** — RGA, stored as
       runs, written from first principles like everything else hard in this project. Two people
@@ -400,6 +427,60 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       restore), a subscription that returns 404 or 410 is deleted because that is how a push service
       says "gone", and permission is asked for only when somebody presses the switch — a site that
       asks on load is a site people block, and a blocked permission cannot be asked for twice.
+- [x] **An instant messenger: channels and direct messages.** Built out of the same synced rows as
+      everything else, which is the whole design rather than a shortcut. A message sends from a
+      train and arrives when the tunnel ends, appears on the other person's screen without a socket
+      to reconnect, survives a reload, and turns up in search and in a backup. No second protocol,
+      and nothing extra that can be down.
+      **A direct conversation has no id of its own.** Two people can open one with each other while
+      both are offline; if each device invented an id, the tunnel would end and there would be two
+      conversations holding half the history each. So the id is derived from the members —
+      `dm.<a>.<b>`, sorted — which makes creating one and finding one the same operation. Built from
+      the ids rather than a hash of them, because a hash can collide and a collision here would
+      silently merge two people's private conversations. That is also why three or more people is a
+      *named private channel* rather than a bigger direct message: the id only stays collision-free
+      while it is a concatenation. The server reads a direct channel's members back out of its id
+      and overwrites what was sent, because the id is what the other device derived too.
+      **Visibility is one rule written in four places** — SQL for the delta pull, SQL for the REST
+      list, a function for reads and writes by id, a join for search — because each has to be shaped
+      for its own query. Four copies is four chances to get it wrong, so the tests ask each of them
+      the same question about the same channels and require the same answer. Search is the one that
+      would have leaked: the index has no idea who may read a conversation, so message hits are
+      checked against their channel *before* the result list is trimmed. Membership cannot be
+      self-granted either, even though the member list is an ordinary synced field.
+      **Notifying everybody about every line was the thing not to do.** A channel that pings its
+      whole membership is a channel people mute, and a muted channel tells nobody anything. So a
+      channel notifies whoever was named plus anybody who asked for all of it; a direct message
+      always notifies, because being written to directly is where silence would be wrong; and muting
+      beats a mention, since somebody who set a conversation to *nothing* meant it.
+      Read markers are private — where somebody has got to is nobody else's business — and only ever
+      move forwards, or a conversation just read would come back unread on the other device.
+      **Deliberately not there:** no typing indicator and no presence dot. Both are ephemeral state,
+      and the realtime channel here carries "something changed up to seq N" and nothing else, on
+      purpose, so that catching up after a tunnel and hearing about a change live are one code path.
+      Adding per-keystroke state would mean a second mechanism with its own reconnection logic. If
+      it is ever added it should be its own transport rather than a widening of this one. Also no
+      read receipts (the marker exists and is private; making it public is a one-way door), no voice
+      or video, and no separate thread view.
+- [x] **Telegram notifications.** A fourth channel, next to the bell, email and Web Push, and the
+      only one that reaches a phone in a second without a browser being open. An operator configures
+      exactly one thing — a bot token — and every person connects their own chat from Settings.
+      The consent model is Telegram's own and happens to be the right one: **a bot cannot message a
+      chat that has never written to it**, so there is no version of this where an admin points
+      somebody else's notifications anywhere. Kolibri hands out a single-use code, the person taps
+      `t.me/<bot>?start=<code>`, and the chat id arrives with the update. Fifteen minutes, one use.
+      Kolibri never learns a phone number.
+      Updates are collected by **long-polling `getUpdates`, not a webhook**: a webhook needs a public
+      HTTPS URL, which a self-hosted instance behind NAT does not have, and long polling needs only
+      the outbound request this app already makes for S3 and SMTP. The cost is that `getUpdates` has
+      one consumer, so two instances must not share a bot — written down in `docs/notifications.md`
+      rather than left to be discovered.
+      Disconnecting works from either end: the button, or `/stop` in the chat. An account that blocks
+      the bot is disconnected on the `403` rather than retried forever, because that is consent being
+      withdrawn. Delivery is recorded on the notification row itself — sent-at, attempts, last error
+      — and retried on the hourly sweep up to a limit; a send is never awaited by the write that
+      caused it. An "important only" setting exists and uses the same set of kinds email does, since
+      a rule that differs per channel is a rule nobody can predict.
 - [x] **Object-storage migration command.** `kolibri files move <disk|s3>` reads each blob from
       wherever its row says it is and updates the row only once the bytes have landed, so an
       interrupted move leaves an instance that still works. The old copies are left in place on
@@ -439,8 +520,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 381 cases across the server and the client) or by the browser walkthrough
-(`node scripts/smoke.mjs`, which runs in English, German and French):
+(`npm test`, 470 cases across the server and the client) or by the browser walkthrough
+(`node scripts/smoke.mjs`, seventeen steps, which runs in English, German and French):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -452,7 +533,13 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Uploads content-addressed, dimensions detected, unauthenticated download refused
 - [x] Page history written on body change
 - [x] MCP `initialize` / `tools/list` / `tools/call`, and a write refused on a read-only token
-- [x] Full-text search finds a task by a word in its title
+- [x] Full-text search finds a task by a word in its title, and a message only for somebody in the
+      conversation it was said in
+- [x] A direct conversation opened offline by both people is one conversation, not two
+- [x] The four places the chat visibility rule is written all answer alike, alive and deleted
+- [x] A guest may write their own read marker and nothing else, through REST and per-mutation in the
+      sync push
+- [x] A pasted screenshot reaches the stream and actually renders, in all three languages
 - [x] SMTP against a real server socket: EHLO, AUTH, dot-stuffing, MIME, UTF-8 subjects
 - [x] Notification batching, per-user preferences, unsubscribe signature, retry with backoff
 - [x] S3 against a fake store that **verifies the SigV4 signature**: bucket creation, round trip,
@@ -503,6 +590,85 @@ So the list above is read in proportion — these are covered by automated tests
       separate process, which then reports a healthy database holding the rows that were backed up
 - [x] The doctor notices a search index that has drifted in either direction, a file row whose bytes
       are gone, and rows the housekeeping sweep would have removed
+
+## The chat's decisions, taken
+
+Each of these had two defensible answers. They were put to the maintainer rather than guessed, and
+this is what was chosen — written down so that "this was decided" and "nobody looked" cannot be
+confused later.
+
+- [x] **Who may add somebody to a private channel: settable per channel.** `members` (anybody in the
+      room, the default) or `admins` (its creator plus workspace owners). Per channel because a team
+      channel and one a client can see want different answers and the same workspace holds both.
+      Changing the setting is itself an admin decision, or it protects nothing. Two rules hold
+      regardless: leaving is always yours to do — taking only your own name off is not managing the
+      room — and the last person out cannot leave an empty room standing, because it would be
+      invisible to everybody and impossible to reopen.
+- [x] **Deleting a channel hides the room and keeps what was said.** Archiving does the same and also
+      refuses new messages. Both are undoable from the trash, and the trash being emptied is the one
+      moment anything is actually destroyed. A chat history is often the record of a decision, so
+      nothing here throws one away on a single click. Channels are in the trash screen; **messages
+      are not** — a message somebody deleted should stay deleted, and a list of them would be a way
+      to read what was withdrawn.
+- [x] **An offline message shows the time it arrived**, not the time it was typed. Consistent with
+      every other timestamp in the app, and it denies a device with a wrong clock the ability to pin
+      a message to the top of a conversation.
+- [x] **A chat message is not in the email digest.** It is important for the instant channels —
+      Telegram, Web Push — and excluded from email, because email is batched on purpose and a chat
+      message in a two-hour summary is one answered too late to matter. One definition in
+      `shared/src/chat.ts` serves both, so they cannot drift apart again.
+- [x] **Pictures in a conversation.** Paste or drop a screenshot into the composer; it uploads,
+      downscales and goes in as markdown, the same path comments and pages use. This also exposed a
+      real bug: `reclaimFiles` keeps a blob only while something on a written-out list names its
+      hash, and chat was a new place to paste an image that was not added to it — so emptying the
+      trash took the picture while the message went on showing it. Fixed, and the list's own comment
+      had warned about exactly this.
+- [x] **Reactions on messages.** The same six as comments, the same storage shape. Anybody in the
+      room may react to anybody's message: that is the one thing you may do to another person's
+      words, and it is not a change to them. The server allows precisely that and nothing alongside
+      it — a reaction sent together with an edit is an edit, and refused.
+- [x] **Chat is in the guide and in the hierarchy explorer.** A feature card with a narrated
+      animation of the case that is hard to believe — two people opening the same conversation with
+      no signal and ending up in one room — plus `channel`, `message` and the read marker as nodes in
+      the containment tree, which `hierarchy.tsx` says in its own header it should track.
+- [x] **A guest may write their own read marker, and nothing else.** Not a chat exception but a
+      general one, declared as `guestWritable` on the entity in the registry and currently true of
+      exactly one entity. The reasoning: that row is not content — it is a note somebody keeps about
+      their own position in a conversation, private to them and read by nobody. Without it a guest's
+      unread count climbed and could never come down, and a number that cannot reach zero is worse
+      than no number. Both write paths ask the registry rather than the role alone, and the sync push
+      asks it *per mutation*, so a read marker batched beside something a guest may not write still
+      goes through while the rest come back rejected.
+      Noted while doing it: a guest cannot mark a **notification** read either, so the Inbox badge
+      still has the flaw the chat badge just lost. One word in the registry fixes it, and it was left
+      alone because it was not what was asked for.
+- [x] **A project export takes its conversations.** The open ones, and what was said in them, read
+      back on import. Private channels are left out on purpose: an export is a document somebody
+      emails, and a private room's point is that seeing the project is not enough to be in it.
+      Finding this also fixed a silent bug — the import mapped message authors by email and then had
+      that mapping overwritten by the create-default, so every imported message would have been
+      attributed to whoever pressed import.
+
+## The chat's decisions still open
+
+- [ ] **How much history a device keeps.** Decided for now as *everything*, and recorded here to be
+      looked at again. Every message ever sent is synced to every device that may see it and held in
+      memory — the same rule as tasks, except chat is the one entity whose volume grows without
+      bound. Nothing is wrong today and nothing has been measured. The options when it does start to
+      hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
+      first is the size of one device's mirror after a busy year.
+- [ ] **An assistant cannot read a conversation.** MCP exposes 23 tools over tasks, pages, time and
+      cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
+      task and the page and misses the room the decision was actually made in. The permission story
+      is already settled: a token acts as the person it belongs to, so it would see exactly what they
+      see and nothing more. Left out because documenting and shipping what exists came first, not
+      because it is hard.
+- [ ] **Typing indicators and presence.** Still out. The realtime channel deliberately carries
+      "something changed up to seq N" and nothing else, so catching up after a tunnel and hearing
+      about a change live are one code path. If they are wanted, the honest shape is a second
+      ephemeral transport rather than widening this one — see [`docs/chat.md`](docs/chat.md).
+- [ ] **Read receipts.** The read marker exists and is private. Making it visible to others is a
+      one-way door socially, so it stays a decision rather than a feature.
 
 ## Known-unknowns
 

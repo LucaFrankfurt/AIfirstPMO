@@ -7,6 +7,7 @@ import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
 import { CommandPalette } from './CommandPalette';
+import { useUnreadMessages } from '../routes/chat';
 
 /* ------------------------------------------------------------ sync status */
 
@@ -101,6 +102,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return out;
   }, [projects]);
   const unread = useQuery(() => list('notification', (n) => n.user_id === me && !n.read_at).length, [me]);
+  const unreadMessages = useUnreadMessages(me);
   const myOpen = useQuery(
     () => list('task', (t) => (t.assignees ?? []).includes(me) && !t.archived).length,
     [me],
@@ -172,6 +174,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Item to="/" icon="home" count={myOpen}>{t('nav.myWork')}</Item>
         <Item to="/inbox" icon="inbox" count={unread}>{t('nav.inbox')}</Item>
         <Item to="/search" icon="search">{t('nav.search')}</Item>
+        <Item to="/chat" icon="chat" count={unreadMessages}>{t('nav.chat')}</Item>
         <Item to="/pages" icon="page">{t('nav.pages')}</Item>
         <Item to="/teams" icon="users">{t('nav.teams')}</Item>
         <Item to="/guide" icon="help">{t('nav.guide')}</Item>

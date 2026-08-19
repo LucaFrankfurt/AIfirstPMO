@@ -112,6 +112,11 @@ const REFERENCES: [table: string, column: string][] = [
   ['cycles', 'description'],
   ['modules', 'description'],
   ['comments', 'body'],
+  // A screenshot pasted into a conversation. Missing this line meant emptying
+  // the trash took the picture while the message went on showing it — exactly
+  // the failure the paragraph above warns about, in the first new paste target
+  // added after it was written.
+  ['messages', 'body'],
   ['templates', 'description'],
   ['users', 'avatar_url'],
 ];

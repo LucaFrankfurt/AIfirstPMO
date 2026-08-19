@@ -148,6 +148,10 @@ export function Inbox() {
                   markNotificationRead(notification.id);
                   if (notification.task_id) openTask({ id: notification.task_id });
                   else if (notification.page_id) navigate(`/pages/${notification.page_id}`);
+                  // Something somebody said opens the conversation they said it
+                  // in. Without this the row announces a message and then does
+                  // nothing when pressed, which is worse than not sending it.
+                  else if (notification.channel_id) navigate(`/chat/${notification.channel_id}`);
                   // A report from outside is about a project's queue rather
                   // than a row, so it opens the tab that holds it.
                   else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);
@@ -221,6 +225,12 @@ export function Search() {
       const comment = byId('comment', hit.id);
       if (comment?.task_id) openTask({ id: comment.task_id });
       else toast(t('search.commentGone'));
+    } else if (hit.kind === 'message') {
+      // The conversation, not the message: a stream has no anchor to scroll to
+      // and pretending otherwise would be a link that lands in the wrong place.
+      const message = byId('message', hit.id);
+      if (message?.channel_id) navigate(`/chat/${message.channel_id}`);
+      else toast(t('search.messageGone'));
     }
   };
 

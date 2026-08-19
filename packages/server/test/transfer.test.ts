@@ -74,6 +74,14 @@ before(async () => {
     id: `${parent.id}.${field.id}`, project_id: projectId, task_id: parent.id, field_id: field.id, value: 'High',
   });
   await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, title: 'Checklist', content: '- Boxes' });
+
+  // A conversation about this project, and a private one that must not travel.
+  const room = await ok(`/api/workspaces/${workspaceId}/channels`, { name: 'moving-day', project_id: projectId });
+  await ok(`/api/workspaces/${workspaceId}/messages`, { channel_id: room.id, body: 'Van booked for Tuesday.' });
+  const backroom = await ok(`/api/workspaces/${workspaceId}/channels`, {
+    name: 'the-quiet-part', project_id: projectId, is_private: 1,
+  });
+  await ok(`/api/workspaces/${workspaceId}/messages`, { channel_id: backroom.id, body: 'Do not put this in a file.' });
 });
 
 after(() => {
@@ -98,6 +106,36 @@ describe('exporting', () => {
     assert.match(doc.tasks[0].created_at_iso, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal('seq' in doc.tasks[0], false, 'and nothing that only means something on the old instance');
     assert.equal('clocks' in doc.tasks[0], false);
+  });
+});
+
+describe('conversations in a project document', () => {
+  it('takes the open channel and what was said in it', async () => {
+    const doc = await exportDoc();
+    assert.equal(doc.channels.length, 1);
+    assert.equal(doc.channels[0].name, 'moving-day');
+    assert.equal(doc.messages.length, 1);
+    assert.match(doc.messages[0].body, /Van booked/);
+  });
+
+  it('leaves a private one behind, contents and all', async () => {
+    const raw = JSON.stringify(await exportDoc());
+    assert.ok(!raw.includes('the-quiet-part'), 'a private room must not be in a file somebody emails');
+    assert.ok(!raw.includes('Do not put this in a file'));
+  });
+
+  it('reads them back as a conversation in the new project', async () => {
+    const doc = await exportDoc();
+    const result = await ok(`/api/workspaces/${workspaceId}/import/json`, { document: doc, name: 'Talkative' });
+    const channels = await ok(`/api/workspaces/${workspaceId}/channels?project_id=${result.project.id}`);
+    assert.equal(channels.length, 1);
+    assert.equal(channels[0].name, 'moving-day');
+    const messages = await ok(`/api/workspaces/${workspaceId}/messages?channel_id=${channels[0].id}`);
+    assert.equal(messages.length, 1);
+    assert.match(messages[0].body, /Van booked/);
+    // The author is matched by email like everything else, not rewritten to
+    // whoever pressed import.
+    assert.ok(messages[0].author_id);
   });
 });
 

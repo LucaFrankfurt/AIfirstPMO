@@ -2,6 +2,7 @@ import {
   ENTITY_NAMES,
   ENTITIES,
   entityDef,
+  isGuestWritable,
   type ChangeSet,
   type EntityName,
   type Mutation,
@@ -68,6 +69,26 @@ function filterFor(entity: EntityName): string {
     case 'page':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
               AND (${table}.access <> 'private' OR ${table}.created_by = ?2)`;
+    // A conversation is visible when it is not private, or when the person is
+    // named in it. A channel tied to a project follows that project as well:
+    // an open channel inside a project people cannot see is still not theirs.
+    case 'channel':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
+              AND (${table}.is_private = 0
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.members) WHERE json_each.value = ?2))`;
+    // Messages inherit their channel's answer, exactly — including `deleted_at`.
+    // Leaving that out was a real bug: a deleted conversation kept sending its
+    // messages to members whose devices no longer had a channel to put them in.
+    case 'message':
+      return `AND EXISTS (
+                SELECT 1 FROM channels c
+                 WHERE c.id = ${table}.channel_id
+                   AND c.deleted_at IS NULL
+                   AND (c.project_id IS NULL OR c.project_id IN (${VISIBLE_PROJECTS}))
+                   AND (c.is_private = 0
+                        OR EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;
+    case 'channelRead':
+      return `AND ${table}.user_id = ?2`;
     case 'comment':
     case 'attachment':
       return `AND (${table}.task_id IS NULL OR EXISTS (
@@ -133,7 +154,12 @@ export function registerSyncRoutes(router: Router): void {
     const workspaceId = body.workspaceId;
     const role = requireWorkspace(ctx, workspaceId);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    if (!hasRole(role, 'member')) throw forbidden('Guests cannot modify this workspace');
+    // A guest writes nothing except the rows that are entirely about themselves
+    // — see `guestWritable` in the registry. Refused per mutation rather than
+    // per push: a read marker batched beside something a guest may not write
+    // should still go, and the rejection of the rest already has a shape the
+    // client understands.
+    const guest = !hasRole(role, 'member');
     if (!Array.isArray(body.mutations)) throw badRequest('mutations must be an array');
     if (body.mutations.length > 500) throw badRequest('Too many mutations in one push (max 500)');
 
@@ -143,6 +169,9 @@ export function registerSyncRoutes(router: Router): void {
 
     for (const mutation of body.mutations) {
       try {
+        if (guest && !isGuestWritable(mutation.entity as EntityName)) {
+          throw forbidden('Guests cannot modify this workspace');
+        }
         const result = applyMutation(mutation, workspaceId, auth.userId, body.clientId);
         accepted.push(mutation.id);
         if (result) {

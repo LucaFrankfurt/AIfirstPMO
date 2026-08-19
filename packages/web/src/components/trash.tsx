@@ -30,6 +30,11 @@ const KINDS: { entity: EntityName; label: TranslationKey; icon: string }[] = [
   { entity: 'cycle', label: 'trash.kindCycle', icon: 'cycle' },
   { entity: 'module', label: 'trash.kindModule', icon: 'target' },
   { entity: 'comment', label: 'trash.kindComment', icon: 'inbox' },
+  // A deleted channel hides the room and keeps everything said in it, so
+  // putting it back is putting the conversation back. Messages are not listed:
+  // a message somebody deleted should stay deleted, and a list of them would
+  // be a way to read what was withdrawn.
+  { entity: 'channel', label: 'trash.kindChannel', icon: 'chat' },
 ];
 
 interface Entry {
@@ -54,7 +59,10 @@ function useRecoverable(workspaceId: string, mode: 'deleted' | 'archived'): Entr
       for (const row of tables[entity].values()) {
         const record = row as Record<string, any>;
         if (record.workspace_id !== workspaceId) continue;
-        if (mode === 'deleted' ? !record.deleted_at : record.deleted_at || !record.archived) continue;
+        // A channel records when it was archived rather than that it was; the
+        // rest carry a flag. Both mean the same thing to this screen.
+        const isArchived = record.archived_at ? true : !!record.archived;
+        if (mode === 'deleted' ? !record.deleted_at : record.deleted_at || !isArchived) continue;
         // Archiving is not a concept for a comment, and a deleted comment
         // belongs to a task that may itself be gone.
         if (mode === 'archived' && (entity === 'comment' || entity === 'cycle')) continue;
@@ -94,6 +102,7 @@ export function Trash() {
 
   const bring = (entry: Entry) => {
     if (mode === 'deleted') restore(entry.entity, entry.id);
+    else if (entry.entity === 'channel') update(entry.entity, entry.id, { archived_at: null });
     else update(entry.entity, entry.id, { archived: 0 });
     toast(t('trash.restored', { title: entry.title }));
   };

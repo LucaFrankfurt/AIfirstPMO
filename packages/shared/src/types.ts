@@ -2,6 +2,7 @@ import type { EntityName } from './entities.ts';
 import type { CrdtState } from './text-crdt.ts';
 import type { HLC } from './hlc.ts';
 import type { Anchor } from './anchor.ts';
+import type { ChannelKind, ChannelNotify, InvitePolicy } from './chat.ts';
 
 export type ID = string;
 export type ISODate = string;
@@ -619,6 +620,8 @@ export interface Notification extends Base {
   page_id: ID | null;
   /** Where to go when it is about neither one task nor one page. */
   project_id: ID | null;
+  /** The conversation, when it is about something somebody said in one. */
+  channel_id: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;
@@ -681,7 +684,63 @@ export interface EntityMap {
   notification: Notification;
   activity: Activity;
   intake: Intake;
+  channel: Channel;
+  message: Message;
+  channelRead: ChannelRead;
   purge: Purge;
+}
+
+/* ------------------------------------------------------------------- chat */
+
+/**
+ * A conversation: a named channel, or the direct one between two people.
+ *
+ * A direct channel's `id` is derived from its two members rather than invented
+ * — see `chat.ts`. That is what lets two people open a conversation with each
+ * other while both are offline and still end up in one conversation.
+ */
+export interface Channel extends Base {
+  workspace_id: ID;
+  /** Set to tie the channel to a project; it then follows that project's visibility. */
+  project_id: ID | null;
+  kind: ChannelKind;
+  /** Lowercase and dash-joined. Empty for a direct conversation, which has no name of its own. */
+  name: string;
+  topic: string | null;
+  is_private: number;
+  /** Who can see it. Empty means the workspace, not nobody. */
+  members: ID[];
+  /** Who may change that list: anybody in it, or only its creator and workspace admins. */
+  invite_policy: InvitePolicy;
+  archived_at: number | null;
+  created_by: ID | null;
+}
+
+export interface Message extends Base {
+  workspace_id: ID;
+  channel_id: ID;
+  author_id: ID | null;
+  body: string;
+  /** The message this one answers, for a short thread inside the stream. */
+  reply_to: ID | null;
+  /** `{ "👍": [userId, …] }` — the same shape comments use. */
+  reactions: Record<string, ID[]>;
+  /** Stamped by the server when the body changes, never taken from a client. */
+  edited_at: number | null;
+}
+
+/**
+ * How far one person has read one conversation.
+ *
+ * Private to them: where somebody has got to is nobody else's business, and a
+ * read receipt is deliberately not a feature here.
+ */
+export interface ChannelRead extends Base {
+  workspace_id: ID;
+  channel_id: ID;
+  user_id: ID;
+  last_read_at: number;
+  notify: ChannelNotify;
 }
 
 /* --------------------------------------------------------- sync protocol */

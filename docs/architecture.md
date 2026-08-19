@@ -24,6 +24,12 @@ which of them only the server may write. Everything else is derived from it:
 
 Adding a field is one line there plus a column in `schema.sql`. Nothing else needs to know.
 
+Three flags on an entity are worth knowing about, because they are how an exception stays declared
+rather than scattered: `serverOnly` (a field a client may not write), `private` (rows belong to one
+person and are not shared with the workspace) and `guestWritable` (a row somebody with no write
+access may still write, because it is a note they keep about themselves — currently `channelRead`
+and only that).
+
 ## Server
 
 Zero runtime dependencies — `node:http`, `node:sqlite`, `node:crypto` and nothing else. Node 22.18+
@@ -37,6 +43,8 @@ runs the TypeScript sources directly, so there is no build step and no `dist/` t
 | `lib/bootstrap.ts` | workspace/project creation with default states and labels |
 | `lib/mcp.ts` | MCP tools, prompts, resources; plain JSON-RPC, no SDK |
 | `lib/automation.ts` | rules: what fired, who it resolves to, and why it did nothing |
+| `lib/notify.ts` | writing a notification, and every channel that has to hear about it |
+| `lib/telegram.ts` | the bot: long-polled updates, single-use link codes, delivery |
 | `lib/ratelimit.ts` | token buckets per address **and** per account, in memory |
 | `lib/csp.ts` | the content policy, computed because the object store may be off-origin |
 | `routes/sync.ts` | `pull`, `push` and the SSE change stream |

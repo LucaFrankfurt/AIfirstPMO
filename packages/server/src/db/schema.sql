@@ -26,6 +26,12 @@ CREATE TABLE IF NOT EXISTS users (
   totp_secret   TEXT,
   totp_confirmed_at INTEGER,
   recovery_codes TEXT NOT NULL DEFAULT '[]',
+  -- Telegram. `telegram_chat_id` is set once the person has started the bot
+  -- themselves; until then there is nowhere to send to and the channel is off
+  -- regardless of the preference.
+  telegram_chat_id TEXT,
+  telegram_prefs TEXT NOT NULL DEFAULT 'all',
+  telegram_linked_at INTEGER,
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,
   deleted_at    INTEGER,
@@ -685,11 +691,20 @@ CREATE TABLE IF NOT EXISTS notifications (
   task_id      TEXT,
   page_id      TEXT,
   -- Where to go when the notification is not about one task or one page. A
-  -- report from outside is about a project's queue, not a row.
+  -- report from outside is about a project's queue, not a row; a message is
+  -- about a conversation.
   project_id   TEXT,
+  channel_id   TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,
+  -- Telegram delivery, tracked on the notification rather than in a second
+  -- queue: the row already exists, already belongs to one recipient, and is
+  -- the thing being delivered. `telegram_sent_at` null with attempts below the
+  -- limit is what the retry sweep looks for.
+  telegram_sent_at INTEGER,
+  telegram_attempts INTEGER NOT NULL DEFAULT 0,
+  telegram_error TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,
@@ -760,6 +775,89 @@ CREATE TABLE IF NOT EXISTS activities (
 );
 CREATE INDEX IF NOT EXISTS activities_seq ON activities (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS activities_task ON activities (task_id, created_at);
+
+-- Conversations. A named channel, or the direct one between two people.
+--
+-- A direct channel's id is derived from its members (`dm.<a>.<b>`, sorted), so
+-- two people opening a conversation with each other while both are offline end
+-- up in one conversation rather than two holding half the history each. See
+-- packages/shared/src/chat.ts.
+--
+-- `members` empty means the workspace rather than nobody: an open channel is
+-- open, and the alternative is writing every member into every channel and then
+-- keeping that list right as people join and leave.
+CREATE TABLE IF NOT EXISTS channels (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  -- A channel can belong to a project, and then it is only visible to people
+  -- who can see that project. Null is a workspace-wide channel.
+  project_id   TEXT,
+  kind         TEXT NOT NULL DEFAULT 'channel',
+  name         TEXT NOT NULL DEFAULT '',
+  topic        TEXT,
+  is_private   INTEGER NOT NULL DEFAULT 0,
+  members      TEXT NOT NULL DEFAULT '[]',
+  -- Who may add and remove people here: 'members' (anybody already in it) or
+  -- 'admins' (whoever opened it, plus a workspace owner or admin). Per channel
+  -- rather than per instance, because a team channel and a channel a client
+  -- can see want different answers and both exist in the same workspace.
+  invite_policy TEXT NOT NULL DEFAULT 'members',
+  archived_at  INTEGER,
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS channels_seq ON channels (workspace_id, seq);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id   TEXT NOT NULL,
+  author_id    TEXT,
+  body         TEXT NOT NULL DEFAULT '',
+  -- The message this one answers, for a short thread inside the stream. Not a
+  -- separate thread view: a conversation that needs one is a page.
+  reply_to     TEXT,
+  -- { "👍": [userId, …] }, the same shape comments have used since the first
+  -- release. Counting is the point; who reacted is a tooltip.
+  reactions    TEXT NOT NULL DEFAULT '{}',
+  edited_at    INTEGER,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS messages_seq ON messages (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS messages_channel ON messages (channel_id, created_at);
+
+-- How far one person has read one conversation, and what they want told to
+-- them about it. Private: where somebody has got to is nobody else's business,
+-- and a read receipt is deliberately not a feature here.
+--
+-- The id is `<channel>::<user>` so two devices marking the same conversation
+-- read converge on one row instead of racing to create two.
+CREATE TABLE IF NOT EXISTS channel_reads (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id   TEXT NOT NULL,
+  user_id      TEXT NOT NULL,
+  last_read_at INTEGER NOT NULL DEFAULT 0,
+  -- 'all' | 'mentions' | 'none'. The default is 'mentions' for a channel and
+  -- 'all' for a direct conversation — being written to directly is the case
+  -- where silence would be wrong.
+  notify       TEXT NOT NULL DEFAULT 'mentions',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS channel_reads_seq ON channel_reads (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS channel_reads_user ON channel_reads (user_id, channel_id);
 
 CREATE TABLE IF NOT EXISTS applied_mutations (
   id           TEXT PRIMARY KEY,
@@ -838,3 +936,30 @@ CREATE TABLE IF NOT EXISTS email_queue (
   created_at   INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS email_queue_pending ON email_queue (sent_at, failed_at, send_after);
+
+-- One-time codes that connect a Kolibri account to a Telegram chat.
+--
+-- The account holder starts the conversation from their own Telegram, which is
+-- the only way round that works: the server cannot message a chat it has never
+-- heard of, and asking somebody to paste a numeric chat id is asking them to
+-- find something Telegram does not show. So Kolibri hands out a code, the
+-- person taps a link that sends `/start <code>` to the bot, and the update
+-- carries the chat id with it.
+--
+-- Short-lived and single-use. A code that survived would be a way to point
+-- somebody else's notifications at your own chat.
+CREATE TABLE IF NOT EXISTS telegram_links (
+  code       TEXT PRIMARY KEY,
+  user_id    TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS telegram_links_user ON telegram_links (user_id);
+
+-- Where the long poll got to. One row, id 1: `getUpdates` is a cursor, and
+-- losing it would replay every update the bot ever received.
+CREATE TABLE IF NOT EXISTS telegram_cursor (
+  id        INTEGER PRIMARY KEY CHECK (id = 1),
+  offset    INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);

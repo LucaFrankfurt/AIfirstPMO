@@ -13,7 +13,8 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Header } from '../components/AppShell';
 import {
-  AssistantDiagram, AutomationDiagram, CaptureDiagram, CollaborationDiagram,
+  AssistantDiagram, AutomationDiagram, CaptureDiagram, ChatDiagram,
+  CollaborationDiagram,
   OverviewDiagram, PagesDiagram, PlanningDiagram, SyncDiagram, ViewsDiagram,
 } from '../components/diagrams';
 import { HierarchyExplorer } from '../components/hierarchy';
@@ -220,6 +221,18 @@ function Features() {
         steps={['guide.collab.h1', 'guide.collab.h2', 'guide.collab.h3', 'guide.collab.h4']}
       >
         <CollaborationDiagram />
+      </Feature>
+
+      <Feature
+        id="chat"
+        icon="chat"
+        title="guide.chat.title"
+        lead="guide.chat.lead"
+        to="/chat"
+        linkLabel="guide.chat.cta"
+        steps={['guide.chat.h1', 'guide.chat.h2', 'guide.chat.h3', 'guide.chat.h4']}
+      >
+        <ChatDiagram />
       </Feature>
 
       <Feature
