@@ -201,19 +201,19 @@ function AcceptSheet({
     >
       <div className="field">
         <label htmlFor="intake-title">{t('task.title')}</label>
-        <input id="intake-title" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} />
+        <input id="intake-title" className="input" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} />
         <span className="hint">{t('intake.titleHint')}</span>
       </div>
       <div className="grid two">
         <div className="field">
           <label htmlFor="intake-state">{t('view.groupState')}</label>
-          <select id="intake-state" value={stateId} onChange={(event) => setStateId(event.target.value)}>
+          <select id="intake-state" className="select" value={stateId} onChange={(event) => setStateId(event.target.value)}>
             {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
           </select>
         </div>
         <div className="field">
           <label htmlFor="intake-type">{t('type.label')}</label>
-          <select id="intake-type" value={typeId} onChange={(event) => setTypeId(event.target.value)}>
+          <select id="intake-type" className="select" value={typeId} onChange={(event) => setTypeId(event.target.value)}>
             <option value="">{t('type.none')}</option>
             {types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
           </select>

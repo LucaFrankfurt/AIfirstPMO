@@ -1,20 +1,75 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { renderMarkdown } from '@kolibri/shared';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { renderMarkdown, type MarkdownRefs } from '@kolibri/shared';
 
 import { api } from '../lib/api';
+import { list, useQuery } from '../lib/store';
+import { backgroundOf } from '../lib/navigation';
 import { useMembers, useSession } from '../session';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, useLightbox, useToast } from './ui';
 
+/**
+ * What a reference in this workspace may point at.
+ *
+ * The renderer is handed the project keys rather than a pattern, because a
+ * pattern cannot tell `WEB-42` from `UTF-8` and a line about an encoding should
+ * not sprout a link to a task nobody has. Both come out of the synced cache, so
+ * a reference resolves on a train like everything else here.
+ */
+export function useMarkdownRefs(): MarkdownRefs {
+  const { workspaceId } = useSession();
+  const projects = useQuery(
+    () => list('project', (project) => project.workspace_id === workspaceId && !project.deleted_at),
+    [workspaceId],
+  );
+  return useMemo(() => {
+    const byKey = new Map(projects.filter((project) => project.key).map((project) => [project.key as string, project.id]));
+    return {
+      keys: [...byKey.keys()],
+      projectHref: (key: string) => {
+        const id = byKey.get(key);
+        return id ? `/projects/${id}` : undefined;
+      },
+    };
+  }, [projects]);
+}
+
 export function Markdown({ source, className = '' }: { source?: string | null; className?: string }) {
-  const html = useMemo(() => renderMarkdown(source ?? ''), [source]);
+  const refs = useMarkdownRefs();
+  const html = useMemo(() => renderMarkdown(source ?? '', refs), [source, refs]);
   // Click-to-enlarge is delegated: the renderer produces plain HTML, so there
   // are no image components to hand a handler to.
   const { open, lightbox } = useLightbox();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  /**
+   * Follow a link to somewhere in this app without reloading it.
+   *
+   * The renderer produces plain anchors, and a plain anchor to `/t/WEB-42` is a
+   * full page load — which on an offline-first app means throwing away the
+   * cache and the socket to arrive at a screen the router could have drawn.
+   * Modified clicks are left alone: opening a task in a new tab is a reasonable
+   * thing to want, and taking that away to be clever is not.
+   */
+  const click = (event: React.MouseEvent<HTMLDivElement>) => {
+    open(event);
+    const anchor = (event.target as HTMLElement).closest?.('a');
+    const href = anchor?.getAttribute('href');
+    if (!anchor || !href?.startsWith('/') || anchor.target === '_blank') return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    event.preventDefault();
+    // A task opens as a sheet over what you were reading, the way every other
+    // task link in the app does.
+    const background = href.startsWith('/t/') ? { state: { background: backgroundOf(location) ?? location } } : undefined;
+    navigate(href, background);
+  };
+
   if (!source?.trim()) return null;
   return (
     <>
-      <div className={`md ${className}`} onClick={open} dangerouslySetInnerHTML={{ __html: html }} />
+      <div className={`md ${className}`} onClick={click} dangerouslySetInnerHTML={{ __html: html }} />
       {lightbox}
     </>
   );
@@ -37,6 +92,16 @@ interface EditorProps {
    * end of the document every time a colleague saves is not collaboration.
    */
   fieldRef?: { current: HTMLTextAreaElement | null };
+}
+
+/** One row in the `#` menu — a project or a task, offered the same way. */
+interface RefChoice {
+  key: string;
+  /** What goes into the text: `#WEB`, or `WEB-42`. */
+  token: string;
+  icon: string;
+  label: string;
+  hint: string;
 }
 
 const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[] = [
@@ -66,12 +131,53 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   const toast = useToast();
   // The `@` menu: which handles match, and which of them is highlighted.
   const [mention, setMention] = useState<{ query: string; at: number; index: number } | null>(null);
+  // ...and the `#` menu, which offers work rather than people.
+  const [hash, setHash] = useState<{ query: string; at: number; index: number } | null>(null);
 
   const matches = mention
     ? members
       .filter((member) => `${member.name} ${member.email}`.toLowerCase().includes(mention.query.toLowerCase()))
       .slice(0, 6)
     : [];
+
+  /**
+   * What `#` offers: the projects and the tasks of this workspace.
+   *
+   * Both, in one menu, because from the writer's side they are the same act —
+   * naming the thing being discussed — and asking somebody to remember two
+   * prefixes for that is a way to have neither used. Projects first: there are
+   * few of them and they are what a conversation is usually about.
+   *
+   * Scanned from the synced cache and only while the menu is open, so a
+   * workspace with ten thousand tasks costs nothing until somebody types `#`.
+   */
+  const refMatches = useQuery(() => {
+    if (!hash) return [] as RefChoice[];
+    const query = hash.query.toLowerCase();
+    const projects = list('project', (project) => project.workspace_id === workspaceId && !project.archived)
+      .filter((project) => !query || `${project.key} ${project.name}`.toLowerCase().includes(query))
+      .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
+      .slice(0, 3)
+      .map((project): RefChoice => ({
+        key: project.id,
+        token: `#${project.key}`,
+        icon: project.icon || '🚀',
+        label: project.name ?? '',
+        hint: project.key ?? '',
+      }));
+    const tasks = list('task', (task) => task.workspace_id === workspaceId && !task.archived && !!task.identifier)
+      .filter((task) => !query || `${task.identifier} ${task.title}`.toLowerCase().includes(query))
+      .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))
+      .slice(0, 6 - projects.length)
+      .map((task): RefChoice => ({
+        key: task.id,
+        token: task.identifier as string,
+        icon: '',
+        label: task.title ?? '',
+        hint: task.identifier as string,
+      }));
+    return [...projects, ...tasks];
+  }, [hash?.query, workspaceId]);
 
   useEffect(() => {
     if (autoFocus) ref.current?.focus();
@@ -124,6 +230,40 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     requestAnimationFrame(() => {
       field?.focus();
       const to = mention.at + handle.length + 2;
+      field?.setSelectionRange(to, to);
+    });
+  };
+
+  /**
+   * Notice a `#` being typed and offer the work it could mean.
+   *
+   * The same word-boundary rule as `@`: a `#` inside a word is somebody writing
+   * a URL fragment or a C header, not asking for a menu. A markdown heading is
+   * `# ` with a space, which cannot match here either.
+   */
+  const trackRef = (text: string, caret: number) => {
+    const found = text.slice(0, caret).match(/(?:^|[\s(])#([\w-]*)$/);
+    setHash(found ? { query: found[1], at: caret - found[1].length - 1, index: 0 } : null);
+  };
+
+  /**
+   * Replace the partial `#...` with the reference itself.
+   *
+   * A task goes in as its bare identifier and a project as `#KEY` — the tokens
+   * people already write by hand — rather than as a markdown link. They are
+   * shorter to read in a chat line, they survive being quoted and edited, and
+   * the renderer turns both into links anyway. Writing a link here would make
+   * the message say something different from what was typed.
+   */
+  const pickRef = (choice: RefChoice) => {
+    if (!hash) return;
+    const field = ref.current;
+    const caret = field?.selectionStart ?? value.length;
+    onChange(`${value.slice(0, hash.at)}${choice.token} ${value.slice(caret)}`);
+    setHash(null);
+    requestAnimationFrame(() => {
+      field?.focus();
+      const to = hash.at + choice.token.length + 1;
       field?.setSelectionRange(to, to);
     });
   };
@@ -188,9 +328,30 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           onChange={(event) => {
             onChange(event.target.value);
             trackMention(event.target.value, event.target.selectionStart ?? 0);
+            trackRef(event.target.value, event.target.selectionStart ?? 0);
           }}
-          onBlur={() => setTimeout(() => setMention(null), 120)}
+          onBlur={() => setTimeout(() => {
+            setMention(null);
+            setHash(null);
+          }, 120)}
           onKeyDown={(event) => {
+            if (hash && refMatches.length) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                setHash({ ...hash, index: (hash.index + step + refMatches.length) % refMatches.length });
+                return;
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                pickRef(refMatches[hash.index]);
+                return;
+              }
+              if (event.key === 'Escape') {
+                setHash(null);
+                return;
+              }
+            }
             if (mention && matches.length) {
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault();
@@ -235,6 +396,25 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             void upload([...event.dataTransfer.files]);
           }}
         />
+        {hash && refMatches.length > 0 && (
+          <div className="mention-menu" role="listbox" aria-label={t('editor.mentionWork')}>
+            {refMatches.map((choice, index) => (
+              <button
+                key={choice.key}
+                type="button"
+                role="option"
+                aria-selected={index === hash.index}
+                className={index === hash.index ? 'active' : ''}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickRef(choice)}
+              >
+                <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon || '#'}</span>
+                <span className="grow truncate">{choice.label}</span>
+                <span className="muted mono truncate" style={{ fontSize: 11 }}>{choice.hint}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {mention && matches.length > 0 && (
           <div className="mention-menu" role="listbox" aria-label={t('editor.mentionPeople')}>
             {matches.map((member, index) => (

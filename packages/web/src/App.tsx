@@ -1,10 +1,10 @@
 import { useEffect } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
+import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { TaskDetail } from './components/TaskDetail';
 import { Empty, ToastHost } from './components/ui';
 import { WelcomeTour } from './components/tour';
-import { Login } from './routes/Login';
+import { AcceptInvite, Login } from './routes/Login';
 import { Portfolio } from './components/portfolio';
 import { Planner } from './components/planner';
 import { Inbox, More, MyWork, Search } from './routes/personal';
@@ -14,13 +14,14 @@ import { Chat } from './routes/chat';
 import { Help } from './routes/help';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
-import { backgroundOf, useOpenTask } from './lib/navigation';
+import { backgroundOf, useOpenTask, useTaskRef } from './lib/navigation';
 import { useSession } from './session';
 import { useI18n, type Locale } from './lib/i18n';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
 function TaskRoute() {
   const { id = '' } = useParams();
+  const taskId = useTaskRef(id);
   const navigate = useNavigate();
   const location = useLocation();
   const openTask = useOpenTask();
@@ -29,7 +30,7 @@ function TaskRoute() {
     if (backgroundOf(location)) navigate(-1);
     else navigate('/', { replace: true });
   };
-  return <TaskDetail taskId={id} onClose={close} onOpen={openTask} />;
+  return <TaskDetail taskId={taskId} onClose={close} onOpen={openTask} />;
 }
 
 function Boot() {
@@ -75,6 +76,20 @@ export default function App() {
     );
   }
 
+  // An invite is accepted on a screen of its own rather than inside the app
+  // shell: the workspace it is about is not the one open behind it, so the
+  // sidebar beside it would be pointing at the wrong place — and an account
+  // with no workspace at all still has to be able to join one.
+  if (location.pathname.startsWith('/invite/')) {
+    return (
+      <ToastHost>
+        <Routes>
+          <Route path="/invite/:code" element={<AcceptInvite />} />
+        </Routes>
+      </ToastHost>
+    );
+  }
+
   if (!workspaceId) {
     return (
       <ToastHost>
@@ -107,7 +122,6 @@ export default function App() {
           <Route path="/teams" element={<Teams />} />
           <Route path="/guide" element={<Help />} />
           <Route path="/settings/*" element={<Settings />} />
-          <Route path="/invite/:code" element={<Navigate to="/" replace />} />
           <Route path="/t/:id" element={<MyWork />} />
           <Route path="*" element={<Empty emoji="🧭" title={t('misc.pageNotFound')} />} />
         </Routes>

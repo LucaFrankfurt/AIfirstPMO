@@ -603,3 +603,47 @@ describe('a guest and their own read marker', () => {
     assert.equal(get<any>(`SELECT body FROM messages WHERE id = 'nope'`), undefined);
   });
 });
+
+/* ------------------------------------------------------- joining afterwards */
+
+describe('somebody who joins the workspace later', () => {
+  /**
+   * Two accounts made separately on one instance start in two workspaces —
+   * signing up a second time makes a workspace, it does not join the first —
+   * so the way they come together is an invite, and the invite is accepted by
+   * an account that *already exists*.
+   *
+   * That is the case this test is about. Membership is what allows a device to
+   * see somebody's `user` row, and a delta pull only carries rows newer than
+   * that device's cursor. An account created before it joined has a sequence
+   * everybody already went past while it was still invisible to them, so
+   * without a nudge the new colleague arrives as a member with no user row
+   * behind them: a raw id where a name belongs, and nothing at all in the chat
+   * sidebar, which builds its list by looking each member up and dropping the
+   * ones it cannot find.
+   */
+  it('arrives with a name on the devices that were already synced', async () => {
+    const cursor = (await as(people.ada, `/api/sync/pull?workspace=${workspaceId}&since=0`)).cursor;
+
+    const ida = await register('ida@example.com', 'Ida');
+    // Registering does not join: Ida is nobody here yet, and Ada's device is
+    // already past the sequence Ida's row was written at.
+    const quiet = await as(people.ada, `/api/sync/pull?workspace=${workspaceId}&since=${cursor}`);
+    assert.ok(!idsOf(quiet.changes ?? {}, 'user').includes(ida.id), 'a stranger is not synced');
+
+    const invite = await as(people.ada, `/api/workspaces/${workspaceId}/invites`, { role: 'member' });
+    await as(ida, `/api/invites/${invite.code}/accept`, {});
+
+    // ...and the pull that saw nothing still moved the cursor past it. That is
+    // the whole trap: by the time Ida is allowed to be seen, every device has
+    // already walked past the row that says who she is.
+    const delta = await as(people.ada, `/api/sync/pull?workspace=${workspaceId}&since=${quiet.cursor}`);
+    const users = delta.changes?.user ?? [];
+    assert.ok(users.some((row: any) => row.id === ida.id), 'the person who joined comes with the membership');
+    assert.equal(users.find((row: any) => row.id === ida.id).name, 'Ida', 'and with their name, not just their id');
+    assert.ok(
+      idsOf(delta.changes ?? {}, 'member').length > 0,
+      'the membership row itself is there too — the name would be useless alone',
+    );
+  });
+});

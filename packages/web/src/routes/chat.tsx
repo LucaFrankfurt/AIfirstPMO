@@ -16,7 +16,7 @@
  * `docs/chat.md` says so out loud rather than leaving it to be noticed.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   canManageMembers,
   channelTitle,
@@ -109,6 +109,7 @@ export function Chat() {
 
   const current = useQuery(() => (id ? byId('channel', id) : undefined), [id]);
   const nameOf = (userId: string) => members.get(userId)?.name;
+  const others = useMemo(() => [...members.values()].filter((member) => member.id !== me), [members, me]);
 
   return (
     <div className="page chat">
@@ -122,7 +123,10 @@ export function Chat() {
           )}
         </div>
 
-        {conversations.length === 0 && (
+        {/* "Start a channel, or write to somebody below" is only useful advice
+            while there is somebody below. Alone, the hint further down says the
+            true thing instead, and two hints where one is wrong is worse. */}
+        {conversations.length === 0 && (others.length > 0 || !canWrite) && (
           <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.noneYet')}</p>
         )}
 
@@ -140,18 +144,26 @@ export function Chat() {
         {/* Starting a conversation is a write, and a guest has none. A list of
             people that refuses on click is worse than no list. */}
         {canWrite && <h2 className="nav-section" style={{ marginTop: 14 }}>{t('chat.people')}</h2>}
-        {canWrite && [...members.values()]
-          .filter((member) => member.id !== me)
-          .map((member) => (
-            <button
-              key={member.id}
-              className="nav-item"
-              onClick={() => navigate(`/chat/${openDirect(me, member.id)}`)}
-            >
-              <Avatar user={member} size={20} />
-              <span className="grow truncate">{member.name}</span>
-            </button>
-          ))}
+        {/* Alone in a workspace, this list is empty and a heading over nothing
+            is a dead end — and it is the *usual* state on a fresh instance,
+            because signing up a second time makes a second workspace rather
+            than joining the first. Say where the other person comes from. */}
+        {canWrite && others.length === 0 && (
+          <p className="hint" style={{ fontSize: 12.5 }}>
+            {t('chat.aloneHint')}{' '}
+            <Link to="/settings?tab=members">{t('chat.aloneInvite')}</Link>
+          </p>
+        )}
+        {canWrite && others.map((member) => (
+          <button
+            key={member.id}
+            className="nav-item"
+            onClick={() => navigate(`/chat/${openDirect(me, member.id)}`)}
+          >
+            <Avatar user={member} size={20} />
+            <span className="grow truncate">{member.name}</span>
+          </button>
+        ))}
       </aside>
 
       <section className="chat-main">
@@ -506,15 +518,17 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
 
   return (
     <Sheet title={`#${channel.name}`} onClose={onClose}>
-      <label className="field">
-        <span>{t('chat.topic')}</span>
+      <div className="field">
+        <label htmlFor="channel-topic">{t('chat.topic')}</label>
         <input
+          id="channel-topic"
+          className="input"
           defaultValue={channel.topic ?? ''}
           disabled={!mayRetitle}
           placeholder={t('chat.topicHint')}
           onBlur={(event) => update('channel', channel.id, { topic: event.target.value.trim() || null })}
         />
-      </label>
+      </div>
 
       {/* An open channel has no member list — everyone in the workspace is in
           it — so there is nothing here to manage. */}
@@ -648,23 +662,36 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         </>
       }
     >
-        <label className="field">
-          <span>{t('chat.name')}</span>
-          <input value={name} onChange={(event) => setName(event.target.value)} autoFocus placeholder="design-review" />
-        </label>
+        <div className="field">
+          <label htmlFor="new-channel-name">{t('chat.name')}</label>
+          <input
+            id="new-channel-name"
+            className="input"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            autoFocus
+            placeholder="design-review"
+          />
+        </div>
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
         {tidy && tidy !== name && <p className="hint" style={{ fontSize: 12 }}>{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
         {taken && <p className="hint" style={{ fontSize: 12, color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
-        <label className="field">
-          <span>{t('chat.topic')}</span>
-          <input value={topic} onChange={(event) => setTopic(event.target.value)} placeholder={t('chat.topicHint')} />
-        </label>
-        <label className="row" style={{ gap: 8, margin: '10px 0' }}>
+        <div className="field">
+          <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
+          <input
+            id="new-channel-topic"
+            className="input"
+            value={topic}
+            onChange={(event) => setTopic(event.target.value)}
+            placeholder={t('chat.topicHint')}
+          />
+        </div>
+        <label className="check-row">
           <input type="checkbox" checked={isPrivate} onChange={(event) => setPrivate(event.target.checked)} />
-          <span className="grow">
-            <strong style={{ display: 'block', fontSize: 13 }}>{t('chat.private')}</strong>
-            <span className="muted" style={{ fontSize: 12 }}>{t('chat.privateHint')}</span>
+          <span>
+            <strong>{t('chat.private')}</strong>
+            <span className="hint">{t('chat.privateHint')}</span>
           </span>
         </label>
     </Sheet>

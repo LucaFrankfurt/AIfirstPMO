@@ -134,6 +134,31 @@ the one thing you may do to another person's words, and it is not a change to th
 in a list beside them. The server allows exactly that and nothing alongside it: a reaction sent
 together with an edit is an edit, and refused.
 
+## Pointing at the work
+
+A message can name the thing it is about. `WEB-42` becomes a link to that task and `#WEB` a link to
+that project, and `#` in the composer offers both — projects first, then tasks, matched on key,
+identifier or title.
+
+What goes into the message is the **token, not a link**: `WEB-42`, exactly what somebody would have
+typed anyway. A markdown link would make the text say something different from what was written,
+would not survive being quoted or edited by hand, and would break the moment a message was read
+somewhere that is not this app.
+
+The renderer is told **which project keys exist** rather than given a pattern, and that is the whole
+trick. `[A-Z]+-\d+` also matches `UTF-8`, `COVID-19` and `ISO-8601`, and a conversation about an
+encoding standard that fills up with dead links is worse than no references at all. The keys come
+out of the synced cache, so this resolves offline like everything else — and when nobody passes any
+keys, as on a publicly shared page, nothing is linked at all, which is right: that reader has no
+workspace to be sent into.
+
+Clicking one stays inside the app — a task opens as a sheet over the conversation, the way task
+links everywhere else do — and `/t/WEB-42` resolves the identifier, so a reference typed by hand
+lands on the same screen as a link clicked in a list. Ctrl- or Cmd-click still opens a new tab.
+
+It is not a chat feature: the composer, the comment box and the page editor are the same editor, so
+this works in all three.
+
 ## Being told about it
 
 The default is deliberately **not** "tell everyone about every line". A channel that pings its whole
@@ -165,6 +190,38 @@ marker, not counting your own. No endpoint, no polling, and it is right while of
 
 The marker only ever moves **forwards**. A marker that went backwards would make a conversation
 somebody has just read unread again on their other device.
+
+## Two accounts, one workspace
+
+Chat is scoped to a workspace: the People list is the workspace's members, and every
+visibility rule here starts by asking whether you are still one of them. That makes one
+thing worth saying out loud, because it is the first thing anybody hits when they try
+this out with two accounts of their own:
+
+**Signing up a second time makes a second workspace. It does not join the first one.**
+Two accounts made that way share nothing at all — no members, no projects, nobody in
+each other's sidebar — and no amount of looking at the chat screen will change that.
+The way they come together is an invite: *Settings → Members → create invite link*, and
+the other account opens it.
+
+Two things had to be fixed before that actually worked:
+
+- **An invite link opened by somebody already signed in used to redirect to the home
+  page.** The endpoint existed, the client function existed, and the one person who
+  most needed them — an account that already exists, which is exactly who a second
+  account is — was bounced silently past both. There is a screen now: it names the
+  workspace, names the account you are signed in as, and offers the other one.
+- **Joining late left the new colleague nameless.** Membership is what allows a device
+  to see somebody's `user` row, and a delta pull only carries rows newer than that
+  device's cursor. An account that existed *before* it joined has a sequence everybody
+  already walked past while the row was still invisible to them — so it arrived as a
+  member with no user row behind it: a raw id where a name belongs, and in chat no
+  entry at all, because the People list looks each member up and drops the ones it
+  cannot find. `addMember` now restamps the sequence. Nothing about the person changed;
+  what changed is who is allowed to see them.
+
+Alone in a workspace, the People list has nothing in it, and a heading over nothing is a
+dead end. It says so instead, and points at the invite.
 
 ## Guests
 
@@ -227,3 +284,7 @@ nothing here.
 | `packages/server/src/lib/repo.ts` | the invariants, the guards, and the notification rules |
 | `packages/server/src/routes/sync.ts` | the visibility filter for a delta pull |
 | `packages/web/src/routes/chat.tsx` | the screen |
+| `packages/shared/src/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
+| `packages/web/src/components/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |
+| `packages/web/src/routes/Login.tsx` | `AcceptInvite` — the invite link, opened by an account that already exists |
+| `packages/server/src/lib/bootstrap.ts` | `addMember`, which is what makes somebody appear in the People list at all |

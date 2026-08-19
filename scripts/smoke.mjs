@@ -223,6 +223,51 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
 await page.screenshot({ path: `${shots}/4c-chat-rich.png` });
 await page.screenshot({ path: `${shots}/4b-chat.png` });
 
+/**
+ * References to work, written in a chat line.
+ *
+ * The half that matters is the half that must *not* link: the renderer is told
+ * which project keys exist rather than given a pattern, because `[A-Z]+-\d+`
+ * also matches `UTF-8` and a conversation about an encoding should not fill up
+ * with links to tasks nobody has.
+ */
+await step('chat: a message can point at a task and a project', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.locator('.chat-list .nav-item').last().click();
+  await page.waitForSelector('.chat-composer textarea');
+
+  // The `#` menu offers projects and tasks, and puts in the bare token.
+  await page.locator('.chat-composer textarea').fill('');
+  await page.locator('.chat-composer textarea').type('Look at #WEB-3', { delay: 20 });
+  await page.waitForSelector('.mention-menu button', { timeout: 5000 });
+  const offered = await page.locator('.mention-menu button').first().innerText();
+  await page.keyboard.press('Enter');
+  const typed = await page.locator('.chat-composer textarea').inputValue();
+  if (!typed.includes('WEB-3')) throw new Error(`the menu put in "${typed}"`);
+  if (typed.includes('](')) throw new Error('a reference went in as a link, not as what somebody would type');
+
+  await page.locator('.chat-composer textarea').type('and #WEB, but not UTF-8 or NOPE-1.', { delay: 5 });
+  await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
+  await page.waitForTimeout(900);
+  const said = page.locator('.chat-message').last();
+  const refs = await said.locator('a.md-ref').evaluateAll((links) => links.map((a) => `${a.textContent}→${a.getAttribute('href')}`));
+  if (refs.length !== 2) throw new Error(`expected a task and a project, got ${JSON.stringify(refs)}`);
+  if (!refs[0].startsWith('WEB-3→/t/WEB-3')) throw new Error(`the task reference is ${refs[0]}`);
+  if (!refs[1].startsWith('#WEB→/projects/')) throw new Error(`the project reference is ${refs[1]}`);
+  const html = await said.locator('.body').innerHTML();
+  if (!html.includes('UTF-8') || !html.includes('NOPE-1')) throw new Error('the message lost some of its text');
+  if (/href="\/t\/(UTF-8|NOPE-1)"/.test(html)) throw new Error('something that is not a task was linked');
+  console.log('     references:', refs.join('  '), '· offered:', offered.replace(/\n/g, ' '));
+
+  // And following one opens the task over the conversation rather than reloading.
+  await said.locator('a.md-ref').first().click();
+  await page.waitForTimeout(900);
+  if (!page.url().endsWith('/t/WEB-3')) throw new Error(`clicking the reference went to ${page.url()}`);
+  await page.waitForSelector('.sheet', { timeout: 5000 });
+  await page.keyboard.press('Escape');
+});
+
 await step('command palette', async () => {
   await page.keyboard.press('Control+k');
   await page.waitForSelector('.palette input');
@@ -376,6 +421,145 @@ await step('guide opens, explains itself, and leaks no keys', async () => {
   console.log('     hierarchy nodes explained:', await nodes.count());
 });
 await page.screenshot({ path: `${shots}/7-guide.png` });
+
+/**
+ * The one combination nobody tries: an OS set to dark, the app pinned to light.
+ *
+ * Native controls — a checkbox, a date picker, an input with no background of
+ * its own — follow `color-scheme`, not the app's variables. Declaring
+ * `light dark` and leaving it there means a pinned theme never reaches them, so
+ * choosing light on a dark machine gave white dialogs full of dark boxes. It
+ * was reported from a real screen, not caught here, which is why it is here now.
+ */
+await step('a pinned theme reaches the controls the browser paints itself', async () => {
+  // The session is carried over rather than signed in for again. Sign-in is
+  // rate-limited per account, and this walk already runs three times against one
+  // instance — two more logins a run was enough to trip it in the third.
+  const session = await ctx.storageState();
+  for (const [os, pinned] of [['dark', 'light'], ['light', 'dark']]) {
+    const themed = await browser.newContext({
+      viewport: { width: 1280, height: 900 }, colorScheme: os, locale, storageState: session,
+    });
+    const view = await themed.newPage();
+    try {
+      await view.goto(base, { waitUntil: 'domcontentloaded' });
+      await view.evaluate(([t, l]) => {
+        localStorage.setItem('kolibri.theme', t);
+        localStorage.setItem('kolibri.locale', l);
+      }, [pinned, locale]);
+      await view.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+      await view.waitForSelector('.sidebar', { timeout: 15000 });
+      await closeTour(view);
+      await view.click(`button:has-text("${LABELS.newChannel}")`);
+      await view.waitForSelector('.sheet input.input', { timeout: 5000 });
+      await view.waitForTimeout(300);
+
+      const seen = await view.evaluate(() => {
+        const luma = (c) => { const [r, g, b] = c.match(/\d+/g).map(Number); return Math.round(0.2126*r + 0.7152*g + 0.0722*b); };
+        const sheet = document.querySelector('.sheet');
+        return {
+          scheme: getComputedStyle(document.documentElement).colorScheme,
+          sheet: luma(getComputedStyle(sheet).backgroundColor),
+          field: luma(getComputedStyle(sheet.querySelector('input.input')).backgroundColor),
+        };
+      });
+      if (seen.scheme !== pinned) throw new Error(`pinned ${pinned} but color-scheme is "${seen.scheme}"`);
+      if (Math.abs(seen.sheet - seen.field) > 90) {
+        throw new Error(`OS ${os} + pinned ${pinned}: sheet ${seen.sheet}, field ${seen.field} — a dark box in a light dialog`);
+      }
+      console.log(`     OS ${os} + pinned ${pinned}: color-scheme ${seen.scheme}, sheet ${seen.sheet}, field ${seen.field}`);
+    } finally {
+      await themed.close();
+    }
+  }
+});
+
+/**
+ * A device that already had the database from an older build.
+ *
+ * IndexedDB only runs `onupgradeneeded` when the version number goes up, and
+ * the version used to be a constant a person had to remember to bump. Chat was
+ * added and it was not bumped, so every browser that had ever opened the app
+ * before was missing three stores — and the way that showed up was not an error
+ * dialog but a channel that appeared, vanished a few seconds later, and came
+ * back on the next tab switch: the pull could apply its changes to memory and
+ * then fail to save them, so the cursor was never written, so the next pull
+ * started from zero and the snapshot that came back emptied the tables first.
+ *
+ * The version is derived from the store list now. This walks the case that
+ * cannot happen on a fresh browser, which is exactly why nothing caught it.
+ */
+await step('a database from an older build gets the stores it is missing', async () => {
+  const session = await ctx.storageState();
+  const aged = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale, storageState: session });
+  const view = await aged.newPage();
+  const faults = [];
+  view.on('pageerror', (e) => faults.push(e.message));
+  view.on('console', (m) => { if (m.type() === 'error') faults.push(m.text()); });
+  try {
+    // Let the app build the database first — a signed-in context carries
+    // cookies, not IndexedDB, so without this there is nothing to age and the
+    // step passes while testing an empty database.
+    await view.goto(base, { waitUntil: 'networkidle' });
+    await view.waitForSelector('.sidebar', { timeout: 15000 });
+    await closeTour(view);
+    await view.waitForTimeout(1500);
+    // Then somewhere on the origin that is not the app: a page holding a
+    // connection blocks `deleteDatabase` for ever, and the app opens one on load.
+    await view.goto(`${base}/icon.svg`);
+    const rewound = await view.evaluate(async () => {
+      const read = await new Promise((res) => { const r = indexedDB.open('kolibri'); r.onsuccess = () => res(r.result); });
+      const version = read.version;
+      // Any three stores would simulate an older build equally well; these are
+      // the three the incident was actually about.
+      const all = [...read.objectStoreNames];
+      const older = all.filter((n) => !['channel', 'message', 'channelRead'].includes(n));
+      read.close();
+      await new Promise((res) => {
+        const gone = indexedDB.deleteDatabase('kolibri');
+        gone.onsuccess = gone.onerror = gone.onblocked = () => res();
+      });
+      await new Promise((res) => {
+        const open = indexedDB.open('kolibri', version);
+        open.onupgradeneeded = () => {
+          for (const name of older) open.result.createObjectStore(name, { keyPath: name === 'meta' ? 'key' : 'id' });
+        };
+        open.onsuccess = () => { open.result.close(); res(); };
+      });
+      return { version, stores: older.length, dropped: all.length - older.length };
+    });
+
+    faults.length = 0;
+    await view.goto(base, { waitUntil: 'networkidle' });
+    await view.waitForSelector('.sidebar', { timeout: 15000 });
+    await closeTour(view);
+    await view.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+    await view.waitForTimeout(2500);
+
+    const now = await view.evaluate(async () => {
+      const db = await new Promise((res) => { const r = indexedDB.open('kolibri'); r.onsuccess = () => res(r.result); });
+      const missing = ['channel', 'message', 'channelRead'].filter((n) => !db.objectStoreNames.contains(n));
+      // The sync cursor is only written once a pull has saved its rows, so this
+      // is the difference between "opened" and "actually usable".
+      const cursor = await new Promise((res) => {
+        const get = db.transaction('meta', 'readonly').objectStore('meta').get('sync');
+        get.onsuccess = () => res(get.result?.value?.cursor ?? 0);
+        get.onerror = () => res(0);
+      });
+      const version = db.version;
+      db.close();
+      return { missing, cursor, version };
+    });
+
+    if (rewound.dropped !== 3) throw new Error(`nothing was aged — the database had ${rewound.stores} stores, so this proved nothing`);
+    if (now.missing.length) throw new Error(`still missing: ${now.missing.join(', ')}`);
+    if (!now.cursor) throw new Error('the sync cursor was never written — a pull applied rows it could not save');
+    if (faults.length) throw new Error(`the app complained: ${faults[0]}`);
+    console.log(`     aged to ${rewound.stores} stores at version ${rewound.version}, reopened at ${now.version}, cursor ${now.cursor}`);
+  } finally {
+    await aged.close();
+  }
+});
 
 await step('interface is in the chosen language', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });

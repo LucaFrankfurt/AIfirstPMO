@@ -78,6 +78,15 @@ saying so.
 Permission filtering happens inside the pull query: private projects a user is not a member of are
 excluded there, not in the UI.
 
+That filter has a consequence worth stating, because it is not obvious and it cost a real bug:
+**widening what somebody may see does not, by itself, send it to them.** A row that was invisible
+while a device walked past its sequence stays invisible for ever, because the range scan will never
+reach back for it. Whatever grants the access has to restamp the rows it just revealed. The case
+that found this was somebody joining a workspace they had already had an account on: the membership
+row was new and arrived, and their `user` row was old and did not — so they turned up on everybody
+else's screen as a raw id with no name behind it. `addMember` restamps the user now. Anything else
+that widens visibility owes the same.
+
 ## Push: idempotent by construction
 
 Mutations have client-generated UUIDs. The server records applied ids in `applied_mutations` and
