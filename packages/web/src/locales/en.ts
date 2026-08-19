@@ -1036,6 +1036,7 @@ export const en = {
   'editor.uploading': 'Uploading…',
   'editor.placeholder': 'Write in markdown…',
   'editor.mentionPeople': 'People to mention',
+  'editor.mentionWork': 'Projects and tasks',
   'editor.nothingToPreview': 'Nothing to preview yet.',
   'editor.uploadFailed': 'Upload failed',
   'editor.uploadFailedReason': 'Upload failed: {reason}',
@@ -1223,6 +1224,7 @@ export const en = {
   'guide.collab.h2': 'Mention people with an at sign — a first name, a display name or an email address all work.',
   'guide.collab.h3': 'The inbox shows unread first; Mark all read clears it.',
   'guide.collab.h4': 'Settings, Notifications decides what is worth an email. Everything is in the inbox either way.',
+  'guide.collab.h5': 'Write # to point at a project or a task — or just type WEB-42, which becomes a link on its own. Works in chat, in comments and on pages.',
 
   'guide.teams.title': 'Teams, invites and roles',
   'guide.teams.lead': 'Teams group people and the projects they own — useful once more than a handful of people share the workspace. Roles decide what somebody can change.',

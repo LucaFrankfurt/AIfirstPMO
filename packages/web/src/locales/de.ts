@@ -1037,6 +1037,7 @@ export const de: Catalogue = {
   'editor.uploading': 'Wird hochgeladen…',
   'editor.placeholder': 'In Markdown schreiben…',
   'editor.mentionPeople': 'Personen zum Erwähnen',
+  'editor.mentionWork': 'Projekte und Aufgaben',
   'editor.nothingToPreview': 'Noch nichts für die Vorschau vorhanden.',
   'editor.uploadFailed': 'Upload fehlgeschlagen',
   'editor.uploadFailedReason': 'Upload fehlgeschlagen: {reason}',
@@ -1224,6 +1225,7 @@ export const de: Catalogue = {
   'guide.collab.h2': 'Erwähn Leute mit einem At-Zeichen — Vorname, Anzeigename oder E-Mail-Adresse funktionieren alle.',
   'guide.collab.h3': 'Der Posteingang zeigt Ungelesenes zuerst, Alle als gelesen markieren räumt auf.',
   'guide.collab.h4': 'Unter Einstellungen, Benachrichtigungen legst du fest, was eine E-Mail wert ist. Im Posteingang steht es so oder so.',
+  'guide.collab.h5': 'Schreib #, um auf ein Projekt oder eine Aufgabe zu zeigen — oder tipp einfach WEB-42, das wird von selbst zum Link. Gilt im Chat, in Kommentaren und auf Seiten.',
 
   'guide.teams.title': 'Teams, Einladungen und Rollen',
   'guide.teams.lead': 'Teams bündeln Menschen und die Projekte, die ihnen gehören — sinnvoll, sobald mehr als eine Handvoll Leute den Workspace teilen. Rollen entscheiden, wer was ändern darf.',

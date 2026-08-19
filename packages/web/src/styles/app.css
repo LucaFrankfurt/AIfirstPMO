@@ -1199,6 +1199,15 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .md img { max-width: 100%; border-radius: var(--radius); border: 1px solid var(--line); display: block; margin: 10px 0; }
 .md hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
 .md .md-tag { color: var(--accent); }
+/* A reference to a task or a project. A chip rather than an underlined link:
+   in a chat line it is a thing being named, and the sentence around it should
+   still read as a sentence. */
+.md a.md-ref {
+  color: var(--accent); text-decoration: none; font-weight: 550;
+  background: var(--accent-soft);
+  border-radius: 5px; padding: 0 4px; white-space: nowrap;
+}
+.md a.md-ref:hover { text-decoration: underline; text-underline-offset: 2px; }
 .md table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
 .md th, .md td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; }
 

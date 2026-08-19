@@ -134,6 +134,31 @@ the one thing you may do to another person's words, and it is not a change to th
 in a list beside them. The server allows exactly that and nothing alongside it: a reaction sent
 together with an edit is an edit, and refused.
 
+## Pointing at the work
+
+A message can name the thing it is about. `WEB-42` becomes a link to that task and `#WEB` a link to
+that project, and `#` in the composer offers both — projects first, then tasks, matched on key,
+identifier or title.
+
+What goes into the message is the **token, not a link**: `WEB-42`, exactly what somebody would have
+typed anyway. A markdown link would make the text say something different from what was written,
+would not survive being quoted or edited by hand, and would break the moment a message was read
+somewhere that is not this app.
+
+The renderer is told **which project keys exist** rather than given a pattern, and that is the whole
+trick. `[A-Z]+-\d+` also matches `UTF-8`, `COVID-19` and `ISO-8601`, and a conversation about an
+encoding standard that fills up with dead links is worse than no references at all. The keys come
+out of the synced cache, so this resolves offline like everything else — and when nobody passes any
+keys, as on a publicly shared page, nothing is linked at all, which is right: that reader has no
+workspace to be sent into.
+
+Clicking one stays inside the app — a task opens as a sheet over the conversation, the way task
+links everywhere else do — and `/t/WEB-42` resolves the identifier, so a reference typed by hand
+lands on the same screen as a link clicked in a list. Ctrl- or Cmd-click still opens a new tab.
+
+It is not a chat feature: the composer, the comment box and the page editor are the same editor, so
+this works in all three.
+
 ## Being told about it
 
 The default is deliberately **not** "tell everyone about every line". A channel that pings its whole
@@ -259,5 +284,7 @@ nothing here.
 | `packages/server/src/lib/repo.ts` | the invariants, the guards, and the notification rules |
 | `packages/server/src/routes/sync.ts` | the visibility filter for a delta pull |
 | `packages/web/src/routes/chat.tsx` | the screen |
+| `packages/shared/src/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
+| `packages/web/src/components/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |
 | `packages/web/src/routes/Login.tsx` | `AcceptInvite` — the invite link, opened by an account that already exists |
 | `packages/server/src/lib/bootstrap.ts` | `addMember`, which is what makes somebody appear in the People list at all |

@@ -223,6 +223,51 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
 await page.screenshot({ path: `${shots}/4c-chat-rich.png` });
 await page.screenshot({ path: `${shots}/4b-chat.png` });
 
+/**
+ * References to work, written in a chat line.
+ *
+ * The half that matters is the half that must *not* link: the renderer is told
+ * which project keys exist rather than given a pattern, because `[A-Z]+-\d+`
+ * also matches `UTF-8` and a conversation about an encoding should not fill up
+ * with links to tasks nobody has.
+ */
+await step('chat: a message can point at a task and a project', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.locator('.chat-list .nav-item').last().click();
+  await page.waitForSelector('.chat-composer textarea');
+
+  // The `#` menu offers projects and tasks, and puts in the bare token.
+  await page.locator('.chat-composer textarea').fill('');
+  await page.locator('.chat-composer textarea').type('Look at #WEB-3', { delay: 20 });
+  await page.waitForSelector('.mention-menu button', { timeout: 5000 });
+  const offered = await page.locator('.mention-menu button').first().innerText();
+  await page.keyboard.press('Enter');
+  const typed = await page.locator('.chat-composer textarea').inputValue();
+  if (!typed.includes('WEB-3')) throw new Error(`the menu put in "${typed}"`);
+  if (typed.includes('](')) throw new Error('a reference went in as a link, not as what somebody would type');
+
+  await page.locator('.chat-composer textarea').type('and #WEB, but not UTF-8 or NOPE-1.', { delay: 5 });
+  await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
+  await page.waitForTimeout(900);
+  const said = page.locator('.chat-message').last();
+  const refs = await said.locator('a.md-ref').evaluateAll((links) => links.map((a) => `${a.textContent}→${a.getAttribute('href')}`));
+  if (refs.length !== 2) throw new Error(`expected a task and a project, got ${JSON.stringify(refs)}`);
+  if (!refs[0].startsWith('WEB-3→/t/WEB-3')) throw new Error(`the task reference is ${refs[0]}`);
+  if (!refs[1].startsWith('#WEB→/projects/')) throw new Error(`the project reference is ${refs[1]}`);
+  const html = await said.locator('.body').innerHTML();
+  if (!html.includes('UTF-8') || !html.includes('NOPE-1')) throw new Error('the message lost some of its text');
+  if (/href="\/t\/(UTF-8|NOPE-1)"/.test(html)) throw new Error('something that is not a task was linked');
+  console.log('     references:', refs.join('  '), '· offered:', offered.replace(/\n/g, ' '));
+
+  // And following one opens the task over the conversation rather than reloading.
+  await said.locator('a.md-ref').first().click();
+  await page.waitForTimeout(900);
+  if (!page.url().endsWith('/t/WEB-3')) throw new Error(`clicking the reference went to ${page.url()}`);
+  await page.waitForSelector('.sheet', { timeout: 5000 });
+  await page.keyboard.press('Escape');
+});
+
 await step('command palette', async () => {
   await page.keyboard.press('Control+k');
   await page.waitForSelector('.palette input');

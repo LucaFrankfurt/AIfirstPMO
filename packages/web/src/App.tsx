@@ -14,13 +14,14 @@ import { Chat } from './routes/chat';
 import { Help } from './routes/help';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
-import { backgroundOf, useOpenTask } from './lib/navigation';
+import { backgroundOf, useOpenTask, useTaskRef } from './lib/navigation';
 import { useSession } from './session';
 import { useI18n, type Locale } from './lib/i18n';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
 function TaskRoute() {
   const { id = '' } = useParams();
+  const taskId = useTaskRef(id);
   const navigate = useNavigate();
   const location = useLocation();
   const openTask = useOpenTask();
@@ -29,7 +30,7 @@ function TaskRoute() {
     if (backgroundOf(location)) navigate(-1);
     else navigate('/', { replace: true });
   };
-  return <TaskDetail taskId={id} onClose={close} onOpen={openTask} />;
+  return <TaskDetail taskId={taskId} onClose={close} onOpen={openTask} />;
 }
 
 function Boot() {

@@ -18,7 +18,62 @@ function safeUrl(raw: string): string | null {
   return null;
 }
 
-function inline(text: string): string {
+/**
+ * What this workspace's work is called, so a reference can be recognised.
+ *
+ * Deliberately *not* a pattern like `[A-Z]+-\d+` on its own: that also matches
+ * `UTF-8`, `COVID-19` and `ISO-8601`, and a chat line about a standard should
+ * not sprout a broken link to a task nobody has. The caller knows which project
+ * keys exist, so it says; with no keys given nothing is linked, which is what
+ * the server wants when it renders a shared page for a reader who has no
+ * workspace to link into.
+ */
+export interface MarkdownRefs {
+  /** Project keys, as written in an identifier: `['WEB', 'APP']`. */
+  keys?: readonly string[];
+  /** Where a project lives, by key. Without this `#WEB` stays plain text. */
+  projectHref?: (key: string) => string | undefined;
+}
+
+const KEY_SHAPE = /^[A-Z][A-Z0-9]{0,9}$/;
+
+/**
+ * Turn `WEB-42` into a link to that task, and `#WEB` into a link to that
+ * project.
+ *
+ * Anchors that already exist are stashed first. Without that, a URL ending in
+ * something identifier-shaped would grow a second anchor inside the first, and
+ * a nested `<a>` is a link that swallows the one around it.
+ */
+function references(html: string, refs: MarkdownRefs): string {
+  const keys = (refs.keys ?? []).filter((key) => KEY_SHAPE.test(key));
+  if (!keys.length) return html;
+  const known = new Set(keys);
+
+  const links: string[] = [];
+  // Anchors whole, and images too: an upload called `/x?id=WEB-42.png` is a URL,
+  // not a reference, and rewriting inside an attribute produces neither.
+  let out = html.replace(/<a\b[^>]*>[\s\S]*?<\/a>|<img\b[^>]*>/g, (match) => {
+    links.push(match);
+    return `\uE001${links.length - 1}\uE001`;
+  });
+
+  out = out.replace(/(^|[^\w/-])([A-Z][A-Z0-9]{0,9})-(\d{1,6})\b/g, (match, before: string, key: string, number: string) => {
+    if (!known.has(key)) return match;
+    return `${before}<a class="md-ref" href="/t/${key}-${number}">${key}-${number}</a>`;
+  });
+
+  if (refs.projectHref) {
+    out = out.replace(/(^|[^\w#])#([A-Z][A-Z0-9]{0,9})\b/g, (match, before: string, key: string) => {
+      const href = known.has(key) ? refs.projectHref!(key) : undefined;
+      return href ? `${before}<a class="md-ref" href="${href}">#${key}</a>` : match;
+    });
+  }
+
+  return out.replace(/\uE001(\d+)\uE001/g, (_, index: string) => links[Number(index)]);
+}
+
+function inline(text: string, refs?: MarkdownRefs): string {
   let out = escapeHtml(text);
 
   // code spans first: their content must not be touched by later rules
@@ -45,6 +100,9 @@ function inline(text: string): string {
   out = out.replace(/(^|\W)_([^_]+)_(?=\W|$)/g, '$1<em>$2</em>');
   out = out.replace(/(^|[^*])\*([^*]+)\*(?!\*)/g, '$1<em>$2</em>');
   out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  // References before the tag rule: `#WEB` is a project when the key is known,
+  // and only a tag when it is not.
+  if (refs) out = references(out, refs);
   out = out.replace(/(^|\s)(#[a-z0-9][\w-]*)/gi, '$1<span class="md-tag">$2</span>');
 
   return out.replace(/\uE000(\d+)\uE000/g, (_, index: string) => `<code>${codes[Number(index)]}</code>`);
@@ -55,7 +113,7 @@ interface ListContext {
   indent: number;
 }
 
-export function renderMarkdown(source: string): string {
+export function renderMarkdown(source: string, refs?: MarkdownRefs): string {
   const lines = String(source ?? '').replace(/\r\n?/g, '\n').split('\n');
   const html: string[] = [];
   const lists: ListContext[] = [];
@@ -67,7 +125,7 @@ export function renderMarkdown(source: string): string {
 
   const closeParagraph = () => {
     if (paragraph.length) {
-      html.push(`<p>${inline(paragraph.join(' '))}</p>`);
+      html.push(`<p>${inline(paragraph.join(' '), refs)}</p>`);
       paragraph = [];
     }
   };
@@ -120,7 +178,7 @@ export function renderMarkdown(source: string): string {
       closeLists();
       closeQuote();
       const level = heading[1].length;
-      html.push(`<h${level}>${inline(heading[2])}</h${level}>`);
+      html.push(`<h${level}>${inline(heading[2], refs)}</h${level}>`);
       continue;
     }
 
@@ -140,7 +198,7 @@ export function renderMarkdown(source: string): string {
         html.push('<blockquote>');
         inQuote = true;
       }
-      html.push(`<p>${inline(quote[1])}</p>`);
+      html.push(`<p>${inline(quote[1], refs)}</p>`);
       continue;
     }
     closeQuote();
@@ -160,10 +218,10 @@ export function renderMarkdown(source: string): string {
       if (checkbox) {
         const checked = checkbox[1].toLowerCase() === 'x';
         html.push(
-          `<li class="md-task"><input type="checkbox" disabled${checked ? ' checked' : ''} /><span${checked ? ' class="md-done"' : ''}>${inline(checkbox[2])}</span></li>`,
+          `<li class="md-task"><input type="checkbox" disabled${checked ? ' checked' : ''} /><span${checked ? ' class="md-done"' : ''}>${inline(checkbox[2], refs)}</span></li>`,
         );
       } else {
-        html.push(`<li>${inline(item[3])}</li>`);
+        html.push(`<li>${inline(item[3], refs)}</li>`);
       }
       continue;
     }
