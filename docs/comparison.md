@@ -26,11 +26,16 @@ Worth stating first, because it is the reason the gaps below are acceptable:
   all request/response applications with a spinner.
 - **MCP natively.** An assistant is a user with a scoped token, not a plugin or
   a chat sidebar. 23 tools over the same permissions as a person.
+- **A messenger in the same box**, and made of the same rows — so a message sends
+  from a train and arrives when the tunnel ends. None of the three has one:
+  Plane and OpenProject send you to Slack, Confluence has comments. What that
+  buys is not a feature so much as an absence — no second account, no second
+  search, no second place a decision might be recorded. See [`chat.md`](chat.md).
 - **One container, no database to run.** SQLite in the data volume, one Node
   process. Confluence and OpenProject both want a Postgres and a few gigabytes
   of RAM before they say hello.
-- **A manual inside the product**, animated and narrated, in two languages, with
-  a first-run tour that configures the instance as it goes.
+- **A manual inside the product**, animated and narrated, in three languages,
+  with a first-run tour that configures the instance as it goes.
 - **A timer that is a database row**, so it survives a reload, a second device
   and a tunnel — see [`time.md`](time.md).
 - **An import that shows you what it read before it writes**, and names the

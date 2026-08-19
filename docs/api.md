@@ -24,10 +24,14 @@ returned exactly once — only its hash is stored. A `read` token is rejected on
 
 ## Entities
 
-Every entity in the registry gets the same five routes. Collections: `tasks`, `projects`, `states`,
-`labels`, `cycles`, `modules`, `pages`, `comments`, `attachments`, `views`, `templates`,
-`automations`, `time-entries`, `teams`, `team-members`, `project-members`, `relations`,
-`task-types`, `fields`, `field-values`, `webhooks`, `notifications`.
+Every entity in the registry gets the same five routes, and the list is derived from `COLLECTIONS`
+in `packages/shared/src/entities.ts` rather than written out there — a new entity is one line in one
+file and it appears here:
+
+`teams`, `team-members`, `projects`, `project-members`, `states`, `task-types`, `fields`,
+`field-values`, `baselines`, `shares`, `labels`, `tasks`, `relations`, `cycles`, `modules`, `pages`,
+`comments`, `attachments`, `views`, `time-entries`, `templates`, `automations`, `webhooks`,
+`notifications`, `channels`, `messages`, `channel-reads`, `intakes`, `purges`.
 
 ```
 GET    /api/workspaces/:ws/:collection      list, filterable by any field
@@ -88,6 +92,51 @@ Commit messages are read for task identifiers. A mention adds a comment linking 
 first Done column. A hook scoped to a project cannot touch tasks outside it, one push leaves one
 comment per task however many commits mention it, and a payload with no commits in it is answered
 `200` and ignored.
+
+### Conversations
+
+`channels`, `messages` and `channel-reads` are ordinary collections, with the rules described in
+[`chat.md`](chat.md) enforced on every write. The ones that will surprise an API client:
+
+- A **direct** conversation's id is derived, not invented: `dm.<a>.<b>` with the two user ids
+  sorted. Creating one is the same call as finding it, and the server reads the members back out of
+  the id — whatever you send in `members` is overwritten.
+- `author_id` on a message is **the session**, never the payload.
+- A message cannot change channel, and only its author may change its body. Anybody in the
+  conversation may write `reactions`, and only `reactions` — sent alongside anything else it is an
+  edit, and refused with `403`.
+- A read marker's id is `<channel>::<user>`; an id naming somebody else is refused rather than
+  quietly rewritten.
+
+```bash
+# Say something in a channel
+curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"channel_id":"'$CHANNEL'","body":"Deploying in ten minutes."}' \
+  "$URL/api/workspaces/$WS/messages"
+
+# Open (or find) the direct conversation with somebody
+DM="dm.$(printf '%s\n%s' "$ME" "$THEM" | sort | paste -sd.)"
+curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"id":"'$DM'","kind":"direct"}' "$URL/api/workspaces/$WS/channels"
+```
+
+A private conversation is invisible to anybody not in it through **every** route — list, read by id,
+sync pull and search alike.
+
+### Telegram
+
+Per account, not per instance: the operator configures a bot token and each person connects their
+own chat. See [`notifications.md`](notifications.md) for why it works this way round.
+
+```
+GET  /api/telegram/status     { enabled, linked, linkedAt, preference }
+POST /api/telegram/link       → { url, code, expiresAt } — open the url, tap Start
+POST /api/telegram/unlink
+POST /api/telegram/test
+```
+
+`PATCH /api/me` takes `telegram_prefs` (`all` | `important` | `none`) alongside `email_prefs`. The
+bot token never appears in any response.
 
 ### Custom fields
 

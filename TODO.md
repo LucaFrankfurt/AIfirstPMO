@@ -269,7 +269,7 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       was the claim. What was left was the judgement, and it went the other way in the end: a
       catalogue nobody has read back is worse than a good one and *better than none* — provided the
       app says which it is. It does, under the language picker, in the language somebody has just
-      chosen. All 1 335 keys, machine-written, and a correction is now the cheapest contribution
+      chosen. Every key, machine-written, and a correction is now the cheapest contribution
       this project accepts: one file, no build step, and the types refuse a missing key.
       The claim that `Intl.PluralRules` handles languages with more than `_one`/`_other` is no
       longer untested: `i18n.test.ts` drives Polish's four categories through the same two lines the
@@ -520,8 +520,8 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 381 cases across the server and the client) or by the browser walkthrough
-(`node scripts/smoke.mjs`, which runs in English, German and French):
+(`npm test`, 470 cases across the server and the client) or by the browser walkthrough
+(`node scripts/smoke.mjs`, seventeen steps, which runs in English, German and French):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -533,7 +533,13 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Uploads content-addressed, dimensions detected, unauthenticated download refused
 - [x] Page history written on body change
 - [x] MCP `initialize` / `tools/list` / `tools/call`, and a write refused on a read-only token
-- [x] Full-text search finds a task by a word in its title
+- [x] Full-text search finds a task by a word in its title, and a message only for somebody in the
+      conversation it was said in
+- [x] A direct conversation opened offline by both people is one conversation, not two
+- [x] The four places the chat visibility rule is written all answer alike, alive and deleted
+- [x] A guest may write their own read marker and nothing else, through REST and per-mutation in the
+      sync push
+- [x] A pasted screenshot reaches the stream and actually renders, in all three languages
 - [x] SMTP against a real server socket: EHLO, AUTH, dot-stuffing, MIME, UTF-8 subjects
 - [x] Notification batching, per-user preferences, unsubscribe signature, retry with backoff
 - [x] S3 against a fake store that **verifies the SigV4 signature**: bucket creation, round trip,
@@ -651,6 +657,12 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
+- [ ] **An assistant cannot read a conversation.** MCP exposes 23 tools over tasks, pages, time and
+      cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
+      task and the page and misses the room the decision was actually made in. The permission story
+      is already settled: a token acts as the person it belongs to, so it would see exactly what they
+      see and nothing more. Left out because documenting and shipping what exists came first, not
+      because it is hard.
 - [ ] **Typing indicators and presence.** Still out. The realtime channel deliberately carries
       "something changed up to seq N" and nothing else, so catching up after a tunnel and hearing
       about a change live are one code path. If they are wanted, the honest shape is a second
