@@ -194,7 +194,19 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           ) : (
             <div onClick={() => setEditingDescription(true)} style={{ cursor: 'text', minHeight: 40 }}>
               {task.description?.trim()
-                ? <Markdown source={task.description} />
+                ? (
+                  // A checklist in a description is meant to be ticked off, and
+                  // making somebody open the editor to do it is how a checklist
+                  // goes stale. The click that would open the editor is stopped
+                  // at the checkbox.
+                  <Markdown
+                    source={task.description}
+                    onChange={(next) => {
+                      update('task', task.id, { description: next });
+                      setDescription(next);
+                    }}
+                  />
+                )
                 : <span className="muted">{t('task.addDescription')}</span>}
             </div>
           )}

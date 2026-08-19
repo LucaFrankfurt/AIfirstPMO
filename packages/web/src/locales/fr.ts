@@ -1231,6 +1231,7 @@ export const fr: Catalogue = {
   'guide.collab.h3': 'La boîte affiche les non-lus d’abord ; « Tout marquer comme lu » la vide.',
   'guide.collab.h4': 'Réglages, Notifications décide de ce qui vaut un e-mail. Tout est dans la boîte de toute façon.',
   'guide.collab.h5': 'Écrivez # pour désigner un projet ou une tâche — ou tapez simplement WEB-42, qui devient un lien tout seul. Vaut dans la discussion, les commentaires et les pages.',
+  'guide.collab.h6': 'Entrée poursuit une liste — puce suivante, numéro suivant, case suivante — et une seconde Entrée la termine. Tab imbrique. Une case se coche dans l’aperçu et dans la description d’une tâche, sans ouvrir d’éditeur.',
   'guide.teams.title': 'Équipes, invitations et rôles',
   'guide.teams.lead': 'Les équipes regroupent les personnes et les projets qu’elles possèdent — utile dès que plus d’une poignée de gens partagent l’espace. Les rôles décident de ce que chacun peut changer.',
   'guide.teams.cta': 'Ouvrir les équipes',

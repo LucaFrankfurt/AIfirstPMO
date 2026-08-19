@@ -8,6 +8,7 @@ export * from './diff.ts';
 export * from './fields.ts';
 export * from './schedule.ts';
 export * from './markdown.ts';
+export * from './editor.ts';
 export * from './anchor.ts';
 export * from './foreign.ts';
 export * from './chat.ts';

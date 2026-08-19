@@ -144,6 +144,30 @@ source of truth here — IndexedDB is.
 Rendering reads maps; writes never await the network. Offline is not a mode, it is the normal path
 with the network stage delayed.
 
+#### The editor is a textarea, on purpose
+
+Everything written here — a description, a comment, a page, a chat message — is markdown in a plain
+`<textarea>`. A rich-text surface would mean the document and what is on screen were two different
+things, with a conversion between them that is wrong in some corner for ever.
+
+The cost of that choice is that conveniences have to be written by hand, and `shared/src/editor.ts`
+is where they live: Enter continues the list you are in (another bullet, the next number, another
+empty checkbox, the same indent) and ends it on an item you left empty; Tab and Shift-Tab nest and
+unnest inside a list and stay a plain indent everywhere else; Cmd/Ctrl-B, -I and -K wrap the
+selection.
+
+All of it is **pure** — text and a caret in, text and a caret out — which is why it is in `shared`
+rather than in the component. It is a behaviour that can be tested without a browser, and the tests
+are mostly about the cases that must do *nothing*: a plain Enter in a paragraph staying a plain
+Enter is what makes the rest bearable.
+
+A checkbox is tickable where it is rendered, and that is the same idea from the other end: the
+renderer numbers each box top to bottom, skipping fenced code, and `toggleTask` counts the source
+the same way — so a click hands back an index and the *markdown* is what changes. Off by default,
+because an enabled checkbox with nothing listening toggles on screen and then silently disagrees
+with the text it came from. It is switched on where the reader owns the words: the editor's own
+preview, and a task description. Somebody else's chat message stays read-only.
+
 ### Design
 
 Mobile-first CSS with a token palette in `styles/app.css`, dark mode from `prefers-color-scheme`

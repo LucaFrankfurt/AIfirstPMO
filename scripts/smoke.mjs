@@ -22,19 +22,19 @@ const LABELS = {
     board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
-    findPerson: 'Find somebody',
+    findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
-    findPerson: 'Jemanden suchen',
+    findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
-    findPerson: 'Trouver quelqu',
+    findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
   },
 }[locale];
 
@@ -294,6 +294,50 @@ await step('chat: anybody on the instance can be written to', async () => {
   const title = await page.locator('.chat-header strong').innerText();
   if (!/grace/i.test(title)) throw new Error(`opened a conversation with "${title}"`);
   console.log('     opened a conversation with:', title);
+});
+
+/**
+ * The editor's conveniences, and a checkbox that can actually be ticked.
+ *
+ * `shared/src/editor.ts` is tested as what it is — pure rewrites of a string —
+ * so what is left for a browser is the wiring: that Enter reaches the rewrite
+ * at all, and that a box ticked in the preview changes the *markdown* rather
+ * than only the pixel.
+ */
+await step('editor: Enter continues a list, and a box can be ticked', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.waitForSelector('.chat-composer textarea');
+  const box = page.locator('.chat-composer textarea');
+  // Typed as fast as the browser will accept, deliberately. Restoring the caret
+  // one animation frame after the rewrite instead of in the same commit loses
+  // whatever is typed inside that frame — 10 of 12 runs came out as `- [ ] wo`
+  // with the `t` somewhere further down — and nobody pauses after Enter.
+  await box.fill('');
+  await box.type('- [ ] one', { delay: 0 });
+  await page.keyboard.press('Enter');
+  await box.type('two', { delay: 0 });
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Tab');
+  await box.type('nested', { delay: 0 });
+  await page.keyboard.press('Enter');
+  await page.keyboard.press('Enter');
+  const typed = await box.inputValue();
+  if (typed !== '- [ ] one\n- [ ] two\n  - [ ] nested\n') throw new Error(`Enter produced ${JSON.stringify(typed)}`);
+
+  await page.click(`.chat-composer button:has-text("${LABELS.preview}")`);
+  await page.waitForSelector('.editor .md input[type=checkbox]');
+  const boxes = page.locator('.editor .md input[type=checkbox]');
+  if (await boxes.first().isDisabled()) throw new Error('the preview offers a checkbox nobody can tick');
+  await boxes.nth(1).click();
+  await page.waitForTimeout(300);
+  await page.click(`.chat-composer button:has-text("${LABELS.write}")`);
+  const ticked = await box.inputValue();
+  if (!ticked.includes('- [x] two')) throw new Error(`ticking the second box left ${JSON.stringify(ticked)}`);
+  if (ticked.includes('- [x] one')) throw new Error('ticking one box ticked another');
+  console.log('     the list wrote itself, and the box that was clicked is the box that changed');
+  await box.fill('');
 });
 
 await step('command palette', async () => {
