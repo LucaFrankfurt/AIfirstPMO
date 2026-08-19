@@ -183,3 +183,86 @@ export function Login() {
     </div>
   );
 }
+
+/**
+ * An invite link opened by somebody who is *already* signed in.
+ *
+ * Registering a second time on an instance makes a second workspace — it does
+ * not join the first one — so two accounts made that way start out unable to
+ * see each other at all: no shared members, no shared projects, nobody in the
+ * chat sidebar. An invite is how they come together, and this is the screen
+ * that accepts one without signing out first.
+ *
+ * It exists because the route used to redirect a signed-in visitor to the home
+ * page. The endpoint was there, the client function was there, and the one
+ * person who most needed them — an account that already exists — was silently
+ * bounced past both.
+ */
+export function AcceptInvite() {
+  const { t } = useI18n();
+  const { code } = useParams();
+  const navigate = useNavigate();
+  const { user, refresh, setWorkspace, signOut } = useSession();
+  const [invite, setInvite] = useState<{ workspace_name: string } | null>(null);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!code) return;
+    api.get<{ workspace_name: string }>(`/api/invites/${code}`)
+      .then(setInvite)
+      .catch(() => setError(t('login.inviteInvalid')));
+  }, [code, t]);
+
+  async function join(): Promise<void> {
+    if (!code) return;
+    setError('');
+    setBusy(true);
+    try {
+      const { workspaceId } = await api.acceptInvite(code);
+      // Refresh first: `setWorkspace` switches to a workspace the session has
+      // to already know about, or the app opens on an id it cannot name.
+      await refresh();
+      setWorkspace(workspaceId);
+      navigate('/');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t('common.somethingWentWrong'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="auth">
+      <div className="box">
+        <div className="row" style={{ marginBottom: 16 }}>
+          <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
+          <div>
+            <h1>{t('login.joinTitle')}</h1>
+            <span className="muted" style={{ fontSize: 12.5 }}>
+              {invite ? t('login.invitedTo', { workspace: invite.workspace_name }) : t('login.tagline')}
+            </span>
+          </div>
+        </div>
+
+        {error && <div className="error">{error}</div>}
+
+        {user && (
+          <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
+            {t('login.signedInAs', { email: user.email ?? '' })}
+          </p>
+        )}
+
+        <button className="btn primary block lg" type="button" disabled={busy || !invite} onClick={() => void join()}>
+          {busy ? t('action.working') : t('login.joinSubmit')}
+        </button>
+
+        {/* Signing out lands back on this same URL with no session, which is
+            the sign-in form with the invite already attached. */}
+        <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={() => void signOut()}>
+          {t('login.useAnotherAccount')}
+        </button>
+      </div>
+    </div>
+  );
+}

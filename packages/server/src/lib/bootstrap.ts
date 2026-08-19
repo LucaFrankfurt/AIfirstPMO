@@ -1,5 +1,5 @@
 import { Clock, orderKeys, type StateGroup } from '@kolibri/shared';
-import { get, run, tx, type Row } from '../db/index.ts';
+import { get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { conflict } from './http.ts';
 import { translatorFor, type ServerKey } from './i18n.ts';
 import { keyFromName, slugify, uid } from './ids.ts';
@@ -56,17 +56,38 @@ export function createWorkspace(name: string, ownerId: string, slugHint?: string
   });
 }
 
+/**
+ * Send somebody's `user` row out again, unchanged.
+ *
+ * Membership is what allows a device to see a `user` row, and a delta pull only
+ * carries rows whose `seq` is past that device's cursor. An account that
+ * existed *before* it joined has a sequence everybody already went past while
+ * the row was still invisible to them — so without this it arrives as a member
+ * nobody can name: a raw id where a name belongs, and in chat no entry at all,
+ * because the list is built by looking each member's user row up and dropping
+ * the ones that are missing.
+ *
+ * Restamping the sequence is the whole of the fix. Nothing about the person
+ * changed; what changed is who is now allowed to see them.
+ */
+function resendUser(userId: string): void {
+  run(`UPDATE users SET seq = ? WHERE id = ?`, nextSeq(), userId);
+}
+
 export function addMember(workspaceId: string, userId: string, role = 'member'): Row {
   const existing = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, workspaceId, userId);
   if (existing) {
     if (existing.deleted_at || existing.role !== role) {
       writeEntity('member', existing.id, { role }, { workspaceId, actorId: userId, hlc: serverClock.now(), system: true });
+      // Coming back is joining again as far as everybody else's cache is concerned.
+      if (existing.deleted_at) resendUser(userId);
     }
     return get<Row>(`SELECT * FROM workspace_members WHERE id = ?`, existing.id)!;
   }
   const { row } = writeEntity('member', uid(), { workspace_id: workspaceId, user_id: userId, role }, {
     workspaceId, actorId: userId, hlc: serverClock.now(), system: true,
   });
+  resendUser(userId);
   // Every member joins the workspace's public projects so their inbox is useful.
   return row;
 }
