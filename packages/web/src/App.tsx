@@ -10,6 +10,7 @@ import { Planner } from './components/planner';
 import { Inbox, More, MyWork, Search } from './routes/personal';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
+import { Chat } from './routes/chat';
 import { Help } from './routes/help';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
@@ -99,6 +100,8 @@ export default function App() {
           <Route path="/projects/:id" element={<ProjectPage />} />
           <Route path="/cycles/:id" element={<CyclePage />} />
           <Route path="/modules/:id" element={<ModulePage />} />
+          <Route path="/chat" element={<Chat />} />
+          <Route path="/chat/:id" element={<Chat />} />
           <Route path="/pages" element={<PagesIndex />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />

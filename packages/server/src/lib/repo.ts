@@ -1,4 +1,14 @@
-import { ENTITIES, crdt, entityDef, hlcGreater, reschedule, type CrdtState, type EntityName } from '@kolibri/shared';
+import {
+  ENTITIES,
+  crdt,
+  directMembers,
+  entityDef,
+  hlcGreater,
+  normaliseChannelName,
+  reschedule,
+  type CrdtState,
+  type EntityName,
+} from '@kolibri/shared';
 import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, forbidden, notFound } from './http.ts';
 import { shareToken, token, uid } from './ids.ts';
@@ -134,9 +144,18 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     if (entity === 'task' && values.state_id !== undefined && !opts.system) {
       guardTransition(String(values.state_id), opts);
     }
+    if (entity === 'channel' && !opts.system) {
+      guardChannelWrite(id, values, existing, opts);
+    }
+    if (entity === 'message' && !opts.system) {
+      guardMessageWrite(id, values, existing, opts);
+    }
+    if (entity === 'channelRead' && !opts.system) {
+      guardReadStateWrite(id, values, existing, opts);
+    }
 
     const forced = created ? applyCreateDefaults(entity, id, values, opts) : {};
-    applyInvariants(entity, values, existing, forced);
+    applyInvariants(entity, id, values, existing, forced);
 
     const seq = nextSeq();
     const row = created
@@ -253,11 +272,34 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
     setForced('token', shareToken());
     if (!values.created_by) setForced('created_by', opts.actorId);
   }
+  if (entity === 'channel') {
+    if (!values.created_by) setForced('created_by', opts.actorId);
+    // Whoever opened it is in it. A private channel its own creator cannot see
+    // is a row nobody will ever find again.
+    const members = parseIds(values.members);
+    if (!members.includes(opts.actorId) && values.kind !== 'direct') {
+      members.push(opts.actorId);
+      setForced('members', JSON.stringify(members));
+    }
+  }
+  if (entity === 'message') {
+    // Said by whoever is saying it. This is not a field a client gets to
+    // choose: the whole of "who wrote this" is the session it arrived on.
+    setForced('author_id', opts.actorId);
+  }
+  if (entity === 'channelRead') {
+    setForced('user_id', opts.actorId);
+    if (!values.notify) {
+      // Being written to directly is the case where silence would be wrong.
+      const kind = get<Row>(`SELECT kind FROM channels WHERE id = ?`, values.channel_id ?? '')?.kind;
+      setForced('notify', kind === 'direct' ? 'all' : 'mentions');
+    }
+  }
   return forced;
 }
 
 /** Rules the server enforces regardless of what a client sent. */
-function applyInvariants(entity: EntityName, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+function applyInvariants(entity: EntityName, id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   // A project cannot sit under itself, directly or at any remove. Two devices
   // can each make a legal move that is a loop together, so this is checked on
   // write rather than trusted to the interface.
@@ -269,6 +311,78 @@ function applyInvariants(entity: EntityName, values: Record<string, unknown>, ex
   }
   if (entity === 'task') applyTaskInvariants(values, existing, forced);
   if (entity === 'page') applyPageInvariants(values, existing, forced);
+  if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
+  if (entity === 'message') applyMessageInvariants(values, existing, forced);
+}
+
+/**
+ * What a conversation is allowed to be.
+ *
+ * A direct channel is the pair it names and nothing else. Its id already
+ * encodes its members — that is what makes two people opening one at the same
+ * time converge — so the members are read back *from the id* rather than
+ * trusted from the payload. A client that sent a different list was either
+ * confused or trying something; either way the id wins, because the id is what
+ * the other device will have derived too.
+ */
+function applyChannelInvariants(id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  const kind = String(values.kind ?? existing?.kind ?? 'channel');
+
+  if (kind === 'direct') {
+    const pair = directMembers(id);
+    if (pair) {
+      const members = JSON.stringify(pair);
+      if (String(values.members ?? existing?.members ?? '') !== members) {
+        values.members = members;
+        forced.members = pair;
+      }
+    }
+    // Always private, and never named: what to call it depends on who is
+    // looking at it, so it has no name to store.
+    if (Number(values.is_private ?? existing?.is_private ?? 0) !== 1) {
+      values.is_private = 1;
+      forced.is_private = 1;
+    }
+    return;
+  }
+
+  // A named channel keeps its name in the one shape that makes two of them
+  // impossible to confuse.
+  if (values.name !== undefined) {
+    const tidy = normaliseChannelName(String(values.name ?? ''));
+    if (tidy !== values.name) {
+      values.name = tidy;
+      forced.name = tidy;
+    }
+  }
+  // An open channel has no member list; a private one that lost its last
+  // member would be invisible to everybody including its author.
+  if (values.is_private !== undefined && !Number(values.is_private)) {
+    values.members = '[]';
+    forced.members = [];
+  }
+}
+
+/**
+ * A message is written once and then it is somebody's words.
+ *
+ * The body may be edited by its author — that is what `edited_at` records, and
+ * it is stamped here rather than trusted, because "edited" is a claim about
+ * this server's clock. Everything else about a message is fixed: it cannot
+ * change channel, and it cannot change who said it.
+ */
+function applyMessageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  if (!existing) return;
+  for (const fixed of ['channel_id', 'author_id'] as const) {
+    if (values[fixed] !== undefined && values[fixed] !== existing[fixed]) {
+      values[fixed] = existing[fixed];
+      forced[fixed] = existing[fixed];
+    }
+  }
+  if (values.body !== undefined && String(values.body) !== String(existing.body ?? '')) {
+    values.edited_at = Date.now();
+    forced.edited_at = values.edited_at;
+  }
 }
 
 /**
@@ -310,6 +424,78 @@ const safeCrdt = (value: unknown): CrdtState | null => {
 };
 
 const ROLE_RANK: Record<string, number> = { guest: 0, member: 1, admin: 2, owner: 3 };
+
+/**
+ * Who may change a conversation.
+ *
+ * The membership list is an ordinary synced field, which is what makes adding
+ * somebody to a channel work offline — and would also make *adding yourself*
+ * work, if this were not here. Only somebody already in a conversation may
+ * change it. A private channel's id is a UUID nobody can guess, so this is the
+ * second lock rather than the only one, but a membership list that anybody can
+ * append their own name to is not a membership list.
+ *
+ * On creation there is only one rule: a direct conversation must be one the
+ * person is actually in. Its id names its two members, so anything else is a
+ * row about two other people.
+ */
+function guardChannelWrite(id: string, values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
+  if (!existing) {
+    const pair = directMembers(id);
+    if (String(values.kind ?? '') === 'direct' || pair) {
+      if (!pair) throw badRequest('A direct conversation\'s id is dm.<a>.<b>');
+      if (!pair.includes(opts.actorId)) throw forbidden('That conversation is between two other people');
+    }
+    return;
+  }
+  if (!canSeeChannel(opts.actorId, id)) throw forbidden('You are not in that conversation');
+}
+
+/**
+ * Whether this person may say this here.
+ *
+ * Two separate refusals, and they are separate on purpose. Writing into a
+ * conversation somebody cannot see is the one that matters — the sync filter
+ * would never have shown it to them, so a message arriving for it is either a
+ * confused client or somebody trying it. Editing is narrower still: a message
+ * is somebody's words, and the only person who may change them is the person
+ * who said them.
+ */
+function guardMessageWrite(id: string, values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
+  if (existing) {
+    if (existing.author_id && existing.author_id !== opts.actorId) {
+      throw forbidden('Only the author can change a message');
+    }
+    return;
+  }
+  const channelId = String(values.channel_id ?? '');
+  if (!canSeeChannel(opts.actorId, channelId)) {
+    throw forbidden('You are not in that conversation');
+  }
+  const channel = get<Row>(`SELECT archived_at FROM channels WHERE id = ?`, channelId);
+  if (channel?.archived_at) throw badRequest('That conversation is archived');
+}
+
+/**
+ * A read marker belongs to exactly one person and says so in its id.
+ *
+ * The id is `<channel>::<user>` so two of somebody's devices marking the same
+ * conversation read converge on one row instead of racing to make two. That
+ * makes the id load-bearing, so it is checked rather than assumed: an id
+ * naming somebody else is refused outright rather than quietly rewritten,
+ * because rewriting it would leave the client believing something else.
+ */
+function guardReadStateWrite(id: string, values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
+  const separator = id.lastIndexOf('::');
+  if (separator < 0) throw badRequest('A read marker id is <channel>::<user>');
+  const channelId = id.slice(0, separator);
+  const userId = id.slice(separator + 2);
+  if (userId !== opts.actorId) throw forbidden('That read marker is somebody else\'s');
+  if (!existing && !canSeeChannel(opts.actorId, channelId)) {
+    throw forbidden('You are not in that conversation');
+  }
+  values.channel_id = channelId;
+}
 
 /**
  * Who may move a task into a column.
@@ -550,6 +736,10 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
   comment: (row) => ({ title: '', body: row.body ?? '' }),
   cycle: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),
   module: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),
+  // Indexed, but not findable by everybody — the index has no idea who may read
+  // a conversation, so `searchWorkspace` checks each message hit against its
+  // channel before returning it. See `search.ts`.
+  message: (row) => ({ title: '', body: row.body ?? '' }),
 };
 
 export function indexForSearch(entity: EntityName, row: Row): void {
@@ -702,6 +892,36 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
+  // A message. The default is deliberately not "tell everyone about every
+  // line": a channel that pings its whole membership on every message is a
+  // channel people mute, and a muted channel tells nobody anything. So a
+  // channel notifies whoever was *named*, plus whoever asked for all of it;
+  // a direct message notifies the other person, because being written to
+  // directly is exactly the case where silence would be wrong.
+  if (entity === 'message' && !before && !row.deleted_at) {
+    const channel = get<Row>(`SELECT * FROM channels WHERE id = ?`, row.channel_id);
+    if (channel && !channel.deleted_at) {
+      const direct = String(channel.kind) === 'direct';
+      const named = new Set(findMentions(opts.workspaceId, String(row.body ?? '')));
+      const audience = direct
+        ? parseIds(channel.members)
+        : [...new Set([...named, ...subscribersOf(String(channel.id))])];
+
+      for (const userId of audience) {
+        if (!userId || userId === opts.actorId) continue;
+        if (notifyLevel(String(channel.id), userId, direct) === 'none') continue;
+        if (!direct && !named.has(userId) && notifyLevel(String(channel.id), userId, direct) !== 'all') continue;
+        targets.set(userId, {
+          kind: 'message',
+          title: (t) => (direct
+            ? t('notify.directMessage', { name: displayName(opts.actorId) })
+            : t('notify.message', { name: displayName(opts.actorId), channel: `#${channel.name}` })),
+          body: String(row.body ?? '').slice(0, 280),
+        });
+      }
+    }
+  }
+
   if (entity === 'task' && !before && parseIds(row.assignees).length) {
     for (const userId of parseIds(row.assignees)) {
       if (userId === opts.actorId) continue;
@@ -726,6 +946,30 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     });
   }
 }
+
+/** People who asked to hear about everything in this channel. */
+const subscribersOf = (channelId: string): string[] =>
+  all<Row>(
+    `SELECT user_id FROM channel_reads WHERE channel_id = ? AND notify = 'all' AND deleted_at IS NULL`,
+    channelId,
+  ).map((row) => String(row.user_id));
+
+/**
+ * What one person wants from one conversation.
+ *
+ * No row means they have never opened it, which is not the same as having
+ * opted out — so the answer is the default for that kind rather than silence.
+ */
+function notifyLevel(channelId: string, userId: string, direct: boolean): string {
+  const row = get<Row>(
+    `SELECT notify FROM channel_reads WHERE channel_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    channelId, userId,
+  );
+  return String(row?.notify ?? (direct ? 'all' : 'mentions'));
+}
+
+const displayName = (userId: string | undefined): string =>
+  String(get<Row>(`SELECT name FROM users WHERE id = ?`, userId ?? '')?.name ?? 'Somebody');
 
 /** What a comment is about — a task or a page — for a notification title. */
 function commentContext(row: Row): Row | undefined {
@@ -840,6 +1084,23 @@ export function visibleProjectIds(userId: string, workspaceId: string): Set<stri
     workspaceId, userId,
   );
   return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * Whether somebody may read a conversation — and therefore write into it.
+ *
+ * The same rule the sync filter applies, in the one place a write path can ask
+ * it. They are written twice on purpose: the filter has to be SQL so a pull
+ * stays one query, and a guard has to be a function so it can refuse. They are
+ * tested against each other rather than trusted to stay in step.
+ */
+export function canSeeChannel(userId: string, channelId: string | null | undefined): boolean {
+  if (!channelId) return false;
+  const channel = get<Row>(`SELECT * FROM channels WHERE id = ? AND deleted_at IS NULL`, channelId);
+  if (!channel) return false;
+  if (!canSeeProject(userId, channel.project_id)) return false;
+  if (!Number(channel.is_private)) return true;
+  return parseIds(channel.members).includes(userId);
 }
 
 export function canSeeProject(userId: string, projectId: string | null | undefined): boolean {

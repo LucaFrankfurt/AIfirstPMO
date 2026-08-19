@@ -21,14 +21,17 @@ const LABELS = {
   en: {
     board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
+    chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
+    chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
+    chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
   },
 }[locale];
 
@@ -142,6 +145,40 @@ await step('pages', async () => {
   await page.waitForSelector('.md h1', { timeout: 5000 });
 });
 await page.screenshot({ path: `${shots}/4-page.png` });
+
+await step('chat: a channel, a message, and a badge that clears', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  // A fresh name each run: the walkthrough runs three times against one
+  // instance, and a channel that already exists is refused by name.
+  const name = `smoke ${locale} ${Date.now()}`;
+  await page.click(`button:has-text("${LABELS.newChannel}")`);
+  await page.waitForSelector('.sheet input');
+  await page.fill('.sheet input', name);
+  await page.click(`button:has-text("${LABELS.createChannel}")`);
+  await page.waitForSelector('.chat-header', { timeout: 5000 });
+
+  await page.fill('.chat-composer textarea', 'Hello from the walkthrough.');
+  await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
+  await page.waitForSelector('.chat-message', { timeout: 5000 });
+  const said = await page.locator('.chat-message .body').last().innerText();
+  if (!said.includes('Hello from the walkthrough')) throw new Error(`message did not appear: "${said}"`);
+  console.log('     messages in the new channel:', await page.locator('.chat-message').count());
+
+  // Reading is what marks it read, so the badge must not be left behind.
+  await page.waitForTimeout(600);
+  const badge = await page.locator('.sidebar a[href="/chat"] .count').count();
+  if (badge) throw new Error('the unread badge stayed up on a conversation just read');
+
+  // And a direct conversation names the other person rather than showing a key.
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await page.locator('.chat-list .nav-item').last().click();
+  await page.waitForSelector('.chat-header', { timeout: 5000 });
+  const title = await page.locator('.chat-header strong').innerText();
+  if (!title.trim() || title.includes('.')) throw new Error(`direct conversation titled "${title}"`);
+  console.log('     direct conversation with:', title);
+});
+await page.screenshot({ path: `${shots}/4b-chat.png` });
 
 await step('command palette', async () => {
   await page.keyboard.press('Control+k');

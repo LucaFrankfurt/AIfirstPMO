@@ -68,6 +68,24 @@ function filterFor(entity: EntityName): string {
     case 'page':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
               AND (${table}.access <> 'private' OR ${table}.created_by = ?2)`;
+    // A conversation is visible when it is not private, or when the person is
+    // named in it. A channel tied to a project follows that project as well:
+    // an open channel inside a project people cannot see is still not theirs.
+    case 'channel':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
+              AND (${table}.is_private = 0
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.members) WHERE json_each.value = ?2))`;
+    // Messages inherit their channel's answer, exactly. Written out rather than
+    // reusing the clause above so there is one query and no join to forget.
+    case 'message':
+      return `AND EXISTS (
+                SELECT 1 FROM channels c
+                 WHERE c.id = ${table}.channel_id
+                   AND (c.project_id IS NULL OR c.project_id IN (${VISIBLE_PROJECTS}))
+                   AND (c.is_private = 0
+                        OR EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;
+    case 'channelRead':
+      return `AND ${table}.user_id = ?2`;
     case 'comment':
     case 'attachment':
       return `AND (${table}.task_id IS NULL OR EXISTS (

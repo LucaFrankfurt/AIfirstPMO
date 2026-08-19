@@ -774,6 +774,81 @@ CREATE TABLE IF NOT EXISTS activities (
 CREATE INDEX IF NOT EXISTS activities_seq ON activities (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS activities_task ON activities (task_id, created_at);
 
+-- Conversations. A named channel, or the direct one between two people.
+--
+-- A direct channel's id is derived from its members (`dm.<a>.<b>`, sorted), so
+-- two people opening a conversation with each other while both are offline end
+-- up in one conversation rather than two holding half the history each. See
+-- packages/shared/src/chat.ts.
+--
+-- `members` empty means the workspace rather than nobody: an open channel is
+-- open, and the alternative is writing every member into every channel and then
+-- keeping that list right as people join and leave.
+CREATE TABLE IF NOT EXISTS channels (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  -- A channel can belong to a project, and then it is only visible to people
+  -- who can see that project. Null is a workspace-wide channel.
+  project_id   TEXT,
+  kind         TEXT NOT NULL DEFAULT 'channel',
+  name         TEXT NOT NULL DEFAULT '',
+  topic        TEXT,
+  is_private   INTEGER NOT NULL DEFAULT 0,
+  members      TEXT NOT NULL DEFAULT '[]',
+  archived_at  INTEGER,
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS channels_seq ON channels (workspace_id, seq);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id   TEXT NOT NULL,
+  author_id    TEXT,
+  body         TEXT NOT NULL DEFAULT '',
+  -- The message this one answers, for a short thread inside the stream. Not a
+  -- separate thread view: a conversation that needs one is a page.
+  reply_to     TEXT,
+  edited_at    INTEGER,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS messages_seq ON messages (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS messages_channel ON messages (channel_id, created_at);
+
+-- How far one person has read one conversation, and what they want told to
+-- them about it. Private: where somebody has got to is nobody else's business,
+-- and a read receipt is deliberately not a feature here.
+--
+-- The id is `<channel>::<user>` so two devices marking the same conversation
+-- read converge on one row instead of racing to create two.
+CREATE TABLE IF NOT EXISTS channel_reads (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  channel_id   TEXT NOT NULL,
+  user_id      TEXT NOT NULL,
+  last_read_at INTEGER NOT NULL DEFAULT 0,
+  -- 'all' | 'mentions' | 'none'. The default is 'mentions' for a channel and
+  -- 'all' for a direct conversation — being written to directly is the case
+  -- where silence would be wrong.
+  notify       TEXT NOT NULL DEFAULT 'mentions',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS channel_reads_seq ON channel_reads (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS channel_reads_user ON channel_reads (user_id, channel_id);
+
 CREATE TABLE IF NOT EXISTS applied_mutations (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

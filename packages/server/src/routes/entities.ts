@@ -11,7 +11,7 @@ import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
 import { importCsv } from '../lib/import.ts';
 import { copyProject, type CopyOptions } from '../lib/copy.ts';
 import { exportProject, importProject, type ProjectDoc } from '../lib/transfer.ts';
-import { canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
+import { canSeeChannel, canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 import { emptyTrash, purgeable } from '../lib/trash.ts';
 import { env } from '../env.ts';
 
@@ -46,6 +46,27 @@ const projectOf = (entity: EntityName, row: Row): string | null =>
 
 function guardProject(userId: string, entity: EntityName, row: Row): void {
   if (!canSeeProject(userId, projectOf(entity, row))) throw forbidden('Project is private');
+}
+
+/**
+ * A conversation guards itself, and its messages and read markers guard through
+ * it.
+ *
+ * The write paths already refuse through `repo.ts`; this is the read side,
+ * which has no write to refuse. Reading a row by its id is the one way into a
+ * private channel that does not go through a list, so it is the one that has
+ * to be closed explicitly.
+ */
+function guardChat(userId: string, entity: EntityName, row: Row): void {
+  if (entity === 'channel' && !canSeeChannel(userId, String(row.id))) {
+    throw forbidden('You are not in that conversation');
+  }
+  if ((entity === 'message' || entity === 'channelRead') && !canSeeChannel(userId, String(row.channel_id))) {
+    throw forbidden('You are not in that conversation');
+  }
+  if (entity === 'channelRead' && row.user_id !== userId) {
+    throw forbidden('That read marker is somebody else\'s');
+  }
 }
 
 export function registerEntityRoutes(router: Router): void {
@@ -379,8 +400,23 @@ export function registerEntityRoutes(router: Router): void {
       }
     }
     if (!flag(ctx.query, 'include_deleted')) filters.push('deleted_at IS NULL');
-    if (entity === 'notification') {
+    if (entity === 'notification' || entity === 'channelRead') {
       filters.push('user_id = ?');
+      params.push(auth.userId);
+    }
+    // A private conversation is not listed to somebody who is not in it. In SQL
+    // rather than only in the filter below, so `limit` counts rows the caller
+    // may actually have — a page trimmed afterwards is a page that lies about
+    // how much is left.
+    if (entity === 'channel') {
+      filters.push(`(is_private = 0 OR EXISTS (SELECT 1 FROM json_each(channels.members) WHERE json_each.value = ?))`);
+      params.push(auth.userId);
+    }
+    if (entity === 'message') {
+      filters.push(`EXISTS (SELECT 1 FROM channels c
+                             WHERE c.id = messages.channel_id AND c.deleted_at IS NULL
+                               AND (c.is_private = 0
+                                    OR EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?)))`);
       params.push(auth.userId);
     }
 
@@ -397,6 +433,10 @@ export function registerEntityRoutes(router: Router): void {
     );
     return rows
       .filter((row) => canSeeProject(auth.userId, projectOf(entity, row)))
+      // A message carries no project of its own, so its project answer is its
+      // channel's. Asked here rather than folded into the SQL above because it
+      // is the same question `canSeeChannel` already answers for every write.
+      .filter((row) => entity !== 'message' || canSeeChannel(auth.userId, row.channel_id))
       .map((row) => serialize(entity, row));
   });
 
@@ -437,6 +477,7 @@ export function registerEntityRoutes(router: Router): void {
     const row = workspaceOf(entity, ctx.params.id);
     requireWorkspace(ctx, row.workspace_id);
     guardProject(auth.userId, entity, row);
+    guardChat(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     return serialize(entity, row);
   });
@@ -449,6 +490,7 @@ export function registerEntityRoutes(router: Router): void {
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     if (!hasRole(role, 'member')) throw forbidden('Guests cannot edit content');
     guardProject(auth.userId, entity, row);
+    guardChat(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     const body = await readJson<Record<string, unknown>>(ctx);
     const { row: updated } = writeEntity(entity, ctx.params.id, body, {
@@ -466,6 +508,7 @@ export function registerEntityRoutes(router: Router): void {
     requireWorkspace(ctx, row.workspace_id, 'member');
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     guardProject(auth.userId, entity, row);
+    guardChat(auth.userId, entity, row);
     deleteEntity(entity, ctx.params.id, {
       workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
     });

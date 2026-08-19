@@ -37,8 +37,16 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
       ORDER BY rank LIMIT ?`,
     match, workspaceId, Math.min(limit * 3, 200),
   );
+  // A message's visibility is its channel's, and the index does not carry the
+  // channel. Resolved in one query for the whole page of hits rather than one
+  // per row — and *before* the slice, so a private conversation cannot push a
+  // readable result off the end of the list either.
+  const readable = visibleMessages(userId, rows.filter((row) => row.kind === 'message').map((row) => String(row.ref_id)));
+
   return rows
-    .filter((row) => (!kinds?.length || kinds.includes(row.kind)) && canSeeProject(userId, row.project_id))
+    .filter((row) => (!kinds?.length || kinds.includes(row.kind))
+      && canSeeProject(userId, row.project_id)
+      && (row.kind !== 'message' || readable.has(String(row.ref_id))))
     .slice(0, limit)
     .map((row) => ({
       kind: row.kind,
@@ -49,6 +57,40 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
       rank: Number(row.rank ?? 0),
     }));
 }
+
+/**
+ * Which of these messages this person may read.
+ *
+ * The same rule the sync filter and `canSeeChannel` apply, asked once for a
+ * whole page of hits. A message in a channel that has since been deleted is
+ * not readable either — the join drops it.
+ */
+function visibleMessages(userId: string, ids: string[]): Set<string> {
+  if (!ids.length) return new Set();
+  const placeholders = ids.map(() => '?').join(', ');
+  const rows = all<Row>(
+    `SELECT m.id, c.project_id, c.is_private, c.members
+       FROM messages m JOIN channels c ON c.id = m.channel_id
+      WHERE m.id IN (${placeholders}) AND c.deleted_at IS NULL`,
+    ...ids,
+  );
+  const allowed = new Set<string>();
+  for (const row of rows) {
+    if (!canSeeProject(userId, row.project_id)) continue;
+    if (Number(row.is_private) && !memberIds(row.members).includes(userId)) continue;
+    allowed.add(String(row.id));
+  }
+  return allowed;
+}
+
+const memberIds = (raw: unknown): string[] => {
+  try {
+    const parsed = JSON.parse(String(raw ?? '[]'));
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+};
 
 export function registerSearchRoutes(router: Router): void {
   router.get('/api/workspaces/:ws/search', (ctx: Ctx) => {

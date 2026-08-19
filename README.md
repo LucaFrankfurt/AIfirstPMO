@@ -194,7 +194,8 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
   [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
 - [`docs/automation.md`](docs/automation.md) — task templates, rules, who gets the task and why one might not fire
-- [`docs/notifications.md`](docs/notifications.md) — in-app and email delivery, batching, mentions
+- [`docs/notifications.md`](docs/notifications.md) — in-app, email, Web Push and Telegram delivery, batching, mentions
+- [`docs/chat.md`](docs/chat.md) — channels and direct messages, why a direct conversation has no id of its own, and what is deliberately not in it
 - [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
 - [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV, and what it does with a row it cannot read
 - [`docs/insights.md`](docs/insights.md) — throughput, burn-up and cycle time, and the rules the charts follow

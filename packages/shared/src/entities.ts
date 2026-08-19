@@ -34,6 +34,9 @@ export type EntityName =
   | 'notification'
   | 'activity'
   | 'intake'
+  | 'channel'
+  | 'message'
+  | 'channelRead'
   | 'purge';
 
 export interface EntityDef {
@@ -265,6 +268,36 @@ export const ENTITIES = {
     serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id'],
     private: true,
   },
+  /**
+   * A conversation. Either a named channel or the direct one between two
+   * people — see `chat.ts` for why a direct channel's id is derived from its
+   * members rather than invented.
+   *
+   * `members` empty means *the workspace*, not nobody: an open channel is
+   * open, and writing every member into every channel would mean keeping that
+   * list correct as people join and leave.
+   */
+  channel: {
+    table: 'channels',
+    fields: ['workspace_id', 'project_id', 'kind', 'name', 'topic', 'is_private', 'members', 'archived_at', 'created_by'],
+    json: ['members'],
+  },
+  message: {
+    table: 'messages',
+    fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'edited_at'],
+  },
+  /**
+   * How far somebody has read, and what they want to hear about. One row per
+   * person per conversation, private to them: where you have got to in a
+   * channel is nobody else's business, and a read receipt is a feature this
+   * has deliberately not got.
+   */
+  channelRead: {
+    table: 'channel_reads',
+    fields: ['workspace_id', 'channel_id', 'user_id', 'last_read_at', 'notify'],
+    serverOnly: ['user_id'],
+    private: true,
+  },
   activity: {
     table: 'activities',
     fields: ['workspace_id', 'project_id', 'task_id', 'page_id', 'actor_id', 'verb', 'field', 'old_value', 'new_value'],
@@ -351,6 +384,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   automation: 'automations',
   webhook: 'webhooks',
   notification: 'notifications',
+  channel: 'channels',
+  message: 'messages',
+  channelRead: 'channel-reads',
   activity: 'activities',
   intake: 'intakes',
   purge: 'purges',

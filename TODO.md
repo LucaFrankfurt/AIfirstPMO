@@ -403,6 +403,41 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       restore), a subscription that returns 404 or 410 is deleted because that is how a push service
       says "gone", and permission is asked for only when somebody presses the switch — a site that
       asks on load is a site people block, and a blocked permission cannot be asked for twice.
+- [x] **An instant messenger: channels and direct messages.** Built out of the same synced rows as
+      everything else, which is the whole design rather than a shortcut. A message sends from a
+      train and arrives when the tunnel ends, appears on the other person's screen without a socket
+      to reconnect, survives a reload, and turns up in search and in a backup. No second protocol,
+      and nothing extra that can be down.
+      **A direct conversation has no id of its own.** Two people can open one with each other while
+      both are offline; if each device invented an id, the tunnel would end and there would be two
+      conversations holding half the history each. So the id is derived from the members —
+      `dm.<a>.<b>`, sorted — which makes creating one and finding one the same operation. Built from
+      the ids rather than a hash of them, because a hash can collide and a collision here would
+      silently merge two people's private conversations. That is also why three or more people is a
+      *named private channel* rather than a bigger direct message: the id only stays collision-free
+      while it is a concatenation. The server reads a direct channel's members back out of its id
+      and overwrites what was sent, because the id is what the other device derived too.
+      **Visibility is one rule written in four places** — SQL for the delta pull, SQL for the REST
+      list, a function for reads and writes by id, a join for search — because each has to be shaped
+      for its own query. Four copies is four chances to get it wrong, so the tests ask each of them
+      the same question about the same channels and require the same answer. Search is the one that
+      would have leaked: the index has no idea who may read a conversation, so message hits are
+      checked against their channel *before* the result list is trimmed. Membership cannot be
+      self-granted either, even though the member list is an ordinary synced field.
+      **Notifying everybody about every line was the thing not to do.** A channel that pings its
+      whole membership is a channel people mute, and a muted channel tells nobody anything. So a
+      channel notifies whoever was named plus anybody who asked for all of it; a direct message
+      always notifies, because being written to directly is where silence would be wrong; and muting
+      beats a mention, since somebody who set a conversation to *nothing* meant it.
+      Read markers are private — where somebody has got to is nobody else's business — and only ever
+      move forwards, or a conversation just read would come back unread on the other device.
+      **Deliberately not there:** no typing indicator and no presence dot. Both are ephemeral state,
+      and the realtime channel here carries "something changed up to seq N" and nothing else, on
+      purpose, so that catching up after a tunnel and hearing about a change live are one code path.
+      Adding per-keystroke state would mean a second mechanism with its own reconnection logic. If
+      it is ever added it should be its own transport rather than a widening of this one. Also no
+      read receipts (the marker exists and is private; making it public is a one-way door), no voice
+      or video, and no separate thread view.
 - [x] **Telegram notifications.** A fourth channel, next to the bell, email and Web Push, and the
       only one that reaches a phone in a second without a browser being open. An operator configures
       exactly one thing — a bot token — and every person connects their own chat from Settings.

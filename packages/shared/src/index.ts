@@ -10,6 +10,7 @@ export * from './schedule.ts';
 export * from './markdown.ts';
 export * from './anchor.ts';
 export * from './foreign.ts';
+export * from './chat.ts';
 export * as crdt from './text-crdt.ts';
 export type { CrdtState } from './text-crdt.ts';
 export { Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './hlc.ts';
