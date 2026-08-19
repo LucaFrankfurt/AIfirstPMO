@@ -7,7 +7,7 @@ import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, 
 import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
-import { ImportSheet } from '../components/import';
+import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
 import { ProjectInsights } from '../components/insights';
 import { useTypes } from '../components/task-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
@@ -606,6 +606,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const [newLabel, setNewLabel] = useState('');
   const [importing, setImporting] = useState(false);
   const [copying, setCopying] = useState(false);
+  const [foreign, setForeign] = useState<{ document: unknown; found: Inspection } | null>(null);
 
   /**
    * A project as a document: for moving it to another instance, and for reading
@@ -629,9 +630,28 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     }
   }
 
+  /**
+   * Read a file first, import it second.
+   *
+   * A Kolibri document goes straight in — it is this app's own shape and there
+   * is nothing to warn anybody about. Anything from another tool is *converted*,
+   * and what a converter leaves behind is the part worth reading before a
+   * project appears, not after.
+   */
   async function importJson(file: File): Promise<void> {
     try {
       const document_ = JSON.parse(await file.text());
+      const found = await api.post<Inspection>(`/api/workspaces/${workspaceId}/import/json/inspect`, { document: document_ });
+      if (found.from === 'kolibri') return finishJsonImport(document_);
+      setForeign({ document: document_, found });
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
+
+  async function finishJsonImport(document_: unknown): Promise<void> {
+    setForeign(null);
+    try {
       const result = await api.post<{ project: { id: string }; counts: Record<string, number>; unmatched: string[] }>(
         `/api/workspaces/${workspaceId}/import/json`,
         { document: document_ },
@@ -887,6 +907,13 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       </div>
       <p className="hint" style={{ marginTop: 6 }}>{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
+      {foreign && (
+        <ForeignImportSheet
+          found={foreign.found}
+          onClose={() => setForeign(null)}
+          onImport={() => void finishJsonImport(foreign.document)}
+        />
+      )}
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('copy.title')}</h3>
       <button className="btn" onClick={() => setCopying(true)}>

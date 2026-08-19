@@ -243,3 +243,58 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
     </Sheet>
   );
 }
+
+/* --------------------------------------------------- another tool's export */
+
+export interface Inspection {
+  from: string;
+  name: string;
+  tasks: number;
+  notes: string[];
+}
+
+const TOOL_NAME: Record<string, string> = {
+  jira: 'Jira', linear: 'Linear', plane: 'Plane', openproject: 'OpenProject',
+};
+
+/**
+ * What a foreign export turned out to be, before it is imported.
+ *
+ * The notes are the point of this screen. Every one of these tools has ideas
+ * Kolibri has no equivalent for, and a converter that quietly dropped them
+ * would produce a project that looks imported and is wrong in a way nobody
+ * notices for a month. Reading what was left behind is cheaper before the
+ * import than after it.
+ */
+export function ForeignImportSheet({
+  found, onClose, onImport,
+}: { found: Inspection; onClose: () => void; onImport: () => void }) {
+  const t = useT();
+  const tool = TOOL_NAME[found.from] ?? found.from;
+
+  return (
+    <Sheet
+      title={t('foreign.title', { tool })}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
+          <button className="btn primary" onClick={onImport}>{t('foreign.import')}</button>
+        </>
+      }
+    >
+      <p style={{ marginTop: 0 }}>
+        {t('foreign.summary', { tool, name: found.name || t('foreign.unnamed'), count: found.tasks })}
+      </p>
+      {found.notes.length > 0 && (
+        <>
+          <h4 style={{ fontSize: 13, margin: '18px 0 6px' }}>{t('foreign.leftBehind')}</h4>
+          <ul style={{ margin: 0, paddingInlineStart: 20, fontSize: 13, lineHeight: 1.6 }}>
+            {found.notes.map((note) => <li key={note}>{note}</li>)}
+          </ul>
+        </>
+      )}
+      <p className="hint" style={{ marginTop: 16 }}>{t('foreign.caveat')}</p>
+    </Sheet>
+  );
+}

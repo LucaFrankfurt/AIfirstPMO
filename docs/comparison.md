@@ -64,7 +64,7 @@ which Plane does not have in this form.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Import** from Jira/Linear/Plane's own formats | Medium | CSV is built — with a preview, a per-row report, and a second pass that resolves parents and blockers — and so is a JSON round trip between Kolibri instances |
+| ~~**Import** from Jira/Linear/Plane's own formats~~ | **Done** | Recognised by shape and converted, with what cannot come across listed before the import — plus CSV with a preview and a per-row report, and a JSON round trip between Kolibri instances. Written against each tool's documented shape, never against a real export |
 | ~~**Intake / triage** — an inbox for reports from outside~~ | **Done** | A share link that is a *form*: what somebody outside sends waits under Reports until a member accepts it, and only then is it a task |
 
 Custom fields used to head this list and are now built — nine kinds, per project, each limited to

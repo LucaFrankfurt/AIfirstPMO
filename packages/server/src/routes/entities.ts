@@ -1,4 +1,7 @@
-import { COLLECTIONS, ENTITIES, IMPORT_FIELDS, type EntityName, type ImportField, type Mapping } from '@kolibri/shared';
+import {
+  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat,
+  type EntityName, type ImportField, type Mapping,
+} from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { serverClock, createProject } from '../lib/bootstrap.ts';
@@ -183,18 +186,70 @@ export function registerEntityRoutes(router: Router): void {
     return exportProject(ctx.params.ws, String(project.id));
   });
 
-  /** Read such a document back, as a new project. */
+  /**
+   * Read such a document back, as a new project — or one of the other tools'.
+   *
+   * A Jira search response, a Linear query result, a Plane issue list or an
+   * OpenProject collection is recognised by its shape and converted first. The
+   * conversion's notes come back with the report, because "1 204 tasks
+   * imported" without "and 84 custom fields were dropped" is a lie by omission.
+   */
   router.post('/api/workspaces/:ws/import/json', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws, 'member');
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    const body = await readJson<{ document?: ProjectDoc; name?: string; key?: string; match_people?: boolean }>(ctx, 24 * 1024 * 1024);
-    const report = importProject(ctx.params.ws, auth.userId, body.document as ProjectDoc, {
+    const body = await readJson<{ document?: unknown; name?: string; key?: string; match_people?: boolean }>(ctx, 24 * 1024 * 1024);
+
+    let document = body.document;
+    let notes: string[] = [];
+    let from: string | null = null;
+    if (detectFormat(document)) {
+      const converted = convert(document);
+      document = converted.document;
+      notes = converted.notes;
+      from = converted.format;
+    }
+
+    const report = importProject(ctx.params.ws, auth.userId, document as ProjectDoc, {
       name: body.name,
       key: body.key,
       matchPeople: body.match_people !== false,
     });
-    return { project: serialize('project', report.project), counts: report.counts, unmatched: report.unmatched };
+    return {
+      project: serialize('project', report.project),
+      counts: report.counts,
+      unmatched: report.unmatched,
+      from,
+      notes,
+    };
+  });
+
+  /**
+   * What a file is, before anybody imports it. A dry run for the JSON path,
+   * matching the one CSV already has: nothing is written.
+   */
+  router.post('/api/workspaces/:ws/import/json/inspect', async (ctx: Ctx) => {
+    requireAuth(ctx);
+    requireWorkspace(ctx, ctx.params.ws, 'member');
+    const body = await readJson<{ document?: unknown }>(ctx, 24 * 1024 * 1024);
+    const doc = body.document as Record<string, unknown> | undefined;
+    if (doc && typeof doc.format === 'string' && doc.format.startsWith('kolibri.project/')) {
+      return {
+        from: 'kolibri',
+        name: (doc.project as Record<string, unknown>)?.name ?? '',
+        tasks: Array.isArray(doc.tasks) ? doc.tasks.length : 0,
+        notes: [] as string[],
+      };
+    }
+    if (!detectFormat(body.document)) throw badRequest('That file is not an export this can read');
+    const converted = convert(body.document);
+    const project = converted.document.project as Record<string, unknown>;
+    return {
+      from: converted.format,
+      name: project.name ?? '',
+      tasks: (converted.document.tasks as unknown[]).length,
+      notes: converted.notes,
+    };
   });
 
   /**

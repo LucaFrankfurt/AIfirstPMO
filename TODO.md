@@ -334,7 +334,22 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       People are matched by email address, the only identifier that means the same thing on two
       instances; anybody not found is named in the report and their work arrives unassigned, rather
       than being given to somebody who is not there.
-      Still open: reading Jira, Linear, Plane or OpenProject's own formats.
+- [x] **Reading the other tools' own exports.** A Jira search response, a Linear query result, a
+      Plane issue list and an OpenProject collection are recognised by their *shape* rather than by
+      what the browser called the download, and converted into the document above so the ordinary
+      importer does the rest. What comes across is what those tools agree with Kolibri about — a
+      title, a description, a state and which bucket the state is in, a priority, dates, labels, an
+      assignee, a parent and comments. The team's own column names are kept, because a team that has
+      spent two years arguing about what to call a column should get that column. What does not come
+      across is everything each tool invented for itself, and the screen lists it *before* the
+      import rather than after: sprints and workflows, Linear's cycles, OpenProject's categories,
+      Plane's people (it sends ids and no addresses, so nothing can be matched and the tasks arrive
+      unassigned). A converter that quietly dropped those would produce a project that looks
+      imported and is wrong in a way nobody notices for a month.
+      **Honestly stated, in the code and on the screen:** these were written against each tool's
+      *documented* API shape and have never been run against a real export from a real instance. The
+      recognisers are narrow, an unrecognised file is refused rather than half-read, and the import
+      always makes a new project, so trying it costs nothing.
 - [x] **Native push notifications.** Web Push, with no encryption stack: the push carries **no
       payload at all**, which the spec allows, and the service worker asks `/api/notifications/latest`
       what to say — same origin, same session. That removes several hundred lines of ECDH, HKDF and

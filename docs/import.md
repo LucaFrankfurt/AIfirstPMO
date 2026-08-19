@@ -129,3 +129,49 @@ same thing on two instances. Anybody with no account on the target is named in
 the report and their work arrives unassigned, rather than being handed to
 somebody who is not there. Who reacted to a comment is not carried across for
 the same reason.
+
+## Leaving another tool with its own export
+
+**Project → Settings → Import from JSON** also takes an export from Jira, Linear,
+Plane or OpenProject. The file is recognised by its **shape** rather than by what
+the browser called the download:
+
+| Tool | The file | Recognised by |
+|---|---|---|
+| Jira | a `/rest/api/*/search` response | `issues[].fields` |
+| Linear | a GraphQL `issues` query result | `data.issues.nodes` |
+| OpenProject | a `/api/v3/work_packages` collection | `_embedded.elements[].subject` |
+| Plane | an issue list from the API | `results[]` with `name` and `priority` |
+
+What comes across is what those tools agree with Kolibri about: title,
+description, state — with the bucket the source put it in, so a Jira status in
+`indeterminate` arrives as *in progress* — priority, dates, labels, assignee,
+parent, and comments where the file has them. **The team's own column names are
+kept.** A team that has spent two years arguing about what to call a column
+should get that column, not Kolibri's opinion of it.
+
+What does not come across is everything each tool has invented for itself, and
+the screen lists it **before** the import rather than after:
+
+- **Jira**: sprints, epics-as-a-hierarchy-level, workflows, permission schemes,
+  and custom field *values* — Jira sends them as `customfield_10021` with no clue
+  in the same file about what that is called.
+- **Linear**: cycles, Linear's own "projects", estimates.
+- **OpenProject**: relations, time entries, budgets and custom fields, which are
+  in separate endpoints and simply are not in this file. Its categories are not
+  labels and are left out rather than renamed into something they are not.
+- **Plane**: cycles, modules and relations, for the same reason — and its people,
+  because the issue list identifies them by id and carries no address, so nobody
+  can be matched and the tasks arrive unassigned.
+
+A link or a parent pointing at an issue that is not in the file is reported and
+dropped rather than guessed at: a task filed under the wrong parent is harder to
+notice than one filed under none.
+
+> **These converters have never been run against a real export.** They were
+> written against each tool's *documented* API shape. The recognisers are narrow
+> — a file that is not clearly one of the four is refused rather than half-read —
+> and an import always makes a **new** project, so nothing existing can be
+> damaged by trying. If your export does not read, the shape is the thing to
+> compare; a bug report with the first two issues of the file in it is enough to
+> fix one of these.

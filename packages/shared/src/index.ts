@@ -9,5 +9,6 @@ export * from './fields.ts';
 export * from './schedule.ts';
 export * from './markdown.ts';
 export * from './anchor.ts';
+export * from './foreign.ts';
 export { Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './hlc.ts';
 export type { HLC } from './hlc.ts';
