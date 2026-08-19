@@ -1,5 +1,6 @@
 import {
   ENTITIES,
+  canManageMembers,
   crdt,
   directMembers,
   entityDef,
@@ -275,17 +276,21 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
   if (entity === 'channel') {
     if (!values.created_by) setForced('created_by', opts.actorId);
     // Whoever opened it is in it. A private channel its own creator cannot see
-    // is a row nobody will ever find again.
+    // is a row nobody will ever find again — but an import restoring an open
+    // channel is not somebody opening one, so it is not put in the list.
     const members = parseIds(values.members);
-    if (!members.includes(opts.actorId) && values.kind !== 'direct') {
+    if (!opts.system && values.kind !== 'direct' && !members.includes(opts.actorId)) {
       members.push(opts.actorId);
       setForced('members', JSON.stringify(members));
     }
   }
   if (entity === 'message') {
-    // Said by whoever is saying it. This is not a field a client gets to
-    // choose: the whole of "who wrote this" is the session it arrived on.
-    setForced('author_id', opts.actorId);
+    // Said by whoever is saying it. This is not a field a *client* gets to
+    // choose: the whole of "who wrote this" is the session it arrived on. An
+    // import is the exception, and only because it has already done the work
+    // of deciding — it matches people by email and falls back to the importer
+    // itself. Overriding it here would have thrown that away silently.
+    if (!opts.system || !values.author_id) setForced('author_id', opts.actorId);
   }
   if (entity === 'channelRead') {
     setForced('user_id', opts.actorId);
@@ -425,6 +430,12 @@ const safeCrdt = (value: unknown): CrdtState | null => {
 
 const ROLE_RANK: Record<string, number> = { guest: 0, member: 1, admin: 2, owner: 3 };
 
+const isWorkspaceAdmin = (workspaceId: string, userId: string): boolean => !!get(
+  `SELECT 1 FROM workspace_members
+    WHERE workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL`,
+  workspaceId, userId,
+);
+
 /**
  * Who may change a conversation.
  *
@@ -449,6 +460,41 @@ function guardChannelWrite(id: string, values: Record<string, unknown>, existing
     return;
   }
   if (!canSeeChannel(opts.actorId, id)) throw forbidden('You are not in that conversation');
+
+  // The membership list is the one field with its own rule, set per channel:
+  // `members` lets anybody in it invite, `admins` narrows that to its creator
+  // and the workspace's owners. Being in the channel is required either way —
+  // `admins` widens who counts, it never lets an outsider manage a room.
+  if (values.members !== undefined) {
+    const before = parseIds(existing.members);
+    const after = parseIds(values.members);
+    // Leaving is always yours to do. Somebody who can only take their own name
+    // off the list is not managing the room, and a room you cannot leave
+    // without asking permission is not one anybody should be added to.
+    const onlyLeaving = before.includes(opts.actorId)
+      && !after.includes(opts.actorId)
+      && before.every((id) => id === opts.actorId || after.includes(id))
+      && after.every((id) => before.includes(id));
+
+    if (!onlyLeaving && !canManageMembers(
+      { ...existing, members: before } as never,
+      opts.actorId,
+      isWorkspaceAdmin(String(existing.workspace_id), opts.actorId),
+    )) {
+      throw forbidden('Only an admin of this conversation can change who is in it');
+    }
+    // The last person out cannot leave the room standing with nobody in it:
+    // it would be invisible to everybody and impossible to reopen.
+    if (Number(existing.is_private) && !after.length) {
+      throw badRequest('A private conversation needs at least one person in it');
+    }
+  }
+  // Who may invite is itself an admin decision, or the setting protects nothing.
+  if (values.invite_policy !== undefined
+    && existing.created_by !== opts.actorId
+    && !isWorkspaceAdmin(String(existing.workspace_id), opts.actorId)) {
+    throw forbidden('Only the person who opened this conversation, or an admin, can change that');
+  }
 }
 
 /**
@@ -463,8 +509,14 @@ function guardChannelWrite(id: string, values: Record<string, unknown>, existing
  */
 function guardMessageWrite(id: string, values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
   if (existing) {
-    if (existing.author_id && existing.author_id !== opts.actorId) {
-      throw forbidden('Only the author can change a message');
+    if (!existing.author_id || existing.author_id === opts.actorId) return;
+    // A reaction is the one thing you may do to somebody else's words, and it
+    // is not a change to them: it is your own name in a list beside them. So
+    // it is allowed, and only it — anything alongside it is an edit.
+    const reactingOnly = Object.keys(values).every((field) => field === 'reactions');
+    if (!reactingOnly) throw forbidden('Only the author can change a message');
+    if (!canSeeChannel(opts.actorId, String(existing.channel_id))) {
+      throw forbidden('You are not in that conversation');
     }
     return;
   }

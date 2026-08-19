@@ -441,3 +441,90 @@ describe('being told about a message', () => {
     assert.equal(inbox(people.lin).length, before, 'muting has to beat a mention or it is not muting');
   });
 });
+
+/* ------------------------------------------------------------- membership */
+
+describe('who may change who is in a channel', () => {
+  it('lets any member invite, by default', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'open-invites', is_private: 1, members: [people.ada.id, people.lin.id],
+    })).id;
+    const updated = await as(people.lin, `/api/channels/${channel}`, {
+      members: [people.ada.id, people.lin.id, people.max.id],
+    }, 'PATCH');
+    assert.ok(updated.members.includes(people.max.id));
+  });
+
+  it('narrows that to the creator and workspace admins when asked to', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'tight-invites', is_private: 1, members: [people.ada.id, people.lin.id],
+      invite_policy: 'admins',
+    })).id;
+    // Lin is in it, and that is no longer enough.
+    const refused = await raw(people.lin, `/api/channels/${channel}`, {
+      members: [people.ada.id, people.lin.id, people.max.id],
+    }, 'PATCH');
+    assert.equal(refused.status, 403);
+    // Ada opened it, so Ada still can.
+    const updated = await as(people.ada, `/api/channels/${channel}`, {
+      members: [people.ada.id, people.lin.id, people.max.id],
+    }, 'PATCH');
+    assert.ok(updated.members.includes(people.max.id));
+  });
+
+  it('lets you leave whatever the policy says', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'leavable', is_private: 1, members: [people.ada.id, people.lin.id],
+      invite_policy: 'admins',
+    })).id;
+    // Taking only your own name off is not managing the room.
+    const left = await as(people.lin, `/api/channels/${channel}`, { members: [people.ada.id] }, 'PATCH');
+    assert.deepEqual(left.members, [people.ada.id]);
+    assert.equal(canSeeChannel(people.lin.id, channel), false);
+  });
+
+  it('will not let the last person out leave an empty room standing', async () => {
+    const channel = (await post(people.ada, 'channels', { name: 'lonely', is_private: 1 })).id;
+    const refused = await raw(people.ada, `/api/channels/${channel}`, { members: [] }, 'PATCH');
+    assert.equal(refused.status, 400);
+  });
+
+  it('keeps the policy itself an admin decision', async () => {
+    const channel = (await post(people.ada, 'channels', {
+      name: 'policy-guard', is_private: 1, members: [people.ada.id, people.lin.id],
+    })).id;
+    const refused = await raw(people.lin, `/api/channels/${channel}`, { invite_policy: 'admins' }, 'PATCH');
+    assert.equal(refused.status, 403);
+  });
+});
+
+describe('reacting to somebody else\'s message', () => {
+  let channel = '';
+  let said = '';
+
+  before(async () => {
+    channel = (await post(people.ada, 'channels', { name: 'reactions' })).id;
+    said = (await post(people.ada, 'messages', { channel_id: channel, body: 'ship it' })).id;
+  });
+
+  it('is allowed, and is the only thing that is', async () => {
+    const reacted = await as(people.lin, `/api/messages/${said}`, {
+      reactions: { '👍': [people.lin.id] },
+    }, 'PATCH');
+    assert.deepEqual(reacted.reactions, { '👍': [people.lin.id] });
+
+    // A reaction alongside an edit is an edit.
+    const refused = await raw(people.lin, `/api/messages/${said}`, {
+      reactions: { '👍': [people.lin.id] }, body: 'do not ship it',
+    }, 'PATCH');
+    assert.equal(refused.status, 403);
+    assert.equal(get<any>(`SELECT body FROM messages WHERE id = ?`, said)!.body, 'ship it');
+  });
+
+  it('is refused from outside the conversation', async () => {
+    const secret = (await post(people.ada, 'channels', { name: 'no-reacting', is_private: 1 })).id;
+    const inside = (await post(people.ada, 'messages', { channel_id: secret, body: 'quiet' })).id;
+    const refused = await raw(people.max, `/api/messages/${inside}`, { reactions: { '👍': [people.max.id] } }, 'PATCH');
+    assert.equal(refused.status, 403);
+  });
+});

@@ -18,6 +18,38 @@ export type ChannelKind = 'channel' | 'direct';
 export type ChannelNotify = 'all' | 'mentions' | 'none';
 
 /**
+ * Who may change a channel's membership.
+ *
+ * Set per channel rather than per instance, because a team channel and a
+ * channel a client can see want different answers and the same workspace holds
+ * both. `members` is the default — a channel nobody can be invited to is a
+ * channel that dies with its creator — and `admins` is the one to reach for
+ * when who is in the room is itself the sensitive part.
+ */
+export type InvitePolicy = 'members' | 'admins';
+
+export const isInvitePolicy = (value: unknown): value is InvitePolicy =>
+  value === 'members' || value === 'admins';
+
+/**
+ * Whether this person may add or remove people here.
+ *
+ * Being in the channel is required either way: `admins` widens who counts, it
+ * does not let somebody manage a conversation they are not part of. A direct
+ * conversation has no membership to manage at all — its members are its id.
+ */
+export function canManageMembers(
+  channel: ChannelLike & { invite_policy?: string | null; created_by?: string | null },
+  userId: string,
+  isWorkspaceAdmin: boolean,
+): boolean {
+  if (channel.kind === 'direct') return false;
+  if (!isMember(channel, userId)) return false;
+  if ((channel.invite_policy ?? 'members') === 'members') return true;
+  return channel.created_by === userId || isWorkspaceAdmin;
+}
+
+/**
  * The id of the conversation between exactly these two people.
  *
  * Sorted, so it does not matter who opened it; prefixed, so it is obvious in a

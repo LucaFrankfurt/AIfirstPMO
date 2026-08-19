@@ -797,6 +797,11 @@ CREATE TABLE IF NOT EXISTS channels (
   topic        TEXT,
   is_private   INTEGER NOT NULL DEFAULT 0,
   members      TEXT NOT NULL DEFAULT '[]',
+  -- Who may add and remove people here: 'members' (anybody already in it) or
+  -- 'admins' (whoever opened it, plus a workspace owner or admin). Per channel
+  -- rather than per instance, because a team channel and a channel a client
+  -- can see want different answers and both exist in the same workspace.
+  invite_policy TEXT NOT NULL DEFAULT 'members',
   archived_at  INTEGER,
   created_by   TEXT,
   created_at   INTEGER NOT NULL,
@@ -816,6 +821,9 @@ CREATE TABLE IF NOT EXISTS messages (
   -- The message this one answers, for a short thread inside the stream. Not a
   -- separate thread view: a conversation that needs one is a page.
   reply_to     TEXT,
+  -- { "👍": [userId, …] }, the same shape comments have used since the first
+  -- release. Counting is the point; who reacted is a tooltip.
+  reactions    TEXT NOT NULL DEFAULT '{}',
   edited_at    INTEGER,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,

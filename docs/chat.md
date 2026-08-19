@@ -13,6 +13,7 @@ here to get right, and no second thing to be down.
 |---|---|---|
 | Named | `#design-review`, lowercase and dash-joined | no name of its own |
 | Who is in it | the workspace, or a member list if private | exactly two people |
+| Who may change that list | per channel: anybody in it, or only its creator and workspace admins | nobody — its members are its id |
 | Where it lives | the workspace, or a project | between the two of you |
 | Notifies | when you are named, or if you asked for all of it | always, unless you say otherwise |
 
@@ -93,6 +94,46 @@ An archived conversation refuses new messages. Deleting a message leaves a tombs
 other delete here, so it disappears on every device rather than only on the one that pressed the
 button.
 
+## Managing a channel, and closing it
+
+A private channel keeps a member list, and **who may change it is set per channel**: `members` (the
+default — anybody in the room can invite) or `admins` (its creator, plus workspace owners and
+admins). Per channel rather than per instance, because a team channel and a channel a client can
+see want different answers and the same workspace holds both. Changing the *setting* is itself an
+admin decision, or it protects nothing.
+
+Two rules hold whatever the policy says:
+
+- **Leaving is always yours to do.** Taking only your own name off the list is not managing the
+  room, and a room you cannot leave without permission is not one anybody should be added to.
+- **The last person out cannot leave the room standing empty.** It would be invisible to everybody
+  and impossible to reopen.
+
+**Archiving** hides a channel and refuses new messages, and keeps everything said in it.
+**Deleting** hides the room the same way — it does *not* destroy the conversation. Both are
+reversible from the trash until the trash is emptied, which is the point at which anything is
+actually gone. A chat history is often the record of a decision, so nothing here throws one away on
+a single click.
+
+Messages are not listed in the trash. A message somebody deleted should stay deleted, and a list of
+them would be a way to read what was withdrawn.
+
+## Pictures, and reacting
+
+Paste or drop a screenshot straight into the composer: it uploads, downscales, and goes in as
+markdown, the same path comments and pages use. The blob store is content-addressed, so the same
+image pasted twice costs one copy.
+
+One thing that had to be added by hand: `reclaimFiles` only keeps a blob while *something* still
+names its hash, from a written-out list of places. A new place to paste an image is a line on that
+list, and the first version of chat did not add it — so emptying the trash took the picture while
+the message went on showing it. `messages.body` is on the list now.
+
+Anybody in a conversation can react to a message with an emoji, including somebody else's. That is
+the one thing you may do to another person's words, and it is not a change to them — it is your name
+in a list beside them. The server allows exactly that and nothing alongside it: a reaction sent
+together with an edit is an edit, and refused.
+
 ## Being told about it
 
 The default is deliberately **not** "tell everyone about every line". A channel that pings its whole
@@ -135,6 +176,17 @@ Unread counts are **hidden** from guests, and not because there is nothing to re
 itself a write, so a guest's count would climb and never come down; a number that cannot reach zero
 is worse than no number. Letting guests keep their own private read state would be a change to the
 permission model, which is a decision rather than something to slip in here — it is in `TODO.md`.
+
+## In a project export
+
+A project export takes the **open** channels tied to that project and what was said in them, and
+reads them back on import. A **private** one is left out on purpose: a project export is a document
+somebody emails, and a private room's whole point is that being able to see the project is not
+enough to be in it. There is also nothing sensible to do with a membership list on another instance.
+
+Message authors are matched by email like everything else in the document; anybody this instance
+does not know becomes the person who pressed import. Reactions do not survive — those ids mean
+nothing here.
 
 ## What is deliberately not here
 

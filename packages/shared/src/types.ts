@@ -2,7 +2,7 @@ import type { EntityName } from './entities.ts';
 import type { CrdtState } from './text-crdt.ts';
 import type { HLC } from './hlc.ts';
 import type { Anchor } from './anchor.ts';
-import type { ChannelKind, ChannelNotify } from './chat.ts';
+import type { ChannelKind, ChannelNotify, InvitePolicy } from './chat.ts';
 
 export type ID = string;
 export type ISODate = string;
@@ -710,6 +710,8 @@ export interface Channel extends Base {
   is_private: number;
   /** Who can see it. Empty means the workspace, not nobody. */
   members: ID[];
+  /** Who may change that list: anybody in it, or only its creator and workspace admins. */
+  invite_policy: InvitePolicy;
   archived_at: number | null;
   created_by: ID | null;
 }
@@ -721,6 +723,8 @@ export interface Message extends Base {
   body: string;
   /** The message this one answers, for a short thread inside the stream. */
   reply_to: ID | null;
+  /** `{ "👍": [userId, …] }` — the same shape comments use. */
+  reactions: Record<string, ID[]>;
   /** Stamped by the server when the body changes, never taken from a client. */
   edited_at: number | null;
 }

@@ -67,6 +67,8 @@ for (const [table, column, definition] of [
   ['notifications', 'telegram_attempts', 'INTEGER NOT NULL DEFAULT 0'],
   ['notifications', 'telegram_error', 'TEXT'],
   ['notifications', 'channel_id', 'TEXT'],
+  ['channels', 'invite_policy', `TEXT NOT NULL DEFAULT 'members'`],
+  ['messages', 'reactions', `TEXT NOT NULL DEFAULT '{}'`],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

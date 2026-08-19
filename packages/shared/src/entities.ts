@@ -279,12 +279,16 @@ export const ENTITIES = {
    */
   channel: {
     table: 'channels',
-    fields: ['workspace_id', 'project_id', 'kind', 'name', 'topic', 'is_private', 'members', 'archived_at', 'created_by'],
+    fields: [
+      'workspace_id', 'project_id', 'kind', 'name', 'topic', 'is_private', 'members',
+      'invite_policy', 'archived_at', 'created_by',
+    ],
     json: ['members'],
   },
   message: {
     table: 'messages',
-    fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'edited_at'],
+    fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'reactions', 'edited_at'],
+    json: ['reactions'],
   },
   /**
    * How far somebody has read, and what they want to hear about. One row per

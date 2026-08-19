@@ -448,6 +448,66 @@ export function CollaborationDiagram() {
   );
 }
 
+/* ----------------------------------------------------------------- chat */
+
+/**
+ * Why a direct conversation is one conversation.
+ *
+ * The thing worth drawing here is not the messages — it is the moment two
+ * people open the same conversation while neither is online, and the tunnel
+ * ending without a second room appearing.
+ */
+export function ChatDiagram() {
+  const t = useT();
+  return (
+    <Stage
+      label="guide.chat.label"
+      minHeight={252}
+      captions={['guide.chat.s0', 'guide.chat.s1', 'guide.chat.s2', 'guide.chat.s3']}
+    >
+      {(step) => (
+        <div className="gx-scene gx-collab">
+          <Frame className="gx-comment-box">
+            <Row className="gx-device-head">
+              <span className="gx-avatar">AL</span>
+              <strong>{t('guide.sample.person1')}</strong>
+              <span className="grow" />
+              <MiniChip tone={step === 0 ? 'accent' : undefined}>{t('guide.chat.offline')}</MiniChip>
+            </Row>
+            <div className="gx-field small">{t('guide.chat.said1')}</div>
+            <div className="gx-muted gx-tiny mono">{t('guide.chat.derivedId')}</div>
+          </Frame>
+
+          <Conn on={step >= 2} dir="right" tone="ok" />
+
+          <div className="gx-collab-right">
+            <Frame className="gx-inbox">
+              <Row className="gx-device-head">
+                <span className="gx-avatar sm">LN</span>
+                <strong>{t('guide.sample.person2')}</strong>
+                <span className="grow" />
+                <MiniChip tone={step === 0 ? 'accent' : undefined}>{t('guide.chat.offline')}</MiniChip>
+              </Row>
+              <div className="gx-field small">{t('guide.chat.said2')}</div>
+              <div className="gx-muted gx-tiny mono">{t('guide.chat.derivedId')}</div>
+            </Frame>
+
+            <Conn on={step >= 3} dir="down" tone="ok" />
+
+            <Frame className="gx-mail" data-on={step >= 3 ? 'true' : 'false'}>
+              <Row>
+                <Icon name="chat" size={12} />
+                <strong className="grow">{t('guide.chat.oneRoom')}</strong>
+                <MiniChip tone={step >= 3 ? 'accent' : undefined}>{t('guide.chat.bothLines')}</MiniChip>
+              </Row>
+            </Frame>
+          </div>
+        </div>
+      )}
+    </Stage>
+  );
+}
+
 /* ----------------------------------------------------------- automation */
 
 /** A template, a rule, and the task that comes out the other end. */

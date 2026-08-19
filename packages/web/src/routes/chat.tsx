@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  canManageMembers,
   channelTitle,
   directChannelId,
   normaliseChannelName,
@@ -30,7 +31,7 @@ import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
-import { useCanWrite, useMe, useMemberMap } from '../session';
+import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
@@ -215,6 +216,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const [draft, setDraft] = useState('');
   const [editing, setEditing] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<string | null>(null);
+  const [managing, setManaging] = useState(false);
   const bottom = useRef<HTMLDivElement>(null);
 
   const messages = useQuery(
@@ -264,7 +266,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           {channel.topic && <div className="muted" style={{ fontSize: 12 }}>{channel.topic}</div>}
         </div>
         <NotifyMenu channel={channel} me={me} />
+        {channel.kind !== 'direct' && canWrite && (
+          <button className="btn ghost sm icon" title={t('chat.manage')} onClick={() => setManaging(true)}>
+            <Icon name="users" size={14} />
+          </button>
+        )}
       </header>
+      {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <div className="chat-stream">
         {messages.length === 0 && <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.emptyStream')}</p>}
@@ -311,8 +319,10 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                 ) : (
                   <Markdown source={message.body} />
                 )}
+                <Reactions message={message} me={me} canWrite={canWrite} />
               </div>
               <div className="chat-actions">
+                {canWrite && <AddReaction message={message} me={me} />}
                 <button className="btn ghost sm icon" title={t('chat.reply')} onClick={() => setReplyTo(message.id)}>
                   <Icon name="link" size={12} />
                 </button>
@@ -416,6 +426,203 @@ function NotifyMenu({ channel, me }: { channel: Channel; me: string }) {
     >
       <Icon name="bell" size={13} />
     </MenuButton>
+  );
+}
+
+/* ---------------------------------------------------------------- reactions */
+
+/** The handful worth having on a work tool. A full picker is a different product. */
+const REACTIONS = ['👍', '🎉', '👀', '🙏', '😄', '🤔'] as const;
+
+const toggleReaction = (message: Message, emoji: string, me: string): void => {
+  const reactions = message.reactions ?? {};
+  const people = reactions[emoji] ?? [];
+  const next = { ...reactions, [emoji]: people.includes(me) ? people.filter((id) => id !== me) : [...people, me] };
+  // An emoji nobody uses any more is removed rather than left as an empty list,
+  // so the row does not slowly fill with invisible entries.
+  if (!next[emoji].length) delete next[emoji];
+  update('message', message.id, { reactions: next });
+};
+
+function Reactions({ message, me, canWrite }: { message: Message; me: string; canWrite: boolean }) {
+  const t = useT();
+  const members = useMemberMap();
+  const used = Object.entries(message.reactions ?? {}).filter(([, people]) => people?.length);
+  if (!used.length) return null;
+
+  return (
+    <div className="row wrap reactions" style={{ gap: 4 }}>
+      {used.map(([emoji, people]) => (
+        <button
+          key={emoji}
+          className={`reaction${people.includes(me) ? ' mine' : ''}`}
+          disabled={!canWrite}
+          title={people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}
+          onClick={() => toggleReaction(message, emoji, me)}
+        >
+          <span aria-hidden>{emoji}</span> {people.length}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AddReaction({ message, me }: { message: Message; me: string }) {
+  const t = useT();
+  return (
+    <MenuButton
+      className="btn ghost sm icon"
+      label={t('task.react')}
+      items={REACTIONS.map((emoji) => ({
+        id: emoji,
+        label: <span style={{ fontSize: 16 }}>{emoji}</span>,
+        hint: (message.reactions?.[emoji] ?? []).includes(me) ? '✓' : undefined,
+        onSelect: () => toggleReaction(message, emoji, me),
+      }))}
+    >
+      <Icon name="sparkle" size={12} />
+    </MenuButton>
+  );
+}
+
+/* -------------------------------------------------------- channel settings */
+
+/**
+ * Who is in a channel, who may change that, and how to get out of it.
+ *
+ * The membership list is an ordinary synced field, so all of this works
+ * offline — and so the *rule* about who may change it has to live on the
+ * server as well, which it does. This screen only offers what the rule would
+ * allow, which is a courtesy rather than the enforcement.
+ */
+function ChannelSettings({ channel, me, onClose, onGone }: {
+  channel: Channel;
+  me: string;
+  onClose: () => void;
+  onGone: () => void;
+}) {
+  const t = useT();
+  const toast = useToast();
+  const members = useMemberMap();
+  const { confirm, dialog } = useConfirm();
+  const { role } = useSession();
+  const isAdmin = role === 'owner' || role === 'admin';
+  const mayManage = canManageMembers(channel, me, isAdmin);
+  const mayRetitle = channel.created_by === me || isAdmin;
+
+  const inside = (channel.members ?? []);
+  const outside = [...members.values()].filter((member) => !inside.includes(member.id));
+
+  const setMembers = (next: string[]) => update('channel', channel.id, { members: next });
+
+  return (
+    <Sheet title={`#${channel.name}`} onClose={onClose}>
+      <label className="field">
+        <span>{t('chat.topic')}</span>
+        <input
+          defaultValue={channel.topic ?? ''}
+          disabled={!mayRetitle}
+          placeholder={t('chat.topicHint')}
+          onBlur={(event) => update('channel', channel.id, { topic: event.target.value.trim() || null })}
+        />
+      </label>
+
+      {/* An open channel has no member list — everyone in the workspace is in
+          it — so there is nothing here to manage. */}
+      {channel.is_private ? (
+        <>
+          <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.members', { count: inside.length })}</h3>
+          {inside.map((id) => (
+            <div className="row" key={id} style={{ gap: 8, padding: '4px 0' }}>
+              <Avatar user={members.get(id)} size={22} />
+              <span className="grow truncate">{members.get(id)?.name ?? id}</span>
+              {channel.created_by === id && <span className="chip">{t('chat.opened')}</span>}
+              {(mayManage || id === me) && inside.length > 1 && (
+                <button
+                  className="btn ghost sm"
+                  onClick={async () => {
+                    if (id === me && !(await confirm(t('chat.confirmLeave')))) return;
+                    setMembers(inside.filter((other) => other !== id));
+                    if (id === me) { onClose(); onGone(); }
+                  }}
+                >
+                  {id === me ? t('chat.leave') : t('chat.remove')}
+                </button>
+              )}
+            </div>
+          ))}
+
+          {mayManage && !!outside.length && (
+            <>
+              <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.addSomebody')}</h3>
+              {outside.map((member) => (
+                <button
+                  key={member.id}
+                  className="nav-item"
+                  onClick={() => {
+                    setMembers([...inside, member.id]);
+                    toast(t('chat.added', { name: member.name }));
+                  }}
+                >
+                  <Avatar user={member} size={22} />
+                  <span className="grow truncate">{member.name}</span>
+                  <Icon name="plus" size={13} />
+                </button>
+              ))}
+            </>
+          )}
+
+          <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
+          <p className="hint" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.whoCanAddHint')}</p>
+          <div className="row wrap" style={{ gap: 6 }}>
+            {(['members', 'admins'] as const).map((policy) => (
+              <button
+                key={policy}
+                className={`btn sm${(channel.invite_policy ?? 'members') === policy ? ' active' : ''}`}
+                style={(channel.invite_policy ?? 'members') === policy ? { background: 'var(--bg-active)' } : undefined}
+                aria-pressed={(channel.invite_policy ?? 'members') === policy}
+                disabled={!mayRetitle}
+                onClick={() => update('channel', channel.id, { invite_policy: policy })}
+              >
+                {t(policy === 'members' ? 'chat.policyMembers' : 'chat.policyAdmins')}
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.openChannelHint')}</p>
+      )}
+
+      <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
+      <p className="hint" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.closingHint')}</p>
+      <div className="row wrap" style={{ gap: 6 }}>
+        <button
+          className="btn sm"
+          onClick={() => {
+            update('channel', channel.id, { archived_at: Date.now() });
+            toast(t('chat.archived'));
+            onClose();
+            onGone();
+          }}
+        >
+          <Icon name="archive" size={13} /> {t('chat.archive')}
+        </button>
+        {mayRetitle && (
+          <button
+            className="btn sm danger"
+            onClick={async () => {
+              if (!(await confirm(t('chat.confirmDelete')))) return;
+              remove('channel', channel.id);
+              onClose();
+              onGone();
+            }}
+          >
+            <Icon name="trash" size={13} /> {t('action.delete')}
+          </button>
+        )}
+      </div>
+      {dialog}
+    </Sheet>
   );
 }
 

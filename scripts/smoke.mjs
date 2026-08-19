@@ -178,6 +178,49 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
   if (!title.trim() || title.includes('.')) throw new Error(`direct conversation titled "${title}"`);
   console.log('     direct conversation with:', title);
 });
+
+await step('chat: a picture, a reaction, and a member list that can be added to', async () => {
+  await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.locator('.chat-list .nav-item').first().click();
+  await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+
+  // A screenshot, pasted the way somebody pastes one. Generated here rather
+  // than checked in, so the test carries no binary.
+  await page.locator('.chat-composer textarea').click();
+  await page.evaluate(async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 120; canvas.height = 60;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#4f46e5'; ctx.fillRect(0, 0, 120, 60);
+    const blob = await new Promise((done) => canvas.toBlob(done, 'image/png'));
+    const data = new DataTransfer();
+    data.items.add(new File([blob], 'pasted.png', { type: 'image/png' }));
+    document.querySelector('.chat-composer textarea')
+      .dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+  });
+  await page.waitForTimeout(2500);
+  if (!/!\[.*\]\(.*\)/.test(await page.locator('.chat-composer textarea').inputValue())) {
+    throw new Error('pasting an image put nothing in the box');
+  }
+  await page.click(`.chat-composer button:has-text("${LABELS.send}")`);
+  await page.waitForSelector('.chat-stream img', { timeout: 6000 });
+  await page.waitForTimeout(1200);
+  // Rendered, not merely referenced: a broken image has no natural size.
+  const drawn = await page.locator('.chat-stream img').last()
+    .evaluate((img) => img.naturalWidth > 0 && img.naturalHeight > 0);
+  if (!drawn) throw new Error('the pasted image did not render');
+
+  await page.locator('.chat-message').first().hover();
+  await page.locator('.chat-message .chat-actions button').first().click();
+  await page.waitForSelector('.menu button', { timeout: 3000 });
+  await page.locator('.menu button').first().click();
+  await page.waitForTimeout(500);
+  const chips = await page.locator('.chat-stream .reaction').count();
+  if (!chips) throw new Error('reacting left no chip');
+  console.log('     reaction chips:', chips);
+});
+await page.screenshot({ path: `${shots}/4c-chat-rich.png` });
 await page.screenshot({ path: `${shots}/4b-chat.png` });
 
 await step('command palette', async () => {
