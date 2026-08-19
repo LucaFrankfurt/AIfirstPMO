@@ -187,8 +187,8 @@ export const ENTITIES = {
   },
   comment: {
     table: 'comments',
-    fields: ['workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'reactions'],
-    json: ['reactions'],
+    fields: ['workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'reactions', 'anchor'],
+    json: ['reactions', 'anchor'],
   },
   attachment: {
     table: 'attachments',

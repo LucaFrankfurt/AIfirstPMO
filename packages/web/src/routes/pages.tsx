@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { compareOrder, excerpt, type Page } from '@kolibri/shared';
+import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { Comments } from '../components/comments';
 import {
@@ -9,6 +9,7 @@ import {
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 import { ShareSheet } from '../components/share';
+import { useHighlights, useSelectionAnchor } from '../components/annotate';
 import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
 
@@ -193,8 +194,17 @@ export function PageDetail() {
   const exportPage = useExport();
   const printPage = usePrint();
   const [sharing, setSharing] = useState(false);
+  const [body, setBody] = useState<HTMLDivElement | null>(null);
+  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [activeComment, setActiveComment] = useState<string | null>(null);
   const canWrite = useCanWrite();
   const projects = useQuery(() => list('project'), []);
+  const pageComments = useQuery(() => list('comment', (entry) => entry.page_id === id), [id]);
+
+  // Selecting a passage offers a comment on it; the anchored passages are
+  // painted back onto the rendered page afterwards.
+  const { bubble } = useSelectionAnchor(body, page?.content ?? '', setAnchor);
+  useHighlights(body, page?.content ?? '', pageComments, activeComment, setActiveComment);
 
   useEffect(() => {
     setContent(page?.content ?? '');
@@ -320,7 +330,12 @@ export function PageDetail() {
             </div>
             <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}><PageLabelChips page={page} /></div>
             {page.content?.trim()
-              ? <Markdown source={page.content} />
+              ? (
+                <div className="annotatable" ref={setBody}>
+                  <Markdown source={page.content} />
+                  {bubble}
+                </div>
+              )
               : <button className="btn" onClick={() => setEditing(true)}>{t('page.startWriting')}</button>}
           </>
         )}
@@ -341,8 +356,23 @@ export function PageDetail() {
             what people said about it — and mid-edit it is simply in the way. */}
         {!editing && (
           <section style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
-            <h3 style={{ fontSize: 14, marginBottom: 12 }}>{t('page.discussion')}</h3>
-            <Comments target={{ page_id: id }} empty={t('page.noComments')} />
+            <div className="row" style={{ marginBottom: 12 }}>
+              <h3 style={{ fontSize: 14, margin: 0 }}>{t('page.discussion')}</h3>
+              <span className="muted" style={{ fontSize: 12 }}>· {t('annotate.hint')}</span>
+            </div>
+            <Comments
+              target={{ page_id: id }}
+              empty={t('page.noComments')}
+              source={page.content ?? ''}
+              anchor={anchor}
+              onAnchorDone={() => setAnchor(null)}
+              active={activeComment}
+              onPick={(commentId) => {
+                setActiveComment(commentId);
+                body?.querySelector(`mark.anchor[data-comment="${commentId}"]`)
+                  ?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              }}
+            />
           </section>
         )}
       </div>

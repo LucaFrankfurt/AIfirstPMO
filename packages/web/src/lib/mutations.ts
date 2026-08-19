@@ -125,13 +125,19 @@ export function createPage(input: { title?: string; project_id?: string | null; 
 
 /* ----------------------------------------------------------------- comments */
 
-export function comment(target: { task_id?: string; page_id?: string }, body: string, actorId: string): string {
+export function comment(
+  target: { task_id?: string; page_id?: string },
+  body: string,
+  actorId: string,
+  anchor: unknown = null,
+): string {
   return create('comment', {
     task_id: target.task_id ?? null,
     page_id: target.page_id ?? null,
     body,
     author_id: actorId,
     reactions: {},
+    anchor,
   });
 }
 

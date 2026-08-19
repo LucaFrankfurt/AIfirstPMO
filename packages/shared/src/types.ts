@@ -1,5 +1,6 @@
 import type { EntityName } from './entities.ts';
 import type { HLC } from './hlc.ts';
+import type { Anchor } from './anchor.ts';
 
 export type ID = string;
 export type ISODate = string;
@@ -355,6 +356,12 @@ export interface Comment extends Base {
   body: string;
   author_id: ID;
   reactions: Record<string, ID[]>;
+  /**
+   * The passage this comment is about, for a comment made on a selection.
+   * A quote with its surroundings rather than an offset, because an offset is
+   * wrong the moment somebody types a word above it. See `anchor.ts`.
+   */
+  anchor: Anchor | null;
 }
 
 export interface Attachment extends Base {

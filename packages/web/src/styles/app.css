@@ -598,6 +598,48 @@ p { margin: 0 0 0.75em; }
 .wip { font-size: 11.5px; color: var(--fg-muted); }
 .wip.over { color: var(--danger); font-weight: 600; }
 
+/* -------------------------------------------------------- inline comments */
+
+.annotatable { position: relative; }
+/* An anchored passage: underlined rather than filled, so the page still reads
+   as a page. The active one is filled, because it is the one being talked about. */
+mark.anchor {
+  background: none;
+  color: inherit;
+  border-bottom: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  cursor: pointer;
+  padding-bottom: 1px;
+}
+mark.anchor:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transparent); border-radius: 2px; }
+
+/* The offer, floating over the selection it belongs to. */
+.anchor-bubble {
+  position: absolute; transform: translate(-50%, -130%); z-index: 5;
+  display: inline-flex; align-items: center; gap: 5px;
+  height: 26px; padding: 0 10px; border-radius: 999px;
+  background: var(--fg); color: var(--bg); border: none;
+  font: inherit; font-size: 11.5px; cursor: pointer; white-space: nowrap;
+  box-shadow: var(--shadow);
+}
+
+/* The passage a comment is about, shown above it. */
+.quoted {
+  display: inline-flex; align-items: center; gap: 5px; max-width: 100%;
+  margin: 2px 0 6px; padding: 3px 8px; border-radius: 6px;
+  border: none; background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-inline-start: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  font: inherit; font-size: 12px; color: var(--fg-soft); text-align: start; cursor: pointer;
+}
+.quoted.orphan { background: var(--bg-hover); border-inline-start-color: var(--line-strong); color: var(--fg-muted); }
+.quoted em { font-style: normal; color: var(--fg-muted); }
+.quoted-draft {
+  gap: 6px; margin-bottom: 6px; padding: 4px 6px 4px 10px; border-radius: 6px;
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+  border-inline-start: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  font-size: 12px; color: var(--fg-soft);
+}
+
 /* ---------------------------------------------------------------- planner */
 
 .planner-scroll { display: flex; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }

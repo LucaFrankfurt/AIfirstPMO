@@ -43,12 +43,12 @@ Worth stating first, because it is the reason the gaps below are acceptable:
 Kolibri has: nested markdown pages, version history with restore *and a diff*,
 labels and filtering, watching, page templates, per-page visibility, markdown
 export, printing to PDF, public read-only share links, drag-and-drop images,
-attachments, comments with @mentions on every page, full-text search across
-pages and tasks.
+attachments, comments with @mentions on every page — including **inline
+comments** on a selected passage, which survive the passage being edited around
+— and full-text search across pages and tasks.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Inline comments** (select text → comment) | High | The thing Confluence is actually used for |
 | **Export** to Word | Low | A markdown bundle is built — the page and everything under it — and printing (which is how a PDF is made) is built on the browser's own engine rather than a renderer here |
 | Macros — table of contents, cross-page task lists, embeds | Low–medium | |
 | A table editor | Low | Markdown tables render; they cannot be edited as tables |

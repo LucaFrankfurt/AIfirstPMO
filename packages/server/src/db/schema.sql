@@ -461,6 +461,9 @@ CREATE TABLE IF NOT EXISTS comments (
   body         TEXT NOT NULL DEFAULT '',
   author_id    TEXT,
   reactions    TEXT NOT NULL DEFAULT '{}',
+  -- The passage a comment is about, when it was made on a selection: the quote
+  -- plus its surroundings, so it can be found again after an edit.
+  anchor       TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,

@@ -101,9 +101,13 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       assignees, and notifying everyone who *can* see it would teach people to ignore the bell.
 - [x] **@mentions inside page bodies.** Only newly added handles notify, because a page autosaves
       while you type and being pinged once a second for the same name is worse than not at all.
-- [ ] **Inline comments** — select a passage, comment on that passage. The same feature one step
-      further, and the reason Confluence is used at all. Needs an anchor that survives an edit to
-      the text it points at, which is the whole problem.
+- [x] **Inline comments.** Select a passage on a page and comment on that passage. The anchor is a
+      quote with its surroundings rather than an offset, because an offset is wrong the moment
+      somebody types a word above it: found again by an exact match, then by whichever copy's
+      neighbours match best, and otherwise not at all — a comment silently re-attached to the wrong
+      sentence is worse than one that says the sentence it was about is gone. Anchored passages are
+      underlined in the page and painted onto the rendering after the fact, because a highlight is a
+      view of a comment rather than part of the document.
 - [x] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
       a version *diff*, page templates, the `access` column exposed, and export as a markdown
       bundle (the page and everything under it). PDF is deliberately not built — see below.

@@ -6,13 +6,13 @@
  * rather than a place people talk. The thread is the same thread either way,
  * so it is the same component — the target is one field.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
 import { comment as postComment, remove, update } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
 import { useMe, useMemberMap } from '../session';
-import type { Comment } from '@kolibri/shared';
+import { anchorLabel, findAnchor, type Anchor, type Comment } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from './Markdown';
 import { Avatar, Icon, MenuButton, useConfirm } from './ui';
 
@@ -73,12 +73,31 @@ function Reactions({ comment }: { comment: Comment }) {
   );
 }
 
-export function Comments({ target, empty }: { target: CommentTarget; empty?: string }) {
+export function Comments({ target, empty, anchor, onAnchorDone, source, active, onPick }: {
+  target: CommentTarget;
+  empty?: string;
+  /** A passage the next comment is about, set by selecting text on the page. */
+  anchor?: Anchor | null;
+  onAnchorDone?: () => void;
+  /** The text the anchors are expressed against, for showing what is orphaned. */
+  source?: string;
+  active?: string | null;
+  onPick?: (id: string) => void;
+}) {
   const t = useT();
   const me = useMe();
   const members = useMemberMap();
   const { confirm, dialog } = useConfirm();
   const [draft, setDraft] = useState('');
+  const editor = useRef<HTMLDivElement>(null);
+
+  // A selection jumps to the composer: the thing somebody does after choosing a
+  // sentence is type about it, and hunting for the box is a step in the way.
+  useEffect(() => {
+    if (!anchor) return;
+    editor.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    editor.current?.querySelector('textarea')?.focus();
+  }, [anchor]);
 
   const key = target.task_id ?? target.page_id;
   const comments = useQuery(
@@ -90,8 +109,9 @@ export function Comments({ target, empty }: { target: CommentTarget; empty?: str
   const send = () => {
     const body = draft.trim();
     if (!body) return;
-    postComment(target, body, me);
+    postComment(target, body, me, anchor ?? null);
     setDraft('');
+    onAnchorDone?.();
   };
 
   return (
@@ -119,13 +139,34 @@ export function Comments({ target, empty }: { target: CommentTarget; empty?: str
                   </button>
                 )}
               </div>
+              {entry.anchor?.quote && (
+                <button
+                  className={`quoted${findAnchor(source ?? '', entry.anchor) ? '' : ' orphan'}`}
+                  onClick={() => onPick?.(entry.id)}
+                  title={findAnchor(source ?? '', entry.anchor) ? t('annotate.jump') : t('annotate.orphanHint')}
+                >
+                  <Icon name="link" size={11} /> {anchorLabel(entry.anchor)}
+                  {source !== undefined && !findAnchor(source, entry.anchor) && (
+                    <em> · {t('annotate.orphan')}</em>
+                  )}
+                </button>
+              )}
               <Markdown source={entry.body} />
               <Reactions comment={entry} />
             </div>
           </div>
         );
       })}
-      <div style={{ marginTop: 10 }}>
+      <div style={{ marginTop: 10 }} ref={editor}>
+        {anchor && (
+          <div className="row quoted-draft">
+            <Icon name="link" size={12} />
+            <span className="grow truncate">{anchorLabel(anchor)}</span>
+            <button className="btn ghost sm icon" aria-label={t('annotate.clear')} onClick={() => onAnchorDone?.()}>
+              <Icon name="close" size={12} />
+            </button>
+          </div>
+        )}
         <MarkdownEditor
           value={draft}
           onChange={setDraft}
