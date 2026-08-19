@@ -65,6 +65,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
       name: target.name,
       expires_at: null,
       include_done: 1,
+      allow_comments: 0,
     });
     await pull();
     setBusy(false);
@@ -125,6 +126,17 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
                   onChange={(event) => update('share', share.id, { include_done: event.target.checked ? 1 : 0 })}
                 />
                 {t('share.includeDone')}
+              </label>
+            )}
+            {/* Off until somebody says otherwise: an unauthenticated write is a
+                thing you opt into, not a default that arrives with a link. */}
+            {target.kind === 'page' && (
+              <label className="row" style={{ gap: 6 }} title={t('share.allowCommentsHint')}>
+                <input
+                  type="checkbox" checked={!!share.allow_comments}
+                  onChange={(event) => update('share', share.id, { allow_comments: event.target.checked ? 1 : 0 })}
+                />
+                {t('share.allowComments')}
               </label>
             )}
             <span className="muted">{t('share.opened', { count: share.views ?? 0 })}</span>

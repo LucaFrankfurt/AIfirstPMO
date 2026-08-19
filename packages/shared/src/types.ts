@@ -208,6 +208,11 @@ export interface Share extends Base {
   /** Epoch millis, or null for a link that does not expire on its own. */
   expires_at: number | null;
   include_done: number;
+  /**
+   * Whether strangers may leave a note on a shared page. Off by default: an
+   * unauthenticated write is a thing somebody opts into, not a default.
+   */
+  allow_comments: number;
   created_by: ID | null;
   /** Server-side only: the secret in the URL. */
   token?: string;
@@ -403,6 +408,14 @@ export interface Comment extends Base {
   parent_id: ID | null;
   body: string;
   author_id: ID;
+  /**
+   * Who said it, when nobody here said it.
+   *
+   * Set only on a comment left through a public share link, where there is no
+   * account behind it. Never verified, and shown as unverified everywhere: a
+   * name in a box is a name in a box.
+   */
+  guest_name: string | null;
   reactions: Record<string, ID[]>;
   /**
    * The passage this comment is about, for a comment made on a selection.

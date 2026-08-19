@@ -23,6 +23,7 @@ const en = {
   'notify.dueSoon': '{identifier} {title} is due {date}',
   'notify.overdue': '{identifier} {title} was due {date}',
   'notify.intake': 'Somebody reported something from outside',
+  'notify.sharedNote': 'A note on the shared “{title}”',
 
   'mail.digestSubject': '{count} updates in Kolibri',
   'mail.greeting': 'Hello {name},',
@@ -86,6 +87,7 @@ const de: Catalogue = {
   'notify.dueSoon': '{identifier} {title} ist am {date} fällig',
   'notify.overdue': '{identifier} {title} war am {date} fällig',
   'notify.intake': 'Jemand von außerhalb hat etwas gemeldet',
+  'notify.sharedNote': 'Eine Notiz zur geteilten Seite „{title}“',
 
   'mail.digestSubject': '{count} Neuigkeiten in Kolibri',
   'mail.greeting': 'Hallo {name},',

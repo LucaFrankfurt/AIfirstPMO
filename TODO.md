@@ -370,7 +370,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       has no session, a link that opens as a document works in any browser, and the smaller the
       surface an anonymous request can reach the easier it is to be sure of it. The token is minted
       server-side and never taken from the caller, links can expire, and how often one was opened is
-      counted — by whom deliberately is not. Still open: comments on a shared page.
+      counted — by whom deliberately is not. A page link can also invite a **note** back: a box at
+      the bottom, off until somebody ticks it, whose contents land in the page's comments marked as
+      coming from outside with a name that is shown as unverified because it is. Deliberately a box
+      rather than a thread — a page's discussion is usually internal, and a tickbox called "allow
+      comments" is nobody's idea of consent to publishing what colleagues have already said about
+      the document.
 
 ---
 

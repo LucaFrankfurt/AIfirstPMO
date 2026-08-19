@@ -119,12 +119,19 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
       {comments.length === 0 && empty && <p className="muted" style={{ fontSize: 12.5 }}>{empty}</p>}
       {comments.map((entry) => {
         const author = members.get(entry.author_id);
+        // A note left through a public link has no account behind it. The name
+        // is whatever was typed into a box, so it is shown as exactly that
+        // rather than sitting in the row looking like a colleague.
+        const guest = !entry.author_id && entry.guest_name !== undefined;
         return (
           <div className="comment" key={entry.id}>
-            <Avatar user={author} size={26} />
+            <Avatar user={guest ? undefined : author} size={26} />
             <div className="body">
               <div className="row" style={{ gap: 6 }}>
-                <span className="who">{author?.name ?? t('common.someone')}</span>
+                <span className="who">
+                  {guest ? (entry.guest_name || t('comment.anonymous')) : (author?.name ?? t('common.someone'))}
+                </span>
+                {guest && <span className="chip">{t('comment.fromOutside')}</span>}
                 <span className="when">{relativeTime(entry.created_at)}</span>
                 {entry.author_id === me && (
                   <button

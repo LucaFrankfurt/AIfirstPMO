@@ -135,6 +135,64 @@ describe('a shared page', () => {
   });
 });
 
+describe('a note on a shared page', () => {
+  const note = (token: string, fields: Record<string, string>) => fetch(`${base}/s/${token}`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields).toString(),
+    redirect: 'manual',
+  });
+
+  it('is refused by a link that did not ask for one', async () => {
+    const quiet = await makeShare({ kind: 'page', page_id: pageId, name: 'Read only' });
+    const response = await note(quiet.token, { note: 'Hello?' });
+    assert.equal(response.status, 404, 'an unauthenticated write is opted into, never default');
+  });
+
+  it('lands in the page’s comments, marked as coming from outside', async () => {
+    resetRateLimits();
+    const open_ = await makeShare({ kind: 'page', page_id: pageId, name: 'Please review', allow_comments: 1 });
+    const page = await (await fetch(`${base}/s/${open_.token}`)).text();
+    assert.match(page, /Leave a note/);
+
+    const response = await note(open_.token, { note: 'The second paragraph contradicts the first.', who: 'Lin' });
+    assert.equal(response.status, 303);
+
+    const comment = get<any>(`SELECT * FROM comments WHERE page_id = ? ORDER BY created_at DESC`, pageId);
+    assert.match(comment.body, /contradicts/);
+    assert.equal(comment.guest_name, 'Lin');
+    assert.equal(comment.author_id, null, 'nobody here said it, and the row says so');
+  });
+
+  it('shows the stranger nothing of what anybody else said', async () => {
+    resetRateLimits();
+    const open_ = await makeShare({ kind: 'page', page_id: pageId, name: 'Please review', allow_comments: 1 });
+    await ok(`/api/workspaces/${workspaceId}/comments`, {
+      page_id: pageId, body: 'Internal: do not send this to the client yet.',
+    });
+    const page = await (await fetch(`${base}/s/${open_.token}`)).text();
+    assert.equal(
+      page.includes('do not send this to the client'), false,
+      'a tickbox called “allow comments” is not consent to publishing the thread',
+    );
+  });
+
+  it('tells the people a page comment always tells', async () => {
+    const notice = get<any>(`SELECT * FROM notifications WHERE page_id = ? ORDER BY created_at DESC`, pageId);
+    assert.match(notice.title, /Release notes/);
+  });
+
+  it('needs some words, and runs out of patience', async () => {
+    resetRateLimits();
+    const open_ = await makeShare({ kind: 'page', page_id: pageId, name: 'Please review', allow_comments: 1 });
+    assert.equal((await note(open_.token, { note: '   ' })).status, 400);
+
+    const codes: number[] = [];
+    for (let i = 0; i < 9; i++) codes.push((await note(open_.token, { note: `Spam ${i}` })).status);
+    assert.ok(codes.includes(429), `expected a refusal somewhere in ${codes.join(', ')}`);
+  });
+});
+
 describe('a shared task list', () => {
   it('renders the tasks a view resolves to, and can leave the finished ones out', async () => {
     const states = await ok(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);

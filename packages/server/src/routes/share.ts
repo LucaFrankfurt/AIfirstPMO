@@ -79,6 +79,10 @@ function document_(title: string, body: string, workspace: string, writable = fa
     margin-top: 22px; font: inherit; font-weight: 600; color: #fff; background: var(--accent);
     border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer;
   }
+  .note-box { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 8px; }
+  .note-box h2 { font-size: 17px; }
+  /* A note box is for writing in, not for printing. */
+  @media print { .note-box { display: none; } }
   /* A shared link is also the thing somebody prints, so it prints properly. */
   @media print {
     @page { margin: 18mm 16mm; }
@@ -114,7 +118,7 @@ function html(ctx: Ctx, body: string, status = 200): undefined {
 }
 
 /** The page a share points at, with its children — a shared page brings its tree. */
-function pageBody(share: Row): string {
+function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
   const page = get<Row>(`SELECT * FROM pages WHERE id = ? AND deleted_at IS NULL`, share.page_id);
   if (!page) return '';
   const children = all<Row>(
@@ -136,7 +140,38 @@ function pageBody(share: Row): string {
     `<p class="meta">Updated ${new Date(Number(page.updated_at)).toISOString().slice(0, 10)}</p>`,
     renderMarkdown(String(page.content ?? '')),
     ...children.map((child) => section(child, 2)),
+    noteBox(share, notice),
   ].filter(Boolean).join('\n');
+}
+
+/**
+ * A box for a stranger to leave a note, when the link says they may.
+ *
+ * Deliberately a *box* and not a thread: the note goes into the page's comments
+ * where the team reads it, and nothing of the existing conversation comes back
+ * out. A page's thread is usually internal, and a tickbox called "allow
+ * comments" is nobody's idea of consent to publishing what colleagues have
+ * already said about the document.
+ */
+function noteBox(share: Row, notice?: 'sent' | 'problem'): string {
+  if (!share.allow_comments) return '';
+  if (notice === 'sent') {
+    return `<div class="note-box"><h2>Thank you</h2>
+<p class="meta">Your note is with the people who wrote this. It is not shown on this page.</p></div>`;
+  }
+  return `<div class="note-box">
+<h2>Leave a note</h2>
+<p class="meta">It goes to the people who wrote this. Nothing here is shown on this page — not your
+note, and not anything anybody else has said.</p>
+${notice === 'problem' ? '<p class="warn">That did not go through. A note needs some words in it, and there is a limit on how often this box can be used.</p>' : ''}
+<form method="post" class="intake">
+  <label for="note">Your note</label>
+  <textarea id="note" name="note" rows="5" maxlength="4000" required></textarea>
+  <label for="who">Your name</label>
+  <input id="who" name="who" maxlength="120" autocomplete="name" />
+  <div class="trap" aria-hidden="true"><label for="company">Company</label><input id="company" name="company" tabindex="-1" autocomplete="off" /></div>
+  <button type="submit">Send it</button>
+</form></div>`;
 }
 
 /** The tasks a shared view resolves to, as a table. */
@@ -288,6 +323,45 @@ ${notice === 'problem' ? '<p class="warn">That did not go through. A title is th
 </form>`;
 }
 
+/**
+ * A stranger's note on a shared page.
+ *
+ * It becomes an ordinary comment — the team should read it where they read
+ * everything else — with `guest_name` instead of an author, which is what makes
+ * every screen able to say the name is unverified. The people told are the ones
+ * a page comment always tells: whoever wrote it and whoever has spoken on it.
+ */
+function leaveNote(share: Row, body: string, who: string): void {
+  const page = get<Row>(`SELECT id, workspace_id, title, created_by FROM pages WHERE id = ? AND deleted_at IS NULL`, share.page_id);
+  if (!page) return;
+
+  const now = Date.now();
+  run(
+    `INSERT INTO comments (id, workspace_id, page_id, body, author_id, guest_name, created_at, updated_at, seq, clocks)
+     VALUES (?, ?, ?, ?, NULL, ?, ?, ?, ?, '{}')`,
+    uid(), page.workspace_id, page.id, body, who || null, now, now, nextSeq(),
+  );
+
+  const audience = new Set<string>();
+  if (page.created_by) audience.add(String(page.created_by));
+  for (const row of all<Row>(
+    `SELECT DISTINCT author_id FROM comments WHERE page_id = ? AND author_id IS NOT NULL AND deleted_at IS NULL`,
+    page.id,
+  )) audience.add(String(row.author_id));
+
+  for (const userId of audience) {
+    const t = translatorFor(userId);
+    run(
+      `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, page_id, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, ?, 'comment', ?, ?, ?, ?, ?, ?, '{}')`,
+      uid(), page.workspace_id, userId,
+      t('notify.sharedNote', { title: String(page.title ?? '') }),
+      body.slice(0, 200), page.id, now, now, nextSeq(),
+    );
+    notifyDevices(userId);
+  }
+}
+
 /** `a=b&c=d` from a form post. */
 function formFields(body: string): Record<string, string> {
   const out: Record<string, string> = {};
@@ -328,9 +402,10 @@ export function registerShareRoutes(router: Router): void {
     }
 
     const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, share.workspace_id);
+    const sent = ctx.query.get('sent') === '1' ? 'sent' as const : undefined;
     const body = share.kind === 'tasks' ? tasksBody(share)
-      : share.kind === 'intake' ? intakeBody(share, ctx.query.get('sent') === '1' ? 'sent' : undefined)
-        : pageBody(share);
+      : share.kind === 'intake' ? intakeBody(share, sent)
+        : pageBody(share, sent);
     if (!body) return html(ctx, gone('The thing this link pointed at is gone.'), 404);
 
     // Counted rather than logged: how often a link is opened is useful, by whom
@@ -361,24 +436,37 @@ export function registerShareRoutes(router: Router): void {
     }
 
     const share = get<Row>(`SELECT * FROM shares WHERE token = ? AND deleted_at IS NULL`, ctx.params.token);
-    if (!share || share.kind !== 'intake') return html(ctx, gone('That link does not take reports.'), 404);
+    const takesWriting = share && (share.kind === 'intake' || (share.kind === 'page' && share.allow_comments));
+    if (!share || !takesWriting) return html(ctx, gone('That link does not take anything.'), 404);
     if (share.expires_at && Number(share.expires_at) < Date.now()) {
       return html(ctx, gone('That link has expired.'), 410);
     }
     const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, share.workspace_id);
+    const render = (notice: 'sent' | 'problem') =>
+      (share.kind === 'intake' ? intakeBody(share, notice) : pageBody(share, notice));
     const back = (notice: 'sent' | 'problem', status = 200) => html(
       ctx,
-      document_(String(share.name || 'Report'), intakeBody(share, notice), String(workspace?.name ?? 'Kolibri'), true),
+      document_(String(share.name || 'Kolibri'), render(notice), String(workspace?.name ?? 'Kolibri'), true),
       status,
     );
 
     // 16 KiB: a bug report is prose, and anything larger is not one.
     const fields = formFields((await readBody(ctx.req, 16 * 1024)).toString('utf8'));
-    const title = String(fields.title ?? '').trim().slice(0, 200);
 
     // A filled honeypot is answered as though it worked. Telling a robot it was
     // caught only teaches whoever wrote it to stop filling that field in.
     if (fields.company) return back('sent');
+
+    if (share.kind === 'page') {
+      const note = String(fields.note ?? '').trim().slice(0, 4000);
+      if (!allowed || !note) return back('problem', allowed ? 400 : 429);
+      leaveNote(share, note, String(fields.who ?? '').trim().slice(0, 120));
+      ctx.res.writeHead(303, { location: `/s/${encodeURIComponent(String(share.token))}?sent=1`, 'cache-control': 'no-store' });
+      ctx.res.end();
+      return undefined;
+    }
+
+    const title = String(fields.title ?? '').trim().slice(0, 200);
     if (!allowed || !title) return back('problem', allowed ? 400 : 429);
 
     const id = uid();

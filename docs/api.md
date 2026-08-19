@@ -184,6 +184,16 @@ POST   /api/invites/:code/accept
 Roles: `owner` > `admin` > `member` > `guest`. Guests read but cannot write. A workspace always
 keeps at least one owner.
 
+### Notes on a shared page
+
+A `page` share with `allow_comments: 1` puts a box at the bottom of the document. `POST /s/:token`
+with `note` and an optional `who` writes an ordinary comment on the page — `author_id` null,
+`guest_name` set — and tells the people a page comment always tells. Off by default: an
+unauthenticated write is something somebody opts into.
+
+Nothing of the existing thread is rendered to the visitor. A page's discussion is usually internal,
+and a tickbox is not consent to publish it.
+
 ### Intake
 
 A share of kind `intake` is a link to a **form**, not a document — the one place in the app an

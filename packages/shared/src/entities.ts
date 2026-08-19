@@ -160,7 +160,7 @@ export const ENTITIES = {
     table: 'shares',
     fields: [
       'workspace_id', 'project_id', 'kind', 'page_id', 'view_id',
-      'name', 'expires_at', 'include_done', 'created_by',
+      'name', 'expires_at', 'include_done', 'allow_comments', 'created_by',
     ],
     serverOnly: ['token', 'views', 'last_seen_at'],
   },
@@ -190,7 +190,7 @@ export const ENTITIES = {
   },
   comment: {
     table: 'comments',
-    fields: ['workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'reactions', 'anchor'],
+    fields: ['workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'guest_name', 'reactions', 'anchor'],
     json: ['reactions', 'anchor'],
   },
   attachment: {

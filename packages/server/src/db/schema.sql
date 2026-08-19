@@ -296,6 +296,9 @@ CREATE TABLE IF NOT EXISTS shares (
   token        TEXT NOT NULL DEFAULT '',
   expires_at   INTEGER,
   include_done INTEGER NOT NULL DEFAULT 1,
+  -- Whether strangers may leave a note. Off by default: an unauthenticated
+  -- write is something somebody opts into.
+  allow_comments INTEGER NOT NULL DEFAULT 0,
   views        INTEGER NOT NULL DEFAULT 0,
   last_seen_at INTEGER,
   created_by   TEXT,
@@ -463,6 +466,9 @@ CREATE TABLE IF NOT EXISTS comments (
   parent_id    TEXT,
   body         TEXT NOT NULL DEFAULT '',
   author_id    TEXT,
+  -- Who said it, when nobody here said it: a name typed into a public share
+  -- link's comment box. Never verified, and shown as unverified.
+  guest_name   TEXT,
   reactions    TEXT NOT NULL DEFAULT '{}',
   -- The passage a comment is about, when it was made on a selection: the quote
   -- plus its surroundings, so it can be found again after an edit.

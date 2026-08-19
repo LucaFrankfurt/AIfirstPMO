@@ -56,6 +56,8 @@ for (const [table, column, definition] of [
   ['projects', 'default_view_id', 'TEXT'],
   ['notifications', 'project_id', 'TEXT'],
   ['task_relations', 'lag', 'INTEGER NOT NULL DEFAULT 0'],
+  ['comments', 'guest_name', 'TEXT'],
+  ['shares', 'allow_comments', 'INTEGER NOT NULL DEFAULT 0'],
   ['projects', 'working_days', `TEXT NOT NULL DEFAULT '[1,2,3,4,5]'`],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
