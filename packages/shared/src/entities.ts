@@ -33,6 +33,7 @@ export type EntityName =
   | 'webhook'
   | 'notification'
   | 'activity'
+  | 'intake'
   | 'purge';
 
 export interface EntityDef {
@@ -242,13 +243,28 @@ export const ENTITIES = {
   },
   notification: {
     table: 'notifications',
-    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id', 'read_at', 'archived_at'],
+    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'actor_id', 'read_at', 'archived_at'],
     serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'actor_id'],
     private: true,
   },
   activity: {
     table: 'activities',
     fields: ['workspace_id', 'project_id', 'task_id', 'page_id', 'actor_id', 'verb', 'field', 'old_value', 'new_value'],
+    readOnly: true,
+  },
+  /**
+   * Something reported from outside, before anybody has decided it is work.
+   *
+   * Written by an anonymous form and never by a client, so `readOnly`: the
+   * things a member does to one — accept it, decline it — go through their own
+   * route, because accepting is a task being created and that is not a field.
+   */
+  intake: {
+    table: 'intakes',
+    fields: [
+      'workspace_id', 'project_id', 'share_id', 'reporter', 'email',
+      'title', 'body', 'status', 'task_id', 'handled_by', 'handled_at',
+    ],
     readOnly: true,
   },
   /**
@@ -318,5 +334,6 @@ export const COLLECTIONS: Record<EntityName, string> = {
   webhook: 'webhooks',
   notification: 'notifications',
   activity: 'activities',
+  intake: 'intakes',
   purge: 'purges',
 };

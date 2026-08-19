@@ -169,6 +169,27 @@ POST   /api/invites/:code/accept
 Roles: `owner` > `admin` > `member` > `guest`. Guests read but cannot write. A workspace always
 keeps at least one owner.
 
+### Intake
+
+A share of kind `intake` is a link to a **form**, not a document — the one place in the app an
+anonymous request can write:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  -d '{"kind":"intake","project_id":"'$PROJECT'","name":"Report a problem"}' \
+  "$URL/api/workspaces/$WS/shares"
+```
+
+`GET /s/:token` renders the form and `POST /s/:token` takes a submission — `title` (required),
+`body`, `reporter`, `email`, as an ordinary `application/x-www-form-urlencoded` post, because
+somebody reporting a problem with your product is exactly the person whose browser may be doing
+something unusual.
+
+What it writes is an `intake` row, never a task. That is the whole defence: a tight bucket per
+address, a honeypot field and length caps are worth having, but the reason spam cannot reach the
+board is that *nothing* reaches the board until a member accepts it. Neither the name nor the email
+address is verified, and both are shown as unverified wherever they appear.
+
 ## Files
 
 Uploads are raw bodies, not multipart — one request, one blob, trivially retryable:
@@ -214,6 +235,15 @@ See [`sync.md`](sync.md) for the protocol. `EventSource` cannot set headers, so 
 accepts `?access_token=` for token clients.
 
 ## Misc
+
+```
+POST /api/intakes/:id/accept            create the task; body may override title, state_id, type_id
+POST /api/intakes/:id/decline           mark it dealt with, keep the row
+```
+
+Accepting is a route rather than a field somebody sets, because it *creates* a task — numbered,
+defaulted and announced — and none of that is a patch on an intake row. A report can only be dealt
+with once, so two people triaging the same morning do not make two tasks out of one report.
 
 ```
 GET  /api/workspaces/:ws/trash          what is waiting to go; ?days=N asks of an age

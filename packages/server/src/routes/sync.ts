@@ -41,6 +41,9 @@ function filterFor(entity: EntityName): string {
       return `AND EXISTS (SELECT 1 FROM workspace_members wm WHERE wm.user_id = ${table}.id AND wm.workspace_id = ?1 AND wm.deleted_at IS NULL)`;
     case 'notification':
       return `AND ${table}.user_id = ?2`;
+    case 'intake':
+      // A report about a project is only visible to people who can see the
+      // project — the same rule the tasks it may become already follow.
     case 'task':
     case 'state':
     case 'taskType':

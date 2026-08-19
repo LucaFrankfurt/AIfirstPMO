@@ -325,6 +325,19 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       interrupted move leaves an instance that still works. The old copies are left in place on
       purpose; `kolibri doctor` counts what is stranded on the backend no longer in use.
 - [x] **Roadmap / portfolio view** across projects — see P2 above.
+- [x] **Intake and triage — an inbox for reports from outside.** A share link that is a *form*
+      rather than a document: no account, no session, no JavaScript, because somebody reporting a
+      problem with your product is exactly the person whose browser might be doing something
+      unusual. What it writes is an `intake` row and never a task, which is the whole defence — the
+      tight bucket per address, the honeypot field and the length caps are worth having, but the
+      reason spam cannot reach the board is that *nothing* reaches the board until a member accepts
+      it. Accepting is a route rather than a field, because it creates a task and a task has to be
+      numbered, defaulted and announced; the title is editable in the same breath, since what
+      somebody outside calls a problem and what the team calls the work are rarely the same
+      sentence. A declined report is kept and marked rather than deleted, so nobody triages it
+      twice. Whoever leads the project is told — a queue nobody hears about is a queue nobody reads
+      — and that notification lands on the report rather than near it, which took a `project_id` on
+      notifications and a `?tab=` on the project route.
 - [x] **A shared task view shows what the view shows.** The filter set was read with the interface's
       names (`state`, `type`, `cycle`) against the table's (`state_id`…), so only `priority` ever
       applied and a shared link quietly showed *more* tasks than the view it was made from — a leak

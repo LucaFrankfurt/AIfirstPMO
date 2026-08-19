@@ -671,6 +671,9 @@ CREATE TABLE IF NOT EXISTS notifications (
   body         TEXT,
   task_id      TEXT,
   page_id      TEXT,
+  -- Where to go when the notification is not about one task or one page. A
+  -- report from outside is about a project's queue, not a row.
+  project_id   TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,
@@ -685,6 +688,32 @@ CREATE INDEX IF NOT EXISTS notifications_user ON notifications (user_id, seq);
 -- A tombstone that was itself thrown away. Emptying the trash removes the row
 -- and leaves one of these, because a device holding the tombstone would
 -- otherwise keep it in its own trash and be able to put it back.
+-- Something reported from outside the workspace. Deliberately not a task:
+-- letting an anonymous form write into the backlog points a stranger's keyboard
+-- at the thing the team reads every morning. It becomes a task when somebody
+-- accepts it.
+CREATE TABLE IF NOT EXISTS intakes (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT NOT NULL,
+  share_id     TEXT,
+  reporter     TEXT,
+  email        TEXT,
+  title        TEXT NOT NULL,
+  body         TEXT,
+  status       TEXT NOT NULL DEFAULT 'new',
+  task_id      TEXT,
+  handled_by   TEXT,
+  handled_at   INTEGER,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_intakes_workspace ON intakes(workspace_id, seq);
+CREATE INDEX IF NOT EXISTS idx_intakes_project ON intakes(project_id, status);
+
 CREATE TABLE IF NOT EXISTS purges (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

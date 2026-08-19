@@ -198,6 +198,57 @@ export function registerEntityRoutes(router: Router): void {
   });
 
   /**
+   * Accept a report, or decline it.
+   *
+   * Accepting is what turns it into a task — which is why it is a route rather
+   * than a field somebody sets: a task has to be created, numbered and told to
+   * whoever is on it, and none of that is a patch on an intake row.
+   */
+  router.post('/api/intakes/:id/:verb', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const verb = ctx.params.verb;
+    if (verb !== 'accept' && verb !== 'decline') throw notFound('Unknown action');
+
+    const intake = get<Row>(`SELECT * FROM intakes WHERE id = ? AND deleted_at IS NULL`, ctx.params.id);
+    if (!intake) throw notFound('Not found');
+    requireWorkspace(ctx, String(intake.workspace_id), 'member');
+    if (!canSeeProject(auth.userId, intake.project_id)) throw forbidden('That project is private');
+    if (intake.status !== 'new') throw badRequest('That report has already been dealt with');
+
+    const hlc = serverClock.now();
+    const done = { status: verb === 'accept' ? 'accepted' : 'declined', handled_by: auth.userId, handled_at: Date.now() };
+
+    if (verb === 'decline') {
+      writeEntity('intake', String(intake.id), done, { workspaceId: String(intake.workspace_id), actorId: auth.userId, hlc, system: true });
+      return { intake: serialize('intake', get<Row>(`SELECT * FROM intakes WHERE id = ?`, intake.id)!) };
+    }
+
+    const body = await readJson<{ title?: string; state_id?: string; type_id?: string; assignees?: string[] }>(ctx);
+    // The reporter's words are the description, credited. Their name is not a
+    // user here and never will be, so it is prose rather than a foreign key.
+    const credit = [intake.reporter, intake.email].filter(Boolean).join(' · ');
+    const { row: task } = writeEntity('task', uid(), {
+      workspace_id: intake.workspace_id,
+      project_id: intake.project_id,
+      title: String(body.title ?? intake.title),
+      description: [intake.body, credit ? `\n\n— reported by ${credit}` : ''].filter(Boolean).join(''),
+      state_id: body.state_id,
+      type_id: body.type_id,
+      assignees: body.assignees ?? [],
+      created_by: auth.userId,
+    }, { workspaceId: String(intake.workspace_id), actorId: auth.userId, hlc: serverClock.now() });
+
+    writeEntity('intake', String(intake.id), { ...done, task_id: task.id }, {
+      workspaceId: String(intake.workspace_id), actorId: auth.userId, hlc, system: true,
+    });
+    return {
+      intake: serialize('intake', get<Row>(`SELECT * FROM intakes WHERE id = ?`, intake.id)!),
+      task: serialize('task', task),
+    };
+  });
+
+  /**
    * What is waiting in the trash, and how much disk it is holding.
    *
    * `days` asks the same question of an age — "what would a thirty-day policy
@@ -244,7 +295,10 @@ export function registerEntityRoutes(router: Router): void {
     return {
       title: row.title,
       body: row.body,
-      url: row.task_id ? `/t/${row.task_id}` : row.page_id ? `/pages/${row.page_id}` : '/inbox',
+      url: row.task_id ? `/t/${row.task_id}`
+        : row.page_id ? `/pages/${row.page_id}`
+          : row.project_id ? `/projects/${row.project_id}?tab=intake`
+            : '/inbox',
       unread: Number(get<Row>(
         `SELECT count(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND deleted_at IS NULL`,
         auth.userId,

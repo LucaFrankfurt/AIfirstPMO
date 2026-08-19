@@ -182,7 +182,14 @@ export interface State extends Base {
 }
 
 /** What a share link points at. */
-export const SHARE_KINDS = ['page', 'tasks'] as const;
+/**
+ * `intake` is the odd one: every other share hands a stranger something to
+ * *read*, and this one hands them a form to write into. It lives here anyway,
+ * because it is the same idea — one link, scoped to one project, minted by the
+ * server and revocable by deleting a row — and one place to reason about
+ * anonymous access is worth more than a tidy noun.
+ */
+export const SHARE_KINDS = ['page', 'tasks', 'intake'] as const;
 export type ShareKind = (typeof SHARE_KINDS)[number];
 
 export interface Share extends Base {
@@ -200,6 +207,30 @@ export interface Share extends Base {
   token?: string;
   views?: number;
   last_seen_at?: number | null;
+}
+
+/**
+ * Something somebody outside the workspace reported.
+ *
+ * Deliberately *not* a task. Letting an anonymous form write straight into the
+ * backlog points a stranger's keyboard at the thing the team looks at every
+ * morning; a report becomes a task when a person says so, and until then it
+ * sits in one queue that only people who asked for it are looking at.
+ */
+export interface Intake extends Base {
+  workspace_id: ID;
+  project_id: ID;
+  share_id: ID | null;
+  /** What the reporter typed about themselves. Neither is verified. */
+  reporter: string | null;
+  email: string | null;
+  title: string;
+  body: string | null;
+  status: 'new' | 'accepted' | 'declined';
+  /** The task it became, once somebody accepted it. */
+  task_id: ID | null;
+  handled_by: ID | null;
+  handled_at: number | null;
 }
 
 /** Dates as they were when somebody said "this is the plan". */
@@ -550,6 +581,8 @@ export interface Notification extends Base {
   body: string | null;
   task_id: ID | null;
   page_id: ID | null;
+  /** Where to go when it is about neither one task nor one page. */
+  project_id: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;
@@ -611,6 +644,7 @@ export interface EntityMap {
   webhook: Webhook;
   notification: Notification;
   activity: Activity;
+  intake: Intake;
   purge: Purge;
 }
 

@@ -54,6 +54,7 @@ for (const [table, column, definition] of [
   ['webhooks', 'format', `TEXT NOT NULL DEFAULT 'kolibri'`],
   ['webhooks', 'created_by', 'TEXT'],
   ['projects', 'default_view_id', 'TEXT'],
+  ['notifications', 'project_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

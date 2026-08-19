@@ -1278,6 +1278,14 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .tabs button.active { color: var(--fg); border-bottom-color: var(--accent); font-weight: 550; }
 
+/* How many reports are waiting. A count rather than a dot: "some" is not enough
+   to decide whether to look now. */
+.tab-count {
+  display: inline-block; margin-inline-start: 6px; min-width: 17px; padding: 0 5px;
+  font-size: 11px; font-weight: 600; line-height: 17px; text-align: center;
+  color: #fff; background: var(--accent); border-radius: 999px;
+}
+
 .skeleton {
   background: linear-gradient(90deg, var(--bg-hover) 25%, var(--bg-active) 37%, var(--bg-hover) 63%);
   background-size: 400% 100%;

@@ -11,9 +11,12 @@
  * deliberately narrow: it reads one row, renders it, and offers nothing else.
  */
 import { renderMarkdown } from '@kolibri/shared';
-import { all, get, run, type Row } from '../db/index.ts';
+import { all, get, nextSeq, run, type Row } from '../db/index.ts';
+import { translatorFor } from '../lib/i18n.ts';
+import { uid } from '../lib/ids.ts';
+import { notifyDevices } from '../lib/push.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
-import type { Ctx, Router } from '../lib/http.ts';
+import { readBody, type Ctx, type Router } from '../lib/http.ts';
 
 const escape = (text: unknown): string =>
   String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -25,7 +28,7 @@ const escape = (text: unknown): string =>
  * without the app's stylesheet, and a stranger's browser should not be asked to
  * download a bundle to read a paragraph.
  */
-function document_(title: string, body: string, workspace: string): string {
+function document_(title: string, body: string, workspace: string, writable = false): string {
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -61,6 +64,21 @@ function document_(title: string, body: string, workspace: string): string {
   .foot { color: var(--muted); font-size: 12.5px; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 14px; }
   .done td:first-child { text-decoration: line-through; color: var(--muted); }
   .pill { display: inline-block; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; }
+  .warn { color: #b3261e; }
+  .intake label { display: block; font-size: 13px; font-weight: 600; margin: 18px 0 5px; }
+  .intake .req { font-weight: 400; color: var(--muted); }
+  .intake input, .intake textarea {
+    width: 100%; font: inherit; color: inherit; background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px; padding: 9px 11px;
+  }
+  .intake textarea { resize: vertical; }
+  .intake .two { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 520px) { .intake .two { grid-template-columns: 1fr; } }
+  .intake .trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  .intake button {
+    margin-top: 22px; font: inherit; font-weight: 600; color: #fff; background: var(--accent);
+    border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer;
+  }
   /* A shared link is also the thing somebody prints, so it prints properly. */
   @media print {
     @page { margin: 18mm 16mm; }
@@ -74,7 +92,7 @@ function document_(title: string, body: string, workspace: string): string {
 </head>
 <body><main>
 ${body}
-<p class="foot">${escape(workspace)} · shared read-only from Kolibri</p>
+<p class="foot">${escape(workspace)} · ${writable ? 'a form from Kolibri' : 'shared read-only from Kolibri'}</p>
 </main></body>
 </html>`;
 }
@@ -219,6 +237,64 @@ function tasksBody(share: Row): string {
 </table>`;
 }
 
+/* ------------------------------------------------------------------ intake */
+
+/**
+ * The form a stranger fills in.
+ *
+ * Plain HTML that posts to itself. No JavaScript at all: somebody reporting a
+ * problem with your product is exactly the person whose browser might be doing
+ * something unusual, and a form that needs a bundle to work is a report you
+ * never receive.
+ */
+function intakeBody(share: Row, notice?: 'sent' | 'problem'): string {
+  const project = get<Row>(`SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL`, share.project_id);
+  if (!project) return '';
+
+  if (notice === 'sent') {
+    return `<h1>Thank you</h1>
+<p>Your report reached the ${escape(project.name)} team. Somebody will look at it.</p>
+<p class="meta">You will not hear back through this page — leave an email address next time if you
+would like a reply.</p>`;
+  }
+
+  return `<h1>${escape(share.name || `Report something to ${project.name}`)}</h1>
+<p class="meta">This goes to the ${escape(project.name)} team. Nothing here is public.</p>
+${notice === 'problem' ? '<p class="warn">That did not go through. A title is the one thing needed — and there is a limit on how often this form can be used.</p>' : ''}
+<form method="post" class="intake">
+  <label for="title">What happened?<span class="req"> — required</span></label>
+  <input id="title" name="title" maxlength="200" required autofocus placeholder="One line" />
+
+  <label for="body">Anything else</label>
+  <textarea id="body" name="body" rows="7" maxlength="8000" placeholder="What you did, what you expected, what happened instead."></textarea>
+
+  <div class="two">
+    <div>
+      <label for="reporter">Your name</label>
+      <input id="reporter" name="reporter" maxlength="120" autocomplete="name" />
+    </div>
+    <div>
+      <label for="email">Your email</label>
+      <input id="email" name="email" type="email" maxlength="200" autocomplete="email" />
+    </div>
+  </div>
+
+  <!-- Left empty by people and filled in by the sort of program that fills in
+       every field it finds. Hidden from assistive technology too, so nobody is
+       asked to leave a box blank they were never meant to see. -->
+  <div class="trap" aria-hidden="true"><label for="company">Company</label><input id="company" name="company" tabindex="-1" autocomplete="off" /></div>
+
+  <button type="submit">Send it</button>
+</form>`;
+}
+
+/** `a=b&c=d` from a form post. */
+function formFields(body: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [key, value] of new URLSearchParams(body)) out[key] = value;
+  return out;
+}
+
 const safeList = (raw: unknown): string[] => {
   try {
     const parsed = JSON.parse(String(raw ?? '[]'));
@@ -252,13 +328,106 @@ export function registerShareRoutes(router: Router): void {
     }
 
     const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, share.workspace_id);
-    const body = share.kind === 'tasks' ? tasksBody(share) : pageBody(share);
+    const body = share.kind === 'tasks' ? tasksBody(share)
+      : share.kind === 'intake' ? intakeBody(share, ctx.query.get('sent') === '1' ? 'sent' : undefined)
+        : pageBody(share);
     if (!body) return html(ctx, gone('The thing this link pointed at is gone.'), 404);
 
     // Counted rather than logged: how often a link is opened is useful, by whom
     // is not this instance's business and not something a share should collect.
     run(`UPDATE shares SET views = views + 1, last_seen_at = ? WHERE id = ?`, Date.now(), share.id);
 
-    return html(ctx, document_(String(share.name || workspace?.name || 'Kolibri'), body, String(workspace?.name ?? 'Kolibri')));
+    return html(ctx, document_(String(share.name || workspace?.name || 'Kolibri'), body, String(workspace?.name ?? 'Kolibri'), share.kind === 'intake'));
   });
+
+  /**
+   * A report, from somebody with no account.
+   *
+   * The only unauthenticated write in the app, so it is narrow on purpose: a
+   * tight bucket per address, a honeypot field, hard length caps, and — the
+   * part that actually matters — what it writes is an `intake` row rather than
+   * a task. Spam never reaches the board, because nothing reaches the board
+   * until a member says so.
+   */
+  router.post('/s/:token', async (ctx: Ctx) => {
+    // Caught rather than thrown on: whoever hit the limit is a person looking
+    // at a form they just filled in, and a JSON error object is not an answer
+    // to that. `enforce` still sets `retry-after` on the way past.
+    let allowed = true;
+    try {
+      enforce(ctx, byAddress(ctx, LIMITS.intake, 'intake'));
+    } catch {
+      allowed = false;
+    }
+
+    const share = get<Row>(`SELECT * FROM shares WHERE token = ? AND deleted_at IS NULL`, ctx.params.token);
+    if (!share || share.kind !== 'intake') return html(ctx, gone('That link does not take reports.'), 404);
+    if (share.expires_at && Number(share.expires_at) < Date.now()) {
+      return html(ctx, gone('That link has expired.'), 410);
+    }
+    const workspace = get<Row>(`SELECT name FROM workspaces WHERE id = ?`, share.workspace_id);
+    const back = (notice: 'sent' | 'problem', status = 200) => html(
+      ctx,
+      document_(String(share.name || 'Report'), intakeBody(share, notice), String(workspace?.name ?? 'Kolibri'), true),
+      status,
+    );
+
+    // 16 KiB: a bug report is prose, and anything larger is not one.
+    const fields = formFields((await readBody(ctx.req, 16 * 1024)).toString('utf8'));
+    const title = String(fields.title ?? '').trim().slice(0, 200);
+
+    // A filled honeypot is answered as though it worked. Telling a robot it was
+    // caught only teaches whoever wrote it to stop filling that field in.
+    if (fields.company) return back('sent');
+    if (!allowed || !title) return back('problem', allowed ? 400 : 429);
+
+    const id = uid();
+    const now = Date.now();
+    run(
+      `INSERT INTO intakes (id, workspace_id, project_id, share_id, reporter, email, title, body,
+                            status, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, '{}')`,
+      id, share.workspace_id, share.project_id, share.id,
+      String(fields.reporter ?? '').trim().slice(0, 120) || null,
+      String(fields.email ?? '').trim().slice(0, 200) || null,
+      title,
+      String(fields.body ?? '').trim().slice(0, 8000) || null,
+      now, now, nextSeq(),
+    );
+    tellSomebody(share, title);
+
+    // Redirect rather than render, so a refresh does not send it twice.
+    ctx.res.writeHead(303, { location: `/s/${encodeURIComponent(String(share.token))}?sent=1`, 'cache-control': 'no-store' });
+    ctx.res.end();
+    return undefined;
+  });
+}
+
+/**
+ * Tell the people who would want to know.
+ *
+ * The project lead, or the workspace's owners and admins if it has none. A
+ * queue nobody is told about is a queue nobody reads, and the whole point of
+ * intake is that a report from outside does not sit unseen.
+ */
+function tellSomebody(share: Row, title: string): void {
+  const lead = get<Row>(`SELECT lead_id FROM projects WHERE id = ?`, share.project_id)?.lead_id;
+  const people = lead
+    ? [String(lead)]
+    : all<Row>(
+      `SELECT user_id FROM workspace_members
+        WHERE workspace_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL`,
+      share.workspace_id,
+    ).map((row) => String(row.user_id));
+
+  for (const userId of new Set(people)) {
+    const t = translatorFor(userId);
+    const now = Date.now();
+    run(
+      `INSERT INTO notifications (id, workspace_id, user_id, kind, title, body, project_id, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, ?, 'intake', ?, ?, ?, ?, ?, ?, '{}')`,
+      uid(), share.workspace_id, userId, t('notify.intake'), title.slice(0, 200), share.project_id, now, now, nextSeq(),
+    );
+    notifyDevices(userId);
+  }
 }

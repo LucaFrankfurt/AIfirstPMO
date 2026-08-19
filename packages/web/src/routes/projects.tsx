@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
@@ -23,12 +23,13 @@ import { groupKey, roleKey, useT, type TranslationKey } from '../lib/i18n';
 import { ProjectFields } from '../components/fields';
 import { CopyProjectSheet } from '../components/copy-project';
 import { configOf, useProjectDefaultView } from '../components/saved-views';
+import { Triage, useNewIntakeCount } from '../components/intake';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
 const TAB_KEY: Record<string, TranslationKey> = {
   tasks: 'project.tabTasks', cycles: 'project.tabCycles', modules: 'project.tabModules',
-  pages: 'project.tabPages', insights: 'insights.tab', settings: 'project.tabSettings',
+  pages: 'project.tabPages', intake: 'intake.tab', insights: 'insights.tab', settings: 'project.tabSettings',
 };
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
@@ -213,7 +214,8 @@ export function ProjectNew() {
 
 /* ---------------------------------------------------------------- project */
 
-type Tab = 'tasks' | 'cycles' | 'modules' | 'pages' | 'insights' | 'settings';
+const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'settings'] as const;
+type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
   const t = useT();
@@ -224,11 +226,16 @@ export function ProjectPage() {
   const [view, setView] = useStoredView(id);
   const selection = useSelection();
   const canWrite = useCanWrite();
-  const [tab, setTab] = useState<Tab>('tasks');
+  // `?tab=` so a link can point at one — a notification about a report has to
+  // land on the reports, not on the task list beside them.
+  const [search, setSearch] = useSearchParams();
+  const asked = search.get('tab');
+  const [tab, setTab] = useState<Tab>(TABS.includes(asked as Tab) ? asked as Tab : 'tasks');
   const [adding, setAdding] = useState(false);
 
   const tasks = useQuery(() => list('task', (t) => t.project_id === id && !t.parent_id), [id]);
   const visible = useVisibleTasks(tasks, view);
+  const waitingReports = useNewIntakeCount(id);
 
   if (!project) {
     return (
@@ -251,9 +258,22 @@ export function ProjectPage() {
       </Header>
 
       <div className="tabs" style={{ padding: '0 12px' }}>
-        {(['tasks', 'cycles', 'modules', 'pages', 'insights', 'settings'] as Tab[]).map((name) => (
-          <button key={name} className={tab === name ? 'active' : ''} onClick={() => setTab(name)}>
+        {/* Reports is always here, even for a project that will never use it.
+            Hiding it until an intake link exists would make the one screen that
+            explains how to get one the screen nobody can find. */}
+        {TABS.map((name) => (
+          <button
+            key={name}
+            className={tab === name ? 'active' : ''}
+            onClick={() => {
+              setTab(name);
+              // The URL follows the tab, so a reload and a back button both
+              // land where the person was rather than on the task list.
+              setSearch(name === 'tasks' ? {} : { tab: name }, { replace: true });
+            }}
+          >
             {t(TAB_KEY[name])}
+            {name === 'intake' && waitingReports > 0 && <span className="tab-count">{waitingReports}</span>}
           </button>
         ))}
       </div>
@@ -274,6 +294,7 @@ export function ProjectPage() {
       {tab === 'cycles' && <Cycles projectId={id} />}
       {tab === 'modules' && <Modules projectId={id} />}
       {tab === 'pages' && <ProjectPages projectId={id} />}
+      {tab === 'intake' && <Triage projectId={id} />}
       {tab === 'insights' && <ProjectInsights projectId={id} />}
       {tab === 'settings' && <ProjectSettings projectId={id} />}
 

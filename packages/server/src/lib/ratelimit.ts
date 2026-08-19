@@ -50,6 +50,12 @@ export const LIMITS = {
   login: { burst: 10, everySeconds: 30 },
   register: { burst: 5, everySeconds: 120 },
   invite: { burst: 20, everySeconds: 30 },
+  /**
+   * Submitting an intake form. Tighter than everything else, because it is the
+   * only place in the app where somebody with no account at all can write a
+   * row — and because nobody reports five bugs a minute by hand.
+   */
+  intake: { burst: 5, everySeconds: 120 },
 } as const satisfies Record<string, Limit>;
 
 function take(key: string, limit: Limit, now: number): boolean {

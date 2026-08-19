@@ -148,6 +148,9 @@ export function Inbox() {
                   markNotificationRead(notification.id);
                   if (notification.task_id) openTask({ id: notification.task_id });
                   else if (notification.page_id) navigate(`/pages/${notification.page_id}`);
+                  // A report from outside is about a project's queue rather
+                  // than a row, so it opens the tab that holds it.
+                  else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);
                 }}
               >
                 <Avatar user={actor} size={26} />

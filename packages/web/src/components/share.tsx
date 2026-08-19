@@ -31,7 +31,12 @@ export function useSharesFor(target: ShareTarget): Share[] {
   return useQuery(
     () => list('share', (share) => (target.kind === 'page'
       ? share.page_id === target.page_id
-      : share.kind === 'tasks' && share.view_id === (target.view_id ?? null) && share.project_id === (target.project_id ?? null))),
+      // An intake link belongs to a project rather than to a view, so it is
+      // matched on the project alone; a task share also has to agree about
+      // which saved view it points at.
+      : target.kind === 'intake'
+        ? share.kind === 'intake' && share.project_id === (target.project_id ?? null)
+        : share.kind === 'tasks' && share.view_id === (target.view_id ?? null) && share.project_id === (target.project_id ?? null))),
     [target.kind, target.page_id, target.view_id, target.project_id],
   );
 }
@@ -68,8 +73,8 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
   const canShare = role === 'owner' || role === 'admin' || role === 'member';
 
   return (
-    <Sheet title={t('share.title')} onClose={onClose}>
-      <p className="hint" style={{ marginBottom: 12 }}>{t('share.hint')}</p>
+    <Sheet title={t(target.kind === 'intake' ? 'intake.linkTitle' : 'share.title')} onClose={onClose}>
+      <p className="hint" style={{ marginBottom: 12 }}>{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
 
       {shares.length === 0 && (
         <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>{t('share.none')}</p>

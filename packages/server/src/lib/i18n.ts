@@ -22,6 +22,7 @@ const en = {
   'notify.pageChanged': '“{title}” was edited',
   'notify.dueSoon': '{identifier} {title} is due {date}',
   'notify.overdue': '{identifier} {title} was due {date}',
+  'notify.intake': 'Somebody reported something from outside',
 
   'mail.digestSubject': '{count} updates in Kolibri',
   'mail.greeting': 'Hello {name},',
@@ -84,6 +85,7 @@ const de: Catalogue = {
   'notify.pageChanged': '„{title}“ wurde bearbeitet',
   'notify.dueSoon': '{identifier} {title} ist am {date} fällig',
   'notify.overdue': '{identifier} {title} war am {date} fällig',
+  'notify.intake': 'Jemand von außerhalb hat etwas gemeldet',
 
   'mail.digestSubject': '{count} Neuigkeiten in Kolibri',
   'mail.greeting': 'Hallo {name},',

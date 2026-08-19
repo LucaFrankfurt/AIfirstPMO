@@ -65,10 +65,10 @@ which Plane does not have in this form.
 | Missing | Weight | Note |
 |---|---|---|
 | **Import** from Jira/Linear/Plane's own formats | Medium | CSV is built — with a preview, a per-row report, and a second pass that resolves parents and blockers — and so is a JSON round trip between Kolibri instances |
-| **Intake / triage** — an inbox for reports from outside | Medium | |
+| ~~**Intake / triage** — an inbox for reports from outside~~ | **Done** | A share link that is a *form*: what somebody outside sends waits under Reports until a member accepts it, and only then is it a task |
 
-Custom fields used to head this list and are now built — nine kinds, per project, and each can be
-limited to particular work item types. Filtering and grouping *by* one is still open.
+Custom fields used to head this list and are now built — nine kinds, per project, each limited to
+the work item types it belongs on, and views filter and group by them.
 
 ## Against OpenProject
 
