@@ -9,6 +9,15 @@ export function token(bytes = 24): string {
   return randomBytes(bytes).toString('base64url');
 }
 
+/**
+ * The secret in a share link.
+ *
+ * Longer than an invite code because it is the *only* thing standing between a
+ * stranger and the content: 24 bytes of system randomness, base64url so it
+ * survives being pasted into a chat window.
+ */
+export const shareToken = (): string => token(24);
+
 export function shortCode(len = 8): string {
   const raw = randomBytes(len);
   let out = '';

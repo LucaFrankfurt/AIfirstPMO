@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { compareOrder, type Page } from '@kolibri/shared';
+import { compareOrder, excerpt, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { Comments } from '../components/comments';
 import {
-  ACCESS_KEY, PageLabelChips, VersionDiff, labelItems, useExport, usePageLabels, useWatching,
+  ACCESS_KEY, PageLabelChips, VersionDiff, labelItems, useExport, usePageLabels, usePrint, useWatching,
 } from '../components/page-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
+import { ShareSheet } from '../components/share';
 import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
-import { excerpt } from '../lib/markdown';
+
 import { createPage, remove, update } from '../lib/mutations';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
@@ -190,6 +191,8 @@ export function PageDetail() {
   const labels = usePageLabels((page ?? { project_id: null }) as any);
   const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
   const exportPage = useExport();
+  const printPage = usePrint();
+  const [sharing, setSharing] = useState(false);
   const canWrite = useCanWrite();
   const projects = useQuery(() => list('project'), []);
 
@@ -240,6 +243,10 @@ export function PageDetail() {
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
             { id: 'export', label: t('page.export'), icon: <Icon name="page" size={14} />,
               onSelect: () => exportPage(page) },
+            { id: 'print', label: t('page.print'), icon: <Icon name="page" size={14} />,
+              onSelect: () => printPage(page) },
+            { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
+              onSelect: () => setSharing(true) },
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
               icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
               onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
@@ -339,6 +346,13 @@ export function PageDetail() {
           </section>
         )}
       </div>
+
+      {sharing && (
+        <ShareSheet
+          target={{ kind: 'page', page_id: id, project_id: page.project_id ?? null, name: page.title }}
+          onClose={() => setSharing(false)}
+        />
+      )}
 
       {history && (
         <Sheet title={t('page.history')} onClose={() => setHistory(null)}>

@@ -282,6 +282,31 @@ CREATE TABLE IF NOT EXISTS baselines (
 CREATE INDEX IF NOT EXISTS baselines_seq ON baselines (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS baselines_project ON baselines (project_id);
 
+-- Read-only links to one page or one filtered task list. The token is the whole
+-- of the authorisation, so it is generated here and never taken from a client.
+CREATE TABLE IF NOT EXISTS shares (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT,
+  kind         TEXT NOT NULL DEFAULT 'page',
+  page_id      TEXT,
+  view_id      TEXT,
+  name         TEXT NOT NULL DEFAULT '',
+  token        TEXT NOT NULL DEFAULT '',
+  expires_at   INTEGER,
+  include_done INTEGER NOT NULL DEFAULT 1,
+  views        INTEGER NOT NULL DEFAULT 0,
+  last_seen_at INTEGER,
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE UNIQUE INDEX IF NOT EXISTS shares_token ON shares (token);
+CREATE INDEX IF NOT EXISTS shares_seq ON shares (workspace_id, seq);
+
 CREATE TABLE IF NOT EXISTS labels (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

@@ -7,5 +7,6 @@ export * from './import.ts';
 export * from './diff.ts';
 export * from './fields.ts';
 export * from './schedule.ts';
+export * from './markdown.ts';
 export { Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './hlc.ts';
 export type { HLC } from './hlc.ts';

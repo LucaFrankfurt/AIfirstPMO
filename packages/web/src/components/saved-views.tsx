@@ -22,6 +22,7 @@ import { list, useQuery } from '../lib/store';
 import { useMe, useSession } from '../session';
 import { Icon, MenuButton, Sheet, useConfirm, useToast, type MenuItem } from './ui';
 import type { GroupBy } from './task-parts';
+import { ShareSheet, type ShareTarget } from './share';
 import { DEFAULT_VIEW, type ViewConfig } from './views';
 
 /** The stored row, read back as the shape the screens work in. */
@@ -70,6 +71,7 @@ export function SavedViews({
 
   const [activeId, setActiveId] = useState<string>(() => localStorage.getItem(ACTIVE_KEY(scope)) ?? '');
   const [editing, setEditing] = useState<{ id?: string; name: string; shared: boolean } | null>(null);
+  const [sharing, setSharing] = useState<ShareTarget | null>(null);
 
   const views = useQuery(
     () => list('view', (row) => row.workspace_id === workspaceId
@@ -138,6 +140,14 @@ export function SavedViews({
           onSelect: () => setEditing({ id: active.id, name: active.name, shared: active.shared !== 0 }),
         },
         {
+          id: 'share',
+          section: t('view.savedActions'),
+          label: t('share.action'),
+          // A share points at a *saved* view: an unsaved set of filters is not
+          // a thing a link can keep meaning tomorrow.
+          onSelect: () => setSharing({ kind: 'tasks', view_id: active.id, project_id: projectId ?? null, name: active.name }),
+        },
+        {
           id: 'delete',
           section: t('view.savedActions'),
           label: t('view.deleteSaved'),
@@ -177,6 +187,7 @@ export function SavedViews({
         {/* A dot rather than a word: it says "not saved" without taking a line. */}
         {modified && <span className="dot-modified" title={t('view.unsavedChanges')} aria-label={t('view.unsavedChanges')} />}
       </MenuButton>
+      {sharing && <ShareSheet target={sharing} onClose={() => setSharing(null)} />}
       {editing && (
         <ViewNameSheet
           initial={editing}

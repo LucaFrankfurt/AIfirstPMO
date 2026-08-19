@@ -107,9 +107,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
       a version *diff*, page templates, the `access` column exposed, and export as a markdown
       bundle (the page and everything under it). PDF is deliberately not built — see below.
-- [ ] **PDF export.** Markdown is built and is the honest format for "do not lock my writing in
-      here". PDF needs a renderer on the server and is worse at that job; it is wanted for
-      circulating a document, which is a different reason.
+- [x] **Printing, which is how a PDF is made.** Deliberately the browser's own print path rather
+      than a renderer on the server: a PDF engine is a large dependency, a font problem and a
+      security surface, and every browser already has one that honours the reader's paper size.
+      What Kolibri supplies is a document worth printing — the page and its whole tree, rendered,
+      with the app's furniture gone and page breaks that do not split a heading off its paragraph.
+      Shared links print the same way.
 - [x] **Work item types.** Every project starts with Task, Bug and Feature and can edit the list;
       a task carries one, and views group and filter by it. Deliberately *not* type-dependent
       fields: a form that changes per type is custom fields, which is the next entry.
@@ -272,7 +275,12 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       interrupted move leaves an instance that still works. The old copies are left in place on
       purpose; `kolibri doctor` counts what is stranded on the backend no longer in use.
 - [x] **Roadmap / portfolio view** across projects — see P2 above.
-- [ ] **Public share links** for a page or a filtered task list.
+- [x] **Public share links** for a page or a saved task view. Rendered by the *server* as one
+      small self-contained document rather than handed to the app: somebody outside the workspace
+      has no session, a link that opens as a document works in any browser, and the smaller the
+      surface an anonymous request can reach the easier it is to be sure of it. The token is minted
+      server-side and never taken from the caller, links can expire, and how often one was opened is
+      counted — by whom deliberately is not. Still open: comments on a shared page.
 
 ---
 

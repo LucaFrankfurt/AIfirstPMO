@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { renderMarkdown } from '../lib/markdown';
+import { renderMarkdown } from '@kolibri/shared';
+
 import { api } from '../lib/api';
 import { useMembers, useSession } from '../session';
 import { useT, type TranslationKey } from '../lib/i18n';

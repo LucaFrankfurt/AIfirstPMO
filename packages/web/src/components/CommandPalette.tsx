@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { excerpt } from '@kolibri/shared';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { list, useQuery } from '../lib/store';
-import { excerpt } from '../lib/markdown';
+
 import { useOpenTask } from '../lib/navigation';
 import { useSession } from '../session';
 import { useT } from '../lib/i18n';

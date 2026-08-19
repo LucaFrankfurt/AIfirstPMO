@@ -7,11 +7,11 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import type { Page } from '@kolibri/shared';
-import { collapse, diffLines, diffSummary, type DiffLine } from '@kolibri/shared';
+import { collapse, diffLines, diffSummary, renderMarkdown, type DiffLine } from '@kolibri/shared';
 import { api } from '../lib/api';
 import { shortDate } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
-import { update } from '../lib/mutations';
+import { byOrder, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
 import { useMe, useMemberMap } from '../session';
 import { Icon, Sheet, useToast, type MenuItem } from './ui';
@@ -222,5 +222,78 @@ export function useExport(): (page: Page) => void {
     toast(t('page.exported'));
   };
 }
+
+/**
+ * Print a page and everything under it — which is how you get a PDF.
+ *
+ * Deliberately the browser's own print path rather than a renderer on the
+ * server. A PDF engine is a large dependency, a font problem and a security
+ * surface, and every browser already has one that honours the reader's paper
+ * size and their own idea of margins. What this does is give it a document
+ * worth printing: the page tree, rendered, with the app's furniture gone.
+ */
+export function usePrint(): (page: Page) => void {
+  const t = useT();
+  const toast = useToast();
+  const members = useMemberMap();
+
+  return (page: Page) => {
+    const seen = new Set<string>();
+    const section = (current: Page, depth: number): string => {
+      if (seen.has(current.id)) return '';
+      seen.add(current.id);
+      const level = Math.min(depth + 1, 6);
+      const author = members.get(current.created_by)?.name;
+      const children = list('page', (child) => child.parent_id === current.id && !child.archived)
+        .sort(byOrder) as Page[];
+      return [
+        `<h${level}>${escapeHtml(`${current.icon ?? ''} ${current.title}`.trim())}</h${level}>`,
+        author ? `<p class="meta">${escapeHtml(t('page.byAuthor', { name: author }))} · ${escapeHtml(shortDate(current.updated_at))}</p>` : '',
+        renderMarkdown(current.content ?? ''),
+        ...children.map((child) => section(child, depth + 1)),
+      ].join('\n');
+    };
+
+    const win = window.open('', '_blank');
+    if (!win) {
+      toast(t('page.printBlocked'));
+      return;
+    }
+    win.document.write(printable(escapeHtml(page.title || t('common.untitled')), section(page, 0)));
+    win.document.close();
+    // The images have to have arrived, or the print dialogue captures gaps.
+    win.addEventListener('load', () => {
+      win.focus();
+      win.print();
+    });
+  };
+}
+
+const escapeHtml = (text: string): string =>
+  String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+
+/** A document with nothing on it but the writing — and margins a printer likes. */
+const printable = (title: string, body: string): string => `<!doctype html>
+<html><head><meta charset="utf-8" /><title>${title}</title>
+<style>
+  @page { margin: 18mm 16mm; }
+  body { margin: 0 auto; max-width: 720px; padding: 24px 20px;
+    font: 13.5px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #14161a; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  h2 { font-size: 18px; margin: 24px 0 6px; }
+  h3 { font-size: 15px; margin: 18px 0 4px; }
+  h1, h2, h3 { break-after: avoid; }
+  p, ul, ol, pre, blockquote, table { margin: 0 0 12px; break-inside: avoid; }
+  .meta { color: #6b7280; font-size: 12px; margin: 0 0 14px; }
+  code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
+  pre { background: #f7f8fa; padding: 10px 12px; border-radius: 6px; overflow: hidden; white-space: pre-wrap; }
+  pre code { background: none; padding: 0; }
+  img { max-width: 100%; }
+  blockquote { border-left: 3px solid #e5e7eb; padding-left: 10px; color: #4b5563; margin-left: 0; }
+  table { border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid #e5e7eb; padding: 5px 8px; text-align: left; }
+  a { color: inherit; text-decoration: underline; }
+</style></head>
+<body>${body}</body></html>`;
 
 export { Icon };

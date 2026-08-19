@@ -174,6 +174,27 @@ export interface State extends Base {
   allowed_roles: WorkspaceRole[];
 }
 
+/** What a share link points at. */
+export const SHARE_KINDS = ['page', 'tasks'] as const;
+export type ShareKind = (typeof SHARE_KINDS)[number];
+
+export interface Share extends Base {
+  workspace_id: ID;
+  project_id: ID | null;
+  kind: ShareKind;
+  page_id: ID | null;
+  view_id: ID | null;
+  name: string;
+  /** Epoch millis, or null for a link that does not expire on its own. */
+  expires_at: number | null;
+  include_done: number;
+  created_by: ID | null;
+  /** Server-side only: the secret in the URL. */
+  token?: string;
+  views?: number;
+  last_seen_at?: number | null;
+}
+
 /** Dates as they were when somebody said "this is the plan". */
 export interface Baseline extends Base {
   workspace_id: ID;
@@ -522,6 +543,7 @@ export interface EntityMap {
   field: Field;
   fieldValue: FieldValue;
   baseline: Baseline;
+  share: Share;
   task: Task;
   relation: Relation;
   cycle: Cycle;
