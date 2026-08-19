@@ -429,6 +429,93 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
   }
 });
 
+/**
+ * A device that already had the database from an older build.
+ *
+ * IndexedDB only runs `onupgradeneeded` when the version number goes up, and
+ * the version used to be a constant a person had to remember to bump. Chat was
+ * added and it was not bumped, so every browser that had ever opened the app
+ * before was missing three stores — and the way that showed up was not an error
+ * dialog but a channel that appeared, vanished a few seconds later, and came
+ * back on the next tab switch: the pull could apply its changes to memory and
+ * then fail to save them, so the cursor was never written, so the next pull
+ * started from zero and the snapshot that came back emptied the tables first.
+ *
+ * The version is derived from the store list now. This walks the case that
+ * cannot happen on a fresh browser, which is exactly why nothing caught it.
+ */
+await step('a database from an older build gets the stores it is missing', async () => {
+  const session = await ctx.storageState();
+  const aged = await browser.newContext({ viewport: { width: 1280, height: 900 }, locale, storageState: session });
+  const view = await aged.newPage();
+  const faults = [];
+  view.on('pageerror', (e) => faults.push(e.message));
+  view.on('console', (m) => { if (m.type() === 'error') faults.push(m.text()); });
+  try {
+    // Let the app build the database first — a signed-in context carries
+    // cookies, not IndexedDB, so without this there is nothing to age and the
+    // step passes while testing an empty database.
+    await view.goto(base, { waitUntil: 'networkidle' });
+    await view.waitForSelector('.sidebar', { timeout: 15000 });
+    await closeTour(view);
+    await view.waitForTimeout(1500);
+    // Then somewhere on the origin that is not the app: a page holding a
+    // connection blocks `deleteDatabase` for ever, and the app opens one on load.
+    await view.goto(`${base}/icon.svg`);
+    const rewound = await view.evaluate(async () => {
+      const read = await new Promise((res) => { const r = indexedDB.open('kolibri'); r.onsuccess = () => res(r.result); });
+      const version = read.version;
+      // Any three stores would simulate an older build equally well; these are
+      // the three the incident was actually about.
+      const all = [...read.objectStoreNames];
+      const older = all.filter((n) => !['channel', 'message', 'channelRead'].includes(n));
+      read.close();
+      await new Promise((res) => {
+        const gone = indexedDB.deleteDatabase('kolibri');
+        gone.onsuccess = gone.onerror = gone.onblocked = () => res();
+      });
+      await new Promise((res) => {
+        const open = indexedDB.open('kolibri', version);
+        open.onupgradeneeded = () => {
+          for (const name of older) open.result.createObjectStore(name, { keyPath: name === 'meta' ? 'key' : 'id' });
+        };
+        open.onsuccess = () => { open.result.close(); res(); };
+      });
+      return { version, stores: older.length, dropped: all.length - older.length };
+    });
+
+    faults.length = 0;
+    await view.goto(base, { waitUntil: 'networkidle' });
+    await view.waitForSelector('.sidebar', { timeout: 15000 });
+    await closeTour(view);
+    await view.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+    await view.waitForTimeout(2500);
+
+    const now = await view.evaluate(async () => {
+      const db = await new Promise((res) => { const r = indexedDB.open('kolibri'); r.onsuccess = () => res(r.result); });
+      const missing = ['channel', 'message', 'channelRead'].filter((n) => !db.objectStoreNames.contains(n));
+      // The sync cursor is only written once a pull has saved its rows, so this
+      // is the difference between "opened" and "actually usable".
+      const cursor = await new Promise((res) => {
+        const get = db.transaction('meta', 'readonly').objectStore('meta').get('sync');
+        get.onsuccess = () => res(get.result?.value?.cursor ?? 0);
+        get.onerror = () => res(0);
+      });
+      const version = db.version;
+      db.close();
+      return { missing, cursor, version };
+    });
+
+    if (rewound.dropped !== 3) throw new Error(`nothing was aged — the database had ${rewound.stores} stores, so this proved nothing`);
+    if (now.missing.length) throw new Error(`still missing: ${now.missing.join(', ')}`);
+    if (!now.cursor) throw new Error('the sync cursor was never written — a pull applied rows it could not save');
+    if (faults.length) throw new Error(`the app complained: ${faults[0]}`);
+    console.log(`     aged to ${rewound.stores} stores at version ${rewound.version}, reopened at ${now.version}, cursor ${now.cursor}`);
+  } finally {
+    await aged.close();
+  }
+});
+
 await step('interface is in the chosen language', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.sidebar');

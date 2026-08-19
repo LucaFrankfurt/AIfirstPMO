@@ -24,6 +24,17 @@ which of them only the server may write. Everything else is derived from it:
 
 Adding a field is one line there plus a column in `schema.sql`. Nothing else needs to know.
 
+Adding an *entity* used to need one more thing, and it is worth saying why it no longer does. Each
+entity is an IndexedDB object store on the client, and IndexedDB only creates stores inside an
+upgrade, which only runs when the version number goes up. That number was a constant with a comment
+asking whoever added an entity to bump it. Chat was added; it was not bumped. Every browser that had
+opened the app before was then missing three stores, and the symptom was not an error anybody would
+have read as a schema problem: a channel appeared, vanished a few seconds later, and came back on
+the next tab switch — because the pull applied its rows to memory, failed to *save* them, therefore
+never wrote the sync cursor, therefore started from zero next time and got a snapshot, and a
+snapshot empties the tables before it refills them. The version is derived from the store list now:
+the client opens the database, asks whether every entity has a store, and upgrades if not.
+
 Three flags on an entity are worth knowing about, because they are how an exception stays declared
 rather than scattered: `serverOnly` (a field a client may not write), `private` (rows belong to one
 person and are not shared with the workspace) and `guestWritable` (a row somebody with no write

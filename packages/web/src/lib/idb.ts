@@ -7,13 +7,6 @@
 import { ENTITY_NAMES, type EntityName } from '@kolibri/shared';
 
 const DB_NAME = 'kolibri';
-/**
- * Bump this whenever an entity is added: a browser that has already opened the
- * database at the old version never runs `onupgradeneeded` again, so the new
- * store would simply not exist and every read of it would throw. The upgrade
- * itself only ever adds missing stores, so it is safe to run on any old copy.
- */
-const DB_VERSION = 2;
 export const META = 'meta';
 export const OUTBOX = 'outbox';
 
@@ -21,10 +14,10 @@ const STORES = [...ENTITY_NAMES, META, OUTBOX];
 
 let handle: Promise<IDBDatabase> | null = null;
 
-function open(): Promise<IDBDatabase> {
-  if (handle) return handle;
-  handle = new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
+/** Open at a given version, creating whatever stores are not there yet. */
+function openAt(version?: number): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, version);
     request.onupgradeneeded = () => {
       const db = request.result;
       for (const store of STORES) {
@@ -37,6 +30,53 @@ function open(): Promise<IDBDatabase> {
     request.onerror = () => reject(request.error);
     request.onblocked = () => reject(new Error('IndexedDB upgrade blocked by another tab'));
   });
+}
+
+/**
+ * Open the database, and make sure every entity has a store.
+ *
+ * There used to be a hand-maintained `DB_VERSION` here with a comment telling
+ * whoever added an entity to bump it. Chat was added and it was not bumped, and
+ * the failure that produced is worth describing because it is not the one you
+ * would guess: a browser that had opened the database before never runs
+ * `onupgradeneeded` again, so the three chat stores simply did not exist. Every
+ * write to them threw, which meant a pull could apply its changes to memory and
+ * then fail to save them — so the sync cursor was never written, so the next
+ * pull started from zero, so the server answered with a snapshot and the
+ * `reset` that comes with one, which empties the in-memory tables. The channel
+ * somebody had just made disappeared off the screen, and came back only when
+ * the *next* snapshot happened to be taken after their device had pushed it.
+ * One forgotten number, and the visible symptom was a chat that vanished.
+ *
+ * So the number is gone. The store list is the schema, this asks the database
+ * whether it has those stores, and it upgrades if it does not — which is the
+ * same question the comment was asking a person to remember to ask.
+ */
+function open(): Promise<IDBDatabase> {
+  if (handle) return handle;
+  const opening = (async () => {
+    // No version: whatever this browser has, or a new database at 1 with the lot.
+    let db = await openAt();
+    if (!STORES.every((store) => db.objectStoreNames.contains(store))) {
+      const next = db.version + 1;
+      db.close();
+      db = await openAt(next);
+    }
+    // Another tab may upgrade later — for a new entity, or because it is running
+    // a newer build. Holding an old connection open blocks that upgrade for
+    // ever, so step aside and reopen on the next call.
+    db.onversionchange = () => {
+      db.close();
+      handle = null;
+    };
+    return db;
+  })();
+  // A failed open must not be remembered, or the app never recovers from a
+  // transient one.
+  opening.catch(() => {
+    if (handle === opening) handle = null;
+  });
+  handle = opening;
   return handle;
 }
 
