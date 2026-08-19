@@ -3,6 +3,11 @@
    Mobile-first — the desktop layout starts at 900px. */
 
 :root {
+  /* "Either, follow the OS" — which is right only while the OS is deciding.
+     The two rules below take it back when somebody pins a theme, because a
+     pinned theme has to reach the controls the browser paints itself. Without
+     them, choosing light on a machine set to dark leaves every checkbox, every
+     date picker and every unstyled input dark inside a white dialog. */
   color-scheme: light dark;
 
   --bg: #ffffff;
@@ -73,7 +78,10 @@
   }
 }
 
+:root[data-theme='light'] { color-scheme: light; }
+
 :root[data-theme='dark'] {
+  color-scheme: dark;
   --bg: #0e1014;
   --chart-1: #7a7ae8;
   --chart-2: #059669;

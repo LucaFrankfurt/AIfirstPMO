@@ -377,6 +377,58 @@ await step('guide opens, explains itself, and leaks no keys', async () => {
 });
 await page.screenshot({ path: `${shots}/7-guide.png` });
 
+/**
+ * The one combination nobody tries: an OS set to dark, the app pinned to light.
+ *
+ * Native controls — a checkbox, a date picker, an input with no background of
+ * its own — follow `color-scheme`, not the app's variables. Declaring
+ * `light dark` and leaving it there means a pinned theme never reaches them, so
+ * choosing light on a dark machine gave white dialogs full of dark boxes. It
+ * was reported from a real screen, not caught here, which is why it is here now.
+ */
+await step('a pinned theme reaches the controls the browser paints itself', async () => {
+  // The session is carried over rather than signed in for again. Sign-in is
+  // rate-limited per account, and this walk already runs three times against one
+  // instance — two more logins a run was enough to trip it in the third.
+  const session = await ctx.storageState();
+  for (const [os, pinned] of [['dark', 'light'], ['light', 'dark']]) {
+    const themed = await browser.newContext({
+      viewport: { width: 1280, height: 900 }, colorScheme: os, locale, storageState: session,
+    });
+    const view = await themed.newPage();
+    try {
+      await view.goto(base, { waitUntil: 'domcontentloaded' });
+      await view.evaluate(([t, l]) => {
+        localStorage.setItem('kolibri.theme', t);
+        localStorage.setItem('kolibri.locale', l);
+      }, [pinned, locale]);
+      await view.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+      await view.waitForSelector('.sidebar', { timeout: 15000 });
+      await closeTour(view);
+      await view.click(`button:has-text("${LABELS.newChannel}")`);
+      await view.waitForSelector('.sheet input.input', { timeout: 5000 });
+      await view.waitForTimeout(300);
+
+      const seen = await view.evaluate(() => {
+        const luma = (c) => { const [r, g, b] = c.match(/\d+/g).map(Number); return Math.round(0.2126*r + 0.7152*g + 0.0722*b); };
+        const sheet = document.querySelector('.sheet');
+        return {
+          scheme: getComputedStyle(document.documentElement).colorScheme,
+          sheet: luma(getComputedStyle(sheet).backgroundColor),
+          field: luma(getComputedStyle(sheet.querySelector('input.input')).backgroundColor),
+        };
+      });
+      if (seen.scheme !== pinned) throw new Error(`pinned ${pinned} but color-scheme is "${seen.scheme}"`);
+      if (Math.abs(seen.sheet - seen.field) > 90) {
+        throw new Error(`OS ${os} + pinned ${pinned}: sheet ${seen.sheet}, field ${seen.field} — a dark box in a light dialog`);
+      }
+      console.log(`     OS ${os} + pinned ${pinned}: color-scheme ${seen.scheme}, sheet ${seen.sheet}, field ${seen.field}`);
+    } finally {
+      await themed.close();
+    }
+  }
+});
+
 await step('interface is in the chosen language', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await page.waitForSelector('.sidebar');

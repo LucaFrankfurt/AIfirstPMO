@@ -299,6 +299,7 @@ function ViewNameSheet({
         <label htmlFor="view-name">{t('view.name')}</label>
         <input
           id="view-name"
+          className="input"
           autoFocus
           value={name}
           placeholder={t('view.namePlaceholder')}
