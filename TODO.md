@@ -29,9 +29,14 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **2FA (TOTP)**, for any account. Written out against RFC 6238's published vectors rather
       than against itself, so it agrees with the app on somebody's phone. A half-finished setup
       never gates the door; recovery codes are shown once and stored hashed, one use each.
-- [ ] **Single sign-on** (OIDC, SAML or LDAP). All three tools Kolibri is compared to have it, and
-      past roughly fifty people it stops being optional. Nothing in the auth layer anticipates it
-      yet, so this is a project rather than a patch.
+- [x] **Single sign-on (OIDC).** Authorization code with PKCE, and deliberately nothing else: no
+      implicit flow, no refresh tokens held here, no SAML. Anything with a discovery document works.
+      Accounts made through the provider carry no password; an address is taken only when the
+      provider marks it verified. `KOLIBRI_OIDC_ONLY` closes the password door server-side, not
+      just in the interface. Driven in test against a provider that signs real RS256 tokens, so
+      the refusals — a forged signature, `alg: none`, wrong audience, wrong issuer, an expired
+      token, a mismatched nonce, a replayed state — are proven rather than assumed.
+      Still open: SAML and LDAP, and group-to-role mapping from provider claims.
 - [x] **Workspace-wide audit log**, admins only, paged backwards. Private projects an admin is not
       a member of stay out of it: being an admin is not the same as being invited.
 

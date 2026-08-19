@@ -96,12 +96,12 @@ management with money in it.
 
 The category where Kolibri has least and all three have something. Parts of it
 are **P1** in `TODO.md`, which is to say: known, and not yet done. Rate limiting,
-the Content-Security-Policy header and refusing cross-site-forgeable content
-types used to head this list and are now built.
+the Content-Security-Policy header, refusing cross-site-forgeable content types
+and single sign-on used to head this list and are now built.
 
 | Missing | Note |
 |---|---|
-| **SSO** (OIDC / SAML / LDAP) | Non-negotiable past roughly fifty people |
+| **SSO — SAML / LDAP** | OIDC is built (see `docs/deployment.md`). SAML and LDAP are not, nor is mapping provider groups onto roles |
 | Multi-node / high availability | Deliberate: the sequence counter, the SSE bus and the mail worker live in the process |
 
 ## What to build next
@@ -116,12 +116,12 @@ value per unit of work rather than by size.
 | ~~2~~ | ~~Work item types~~ | **Done** — per project, grouped and filtered by. Type-*dependent fields* are custom fields, below | |
 | ~~3~~ | ~~Analytics~~ | **Done** — per project, computed from the local mirror | |
 | ~~4~~ | ~~Page extras~~ | **Done** — labels, watching, diff, templates, access, markdown export | |
-| 5 | **SSO** (OIDC first) | The gate on adoption past roughly fifty people. Nothing in the auth layer anticipates it, so it is a project | large |
+| ~~5~~ | ~~SSO (OIDC first)~~ | **Done** — code flow with PKCE, optional password lockout, tested against a real signing provider | |
 | 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
 | 7 | **Gantt with dependency scheduling** | Relations exist but nothing reschedules. The largest single piece missing, and the hardest to do without making it wrong | large |
 | ~~8~~ | ~~Trash / archive browser~~ | **Done** — Settings → Data, with a way back | |
 
-Items 1 and 8 are each a sitting. Items 5 and 7 are projects.
+Item 7 is the last project on this list; item 6 is a sitting and a half.
 
 ## What has been closed
 

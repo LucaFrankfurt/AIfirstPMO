@@ -11,7 +11,9 @@ export function Login() {
   const navigate = useNavigate();
   const { code } = useParams();
   const [mode, setMode] = useState<'login' | 'register'>('login');
-  const [config, setConfig] = useState<{ allowSignup: boolean; hasUsers: boolean } | null>(null);
+  const [config, setConfig] = useState<
+    { allowSignup: boolean; hasUsers: boolean; sso?: { label: string; only: boolean } | null } | null
+  >(null);
   const [invite, setInvite] = useState<{ workspace_name: string } | null>(null);
   const [form, setForm] = useState({ email: '', password: '', name: '', workspace: '' });
   const [error, setError] = useState('');
@@ -25,6 +27,17 @@ export function Login() {
         if (!next.hasUsers) setMode('register');
       })
       .catch(() => setConfig({ allowSignup: true, hasUsers: true }));
+  }, []);
+
+  // The single sign-on round trip ends back here on failure, with something
+  // readable in the URL rather than a bare error page in a tab you cannot
+  // leave. Read it once, then clean the address bar so a reload is not an
+  // error again.
+  useEffect(() => {
+    const failed = new URLSearchParams(window.location.search).get('sso_error');
+    if (!failed) return;
+    setError(failed);
+    window.history.replaceState(null, '', window.location.pathname);
   }, []);
 
   useEffect(() => {
@@ -62,6 +75,10 @@ export function Login() {
   }
 
   const first = config && !config.hasUsers;
+  const sso = config?.sso ?? null;
+  // Only a path on this instance is ever handed back — the server refuses
+  // anything else, and there is no reason to send it something it will drop.
+  const ssoHref = `/api/auth/oidc/start?next=${encodeURIComponent(code ? `/invite/${code}` : '/')}`;
 
   return (
     <div className="auth">
@@ -80,6 +97,22 @@ export function Login() {
 
         {error && <div className="error">{error}</div>}
 
+        {sso && (
+          <>
+            <a className={`btn block lg ${sso.only ? 'primary' : ''}`} href={ssoHref}>
+              <Icon name="shield" size={15} /> {t('login.ssoContinue', { provider: sso.label })}
+            </a>
+            {!sso.only && (
+              <div className="divider-text" aria-hidden="true"><span>{t('login.ssoOr')}</span></div>
+            )}
+          </>
+        )}
+
+        {sso?.only && (
+          <p className="muted" style={{ fontSize: 12.5, margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
+        )}
+
+        {!sso?.only && (<>
         {mode === 'register' && (
           <div className="field">
             <label htmlFor="name">{t('login.yourName')}</label>
@@ -131,6 +164,7 @@ export function Login() {
             {mode === 'login' ? t('login.switchToRegister') : t('login.switchToLogin')}
           </button>
         )}
+        </>)}
 
         <div className="row muted" style={{ justifyContent: 'center', marginTop: 18, fontSize: 12, gap: 10 }}>
           <span className="row" style={{ gap: 5 }}><Icon name="bolt" size={13} /> {t('login.footer')}</span>

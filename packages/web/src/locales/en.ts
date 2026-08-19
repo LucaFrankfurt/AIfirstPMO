@@ -605,6 +605,9 @@ export const en = {
   'login.switchToLogin': 'I already have an account',
   'login.footer': 'Self-hosted · open source',
   'login.inviteInvalid': 'This invite link is not valid any more.',
+  'login.ssoContinue': 'Continue with {provider}',
+  'login.ssoOr': 'or',
+  'login.ssoOnlyHint': 'This instance signs in through your identity provider.',
 
   /* ------------------------------------------------------------ settings */
   'settings.title': 'Settings',

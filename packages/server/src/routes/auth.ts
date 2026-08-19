@@ -8,6 +8,9 @@ import {
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../lib/totp.ts';
 import {
+  authorizeUrl, discover, emailFrom, enabled as oidcEnabled, exchangeCode, nameFrom, startFlow, verifyIdToken,
+} from '../lib/oidc.ts';
+import {
   HttpError, badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
 import { byAddress, byValue, enforce, LIMITS } from '../lib/ratelimit.ts';
@@ -56,6 +59,52 @@ function setSessionCookie(ctx: Ctx, raw: string): void {
   ctx.res.setHeader('set-cookie', cookie(SESSION_COOKIE, raw, { maxAge: env.sessionDays * 86_400, secure }));
 }
 
+/**
+ * Make an account, with its first workspace or against an invite.
+ *
+ * Shared by the sign-up form and by single sign-on so the two cannot drift:
+ * an account made through a provider gets the same starter project, in the
+ * same language, as one made with a password.
+ */
+function createAccount(input: {
+  email: string;
+  name: string;
+  /** Null for an account that can only ever sign in through a provider. */
+  password: string | null;
+  locale: string | null;
+  invite?: string;
+  workspace?: string;
+}): Row {
+  const firstUser = !get(`SELECT id FROM users LIMIT 1`);
+  return tx(() => {
+    const id = uid();
+    const now = Date.now();
+    // The language goes in with the row, not after it: the starter project's
+    // workflow, labels and templates are seeded a few lines below, and they
+    // read the creator's locale. Setting it afterwards would be too late.
+    const locale = isLocale(input.locale) ? input.locale : null;
+    run(
+      `INSERT INTO users (id, email, name, password_hash, locale, is_admin, created_at, updated_at, seq, clocks)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '{}')`,
+      id, input.email, input.name, input.password === null ? null : hashPassword(input.password),
+      locale, firstUser ? 1 : 0, now, now,
+    );
+    writeEntity('user', id, { name: input.name, email: input.email, locale },
+      { workspaceId: '', actorId: id, hlc: serverClock.now(), system: true, silent: true });
+
+    if (input.invite) {
+      acceptInvite(input.invite, id);
+    } else {
+      const workspace = createWorkspace(input.workspace?.trim() || `${input.name}'s workspace`, id);
+      createProject(workspace.id, id, { name: translate(locale ?? defaultLocale(), 'seed.starterProject'), key: 'GET', icon: '👋' });
+    }
+    return get<Row>(`SELECT * FROM users WHERE id = ?`, id)!;
+  });
+}
+
+/** Password sign-in is off when the instance is configured for SSO only. */
+const ssoOnly = (): boolean => oidcEnabled() && env.oidc.only;
+
 export function registerAuthRoutes(router: Router): void {
   router.get('/api/config', () => ({
     allowSignup: env.allowSignup,
@@ -63,10 +112,12 @@ export function registerAuthRoutes(router: Router): void {
     maxUploadBytes: env.maxUploadBytes,
     mailEnabled: env.mailEnabled,
     storage: env.storage.kind,
+    sso: oidcEnabled() ? { label: env.oidc.label, only: env.oidc.only } : null,
     version: '0.1.0',
   }));
 
   router.post('/api/auth/register', async (ctx) => {
+    if (ssoOnly()) throw forbidden('This instance signs in through single sign-on');
     enforce(ctx, byAddress(ctx, LIMITS.register, 'register'));
     const body = await readJson<{
       email?: string; name?: string; password?: string; workspace?: string; invite?: string; locale?: string;
@@ -81,34 +132,16 @@ export function registerAuthRoutes(router: Router): void {
     if (!firstUser && !env.allowSignup && !body.invite) throw forbidden('Sign-up is disabled on this instance');
     if (get(`SELECT id FROM users WHERE email = ?`, email)) throw conflict('That email is already registered');
 
-    const user = tx(() => {
-      const id = uid();
-      const now = Date.now();
-      // The language goes in with the row, not after it: the starter project's
-      // workflow, labels and templates are seeded a few lines below, and they
-      // read the creator's locale. Setting it afterwards would be too late.
-      const locale = isLocale(body.locale) ? body.locale : null;
-      run(
-        `INSERT INTO users (id, email, name, password_hash, locale, is_admin, created_at, updated_at, seq, clocks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, '{}')`,
-        id, email, name, hashPassword(password), locale, firstUser ? 1 : 0, now, now,
-      );
-      writeEntity('user', id, { name, email, locale }, { workspaceId: '', actorId: id, hlc: serverClock.now(), system: true, silent: true });
-
-      if (body.invite) {
-        acceptInvite(body.invite, id);
-      } else {
-        const workspace = createWorkspace(body.workspace?.trim() || `${name}'s workspace`, id);
-        createProject(workspace.id, id, { name: translate(locale ?? defaultLocale(), 'seed.starterProject'), key: 'GET', icon: '👋' });
-      }
-      return get<Row>(`SELECT * FROM users WHERE id = ?`, id)!;
-    });
+    const user = createAccount({ email, name, password, locale: body.locale ?? null, invite: body.invite, workspace: body.workspace });
 
     setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
     return sessionInfo(user.id);
   });
 
   router.post('/api/auth/login', async (ctx) => {
+    // On a single sign-on only instance a password is not a way in — not even
+    // for accounts that still carry one from before the switch.
+    if (ssoOnly()) throw forbidden('This instance signs in through single sign-on');
     const body = await readJson<{ email?: string; password?: string; code?: string }>(ctx);
     const email = (body.email ?? '').trim().toLowerCase();
     // Two buckets: one machine working through a password list, and a thousand
@@ -139,6 +172,81 @@ export function registerAuthRoutes(router: Router): void {
 
     setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
     return sessionInfo(user.id);
+  });
+
+  /* ------------------------------------------------------ single sign-on */
+
+  /**
+   * Pending sign-ins, in memory.
+   *
+   * They live for ten minutes and are used once. In memory because Kolibri is
+   * one process by design, and because a half-finished sign-in surviving a
+   * restart is not a property worth a table.
+   */
+  const pending = new Map<string, ReturnType<typeof startFlow>>();
+  const PENDING_TTL = 10 * 60_000;
+
+  const redirectUri = (ctx: Ctx): string => {
+    const base = env.publicUrl || `http://${ctx.req.headers.host ?? 'localhost'}`;
+    return `${base}/api/auth/oidc/callback`;
+  };
+
+  router.get('/api/auth/oidc/start', async (ctx) => {
+    if (!oidcEnabled()) throw notFound('Single sign-on is not configured');
+    enforce(ctx, byAddress(ctx, LIMITS.login, 'oidc'));
+
+    const flow = startFlow(ctx.query.get('next') ?? '/');
+    for (const [key, value] of pending) if (Date.now() - value.created_at > PENDING_TTL) pending.delete(key);
+    pending.set(flow.state, flow);
+
+    const document = await discover();
+    ctx.res.writeHead(302, { location: authorizeUrl(document, flow, redirectUri(ctx)) });
+    ctx.res.end();
+    return undefined;
+  });
+
+  router.get('/api/auth/oidc/callback', async (ctx) => {
+    if (!oidcEnabled()) throw notFound('Single sign-on is not configured');
+
+    const fail = (message: string) => {
+      // Back to the sign-in screen with something readable rather than a bare
+      // 400 in a tab the person cannot get out of.
+      ctx.res.writeHead(302, { location: `/?sso_error=${encodeURIComponent(message)}` });
+      ctx.res.end();
+      return undefined;
+    };
+
+    const error = ctx.query.get('error');
+    if (error) return fail(ctx.query.get('error_description') ?? error);
+
+    const state = ctx.query.get('state') ?? '';
+    const flow = pending.get(state);
+    // One use, whatever happens next: a state that can be replayed is a state
+    // worth stealing.
+    pending.delete(state);
+    if (!flow || Date.now() - flow.created_at > PENDING_TTL) return fail('That sign-in took too long — try again');
+
+    try {
+      const document = await discover();
+      const tokens = await exchangeCode(document, ctx.query.get('code') ?? '', flow.verifier, redirectUri(ctx));
+      const claims = await verifyIdToken(document, tokens.id_token, flow.nonce);
+      const email = emailFrom(claims);
+
+      let user = get<Row>(`SELECT * FROM users WHERE email = ? AND deleted_at IS NULL`, email);
+      if (!user) {
+        if (!env.oidc.autoCreate) return fail('There is no account for that address here');
+        // No password: this account can only ever be signed into through the
+        // provider, which is the point.
+        user = createAccount({ email, name: nameFrom(claims), password: null, locale: null });
+      }
+
+      setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
+      ctx.res.writeHead(302, { location: flow.next });
+      ctx.res.end();
+      return undefined;
+    } catch (problem) {
+      return fail(problem instanceof Error ? problem.message : 'Single sign-on failed');
+    }
   });
 
   router.post('/api/auth/logout', (ctx) => {

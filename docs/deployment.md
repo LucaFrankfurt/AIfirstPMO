@@ -80,6 +80,36 @@ For the smallest possible install — one container, uploads on the volume, no m
 
 `KOLIBRI_PUBLIC_URL` must be set for the links in those emails to point anywhere useful.
 
+### Single sign-on (optional)
+
+Kolibri speaks OpenID Connect — the authorization-code flow with PKCE, and
+nothing else: no implicit flow, no SAML, no refresh tokens held on the server.
+Anything with a discovery document works — Keycloak, Authentik, Authelia,
+Zitadel, Entra ID, Google Workspace, Okta.
+
+Register Kolibri at your provider as a **confidential web application** with the
+redirect URI `https://your-domain/api/auth/oidc/callback`, then:
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `KOLIBRI_OIDC_ISSUER` | empty | Issuer URL, e.g. `https://id.example.com/realms/main`. Empty disables single sign-on entirely. |
+| `KOLIBRI_OIDC_CLIENT_ID` | empty | Client ID from the provider |
+| `KOLIBRI_OIDC_CLIENT_SECRET` | empty | Client secret; keep it out of the compose file and in the secret store |
+| `KOLIBRI_OIDC_SCOPE` | `openid email profile` | Scopes requested. `email` is required — it is how an account is matched. |
+| `KOLIBRI_OIDC_LABEL` | `Single sign-on` | What the button on the sign-in screen says |
+| `KOLIBRI_OIDC_AUTO_CREATE` | `true` | Create an account for anybody the provider vouches for. Set `false` to admit only people invited first. |
+| `KOLIBRI_OIDC_ONLY` | `false` | Hide the password form, and refuse password sign-in and sign-up server-side |
+
+`KOLIBRI_PUBLIC_URL` should be set: the redirect URI is built from it, and a
+provider will refuse a redirect URI it does not recognise.
+
+Accounts created this way carry no password, so they can only be signed into
+through the provider. An address is accepted only if the provider marks it
+verified — otherwise anyone who can type their own address at the provider could
+claim an existing Kolibri account. Turning `KOLIBRI_OIDC_ONLY` on closes the
+password door for accounts that still carry one from before the switch, so make
+sure the provider can actually let you back in before you set it.
+
 ### Object storage (optional — see [`storage.md`](storage.md))
 
 | Variable | Default | Meaning |

@@ -606,6 +606,9 @@ export const de: Catalogue = {
   'login.switchToLogin': 'Ich habe schon ein Konto',
   'login.footer': 'Selbst gehostet · Open Source',
   'login.inviteInvalid': 'Dieser Einladungslink ist nicht mehr gültig.',
+  'login.ssoContinue': 'Weiter mit {provider}',
+  'login.ssoOr': 'oder',
+  'login.ssoOnlyHint': 'Bei dieser Instanz meldet man sich über den Identity Provider an.',
 
   /* ------------------------------------------------------------ settings */
   'settings.title': 'Einstellungen',

@@ -106,6 +106,22 @@ export const env = {
   /** Language for notifications and emails when a recipient has not chosen one. */
   defaultLocale: (process.env.KOLIBRI_DEFAULT_LOCALE ?? 'en').toLowerCase().split('-')[0],
   trustProxy: bool(process.env.KOLIBRI_TRUST_PROXY, true),
+  /**
+   * Single sign-on. Off unless an issuer and a client are configured; the
+   * password form stays available either way unless `oidcOnly` is set.
+   */
+  oidc: {
+    issuer: (process.env.KOLIBRI_OIDC_ISSUER ?? '').replace(/\/$/, ''),
+    clientId: process.env.KOLIBRI_OIDC_CLIENT_ID ?? '',
+    clientSecret: process.env.KOLIBRI_OIDC_CLIENT_SECRET ?? '',
+    scope: process.env.KOLIBRI_OIDC_SCOPE ?? 'openid email profile',
+    /** What to call the button. */
+    label: process.env.KOLIBRI_OIDC_LABEL ?? 'Single sign-on',
+    /** Create an account for anybody the provider vouches for. */
+    autoCreate: bool(process.env.KOLIBRI_OIDC_AUTO_CREATE, true),
+    /** Hide the password form entirely. */
+    only: bool(process.env.KOLIBRI_OIDC_ONLY, false),
+  },
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,

@@ -656,6 +656,11 @@ p { margin: 0 0 0.75em; }
 
 .divider { height: 1px; background: var(--line); margin: 8px 0; }
 
+/* A rule with a word set into it. Used between single sign-on and the password
+   form, so neither of the two reads as the only way in. */
+.divider-text { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--fg-muted); font-size: 12px; }
+.divider-text::before, .divider-text::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+
 .muted { color: var(--fg-muted); }
 .soft { color: var(--fg-soft); }
 .mono { font-family: var(--mono); font-size: 12px; }

@@ -53,7 +53,10 @@ export const api = {
   patch: <T>(path: string, body: unknown) => request<T>(path, { method: 'PATCH', body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 
-  config: () => request<{ allowSignup: boolean; hasUsers: boolean; maxUploadBytes: number; version: string }>('/api/config'),
+  config: () => request<{
+    allowSignup: boolean; hasUsers: boolean; maxUploadBytes: number; version: string;
+    sso: { label: string; only: boolean } | null;
+  }>('/api/config'),
   session: () => request<SessionInfo>('/api/session'),
   login: (email: string, password: string) => request<SessionInfo>('/api/auth/login', json({ email, password })),
   register: (body: { email: string; name: string; password: string; workspace?: string; invite?: string }) =>
