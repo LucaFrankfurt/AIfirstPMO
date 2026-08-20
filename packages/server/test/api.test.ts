@@ -405,7 +405,23 @@ describe('kolibri api', () => {
     assert.equal(entries.reduce((sum: number, entry: any) => sum + entry.minutes, 0), 115);
   });
 
+  it('refuses to log time into a workspace that has it switched off', async () => {
+    // Off is the default. An assistant that recorded time nobody can see would
+    // have done something worse than refuse: the row exists, the person who
+    // asked believes it was kept, and no screen will ever show it.
+    const refused = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 19, method: 'tools/call',
+        params: { name: 'log_time', arguments: { task: 'WEB-1', amount: '1h' } },
+      },
+    });
+    assert.ok(refused.error, 'switched off means refused');
+    assert.match(refused.error.message, /switched off/i, 'and the message says where to switch it on');
+  });
+
   it('logs time over MCP the way a person does over the form', async () => {
+    await api(`/api/workspaces/${workspaceId}`, { method: 'PATCH', body: { features: { time: true } } });
     const logged = await api('/mcp', {
       token: apiToken,
       body: {

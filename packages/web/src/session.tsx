@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import type { SessionInfo, User, WorkspaceRole } from '@kolibri/shared';
+import type { SessionInfo, User, WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
 import { api, ApiError } from './lib/api';
 import * as idb from './lib/idb';
 import { byId, list, useQuery } from './lib/store';
@@ -122,6 +122,18 @@ export function useSession(): SessionValue {
  */
 export function useCanWrite(): boolean {
   return useSession().role !== 'guest';
+}
+
+/**
+ * Whether a feature is switched on in the workspace being looked at.
+ *
+ * One hook rather than `session.workspaces.find(...)` in each place that cares,
+ * for the same reason `useCanWrite` exists: a rule spelled out at five call
+ * sites is a rule that will be spelled out differently at the sixth.
+ */
+export function useFeature(name: keyof WorkspaceFeatures): boolean {
+  const { session, workspaceId } = useSession();
+  return !!session?.workspaces.find((workspace) => workspace.id === workspaceId)?.features?.[name];
 }
 
 /** The signed-in user's id — used constantly, so it gets its own hook. */

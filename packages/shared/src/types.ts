@@ -109,12 +109,34 @@ export interface Member extends Base {
   role: WorkspaceRole;
 }
 
+/**
+ * What a workspace has switched on.
+ *
+ * Off by default, all of it. A feature that is on for everybody until they
+ * find the switch is a feature that has already cluttered the screen of every
+ * team that did not want it — and the ones who do want it are the ones who
+ * will go looking.
+ */
+export interface WorkspaceFeatures {
+  /**
+   * Logging time on a task, the timer, and the totals that come with them.
+   *
+   * Off by default because estimates here are in points: until an estimate
+   * carries a unit, "spent versus estimated" cannot be shown, and a team that
+   * turns this on gets a number they cannot compare to anything. The data and
+   * the API stay whatever the switch says — turning it off hides the feature,
+   * it does not throw anything away.
+   */
+  time?: boolean;
+}
+
 export interface Workspace {
   id: ID;
   name: string;
   slug: string;
   logo_url: string | null;
   created_at: number;
+  features?: WorkspaceFeatures;
 }
 
 export interface Team extends Base {

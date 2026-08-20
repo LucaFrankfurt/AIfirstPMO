@@ -432,6 +432,27 @@ function WorkspaceSettings() {
         {t('action.save')}
       </Button>
 
+      {/* Off by default and switched on here, because until an estimate carries
+          a unit there is nothing to compare the logged time against — see
+          `WorkspaceFeatures` in the registry. */}
+      <SectionHeading>{t('workspace.features')}</SectionHeading>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.time}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { time: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureTime')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureTimeHint')}</span>
+        </span>
+      </label>
+
       <SectionHeading>{t('workspace.yours')}</SectionHeading>
       {session?.workspaces.map((entry) => (
         <div className="flex items-center gap-2" key={entry.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>

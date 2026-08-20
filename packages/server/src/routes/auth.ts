@@ -1,4 +1,4 @@
-import type { SessionInfo, WorkspaceRole } from '@kolibri/shared';
+import type { SessionInfo, WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import {
@@ -6,6 +6,7 @@ import {
   loadMemberships, requireAuth, requireWorkspace, verifyPassword,
 } from '../lib/auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
+import { featuresOf } from '../lib/features.ts';
 import { generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../lib/totp.ts';
 import {
   authorizeUrl, discover, emailFrom, enabled as oidcEnabled, exchangeCode, groupsFrom, nameFrom,
@@ -54,6 +55,7 @@ function sessionInfo(userId: string): SessionInfo {
     userId,
   ).map((w) => ({
     id: w.id, name: w.name, slug: w.slug, logo_url: w.logo_url ?? null, created_at: w.created_at,
+    features: featuresOf(w),
     role: (memberships.get(w.id) ?? 'member') as WorkspaceRole,
   }));
   return {
@@ -508,7 +510,7 @@ export function registerAuthRoutes(router: Router): void {
 
   router.patch('/api/workspaces/:id', async (ctx) => {
     requireWorkspace(ctx, ctx.params.id, 'admin');
-    const body = await readJson<{ name?: string; logo_url?: string }>(ctx);
+    const body = await readJson<{ name?: string; logo_url?: string; features?: WorkspaceFeatures }>(ctx);
     const fields = ['name', 'logo_url'].filter((f) => body[f as 'name'] !== undefined);
     if (fields.length) {
       run(
@@ -516,7 +518,17 @@ export function registerAuthRoutes(router: Router): void {
         ...fields.map((f) => body[f as 'name']), Date.now(), ctx.params.id,
       );
     }
-    return get<Row>(`SELECT * FROM workspaces WHERE id = ?`, ctx.params.id);
+    if (body.features) {
+      // Merged rather than replaced: a client that knows about one switch must
+      // not turn off the ones it has never heard of.
+      const row = get<Row>(`SELECT settings FROM workspaces WHERE id = ?`, ctx.params.id);
+      let settings: Record<string, unknown> = {};
+      try { settings = JSON.parse(String(row?.settings ?? '{}')) as Record<string, unknown>; } catch { settings = {}; }
+      settings.features = { ...(settings.features as WorkspaceFeatures ?? {}), ...body.features };
+      run(`UPDATE workspaces SET settings = ?, updated_at = ? WHERE id = ?`, JSON.stringify(settings), Date.now(), ctx.params.id);
+    }
+    const updated = get<Row>(`SELECT * FROM workspaces WHERE id = ?`, ctx.params.id)!;
+    return { ...updated, features: featuresOf(updated) };
   });
 
   router.get('/api/workspaces/:id/members', (ctx) => {

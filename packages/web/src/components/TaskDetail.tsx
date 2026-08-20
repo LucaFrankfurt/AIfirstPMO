@@ -5,7 +5,7 @@ import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { createTask, remove, update } from '../lib/mutations';
-import { useMe, useMemberMap, useSession } from '../session';
+import { useFeature, useMe, useMemberMap, useSession } from '../session';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
@@ -19,6 +19,7 @@ import { Input, Select } from '../components/ui/field';
 import { Button } from '../components/ui/button';
 
 export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClose: () => void; onOpen: (task: Task) => void }) {
+  const time = useFeature('time');
   const t = useT();
   const task = useRow('task', taskId);
   const me = useMe();
@@ -166,7 +167,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </label>
         </div>
 
-        <TaskTime taskId={task.id} projectId={task.project_id} />
+        {time && <TaskTime taskId={task.id} projectId={task.project_id} />}
 
         <TaskFields task={task} />
 

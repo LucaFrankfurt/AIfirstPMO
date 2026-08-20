@@ -19,7 +19,7 @@ import { duration } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
-import { useMemberMap } from '../session';
+import { useFeature, useMemberMap } from '../session';
 import { Empty } from './ui';
 
 const DAY = 86_400_000;
@@ -251,6 +251,7 @@ export function Table({ caption, head, rows }: { caption: string; head: string[]
 /* ---------------------------------------------------------------- screen */
 
 export function ProjectInsights({ projectId }: { projectId: string }) {
+  const time = useFeature('time');
   const t = useT();
   const members = useMemberMap();
   const tasks = useQuery(() => list('task', (task) => task.project_id === projectId && !task.archived), [projectId]);
@@ -369,7 +370,7 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
           }
           hint={t('insights.medianHint')}
         />
-        <Stat label={t('insights.timeLogged')} value={duration(stats.minutes)} hint={t('insights.last30')} />
+        {time && <Stat label={t('insights.timeLogged')} value={duration(stats.minutes)} hint={t('insights.last30')} />}
       </div>
 
       <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
