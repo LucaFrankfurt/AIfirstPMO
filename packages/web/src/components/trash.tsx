@@ -141,8 +141,8 @@ export function Trash() {
       <SectionHeading tight>{t('trash.title')}</SectionHeading>
       <p className="text-muted text-[13.5px]">{t('trash.intro')}</p>
 
-      <div className="flex items-center gap-2 flex-wrap gap-1.5" style={{ margin: '12px 0' }}>
-        <div className="flex items-center gap-2 gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center flex-wrap gap-1.5" style={{ margin: '12px 0' }}>
+        <div className="flex items-center gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
           {(['deleted', 'archived'] as const).map((which) => (
             <button
               key={which}
@@ -178,7 +178,7 @@ export function Trash() {
           hint={t('trash.emptyHint')}
         />
       ) : (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 p-0">
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
           {shown.map((entry) => (
             <div className="flex items-center gap-2 trash-row" key={`${entry.entity}-${entry.id}`} style={{ gap: 9 }}>
               <Icon name={entry.icon} size={14} />

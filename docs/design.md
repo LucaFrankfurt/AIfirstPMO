@@ -14,6 +14,44 @@ the first morning is something somebody is still flinching at in week three. Col
 overdue, blocked, done — so a colour spent on chrome is a colour that no longer means anything when
 it appears on a task. Density is high enough to see a working set at once and no higher.
 
+## Layers, which decide who wins
+
+`app.css` has two halves and the boundary between them matters more than it looks.
+
+The top is Tailwind's: `@import "tailwindcss"`, the `dark` variant, the two animations, the phone
+helpers, `@theme inline`, and the token blocks. Everything after that — every hand-written rule
+still waiting to be ported — sits inside **`@layer components`**.
+
+That one line is the reason a ported element behaves. `@import "tailwindcss"` puts every utility in
+`@layer utilities`, and CSS gives *unlayered* rules precedence over every layer no matter their
+specificity. While this file was unlayered, `h1, h2, h3, h4 { margin: 0 }` beat `mt-5` on a heading,
+`p { margin: 0 0 0.75em }` beat `m-0`, and the global focus outline beat `outline-none` on a button
+that had already drawn its own ring. Every one of those was silent — the class was in the DOM and
+did nothing.
+
+So the order is the documented one, and the rules follow from it:
+
+| | |
+|---|---|
+| `theme` | the tokens |
+| `base` | preflight |
+| `components` | **everything hand-written in `app.css`** |
+| `utilities` | every Tailwind class |
+
+- **A utility beats a legacy rule.** That is the premise of an incremental port: touching a screen
+  means its classes now describe it, whatever the old stylesheet said.
+- **A legacy rule that must beat a utility goes in `@layer utilities` with a doubled selector.**
+  There are exactly three — `hide-sm`, `only-sm`, `not-sm` — because they set `display` and have to
+  beat a `flex` sitting on the same element. Inside one layer specificity decides, so
+  `.not-sm.not-sm` wins. Adding a fourth is a decision, not a shortcut.
+- **`scripts/unstyled.mjs` compares the classes the source uses against the ones the stylesheet
+  defines.** Run it after a build. A class name is a string, so nothing else can tell you that
+  `class="field"` stopped meaning anything — which is what happened when the port deleted `.field`
+  and left seventy-six call sites behind.
+- **`packages/web/test/forms.test.ts` catches the rest of what a codemod does quietly**: a form
+  whose submit button lost `type="submit"`, a `htmlFor` pointing at nothing, and two utilities in
+  one string that contradict each other.
+
 ## Tokens
 
 Everything visual comes from a CSS custom property in `styles/app.css`. They are aliased into
@@ -154,11 +192,16 @@ The port is deliberately incremental. The order inside one screen:
 2. Replace `style={{ … }}` with Tailwind classes. There are ~575 inline style props left, and they
    are the main reason two screens that should look the same do not.
 3. Fold odd font sizes into the five-step scale and odd radii into the three tokens.
-4. Delete the CSS class from `app.css` **as soon as the last screen stops using it**, so the
-   stylesheet shrinks along the way instead of in one frightening commit at the end.
+4. Delete the CSS class from `app.css` **once the last screen stops using it, and not before** —
+   `node scripts/unstyled.mjs` after a build is how you know. This is the step that went wrong: the
+   commit that added the field components deleted `.field` while seventy-six `<div class="field">`
+   were still on screen, and every form in the app lost its spacing without a single error.
 5. Walk the screen with the keyboard only, and once at 390px wide.
+6. Run `npm test` — the source-level checks in `packages/web/test/forms.test.ts` catch the three
+   things a codemod breaks silently — and `node scripts/unstyled.mjs`.
 
-`app.css` is the progress bar: **1,862 lines** when the port started, **1,713** now.
+`app.css` is the progress bar: **1,862 lines** when the port started, **1,847** now — up from 1,713,
+because four rules the port had deleted too early came back.
 
 ## What stays in CSS, and why
 

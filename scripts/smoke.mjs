@@ -24,18 +24,21 @@ const LABELS = {
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
     findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
+    newProject: 'New project', createProject: 'Create project',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
     findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
+    newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
     findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
+    newProject: 'Nouveau projet', createProject: 'Créer le projet',
   },
 }[locale];
 
@@ -140,6 +143,35 @@ await step('task reached the server', async () => {
   const data = await search.json();
   if (!data.results.length) throw new Error('task not indexed on server');
   console.log('     server found:', data.results[0].title);
+});
+
+/**
+ * A project, made the way somebody makes one.
+ *
+ * This walkthrough visited every screen and created a task, a channel, a page
+ * and a comment — and never once created a project, which is why *Create
+ * project* could sit there doing nothing for four commits. The button was not
+ * disabled and threw no error: the port had turned it into `type="button"`
+ * inside a `<form onSubmit>`, so clicking it submitted nothing at all.
+ *
+ * The assertion is therefore not "the form is there" but "the server has it":
+ * a screen that looks right is exactly what this bug looked like.
+ */
+await step('a project can be created, and the server ends up with it', async () => {
+  await page.goto(`${base}/projects/new`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  const key = `S${Date.now().toString().slice(-4)}`;
+  await page.fill('#p-name', `Smoke ${locale} ${key}`);
+  await page.fill('#p-key', key);
+  await page.click(`form button:has-text("${LABELS.createProject}")`);
+  // Landing on the project is the only proof the submit ran at all — the form
+  // stays put, silently, when it does not.
+  await page.waitForURL(/\/projects\/[0-9a-f-]{8}/, { timeout: 8000 });
+  const workspace = await page.evaluate(() => localStorage.getItem('kolibri.workspace'));
+  const list = await (await page.request.get(`${base}/api/workspaces/${workspace}/projects`)).json();
+  const made = (list.projects ?? list).find?.((project) => project.key === key);
+  if (!made) throw new Error(`the project reached no server row (key ${key})`);
+  console.log('     project created:', made.name, `(${made.key})`);
 });
 
 await step('pages', async () => {

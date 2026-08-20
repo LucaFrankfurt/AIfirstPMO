@@ -26,7 +26,8 @@
     "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && tsc --noEmit -p packages/web/tsconfig.test.json && tsc --noEmit -p packages/mcp",
     "test": "npm run test:server && npm run test:web",
     "test:server": "node --test packages/server/test/*.test.ts",
-    "test:web": "node --import ./packages/web/test/loader.mjs --test packages/web/test/*.test.ts"
+    "test:web": "node --import ./packages/web/test/loader.mjs --test packages/web/test/*.test.ts",
+    "check:css": "node scripts/unstyled.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

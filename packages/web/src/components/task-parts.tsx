@@ -6,6 +6,7 @@ import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers, useSession } from '../session';
 import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
 import { Input } from '../components/ui/field';
+import { cn } from '../lib/cn';
 import { Chip, chipDot, chipVariants } from './ui/chip';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
@@ -249,7 +250,7 @@ export function TaskRow({
       <span className="meta">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
         {!!subtasks.length && <span className={chipVariants()} title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
-        {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
+        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date))}>{shortDate(task.due_date)}</span>}
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         <AvatarStack users={people} size={20} />
       </span>
@@ -301,7 +302,7 @@ export function TaskCard({
       <div className="title">{task.title}</div>
       <div className="footer">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
-        {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
+        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date))}>{shortDate(task.due_date)}</span>}
         {task.estimate != null && <Chip>{task.estimate}p</Chip>}
         <span className="flex-1 min-w-0" />
         <AvatarStack users={people} size={20} />

@@ -240,7 +240,7 @@ export function PageDetail() {
 
   return (
     <>
-      <Header title={<span className="flex items-center gap-2 gap-1.5"><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
+      <Header title={<span className="flex items-center gap-1.5"><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
         <Button size="sm" hidden={!canWrite} onClick={() => {
           if (editing) {
             flush();
@@ -340,7 +340,7 @@ export function PageDetail() {
               {watching && <span>· {t('page.watching')}</span>}
               {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
-            <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
+            <div className="flex items-center flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
             {page.content?.trim()
               ? (
                 <div className="annotatable" ref={setBody}>

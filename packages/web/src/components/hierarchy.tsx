@@ -12,6 +12,8 @@
  */
 import { useState } from 'react';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { cn } from '../lib/cn';
+import { chipVariants } from './ui/chip';
 import { Icon } from './ui';
 
 interface Node {
@@ -305,7 +307,7 @@ export function HierarchyExplorer() {
             {node.children?.length ? (
               <span className="gx-chip-row">
                 {node.children.map((child) => (
-                  <button className="gx-link chip" key={child.id} onClick={() => setSelected(child.id)}>
+                  <button className={cn('gx-link', chipVariants({ interactive: true }))} key={child.id} onClick={() => setSelected(child.id)}>
                     {t(child.name)}
                   </button>
                 ))}

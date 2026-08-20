@@ -166,7 +166,7 @@ export function Inbox() {
               >
                 <Avatar user={actor} size={26} />
                 <span className="flex-1 min-w-0">
-                  <span className="flex items-center gap-2 gap-1.5">
+                  <span className="flex items-center gap-1.5">
                     <strong className="text-[13.5px]">{notification.title}</strong>
                     {!notification.read_at && <span className="size-1.5 flex-none rounded-full bg-accent" />}
                   </span>

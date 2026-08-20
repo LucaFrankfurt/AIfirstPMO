@@ -85,7 +85,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         wide
         onClose={onClose}
         title={
-          <span className="flex items-center gap-2 gap-1.5">
+          <span className="flex items-center gap-1.5">
             <StateDot group={state?.group_key} color={state?.color} />
             <span className="mono text-muted">{task.identifier}</span>
             {project && <span className="text-muted truncate">· {project.name}</span>}
@@ -100,7 +100,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
         />
 
-        <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5">
+        <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
           <StatePicker task={task} />
           <TypePicker task={task} />
           <PriorityPicker task={task} />
@@ -140,12 +140,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </MenuButton>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap gap-2.5 mb-4">
-          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+        <div className="flex items-center flex-wrap gap-2.5 mb-4">
+          <label className="flex items-center gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('task.due')}</span>
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
-          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+          <label className="flex items-center gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('task.repeats')}</span>
             <Select style={{ width: 130 }}
               value={task.recurrence ?? ''}
@@ -158,7 +158,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="monthly">{t('task.repeatsMonthly')}</option>
             </Select>
           </label>
-          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+          <label className="flex items-center gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('task.estimate')}</span>
             <Input type="number" min={0} step={1} style={{ width: 84 }}
               value={task.estimate ?? ''}
@@ -265,7 +265,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             />
           </div>
           {attachments.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noFiles')}</span>}
-          <div className="flex flex-col gap-2 gap-1.5">
+          <div className="flex flex-col gap-1.5">
             {attachments.map((file) => (
               <a className="attachment" key={file.id} href={file.url} target="_blank" rel="noreferrer">
                 {file.mime?.startsWith('image/') ? <img src={file.url} alt="" /> : <Icon name="page" />}

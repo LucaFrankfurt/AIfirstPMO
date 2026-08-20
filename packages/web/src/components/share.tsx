@@ -108,8 +108,8 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap gap-3 mt-2 text-[12.5px]">
-            <label className="flex items-center gap-2 gap-1.5">
+          <div className="flex items-center flex-wrap gap-3 mt-2 text-[12.5px]">
+            <label className="flex items-center gap-1.5">
               <span className="text-muted">{t('share.expires')}</span>
               <Input type="date" style={{ width: 150 }}
                 value={share.expires_at ? new Date(share.expires_at).toISOString().slice(0, 10) : ''}
@@ -119,7 +119,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
               />
             </label>
             {target.kind === 'tasks' && (
-              <label className="flex items-center gap-2 gap-1.5">
+              <label className="flex items-center gap-1.5">
                 <input
                   type="checkbox" checked={!!share.include_done}
                   onChange={(event) => update('share', share.id, { include_done: event.target.checked ? 1 : 0 })}
@@ -130,7 +130,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             {/* Off until somebody says otherwise: an unauthenticated write is a
                 thing you opt into, not a default that arrives with a link. */}
             {target.kind === 'page' && (
-              <label className="flex items-center gap-2 gap-1.5" title={t('share.allowCommentsHint')}>
+              <label className="flex items-center gap-1.5" title={t('share.allowCommentsHint')}>
                 <input
                   type="checkbox" checked={!!share.allow_comments}
                   onChange={(event) => update('share', share.id, { allow_comments: event.target.checked ? 1 : 0 })}

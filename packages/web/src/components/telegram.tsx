@@ -119,7 +119,7 @@ export function TelegramConnection() {
             <span className="soft text-[12.5px]">{t('telegram.connectedBody')}</span>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-1">
+          <div className="flex items-center flex-wrap gap-1.5 mb-1">
             <Button
               disabled={busy}
               onClick={async () => {
@@ -142,7 +142,7 @@ export function TelegramConnection() {
           </div>
 
           <SectionHeading>{t('telegram.about')}</SectionHeading>
-          <div className="flex flex-col gap-2 gap-1.5">
+          <div className="flex flex-col gap-1.5">
             {PREFERENCES.map((option) => (
               <button
                 key={option.value}

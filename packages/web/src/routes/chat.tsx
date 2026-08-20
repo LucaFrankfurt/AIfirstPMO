@@ -166,7 +166,7 @@ export function Chat() {
             while there is somebody below. Alone, the hint further down says the
             true thing instead, and two hints where one is wrong is worse. */}
         {conversations.length === 0 && (others.length > 0 || !canWrite) && (
-          <p className="text-[12px] text-muted text-[12.5px]">{t('chat.noneYet')}</p>
+          <p className="text-muted text-[12.5px]">{t('chat.noneYet')}</p>
         )}
 
         {conversations.map((channel) => (
@@ -188,7 +188,7 @@ export function Chat() {
             workspace rather than joining the first. It is no longer a dead end:
             a direct conversation does not need a workspace in common. */}
         {canWrite && others.length === 0 && (
-          <p className="text-[12px] text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
+          <p className="text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
           <button
@@ -344,7 +344,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <div className="chat-stream">
-        {messages.length === 0 && <p className="text-[12px] text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
+        {messages.length === 0 && <p className="text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
         {messages.map((message, index) => {
           const author = members.get(message.author_id ?? '');
           // Consecutive lines from the same person within five minutes are one
@@ -362,7 +362,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               {grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />}
               <div className="body">
                 {!grouped && (
-                  <div className="flex items-center gap-2 gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     <span className="who">{author?.name ?? t('common.someone')}</span>
                     <span className="when">{relativeTime(message.created_at)}</span>
                     {message.edited_at && <span className="when">· {t('chat.edited')}</span>}
@@ -454,7 +454,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         /* A guest can read an open channel and cannot write anywhere. Saying so
            here beats a composer that takes a paragraph and then refuses it. */
         <div className="chat-composer">
-          <p className="text-[12px] text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
+          <p className="text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
         </div>
       )}
       {dialog}
@@ -489,9 +489,9 @@ function EditBox({ initial, onDone }: { initial: string; onDone: (body: string) 
   const t = useT();
   const [value, setValue] = useState(initial);
   return (
-    <div className="flex flex-col gap-2 gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} />
-      <div className="flex items-center gap-2 gap-1.5">
+      <div className="flex items-center gap-1.5">
         <Button variant="primary" size="sm" onClick={() => onDone(value)}>{t('action.save')}</Button>
         <Button size="sm" onClick={() => onDone(initial)}>{t('action.cancel')}</Button>
       </div>
@@ -549,7 +549,7 @@ function Reactions({ message, me, canWrite }: { message: Message; me: string; ca
   if (!used.length) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap reactions gap-1">
+    <div className="flex items-center flex-wrap reactions gap-1">
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -674,8 +674,8 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           )}
 
           <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
-          <p className="text-[12px] text-muted mb-2 text-[12.5px]">{t('chat.whoCanAddHint')}</p>
-          <div className="flex items-center gap-2 flex-wrap gap-1.5">
+          <p className="text-muted mb-2 text-[12.5px]">{t('chat.whoCanAddHint')}</p>
+          <div className="flex items-center flex-wrap gap-1.5">
             {(['members', 'admins'] as const).map((policy) => (
               <button
                 key={policy}
@@ -691,12 +691,12 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           </div>
         </>
       ) : (
-        <p className="text-[12px] text-muted text-[12.5px]">{t('chat.openChannelHint')}</p>
+        <p className="text-muted text-[12.5px]">{t('chat.openChannelHint')}</p>
       )}
 
       <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
-      <p className="text-[12px] text-muted mb-2 text-[12.5px]">{t('chat.closingHint')}</p>
-      <div className="flex items-center gap-2 flex-wrap gap-1.5">
+      <p className="text-muted mb-2 text-[12.5px]">{t('chat.closingHint')}</p>
+      <div className="flex items-center flex-wrap gap-1.5">
         <Button size="sm"
           onClick={() => {
             update('channel', channel.id, { archived_at: Date.now() });
@@ -769,8 +769,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         </div>
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
-        {tidy && tidy !== name && <p className="text-[12px] text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
-        {taken && <p className="text-[12px] text-muted text-[12.5px]" style={{ color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
+        {tidy && tidy !== name && <p className="text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
+        {taken && <p className="text-muted text-[12.5px]" style={{ color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
         <div className="field">
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
           <Input

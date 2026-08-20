@@ -163,7 +163,7 @@ function Profile() {
       )}
 
       <SectionHeading>{t('profile.appearance')}</SectionHeading>
-      <div className="flex items-center gap-2 gap-1.5">
+      <div className="flex items-center gap-1.5">
         {(['system', 'light', 'dark'] as const).map((option) => (
           <button
             key={option}
@@ -300,7 +300,7 @@ function Notifications() {
 
       <SectionHeading>{t('notify.digest')}</SectionHeading>
       <p className="text-[12px] text-muted mb-2">{t('notify.digestHint')}</p>
-      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-1.5">
+      <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
         {(['off', 'daily', 'weekly'] as const).map((option) => (
           <button
             key={option}
@@ -319,7 +319,7 @@ function Notifications() {
       </div>
 
       <SectionHeading>{t('notify.emailAbout')}</SectionHeading>
-      <div className="flex flex-col gap-2 gap-1.5">
+      <div className="flex flex-col gap-1.5">
         {PREFERENCES.map((option) => (
           <button
             key={option.value}
