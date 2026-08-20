@@ -14,6 +14,7 @@ import { useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { Input } from './ui/field';
 import { SectionHeading } from './ui/section';
+import { Chip } from './ui/chip';
 import { Icon, useConfirm, useToast } from './ui';
 
 /* ------------------------------------------------------------ two factor */
@@ -76,7 +77,7 @@ export function TwoFactor() {
 
       {on ? (
         <div className="flex items-center gap-2 gap-2">
-          <span className="chip"><Icon name="check" size={12} /> {t('security.twoFactorOn')}</span>
+          <Chip><Icon name="check" size={12} /> {t('security.twoFactorOn')}</Chip>
           <Button variant="danger" size="sm"
             onClick={async () => {
               if (!(await confirm(t('security.turnOffConfirm'), t('security.turnOff')))) return;
@@ -151,7 +152,7 @@ export function Sessions() {
             <span className="flex-1 min-w-0 truncate" title={row.user_agent ?? ''}>
               {describe(row.user_agent) || t('security.unknownDevice')}
             </span>
-            {row.current && <span className="chip">{t('security.thisDevice')}</span>}
+            {row.current && <Chip>{t('security.thisDevice')}</Chip>}
             <span className="text-muted text-[12.5px]">{relativeTime(row.last_used_at ?? row.created_at)}</span>
             <Button variant="ghost" size="sm"
               onClick={async () => {

@@ -14,6 +14,7 @@ import { Avatar, Empty, Icon, useConfirm, useToast } from './ui';
 import { Button } from '../components/ui/button';
 import { Input, Select } from '../components/ui/field';
 import { SectionHeading } from './ui/section';
+import { chipVariants } from './ui/chip';
 import { useMemberMap } from '../session';
 
 /* ------------------------------------------------------------ audit log */
@@ -212,7 +213,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
 
       <div className="flex items-center gap-2 flex-wrap gap-1.5" style={{ display: inbound ? 'none' : undefined }}>
         {EVENTS.map((event) => (
-          <label key={event} className="chip button cursor-pointer">
+          <label key={event} className={chipVariants({ interactive: true })}>
             <input
               type="checkbox"
               style={{ marginInlineEnd: 5 }}

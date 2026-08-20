@@ -14,6 +14,7 @@ import { useMembers } from '../session';
 import type { Selection } from './selection';
 import { useLabels, useStates } from './task-parts';
 import { Button } from '../components/ui/button';
+import { navCount } from './ui/nav';
 import { Avatar, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuItem } from './ui';
 
 /**
@@ -104,7 +105,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
   return (
     <>
       <div className="selection-bar" role="region" aria-label={t('select.barLabel')}>
-        <span className="count">{t('select.count', { count })}</span>
+        <span className={navCount}>{t('select.count', { count })}</span>
 
         {soleProject ? (
           <>

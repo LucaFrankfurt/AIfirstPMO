@@ -6,6 +6,7 @@ import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers, useSession } from '../session';
 import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
 import { Input } from '../components/ui/field';
+import { Chip, chipDot, chipVariants } from './ui/chip';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
 /* ----------------------------------------------------------------- lookups */
@@ -128,7 +129,7 @@ export function LabelPicker({ task }: { task: Task }) {
     id: label.id,
     label: label.name,
     hint: applied.has(label.id) ? '✓' : undefined,
-    icon: <span className="dot" style={{ background: label.color, width: 8, height: 8, borderRadius: 4 }} />,
+    icon: <span className={chipDot} style={{ background: label.color, width: 8, height: 8, borderRadius: 4 }} />,
     onSelect: () => toggleLabel(task, label.id),
   }));
   return (
@@ -199,8 +200,8 @@ export function LabelChips({ ids, projectId }: { ids: string[]; projectId?: stri
         const label = labels.find((l) => l.id === id);
         if (!label) return null;
         return (
-          <span className="chip" key={id}>
-            <span className="dot" style={{ background: label.color }} />
+          <span className={chipVariants()} key={id}>
+            <span className={chipDot} style={{ background: label.color }} />
             {label.name}
           </span>
         );
@@ -247,7 +248,7 @@ export function TaskRow({
       <span className="title">{task.title}</span>
       <span className="meta">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
-        {!!subtasks.length && <span className="chip" title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
+        {!!subtasks.length && <span className={chipVariants()} title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
         {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         <AvatarStack users={people} size={20} />
@@ -301,7 +302,7 @@ export function TaskCard({
       <div className="footer">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
         {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
-        {task.estimate != null && <span className="chip">{task.estimate}p</span>}
+        {task.estimate != null && <Chip>{task.estimate}p</Chip>}
         <span className="flex-1 min-w-0" />
         <AvatarStack users={people} size={20} />
       </div>

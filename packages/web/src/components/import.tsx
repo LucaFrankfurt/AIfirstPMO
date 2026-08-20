@@ -21,6 +21,7 @@ import { pull } from '../lib/sync';
 import { useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { Select } from '../components/ui/field';
+import { Chip } from './ui/chip';
 import { Icon, Sheet, useToast } from './ui';
 
 const FIELD_KEY: Record<ImportField, TranslationKey> = {
@@ -175,10 +176,10 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
           ) : (
             <>
               <div className="flex items-center gap-2 flex-wrap gap-2 mb-3">
-                <span className="chip">{t('import.willCreate', { count: preview.created })}</span>
-                {preview.skipped > 0 && <span className="chip">{t('import.willSkip', { count: preview.skipped })}</span>}
+                <Chip>{t('import.willCreate', { count: preview.created })}</Chip>
+                {preview.skipped > 0 && <Chip>{t('import.willSkip', { count: preview.skipped })}</Chip>}
                 {preview.problems.length > 0 && (
-                  <span className="chip danger">{t('import.problemCount', { count: preview.problems.length })}</span>
+                  <Chip className="border-danger/40 text-danger">{t('import.problemCount', { count: preview.problems.length })}</Chip>
                 )}
               </div>
 

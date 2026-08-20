@@ -21,6 +21,8 @@ import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
+import { navItem } from '../components/ui/nav';
+import { chipDot } from '../components/ui/chip';
 import { useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- tree */
@@ -61,7 +63,7 @@ function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; ac
           <span style={{ width: 27 }} />
         )}
         <button
-          className={`nav-item${activeId === node.page.id ? ' active' : ''}`}
+          className={navItem({ active: activeId === node.page.id })}
           onClick={() => navigate(`/pages/${node.page.id}`)}
         >
           <span style={{ width: 16 }}>{node.page.icon ?? '📄'}</span>
@@ -109,7 +111,7 @@ export function PagesIndex() {
                 id: label.id,
                 section: t('page.filterByLabel'),
                 label: label.name,
-                icon: <span className="dot" style={{ background: label.color }} />,
+                icon: <span className={chipDot} style={{ background: label.color }} />,
                 hint: filter === label.id ? '✓' : undefined,
                 onSelect: () => setFilter(label.id),
               })),

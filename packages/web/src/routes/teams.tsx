@@ -8,6 +8,7 @@ import { byId, list, useQuery } from '../lib/store';
 import { useMembers, useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
+import { Chip, chipVariants } from '../components/ui/chip';
 import { useT } from '../lib/i18n';
 
 export function Teams() {
@@ -61,7 +62,7 @@ export function Teams() {
                     className="flex-1 min-w-0 font-semibold" style={{ border: 'none', background: 'none' }}
                     value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
                   />
-                  <span className="chip mono">{team.key}</span>
+                  <Chip className="font-mono">{team.key}</Chip>
                   <MenuButton
                     variant="ghost" size="iconSm"
                     label={t('common.moreActions')}
@@ -95,7 +96,7 @@ export function Teams() {
 
                 <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
                   {people.map((person) => (
-                    <span className="chip" key={person.id}>
+                    <span className={chipVariants()} key={person.id}>
                       <Avatar user={person} size={16} /> {person.name}
                     </span>
                   ))}
@@ -111,12 +112,12 @@ export function Teams() {
 
                 <div className="flex items-center gap-2 flex-wrap gap-1.5 mt-2.5">
                   {teamProjects.map((project) => (
-                    <button className="chip button" key={project.id} onClick={() => navigate(`/projects/${project.id}`)}>
+                    <button className={chipVariants({ interactive: true })} key={project.id} onClick={() => navigate(`/projects/${project.id}`)}>
                       {project.icon} {project.name}
                     </button>
                   ))}
                   <MenuButton
-                    className="chip button"
+                    className={chipVariants({ interactive: true })}
                     items={projects.map((project) => ({
                       id: project.id,
                       label: `${project.icon ?? ''} ${project.name}`.trim(),

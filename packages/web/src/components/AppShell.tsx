@@ -8,6 +8,8 @@ import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
 import { CommandPalette } from './CommandPalette';
 import { Button } from '../components/ui/button';
+import { navCount, navItem } from './ui/nav';
+import { chipDot } from './ui/chip';
 import { useUnreadMessages } from '../routes/chat';
 
 /* ------------------------------------------------------------ sync status */
@@ -32,7 +34,7 @@ function SyncPill() {
         ? t('sync.lastSynced', { time: new Date(status.lastSyncedAt).toLocaleTimeString(currentLocale()) })
         : t('sync.now'))}
     >
-      <span className="dot" />
+      <span className={chipDot} />
       <span className="hide-sm">{label}</span>
     </button>
   );
@@ -61,10 +63,10 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
 /* ------------------------------------------------------------------ shell */
 
 const Item = ({ to, icon, children, count }: { to: string; icon: string; children: React.ReactNode; count?: number } & Partial<NavLinkProps>) => (
-  <NavLink to={to} className="nav-item" end={to === '/'}>
+  <NavLink to={to} className={navItem()} end={to === '/'}>
     <Icon name={icon} size={16} />
     <span className="flex-1 min-w-0 truncate">{children}</span>
-    {count ? <span className="count">{count}</span> : null}
+    {count ? <span className={navCount}>{count}</span> : null}
   </NavLink>
 );
 
@@ -158,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <MenuButton items={workspaceItems} className="nav-item" title={t('nav.switchWorkspace')}>
+        <MenuButton items={workspaceItems} className={navItem()} title={t('nav.switchWorkspace')}>
           <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
           <span className="flex-1 min-w-0 truncate font-semibold">
             {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
@@ -188,7 +190,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </div>
         {nested.map(({ project, depth }) => (
           <NavLink
-            key={project.id} to={`/projects/${project.id}`} className="nav-item"
+            key={project.id} to={`/projects/${project.id}`} className={navItem()}
             style={depth ? { paddingInlineStart: 10 + depth * 13 } : undefined}
           >
             <span style={{ width: 16, textAlign: 'center' }}>{project.icon ?? '•'}</span>
@@ -196,24 +198,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </NavLink>
         ))}
         {projects.length > 1 && (
-          <NavLink to="/portfolio" className="nav-item">
+          <NavLink to="/portfolio" className={navItem()}>
             <Icon name="target" size={15} />
             <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
           </NavLink>
         )}
-        <NavLink to="/planner" className="nav-item">
+        <NavLink to="/planner" className={navItem()}>
           <Icon name="users" size={15} />
           <span className="flex-1 min-w-0 truncate">{t('nav.planner')}</span>
         </NavLink>
         {!projects.length && (
-          <button className="nav-item" onClick={() => navigate('/projects/new')}>
+          <button className={navItem()} onClick={() => navigate('/projects/new')}>
             <Icon name="plus" size={15} /> {t('nav.firstProject')}
           </button>
         )}
 
         <div className="flex-1 min-w-0" />
         <div className="divider" />
-        <MenuButton items={accountItems} className="nav-item">
+        <MenuButton items={accountItems} className={navItem()}>
           <Avatar user={user ?? undefined} size={22} />
           <span className="flex-1 min-w-0 truncate">{user?.name ?? t('nav.account')}</span>
           <Icon name="dots" size={14} />
@@ -230,7 +232,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {t('nav.inbox')}
           </NavLink>
           <button
-            className="nav-item" style={{ width: 'auto', justifyContent: 'center' }}
+            className={navItem()} style={{ width: 'auto', justifyContent: 'center' }}
             onClick={() => setAdding(true)} aria-label={t('nav.newTask')}
             hidden={!canWrite}
           >

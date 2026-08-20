@@ -38,6 +38,8 @@ import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input } from '../components/ui/field';
+import { navCount, navItem } from '../components/ui/nav';
+import { Chip } from '../components/ui/chip';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
 /* --------------------------------------------------------------- the pieces */
@@ -165,7 +167,7 @@ export function Chat() {
         {canWrite && others.map((member) => (
           <button
             key={member.id}
-            className="nav-item"
+            className={cn(navItem(), 'chat-person')}
             onClick={() => navigate(`/chat/${openDirect(me, member.id)}`)}
           >
             <Avatar user={member} size={20} />
@@ -173,7 +175,7 @@ export function Chat() {
           </button>
         ))}
         {canWrite && (
-          <button className="nav-item chat-find" onClick={() => setFinding(true)}>
+          <button className={cn(navItem(), 'chat-find')} onClick={() => setFinding(true)}>
             <Icon name="search" size={16} />
             <span className="flex-1 min-w-0 truncate">{t('chat.findPerson')}</span>
           </button>
@@ -226,10 +228,10 @@ function ConversationRow({ channel, me, active, title, onOpen }: {
 }) {
   const unread = useUnread(channel.id, me);
   return (
-    <button className={`nav-item${active ? ' active' : ''}`} onClick={onOpen}>
+    <button className={cn(navItem({ active }), 'chat-row')} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
       <span className="flex-1 min-w-0 truncate">{title}</span>
-      {unread > 0 && <span className="count">{unread}</span>}
+      {unread > 0 && <span className={navCount}>{unread}</span>}
     </button>
   );
 }
@@ -567,7 +569,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
             <div className="flex items-center gap-2" key={id} style={{ gap: 8, padding: '4px 0' }}>
               <Avatar user={members.get(id)} size={22} />
               <span className="flex-1 min-w-0 truncate">{members.get(id)?.name ?? id}</span>
-              {channel.created_by === id && <span className="chip">{t('chat.opened')}</span>}
+              {channel.created_by === id && <Chip>{t('chat.opened')}</Chip>}
               {(mayManage || id === me) && inside.length > 1 && (
                 <Button variant="ghost" size="sm"
                   onClick={async () => {
@@ -588,7 +590,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
               {outside.map((member) => (
                 <button
                   key={member.id}
-                  className="nav-item"
+                  className={navItem()}
                   onClick={() => {
                     setMembers([...inside, member.id]);
                     toast(t('chat.added', { name: member.name }));
@@ -775,7 +777,7 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
       {people.map((person) => (
         <button
           key={person.id}
-          className="nav-item"
+          className={navItem()}
           onClick={() => {
             onPick(person.id);
             onClose();

@@ -18,6 +18,7 @@ import { useUnreadMessages } from './chat';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
+import { navCount, navItem } from '../components/ui/nav';
 import { SetupChecklist } from '../components/tour';
 
 const KIND_KEY: Record<string, TranslationKey> = {
@@ -302,27 +303,27 @@ export function More() {
             new tab is a thing people do, and it also means "can a phone reach
             this?" is a question about hrefs that a test can ask. */}
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
-          <Link className="nav-item" to="/chat">
+          <Link className={navItem()} to="/chat">
             <Icon name="chat" size={16} /> <span className="flex-1 min-w-0">{t('nav.chat')}</span>
-            {unreadMessages > 0 && <span className="count">{unreadMessages}</span>}
+            {unreadMessages > 0 && <span className={navCount}>{unreadMessages}</span>}
           </Link>
-          <Link className="nav-item" to="/pages"><Icon name="page" size={16} /> {t('nav.pages')}</Link>
-          <Link className="nav-item" to="/teams"><Icon name="users" size={16} /> {t('nav.teams')}</Link>
-          <Link className="nav-item" to="/planner"><Icon name="users" size={16} /> {t('nav.planner')}</Link>
-          <Link className="nav-item" to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
-          <Link className="nav-item" to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
-          <Link className="nav-item" to="/guide"><Icon name="help" size={16} /> {t('nav.guide')}</Link>
+          <Link className={navItem()} to="/pages"><Icon name="page" size={16} /> {t('nav.pages')}</Link>
+          <Link className={navItem()} to="/teams"><Icon name="users" size={16} /> {t('nav.teams')}</Link>
+          <Link className={navItem()} to="/planner"><Icon name="users" size={16} /> {t('nav.planner')}</Link>
+          <Link className={navItem()} to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
+          <Link className={navItem()} to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
+          <Link className={navItem()} to="/guide"><Icon name="help" size={16} /> {t('nav.guide')}</Link>
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
           {projects.map((project) => (
-            <Link key={project.id} className="nav-item" to={`/projects/${project.id}`}>
+            <Link key={project.id} className={navItem()} to={`/projects/${project.id}`}>
               <span style={{ width: 18 }}>{project.icon ?? '•'}</span> {project.name}
             </Link>
           ))}
           {projects.length > 1 && (
-            <Link className="nav-item" to="/portfolio">
+            <Link className={navItem()} to="/portfolio">
               <Icon name="target" size={16} /> {t('nav.portfolio')}
             </Link>
           )}
@@ -335,7 +336,7 @@ export function More() {
               {session?.workspaces.map((workspace) => (
                 <button
                   key={workspace.id}
-                  className={`nav-item${workspace.id === workspaceId ? ' active' : ''}`}
+                  className={navItem({ active: workspace.id === workspaceId })}
                   onClick={() => setWorkspace(workspace.id)}
                 >
                   {workspace.name}

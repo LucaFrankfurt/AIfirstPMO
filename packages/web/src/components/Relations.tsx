@@ -5,6 +5,7 @@ import { relationKey, useT } from '../lib/i18n';
 import { Icon, MenuButton, StateDot, type MenuItem } from './ui';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
+import { Chip } from './ui/chip';
 import { stateOf } from './task-parts';
 
 /** The other side of a relation, so an incoming row reads correctly. */
@@ -70,7 +71,7 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
         const state = stateOf(row.other);
         return (
           <div key={row.id} className="flex items-center gap-2" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
-            <span className="chip">{t(relationKey(row.kind))}</span>
+            <Chip>{t(relationKey(row.kind))}</Chip>
             <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(row.other)}>
               <StateDot group={state?.group_key} color={state?.color} />
               <span className="mono text-muted">{row.other.identifier}</span>

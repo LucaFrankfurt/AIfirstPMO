@@ -17,6 +17,7 @@ import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input, Select, Textarea } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
+import { Chip, chipVariants } from '../components/ui/chip';
 import { TelegramConnection } from '../components/telegram';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
@@ -366,7 +367,7 @@ function Notifications() {
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0">{t('notify.relay')}</span>
               <strong className="mono">{status.host}</strong>
-              {status.mode === 'test-inbox' && <span className="chip" style={{ color: 'var(--warn)' }}>{t('notify.captureChip')}</span>}
+              {status.mode === 'test-inbox' && <span className={chipVariants()} style={{ color: 'var(--warn)' }}>{t('notify.captureChip')}</span>}
             </div>
             <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.sender')}</span><strong className="mono">{status.from}</strong></div>
             <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.queued')}</span><strong>{status.pending}</strong></div>
@@ -435,7 +436,7 @@ function WorkspaceSettings() {
       {session?.workspaces.map((entry) => (
         <div className="flex items-center gap-2" key={entry.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
           <span className="flex-1 min-w-0">{entry.name}</span>
-          <span className="chip">{t(roleKey(entry.role))}</span>
+          <Chip>{t(roleKey(entry.role))}</Chip>
           {entry.id !== workspaceId && <Button size="sm" onClick={() => setWorkspace(entry.id)}>{t('workspace.switch')}</Button>}
         </div>
       ))}
@@ -499,7 +500,7 @@ function Members() {
               {ROLES.map((option) => <option key={option} value={option}>{t(roleKey(option))}</option>)}
             </Select>
           ) : (
-            <span className="chip">{t(roleKey(member.role))}</span>
+            <Chip>{t(roleKey(member.role))}</Chip>
           )}
           {canManage && (
             <Button variant="ghost" size="iconSm"
@@ -531,7 +532,7 @@ function Members() {
           {invites.map((invite) => (
             <div className="flex items-center gap-2" key={invite.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
               <code className="mono flex-1 min-w-0 truncate">{location.origin}/invite/{invite.code}</code>
-              <span className="chip">{t(roleKey(invite.role))}</span>
+              <Chip>{t(roleKey(invite.role))}</Chip>
               <Button variant="ghost" size="iconSm"
                 onClick={() => {
                   void navigator.clipboard?.writeText(`${location.origin}/invite/${invite.code}`);

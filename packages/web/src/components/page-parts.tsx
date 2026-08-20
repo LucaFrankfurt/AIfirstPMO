@@ -14,6 +14,7 @@ import { useT, type TranslationKey } from '../lib/i18n';
 import { byOrder, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
 import { useMe, useMemberMap } from '../session';
+import { chipDot, chipVariants } from './ui/chip';
 import { Icon, Sheet, useToast, type MenuItem } from './ui';
 
 /* -------------------------------------------------------------- labels */
@@ -37,8 +38,8 @@ export function PageLabelChips({ page }: { page: Page }) {
         const label = byId('label', id);
         if (!label) return null;
         return (
-          <span className="chip" key={id}>
-            <span className="dot" style={{ background: label.color }} /> {label.name}
+          <span className={chipVariants()} key={id}>
+            <span className={chipDot} style={{ background: label.color }} /> {label.name}
           </span>
         );
       })}
@@ -68,7 +69,7 @@ export function labelItems(
     id: `label-${label.id}`,
     section,
     label: label.name,
-    icon: <span className="dot" style={{ background: label.color }} />,
+    icon: <span className={chipDot} style={{ background: label.color }} />,
     hint: (page.labels ?? []).includes(label.id)
       ? '✓'
       : label.project_id ? byId('project', label.project_id)?.name : undefined,

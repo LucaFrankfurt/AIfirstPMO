@@ -20,6 +20,7 @@ import { SelectBox, type Selection } from './selection';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { navCount } from './ui/nav';
 import { GanttView } from './gantt';
 
 export interface ViewConfig {
@@ -376,7 +377,7 @@ export function ListView({
                 <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />
                 {group.color && <StateDot group={group.group} color={group.color} size={10} />}
                 <span>{group.title}</span>
-                <span className="count">{group.tasks.length}</span>
+                <span className={navCount}>{group.tasks.length}</span>
               </button>
             </div>
             {!collapsed[group.id] && group.tasks.map((task) => (
@@ -709,7 +710,7 @@ export function TableView({
                 <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)}>
                   {group.color && <StateDot group={group.group} color={group.color} size={9} />}
                   <span>{group.title}</span>
-                  <span className="count">{group.tasks.length}</span>
+                  <span className={navCount}>{group.tasks.length}</span>
                 </th>
               </tr>
             )}

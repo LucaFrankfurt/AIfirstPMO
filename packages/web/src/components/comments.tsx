@@ -15,6 +15,7 @@ import { useMe, useMemberMap } from '../session';
 import { anchorLabel, findAnchor, type Anchor, type Comment } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from './Markdown';
 import { Button } from '../components/ui/button';
+import { Chip } from './ui/chip';
 import { Avatar, Icon, MenuButton, useConfirm } from './ui';
 
 /** Exactly one of the two, which is also how the row is stored. */
@@ -132,7 +133,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                 <span className="who">
                   {guest ? (entry.guest_name || t('comment.anonymous')) : (author?.name ?? t('common.someone'))}
                 </span>
-                {guest && <span className="chip">{t('comment.fromOutside')}</span>}
+                {guest && <Chip>{t('comment.fromOutside')}</Chip>}
                 <span className="when">{relativeTime(entry.created_at)}</span>
                 {entry.author_id === me && (
                   <Button variant="ghost" size="sm"

@@ -19,6 +19,7 @@ import { list, useQuery } from '../lib/store';
 import { useMe, useMemberMap, useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
+import { Chip } from './ui/chip';
 import { Avatar, Icon, useConfirm, useToast } from './ui';
 
 /** Minutes on the clock right now, for a row that is still running. */
@@ -131,7 +132,7 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
             calls them "estimate points" — so putting the two side by side would
             be comparing a guess at size with a measurement of time. Showing
             spent against estimated needs the estimate to carry a unit first. */}
-        <span className="chip">{duration(total + elapsed)}</span>
+        <Chip>{duration(total + elapsed)}</Chip>
         <span className="flex-1 min-w-0" />
         {runningHere ? (
           <Button variant="danger" size="sm" onClick={() => stop(runningHere)}>

@@ -176,7 +176,7 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 
   // And a direct conversation names the other person rather than showing a key.
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
-  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.locator('.chat-list .chat-row, .chat-list .chat-person').last().click();
   await page.waitForSelector('.chat-header', { timeout: 5000 });
   const title = await page.locator('.chat-header strong').innerText();
   if (!title.trim() || title.includes('.')) throw new Error(`direct conversation titled "${title}"`);
@@ -186,7 +186,7 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 await step('chat: a picture, a reaction, and a member list that can be added to', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item').first().click();
+  await page.locator('.chat-list .chat-row').first().click();
   await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
 
   // A screenshot, pasted the way somebody pastes one. Generated here rather
@@ -240,7 +240,7 @@ await page.screenshot({ path: `${shots}/4b-chat.png` });
 await step('chat: a message can point at a task and a project', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.locator('.chat-list .chat-row, .chat-list .chat-person').last().click();
   await page.waitForSelector('.chat-composer textarea');
 
   // The `#` menu offers projects and tasks, and puts in the bare token.
@@ -290,9 +290,9 @@ await step('chat: anybody on the instance can be written to', async () => {
   await page.waitForSelector('#find-person', { timeout: 5000 });
   await page.fill('#find-person', 'grace');
   await page.waitForTimeout(700);
-  const found = await page.locator('.sheet .nav-item').allInnerTexts();
+  const found = await page.locator('.sheet button').allInnerTexts();
   if (!found.some((row) => /grace/i.test(row))) throw new Error(`the search offered ${JSON.stringify(found)}`);
-  await page.locator('.sheet .nav-item').first().click();
+  await page.locator('.sheet button').first().click();
   await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
   const title = await page.locator('.chat-header strong').innerText();
   if (!/grace/i.test(title)) throw new Error(`opened a conversation with "${title}"`);
@@ -310,7 +310,7 @@ await step('chat: anybody on the instance can be written to', async () => {
 await step('editor: Enter continues a list, and a box can be ticked', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.locator('.chat-list .chat-row, .chat-list .chat-person').last().click();
   await page.waitForSelector('.chat-composer textarea');
   const box = page.locator('.chat-composer textarea');
   // Typed as fast as the browser will accept, deliberately. Restoring the caret

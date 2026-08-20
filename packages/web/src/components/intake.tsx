@@ -24,6 +24,7 @@ import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input, Select } from '../components/ui/field';
+import { Chip } from './ui/chip';
 import { Empty, Icon, Sheet, useConfirm, useToast } from './ui';
 
 /** Everything reported to this project, newest first. */
@@ -114,10 +115,10 @@ export function Triage({ projectId }: { projectId: string }) {
                   </div>
                 </div>
                 {intake.status !== 'new' && (
-                  <span className="chip">
+                  <Chip>
                     {t(intake.status === 'accepted' ? 'intake.accepted' : 'intake.wasDeclined')}
                     {intake.handled_by && members.get(intake.handled_by) ? ` · ${members.get(intake.handled_by)!.name}` : ''}
-                  </span>
+                  </Chip>
                 )}
               </div>
               {intake.body && (

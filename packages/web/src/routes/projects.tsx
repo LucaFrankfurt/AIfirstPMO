@@ -28,6 +28,7 @@ import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input, Select, Textarea } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
+import { Chip, chipDot, chipVariants } from '../components/ui/chip';
 import { Triage, useNewIntakeCount } from '../components/intake';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
@@ -140,7 +141,7 @@ function ProjectCard({ projectId }: { projectId: string }) {
       <div className="flex items-center gap-2 mb-1.5">
         <span className="text-lg">{project.icon ?? '📁'}</span>
         <strong className="flex-1 min-w-0 truncate">{project.name}</strong>
-        <span className="chip mono">{project.key}</span>
+        <Chip className="font-mono">{project.key}</Chip>
       </div>
       {project.description && <p className="text-muted truncate text-[12.5px]">{project.description}</p>}
       <Progress value={done} total={tasks.length} />
@@ -344,7 +345,7 @@ function Cycles({ projectId }: { projectId: string }) {
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={cycle.id}>
               <div className="flex items-center gap-2 mb-2">
                 <strong className="flex-1 min-w-0 truncate">{cycle.name}</strong>
-                {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
+                {active && <span className={chipVariants()} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
                   variant="ghost" size="iconSm"
                   label={t('common.moreActions')}
@@ -864,8 +865,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <SectionHeading>{t('project.labels')}</SectionHeading>
       <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2">
         {labels.map((label) => (
-          <span className="chip button" key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
-            <span className="dot" style={{ background: label.color }} /> {label.name} ✕
+          <span className={chipVariants({ interactive: true })} key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
+            <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕
           </span>
         ))}
       </div>

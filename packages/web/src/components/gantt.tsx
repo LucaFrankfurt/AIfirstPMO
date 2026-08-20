@@ -22,6 +22,7 @@ import { create, update } from '../lib/mutations';
 import { useCanWrite } from '../session';
 import { Button } from '../components/ui/button';
 import { Select } from '../components/ui/field';
+import { chipVariants } from './ui/chip';
 import { Empty, Icon, StateDot, useToast } from './ui';
 
 /** How wide a day is, per zoom step. */
@@ -404,7 +405,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
           <strong className="text-[12.5px]">{t('gantt.undated', { count: undated.length })}</strong>
           <div className="flex items-center gap-2 flex-wrap gap-1.5 mt-1.5">
             {undated.slice(0, 40).map((task) => (
-              <button key={task.id} className="chip button" onClick={() => onOpen(task)}>
+              <button key={task.id} className={chipVariants({ interactive: true })} onClick={() => onOpen(task)}>
                 <Icon name="calendar" size={11} /> {task.identifier} {task.title}
               </button>
             ))}
