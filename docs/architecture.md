@@ -170,6 +170,22 @@ preview, and a task description. Somebody else's chat message stays read-only.
 
 ### Design
 
+Tailwind v4 over the design tokens that were already here, with Radix primitives behind the
+interactive components. The tokens are not re-declared for Tailwind — they are *aliased* into it with
+`@theme inline`, so `bg-raised` resolves to the same `var(--bg-raised)` the hand-written rules use.
+That has one consequence that made the port possible without a flag day: **dark mode needs no `dark:`
+variants**, because the variables are already redefined for dark, so a ported screen and an unported
+one agree on every colour.
+
+The interactive primitives — dialog, menu, tooltip — are Radix underneath (`components/ui/`). Their
+API in `components/ui.tsx` is unchanged, because forty screens import `Sheet` and `MenuButton` and
+the point was the behaviour, not churning the call sites. What that behaviour is, concretely: focus
+trapped inside an open dialog and returned to whatever opened it, the rest of the page hidden from a
+screen reader, arrow keys and typeahead in menus, a menu that flips rather than hanging off a short
+window, and tooltips that appear on keyboard focus rather than only under a pointer. None of that was
+there before, and none of it is the kind of thing that can be added to a hand-rolled version without
+becoming the library.
+
 Mobile-first CSS with a token palette in `styles/app.css`, dark mode from `prefers-color-scheme`
 with a manual override, bottom navigation and bottom sheets below 900px, sidebar above. No CSS
 framework: the whole stylesheet is ~35 kB and there is no build-time class generation.

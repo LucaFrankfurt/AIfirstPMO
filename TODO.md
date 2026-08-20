@@ -696,6 +696,38 @@ confused later.
       one sheet; an instance setting would be a slightly larger one. Worth revisiting the first time
       somebody runs this with sign-up left open.
 
+## The UI port, and what is left of it
+
+Decided: Tailwind + shadcn-style components on Radix, usability first.
+
+Done, and green in three languages:
+
+- [x] **The toolchain and the tokens.** Tailwind v4 through its Vite plugin, the existing design
+      tokens aliased in with `@theme inline` so both halves of a half-ported app agree on every
+      colour and dark mode needs no `dark:` variants.
+- [x] **The interactive primitives, on Radix.** Dialog, dropdown menu and tooltip, wearing the same
+      styling as before and the same API as before — forty screens import `Sheet` and `MenuButton`
+      unchanged. What they gained: a focus trap, focus returned to the opener, the rest of the page
+      hidden from a screen reader, arrow keys and typeahead, collision flipping, and tooltips that
+      show on keyboard focus. The old CSS for those three is deleted rather than left to rot.
+- [x] **`Button`, `Input`, `Select`, `Textarea`, `Label`** as CVA variants, with one focus ring
+      between them and `focus-visible` rather than `focus`.
+
+Still to do, in the order it is worth doing:
+
+- [ ] **The screens themselves.** Roughly forty files still use the hand-written `.btn`, `.input`,
+      `.card` and `.nav-item` classes. They work — the classes are still there — but they are the
+      reason `app.css` is still 1,700 lines. Port them a screen at a time, deleting the class it
+      used as the last screen stops needing it, so the stylesheet shrinks as the port advances
+      rather than at the end.
+- [ ] **The remaining Radix candidates**, where our version is measurably worse: `Select` (a native
+      `<select>` cannot be styled consistently and cannot show an icon per option), `Checkbox`,
+      `Tabs`, `Popover` for the filter and display controls.
+- [ ] **A usability pass with the primitives in place**, which is the part that was the point:
+      empty, loading and error states written rather than defaulted; touch targets measured on a
+      phone rather than assumed; contrast checked against both surfaces; and a keyboard walk of
+      every screen.
+
 ## Known-unknowns
 
 Things nobody has measured yet, so treat any claim about them as a guess:

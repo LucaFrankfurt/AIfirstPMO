@@ -85,7 +85,7 @@ await step('login', async () => {
 
 await step('first-run tour greets a new device and can be dismissed', async () => {
   await page.waitForSelector('.sheet:has(.tour-h)', { timeout: 6000 });
-  const heading = await page.locator('.sheet header strong').innerText();
+  const heading = await page.locator('.sheet header').innerText();
   if (!heading.includes(LABELS.welcome)) throw new Error(`tour title was "${heading}"`);
   const steps = (await page.locator('.sheet footer .muted').innerText()).match(/\d+$/)?.[0];
   console.log('     tour steps for an owner:', steps);
@@ -217,8 +217,10 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
 
   await page.locator('.chat-message').first().hover();
   await page.locator('.chat-message .chat-actions button').first().click();
-  await page.waitForSelector('.menu button', { timeout: 3000 });
-  await page.locator('.menu button').first().click();
+  // A menu item is a `role=menuitem`, not a `<button>`: that is the pattern a
+  // screen reader expects inside `role=menu`, and it is what Radix renders.
+  await page.waitForSelector('.menu [role=menuitem]', { timeout: 3000 });
+  await page.locator('.menu [role=menuitem]').first().click();
   await page.waitForTimeout(500);
   const chips = await page.locator('.chat-stream .reaction').count();
   if (!chips) throw new Error('reacting left no chip');

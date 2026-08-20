@@ -1,3 +1,55 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind, over the design system that was already here.
+ *
+ * The tokens below are not re-declared for Tailwind — they are *aliased* into
+ * it with `@theme inline`, so `bg-raised` and `text-muted` resolve to the same
+ * `var(--bg-raised)` and `var(--fg-muted)` the hand-written rules use. That has
+ * one consequence worth understanding, and it is the reason the port could be
+ * done at all without a flag day: **dark mode needs no `dark:` variants**. The
+ * variables are redefined for dark further down, so a Tailwind class built on
+ * them is already right in both themes, and a screen that has been ported and
+ * one that has not agree on every colour.
+ *
+ * The `dark` variant is still defined, for the rare rule that needs to differ
+ * by more than a colour — a shadow, a border weight.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, :root:not([data-theme='light']) &));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sunken: var(--bg-sunken);
+  --color-raised: var(--bg-raised);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
+
+  --color-fg: var(--fg);
+  --color-soft: var(--fg-soft);
+  --color-muted: var(--fg-muted);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+
+  --radius-DEFAULT: var(--radius);
+  --radius-sm: var(--radius-sm);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-DEFAULT: var(--shadow);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}
+
 /* Kolibri design system.
    Quiet by default: one accent colour, hairline borders, almost no shadow.
    Mobile-first — the desktop layout starts at 900px. */
@@ -1040,80 +1092,14 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* ---------------------------------------------------------------- overlays */
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  z-index: 60;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: fade 140ms ease;
-}
 @media (min-width: 700px) { .overlay { align-items: center; padding: 24px; } }
 
-.sheet {
-  background: var(--bg-raised);
-  width: 100%;
-  max-height: 92dvh;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: slide-up 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  padding-bottom: env(safe-area-inset-bottom);
-}
 @media (min-width: 700px) {
-  .sheet { max-width: 620px; border-radius: var(--radius-lg); max-height: 86dvh; animation: fade 140ms ease; }
-  .sheet.wide { max-width: 860px; }
 }
 
-.sheet header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
-  flex: none;
-}
-.sheet .body { padding: 14px; overflow-y: auto; flex: 1; }
-.sheet footer { padding: 12px 14px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; flex: none; }
 
-.grabber { width: 36px; height: 4px; border-radius: 99px; background: var(--line-strong); margin: 8px auto 0; flex: none; }
 @media (min-width: 700px) { .grabber { display: none; } }
 
-.menu {
-  position: fixed;
-  z-index: 80;
-  min-width: 190px;
-  max-height: 60dvh;
-  overflow-y: auto;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 5px;
-  animation: fade 100ms ease;
-}
-.menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 7px 9px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13.5px;
-  text-align: left;
-  min-height: 34px;
-}
-.menu button:hover, .menu button.highlight { background: var(--bg-hover); }
-.menu .section { padding: 7px 9px 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); font-weight: 600; }
-.menu input.search { width: 100%; border: none; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px; background: none; margin-bottom: 4px; }
-.menu input.search:focus { outline: none; }
 
 .palette {
   position: fixed;
@@ -1677,7 +1663,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 /* ----------------------------------------------------- tour + setup */
 
 .tour-h { font-size: 15px; margin: 0 0 6px; }
-.sheet .tour-h + p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.6; }
 .tour-ok {
   display: flex; align-items: center; gap: 7px; margin: 0;
   font-size: 13.5px; color: var(--ok);
