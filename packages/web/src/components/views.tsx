@@ -247,7 +247,11 @@ export function ViewControls({
         : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
 
   return (
-    <div className="flex items-center flex-wrap gap-1.5">
+    // Emphatically not `flex-wrap`. Every one of these lives in the header,
+    // which is one row 52px tall and scrolls sideways when its contents do not
+    // fit — see `.header` in `app.css`. Allowed to wrap, the second row had
+    // nowhere to go and drew itself straight over the tab strip below.
+    <div className="flex items-center gap-1.5">
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display

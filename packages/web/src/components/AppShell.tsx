@@ -255,7 +255,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 export function Header({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
   return (
     <header className="header">
-      <h1 className="flex-1 min-w-0 truncate">{title}</h1>
+      {/* `min-w-[72px]`, not `min-w-0`: the header scrolls sideways rather than
+          squeezing, so a title that may shrink to nothing shrinks to nothing —
+          which is what it did, leaving a screen with no name on it. */}
+      <h1 className="flex-1 min-w-[72px] truncate">{title}</h1>
       {children}
       <SyncPill />
     </header>

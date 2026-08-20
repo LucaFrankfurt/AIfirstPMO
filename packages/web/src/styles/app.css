@@ -50,27 +50,39 @@
 /*
  * The three "show this on a phone, that on a desktop" helpers.
  *
- * They are utilities, so they belong in the utilities layer rather than with
- * the component rules below — and each selector is doubled on purpose. Inside
- * one layer specificity decides, and these have to beat a plain `flex` or
- * `inline-flex` sitting on the same element. That is not hypothetical: the
- * layout switcher carries `flex` and `not-sm`, and while these sat in the
- * components layer the switcher appeared on a phone, pushing the screen's
- * title off the top bar entirely.
+ * They ask **how much room the screen has**, not how wide the window is, and
+ * those are different numbers: at 900px the sidebar appears and takes 248 of
+ * them, so a window growing from 899 to 900 leaves the content *less* space
+ * than before — 652px instead of 899. Keyed to the window, the wide header
+ * rendered into that and did not fit; its controls spilled onto a second row
+ * and drew straight over the tab strip below.
  *
- * The breakpoint is 700px rather than Tailwind's `sm`, which is 640. Changing
- * `sm` to match would move every `sm:` class in the app by sixty pixels.
+ * So `.main` is a container and these are container queries. 764px is what the
+ * busiest bar in the app — a project header with saved views, five layouts,
+ * filter, display and the add button — actually needs, measured rather than
+ * guessed. Below that, every one of those has a compact form.
+ *
+ * They stay in `@layer utilities` with doubled selectors: inside one layer
+ * specificity decides, and each has to beat a plain `flex` or `inline-flex`
+ * sitting on the same element. Not hypothetical — the layout switcher carries
+ * both `flex` and `not-sm`, and while these sat in the components layer the
+ * switcher turned up on a phone and pushed the screen's title off the bar.
+ *
+ * Every use of these three is inside `.main`. That is a requirement rather
+ * than an observation — a container query with no container never matches, so
+ * a label moved into the sidebar, or into a dialog (which Radix portals to
+ * `<body>`), would not turn compact. It would disappear.
  */
 @layer utilities {
   .hide-sm.hide-sm { display: none; }
-  @media (min-width: 700px) { .hide-sm.hide-sm { display: inline; } }
+  @container screen (min-width: 764px) { .hide-sm.hide-sm { display: inline; } }
 
   /* The mirror of .hide-sm, for a control that has a compact form on a phone. */
   .only-sm.only-sm { display: inline-flex; }
-  @media (min-width: 700px) { .only-sm.only-sm { display: none; } }
+  @container screen (min-width: 764px) { .only-sm.only-sm { display: none; } }
 
   .not-sm.not-sm { display: none; }
-  @media (min-width: 700px) { .not-sm.not-sm { display: flex; } }
+  @container screen (min-width: 764px) { .not-sm.not-sm { display: flex; } }
 }
 
 @theme inline {
@@ -287,6 +299,8 @@ p { margin: 0 0 0.75em; }
   min-width: 0;
   min-height: 0;
   background: var(--bg);
+  /* What the phone/desktop helpers measure — see the note beside them. */
+  container: screen / inline-size;
 }
 
 .content {
@@ -313,14 +327,9 @@ p { margin: 0 0 0.75em; }
   flex: none;
 }
 
-.header h1 {
-  font-size: 15px;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  min-width: 72px;
-}
+/* Size and weight only. The truncation and the width floor are on the element
+   — a utility beats this rule, so stating them twice means the loser is silent. */
+.header h1 { font-size: 15px; font-weight: 600; }
 
 /* On narrow screens the header scrolls instead of squeezing the title away. */
 .header { overflow-x: auto; scrollbar-width: none; }
@@ -518,7 +527,12 @@ p { margin: 0 0 0.75em; }
 }
 
 @media (min-width: 900px) {
-  /* No tab bar to clear, and the sidebar is a column rather than an overlay. */
+  /* No tab bar to clear, and the sidebar is a column rather than an overlay.
+     The sidebar's width is in the inset because this bar is `position: fixed`
+     against the *viewport*: `container-type` on `.main` does not make it a
+     containing block for fixed descendants, whatever layout containment
+     usually implies. Measured, not assumed — it was briefly written the other
+     way and the bar slid under the sidebar. */
   .selection-bar {
     inset-inline: calc(var(--sidebar-width) + 20px) 20px;
     bottom: 18px;
