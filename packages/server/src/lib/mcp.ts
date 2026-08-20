@@ -15,6 +15,7 @@ import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
 import { createProject, serverClock } from './bootstrap.ts';
 import { instantiateTemplate } from './automation.ts';
+import { hasFeature } from './features.ts';
 import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, writeEntity } from './repo.ts';
 import { searchWorkspace } from '../routes/search.ts';
 import { uid } from './ids.ts';
@@ -120,6 +121,19 @@ const writeOpts = (workspaceId: string, ctx: McpCtx) => ({
 
 function requireWrite(ctx: McpCtx): void {
   if (!ctx.auth.scopes.has('write')) throw new McpError('This token is read-only', -32000);
+}
+
+/**
+ * A feature the workspace has not switched on is not a tool that half works.
+ *
+ * An assistant that logs time into a workspace where nobody can see it has
+ * done something worse than refuse: the row exists, the person who asked
+ * believes it was recorded, and no screen will ever show it.
+ */
+function requireFeature(workspaceId: string, name: 'time'): void {
+  if (!hasFeature(workspaceId, name)) {
+    throw new McpError('Time tracking is switched off in this workspace (Settings → Workspace)', -32000);
+  }
 }
 
 /** A JSON column read straight from SQLite, without trusting it to be valid. */
@@ -544,6 +558,7 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireFeature(workspaceId, 'time');
       const task = findTask(String(args.task), workspaceId, ctx);
       const minutes = parseDuration(String(args.amount));
       // An unparseable duration must not become a silent zero-minute entry.
@@ -584,6 +599,7 @@ const TOOLS: ToolDef[] = [
     },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
+      requireFeature(workspaceId, 'time');
       const where: string[] = ['t.workspace_id = ?', 't.deleted_at IS NULL'];
       const params: unknown[] = [workspaceId];
 

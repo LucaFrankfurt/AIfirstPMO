@@ -190,7 +190,7 @@ export function ProjectNew() {
               placeholder={t('project.namePlaceholder')}
             />
           </div>
-          <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
+          <div className="flex items-center gap-2.5" style={{ alignItems: 'flex-start' }}>
             <div className="field" style={{ width: 120 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
               <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
@@ -216,7 +216,11 @@ export function ProjectNew() {
               <option value="private">{t('project.visibilityPrivate')}</option>
             </Select>
           </div>
-          <Button variant="primary" size="lg" block disabled={busy || !form.name.trim()}>
+          {/* `type="submit"` is not decoration: `Button` defaults to
+              `type="button"`, which is right everywhere except inside a form,
+              and a submit button that quietly does nothing is exactly the bug
+              that got here. `test/forms.test.ts` now refuses the next one. */}
+          <Button variant="primary" size="lg" block type="submit" disabled={busy || !form.name.trim()}>
             {busy ? t('project.creating') : t('project.createSubmit')}
           </Button>
         </form>
@@ -403,7 +407,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         <label htmlFor="c-name">{t('cycle.name')}</label>
         <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="flex items-center gap-2 gap-2.5">
+      <div className="flex items-center gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="c-start">{t('cycle.starts')}</label>
           <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
@@ -691,7 +695,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Textarea id="s-desc" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
-      <div className="flex items-center gap-2 gap-2.5">
+      <div className="flex items-center gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-parent">{t('project.parent')}</label>
           <Select
@@ -710,7 +714,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2 gap-2.5">
+      <div className="flex items-center gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-lead">{t('project.lead')}</label>
           <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
@@ -729,7 +733,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           Saturday stays there, because somebody who did that meant it. */}
       <div className="field">
         <label>{t('project.workingDays')}</label>
-        <div className="flex items-center gap-2 flex-wrap gap-1" role="group" aria-label={t('project.workingDays')}>
+        <div className="flex items-center flex-wrap gap-1" role="group" aria-label={t('project.workingDays')}>
           {WEEKDAYS.map(({ day, key }) => {
             const days = project.working_days ?? DEFAULT_WORKING_DAYS;
             const on = days.includes(day);
@@ -780,15 +784,15 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               <Icon name="trash" size={14} />
             </Button>
           </div>
-          <div className="flex items-center gap-2 flex-wrap gap-2.5 mt-2">
-            <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+          <div className="flex items-center flex-wrap gap-2.5 mt-2">
+            <label className="flex items-center gap-1.5 text-[12.5px]">
               <span className="text-muted">{t('state.wipLimit')}</span>
               <Input type="number" min={0} max={99} style={{ width: 70 }}
                 value={state.wip_limit || ''} placeholder="0"
                 onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
               />
             </label>
-            <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+            <label className="flex items-center gap-1.5 text-[12.5px]">
               <span className="text-muted">{t('state.allowedRoles')}</span>
               <Select style={{ width: 200 }}
                 value={state.allowed_roles?.[0] ?? ''}
@@ -863,7 +867,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <ProjectFields projectId={projectId} />
 
       <SectionHeading>{t('project.labels')}</SectionHeading>
-      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2">
+      <div className="flex items-center flex-wrap gap-1.5 mb-2">
         {labels.map((label) => (
           <span className={chipVariants({ interactive: true })} key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
             <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕

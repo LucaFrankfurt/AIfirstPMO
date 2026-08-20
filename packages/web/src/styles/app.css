@@ -17,6 +17,62 @@
  */
 @custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, :root:not([data-theme='light']) &));
 
+/*
+ * The two animations the Radix surfaces ask for.
+ *
+ * `data-[state=open]:animate-in` is a `tailwindcss-animate` utility, and that
+ * plugin is not installed — so the dialogs, menus and tooltips named an
+ * animation that did not exist and appeared instantly instead. Two keyframes
+ * are cheaper than a dependency, and this app only wants the one gesture
+ * `design.md` describes: a surface confirms it arrived, and does not perform.
+ *
+ * Opacity only, deliberately. The dialog centres itself with a `translate`, and
+ * an animation that also wrote `transform` would fight it every time it opened.
+ *
+ * The reduced-motion guard is inside the utility rather than left to
+ * `motion-reduce:animate-none` beside it, because which of two utilities wins
+ * depends on the order Tailwind emits them, and this must not.
+ */
+@keyframes kolibri-enter { from { opacity: 0; } }
+@keyframes kolibri-leave { to { opacity: 0; } }
+
+@utility animate-in {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: kolibri-enter 130ms ease-out;
+  }
+}
+@utility animate-out {
+  @media (prefers-reduced-motion: no-preference) {
+    animation: kolibri-leave 110ms ease-in;
+  }
+}
+
+/*
+ * The three "show this on a phone, that on a desktop" helpers.
+ *
+ * They are utilities, so they belong in the utilities layer rather than with
+ * the component rules below — and each selector is doubled on purpose. Inside
+ * one layer specificity decides, and these have to beat a plain `flex` or
+ * `inline-flex` sitting on the same element. That is not hypothetical: the
+ * layout switcher carries `flex` and `not-sm`, and while these sat in the
+ * components layer the switcher appeared on a phone, pushing the screen's
+ * title off the top bar entirely.
+ *
+ * The breakpoint is 700px rather than Tailwind's `sm`, which is 640. Changing
+ * `sm` to match would move every `sm:` class in the app by sixty pixels.
+ */
+@layer utilities {
+  .hide-sm.hide-sm { display: none; }
+  @media (min-width: 700px) { .hide-sm.hide-sm { display: inline; } }
+
+  /* The mirror of .hide-sm, for a control that has a compact form on a phone. */
+  .only-sm.only-sm { display: inline-flex; }
+  @media (min-width: 700px) { .only-sm.only-sm { display: none; } }
+
+  .not-sm.not-sm { display: none; }
+  @media (min-width: 700px) { .not-sm.not-sm { display: flex; } }
+}
+
 @theme inline {
   --color-bg: var(--bg);
   --color-sunken: var(--bg-sunken);
@@ -154,6 +210,24 @@
   --shadow: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
 }
 
+/*
+ * Everything below is in `@layer components`, and that one line is load-bearing.
+ *
+ * `@import "tailwindcss"` puts every utility in `@layer utilities`. CSS gives
+ * *unlayered* rules precedence over every layer, whatever their specificity —
+ * so while this file sat outside the layers, `h1, h2, h3, h4 { margin: 0 }` beat
+ * `mt-5` on a heading, `p { margin: 0 0 0.75em }` beat `m-0`, and the focus
+ * outline here beat `outline-none` on a button that had drawn its own ring.
+ * Every one of those was silent: the class was in the DOM and did nothing.
+ *
+ * Inside a layer the order is the documented one — theme, base, components,
+ * utilities — so a utility on a ported element wins, which is the whole
+ * premise of the port. The rules are not indented into the block: this is a
+ * fifteen-hundred-line file and re-indenting all of it would bury the change
+ * that matters in whitespace.
+ */
+@layer components {
+
 * { box-sizing: border-box; }
 
 html, body, #root {
@@ -253,15 +327,9 @@ p { margin: 0 0 0.75em; }
 .header::-webkit-scrollbar { display: none; }
 
 /* Labels that only earn their space on wider screens. */
-.hide-sm { display: none; }
-@media (min-width: 700px) { .hide-sm { display: inline; } }
+/* The phone/desktop display helpers live in `@layer utilities` — see the note
+   above them, near the top of this file. */
 
-/* The mirror of .hide-sm, for a control that has a compact form on a phone.
-   Doubled selectors so these win over the `.row`/`.btn` they sit on. */
-.only-sm.only-sm { display: inline-flex; }
-@media (min-width: 700px) { .only-sm.only-sm { display: none; } }
-.not-sm.not-sm { display: none; }
-@media (min-width: 700px) { .not-sm.not-sm { display: flex; } }
 
 .header .spacer { flex: 1; }
 
@@ -328,6 +396,77 @@ p { margin: 0 0 0.75em; }
 .nav-section button { margin-inline-start: auto; }
 
 /* ----------------------------------------------------------------- pieces */
+
+/*
+ * Form layout, still hand-written.
+ *
+ * These four came back after the port deleted them: the rules went in the
+ * commit that introduced the `Input`/`Select`/`Textarea` components, but the
+ * seventy-six `<div class="field">` wrappers around those controls did not
+ * change, so every form in the app lost its spacing and every label its
+ * weight in one go. Nothing threw; it just looked wrong, which is why
+ * `scripts/unstyled.mjs` now compares the classes the source uses against the
+ * ones the stylesheet actually defines.
+ *
+ * They are written against the tokens like everything else, so a `<Field>`
+ * component can take them over later without anything changing on screen.
+ */
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+.field label { font-size: 12.5px; font-weight: 550; color: var(--fg-soft); }
+
+/* A checkbox with a label and a line of explanation under it. */
+.check-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
+.check-row input { margin-top: 2px; flex: none; }
+/* The label and its explanation are one stacked block beside the box, so the
+   explanation lines up under the label rather than under the checkbox. */
+.check-row > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+
+/* The emoji picker on a saved view: square buttons, not text ones. */
+.icon-choices { gap: 4px; margin-top: 2px; }
+.icon-choices button { padding: 0; width: 32px; height: 32px; justify-content: center; }
+
+/* "This view no longer matches what is saved in it." */
+.dot-modified {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex: none;
+}
+
+/*
+ * The command palette's result list.
+ *
+ * It borrows `menu` from the dropdown that used to be hand-written, and the
+ * dropdown became a Radix component whose styles live in `ui/menu.tsx`. The
+ * palette is not a Radix menu — it is a search box with a list under it — so
+ * it kept the class and lost the rules, and the results ran together as one
+ * paragraph of unclickable text.
+ */
+.palette .results button {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--fg);
+  font-size: 13.5px;
+  text-align: start;
+  cursor: pointer;
+}
+.palette .results button:hover,
+.palette .results button.highlight { background: var(--bg-hover); }
+.palette .results .section {
+  padding: 7px 9px 3px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
 
 
 .select-box {
@@ -759,13 +898,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
-}
-
-/* A chip that is switched on — a chosen option, a type a field applies to. */
-.chip.on {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
-  color: var(--accent);
 }
 
 /* Custom fields on a task: as many columns as fit, and no wider than a form
@@ -1711,3 +1843,5 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .chat-composer > .btn { align-self: flex-end; }
 
+
+}

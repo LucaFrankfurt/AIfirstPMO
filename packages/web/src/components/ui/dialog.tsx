@@ -24,7 +24,7 @@ export function DialogContent({
   return (
     <Primitive.Portal>
       <Primitive.Overlay
-        className="fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none"
+        className="fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none"
       />
       <Primitive.Content
         className={cn(

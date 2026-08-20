@@ -94,7 +94,7 @@ export function Teams() {
                   </MenuButton>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
+                <div className="flex items-center flex-wrap gap-1.5 mb-2.5">
                   {people.map((person) => (
                     <span className={chipVariants()} key={person.id}>
                       <Avatar user={person} size={16} /> {person.name}
@@ -110,7 +110,7 @@ export function Teams() {
                   <span>{t('team.tasksDone', { done, total: tasks.length })}</span>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap gap-1.5 mt-2.5">
+                <div className="flex items-center flex-wrap gap-1.5 mt-2.5">
                   {teamProjects.map((project) => (
                     <button className={chipVariants({ interactive: true })} key={project.id} onClick={() => navigate(`/projects/${project.id}`)}>
                       {project.icon} {project.name}

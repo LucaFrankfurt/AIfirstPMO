@@ -48,7 +48,7 @@ function Reactions({ comment }: { comment: Comment }) {
   };
 
   return (
-    <div className="flex items-center gap-2 flex-wrap reactions gap-1">
+    <div className="flex items-center flex-wrap reactions gap-1">
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -129,7 +129,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           <div className="comment" key={entry.id}>
             <Avatar user={guest ? undefined : author} size={26} />
             <div className="body">
-              <div className="flex items-center gap-2 gap-1.5">
+              <div className="flex items-center gap-1.5">
                 <span className="who">
                   {guest ? (entry.guest_name || t('comment.anonymous')) : (author?.name ?? t('common.someone'))}
                 </span>

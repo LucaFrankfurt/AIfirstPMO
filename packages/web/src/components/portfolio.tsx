@@ -14,7 +14,7 @@ import type { Project, Task } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
-import { useSession } from '../session';
+import { useFeature, useSession } from '../session';
 import { Bars, Stat, Table } from './insights';
 import { Empty, Icon } from './ui';
 
@@ -154,6 +154,7 @@ function Roadmap({ bars, from, to }: { bars: Bar[]; from: number; to: number }) 
 /* -------------------------------------------------------------- the screen */
 
 export function Portfolio() {
+  const time = useFeature('time');
   const t = useT();
   const { workspaceId } = useSession();
 
@@ -245,7 +246,7 @@ export function Portfolio() {
           value={String(totals.overdue)}
           hint={totals.overdue ? t('portfolio.overdueHint') : t('portfolio.overdueNone')}
         />
-        <Stat label={t('portfolio.timeLogged')} value={`${totals.hours} h`} />
+        {time && <Stat label={t('portfolio.timeLogged')} value={`${totals.hours} h`} />}
       </div>
 
       <h3 className="chart-title">{t('portfolio.roadmap')}</h3>

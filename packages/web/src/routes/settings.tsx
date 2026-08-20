@@ -163,7 +163,7 @@ function Profile() {
       )}
 
       <SectionHeading>{t('profile.appearance')}</SectionHeading>
-      <div className="flex items-center gap-2 gap-1.5">
+      <div className="flex items-center gap-1.5">
         {(['system', 'light', 'dark'] as const).map((option) => (
           <button
             key={option}
@@ -300,7 +300,7 @@ function Notifications() {
 
       <SectionHeading>{t('notify.digest')}</SectionHeading>
       <p className="text-[12px] text-muted mb-2">{t('notify.digestHint')}</p>
-      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-1.5">
+      <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
         {(['off', 'daily', 'weekly'] as const).map((option) => (
           <button
             key={option}
@@ -319,7 +319,7 @@ function Notifications() {
       </div>
 
       <SectionHeading>{t('notify.emailAbout')}</SectionHeading>
-      <div className="flex flex-col gap-2 gap-1.5">
+      <div className="flex flex-col gap-1.5">
         {PREFERENCES.map((option) => (
           <button
             key={option.value}
@@ -431,6 +431,27 @@ function WorkspaceSettings() {
       >
         {t('action.save')}
       </Button>
+
+      {/* Off by default and switched on here, because until an estimate carries
+          a unit there is nothing to compare the logged time against — see
+          `WorkspaceFeatures` in the registry. */}
+      <SectionHeading>{t('workspace.features')}</SectionHeading>
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.time}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { time: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureTime')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureTimeHint')}</span>
+        </span>
+      </label>
 
       <SectionHeading>{t('workspace.yours')}</SectionHeading>
       {session?.workspaces.map((entry) => (

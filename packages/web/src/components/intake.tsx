@@ -69,8 +69,8 @@ export function Triage({ projectId }: { projectId: string }) {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5">
-        <div className="flex items-center gap-2 gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
+        <div className="flex items-center gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
           {(['new', 'handled'] as const).map((which) => (
             <button
               key={which}
@@ -99,7 +99,7 @@ export function Triage({ projectId }: { projectId: string }) {
           hint={t('intake.emptyHint')}
         />
       ) : (
-        <div className="grid gap-3 gap-2.5">
+        <div className="grid gap-2.5">
           {shown.map((intake) => (
             <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
               <div className="flex items-center gap-2" style={{ alignItems: 'flex-start' }}>
@@ -125,7 +125,7 @@ export function Triage({ projectId }: { projectId: string }) {
                 <p style={{ margin: '10px 0 0', fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{intake.body}</p>
               )}
               {intake.status === 'new' && canWrite && (
-                <div className="flex items-center gap-2 gap-1.5 mt-3">
+                <div className="flex items-center gap-1.5 mt-3">
                   <Button variant="primary" size="sm" onClick={() => setAccepting(intake)}>
                     <Icon name="check" size={13} /> {t('intake.accept')}
                   </Button>

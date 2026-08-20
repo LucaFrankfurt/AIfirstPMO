@@ -319,6 +319,27 @@ GET  /api/sync/stream?workspace=:id&client=:clientId     (Server-Sent Events)
 See [`sync.md`](sync.md) for the protocol. `EventSource` cannot set headers, so the stream also
 accepts `?access_token=` for token clients.
 
+The stream carries three kinds of frame:
+
+| Event | Payload | Meaning |
+|---|---|---|
+| `hello` | `{ cursor, userId }` | the connection is up, and here is where the workspace is |
+| `change` | `{ cursor, kind }` | something moved to this cursor — pull the delta |
+| `presence` | `{ people: [{ userId, online, typing }] }` | who is here, and what they are typing in |
+
+The first `presence` frame after `open` is the whole picture and replaces what the client had; every
+later one is a single change. It carries **no cursor** and never affects one, so a client that
+ignores the event entirely syncs exactly as correctly as one that reads it.
+
+```
+POST /api/presence   { typing?: string | null }
+```
+
+The heartbeat behind that. Send it every 25 seconds while the tab is visible; an omitted `typing`
+means "just a heartbeat, leave it alone", `null` means "I stopped", and a channel id means "I am
+writing in here". Online expires after 45 seconds and typing after 8. None of it is stored — see
+[`chat.md`](chat.md) for why.
+
 ## Misc
 
 ```

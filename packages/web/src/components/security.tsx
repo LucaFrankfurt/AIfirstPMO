@@ -145,7 +145,7 @@ export function Sessions() {
     <>
       <SectionHeading>{t('security.devices')}</SectionHeading>
       <p className="text-[12px] text-muted mb-2">{t('security.devicesHint')}</p>
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 p-0">
+      <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
         {(rows ?? []).map((row) => (
           <div className="flex items-center gap-2 trash-row" key={row.id} style={{ gap: 9 }}>
             <Icon name={row.current ? 'check' : 'users'} size={14} />

@@ -24,18 +24,21 @@ const LABELS = {
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
     findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
+    newProject: 'New project', createProject: 'Create project',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
     findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
+    newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
     findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
+    newProject: 'Nouveau projet', createProject: 'Créer le projet',
   },
 }[locale];
 
@@ -142,6 +145,35 @@ await step('task reached the server', async () => {
   console.log('     server found:', data.results[0].title);
 });
 
+/**
+ * A project, made the way somebody makes one.
+ *
+ * This walkthrough visited every screen and created a task, a channel, a page
+ * and a comment — and never once created a project, which is why *Create
+ * project* could sit there doing nothing for four commits. The button was not
+ * disabled and threw no error: the port had turned it into `type="button"`
+ * inside a `<form onSubmit>`, so clicking it submitted nothing at all.
+ *
+ * The assertion is therefore not "the form is there" but "the server has it":
+ * a screen that looks right is exactly what this bug looked like.
+ */
+await step('a project can be created, and the server ends up with it', async () => {
+  await page.goto(`${base}/projects/new`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  const key = `S${Date.now().toString().slice(-4)}`;
+  await page.fill('#p-name', `Smoke ${locale} ${key}`);
+  await page.fill('#p-key', key);
+  await page.click(`form button:has-text("${LABELS.createProject}")`);
+  // Landing on the project is the only proof the submit ran at all — the form
+  // stays put, silently, when it does not.
+  await page.waitForURL(/\/projects\/[0-9a-f-]{8}/, { timeout: 8000 });
+  const workspace = await page.evaluate(() => localStorage.getItem('kolibri.workspace'));
+  const list = await (await page.request.get(`${base}/api/workspaces/${workspace}/projects`)).json();
+  const made = (list.projects ?? list).find?.((project) => project.key === key);
+  if (!made) throw new Error(`the project reached no server row (key ${key})`);
+  console.log('     project created:', made.name, `(${made.key})`);
+});
+
 await step('pages', async () => {
   await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
   await page.waitForSelector('a[href^="/pages/"]', { timeout: 5000 });
@@ -228,6 +260,67 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
 });
 await page.screenshot({ path: `${shots}/4c-chat-rich.png` });
 await page.screenshot({ path: `${shots}/4b-chat.png` });
+
+/**
+ * Presence, with two people actually in the room.
+ *
+ * The only way to test this is with two browsers: a dot that lights up for
+ * yourself proves nothing, and the whole feature is one person seeing another
+ * person's state. Grace opens a direct conversation with Ada and starts typing;
+ * Ada, who is already looking at it, has to see both the dot and the line —
+ * and has to see the line go away when Grace stops.
+ */
+await step('chat: a dot says who is here, and a line says who is typing', async () => {
+  const second = await browser.newContext({ viewport: { width: 1100, height: 800 }, locale });
+  const other = await second.newPage();
+  try {
+    await other.goto(base, { waitUntil: 'domcontentloaded' });
+    await other.evaluate((value) => localStorage.setItem('kolibri.locale', value), locale);
+    await other.goto(base, { waitUntil: 'networkidle' });
+    await other.fill('#email', 'grace@kolibri.dev');
+    await other.fill('#password', 'kolibri-demo');
+    await other.click('button[type=submit]');
+    await other.waitForSelector('.sidebar', { timeout: 15000 });
+    await closeTour(other);
+
+    // Grace opens the conversation with Ada. The id is derived, so this is the
+    // same row Ada will open from her side.
+    await other.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+    await closeTour(other);
+    await other.locator('.chat-list .chat-person', { hasText: 'Ada' }).first().click();
+    await other.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+
+    await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+    await closeTour(page);
+    await page.locator('.chat-list .chat-person, .chat-list .chat-row').filter({ hasText: 'Grace' }).first().click();
+    await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+
+    // The dot: Grace is here, and Ada's copy of the header says so.
+    await page.waitForSelector('.chat-header [role=img]', { timeout: 8000 });
+    console.log('     presence dots on Ada\'s screen:', await page.locator('.chat-list [role=img], .chat-header [role=img]').count());
+
+    // The line: Grace types, Ada reads it within a second or two.
+    await other.locator('.chat-composer textarea').fill('writing something…');
+    await page.waitForFunction(
+      () => (document.querySelector('.chat-composer p[aria-live]')?.textContent ?? '').trim().length > 0,
+      null,
+      { timeout: 8000 },
+    );
+    const line = (await page.locator('.chat-composer p[aria-live]').innerText()).trim();
+    console.log('     typing line:', JSON.stringify(line));
+    if (!line.includes('Grace')) throw new Error(`typing line did not name Grace: "${line}"`);
+
+    // And it goes away again: an emptied composer is not "still typing".
+    await other.locator('.chat-composer textarea').fill('');
+    await page.waitForFunction(
+      () => (document.querySelector('.chat-composer p[aria-live]')?.textContent ?? '').trim().length === 0,
+      null,
+      { timeout: 8000 },
+    );
+  } finally {
+    await second.close();
+  }
+});
 
 /**
  * References to work, written in a chat line.

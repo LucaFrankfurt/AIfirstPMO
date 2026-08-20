@@ -17,6 +17,7 @@ import { useCanWrite, useMemberMap } from '../session';
 import { Icon, useConfirm } from './ui';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
+import { chipVariants } from './ui/chip';
 import { Input, Select, Textarea } from '../components/ui/field';
 import { DateField } from './task-parts';
 
@@ -83,7 +84,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     case 'url':
       return (
-        <div className="flex items-center gap-2 gap-1.5">
+        <div className="flex items-center gap-1.5">
           <Input className="flex-1 min-w-0" id={id} type="url" placeholder="https://" value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)} />
           {!!value && (
@@ -104,11 +105,11 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
     case 'multi_select': {
       const chosen = (value as string[]) ?? [];
       return (
-        <div className="flex items-center gap-2 flex-wrap gap-[5px]">
+        <div className="flex items-center flex-wrap gap-[5px]">
           {field.options.map((option) => (
             <button
               key={option} type="button"
-              className={`chip button${chosen.includes(option) ? ' on' : ''}`}
+              className={chipVariants({ tone: chosen.includes(option) ? 'on' : 'default', interactive: true })}
               aria-pressed={chosen.includes(option)}
               onClick={() => onChange(chosen.includes(option) ? chosen.filter((o) => o !== option) : [...chosen, option])}
             >
@@ -237,9 +238,9 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
               <div className="field">
                 <label>{t('field.appliesTo')}</label>
-                <div className="flex items-center gap-2 flex-wrap gap-[5px]">
+                <div className="flex items-center flex-wrap gap-[5px]">
                   <button
-                    type="button" className={`chip button${field.type_ids.length ? '' : ' on'}`}
+                    type="button" className={chipVariants({ tone: field.type_ids.length ? 'default' : 'on', interactive: true })}
                     aria-pressed={!field.type_ids.length}
                     onClick={() => update('field', field.id, { type_ids: [] })}
                   >
@@ -248,7 +249,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                   {types.map((type) => (
                     <button
                       key={type.id} type="button"
-                      className={`chip button${field.type_ids.includes(type.id) ? ' on' : ''}`}
+                      className={chipVariants({ tone: field.type_ids.includes(type.id) ? 'on' : 'default', interactive: true })}
                       aria-pressed={field.type_ids.includes(type.id)}
                       onClick={() => update('field', field.id, {
                         type_ids: field.type_ids.includes(type.id)

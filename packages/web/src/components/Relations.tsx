@@ -78,7 +78,7 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
               <span className="truncate">{row.other.title}</span>
             </Button>
             {row.ownsLag && (
-              <label className="flex items-center gap-2 gap-1 text-[12.5px]" title={t('relation.lagHint')}>
+              <label className="flex items-center gap-1 text-[12.5px]" title={t('relation.lagHint')}>
                 <span className="text-muted hide-sm">{t('relation.lag')}</span>
                 <Input type="number" min={0} max={365} style={{ width: 62 }}
                   aria-label={t('relation.lag')}

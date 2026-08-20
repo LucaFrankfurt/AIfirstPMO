@@ -48,7 +48,7 @@ export function AuditLog() {
     <>
       <SectionHeading>{t('audit.title')}</SectionHeading>
       <p className="text-[12px] text-muted mb-2">{t('audit.hint')}</p>
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 p-0">
+      <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
         {entries.map((entry) => (
           <div className="flex items-center gap-2 trash-row" key={entry.id} style={{ gap: 9 }}>
             <Avatar user={members.get(entry.actor_id)} size={18} />
@@ -158,7 +158,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
           className="flex-1 min-w-0" value={hook.name ?? ''} placeholder={t('hooks.name')} aria-label={t('hooks.name')}
           onChange={(event) => update('webhook', hook.id, { name: event.target.value })}
         />
-        <label className="flex items-center gap-2 gap-[5px] text-[12.5px]">
+        <label className="flex items-center gap-[5px] text-[12.5px]">
           <input
             type="checkbox" checked={!!hook.enabled}
             onChange={(event) => update('webhook', hook.id, { enabled: event.target.checked ? 1 : 0 })}
@@ -198,7 +198,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
 
       {!inbound && (
         <div className="flex items-center gap-2 mb-1.5">
-          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+          <label className="flex items-center gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('hooks.format')}</span>
             <Select style={{ width: 150 }} value={hook.format ?? 'kolibri'}
               onChange={(event) => update('webhook', hook.id, { format: event.target.value })}
@@ -211,7 +211,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
         </div>
       )}
 
-      <div className="flex items-center gap-2 flex-wrap gap-1.5" style={{ display: inbound ? 'none' : undefined }}>
+      <div className="flex items-center flex-wrap gap-1.5" style={{ display: inbound ? 'none' : undefined }}>
         {EVENTS.map((event) => (
           <label key={event} className={chipVariants({ interactive: true })}>
             <input

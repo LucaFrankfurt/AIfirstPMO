@@ -7,13 +7,11 @@
  * already tells their device that something moved. There is no socket, no
  * second protocol, and nothing here that has to be reconnected.
  *
- * What is deliberately *not* here is a typing indicator and a presence dot.
- * Both are ephemeral state, and this app's realtime channel carries "something
- * changed up to seq N" and nothing else — on purpose, so that catching up after
- * a tunnel and hearing about a change live are one code path. Adding
- * per-keystroke state to it would mean a second mechanism with its own failure
- * modes, in exchange for a feature nobody has ever needed to do their work.
- * `docs/chat.md` says so out loud rather than leaving it to be noticed.
+ * The one exception is the presence dot and the typing line, and they keep the
+ * exception honest: they are not rows, they never touch the sync cursor, and
+ * they are delivered under their own event name on the same connection. See
+ * `lib/presence.ts` on this side and `lib/presence.ts` on the server. A device
+ * that ignores them entirely loses a dot and nothing else.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -32,6 +30,7 @@ import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
+import { setTyping, useOnline, useTypists } from '../lib/presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Button } from '../components/ui/button';
@@ -43,6 +42,33 @@ import { Chip } from '../components/ui/chip';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
 /* --------------------------------------------------------------- the pieces */
+
+/**
+ * Here or not.
+ *
+ * Presence is shown as a dot or as nothing, never as green against red: the
+ * absent state is an absence, so the one reader in twelve who cannot separate
+ * the two hues is reading a shape rather than a colour. The word is on the
+ * tooltip and in the accessible name either way.
+ */
+function PresenceDot({ userId, className }: { userId: string; className?: string }) {
+  const t = useT();
+  const online = useOnline(userId);
+  if (!online) return null;
+  return (
+    <span
+      className={cn('inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-ok', className)}
+      title={t('presence.online')}
+      aria-label={t('presence.online')}
+      role="img"
+    />
+  );
+}
+
+/** The other half of a direct conversation, or nothing for a channel. */
+const partnerOf = (channel: Channel, me: string): string | undefined =>
+  (channel.kind === 'direct' ? (channel.members ?? []).find((id) => id !== me) : undefined);
+
 
 /** Conversations this device knows about, newest activity first. */
 function useConversations(me: string) {
@@ -140,7 +166,7 @@ export function Chat() {
             while there is somebody below. Alone, the hint further down says the
             true thing instead, and two hints where one is wrong is worse. */}
         {conversations.length === 0 && (others.length > 0 || !canWrite) && (
-          <p className="text-[12px] text-muted text-[12.5px]">{t('chat.noneYet')}</p>
+          <p className="text-muted text-[12.5px]">{t('chat.noneYet')}</p>
         )}
 
         {conversations.map((channel) => (
@@ -162,7 +188,7 @@ export function Chat() {
             workspace rather than joining the first. It is no longer a dead end:
             a direct conversation does not need a workspace in common. */}
         {canWrite && others.length === 0 && (
-          <p className="text-[12px] text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
+          <p className="text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
           <button
@@ -172,6 +198,7 @@ export function Chat() {
           >
             <Avatar user={member} size={20} />
             <span className="flex-1 min-w-0 truncate">{member.name}</span>
+            <PresenceDot userId={member.id} />
           </button>
         ))}
         {canWrite && (
@@ -227,10 +254,14 @@ function ConversationRow({ channel, me, active, title, onOpen }: {
   onOpen: () => void;
 }) {
   const unread = useUnread(channel.id, me);
+  // Only a direct conversation has a dot: a channel is not a person, and
+  // "somebody in here is online" is not a fact anybody acts on.
+  const partner = partnerOf(channel, me);
   return (
     <button className={cn(navItem({ active }), 'chat-row')} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
       <span className="flex-1 min-w-0 truncate">{title}</span>
+      {partner && <PresenceDot userId={partner} />}
       {unread > 0 && <span className={navCount}>{unread}</span>}
     </button>
   );
@@ -278,9 +309,14 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
     create('message', { channel_id: channel.id, body, reply_to: replyTo, workspace_id: channel.workspace_id ?? null });
     setDraft('');
     setReplyTo(null);
+    setTyping(null);
   };
 
+  // Switching conversations, or closing this one, stops the line over there.
+  useEffect(() => () => setTyping(null), [channel.id]);
+
   const title = channelTitle(channel, me, (id) => members.get(id)?.name);
+  const partner = partnerOf(channel, me);
 
   return (
     <>
@@ -292,7 +328,10 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         </Button>
         <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={16} />
         <div className="flex-1 min-w-0">
-          <strong>{title}</strong>
+          <span className="flex items-center gap-1.5">
+            <strong className="truncate">{title}</strong>
+            {partner && <PresenceDot userId={partner} />}
+          </span>
           {channel.topic && <div className="text-muted text-[12.5px]">{channel.topic}</div>}
         </div>
         <NotifyMenu channel={channel} me={me} />
@@ -305,7 +344,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <div className="chat-stream">
-        {messages.length === 0 && <p className="text-[12px] text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
+        {messages.length === 0 && <p className="text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
         {messages.map((message, index) => {
           const author = members.get(message.author_id ?? '');
           // Consecutive lines from the same person within five minutes are one
@@ -323,7 +362,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               {grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />}
               <div className="body">
                 {!grouped && (
-                  <div className="flex items-center gap-2 gap-1.5">
+                  <div className="flex items-center gap-1.5">
                     <span className="who">{author?.name ?? t('common.someone')}</span>
                     <span className="when">{relativeTime(message.created_at)}</span>
                     {message.edited_at && <span className="when">· {t('chat.edited')}</span>}
@@ -393,9 +432,16 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             </Button>
           </div>
         )}
+        <Typing channelId={channel.id} me={me} />
         <MarkdownEditor
           value={draft}
-          onChange={setDraft}
+          onChange={(next) => {
+            setDraft(next);
+            // The empty composer is not "still typing" — somebody who deletes
+            // what they wrote and walks away should not leave the line up for
+            // the other person to keep watching.
+            setTyping(next.trim() ? channel.id : null);
+          }}
           minHeight={54}
           placeholder={t('chat.placeholder', { where: title })}
           onSubmit={send}
@@ -408,7 +454,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         /* A guest can read an open channel and cannot write anywhere. Saying so
            here beats a composer that takes a paragraph and then refuses it. */
         <div className="chat-composer">
-          <p className="text-[12px] text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
+          <p className="text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
         </div>
       )}
       {dialog}
@@ -416,13 +462,36 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   );
 }
 
+/**
+ * "Anna is typing…", above the composer.
+ *
+ * It occupies a fixed line whether or not anybody is typing, because a line
+ * that appears and disappears shoves the entire conversation up and down while
+ * somebody is trying to read it.
+ */
+function Typing({ channelId, me }: { channelId: string; me: string }) {
+  const t = useT();
+  const members = usePeople();
+  const who = useTypists(channelId, me);
+  const name = (id: string) => members.get(id)?.name ?? t('common.someone');
+
+  const text = who.length === 0 ? ''
+    : who.length === 1 ? t('chat.typing', { name: name(who[0]) })
+    : who.length === 2 ? t('chat.typingTwo', { first: name(who[0]), second: name(who[1]) })
+    : t('chat.typingMany');
+
+  return (
+    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted" aria-live="polite">{text}</p>
+  );
+}
+
 function EditBox({ initial, onDone }: { initial: string; onDone: (body: string) => void }) {
   const t = useT();
   const [value, setValue] = useState(initial);
   return (
-    <div className="flex flex-col gap-2 gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} />
-      <div className="flex items-center gap-2 gap-1.5">
+      <div className="flex items-center gap-1.5">
         <Button variant="primary" size="sm" onClick={() => onDone(value)}>{t('action.save')}</Button>
         <Button size="sm" onClick={() => onDone(initial)}>{t('action.cancel')}</Button>
       </div>
@@ -480,7 +549,7 @@ function Reactions({ message, me, canWrite }: { message: Message; me: string; ca
   if (!used.length) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap reactions gap-1">
+    <div className="flex items-center flex-wrap reactions gap-1">
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -605,8 +674,8 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           )}
 
           <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
-          <p className="text-[12px] text-muted mb-2 text-[12.5px]">{t('chat.whoCanAddHint')}</p>
-          <div className="flex items-center gap-2 flex-wrap gap-1.5">
+          <p className="text-muted mb-2 text-[12.5px]">{t('chat.whoCanAddHint')}</p>
+          <div className="flex items-center flex-wrap gap-1.5">
             {(['members', 'admins'] as const).map((policy) => (
               <button
                 key={policy}
@@ -622,12 +691,12 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           </div>
         </>
       ) : (
-        <p className="text-[12px] text-muted text-[12.5px]">{t('chat.openChannelHint')}</p>
+        <p className="text-muted text-[12.5px]">{t('chat.openChannelHint')}</p>
       )}
 
       <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
-      <p className="text-[12px] text-muted mb-2 text-[12.5px]">{t('chat.closingHint')}</p>
-      <div className="flex items-center gap-2 flex-wrap gap-1.5">
+      <p className="text-muted mb-2 text-[12.5px]">{t('chat.closingHint')}</p>
+      <div className="flex items-center flex-wrap gap-1.5">
         <Button size="sm"
           onClick={() => {
             update('channel', channel.id, { archived_at: Date.now() });
@@ -700,8 +769,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         </div>
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
-        {tidy && tidy !== name && <p className="text-[12px] text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
-        {taken && <p className="text-[12px] text-muted text-[12.5px]" style={{ color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
+        {tidy && tidy !== name && <p className="text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
+        {taken && <p className="text-muted text-[12.5px]" style={{ color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
         <div className="field">
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
           <Input

@@ -184,17 +184,17 @@ export function Planner() {
   const nowX = x(today());
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 planner">
-      <div className="flex items-center gap-2 flex-wrap gap-2.5 mb-2.5">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className="flex items-center flex-wrap gap-2.5 mb-2.5">
         <h2 className="text-base m-0">{t('planner.title')}</h2>
         <span className="flex-1 min-w-0" />
-        <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+        <label className="flex items-center gap-1.5 text-[12.5px]">
           <span className="text-muted">{t('planner.limit')}</span>
           <Input type="number" min={1} max={20} style={{ width: 62 }}
             value={limit} onChange={(event) => setLimit(Math.max(1, Number(event.target.value) || 1))}
           />
         </label>
-        <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+        <label className="flex items-center gap-1.5 text-[12.5px]">
           <span className="text-muted">{t('planner.weeks')}</span>
           <Select style={{ width: 90 }} value={weeks}
             onChange={(event) => setWeeks(Number(event.target.value))}>

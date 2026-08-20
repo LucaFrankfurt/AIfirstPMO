@@ -247,12 +247,12 @@ export function ViewControls({
         : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
 
   return (
-    <div className="flex items-center gap-2 flex-wrap gap-1.5">
+    <div className="flex items-center flex-wrap gap-1.5">
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
           and the add button. Same choice, one button. */}
-      <div className="flex items-center gap-2 not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
         {BUILT_LAYOUTS.map((layout) => (
           <button
             key={layout}
@@ -796,7 +796,7 @@ export function CycleProgress({ cycleId }: { cycleId: string }) {
   }).length;
   const cycle = byId('cycle', cycleId);
   return (
-    <div className="flex flex-col gap-2 gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2 text-[12.5px]">
         <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
         <span className="text-muted">{done}/{tasks.length}</span>

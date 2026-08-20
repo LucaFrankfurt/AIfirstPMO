@@ -161,7 +161,7 @@ export function WelcomeTour() {
 
           <div className="field">
             <label>{t('profile.appearance')}</label>
-            <div className="flex items-center gap-2 gap-1.5">
+            <div className="flex items-center gap-1.5">
               {(['system', 'light', 'dark'] as const).map((option) => (
                 <button
                   key={option}

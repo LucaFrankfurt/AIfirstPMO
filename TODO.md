@@ -374,10 +374,16 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Time tracking.** Log time on a task, or run a timer — which is a row with a start and no
       minutes yet, so it survives a reload, a second device and a tunnel. One clock per person.
       Totals per task and per project, and `log_time` / `list_time` over MCP.
+- [x] **Time tracking is off by default**, and switched on per workspace in Settings → Workspace.
+      Decided rather than defaulted: estimates here are in points, so "spent versus estimated"
+      cannot be shown, and a team that turns it on without knowing that gets a number they cannot
+      compare to anything. The data and the API are unchanged by the switch — it hides a feature, it
+      does not throw anything away — and MCP refuses `log_time` while it is off rather than
+      recording a row no screen will show.
 - [ ] **What time tracking is a prerequisite for**: hourly rates, budgets, cost and utilisation
-      reports, and a timesheet view across projects and weeks. Also: `tasks.estimate` is in points,
-      so "spent vs. estimated" cannot be shown until an estimate carries a unit — which is a
-      decision about how a team plans, not a formatting problem.
+      reports, and a timesheet view across projects and weeks. Still blocked on the same thing:
+      `tasks.estimate` is in points, so an estimate has to carry a unit first — which is a decision
+      about how a team plans, not a formatting problem.
 - [x] **Gantt with real scheduling, and baselines.** See P2 above. A baseline keeps the dates as
       they stood under a name — the whole plan in one row, because it is something somebody *took*
       and must not drift as tasks are added afterwards — and the timeline draws it as a thin rule

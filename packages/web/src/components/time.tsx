@@ -157,7 +157,7 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
       )}
 
       {open && (
-        <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
+        <div className="flex items-center flex-wrap gap-1.5 mb-2.5">
           <Input style={{ width: 90 }} autoFocus
             placeholder={t('time.amountPlaceholder')}
             aria-label={t('time.amount')}
@@ -221,7 +221,7 @@ export function ProjectTime({ projectId }: { projectId: string }) {
   if (!entries.length) return <p className="text-muted text-[12.5px]">{t('time.noneYet')}</p>;
 
   return (
-    <div className="flex flex-col gap-2 gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <div className="flex items-center gap-2 text-[13.5px]">
         <strong className="flex-1 min-w-0">{t('time.total')}</strong>
         <span>{duration(total)}</span>

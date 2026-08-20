@@ -33,7 +33,7 @@ export function PageLabelChips({ page }: { page: Page }) {
   const ids = page.labels ?? [];
   if (!ids.length) return null;
   return (
-    <span className="flex items-center gap-2 flex-wrap gap-[5px]">
+    <span className="flex items-center flex-wrap gap-[5px]">
       {ids.map((id) => {
         const label = byId('label', id);
         if (!label) return null;

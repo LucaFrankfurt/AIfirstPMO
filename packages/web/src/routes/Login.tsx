@@ -177,8 +177,8 @@ export function Login() {
         )}
         </>)}
 
-        <div className="flex items-center gap-2 text-muted mt-[18px] text-[12.5px] gap-2.5" style={{ justifyContent: 'center' }}>
-          <span className="flex items-center gap-2 gap-[5px]"><Icon name="bolt" size={13} /> {t('login.footer')}</span>
+        <div className="flex items-center text-muted mt-[18px] text-[12.5px] gap-2.5" style={{ justifyContent: 'center' }}>
+          <span className="flex items-center gap-[5px]"><Icon name="bolt" size={13} /> {t('login.footer')}</span>
           <span aria-hidden="true">·</span>
           <Select
             aria-label={t('profile.language')}
