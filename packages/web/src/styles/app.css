@@ -139,7 +139,11 @@
 
   --fg: #14161c;
   --fg-soft: #4a4f5a;
-  --fg-muted: #8b909b;
+  /* 4.5:1 against every surface it lands on — `bg`, `sunken`, `raised` and
+     `hover`. It used to be #8b909b, which is 3.20 on white and 2.88 on a
+     hovered row: legible to the person who chose it and not to everybody. The
+     three ink levels still read as three — 16.9, 8.2, 5.0 on the page. */
+  --fg-muted: #646872;
 
   --line: #e5e6eb;
   --line-strong: #d3d5dc;
@@ -152,9 +156,14 @@
   --accent-soft: #eeeefc;
   --accent-fg: #ffffff;
 
-  --danger: #dc2626;
-  --warn: #d97706;
-  --ok: #059669;
+  /* Re-stepped so each clears 4.5:1 on every surface it lands on — these are
+     text colours as often as they are fills (`.due-today` is a warn-coloured
+     date, `late` is a danger-coloured word), and the old values were 4.02,
+     2.65 and 3.13. The dark theme re-steps them again rather than reusing
+     these, the same way the chart pair does. */
+  --danger: #ca2525;
+  --warn: #9a580d;
+  --ok: #097756;
 
   --radius: 10px;
   --radius-sm: 7px;
@@ -184,7 +193,7 @@
 
     --fg: #e8eaef;
     --fg-soft: #a7adba;
-    --fg-muted: #6f7684;
+    --fg-muted: #8a909c;
 
     --line: #22262f;
     --line-strong: #2e333e;
@@ -192,6 +201,12 @@
     --accent: #7c7cf0;
     --accent-soft: #1d1f3d;
     --accent-fg: #0b0c10;
+
+    /* Lit for a dark surface. Left alone, the light theme's red was 3.06 here
+       and its green 3.92; amber already cleared the floor, so it stays. */
+    --danger: #e06d6e;
+    --ok: #26a27c;
+    --warn: #d97706;
 
     --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
     --shadow: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
@@ -212,12 +227,15 @@
   --overlay: rgb(0 0 0 / 60%);
   --fg: #e8eaef;
   --fg-soft: #a7adba;
-  --fg-muted: #6f7684;
+  --fg-muted: #8a909c;
   --line: #22262f;
   --line-strong: #2e333e;
   --accent: #7c7cf0;
   --accent-soft: #1d1f3d;
   --accent-fg: #0b0c10;
+  --danger: #e06d6e;
+  --ok: #26a27c;
+  --warn: #d97706;
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
   --shadow: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
 }
@@ -982,11 +1000,13 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* ------------------------------------------------------------------ tasks */
 
+/* The vertical padding is on the collapse button inside, not here — see the
+   note beside it. The row looks exactly the same and answers to all of it. */
 .task-group {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 12px 6px;
+  padding: 0 12px;
   font-size: 12.5px;
   font-weight: 600;
   color: var(--fg-soft);
@@ -1305,7 +1325,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .tab-count {
   display: inline-block; margin-inline-start: 6px; min-width: 17px; padding: 0 5px;
   font-size: 11px; font-weight: 600; line-height: 17px; text-align: center;
-  color: #fff; background: var(--accent); border-radius: 999px;
+  color: var(--accent-fg); background: var(--accent); border-radius: 999px;
 }
 
 .skeleton {
@@ -1471,13 +1491,13 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   background: var(--bg-raised); font-family: var(--mono); font-size: 11px; color: var(--fg-soft);
   transition: all 160ms ease;
 }
-.gx-key.pressed { background: var(--accent); border-color: var(--accent); color: #fff; transform: translateY(1px); }
+.gx-key.pressed { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); transform: translateY(1px); }
 
 .gx-btn {
   font-size: 11px; padding: 3px 9px; border-radius: 6px;
   border: 1px solid var(--line-strong); color: var(--fg-soft); background: var(--bg);
 }
-.gx-btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.gx-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
 
 .gx-field {
   font-size: 12px; padding: 6px 8px; border-radius: 6px;
@@ -1489,10 +1509,10 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 .gx-avatar {
   width: 20px; height: 20px; border-radius: 50%; flex: none; display: grid; place-items: center;
-  background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
+  background: var(--accent); color: var(--accent-fg); font-size: 9px; font-weight: 700;
 }
 .gx-avatar.sm { width: 16px; height: 16px; font-size: 8px; }
-.gx-badge { background: var(--accent); color: #fff; font-size: 10px; padding: 0 5px; border-radius: 99px; }
+.gx-badge { background: var(--accent); color: var(--accent-fg); font-size: 10px; padding: 0 5px; border-radius: 99px; }
 .gx-progress { flex: 1; height: 5px; border-radius: 99px; background: var(--bg-active); overflow: hidden; }
 .gx-progress > i { display: block; height: 100%; background: var(--accent); transition: width 600ms ease; }
 

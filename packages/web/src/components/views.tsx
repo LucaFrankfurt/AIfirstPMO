@@ -373,9 +373,13 @@ export function ListView({
                   <input type="checkbox" checked={allSelected} aria-label={t('select.selectGroup')} onChange={() => {}} />
                 </span>
               )}
+              {/* The row's vertical padding lives on this button rather than on
+                  the row, so the whole 35px band is tappable. With `padding: 0`
+                  it looked like a row and answered to 19px of it, which on a
+                  phone reads as a button that sometimes works. */}
               <button
                 className="flex-1 min-w-0 flex items-center gap-2"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', gap: 7, padding: 0, font: 'inherit', color: 'inherit' }}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', gap: 7, padding: '10px 0 6px', font: 'inherit', color: 'inherit' }}
                 onClick={() => setCollapsed((current) => ({ ...current, [group.id]: !current[group.id] }))}
               >
                 <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />

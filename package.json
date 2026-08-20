@@ -28,7 +28,8 @@
     "test:server": "node --test packages/server/test/*.test.ts",
     "test:web": "node --import ./packages/web/test/loader.mjs --test packages/web/test/*.test.ts",
     "check:css": "node scripts/unstyled.mjs",
-    "check:responsive": "node scripts/responsive.mjs"
+    "check:responsive": "node scripts/responsive.mjs",
+    "check:contrast": "node scripts/contrast.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

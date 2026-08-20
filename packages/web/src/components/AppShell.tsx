@@ -236,7 +236,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setAdding(true)} aria-label={t('nav.newTask')}
             hidden={!canWrite}
           >
-            <span style={{ background: 'var(--accent)', color: '#fff', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
+            <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
               <Icon name="plus" size={19} />
             </span>
           </button>
