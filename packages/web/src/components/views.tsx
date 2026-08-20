@@ -17,6 +17,10 @@ import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
+import { navCount } from './ui/nav';
 import { GanttView } from './gantt';
 
 export interface ViewConfig {
@@ -243,16 +247,16 @@ export function ViewControls({
         : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
 
   return (
-    <div className="row wrap" style={{ gap: 6 }}>
+    <div className="flex items-center gap-2 flex-wrap gap-1.5">
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
           and the add button. Same choice, one button. */}
-      <div className="row not-sm" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center gap-2 not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
         {BUILT_LAYOUTS.map((layout) => (
           <button
             key={layout}
-            className={`btn ghost sm${view.layout === layout ? ' active' : ''}`}
+            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), view.layout === layout && 'bg-active text-fg')}
             style={view.layout === layout ? { background: 'var(--bg-active)' } : undefined}
             onClick={() => onChange({ ...view, layout })}
             title={t(LAYOUT_KEY[layout])}
@@ -263,7 +267,7 @@ export function ViewControls({
         ))}
       </div>
       <MenuButton
-        className="btn sm only-sm"
+        className={cn(buttonVariants({ size: 'sm' }), 'only-sm')}
         title={t(LAYOUT_KEY[view.layout])}
         items={BUILT_LAYOUTS.map((layout) => ({
           id: layout,
@@ -277,7 +281,7 @@ export function ViewControls({
       </MenuButton>
 
       <MenuButton
-        className="btn sm"
+        variant="secondary" size="sm"
         search
         items={filterItems}
       >
@@ -286,7 +290,7 @@ export function ViewControls({
       </MenuButton>
 
       <MenuButton
-        className="btn sm"
+        variant="secondary" size="sm"
         items={[
           ...(['state', 'type', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as BaseGroupBy[]).map((groupBy) => ({
             id: groupBy,
@@ -366,14 +370,14 @@ export function ListView({
                 </span>
               )}
               <button
-                className="grow row"
+                className="flex-1 min-w-0 flex items-center gap-2"
                 style={{ border: 'none', background: 'none', cursor: 'pointer', gap: 7, padding: 0, font: 'inherit', color: 'inherit' }}
                 onClick={() => setCollapsed((current) => ({ ...current, [group.id]: !current[group.id] }))}
               >
                 <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />
                 {group.color && <StateDot group={group.group} color={group.color} size={10} />}
                 <span>{group.title}</span>
-                <span className="count">{group.tasks.length}</span>
+                <span className={navCount}>{group.tasks.length}</span>
               </button>
             </div>
             {!collapsed[group.id] && group.tasks.map((task) => (
@@ -486,13 +490,13 @@ export function BoardView({
         >
           <header>
             {group.color && <StateDot group={group.group} color={group.color} size={10} />}
-            <span className="grow truncate">{group.title}</span>
+            <span className="flex-1 min-w-0 truncate">{group.title}</span>
             {(() => {
               // A limit is a number the team agreed, so it is shown as a
               // fraction and marked when it is broken — never enforced by
               // refusing a drop, which only teaches people to work elsewhere.
               const limit = view.groupBy === 'state' ? byId('state', group.id)?.wip_limit ?? 0 : 0;
-              if (!limit) return <span className="muted">{group.tasks.length}</span>;
+              if (!limit) return <span className="text-muted">{group.tasks.length}</span>;
               const over = group.tasks.length > limit;
               return (
                 <span className={over ? 'wip over' : 'wip'} title={t('state.wipHint', { limit })}>
@@ -523,7 +527,7 @@ export function BoardView({
               </Fragment>
             ))}
             {overColumn === group.id && overIndex !== null && overIndex >= group.tasks.length && <div className="drop-line" />}
-            {!group.tasks.length && <span className="muted" style={{ fontSize: 12, padding: '6px 2px' }}>{t('common.empty')}</span>}
+            {!group.tasks.length && <span className="text-muted text-[12.5px]" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>
       ))}
@@ -568,12 +572,12 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
 
   return (
     <div style={{ padding: 12 }}>
-      <div className="row" style={{ marginBottom: 10 }}>
-        <button className="btn ghost icon" onClick={() => shift(-1)} aria-label={t('view.previousMonth')}><Icon name="chevronLeft" /></button>
+      <div className="flex items-center gap-2 mb-2.5">
+        <Button variant="ghost" size="icon" onClick={() => shift(-1)} aria-label={t('view.previousMonth')}><Icon name="chevronLeft" /></Button>
         <strong>{month.toLocaleDateString(currentLocale(), { month: 'long', year: 'numeric' })}</strong>
-        <button className="btn ghost icon" onClick={() => shift(1)} aria-label={t('view.nextMonth')}><Icon name="chevronRight" /></button>
-        <span className="grow" />
-        <button className="btn sm" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>{t('common.today')}</button>
+        <Button variant="ghost" size="icon" onClick={() => shift(1)} aria-label={t('view.nextMonth')}><Icon name="chevronRight" /></Button>
+        <span className="flex-1 min-w-0" />
+        <Button size="sm" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>{t('common.today')}</Button>
       </div>
       <div className="calendar">
         {WEEKDAY_KEYS.map((weekday) => (
@@ -593,7 +597,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                   {task.title}
                 </span>
               ))}
-              {items.length > 4 && <span className="muted" style={{ fontSize: 10 }}>+{items.length - 4}</span>}
+              {items.length > 4 && <span className="text-muted text-[10px]">+{items.length - 4}</span>}
             </div>
           );
         })}
@@ -706,7 +710,7 @@ export function TableView({
                 <th colSpan={COLUMNS.length + extra.length + (selection ? 1 : 0)}>
                   {group.color && <StateDot group={group.group} color={group.color} size={9} />}
                   <span>{group.title}</span>
-                  <span className="count">{group.tasks.length}</span>
+                  <span className={navCount}>{group.tasks.length}</span>
                 </th>
               </tr>
             )}
@@ -792,13 +796,13 @@ export function CycleProgress({ cycleId }: { cycleId: string }) {
   }).length;
   const cycle = byId('cycle', cycleId);
   return (
-    <div className="col" style={{ gap: 6 }}>
-      <div className="row" style={{ fontSize: 12.5 }}>
-        <span className="grow truncate">{cycle?.name}</span>
-        <span className="muted">{done}/{tasks.length}</span>
+    <div className="flex flex-col gap-2 gap-1.5">
+      <div className="flex items-center gap-2 text-[12.5px]">
+        <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
+        <span className="text-muted">{done}/{tasks.length}</span>
       </div>
       <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
-      {cycle?.end_date && <span className="muted" style={{ fontSize: 11.5 }}>{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
+      {cycle?.end_date && <span className="text-muted text-[11.5px]">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
     </div>
   );
 }

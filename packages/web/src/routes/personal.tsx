@@ -16,6 +16,9 @@ import { byId, list, useQuery } from '../lib/store';
 import { useMe, usePeople, useSession } from '../session';
 import { useUnreadMessages } from './chat';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
+import { navCount, navItem } from '../components/ui/nav';
 import { SetupChecklist } from '../components/tour';
 
 const KIND_KEY: Record<string, TranslationKey> = {
@@ -57,16 +60,16 @@ export function MyWork() {
       <Header title={t('myWork.title')}>
         <ViewControls view={view} onChange={setView} saveable />
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <SetupChecklist />
 
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
-          <div className="grid two" style={{ marginBottom: 18 }}>
+          <div className="grid gap-3 sm:grid-cols-2 mb-[18px]">
             {buckets.overdue.length > 0 && (
-              <div className="card">
-                <div className="row" style={{ marginBottom: 8 }}>
+              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+                <div className="flex items-center gap-2 mb-2">
                   <strong className="due-overdue">{t('myWork.overdue')}</strong>
-                  <span className="muted">{buckets.overdue.length}</span>
+                  <span className="text-muted">{buckets.overdue.length}</span>
                 </div>
                 {buckets.overdue.slice(0, 5).map((task) => (
                   <TaskRow key={task.id} task={task} onOpen={openTask} showProject />
@@ -74,10 +77,10 @@ export function MyWork() {
               </div>
             )}
             {buckets.today.length > 0 && (
-              <div className="card">
-                <div className="row" style={{ marginBottom: 8 }}>
+              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+                <div className="flex items-center gap-2 mb-2">
                   <strong className="due-today">{t('myWork.dueToday')}</strong>
-                  <span className="muted">{buckets.today.length}</span>
+                  <span className="text-muted">{buckets.today.length}</span>
                 </div>
                 {buckets.today.map((task) => (
                   <TaskRow key={task.id} task={task} onOpen={openTask} showProject />
@@ -96,8 +99,8 @@ export function MyWork() {
         <SelectionBar selection={selection} tasks={visible} />
 
         {created.length > 0 && (
-          <section style={{ marginTop: 26 }}>
-            <h2 style={{ fontSize: 14, marginBottom: 6 }}>{t('myWork.createdByYou')}</h2>
+          <section className="mt-[26px]">
+            <h2 className="text-sm mb-1.5">{t('myWork.createdByYou')}</h2>
             {created.map((task) => <TaskRow key={task.id} task={task} onOpen={openTask} showProject />)}
           </section>
         )}
@@ -133,11 +136,11 @@ export function Inbox() {
           <button className={filter === 'unread' ? 'active' : ''} onClick={() => setFilter('unread')}>{t('inbox.unread')}</button>
           <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t('inbox.all')}</button>
         </div>
-        <button className="btn sm" onClick={() => markAllRead(me)} disabled={!notifications.some((n) => !n.read_at)}>
+        <Button size="sm" onClick={() => markAllRead(me)} disabled={!notifications.some((n) => !n.read_at)}>
           <Icon name="check" size={14} /> <span className="hide-sm">{t('inbox.markAllRead')}</span>
-        </button>
+        </Button>
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {shown.length === 0 ? (
           <Empty emoji="📭" title={t('inbox.emptyTitle')} hint={t('inbox.emptyHint')} guide="collab" />
         ) : (
@@ -162,14 +165,14 @@ export function Inbox() {
                 }}
               >
                 <Avatar user={actor} size={26} />
-                <span className="grow" style={{ minWidth: 0 }}>
-                  <span className="row" style={{ gap: 6 }}>
-                    <strong style={{ fontSize: 13.5 }}>{notification.title}</strong>
-                    {!notification.read_at && <span className="badge-dot" />}
+                <span className="flex-1 min-w-0">
+                  <span className="flex items-center gap-2 gap-1.5">
+                    <strong className="text-[13.5px]">{notification.title}</strong>
+                    {!notification.read_at && <span className="size-1.5 flex-none rounded-full bg-accent" />}
                   </span>
-                  {notification.body && <span className="muted truncate" style={{ fontSize: 12.5 }}>{excerpt(notification.body, 90)}</span>}
+                  {notification.body && <span className="text-muted truncate text-[12.5px]">{excerpt(notification.body, 90)}</span>}
                 </span>
-                <span className="muted" style={{ fontSize: 11.5 }}>{relativeTime(notification.created_at)}</span>
+                <span className="text-muted text-[11.5px]">{relativeTime(notification.created_at)}</span>
               </button>
             );
           })
@@ -241,14 +244,13 @@ export function Search() {
   return (
     <>
       <Header title={t('search.title')} />
-      <div className="page">
-        <input
-          className="input"
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <Input
           autoFocus
           placeholder={t('search.placeholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          style={{ marginBottom: 14, fontSize: 16 }}
+          className="mb-3.5 text-base"
         />
         {query.trim().length < 2 ? (
           <Empty emoji="🔎" title={t('search.promptTitle')} hint={t('search.promptHint')} />
@@ -256,13 +258,13 @@ export function Search() {
           <Empty emoji="🫙" title={t('search.noResults', { query })} />
         ) : (
           results.map((hit) => (
-            <button key={`${hit.kind}-${hit.id}`} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => open(hit)}>
+            <button key={`${hit.kind}-${hit.id}`} className="task-row text-left" style={{ width: '100%' }} onClick={() => open(hit)}>
               <Icon name={hit.kind === 'task' ? 'check' : hit.kind === 'page' ? 'page' : 'folder'} size={15} />
-              <span className="grow" style={{ minWidth: 0 }}>
+              <span className="flex-1 min-w-0">
                 <div className="truncate">{hit.title}</div>
-                {hit.snippet && <div className="muted truncate" style={{ fontSize: 12 }}>{hit.snippet}</div>}
+                {hit.snippet && <div className="text-muted truncate text-[12.5px]">{hit.snippet}</div>}
               </span>
-              <span className="muted" style={{ fontSize: 11.5 }}>{KIND_KEY[hit.kind] ? t(KIND_KEY[hit.kind]) : hit.kind}</span>
+              <span className="text-muted text-[11.5px]">{KIND_KEY[hit.kind] ? t(KIND_KEY[hit.kind]) : hit.kind}</span>
             </button>
           ))
         )}
@@ -284,12 +286,12 @@ export function More() {
   return (
     <>
       <Header title={t('nav.more')} />
-      <div className="page">
-        <div className="row" style={{ marginBottom: 16 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <div className="flex items-center gap-2 mb-4">
           <Avatar user={user ?? undefined} size={40} />
-          <div className="grow">
+          <div className="flex-1 min-w-0">
             <strong>{user?.name}</strong>
-            <div className="muted" style={{ fontSize: 12.5 }}>{user?.email}</div>
+            <div className="text-muted text-[12.5px]">{user?.email}</div>
           </div>
         </div>
 
@@ -300,28 +302,28 @@ export function More() {
         {/* Links rather than buttons that navigate: a long-press to open in a
             new tab is a thing people do, and it also means "can a phone reach
             this?" is a question about hrefs that a test can ask. */}
-        <div className="card" style={{ padding: 6, marginBottom: 14 }}>
-          <Link className="nav-item" to="/chat">
-            <Icon name="chat" size={16} /> <span className="grow">{t('nav.chat')}</span>
-            {unreadMessages > 0 && <span className="count">{unreadMessages}</span>}
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
+          <Link className={navItem()} to="/chat">
+            <Icon name="chat" size={16} /> <span className="flex-1 min-w-0">{t('nav.chat')}</span>
+            {unreadMessages > 0 && <span className={navCount}>{unreadMessages}</span>}
           </Link>
-          <Link className="nav-item" to="/pages"><Icon name="page" size={16} /> {t('nav.pages')}</Link>
-          <Link className="nav-item" to="/teams"><Icon name="users" size={16} /> {t('nav.teams')}</Link>
-          <Link className="nav-item" to="/planner"><Icon name="users" size={16} /> {t('nav.planner')}</Link>
-          <Link className="nav-item" to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
-          <Link className="nav-item" to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
-          <Link className="nav-item" to="/guide"><Icon name="help" size={16} /> {t('nav.guide')}</Link>
+          <Link className={navItem()} to="/pages"><Icon name="page" size={16} /> {t('nav.pages')}</Link>
+          <Link className={navItem()} to="/teams"><Icon name="users" size={16} /> {t('nav.teams')}</Link>
+          <Link className={navItem()} to="/planner"><Icon name="users" size={16} /> {t('nav.planner')}</Link>
+          <Link className={navItem()} to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
+          <Link className={navItem()} to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
+          <Link className={navItem()} to="/guide"><Icon name="help" size={16} /> {t('nav.guide')}</Link>
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>
-        <div className="card" style={{ padding: 6, marginBottom: 14 }}>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
           {projects.map((project) => (
-            <Link key={project.id} className="nav-item" to={`/projects/${project.id}`}>
+            <Link key={project.id} className={navItem()} to={`/projects/${project.id}`}>
               <span style={{ width: 18 }}>{project.icon ?? '•'}</span> {project.name}
             </Link>
           ))}
           {projects.length > 1 && (
-            <Link className="nav-item" to="/portfolio">
+            <Link className={navItem()} to="/portfolio">
               <Icon name="target" size={16} /> {t('nav.portfolio')}
             </Link>
           )}
@@ -330,11 +332,11 @@ export function More() {
         {(session?.workspaces.length ?? 0) > 1 && (
           <>
             <div className="nav-section">{t('nav.workspaces')}</div>
-            <div className="card" style={{ padding: 6, marginBottom: 14 }}>
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
               {session?.workspaces.map((workspace) => (
                 <button
                   key={workspace.id}
-                  className={`nav-item${workspace.id === workspaceId ? ' active' : ''}`}
+                  className={navItem({ active: workspace.id === workspaceId })}
                   onClick={() => setWorkspace(workspace.id)}
                 >
                   {workspace.name}
@@ -344,9 +346,9 @@ export function More() {
           </>
         )}
 
-        <button className="btn block danger" onClick={() => void signOut()}>
+        <Button variant="danger" block onClick={() => void signOut()}>
           <Icon name="logout" size={15} /> {t('nav.signOut')}
-        </button>
+        </Button>
       </div>
     </>
   );

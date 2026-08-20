@@ -95,7 +95,7 @@ export function CaptureDiagram() {
           <Frame className="gx-app">
             <Row className="gx-appbar">
               <span className="gx-strong">{t('nav.myWork')}</span>
-              <span className="grow" />
+              <span className="flex-1 min-w-0" />
               <Key pressed={step === 0}>C</Key>
             </Row>
             <MiniTask id="WEB-1" title={t('guide.sample.task1')} dim />
@@ -108,7 +108,7 @@ export function CaptureDiagram() {
           <Frame className="gx-sheet" data-on={step >= 1 && step < 3 ? 'true' : 'false'}>
             <Row className="gx-sheet-head">
               <strong>{t('quickAdd.title')}</strong>
-              <span className="grow" />
+              <span className="flex-1 min-w-0" />
               <Icon name="close" size={13} />
             </Row>
             <div className="gx-field" data-typing={step === 1 ? 'true' : undefined}>
@@ -159,7 +159,7 @@ export function ViewsDiagram() {
               <span className={`gx-tool${!board ? ' on' : ''}`}><Icon name="list" size={12} /> {t('view.list')}</span>
               <span className={`gx-tool${board ? ' on' : ''}`}><Icon name="board" size={12} /> {t('view.board')}</span>
               <span className="gx-tool"><Icon name="calendar" size={12} /> {t('view.calendar')}</span>
-              <span className="grow" />
+              <span className="flex-1 min-w-0" />
               <span className={`gx-tool${step === 1 ? ' on' : ''}`}>
                 <Icon name="filter" size={12} /> {step === 1 ? t('view.groupAssignee') : t('view.groupState')}
               </span>
@@ -283,7 +283,7 @@ export function SyncDiagram() {
               <Frame className="gx-device">
                 <Row className="gx-device-head">
                   <strong>{t('guide.sample.person1')}</strong>
-                  <span className="grow" />
+                  <span className="flex-1 min-w-0" />
                   <span className={`gx-pill${offline ? ' offline' : ''}`}>
                     <i /> {offline ? t('sync.offline') : t('sync.synced')}
                   </span>
@@ -295,7 +295,7 @@ export function SyncDiagram() {
                   <MiniChip tone={merged ? 'warn' : undefined}>
                     {merged ? t('priority.high') : t('priority.medium')}
                   </MiniChip>
-                  <span className="grow" />
+                  <span className="flex-1 min-w-0" />
                   <MiniChip tone={queued ? 'accent' : undefined}>
                     {t('guide.sync.outbox', { count: queued ? 1 : 0 })}
                   </MiniChip>
@@ -306,7 +306,7 @@ export function SyncDiagram() {
               <Frame className="gx-device">
                 <Row className="gx-device-head">
                   <strong>{t('guide.sample.person2')}</strong>
-                  <span className="grow" />
+                  <span className="flex-1 min-w-0" />
                   <span className="gx-pill"><i /> {t('sync.synced')}</span>
                 </Row>
                 <div className="gx-field small">
@@ -379,7 +379,7 @@ export function PagesDiagram() {
             <Row className="gx-versions" data-on={step >= 3 ? 'true' : 'false'}>
               <Icon name="refresh" size={12} />
               <span className="gx-muted">{t('guide.pages.versions')}</span>
-              <span className="grow" />
+              <span className="flex-1 min-w-0" />
               <span className="gx-btn">{t('action.restore')}</span>
             </Row>
           </Frame>
@@ -422,7 +422,7 @@ export function CollaborationDiagram() {
               <Row className="gx-device-head">
                 <Icon name="inbox" size={13} />
                 <strong>{t('inbox.title')}</strong>
-                <span className="grow" />
+                <span className="flex-1 min-w-0" />
                 <span className="gx-badge">1</span>
               </Row>
               <div className="gx-notif">
@@ -437,7 +437,7 @@ export function CollaborationDiagram() {
             <Frame className="gx-mail" data-on={step >= 2 ? 'true' : 'false'}>
               <Row>
                 <Icon name="send" size={12} />
-                <strong className="grow">{t('guide.collab.oneMail')}</strong>
+                <strong className="flex-1 min-w-0">{t('guide.collab.oneMail')}</strong>
                 <MiniChip tone={step >= 3 ? 'accent' : undefined}>{t('guide.collab.preference')}</MiniChip>
               </Row>
             </Frame>
@@ -471,7 +471,7 @@ export function ChatDiagram() {
             <Row className="gx-device-head">
               <span className="gx-avatar">AL</span>
               <strong>{t('guide.sample.person1')}</strong>
-              <span className="grow" />
+              <span className="flex-1 min-w-0" />
               <MiniChip tone={step === 0 ? 'accent' : undefined}>{t('guide.chat.offline')}</MiniChip>
             </Row>
             <div className="gx-field small">{t('guide.chat.said1')}</div>
@@ -485,7 +485,7 @@ export function ChatDiagram() {
               <Row className="gx-device-head">
                 <span className="gx-avatar sm">LN</span>
                 <strong>{t('guide.sample.person2')}</strong>
-                <span className="grow" />
+                <span className="flex-1 min-w-0" />
                 <MiniChip tone={step === 0 ? 'accent' : undefined}>{t('guide.chat.offline')}</MiniChip>
               </Row>
               <div className="gx-field small">{t('guide.chat.said2')}</div>
@@ -497,7 +497,7 @@ export function ChatDiagram() {
             <Frame className="gx-mail" data-on={step >= 3 ? 'true' : 'false'}>
               <Row>
                 <Icon name="chat" size={12} />
-                <strong className="grow">{t('guide.chat.oneRoom')}</strong>
+                <strong className="flex-1 min-w-0">{t('guide.chat.oneRoom')}</strong>
                 <MiniChip tone={step >= 3 ? 'accent' : undefined}>{t('guide.chat.bothLines')}</MiniChip>
               </Row>
             </Frame>
@@ -561,7 +561,7 @@ export function AutomationDiagram() {
               <Row className="gx-wrap">
                 <MiniChip tone="ok">@lin</MiniChip>
                 {step >= 4 && <MiniChip tone="ok">@ada</MiniChip>}
-                <span className="grow" />
+                <span className="flex-1 min-w-0" />
                 <MiniChip>{t('relation.relates_to')}</MiniChip>
               </Row>
             </Frame>

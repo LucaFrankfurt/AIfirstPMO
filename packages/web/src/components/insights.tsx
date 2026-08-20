@@ -152,7 +152,7 @@ function Lines({ series, labels, caption }: { series: Series[]; labels: string[]
       >
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="lines-svg">
           {[0, 50, 100].map((line) => (
-            <line key={line} x1="0" x2="100" y1={line} y2={line} className="grid" vectorEffect="non-scaling-stroke" />
+            <line key={line} x1="0" x2="100" y1={line} y2={line} className="grid-line" vectorEffect="non-scaling-stroke" />
           ))}
           {hover !== null && (
             <line x1={x(hover)} x2={x(hover)} y1="0" y2="100" className="crosshair" vectorEffect="non-scaling-stroke" />
@@ -192,7 +192,7 @@ function Lines({ series, labels, caption }: { series: Series[]; labels: string[]
         )}
       </div>
       <div className="chart-axis">
-        <span style={{ flex: 1 }}>{labels[0]}</span>
+        <span className="flex-1">{labels[0]}</span>
         <span style={{ flex: 1, textAlign: 'end' }}>{labels[labels.length - 1]}</span>
       </div>
       <figcaption>{caption}</figcaption>
@@ -355,7 +355,7 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="page">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="kpi-row">
         <Stat label={t('insights.open')} value={String(stats.open)} hint={t('insights.ofTotal', { count: tasks.length })} />
         <Stat label={t('insights.completed30')} value={String(stats.recent)} hint={t('insights.last30')} />
@@ -372,16 +372,16 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
         <Stat label={t('insights.timeLogged')} value={duration(stats.minutes)} hint={t('insights.last30')} />
       </div>
 
-      <div className="card">
+      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
         <h3 className="chart-title">{t('insights.throughput')}</h3>
-        <p className="hint">{t('insights.throughputHint')}</p>
+        <p className="text-[12px] text-muted">{t('insights.throughputHint')}</p>
         <Columns data={throughput} caption={t('insights.throughputCaption')} />
       </div>
 
       {burnUp && (
-        <div className="card">
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
           <h3 className="chart-title">{t('insights.burnUp', { name: burnUp.name })}</h3>
-          <p className="hint">{t('insights.burnUpHint')}</p>
+          <p className="text-[12px] text-muted">{t('insights.burnUpHint')}</p>
           <Lines
             labels={burnUp.labels}
             caption={t('insights.burnUpCaption', { name: burnUp.name })}
@@ -393,17 +393,17 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <div className="grid two">
+      <div className="grid gap-3 sm:grid-cols-2">
         {byType.length > 0 && (
-          <div className="card">
+          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
             <h3 className="chart-title">{t('insights.byType')}</h3>
             <Bars data={byType} caption={t('insights.byType')} />
           </div>
         )}
         {byPerson.length > 0 && (
-          <div className="card">
+          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
             <h3 className="chart-title">{t('insights.byPerson')}</h3>
-            <p className="hint">{t('insights.byPersonHint')}</p>
+            <p className="text-[12px] text-muted">{t('insights.byPersonHint')}</p>
             <Bars data={byPerson} caption={t('insights.byPerson')} />
           </div>
         )}

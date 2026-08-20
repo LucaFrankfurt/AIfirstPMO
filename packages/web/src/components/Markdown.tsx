@@ -7,7 +7,10 @@ import { list, useQuery } from '../lib/store';
 import { backgroundOf } from '../lib/navigation';
 import { useMembers, useSession } from '../session';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
 import { Avatar, Icon, useLightbox, useToast } from './ui';
+import { Textarea } from './ui/field';
 
 /**
  * What a reference in this workspace may point at.
@@ -330,14 +333,14 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
       <div className="editor-toolbar">
         {SNIPPETS.map((snippet) => (
           <button
-            key={snippet.title} type="button" className="btn ghost sm" title={t(snippet.title)}
+            key={snippet.title} type="button" className={buttonVariants({ variant: 'ghost', size: 'sm' })} title={t(snippet.title)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => surround(snippet.wrap[0], snippet.wrap[1])}
           >
             {snippet.icon}
           </button>
         ))}
-        <label className="btn ghost sm" title={t('editor.attachImage')} style={{ cursor: 'pointer' }}>
+        <label className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'cursor-pointer')} title={t('editor.attachImage')}>
           <Icon name="image" size={14} />
           <input
             type="file" hidden multiple accept="image/*,application/pdf"
@@ -347,9 +350,9 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             }}
           />
         </label>
-        <span className="grow" />
-        {busy && <span className="muted" style={{ fontSize: 12 }}>{t('editor.uploading')}</span>}
-        <button type="button" className={`btn ghost sm${preview ? ' active' : ''}`} onClick={() => setPreview(!preview)}>
+        <span className="flex-1 min-w-0" />
+        {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
+        <button type="button" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), preview && 'bg-active text-fg')} onClick={() => setPreview(!preview)}>
           {preview ? t('editor.write') : t('editor.preview')}
         </button>
       </div>
@@ -360,9 +363,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
         </div>
       ) : (
         <>
-        <textarea
+        <Textarea
           ref={ref}
-          className="textarea"
           style={{ minHeight }}
           value={value}
           placeholder={placeholder ?? t('editor.placeholder')}
@@ -476,8 +478,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
                 onClick={() => pickRef(choice)}
               >
                 <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon || '#'}</span>
-                <span className="grow truncate">{choice.label}</span>
-                <span className="muted mono truncate" style={{ fontSize: 11 }}>{choice.hint}</span>
+                <span className="flex-1 min-w-0 truncate">{choice.label}</span>
+                <span className="text-muted mono truncate text-[11.5px]">{choice.hint}</span>
               </button>
             ))}
           </div>
@@ -496,8 +498,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
                 onClick={() => pickMention(member)}
               >
                 <Avatar user={member} size={18} />
-                <span className="grow truncate">{member.name}</span>
-                <span className="muted truncate" style={{ fontSize: 11 }}>{member.email}</span>
+                <span className="flex-1 min-w-0 truncate">{member.name}</span>
+                <span className="text-muted truncate text-[11.5px]">{member.email}</span>
               </button>
             ))}
           </div>

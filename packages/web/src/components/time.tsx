@@ -17,6 +17,9 @@ import { shortDate, today } from '../lib/format';
 import { create, remove, update } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
 import { useMe, useMemberMap, useSession } from '../session';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
+import { Chip } from './ui/chip';
 import { Avatar, Icon, useConfirm, useToast } from './ui';
 
 /** Minutes on the clock right now, for a row that is still running. */
@@ -122,83 +125,80 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
   };
 
   return (
-    <section style={{ marginBottom: 18 }}>
-      <div className="row" style={{ gap: 8, marginBottom: 8 }}>
-        <strong style={{ fontSize: 13 }}>{t('time.title')}</strong>
+    <section className="mb-[18px]">
+      <div className="flex items-center gap-2 mb-2">
+        <strong className="text-[13.5px]">{t('time.title')}</strong>
         {/* Logged time only. `tasks.estimate` is points, not hours — the app
             calls them "estimate points" — so putting the two side by side would
             be comparing a guess at size with a measurement of time. Showing
             spent against estimated needs the estimate to carry a unit first. */}
-        <span className="chip">{duration(total + elapsed)}</span>
-        <span className="grow" />
+        <Chip>{duration(total + elapsed)}</Chip>
+        <span className="flex-1 min-w-0" />
         {runningHere ? (
-          <button className="btn sm danger" onClick={() => stop(runningHere)}>
+          <Button variant="danger" size="sm" onClick={() => stop(runningHere)}>
             <Icon name="pause" size={14} /> {t('time.stop')}
-          </button>
+          </Button>
         ) : (
-          <button className="btn sm" onClick={start} title={running ? t('time.switchHint') : undefined}>
+          <Button size="sm" onClick={start} title={running ? t('time.switchHint') : undefined}>
             <Icon name="play" size={14} /> {t('time.start')}
-          </button>
+          </Button>
         )}
-        <button className="btn ghost sm" onClick={() => setOpen(!open)}>{t('time.log')}</button>
+        <Button variant="ghost" size="sm" onClick={() => setOpen(!open)}>{t('time.log')}</Button>
       </div>
 
       {runningHere && (
-        <p className="muted" style={{ fontSize: 12, marginBottom: 8 }} aria-live="polite">
+        <p className="text-muted text-[12.5px] mb-2" aria-live="polite">
           {t('time.runningFor', { amount: duration(elapsed) })}
         </p>
       )}
       {running && !runningHere && (
         // Saying where the clock is beats a person hunting for it.
-        <p className="hint warn" style={{ marginBottom: 8 }}>{t('time.runningElsewhere')}</p>
+        <p className="text-[12px] text-danger mb-2">{t('time.runningElsewhere')}</p>
       )}
 
       {open && (
-        <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>
-          <input
-            className="input" style={{ width: 90 }} autoFocus
+        <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
+          <Input style={{ width: 90 }} autoFocus
             placeholder={t('time.amountPlaceholder')}
             aria-label={t('time.amount')}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && log()}
           />
-          <input
-            className="input" type="date" style={{ width: 148 }}
+          <Input type="date" style={{ width: 148 }}
             aria-label={t('time.date')}
             value={date}
             onChange={(event) => setDate(event.target.value)}
           />
-          <input
-            className="input grow" style={{ minWidth: 120 }}
+          <Input
+            className="flex-1 min-w-0" style={{ minWidth: 120 }}
             placeholder={t('time.notePlaceholder')}
             aria-label={t('time.note')}
             value={note}
             onChange={(event) => setNote(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && log()}
           />
-          <button className="btn primary sm" disabled={!parseDuration(amount)} onClick={log}>{t('action.save')}</button>
+          <Button variant="primary" size="sm" disabled={!parseDuration(amount)} onClick={log}>{t('action.save')}</Button>
         </div>
       )}
 
       {entries.map((entry) => (
-        <div className="row" key={entry.id} style={{ gap: 8, fontSize: 12.5, padding: '5px 0', borderTop: '1px solid var(--line)' }}>
+        <div className="flex items-center gap-2" key={entry.id} style={{ gap: 8, fontSize: 12.5, padding: '5px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={members.get(entry.user_id)} size={18} />
           <span style={{ minWidth: 62 }}>
             {entry.started_at ? `${duration(runningMinutes(entry, now))} ${t('time.running')}` : duration(entry.minutes)}
           </span>
-          <span className="muted">{shortDate(entry.spent_on)}</span>
-          <span className="grow truncate">{entry.note ?? ''}</span>
+          <span className="text-muted">{shortDate(entry.spent_on)}</span>
+          <span className="flex-1 min-w-0 truncate">{entry.note ?? ''}</span>
           {entry.user_id === me && !entry.started_at && (
-            <button
-              className="btn ghost sm icon"
+            <Button variant="ghost" size="iconSm"
               aria-label={t('time.deleteEntry')}
               onClick={async () => {
                 if (await confirm(t('time.deleteConfirm', { amount: duration(entry.minutes) }))) remove('timeEntry', entry.id);
               }}
             >
               <Icon name="trash" size={13} />
-            </button>
+            </Button>
           )}
         </div>
       ))}
@@ -218,19 +218,19 @@ export function ProjectTime({ projectId }: { projectId: string }) {
   for (const entry of entries) byPerson.set(entry.user_id, (byPerson.get(entry.user_id) ?? 0) + (entry.minutes ?? 0));
   const people = [...byPerson.entries()].sort((a, b) => b[1] - a[1]);
 
-  if (!entries.length) return <p className="muted" style={{ fontSize: 12.5 }}>{t('time.noneYet')}</p>;
+  if (!entries.length) return <p className="text-muted text-[12.5px]">{t('time.noneYet')}</p>;
 
   return (
-    <div className="col" style={{ gap: 6 }}>
-      <div className="row" style={{ fontSize: 13 }}>
-        <strong className="grow">{t('time.total')}</strong>
+    <div className="flex flex-col gap-2 gap-1.5">
+      <div className="flex items-center gap-2 text-[13.5px]">
+        <strong className="flex-1 min-w-0">{t('time.total')}</strong>
         <span>{duration(total)}</span>
       </div>
       {people.map(([userId, minutes]) => (
-        <div className="row" key={userId} style={{ fontSize: 12.5, gap: 7 }}>
+        <div className="flex items-center gap-2" key={userId} style={{ fontSize: 12.5, gap: 7 }}>
           <Avatar user={members.get(userId)} size={18} />
-          <span className="grow truncate">{members.get(userId)?.name ?? t('common.someone')}</span>
-          <span className="muted">{duration(minutes)}</span>
+          <span className="flex-1 min-w-0 truncate">{members.get(userId)?.name ?? t('common.someone')}</span>
+          <span className="text-muted">{duration(minutes)}</span>
         </div>
       ))}
     </div>

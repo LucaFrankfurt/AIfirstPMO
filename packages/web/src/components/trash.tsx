@@ -20,6 +20,11 @@ import { byId, tables } from '../lib/store';
 import { useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useMemberMap, useSession } from '../session';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
+import { Input } from '../components/ui/field';
+import { SectionHeading } from './ui/section';
 import { Empty, Icon, useConfirm, useToast } from './ui';
 
 /** What can end up in here, and what to call it. */
@@ -133,15 +138,15 @@ export function Trash() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, marginBottom: 8 }}>{t('trash.title')}</h3>
-      <p className="muted" style={{ fontSize: 13 }}>{t('trash.intro')}</p>
+      <SectionHeading tight>{t('trash.title')}</SectionHeading>
+      <p className="text-muted text-[13.5px]">{t('trash.intro')}</p>
 
-      <div className="row wrap" style={{ gap: 6, margin: '12px 0' }}>
-        <div className="row" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center gap-2 flex-wrap gap-1.5" style={{ margin: '12px 0' }}>
+        <div className="flex items-center gap-2 gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
           {(['deleted', 'archived'] as const).map((which) => (
             <button
               key={which}
-              className={`btn ghost sm${mode === which ? ' active' : ''}`}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), mode === which && 'bg-active text-fg')}
               style={mode === which ? { background: 'var(--bg-active)' } : undefined}
               aria-pressed={mode === which}
               onClick={() => setMode(which)}
@@ -150,8 +155,8 @@ export function Trash() {
             </button>
           ))}
         </div>
-        <input
-          className="input grow"
+        <Input
+          className="flex-1 min-w-0"
           style={{ minWidth: 160 }}
           placeholder={t('trash.filter')}
           aria-label={t('trash.filter')}
@@ -159,10 +164,10 @@ export function Trash() {
           onChange={(event) => setQuery(event.target.value)}
         />
         {mode === 'deleted' && canEmpty && entries.length > 0 && (
-          <button className="btn sm danger" disabled={emptying} onClick={() => void empty()}>
+          <Button variant="danger" size="sm" disabled={emptying} onClick={() => void empty()}>
             <Icon name="trash" size={13} />
             {emptying ? t('action.working') : t('trash.emptyAction')}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -173,27 +178,27 @@ export function Trash() {
           hint={t('trash.emptyHint')}
         />
       ) : (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 p-0">
           {shown.map((entry) => (
-            <div className="row trash-row" key={`${entry.entity}-${entry.id}`} style={{ gap: 9 }}>
+            <div className="flex items-center gap-2 trash-row" key={`${entry.entity}-${entry.id}`} style={{ gap: 9 }}>
               <Icon name={entry.icon} size={14} />
-              <span className="muted" style={{ fontSize: 11.5, minWidth: 62 }}>{t(entry.label)}</span>
-              <span className="grow truncate">{entry.title}</span>
-              {entry.where && <span className="muted truncate hide-sm" style={{ fontSize: 12, maxWidth: 130 }}>{entry.where}</span>}
-              <span className="muted" style={{ fontSize: 12 }}>{entry.when ? relativeTime(entry.when) : ''}</span>
-              <button className="btn sm" onClick={() => bring(entry)}>{t('trash.restore')}</button>
+              <span className="text-muted text-[11.5px]" style={{ minWidth: 62 }}>{t(entry.label)}</span>
+              <span className="flex-1 min-w-0 truncate">{entry.title}</span>
+              {entry.where && <span className="text-muted truncate hide-sm text-[12.5px]" style={{ maxWidth: 130 }}>{entry.where}</span>}
+              <span className="text-muted text-[12.5px]">{entry.when ? relativeTime(entry.when) : ''}</span>
+              <Button size="sm" onClick={() => bring(entry)}>{t('trash.restore')}</Button>
             </div>
           ))}
           {entries.length > shown.length && (
-            <div className="row trash-row">
-              <span className="muted" style={{ fontSize: 12 }}>{t('trash.andMore', { count: entries.length - shown.length })}</span>
+            <div className="flex items-center gap-2 trash-row">
+              <span className="text-muted text-[12.5px]">{t('trash.andMore', { count: entries.length - shown.length })}</span>
             </div>
           )}
         </div>
       )}
 
-      <p className="hint" style={{ marginTop: 10 }}>{t('trash.retentionHint')}</p>
-      {mode === 'deleted' && canEmpty && <p className="hint">{t('trash.emptyHintWhat')}</p>}
+      <p className="text-[12px] text-muted mt-2.5">{t('trash.retentionHint')}</p>
+      {mode === 'deleted' && canEmpty && <p className="text-[12px] text-muted">{t('trash.emptyHintWhat')}</p>}
       {dialog}
       {/* `members` is read so a future "deleted by" column has it to hand; the
           delete itself is not attributed on the row today. */}

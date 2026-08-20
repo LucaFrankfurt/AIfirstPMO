@@ -1,3 +1,55 @@
+@import "tailwindcss";
+
+/*
+ * Tailwind, over the design system that was already here.
+ *
+ * The tokens below are not re-declared for Tailwind — they are *aliased* into
+ * it with `@theme inline`, so `bg-raised` and `text-muted` resolve to the same
+ * `var(--bg-raised)` and `var(--fg-muted)` the hand-written rules use. That has
+ * one consequence worth understanding, and it is the reason the port could be
+ * done at all without a flag day: **dark mode needs no `dark:` variants**. The
+ * variables are redefined for dark further down, so a Tailwind class built on
+ * them is already right in both themes, and a screen that has been ported and
+ * one that has not agree on every colour.
+ *
+ * The `dark` variant is still defined, for the rare rule that needs to differ
+ * by more than a colour — a shadow, a border weight.
+ */
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *, :root:not([data-theme='light']) &));
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-sunken: var(--bg-sunken);
+  --color-raised: var(--bg-raised);
+  --color-hover: var(--bg-hover);
+  --color-active: var(--bg-active);
+
+  --color-fg: var(--fg);
+  --color-soft: var(--fg-soft);
+  --color-muted: var(--fg-muted);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-fg: var(--accent-fg);
+
+  --color-danger: var(--danger);
+  --color-warn: var(--warn);
+  --color-ok: var(--ok);
+
+  --radius-DEFAULT: var(--radius);
+  --radius-sm: var(--radius-sm);
+  --radius-lg: var(--radius-lg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-DEFAULT: var(--shadow);
+
+  --font-sans: var(--font);
+  --font-mono: var(--mono);
+}
+
 /* Kolibri design system.
    Quiet by default: one accent colour, hairline borders, almost no shadow.
    Mobile-first — the desktop layout starts at 900px. */
@@ -260,30 +312,7 @@ p { margin: 0 0 0.75em; }
 
 .brand img { width: 22px; height: 22px; border-radius: 6px; }
 
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  padding: 7px 9px;
-  border-radius: var(--radius-sm);
-  color: var(--fg-soft);
-  font-size: 13.5px;
-  min-height: 34px;
-  cursor: pointer;
-  user-select: none;
-  border: none;
-  background: none;
-  width: 100%;
-  text-align: left;
-}
 
-.nav-item:hover { background: var(--bg-hover); color: var(--fg); }
-.nav-item[aria-current='page'], .nav-item.active {
-  background: var(--bg-active);
-  color: var(--fg);
-  font-weight: 550;
-}
-.nav-item .count { margin-inline-start: auto; font-size: 11.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 
 .nav-section {
   display: flex;
@@ -300,80 +329,7 @@ p { margin: 0 0 0.75em; }
 
 /* ----------------------------------------------------------------- pieces */
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line-strong);
-  background: var(--bg-raised);
-  color: var(--fg);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-.btn:hover { background: var(--bg-hover); }
-.btn:active { background: var(--bg-active); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { filter: brightness(1.08); }
-.btn.ghost { border-color: transparent; background: transparent; }
-.btn.ghost:hover { background: var(--bg-hover); }
-.btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
-.btn.icon { width: 32px; padding: 0; }
-.btn.sm { height: 27px; font-size: 12.5px; padding: 0 8px; }
-.btn.lg { height: 40px; font-size: 14px; padding: 0 16px; }
-.btn.block { width: 100%; }
 
-.input, .textarea, .select {
-  width: 100%;
-  border: 1px solid var(--line-strong);
-  background: var(--bg-raised);
-  border-radius: var(--radius-sm);
-  padding: 7px 10px;
-  min-height: 34px;
-  font-size: 14px; /* 16px on mobile prevents iOS zoom — see media query below */
-}
-.textarea { min-height: 90px; resize: vertical; }
-.input:focus, .textarea:focus, .select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
-
-@media (max-width: 899px) {
-  .input, .textarea, .select { font-size: 16px; }
-}
-
-.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
-.field label { font-size: 12.5px; font-weight: 550; color: var(--fg-soft); }
-.field .hint { font-size: 12px; color: var(--fg-muted); }
-.hint.warn { color: var(--danger); }
-/* A hint is muted text, and a link inside one has to stay a link: without this
-   the way out of an empty screen reads as the last three words of a sentence. */
-.hint a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
-
-/* A checkbox with a label and a line of explanation under it. */
-.check-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
-.check-row input { margin-top: 2px; flex: none; }
-.check-row .hint { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
-
-/* Picking a shape for a saved view. Square buttons so the row reads as a set of
-   choices rather than as a sentence of icons. */
-.icon-choices { gap: 4px; margin-top: 2px; }
-.icon-choices .btn { padding: 0; width: 32px; height: 32px; justify-content: center; }
-
-/* Marks a saved view that has been changed since it was saved. */
-.dot-modified {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--accent); flex: none; margin-left: 1px;
-}
-
-/* ------------------------------------------------------- selecting rows */
-
-/* The checkbox is out of the way until it is wanted — on a pointer device it
-   appears on hover, on a touch screen there is no hover so it is always there. */
 .select-box {
   display: inline-flex;
   align-items: center;
@@ -495,13 +451,13 @@ p { margin: 0 0 0.75em; }
 }
 .import-drop:hover { background: var(--bg-hover); }
 .import-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.import-drop .hint { max-width: 46ch; }
+.import-drop p { max-width: 46ch; }
 
 /* Both lists can be long; they scroll inside the sheet rather than pushing the
    footer — the buttons are the point of the screen. */
 .import-map, .import-problems { max-height: 320px; overflow-y: auto; }
-.import-map > .row { padding: 5px 0; border-bottom: 1px solid var(--line); }
-.import-problems > .row { padding: 4px 0; border-top: 1px solid var(--line); }
+.import-map > div { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.import-problems > div { padding: 4px 0; border-top: 1px solid var(--line); }
 
 /* ---------------------------------------------------------------- charts */
 
@@ -536,7 +492,7 @@ p { margin: 0 0 0.75em; }
 .col-value { font-size: 11px; color: var(--fg-soft); margin-bottom: 3px; }
 
 .lines-svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
-.lines-svg .grid { stroke: var(--line); stroke-width: 1; }
+.lines-svg .grid-line { stroke: var(--line); stroke-width: 1; }
 .lines-svg .crosshair { stroke: var(--line-strong); stroke-width: 1; }
 /* The end marker carries a surface ring so it stays legible where the two
    lines cross each other. */
@@ -805,23 +761,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
 }
 
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: var(--bg-hover);
-  border: 1px solid var(--line);
-  font-size: 11.5px;
-  color: var(--fg-soft);
-  white-space: nowrap;
-  max-width: 100%;
-}
-.chip .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-.chip.button { cursor: pointer; }
-.chip.button:hover { background: var(--bg-active); }
 /* A chip that is switched on — a chosen option, a type a field applies to. */
 .chip.on {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
@@ -868,28 +807,16 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   display: inline-block;
 }
 
-.divider { height: 1px; background: var(--line); margin: 8px 0; }
 
 /* A rule with a word set into it. Used between single sign-on and the password
    form, so neither of the two reads as the only way in. */
 .divider-text { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--fg-muted); font-size: 12px; }
 .divider-text::before, .divider-text::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
-.muted { color: var(--fg-muted); }
 .soft { color: var(--fg-soft); }
 .mono { font-family: var(--mono); font-size: 12px; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row { display: flex; align-items: center; gap: 8px; }
-.col { display: flex; flex-direction: column; gap: 8px; }
-.wrap { flex-wrap: wrap; }
-.grow { flex: 1; min-width: 0; }
 
-.page {
-  max-width: 1180px;
-  margin: 0 auto;
-  padding: 16px 12px 80px;
-}
-@media (min-width: 900px) { .page { padding: 22px 24px 60px; } }
 
 .page-title { font-size: 20px; margin-bottom: 4px; }
 .page-header { margin-bottom: 18px; }
@@ -905,16 +832,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .empty .emoji { font-size: 26px; }
 
-.card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
-  padding: 14px;
-}
 
-.grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
-@media (min-width: 700px) { .grid.two { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1000px) { .grid.three { grid-template-columns: repeat(3, 1fr); } }
 
 /* ------------------------------------------------------------------ tasks */
 
@@ -1040,80 +958,14 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 /* ---------------------------------------------------------------- overlays */
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  background: var(--overlay);
-  z-index: 60;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  animation: fade 140ms ease;
-}
 @media (min-width: 700px) { .overlay { align-items: center; padding: 24px; } }
 
-.sheet {
-  background: var(--bg-raised);
-  width: 100%;
-  max-height: 92dvh;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-  box-shadow: var(--shadow);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  animation: slide-up 180ms cubic-bezier(0.22, 1, 0.36, 1);
-  padding-bottom: env(safe-area-inset-bottom);
-}
 @media (min-width: 700px) {
-  .sheet { max-width: 620px; border-radius: var(--radius-lg); max-height: 86dvh; animation: fade 140ms ease; }
-  .sheet.wide { max-width: 860px; }
 }
 
-.sheet header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 14px;
-  border-bottom: 1px solid var(--line);
-  flex: none;
-}
-.sheet .body { padding: 14px; overflow-y: auto; flex: 1; }
-.sheet footer { padding: 12px 14px; border-top: 1px solid var(--line); display: flex; gap: 8px; justify-content: flex-end; flex: none; }
 
-.grabber { width: 36px; height: 4px; border-radius: 99px; background: var(--line-strong); margin: 8px auto 0; flex: none; }
 @media (min-width: 700px) { .grabber { display: none; } }
 
-.menu {
-  position: fixed;
-  z-index: 80;
-  min-width: 190px;
-  max-height: 60dvh;
-  overflow-y: auto;
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 5px;
-  animation: fade 100ms ease;
-}
-.menu button {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  border: none;
-  background: none;
-  padding: 7px 9px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: 13.5px;
-  text-align: left;
-  min-height: 34px;
-}
-.menu button:hover, .menu button.highlight { background: var(--bg-hover); }
-.menu .section { padding: 7px 9px 3px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-muted); font-weight: 600; }
-.menu input.search { width: 100%; border: none; border-bottom: 1px solid var(--line); border-radius: 0; padding: 8px; background: none; margin-bottom: 4px; }
-.menu input.search:focus { outline: none; }
 
 .palette {
   position: fixed;
@@ -1677,7 +1529,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 /* ----------------------------------------------------- tour + setup */
 
 .tour-h { font-size: 15px; margin: 0 0 6px; }
-.sheet .tour-h + p { margin: 0 0 14px; font-size: 13.5px; line-height: 1.6; }
 .tour-ok {
   display: flex; align-items: center; gap: 7px; margin: 0;
   font-size: 13.5px; color: var(--ok);

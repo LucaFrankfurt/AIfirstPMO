@@ -21,6 +21,8 @@ import { HierarchyExplorer } from '../components/hierarchy';
 import { Icon } from '../components/ui';
 import { cardId, sectionFor, type GuideSection } from '../lib/guide';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
 import { SHOW_CHECKLIST, START_TOUR } from '../components/tour';
 
 type Section = GuideSection;
@@ -63,7 +65,7 @@ function Feature({
         {steps.map((step) => <li key={step}>{t(step)}</li>)}
       </ol>
 
-      <Link className="btn sm" to={to}>
+      <Link className={buttonVariants({ size: 'sm' })} to={to}>
         {t(linkLabel)} <Icon name="chevronRight" size={13} />
       </Link>
     </section>
@@ -73,7 +75,7 @@ function Feature({
 const Principle = ({ icon, title, body }: { icon: string; title: TranslationKey; body: TranslationKey }) => {
   const t = useT();
   return (
-    <div className="card guide-principle">
+    <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-principle">
       <span className="guide-icon"><Icon name={icon} size={16} /></span>
       <strong>{t(title)}</strong>
       <span className="soft">{t(body)}</span>
@@ -89,7 +91,7 @@ function Overview() {
     <>
       <p className="guide-lead">{t('guide.intro')}</p>
 
-      <div className="grid three" style={{ marginBottom: 22 }}>
+      <div className="grid gap-3 lg:grid-cols-3 mb-[22px]">
         <Principle icon="refresh" title="guide.principleOfflineTitle" body="guide.principleOfflineBody" />
         <Principle icon="home" title="guide.principleHostTitle" body="guide.principleHostBody" />
         <Principle icon="sparkle" title="guide.principleAssistantTitle" body="guide.principleAssistantBody" />
@@ -107,18 +109,18 @@ function Overview() {
         <li>{t('guide.firstFive4')}</li>
         <li>{t('guide.firstFive5')}</li>
       </ol>
-      <div className="row wrap" style={{ gap: 8 }}>
-        <Link className="btn primary sm" to="/projects/new">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Link className={buttonVariants({ variant: 'primary', size: 'sm' })} to="/projects/new">
           {t('guide.startHere')} <Icon name="chevronRight" size={13} />
         </Link>
-        <button className="btn sm" onClick={() => window.dispatchEvent(new CustomEvent(START_TOUR))}>
+        <Button size="sm" onClick={() => window.dispatchEvent(new CustomEvent(START_TOUR))}>
           <Icon name="play" size={13} /> {t('guide.restartTour')}
-        </button>
-        <button className="btn sm" onClick={() => window.dispatchEvent(new CustomEvent(SHOW_CHECKLIST))}>
+        </Button>
+        <Button size="sm" onClick={() => window.dispatchEvent(new CustomEvent(SHOW_CHECKLIST))}>
           <Icon name="check" size={13} /> {t('guide.showChecklist')}
-        </button>
+        </Button>
       </div>
-      <p className="soft" style={{ marginTop: 12, fontSize: 12.5 }}>{t('guide.helpFromHere')}</p>
+      <p className="soft mt-3 text-[12.5px]">{t('guide.helpFromHere')}</p>
     </>
   );
 }
@@ -246,7 +248,7 @@ function Features() {
       >
         <div className="guide-roles">
           {(['owner', 'admin', 'member', 'guest'] as const).map((role) => (
-            <div className="card guide-role" key={role}>
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-role" key={role}>
               <strong>{t(`members.role${role[0].toUpperCase()}${role.slice(1)}` as TranslationKey)}</strong>
               <span className="soft">{t(`guide.role.${role}` as TranslationKey)}</span>
             </div>
@@ -264,7 +266,7 @@ function Features() {
         steps={['guide.automation.h1', 'guide.automation.h2', 'guide.automation.h3', 'guide.automation.h4']}
       >
         <AutomationDiagram />
-        <p className="soft" style={{ fontSize: 12.5, marginTop: 10 }}>{t('guide.automation.newProject')}</p>
+        <p className="soft text-[12.5px] mt-2.5">{t('guide.automation.newProject')}</p>
       </Feature>
 
       <Feature
@@ -307,7 +309,7 @@ function Shortcuts() {
           </div>
         ))}
       </div>
-      <p className="soft" style={{ marginTop: 14 }}>{t('guide.shortcutsMac')}</p>
+      <p className="soft mt-3.5">{t('guide.shortcutsMac')}</p>
     </>
   );
 }
@@ -354,7 +356,7 @@ export function Help() {
           </button>
         ))}
       </div>
-      <div className="page guide">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 guide">
         {section === 'overview' && <Overview />}
         {section === 'hierarchy' && <Hierarchy />}
         {section === 'features' && <Features />}

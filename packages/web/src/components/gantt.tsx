@@ -20,6 +20,9 @@ import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
 import { create, update } from '../lib/mutations';
 import { useCanWrite } from '../session';
+import { Button } from '../components/ui/button';
+import { Select } from '../components/ui/field';
+import { chipVariants } from './ui/chip';
 import { Empty, Icon, StateDot, useToast } from './ui';
 
 /** How wide a day is, per zoom step. */
@@ -256,28 +259,28 @@ export function GanttView({ tasks, onOpen, projectId }: {
 
   return (
     <div className="gantt">
-      <div className="gantt-toolbar row wrap">
-        <span className="muted" style={{ fontSize: 12 }}>{t('gantt.hint')}</span>
-        <span className="grow" />
+      <div className="gantt-toolbar flex items-center gap-2 flex-wrap">
+        <span className="text-muted text-[12.5px]">{t('gantt.hint')}</span>
+        <span className="flex-1 min-w-0" />
         {baselines.length > 0 && (
-          <select
-            className="select sm" style={{ width: 'auto' }} value={baselineId}
+          <Select
+            inputSize="sm" style={{ width: 'auto' }} value={baselineId}
             aria-label={t('baseline.compare')}
             onChange={(event) => setBaselineId(event.target.value)}
           >
             <option value="">{t('baseline.none')}</option>
             {baselines.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-          </select>
+          </Select>
         )}
         {canWrite && projectId && (
-          <button className="btn ghost sm" onClick={() => takeBaseline()} title={t('baseline.hint')}>
+          <Button variant="ghost" size="sm" onClick={() => takeBaseline()} title={t('baseline.hint')}>
             <Icon name="bookmark" size={13} /> {t('baseline.take')}
-          </button>
+          </Button>
         )}
-        <button className="btn ghost sm icon" onClick={() => setZoom(Math.max(0, zoom - 1))}
-          disabled={zoom === 0} aria-label={t('gantt.zoomOut')} title={t('gantt.zoomOut')}>−</button>
-        <button className="btn ghost sm icon" onClick={() => setZoom(Math.min(ZOOM.length - 1, zoom + 1))}
-          disabled={zoom === ZOOM.length - 1} aria-label={t('gantt.zoomIn')} title={t('gantt.zoomIn')}>+</button>
+        <Button variant="ghost" size="iconSm" onClick={() => setZoom(Math.max(0, zoom - 1))}
+          disabled={zoom === 0} aria-label={t('gantt.zoomOut')} title={t('gantt.zoomOut')}>−</Button>
+        <Button variant="ghost" size="iconSm" onClick={() => setZoom(Math.min(ZOOM.length - 1, zoom + 1))}
+          disabled={zoom === ZOOM.length - 1} aria-label={t('gantt.zoomIn')} title={t('gantt.zoomIn')}>+</Button>
       </div>
 
       <div className="gantt-scroll" ref={surface}>
@@ -399,10 +402,10 @@ export function GanttView({ tasks, onOpen, projectId }: {
 
       {undated.length > 0 && (
         <div className="gantt-undated">
-          <strong style={{ fontSize: 12.5 }}>{t('gantt.undated', { count: undated.length })}</strong>
-          <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+          <strong className="text-[12.5px]">{t('gantt.undated', { count: undated.length })}</strong>
+          <div className="flex items-center gap-2 flex-wrap gap-1.5 mt-1.5">
             {undated.slice(0, 40).map((task) => (
-              <button key={task.id} className="chip button" onClick={() => onOpen(task)}>
+              <button key={task.id} className={chipVariants({ interactive: true })} onClick={() => onOpen(task)}>
                 <Icon name="calendar" size={11} /> {task.identifier} {task.title}
               </button>
             ))}

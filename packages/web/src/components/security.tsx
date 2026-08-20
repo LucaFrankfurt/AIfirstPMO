@@ -11,6 +11,10 @@ import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { useSession } from '../session';
+import { Button } from '../components/ui/button';
+import { Input } from './ui/field';
+import { SectionHeading } from './ui/section';
+import { Chip } from './ui/chip';
 import { Icon, useConfirm, useToast } from './ui';
 
 /* ------------------------------------------------------------ two factor */
@@ -51,31 +55,30 @@ export function TwoFactor() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('security.twoFactor')}</h3>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('security.twoFactorHint')}</p>
+      <SectionHeading>{t('security.twoFactor')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('security.twoFactorHint')}</p>
 
       {recovery && (
-        <div className="card" style={{ marginBottom: 12 }}>
-          <strong style={{ fontSize: 13 }}>{t('security.recoveryTitle')}</strong>
-          <p className="hint">{t('security.recoveryHint')}</p>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3">
+          <strong className="text-[13.5px]">{t('security.recoveryTitle')}</strong>
+          <p className="text-[12px] text-muted">{t('security.recoveryHint')}</p>
           <div className="recovery-codes">
             {recovery.map((one) => <code key={one}>{one}</code>)}
           </div>
-          <div className="row" style={{ marginTop: 8 }}>
-            <button className="btn sm" onClick={() => {
+          <div className="flex items-center gap-2 mt-2">
+            <Button size="sm" onClick={() => {
               void navigator.clipboard?.writeText(recovery.join('\n'));
               toast(t('common.copied'));
-            }}>{t('action.copy')}</button>
-            <button className="btn ghost sm" onClick={() => setRecovery(null)}>{t('security.recoverySaved')}</button>
+            }}>{t('action.copy')}</Button>
+            <Button variant="ghost" size="sm" onClick={() => setRecovery(null)}>{t('security.recoverySaved')}</Button>
           </div>
         </div>
       )}
 
       {on ? (
-        <div className="row" style={{ gap: 8 }}>
-          <span className="chip"><Icon name="check" size={12} /> {t('security.twoFactorOn')}</span>
-          <button
-            className="btn danger sm"
+        <div className="flex items-center gap-2">
+          <Chip><Icon name="check" size={12} /> {t('security.twoFactorOn')}</Chip>
+          <Button variant="danger" size="sm"
             onClick={async () => {
               if (!(await confirm(t('security.turnOffConfirm'), t('security.turnOff')))) return;
               const password = window.prompt(t('security.passwordToTurnOff'));
@@ -90,39 +93,39 @@ export function TwoFactor() {
             }}
           >
             {t('security.turnOff')}
-          </button>
+          </Button>
         </div>
       ) : setup ? (
-        <div className="card">
-          <p className="hint">{t('security.scanHint')}</p>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
+          <p className="text-[12px] text-muted">{t('security.scanHint')}</p>
           {/* The URI as text rather than a QR image: drawing one needs a
               library, and every authenticator app takes a typed secret. */}
           <div className="field">
             <label htmlFor="totp-secret">{t('security.secret')}</label>
-            <input id="totp-secret" className="input" readOnly value={setup.secret.replace(/(.{4})/g, '$1 ').trim()} />
+            <Input id="totp-secret" readOnly value={setup.secret.replace(/(.{4})/g, '$1 ').trim()} />
           </div>
           <div className="field">
             <label htmlFor="totp-code">{t('security.enterCode')}</label>
-            <input
-              id="totp-code" className="input" inputMode="numeric" autoComplete="one-time-code"
+            <Input
+              id="totp-code" inputMode="numeric" autoComplete="one-time-code"
               style={{ width: 130, letterSpacing: 2 }}
               value={code}
               onChange={(event) => setCode(event.target.value)}
               onKeyDown={(event) => event.key === 'Enter' && void confirmSetup()}
             />
           </div>
-          <div className="row">
-            <button className="btn primary sm" disabled={code.trim().length < 6} onClick={() => void confirmSetup()}>
+          <div className="flex items-center gap-2">
+            <Button variant="primary" size="sm" disabled={code.trim().length < 6} onClick={() => void confirmSetup()}>
               {t('security.confirm')}
-            </button>
-            <button className="btn ghost sm" onClick={() => setSetup(null)}>{t('action.cancel')}</button>
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setSetup(null)}>{t('action.cancel')}</Button>
           </div>
         </div>
       ) : (
-        <button className="btn" onClick={() => void start()}>{t('security.turnOn')}</button>
+        <Button onClick={() => void start()}>{t('security.turnOn')}</Button>
       )}
 
-      {failed && <p className="hint warn" style={{ marginTop: 8 }}>{failed}</p>}
+      {failed && <p className="text-[12px] text-danger mt-2">{failed}</p>}
       {dialog}
     </>
   );
@@ -140,19 +143,18 @@ export function Sessions() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('security.devices')}</h3>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('security.devicesHint')}</p>
-      <div className="card" style={{ padding: 0 }}>
+      <SectionHeading>{t('security.devices')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('security.devicesHint')}</p>
+      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 p-0">
         {(rows ?? []).map((row) => (
-          <div className="row trash-row" key={row.id} style={{ gap: 9 }}>
+          <div className="flex items-center gap-2 trash-row" key={row.id} style={{ gap: 9 }}>
             <Icon name={row.current ? 'check' : 'users'} size={14} />
-            <span className="grow truncate" title={row.user_agent ?? ''}>
+            <span className="flex-1 min-w-0 truncate" title={row.user_agent ?? ''}>
               {describe(row.user_agent) || t('security.unknownDevice')}
             </span>
-            {row.current && <span className="chip">{t('security.thisDevice')}</span>}
-            <span className="muted" style={{ fontSize: 12 }}>{relativeTime(row.last_used_at ?? row.created_at)}</span>
-            <button
-              className="btn ghost sm"
+            {row.current && <Chip>{t('security.thisDevice')}</Chip>}
+            <span className="text-muted text-[12.5px]">{relativeTime(row.last_used_at ?? row.created_at)}</span>
+            <Button variant="ghost" size="sm"
               onClick={async () => {
                 await api.revokeSession(row.id);
                 toast(t('security.revoked'));
@@ -163,10 +165,10 @@ export function Sessions() {
               }}
             >
               {t('security.revoke')}
-            </button>
+            </Button>
           </div>
         ))}
-        {rows && !rows.length && <div className="trash-row muted" style={{ fontSize: 12.5 }}>{t('security.noDevices')}</div>}
+        {rows && !rows.length && <div className="trash-row text-muted text-[12.5px]">{t('security.noDevices')}</div>}
       </div>
     </>
   );

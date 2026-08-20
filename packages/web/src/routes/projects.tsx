@@ -23,6 +23,12 @@ import { groupKey, roleKey, useT, type TranslationKey } from '../lib/i18n';
 import { ProjectFields } from '../components/fields';
 import { CopyProjectSheet } from '../components/copy-project';
 import { configOf, useProjectDefaultView } from '../components/saved-views';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
+import { Input, Select, Textarea } from '../components/ui/field';
+import { SectionHeading } from '../components/ui/section';
+import { Chip, chipDot, chipVariants } from '../components/ui/chip';
 import { Triage, useNewIntakeCount } from '../components/intake';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
@@ -102,18 +108,18 @@ export function ProjectList() {
     <>
       <Header title={t('project.listTitle')}>
         {canWrite && (
-          <button className="btn primary sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</button>
+          <Button variant="primary" size="sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</Button>
         )}
       </Header>
-      <div className="page">
-        <div className="grid two">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <div className="grid gap-3 sm:grid-cols-2">
           {projects.map((project) => <ProjectCard key={project.id} projectId={project.id} />)}
         </div>
         {!projects.length && (
           <Empty
             emoji="📁" title={t('project.emptyTitle')} hint={t('project.emptyHint')} guide="overview"
             action={canWrite
-              ? <button className="btn primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</button>
+              ? <Button variant="primary" onClick={() => navigate('/projects/new')}>{t('project.createCta')}</Button>
               : undefined}
           />
         )}
@@ -131,17 +137,17 @@ function ProjectCard({ projectId }: { projectId: string }) {
   if (!project) return null;
 
   return (
-    <button className="card" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => navigate(`/projects/${projectId}`)}>
-      <div className="row" style={{ marginBottom: 6 }}>
-        <span style={{ fontSize: 18 }}>{project.icon ?? '📁'}</span>
-        <strong className="grow truncate">{project.name}</strong>
-        <span className="chip mono">{project.key}</span>
+    <button className="rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left cursor-pointer" onClick={() => navigate(`/projects/${projectId}`)}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-lg">{project.icon ?? '📁'}</span>
+        <strong className="flex-1 min-w-0 truncate">{project.name}</strong>
+        <Chip className="font-mono">{project.key}</Chip>
       </div>
-      {project.description && <p className="muted truncate" style={{ fontSize: 12.5 }}>{project.description}</p>}
+      {project.description && <p className="text-muted truncate text-[12.5px]">{project.description}</p>}
       <Progress value={done} total={tasks.length} />
-      <div className="row muted" style={{ fontSize: 12, marginTop: 6 }}>
+      <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
         <span>{t('project.doneCount', { done, total: tasks.length })}</span>
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         {project.target_date && <span>{t('project.target', { date: shortDate(project.target_date) })}</span>}
       </div>
     </button>
@@ -174,45 +180,45 @@ export function ProjectNew() {
   return (
     <>
       <Header title={t('project.new')} />
-      <div className="page" style={{ maxWidth: 560 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 560 }}>
         <form onSubmit={submit}>
           <div className="field">
             <label htmlFor="p-name">{t('project.name')}</label>
-            <input
-              id="p-name" className="input" required autoFocus value={form.name}
+            <Input
+              id="p-name" required autoFocus value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder={t('project.namePlaceholder')}
             />
           </div>
-          <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+          <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
             <div className="field" style={{ width: 120 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
-              <input id="p-icon" className="input" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
+              <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
             </div>
-            <div className="field grow">
+            <div className="field flex-1 min-w-0">
               <label htmlFor="p-key">{t('project.key')}</label>
-              <input
-                id="p-key" className="input mono" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
+              <Input className="mono"
+                id="p-key" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
                 onChange={(event) => setForm({ ...form, key: event.target.value.toUpperCase() })}
               />
-              <span className="hint">{t('project.keyHint')}</span>
+              <span className="text-[12px] text-muted">{t('project.keyHint')}</span>
             </div>
           </div>
           <div className="field">
             <label htmlFor="p-desc">{t('project.description')}</label>
-            <textarea id="p-desc" className="textarea" style={{ minHeight: 80 }} value={form.description}
+            <Textarea id="p-desc" style={{ minHeight: 80 }} value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })} />
           </div>
           <div className="field">
             <label htmlFor="p-vis">{t('project.visibility')}</label>
-            <select id="p-vis" className="select" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
+            <Select id="p-vis" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
               <option value="public">{t('project.visibilityPublic')}</option>
               <option value="private">{t('project.visibilityPrivate')}</option>
-            </select>
+            </Select>
           </div>
-          <button className="btn primary lg block" disabled={busy || !form.name.trim()}>
+          <Button variant="primary" size="lg" block disabled={busy || !form.name.trim()}>
             {busy ? t('project.creating') : t('project.createSubmit')}
-          </button>
+          </Button>
         </form>
       </div>
     </>
@@ -255,12 +261,12 @@ export function ProjectPage() {
 
   return (
     <>
-      <Header title={<span className="row" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
+      <Header title={<span className="flex items-center gap-2" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
         {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
         {canWrite && (
-          <button className="btn primary sm" onClick={() => setAdding(true)}>
+          <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
-          </button>
+          </Button>
         )}
       </Header>
 
@@ -290,7 +296,7 @@ export function ProjectPage() {
           ? <div style={{ height: 'calc(100dvh - var(--header-height) - 110px)' }}>
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
-          : <div className="page" style={{ paddingInline: 0 }}>
+          : <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ paddingInline: 0 }}>
             <TaskViews
               tasks={visible} view={view} projectId={id} onOpen={openTask}
               onChange={setView} selection={selection}
@@ -323,25 +329,25 @@ function Cycles({ projectId }: { projectId: string }) {
   const day = today();
 
   return (
-    <div className="page">
-      <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>{t('cycle.title')}</h2>
-        <span className="grow" />
-        <button className="btn sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</button>
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px]">{t('cycle.title')}</h2>
+        <span className="flex-1 min-w-0" />
+        <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</Button>
       </div>
 
       {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} guide="planning" />}
 
-      <div className="grid two">
+      <div className="grid gap-3 sm:grid-cols-2">
         {cycles.map((cycle) => {
           const active = cycle.start_date && cycle.end_date && cycle.start_date <= day && cycle.end_date >= day;
           return (
-            <div className="card" key={cycle.id}>
-              <div className="row" style={{ marginBottom: 8 }}>
-                <strong className="grow truncate">{cycle.name}</strong>
-                {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={cycle.id}>
+              <div className="flex items-center gap-2 mb-2">
+                <strong className="flex-1 min-w-0 truncate">{cycle.name}</strong>
+                {active && <span className={chipVariants()} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
-                  className="btn ghost sm icon"
+                  variant="ghost" size="iconSm"
                   label={t('common.moreActions')}
                   items={[
                     { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
@@ -353,7 +359,7 @@ function Cycles({ projectId }: { projectId: string }) {
                 </MenuButton>
               </div>
               <CycleProgress cycleId={cycle.id} />
-              <button className="btn sm block" style={{ marginTop: 10 }} onClick={() => navigate(`/cycles/${cycle.id}`)}>{t('cycle.open')}</button>
+              <Button size="sm" block className="mt-2.5" onClick={() => navigate(`/cycles/${cycle.id}`)}>{t('cycle.open')}</Button>
             </div>
           );
         })}
@@ -391,25 +397,25 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     <Sheet
       title={cycleId ? t('cycle.edit') : t('cycle.new')}
       onClose={onClose}
-      footer={<button className="btn primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</button>}
+      footer={<Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>}
     >
       <div className="field">
         <label htmlFor="c-name">{t('cycle.name')}</label>
-        <input id="c-name" className="input" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="row" style={{ gap: 10 }}>
-        <div className="field grow">
+      <div className="flex items-center gap-2 gap-2.5">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="c-start">{t('cycle.starts')}</label>
-          <input id="c-start" className="input" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
+          <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="c-end">{t('cycle.ends')}</label>
-          <input id="c-end" className="input" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
+          <Input id="c-end" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
         </div>
       </div>
       <div className="field">
         <label htmlFor="c-desc">{t('cycle.goal')}</label>
-        <textarea id="c-desc" className="textarea" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <Textarea id="c-desc" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
     </Sheet>
   );
@@ -441,21 +447,21 @@ export function CyclePage() {
     <>
       <Header title={cycle.name}>
         <ViewControls view={view} onChange={setView} projectId={cycle.project_id} />
-        <button className="btn primary sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></button>
+        <Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
       </Header>
-      <div className="page">
-        <div className="card" style={{ marginBottom: 14 }}>
-          <div className="row" style={{ marginBottom: 8 }}>
-            <div className="grow">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex-1 min-w-0">
               <strong>{t('cycle.taskProgress', { done: burndown.done, total: burndown.total })}</strong>
-              <div className="muted" style={{ fontSize: 12.5 }}>
+              <div className="text-muted text-[12.5px]">
                 {t('cycle.pointProgress', { done: burndown.donePoints, total: burndown.points })}
                 {cycle.start_date && cycle.end_date && ` · ${shortDate(cycle.start_date)} – ${shortDate(cycle.end_date)}`}
               </div>
             </div>
           </div>
           <Progress value={burndown.done} total={burndown.total} />
-          {cycle.description && <p className="muted" style={{ marginTop: 8, fontSize: 12.5 }}>{cycle.description}</p>}
+          {cycle.description && <p className="text-muted mt-2 text-[12.5px]">{cycle.description}</p>}
         </div>
         <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={openTask} />
       </div>
@@ -474,14 +480,14 @@ function Modules({ projectId }: { projectId: string }) {
   const [name, setName] = useState('');
 
   return (
-    <div className="page">
-      <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>{t('module.title')}</h2>
-        <span className="muted" style={{ fontSize: 12.5 }}>{t('module.subtitle')}</span>
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px]">{t('module.title')}</h2>
+        <span className="text-muted text-[12.5px]">{t('module.subtitle')}</span>
       </div>
 
       <form
-        className="row" style={{ marginBottom: 14 }}
+        className="flex items-center gap-2 mb-3.5"
         onSubmit={(event) => {
           event.preventDefault();
           if (!name.trim()) return;
@@ -489,24 +495,24 @@ function Modules({ projectId }: { projectId: string }) {
           setName('');
         }}
       >
-        <input className="input" placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
-        <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
+        <Input placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
+        <Button type="submit"><Icon name="plus" size={14} /></Button>
       </form>
 
       {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
 
-      <div className="grid two">
+      <div className="grid gap-3 sm:grid-cols-2">
         {modules.map((module) => {
           const tasks = list('task', (task) => task.module_id === module.id);
           const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
           const lead = members.find((member) => member.id === module.lead_id);
           return (
-            <div className="card" key={module.id}>
-              <div className="row" style={{ marginBottom: 6 }}>
-                <strong className="grow truncate">{module.name}</strong>
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={module.id}>
+              <div className="flex items-center gap-2 mb-1.5">
+                <strong className="flex-1 min-w-0 truncate">{module.name}</strong>
                 {lead && <Avatar user={lead} size={20} />}
                 <MenuButton
-                  className="btn ghost sm icon"
+                  variant="ghost" size="iconSm"
                   label={t('common.moreActions')}
                   items={[
                     ...members.map((member) => ({
@@ -520,16 +526,16 @@ function Modules({ projectId }: { projectId: string }) {
                 </MenuButton>
               </div>
               <Progress value={done} total={tasks.length} />
-              <div className="row muted" style={{ fontSize: 12, marginTop: 6 }}>
+              <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
                 <span>{done}/{tasks.length}</span>
-                <span className="grow" />
-                <input
-                  className="input sm" type="date" style={{ width: 150, height: 28 }}
+                <span className="flex-1 min-w-0" />
+                <Input
+                  inputSize="sm" type="date" style={{ width: 150, height: 28 }}
                   value={module.target_date ?? ''}
                   onChange={(event) => update('module', module.id, { target_date: event.target.value || null })}
                 />
               </div>
-              <button className="btn sm block" style={{ marginTop: 8 }} onClick={() => navigate(`/modules/${module.id}`)}>{t('action.open')}</button>
+              <Button size="sm" block className="mt-2" onClick={() => navigate(`/modules/${module.id}`)}>{t('action.open')}</Button>
             </div>
           );
         })}
@@ -553,7 +559,7 @@ export function ModulePage() {
       <Header title={module.name}>
         <ViewControls view={view} onChange={setView} projectId={module.project_id} />
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {module.description && <Markdown source={module.description} />}
         <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={openTask} />
       </div>
@@ -570,19 +576,19 @@ function ProjectPages({ projectId }: { projectId: string }) {
   const pages = useQuery(() => list('page', (p) => p.project_id === projectId && !p.archived), [projectId]);
 
   return (
-    <div className="page">
-      <div className="row" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>{t('project.pagesTitle')}</h2>
-        <span className="grow" />
-        <button className="btn sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px]">{t('project.pagesTitle')}</h2>
+        <span className="flex-1 min-w-0" />
+        <Button size="sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
           <Icon name="plus" size={14} /> {t('project.newPage')}
-        </button>
+        </Button>
       </div>
       {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} guide="pages" />}
       {pages.map((page) => (
-        <button key={page.id} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate(`/pages/${page.id}`)}>
+        <button key={page.id} className="task-row text-left" style={{ width: '100%' }} onClick={() => navigate(`/pages/${page.id}`)}>
           <span>{page.icon ?? '📄'}</span>
-          <span className="grow truncate">{page.title}</span>
+          <span className="flex-1 min-w-0 truncate">{page.title}</span>
         </button>
       ))}
     </div>
@@ -675,46 +681,46 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   if (!project) return null;
 
   return (
-    <div className="page" style={{ maxWidth: 620 }}>
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 620 }}>
       <div className="field">
         <label htmlFor="s-name">{t('project.name')}</label>
-        <input id="s-name" className="input" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
+        <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
       </div>
       <div className="field">
         <label htmlFor="s-desc">{t('project.description')}</label>
-        <textarea id="s-desc" className="textarea" value={project.description ?? ''}
+        <Textarea id="s-desc" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
-      <div className="row" style={{ gap: 10 }}>
-        <div className="field grow">
+      <div className="flex items-center gap-2 gap-2.5">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="s-parent">{t('project.parent')}</label>
-          <select
-            id="s-parent" className="select" value={project.parent_id ?? ''}
+          <Select
+            id="s-parent" value={project.parent_id ?? ''}
             onChange={(event) => update('project', projectId, { parent_id: event.target.value || null })}
           >
             <option value="">{t('project.parentNone')}</option>
             {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
-          </select>
-          <span className="hint">{t('project.parentHint')}</span>
+          </Select>
+          <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="s-start">{t('project.startDate')}</label>
-          <input id="s-start" className="input" type="date" value={project.start_date ?? ''}
+          <Input id="s-start" type="date" value={project.start_date ?? ''}
             onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
         </div>
       </div>
 
-      <div className="row" style={{ gap: 10 }}>
-        <div className="field grow">
+      <div className="flex items-center gap-2 gap-2.5">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="s-lead">{t('project.lead')}</label>
-          <select id="s-lead" className="select" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
+          <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
             <option value="">{t('common.nobody')}</option>
             {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-          </select>
+          </Select>
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="s-target">{t('project.targetDate')}</label>
-          <input id="s-target" className="input" type="date" value={project.target_date ?? ''}
+          <Input id="s-target" type="date" value={project.target_date ?? ''}
             onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
         </div>
       </div>
@@ -723,7 +729,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           Saturday stays there, because somebody who did that meant it. */}
       <div className="field">
         <label>{t('project.workingDays')}</label>
-        <div className="row wrap" style={{ gap: 4 }} role="group" aria-label={t('project.workingDays')}>
+        <div className="flex items-center gap-2 flex-wrap gap-1" role="group" aria-label={t('project.workingDays')}>
           {WEEKDAYS.map(({ day, key }) => {
             const days = project.working_days ?? DEFAULT_WORKING_DAYS;
             const on = days.includes(day);
@@ -731,7 +737,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               <button
                 key={day}
                 type="button"
-                className={`btn ghost sm${on ? ' active' : ''}`}
+                className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), on && 'bg-active text-fg')}
                 style={on ? { background: 'var(--bg-active)' } : undefined}
                 aria-pressed={on}
                 onClick={() => update('project', projectId, {
@@ -743,50 +749,48 @@ function ProjectSettings({ projectId }: { projectId: string }) {
             );
           })}
         </div>
-        <span className="hint">{t('project.workingDaysHint')}</span>
+        <span className="text-[12px] text-muted">{t('project.workingDaysHint')}</span>
       </div>
 
-      <div className="row" style={{ margin: '18px 0 8px' }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>{t('project.workflowStates')}</h3>
-        <span className="grow" />
+      <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
+        <SectionHeading tight>{t('project.workflowStates')}</SectionHeading>
+        <span className="flex-1 min-w-0" />
         <GuideHint to="hierarchy" />
       </div>
       {states.map((state) => (
         <div className="stack-card" key={state.id}>
-          <div className="row">
+          <div className="flex items-center gap-2">
             <input
               type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
               aria-label={t('project.stateColour')}
               onChange={(event) => update('state', state.id, { color: event.target.value })}
             />
-            <input className="input grow" value={state.name} aria-label={t('project.name')}
+            <Input className="flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
               onChange={(event) => update('state', state.id, { name: event.target.value })} />
-            <select className="select" style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
+            <Select style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
               onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
               {STATE_GROUPS.map((group) => (
                 <option key={group} value={group}>{t(groupKey(group))}</option>
               ))}
-            </select>
-            <button className="btn ghost icon" aria-label={t('project.deleteState')} onClick={async () => {
+            </Select>
+            <Button variant="ghost" size="icon" aria-label={t('project.deleteState')} onClick={async () => {
               if (states.length <= 1) return;
               if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
             }}>
               <Icon name="trash" size={14} />
-            </button>
+            </Button>
           </div>
-          <div className="row wrap" style={{ gap: 10, marginTop: 8 }}>
-            <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-              <span className="muted">{t('state.wipLimit')}</span>
-              <input
-                className="input" type="number" min={0} max={99} style={{ width: 70 }}
+          <div className="flex items-center gap-2 flex-wrap gap-2.5 mt-2">
+            <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+              <span className="text-muted">{t('state.wipLimit')}</span>
+              <Input type="number" min={0} max={99} style={{ width: 70 }}
                 value={state.wip_limit || ''} placeholder="0"
                 onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
               />
             </label>
-            <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-              <span className="muted">{t('state.allowedRoles')}</span>
-              <select
-                className="select" style={{ width: 200 }}
+            <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+              <span className="text-muted">{t('state.allowedRoles')}</span>
+              <Select style={{ width: 200 }}
                 value={state.allowed_roles?.[0] ?? ''}
                 onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
               >
@@ -794,41 +798,39 @@ function ProjectSettings({ projectId }: { projectId: string }) {
                 {(['member', 'admin', 'owner'] as const).map((role) => (
                   <option key={role} value={role}>{t(roleKey(role))}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
         </div>
       ))}
-      <p className="hint" style={{ marginTop: 4 }}>{t('state.wipLimitHint')}</p>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('state.allowedHint')}</p>
-      <button
-        className="btn sm" style={{ marginTop: 6 }}
+      <p className="text-[12px] text-muted mt-1">{t('state.wipLimitHint')}</p>
+      <p className="text-[12px] text-muted mb-2">{t('state.allowedHint')}</p>
+      <Button size="sm" className="mt-1.5"
         onClick={() => create('state', {
           project_id: projectId, name: t('project.newStateName'), group_key: 'unstarted', color: '#64748b',
           sort_order: orderKey(states[states.length - 1]?.sort_order ?? null, null),
         })}
       >
         <Icon name="plus" size={14} /> {t('project.addState')}
-      </button>
+      </Button>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('type.settingsTitle')}</h3>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('type.settingsHint')}</p>
+      <SectionHeading>{t('type.settingsTitle')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('type.settingsHint')}</p>
       {types.map((type) => (
-        <div className="row" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
-          <input
-            className="input" style={{ width: 56, textAlign: 'center' }} maxLength={4}
+        <div className="flex items-center gap-2" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
+          <Input style={{ width: 56, textAlign: 'center' }} maxLength={4}
             aria-label={t('type.label')}
             value={type.icon ?? ''}
             onChange={(event) => update('taskType', type.id, { icon: event.target.value || null })}
           />
-          <input
-            className="input grow"
+          <Input
+            className="flex-1 min-w-0"
             value={type.name}
             aria-label={type.name}
             onChange={(event) => update('taskType', type.id, { name: event.target.value })}
           />
           <button
-            className={`btn sm${type.is_default ? ' active' : ''}`}
+            className={cn(buttonVariants({ size: 'sm' }), type.is_default && 'bg-active text-fg')}
             style={type.is_default ? { background: 'var(--bg-active)' } : undefined}
             aria-pressed={!!type.is_default}
             title={t('type.makeDefault')}
@@ -842,35 +844,34 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           >
             {t('type.isDefault')}
           </button>
-          <button className="btn ghost sm icon" title={t('type.removeHint')} aria-label={t('type.removeHint')}
+          <Button variant="ghost" size="iconSm" title={t('type.removeHint')} aria-label={t('type.removeHint')}
             onClick={() => remove('taskType', type.id)}>
             <Icon name="trash" size={13} />
-          </button>
+          </Button>
         </div>
       ))}
-      <button
-        className="btn sm"
+      <Button size="sm"
         onClick={() => create('taskType', {
           project_id: projectId, name: t('type.newName'), icon: '◇', color: '#6366f1', is_default: 0,
           sort_order: orderKey(types[types.length - 1]?.sort_order ?? null, null),
         })}
       >
         <Icon name="plus" size={14} /> {t('type.add')}
-      </button>
+      </Button>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('field.settingsTitle')}</h3>
+      <SectionHeading>{t('field.settingsTitle')}</SectionHeading>
       <ProjectFields projectId={projectId} />
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.labels')}</h3>
-      <div className="row wrap" style={{ gap: 6, marginBottom: 8 }}>
+      <SectionHeading>{t('project.labels')}</SectionHeading>
+      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2">
         {labels.map((label) => (
-          <span className="chip button" key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
-            <span className="dot" style={{ background: label.color }} /> {label.name} ✕
+          <span className={chipVariants({ interactive: true })} key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
+            <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕
           </span>
         ))}
       </div>
       <form
-        className="row"
+        className="flex items-center gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           if (!newLabel.trim()) return;
@@ -878,22 +879,22 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           setNewLabel('');
         }}
       >
-        <input className="input" placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
-        <button className="btn" type="submit"><Icon name="plus" size={14} /></button>
+        <Input placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
+        <Button type="submit"><Icon name="plus" size={14} /></Button>
       </form>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('time.title')}</h3>
+      <SectionHeading>{t('time.title')}</SectionHeading>
       <ProjectTime projectId={projectId} />
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('import.title')}</h3>
-      <div className="row wrap" style={{ gap: 8 }}>
-        <button className="btn" onClick={() => setImporting(true)}>
+      <SectionHeading>{t('import.title')}</SectionHeading>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button onClick={() => setImporting(true)}>
           <Icon name="attach" size={14} /> {t('import.action')}
-        </button>
-        <button className="btn" onClick={() => void exportJson()}>
+        </Button>
+        <Button onClick={() => void exportJson()}>
           <Icon name="page" size={14} /> {t('transfer.export')}
-        </button>
-        <label className="btn" style={{ cursor: 'pointer' }}>
+        </Button>
+        <label className={cn(buttonVariants({  }), 'cursor-pointer')}>
           <Icon name="plus" size={14} /> {t('transfer.import')}
           <input
             type="file" accept=".json,application/json" style={{ display: 'none' }}
@@ -905,7 +906,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           />
         </label>
       </div>
-      <p className="hint" style={{ marginTop: 6 }}>{t('transfer.hint')}</p>
+      <p className="text-[12px] text-muted mt-1.5">{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
       {foreign && (
         <ForeignImportSheet
@@ -915,10 +916,10 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         />
       )}
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('copy.title')}</h3>
-      <button className="btn" onClick={() => setCopying(true)}>
+      <SectionHeading>{t('copy.title')}</SectionHeading>
+      <Button onClick={() => setCopying(true)}>
         <Icon name="copy" size={14} /> {t('copy.action')}
-      </button>
+      </Button>
       {copying && (
         <CopyProjectSheet
           projectId={projectId}
@@ -927,13 +928,12 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         />
       )}
 
-      <div className="divider" style={{ margin: '22px 0' }} />
-      <div className="row">
-        <button className="btn" onClick={() => update('project', projectId, { archived: project.archived ? 0 : 1 })}>
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
+      <div className="flex items-center gap-2">
+        <Button onClick={() => update('project', projectId, { archived: project.archived ? 0 : 1 })}>
           <Icon name="archive" size={14} /> {project.archived ? t('project.unarchive') : t('project.archive')}
-        </button>
-        <button
-          className="btn danger"
+        </Button>
+        <Button variant="danger"
           onClick={async () => {
             if (await confirm(t('project.deleteConfirm', { name: project.name }))) {
               remove('project', projectId);
@@ -942,7 +942,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           }}
         >
           <Icon name="trash" size={14} /> {t('project.delete')}
-        </button>
+        </Button>
       </div>
       {dialog}
     </div>

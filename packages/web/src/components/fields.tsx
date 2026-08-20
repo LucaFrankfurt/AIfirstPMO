@@ -15,6 +15,9 @@ import { byId, list, useQuery } from '../lib/store';
 import { create, remove, update } from '../lib/mutations';
 import { useCanWrite, useMemberMap } from '../session';
 import { Icon, useConfirm } from './ui';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { Input, Select, Textarea } from '../components/ui/field';
 import { DateField } from './task-parts';
 
 export const kindKey = (kind: string): TranslationKey => `field.kind.${kind}` as TranslationKey;
@@ -64,12 +67,12 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
   switch (field.kind) {
     case 'long_text':
       return (
-        <textarea id={id} className="textarea" rows={3} value={String(value ?? '')}
+        <Textarea id={id} rows={3} value={String(value ?? '')}
           onChange={(event) => onChange(event.target.value)} />
       );
     case 'number':
       return (
-        <input id={id} className="input" type="number" style={{ width: 120 }} value={value === null ? '' : String(value)}
+        <Input id={id} type="number" style={{ width: 120 }} value={value === null ? '' : String(value)}
           onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} />
       );
     case 'date':
@@ -80,11 +83,11 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     case 'url':
       return (
-        <div className="row" style={{ gap: 6 }}>
-          <input id={id} className="input grow" type="url" placeholder="https://" value={String(value ?? '')}
+        <div className="flex items-center gap-2 gap-1.5">
+          <Input className="flex-1 min-w-0" id={id} type="url" placeholder="https://" value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)} />
           {!!value && (
-            <a className="btn ghost sm icon" href={String(value)} target="_blank" rel="noreferrer noopener"
+            <a className={buttonVariants({ variant: 'ghost', size: 'iconSm' })} href={String(value)} target="_blank" rel="noreferrer noopener"
               aria-label={t('field.open')} title={t('field.open')}>
               <Icon name="link" size={13} />
             </a>
@@ -93,15 +96,15 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     case 'select':
       return (
-        <select id={id} className="select" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+        <Select id={id} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
           <option value="">{t('field.noValue')}</option>
           {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
+        </Select>
       );
     case 'multi_select': {
       const chosen = (value as string[]) ?? [];
       return (
-        <div className="row wrap" style={{ gap: 5 }}>
+        <div className="flex items-center gap-2 flex-wrap gap-[5px]">
           {field.options.map((option) => (
             <button
               key={option} type="button"
@@ -112,20 +115,20 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
               {option}
             </button>
           ))}
-          {!field.options.length && <span className="muted" style={{ fontSize: 12 }}>{t('field.noOptions')}</span>}
+          {!field.options.length && <span className="text-muted text-[12.5px]">{t('field.noOptions')}</span>}
         </div>
       );
     }
     case 'person':
       return (
-        <select id={id} className="select" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+        <Select id={id} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
           <option value="">{t('common.nobody')}</option>
           {[...members.values()].map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-        </select>
+        </Select>
       );
     default:
       return (
-        <input id={id} className="input" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />
+        <Input id={id} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />
       );
   }
 }
@@ -140,7 +143,7 @@ export function TaskFields({ task }: { task: Task }) {
   if (!fields.length) return null;
 
   return (
-    <section style={{ marginBottom: 18 }}>
+    <section className="mb-[18px]">
       <strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>{t('field.sectionTitle')}</strong>
       <div className="field-grid">
         {fields.map((field) => {
@@ -153,12 +156,12 @@ export function TaskFields({ task }: { task: Task }) {
               <label htmlFor={`cf-${field.id}`}>
                 {field.name}
                 {/* A prompt, not a gate: the task saves either way. */}
-                {!!field.required && empty && <span className="muted" style={{ marginInlineStart: 5 }}>{t('field.wanted')}</span>}
+                {!!field.required && empty && <span className="text-muted ms-[5px]">{t('field.wanted')}</span>}
               </label>
               {canWrite
                 ? <FieldInput field={field} value={value} onChange={(next) => setFieldValue(task, field, next)} />
                 : <span>{field.kind === 'checkbox' ? (value ? '✓' : '—') : String(value || '—')}</span>}
-              {field.help && <span className="hint">{field.help}</span>}
+              {field.help && <span className="text-[12px] text-muted">{field.help}</span>}
             </div>
           );
         })}
@@ -181,44 +184,41 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('field.settingsHint')}</p>
+      <p className="text-[12px] text-muted mb-2">{t('field.settingsHint')}</p>
 
       {fields.map((field) => (
         <div key={field.id} className="stack-card">
-          <div className="row" style={{ gap: 8 }}>
-            <input
-              className="input grow" value={field.name} aria-label={t('field.name')}
+          <div className="flex items-center gap-2">
+            <Input
+              className="flex-1 min-w-0" value={field.name} aria-label={t('field.name')}
               onChange={(event) => update('field', field.id, { name: event.target.value })}
             />
-            <select
-              className="select" style={{ width: 150 }} value={field.kind} aria-label={t('field.kind')}
+            <Select style={{ width: 150 }} value={field.kind} aria-label={t('field.kind')}
               onChange={(event) => update('field', field.id, { kind: event.target.value as FieldKind })}
             >
               {FIELD_KINDS.map((kind) => <option key={kind} value={kind}>{t(kindKey(kind))}</option>)}
-            </select>
-            <button
-              className="btn ghost sm icon" aria-expanded={open === field.id} aria-label={t('field.options')}
+            </Select>
+            <Button variant="ghost" size="iconSm" aria-expanded={open === field.id} aria-label={t('field.options')}
               onClick={() => setOpen(open === field.id ? null : field.id)}
             >
               <Icon name={open === field.id ? 'chevronDown' : 'chevronRight'} size={14} />
-            </button>
-            <button
-              className="btn ghost sm icon" aria-label={t('field.remove')} title={t('field.remove')}
+            </Button>
+            <Button variant="ghost" size="iconSm" aria-label={t('field.remove')} title={t('field.remove')}
               onClick={async () => {
                 if (await confirm(t('field.removeConfirm', { name: field.name }))) remove('field', field.id);
               }}
             >
               <Icon name="trash" size={13} />
-            </button>
+            </Button>
           </div>
 
           {open === field.id && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               {(field.kind === 'select' || field.kind === 'multi_select') && (
                 <div className="field">
                   <label htmlFor={`opt-${field.id}`}>{t('field.choices')}</label>
-                  <input
-                    id={`opt-${field.id}`} className="input" value={field.options.join(', ')}
+                  <Input
+                    id={`opt-${field.id}`} value={field.options.join(', ')}
                     placeholder={t('field.choicesPlaceholder')}
                     onChange={(event) => update('field', field.id, {
                       options: event.target.value.split(',').map((o) => o.trim()).filter(Boolean),
@@ -229,15 +229,15 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
               <div className="field">
                 <label htmlFor={`help-${field.id}`}>{t('field.help')}</label>
-                <input
-                  id={`help-${field.id}`} className="input" value={field.help ?? ''}
+                <Input
+                  id={`help-${field.id}`} value={field.help ?? ''}
                   onChange={(event) => update('field', field.id, { help: event.target.value || null })}
                 />
               </div>
 
               <div className="field">
                 <label>{t('field.appliesTo')}</label>
-                <div className="row wrap" style={{ gap: 5 }}>
+                <div className="flex items-center gap-2 flex-wrap gap-[5px]">
                   <button
                     type="button" className={`chip button${field.type_ids.length ? '' : ' on'}`}
                     aria-pressed={!field.type_ids.length}
@@ -260,19 +260,19 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                     </button>
                   ))}
                 </div>
-                <span className="hint">{t('field.appliesToHint')}</span>
+                <span className="text-[12px] text-muted">{t('field.appliesToHint')}</span>
               </div>
 
-              <label className="row" style={{ gap: 7, fontSize: 13 }}>
+              <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.required}
                   onChange={(event) => update('field', field.id, { required: event.target.checked ? 1 : 0 })}
                 />
                 {t('field.required')}
               </label>
-              <span className="hint" style={{ display: 'block', marginBottom: 8 }}>{t('field.requiredHint')}</span>
+              <span className="text-[12px] text-muted mb-2" style={{ display: 'block' }}>{t('field.requiredHint')}</span>
 
-              <label className="row" style={{ gap: 7, fontSize: 13 }}>
+              <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.show_in_table}
                   onChange={(event) => update('field', field.id, { show_in_table: event.target.checked ? 1 : 0 })}
@@ -284,8 +284,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
         </div>
       ))}
 
-      <button
-        className="btn sm" style={{ marginTop: 8 }}
+      <Button size="sm" className="mt-2"
         onClick={() => {
           const id = create('field', {
             project_id: projectId,
@@ -303,7 +302,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
         }}
       >
         <Icon name="plus" size={14} /> {t('field.add')}
-      </button>
+      </Button>
       {dialog}
     </>
   );

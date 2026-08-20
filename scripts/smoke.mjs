@@ -85,9 +85,9 @@ await step('login', async () => {
 
 await step('first-run tour greets a new device and can be dismissed', async () => {
   await page.waitForSelector('.sheet:has(.tour-h)', { timeout: 6000 });
-  const heading = await page.locator('.sheet header strong').innerText();
+  const heading = await page.locator('.sheet header').innerText();
   if (!heading.includes(LABELS.welcome)) throw new Error(`tour title was "${heading}"`);
-  const steps = (await page.locator('.sheet footer .muted').innerText()).match(/\d+$/)?.[0];
+  const steps = (await page.locator('.sheet footer span').first().innerText()).match(/\d+$/)?.[0];
   console.log('     tour steps for an owner:', steps);
   if (steps !== '5') throw new Error(`expected 5 steps, got ${steps}`);
   await closeTour(page);
@@ -118,7 +118,7 @@ await page.screenshot({ path: `${shots}/2-board.png` });
 await step('open task detail + comment', async () => {
   await page.click('.task-card');
   await page.waitForSelector('.sheet', { timeout: 5000 });
-  const title = await page.locator('.sheet .input').first().inputValue();
+  const title = await page.locator('.sheet input[type=text], .sheet input:not([type])').first().inputValue();
   console.log('     task:', title.slice(0, 40));
 });
 await page.screenshot({ path: `${shots}/3-task.png` });
@@ -127,7 +127,7 @@ await step('create task through quick add', async () => {
   await page.keyboard.press('Escape');
   await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
   await page.waitForSelector('.sheet');
-  await page.fill('.sheet input.input >> nth=0', 'Playwright smoke task');
+  await page.fill('.sheet input >> nth=0', 'Playwright smoke task');
   await page.click(`button:has-text("${LABELS.createTask}")`);
   await page.waitForTimeout(1200);
 });
@@ -144,8 +144,8 @@ await step('task reached the server', async () => {
 
 await step('pages', async () => {
   await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.card', { timeout: 5000 });
-  await page.click('.card:has-text("Team handbook")');
+  await page.waitForSelector('a[href^="/pages/"]', { timeout: 5000 });
+  await page.click('a:has-text("Team handbook")');
   await page.waitForSelector('.md h1', { timeout: 5000 });
 });
 await page.screenshot({ path: `${shots}/4-page.png` });
@@ -176,7 +176,7 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 
   // And a direct conversation names the other person rather than showing a key.
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
-  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.locator('.chat-list .chat-row, .chat-list .chat-person').last().click();
   await page.waitForSelector('.chat-header', { timeout: 5000 });
   const title = await page.locator('.chat-header strong').innerText();
   if (!title.trim() || title.includes('.')) throw new Error(`direct conversation titled "${title}"`);
@@ -186,7 +186,7 @@ await step('chat: a channel, a message, and a badge that clears', async () => {
 await step('chat: a picture, a reaction, and a member list that can be added to', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item').first().click();
+  await page.locator('.chat-list .chat-row').first().click();
   await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
 
   // A screenshot, pasted the way somebody pastes one. Generated here rather
@@ -217,8 +217,10 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
 
   await page.locator('.chat-message').first().hover();
   await page.locator('.chat-message .chat-actions button').first().click();
-  await page.waitForSelector('.menu button', { timeout: 3000 });
-  await page.locator('.menu button').first().click();
+  // A menu item is a `role=menuitem`, not a `<button>`: that is the pattern a
+  // screen reader expects inside `role=menu`, and it is what Radix renders.
+  await page.waitForSelector('.menu [role=menuitem]', { timeout: 3000 });
+  await page.locator('.menu [role=menuitem]').first().click();
   await page.waitForTimeout(500);
   const chips = await page.locator('.chat-stream .reaction').count();
   if (!chips) throw new Error('reacting left no chip');
@@ -238,7 +240,7 @@ await page.screenshot({ path: `${shots}/4b-chat.png` });
 await step('chat: a message can point at a task and a project', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.locator('.chat-list .chat-row, .chat-list .chat-person').last().click();
   await page.waitForSelector('.chat-composer textarea');
 
   // The `#` menu offers projects and tasks, and puts in the bare token.
@@ -288,9 +290,9 @@ await step('chat: anybody on the instance can be written to', async () => {
   await page.waitForSelector('#find-person', { timeout: 5000 });
   await page.fill('#find-person', 'grace');
   await page.waitForTimeout(700);
-  const found = await page.locator('.sheet .nav-item').allInnerTexts();
+  const found = await page.locator('.sheet button').allInnerTexts();
   if (!found.some((row) => /grace/i.test(row))) throw new Error(`the search offered ${JSON.stringify(found)}`);
-  await page.locator('.sheet .nav-item').first().click();
+  await page.locator('.sheet button').first().click();
   await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
   const title = await page.locator('.chat-header strong').innerText();
   if (!/grace/i.test(title)) throw new Error(`opened a conversation with "${title}"`);
@@ -308,7 +310,7 @@ await step('chat: anybody on the instance can be written to', async () => {
 await step('editor: Enter continues a list, and a box can be ticked', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.locator('.chat-list .nav-item:not(.chat-find)').last().click();
+  await page.locator('.chat-list .chat-row, .chat-list .chat-person').last().click();
   await page.waitForSelector('.chat-composer textarea');
   const box = page.locator('.chat-composer textarea');
   // Typed as fast as the browser will accept, deliberately. Restoring the caret
@@ -450,8 +452,11 @@ await step('mobile layout', async () => {
     .map((a) => a.getAttribute('href'))
     .filter((href) => href && href !== '/' && !href.startsWith('/t/')))]);
   await m.click('.tabbar a[href="/more"]');
-  await m.waitForSelector('.page a[href="/chat"]', { timeout: 5000 });
-  const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('.tabbar a[href], .page a[href]')]
+  // `:visible` because the desktop sidebar is in the DOM at this width too,
+  // hidden by CSS — and a link nobody can see is not a link a phone reaches.
+  await m.waitForSelector('a[href="/chat"]:visible', { timeout: 5000 });
+  const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('a[href]')]
+    .filter((a) => a.offsetParent !== null)
     .map((a) => a.getAttribute('href'))));
   const missing = wanted.filter((href) => !reachable.has(href));
   if (missing.length) throw new Error(`the sidebar reaches these and a phone does not: ${missing.join(', ')}`);
@@ -519,7 +524,7 @@ await step('templates and rules are set up and readable', async () => {
   if (!await page.locator('.auto-switch.on').count()) throw new Error('the seeded rule is off');
 
   // The log opens and says something, even before the rule has ever fired.
-  await page.locator(`.auto-row .btn:has-text("${LABELS.log}")`).first().click();
+  await page.locator(`.auto-row button:has-text("${LABELS.log}")`).first().click();
   await page.waitForSelector('.sheet');
   const log = await page.locator('.sheet .body').innerText();
   if (/auto\.[a-z]|tpl\.[a-z]/i.test(log)) throw new Error(`untranslated key in the log: ${log.slice(0, 60)}`);
@@ -527,7 +532,7 @@ await step('templates and rules are set up and readable', async () => {
   await page.waitForTimeout(250);
 
   // The rule editor opens with its recipient rows.
-  await page.locator('.auto-row').last().locator('.btn').last().click();
+  await page.locator('.auto-row').last().locator('button').last().click();
   await page.waitForSelector('#rule-name', { timeout: 5000 });
   const recipients = await page.locator('.auto-recipient').count();
   if (!recipients) throw new Error('the rule editor shows no recipients');
@@ -614,7 +619,7 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
       await view.waitForSelector('.sidebar', { timeout: 15000 });
       await closeTour(view);
       await view.click(`button:has-text("${LABELS.newChannel}")`);
-      await view.waitForSelector('.sheet input.input', { timeout: 5000 });
+      await view.waitForSelector('.sheet input', { timeout: 5000 });
       await view.waitForTimeout(300);
 
       const seen = await view.evaluate(() => {
@@ -623,7 +628,7 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
         return {
           scheme: getComputedStyle(document.documentElement).colorScheme,
           sheet: luma(getComputedStyle(sheet).backgroundColor),
-          field: luma(getComputedStyle(sheet.querySelector('input.input')).backgroundColor),
+          field: luma(getComputedStyle(sheet.querySelector('input')).backgroundColor),
         };
       });
       if (seen.scheme !== pinned) throw new Error(`pinned ${pinned} but color-scheme is "${seen.scheme}"`);

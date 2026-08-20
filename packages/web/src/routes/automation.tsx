@@ -25,6 +25,9 @@ import { groupKey, priorityKey, relationKey, roleKey, useT, type TranslationKey,
 import { byId, list, useQuery } from '../lib/store';
 import { create, remove, update } from '../lib/mutations';
 import { pull } from '../lib/sync';
+import { Button } from '../components/ui/button';
+import { Input, Select, Textarea } from '../components/ui/field';
+import { SectionHeading } from '../components/ui/section';
 import { useMembers, useSession } from '../session';
 
 const KIND_KEY: Record<TemplateKind, TranslationKey> = {
@@ -94,26 +97,26 @@ export function AutomationSettings() {
 
   return (
     <>
-      <p className="muted" style={{ fontSize: 13 }}>{t('auto.intro')}</p>
+      <p className="text-muted text-[13.5px]">{t('auto.intro')}</p>
       <GuideHint to="automation" />
 
       {/* ------------------------------------------------------- templates */}
-      <div className="row" style={{ margin: '20px 0 8px' }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>{t('tpl.title')}</h3>
-        <span className="grow" />
+      <div className="flex items-center gap-2" style={{ margin: '20px 0 8px' }}>
+        <SectionHeading tight>{t('tpl.title')}</SectionHeading>
+        <span className="flex-1 min-w-0" />
         {canManage && (
-          <button className="btn sm" onClick={() => setEditingTemplate('new')}>
+          <Button size="sm" onClick={() => setEditingTemplate('new')}>
             <Icon name="plus" size={13} /> {t('tpl.new')}
-          </button>
+          </Button>
         )}
       </div>
-      <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>{t('tpl.lead')}</p>
+      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>{t('tpl.lead')}</p>
 
       {!templates.length && <Empty emoji="📋" title={t('tpl.empty')} hint={t('tpl.emptyHint')} guide="automation" />}
       {templates.map((template) => (
         <div className="auto-row" key={template.id}>
           <span className="auto-glyph">{template.icon ?? KIND_ICON[template.kind as TemplateKind] ?? '📋'}</span>
-          <span className="grow" style={{ minWidth: 0 }}>
+          <span className="flex-1 min-w-0">
             <span className="auto-name">{template.name}</span>
             <span className="auto-meta">
               {scopeName(template.project_id)} · {t(KIND_KEY[template.kind as TemplateKind] ?? 'tpl.kindTask')}
@@ -122,22 +125,22 @@ export function AutomationSettings() {
           </span>
           <UseTemplateButton templateId={template.id} />
           {canManage && (
-            <button className="btn ghost sm" onClick={() => setEditingTemplate(template.id)}>{t('action.edit')}</button>
+            <Button variant="ghost" size="sm" onClick={() => setEditingTemplate(template.id)}>{t('action.edit')}</Button>
           )}
         </div>
       ))}
 
       {/* ----------------------------------------------------------- rules */}
-      <div className="row" style={{ margin: '26px 0 8px' }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>{t('auto.title')}</h3>
-        <span className="grow" />
+      <div className="flex items-center gap-2" style={{ margin: '26px 0 8px' }}>
+        <SectionHeading tight>{t('auto.title')}</SectionHeading>
+        <span className="flex-1 min-w-0" />
         {canManage && (
-          <button className="btn sm" disabled={!templates.length} onClick={() => setEditingRule('new')}>
+          <Button size="sm" disabled={!templates.length} onClick={() => setEditingRule('new')}>
             <Icon name="plus" size={13} /> {t('auto.new')}
-          </button>
+          </Button>
         )}
       </div>
-      <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>
         {templates.length ? t('auto.lead') : t('auto.needTemplate')}
       </p>
 
@@ -154,13 +157,13 @@ export function AutomationSettings() {
           >
             <i />
           </button>
-          <span className="grow" style={{ minWidth: 0 }}>
+          <span className="flex-1 min-w-0">
             <span className="auto-name">{rule.name}</span>
             <span className="auto-meta">{scopeName(rule.project_id)} · {describe(rule, t)}</span>
           </span>
-          <button className="btn ghost sm" onClick={() => setShowingRuns(rule.id)}>{t('auto.runs')}</button>
+          <Button variant="ghost" size="sm" onClick={() => setShowingRuns(rule.id)}>{t('auto.runs')}</Button>
           {canManage && (
-            <button className="btn ghost sm" onClick={() => setEditingRule(rule.id)}>{t('action.edit')}</button>
+            <Button variant="ghost" size="sm" onClick={() => setEditingRule(rule.id)}>{t('action.edit')}</Button>
           )}
         </div>
       ))}
@@ -199,8 +202,7 @@ function UseTemplateButton({ templateId }: { templateId: string }) {
   const toast = useToast();
   const [busy, setBusy] = useState(false);
   return (
-    <button
-      className="btn ghost sm"
+    <Button variant="ghost" size="sm"
       disabled={busy}
       onClick={async () => {
         setBusy(true);
@@ -216,7 +218,7 @@ function UseTemplateButton({ templateId }: { templateId: string }) {
       }}
     >
       {t('tpl.use')}
-    </button>
+    </Button>
   );
 }
 
@@ -272,48 +274,48 @@ function TemplateEditor({
       footer={
         <>
           {templateId && existing && (
-            <button className="btn danger" onClick={() => onDelete(templateId, existing.name)}>
+            <Button variant="danger" onClick={() => onDelete(templateId, existing.name)}>
               {t('action.delete')}
-            </button>
+            </Button>
           )}
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button className="btn primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</button>
+          <span className="flex-1 min-w-0" />
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>
         </>
       }
     >
       <div className="field">
         <label htmlFor="tpl-name">{t('common.name')}</label>
-        <input id="tpl-name" className="input" autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} />
+        <Input id="tpl-name" autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} />
       </div>
 
-      <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
+      <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
         <div className="field" style={{ width: 96 }}>
           <label htmlFor="tpl-icon">{t('project.icon')}</label>
-          <input id="tpl-icon" className="input" maxLength={4} value={form.icon} onChange={(e) => set('icon', e.target.value)} />
+          <Input id="tpl-icon" maxLength={4} value={form.icon} onChange={(e) => set('icon', e.target.value)} />
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-kind">{t('tpl.kind')}</label>
-          <select id="tpl-kind" className="select" value={form.kind} onChange={(e) => set('kind', e.target.value as TemplateKind)}>
+          <Select id="tpl-kind" value={form.kind} onChange={(e) => set('kind', e.target.value as TemplateKind)}>
             {TEMPLATE_KINDS.map((kind) => <option key={kind} value={kind}>{t(KIND_KEY[kind])}</option>)}
-          </select>
+          </Select>
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-scope">{t('tpl.scope')}</label>
-          <select
-            id="tpl-scope" className="select" value={form.project_id ?? ''}
+          <Select
+            id="tpl-scope" value={form.project_id ?? ''}
             onChange={(e) => set('project_id', e.target.value || null)}
           >
             <option value="">{t('tpl.scopeWorkspace')}</option>
             {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
+          </Select>
         </div>
       </div>
 
       <div className="field">
         <label htmlFor="tpl-title">{t('tpl.taskTitle')}</label>
-        <input id="tpl-title" className="input" value={form.title} onChange={(e) => set('title', e.target.value)} />
-        <span className="hint">{t('tpl.placeholderHelp')}</span>
+        <Input id="tpl-title" value={form.title} onChange={(e) => set('title', e.target.value)} />
+        <span className="text-[12px] text-muted">{t('tpl.placeholderHelp')}</span>
       </div>
 
       <div className="field">
@@ -321,31 +323,31 @@ function TemplateEditor({
         <MarkdownEditor value={form.description} onChange={(value) => set('description', value)} minHeight={130} />
       </div>
 
-      <div className="row" style={{ gap: 10, alignItems: 'flex-start' }}>
-        <div className="field grow">
+      <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
+        <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-priority">{t('task.priority')}</label>
-          <select id="tpl-priority" className="select" value={form.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
+          <Select id="tpl-priority" value={form.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
             {PRIORITIES.map((p) => <option key={p} value={p}>{t(priorityKey(p))}</option>)}
-          </select>
+          </Select>
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-due">{t('tpl.dueInDays')}</label>
-          <input
-            id="tpl-due" className="input" type="number" min={0}
+          <Input
+            id="tpl-due" type="number" min={0}
             value={form.due_in_days ?? ''}
             onChange={(e) => set('due_in_days', e.target.value === '' ? null : Number(e.target.value))}
           />
-          <span className="hint">{t('tpl.dueInDaysHint')}</span>
+          <span className="text-[12px] text-muted">{t('tpl.dueInDaysHint')}</span>
         </div>
       </div>
 
       <div className="field">
         <label htmlFor="tpl-subtasks">{t('tpl.subtasks')}</label>
-        <textarea
-          id="tpl-subtasks" className="textarea" style={{ minHeight: 90 }}
+        <Textarea
+          id="tpl-subtasks" style={{ minHeight: 90 }}
           value={form.subtasks} onChange={(e) => set('subtasks', e.target.value)}
         />
-        <span className="hint">{t('tpl.subtasksHint')}</span>
+        <span className="text-[12px] text-muted">{t('tpl.subtasksHint')}</span>
       </div>
     </Sheet>
   );
@@ -446,28 +448,27 @@ function RuleEditor({
       footer={
         <>
           {ruleId && existing && (
-            <button className="btn danger" onClick={() => onDelete(ruleId, existing.name)}>{t('action.delete')}</button>
+            <Button variant="danger" onClick={() => onDelete(ruleId, existing.name)}>{t('action.delete')}</Button>
           )}
-          <span className="grow" />
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button
-            className="btn primary" onClick={save}
+          <span className="flex-1 min-w-0" />
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="primary" onClick={save}
             disabled={!form.name.trim() || !form.template_id || stateMissing || !form.recipients.length}
           >
             {t('action.save')}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="field">
         <label htmlFor="rule-name">{t('common.name')}</label>
-        <input id="rule-name" className="input" autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} />
+        <Input id="rule-name" autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} />
       </div>
 
       <div className="field">
         <label htmlFor="rule-scope">{t('tpl.scope')}</label>
-        <select
-          id="rule-scope" className="select" value={form.project_id ?? ''}
+        <Select
+          id="rule-scope" value={form.project_id ?? ''}
           onChange={(e) => {
             set('project_id', e.target.value || null);
             set('trigger_state_id', null);   // state ids belong to one project
@@ -475,55 +476,55 @@ function RuleEditor({
         >
           <option value="">{t('tpl.scopeWorkspace')}</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+        </Select>
       </div>
 
       <h4 className="auto-h">{t('auto.trigger')}</h4>
-      <div className="row wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
-        <div className="field grow">
+      <div className="flex items-center gap-2 flex-wrap gap-2.5" style={{ alignItems: 'flex-start' }}>
+        <div className="field flex-1 min-w-0">
           <label htmlFor="rule-trigger">{t('auto.event')}</label>
-          <select
-            id="rule-trigger" className="select" value={form.trigger_kind}
+          <Select
+            id="rule-trigger" value={form.trigger_kind}
             onChange={(e) => set('trigger_kind', e.target.value as AutomationTriggerKind)}
           >
             {Object.keys(TRIGGER_KEY).map((kind) => (
               <option key={kind} value={kind}>{t(TRIGGER_KEY[kind])}</option>
             ))}
-          </select>
+          </Select>
         </div>
         {needsState && (
-          <div className="field grow">
+          <div className="field flex-1 min-w-0">
             <label htmlFor="rule-state">{t('auto.state')}</label>
-            <select
-              id="rule-state" className="select" value={form.trigger_state_id ?? ''}
+            <Select
+              id="rule-state" value={form.trigger_state_id ?? ''}
               onChange={(e) => set('trigger_state_id', e.target.value || null)}
             >
               <option value="">—</option>
               {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
-            </select>
-            {!form.project_id && <span className="hint">{t('auto.stateNeedsProject')}</span>}
+            </Select>
+            {!form.project_id && <span className="text-[12px] text-muted">{t('auto.stateNeedsProject')}</span>}
           </div>
         )}
         {form.trigger_kind === 'due_in' && (
-          <div className="field grow">
+          <div className="field flex-1 min-w-0">
             <label htmlFor="rule-days">{t('auto.daysBefore')}</label>
-            <input
-              id="rule-days" className="input" type="number" min={0} max={90} style={{ width: 90 }}
+            <Input
+              id="rule-days" type="number" min={0} max={90} style={{ width: 90 }}
               value={form.trigger_days}
               onChange={(e) => set('trigger_days', Math.max(0, Number(e.target.value) || 0))}
             />
-            <span className="hint">{t('auto.daysBeforeHint')}</span>
+            <span className="text-[12px] text-muted">{t('auto.daysBeforeHint')}</span>
           </div>
         )}
         {form.trigger_kind === 'state_group_entered' && (
-          <div className="field grow">
+          <div className="field flex-1 min-w-0">
             <label htmlFor="rule-group">{t('auto.group')}</label>
-            <select
-              id="rule-group" className="select" value={form.trigger_group}
+            <Select
+              id="rule-group" value={form.trigger_group}
               onChange={(e) => set('trigger_group', e.target.value as StateGroup)}
             >
               {STATE_GROUPS.map((group) => <option key={group} value={group}>{t(groupKey(group))}</option>)}
-            </select>
+            </Select>
           </div>
         )}
       </div>
@@ -531,49 +532,49 @@ function RuleEditor({
       <h4 className="auto-h">{t('auto.then')}</h4>
       <div className="field">
         <label htmlFor="rule-action">{t('auto.action')}</label>
-        <select id="rule-action" className="select" value={form.action_kind}
+        <Select id="rule-action" value={form.action_kind}
           onChange={(e) => set('action_kind', e.target.value as 'file_template' | 'set_fields')}>
           {Object.keys(ACTION_KEY).map((kind) => <option key={kind} value={kind}>{t(ACTION_KEY[kind])}</option>)}
-        </select>
+        </Select>
       </div>
       {filesTemplate ? (
         <div className="field">
           <label htmlFor="rule-template">{t('tpl.one')}</label>
-          <select id="rule-template" className="select" value={form.template_id} onChange={(e) => set('template_id', e.target.value)}>
+          <Select id="rule-template" value={form.template_id} onChange={(e) => set('template_id', e.target.value)}>
             {templates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
-          </select>
+          </Select>
         </div>
       ) : (
         <>
-          <div className="row wrap" style={{ gap: 10 }}>
+          <div className="flex items-center gap-2 flex-wrap gap-2.5">
             <div className="field">
               <label htmlFor="rule-priority">{t('task.priority')}</label>
-              <select id="rule-priority" className="select" style={{ width: 150 }} value={form.action_priority}
+              <Select id="rule-priority" style={{ width: 150 }} value={form.action_priority}
                 onChange={(e) => set('action_priority', e.target.value)}>
                 <option value="">{t('auto.actionLeave')}</option>
                 {PRIORITIES.map((priority) => <option key={priority} value={priority}>{t(priorityKey(priority))}</option>)}
-              </select>
+              </Select>
             </div>
             <div className="field">
               <label htmlFor="rule-label">{t('auto.actionAddLabel')}</label>
-              <select id="rule-label" className="select" style={{ width: 170 }} value={form.action_label}
+              <Select id="rule-label" style={{ width: 170 }} value={form.action_label}
                 onChange={(e) => set('action_label', e.target.value)}>
                 <option value="">{t('auto.actionLeave')}</option>
                 {actionLabels.map((label) => <option key={label.id} value={label.id}>{label.name}</option>)}
-              </select>
+              </Select>
             </div>
             <div className="field">
               <label htmlFor="rule-assignee">{t('auto.actionAssign')}</label>
-              <select id="rule-assignee" className="select" style={{ width: 170 }} value={form.action_assignee}
+              <Select id="rule-assignee" style={{ width: 170 }} value={form.action_assignee}
                 onChange={(e) => set('action_assignee', e.target.value)}>
                 <option value="">{t('auto.actionLeave')}</option>
                 {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-              </select>
+              </Select>
             </div>
             <div className="field">
               <label htmlFor="rule-due">{t('auto.actionDueIn')}</label>
-              <input
-                id="rule-due" className="input" type="number" style={{ width: 96 }} placeholder="—"
+              <Input
+                id="rule-due" type="number" style={{ width: 96 }} placeholder="—"
                 value={form.action_due_in} onChange={(e) => set('action_due_in', e.target.value)}
               />
             </div>
@@ -581,82 +582,81 @@ function RuleEditor({
           {/* Still never the state: a rule that moves a task can trigger a rule
               that moves it back, and two rules editing one row is a merge
               problem rather than a feature flag. */}
-          <span className="hint">{t('auto.actionSetFieldsHint')}</span>
+          <span className="text-[12px] text-muted">{t('auto.actionSetFieldsHint')}</span>
         </>
       )}
 
       <h4 className="auto-h">{t('auto.recipients')}</h4>
-      <p className="hint" style={{ marginTop: -4 }}>{t('auto.recipientsHint')}</p>
+      <p className="text-[12px] text-muted" style={{ marginTop: -4 }}>{t('auto.recipientsHint')}</p>
       {form.recipients.map((recipient, index) => (
-        <div className="row auto-recipient" key={index} style={{ marginBottom: 6 }}>
-          <select
-            className="select grow"
+        <div className="flex items-center gap-2 auto-recipient mb-1.5" key={index}>
+          <Select
+            className="flex-1 min-w-0"
             aria-label={t('auto.recipients')}
             value={recipient.kind}
             onChange={(e) => setRecipient(index, { kind: e.target.value as RecipientKind, ref: null })}
           >
             {RECIPIENT_KINDS.map((kind) => <option key={kind} value={kind}>{t(RECIPIENT_KEY[kind])}</option>)}
-          </select>
+          </Select>
 
           {recipient.kind === 'user' && (
-            <select
-              className="select grow" aria-label={t('auto.recipientUser')} value={recipient.ref ?? ''}
+            <Select
+              className="flex-1 min-w-0" aria-label={t('auto.recipientUser')} value={recipient.ref ?? ''}
               onChange={(e) => setRecipient(index, { kind: 'user', ref: e.target.value })}
             >
               <option value="">—</option>
               {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-            </select>
+            </Select>
           )}
           {recipient.kind === 'team' && (
-            <select
-              className="select grow" aria-label={t('auto.recipientTeam')} value={recipient.ref ?? ''}
+            <Select
+              className="flex-1 min-w-0" aria-label={t('auto.recipientTeam')} value={recipient.ref ?? ''}
               onChange={(e) => setRecipient(index, { kind: 'team', ref: e.target.value })}
             >
               <option value="">—</option>
               {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-            </select>
+            </Select>
           )}
           {recipient.kind === 'role' && (
-            <select
-              className="select grow" aria-label={t('auto.recipientRole')} value={recipient.ref ?? ''}
+            <Select
+              className="flex-1 min-w-0" aria-label={t('auto.recipientRole')} value={recipient.ref ?? ''}
               onChange={(e) => setRecipient(index, { kind: 'role', ref: e.target.value as WorkspaceRole })}
             >
               <option value="">—</option>
               {(['owner', 'admin', 'member'] as const).map((r) => <option key={r} value={r}>{t(roleKey(r))}</option>)}
-            </select>
+            </Select>
           )}
 
-          <button
-            className="btn ghost sm icon"
+          <Button variant="ghost" size="iconSm"
             aria-label={t('action.remove')}
             onClick={() => set('recipients', form.recipients.filter((_, i) => i !== index))}
           >
             <Icon name="close" size={13} />
-          </button>
+          </Button>
         </div>
       ))}
-      <button className="btn sm" onClick={() => set('recipients', [...form.recipients, { kind: 'user', ref: null }])}>
+      <Button size="sm" onClick={() => set('recipients', [...form.recipients, { kind: 'user', ref: null }])}>
         <Icon name="plus" size={13} /> {t('auto.addRecipient')}
-      </button>
+      </Button>
 
-      <div className="row wrap" style={{ gap: 10, alignItems: 'flex-start', marginTop: 14 }}>
-        <div className="field grow">
+      <div className="flex items-center gap-2 flex-wrap gap-2.5 mt-3.5" style={{ alignItems: 'flex-start' }}>
+        <div className="field flex-1 min-w-0">
           <label htmlFor="rule-fanout">{t('auto.fanOut')}</label>
-          <select id="rule-fanout" className="select" value={form.fan_out} onChange={(e) => set('fan_out', e.target.value as FanOut)}>
+          <Select id="rule-fanout" value={form.fan_out} onChange={(e) => set('fan_out', e.target.value as FanOut)}>
             {FAN_OUT.map((value) => (
               <option key={value} value={value}>{t(value === 'single' ? 'auto.fanOutSingle' : 'auto.fanOutEach')}</option>
             ))}
-          </select>
+          </Select>
         </div>
-        <div className="field grow">
+        <div className="field flex-1 min-w-0">
           <label htmlFor="rule-link">{t('auto.link')}</label>
-          <select
-            id="rule-link" className="select" value={form.link_kind}
+          <Select
+            id="rule-link" value={form.link_kind}
             onChange={(e) => set('link_kind', e.target.value as RelationKind | '')}
           >
             <option value="">{t('auto.linkNone')}</option>
             {RELATION_KINDS.map((kind) => <option key={kind} value={kind}>{t(relationKey(kind))}</option>)}
-          </select>
+          </Select>
         </div>
       </div>
 
@@ -679,7 +679,7 @@ function Toggle({
       <input type="checkbox" checked={!!value} onChange={(e) => onChange(e.target.checked ? 1 : 0)} />
       <span>
         <span>{t(label)}</span>
-        {hint && <span className="hint">{t(hint)}</span>}
+        {hint && <span className="text-[12px] text-muted">{t(hint)}</span>}
       </span>
     </label>
   );
@@ -698,14 +698,14 @@ function RunLog({ automationId, onClose }: { automationId: string; onClose: () =
 
   return (
     <Sheet title={t('auto.runs')} onClose={onClose}>
-      <p className="muted" style={{ fontSize: 12.5, marginTop: 0 }}>{t('auto.runsLead')}</p>
-      {runs && !runs.length && <p className="muted">{t('auto.noRuns')}</p>}
+      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>{t('auto.runsLead')}</p>
+      {runs && !runs.length && <p className="text-muted">{t('auto.noRuns')}</p>}
       {runs?.map((entry) => {
         const actor = members.find((member) => member.id === entry.actor_id);
         return (
           <div className="auto-run" key={entry.id}>
             <span className={`auto-run-dot${entry.skipped ? ' skipped' : ''}`} />
-            <span className="grow" style={{ minWidth: 0 }}>
+            <span className="flex-1 min-w-0">
               <span className="auto-name">
                 {entry.task_identifier} {entry.task_title}
               </span>

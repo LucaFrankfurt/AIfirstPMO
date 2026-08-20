@@ -142,8 +142,8 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
               onClick={command.run}
             >
               <Icon name={command.icon} size={15} />
-              <span className="grow truncate">{command.title}</span>
-              {command.hint && <span className="muted mono">{command.hint}</span>}
+              <span className="flex-1 min-w-0 truncate">{command.title}</span>
+              {command.hint && <span className="text-muted mono">{command.hint}</span>}
             </button>
           ))}
         </div>

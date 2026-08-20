@@ -1,14 +1,29 @@
-/** Shared primitives: icons, menus, sheets, avatars, toasts. */
+/**
+ * Shared primitives: icons, menus, sheets, avatars, toasts.
+ *
+ * The interactive ones — the dialog, the menu, the tooltip — are Radix
+ * underneath and styled with Tailwind in `components/ui/`. The API here is
+ * unchanged on purpose: forty screens import `Sheet` and `MenuButton`, and the
+ * point of the port was the behaviour they get for free, not a rewrite of every
+ * call site.
+ */
 import {
-  createContext, useCallback, useContext, useEffect, useId, useLayoutEffect,
+  createContext, Fragment, useCallback, useContext, useEffect, useId,
   useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import type { VariantProps } from 'class-variance-authority';
 import { Link } from 'react-router-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from '../lib/format';
 import { priorityKey, useT } from '../lib/i18n';
 import { guideHref, type GuideTarget } from '../lib/guide';
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Button } from '../components/ui/button';
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from './ui/menu';
+import { buttonVariants } from './ui/button';
+import { Input } from '../components/ui/field';
+import { cn } from '../lib/cn';
 
 /* ------------------------------------------------------------------- icons */
 
@@ -78,9 +93,9 @@ export function Icon({ name, size = 16, className }: { name: IconName | string; 
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
-      className={`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined}
+      className={cn(`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined, 'flex-none')}
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-      style={{ flex: 'none' }}
+     
     >
       <path d={(PATHS as Record<string, string>)[name] ?? PATHS.dots} />
     </svg>
@@ -146,39 +161,41 @@ export function PriorityBars({ priority }: { priority: Priority }) {
 
 /* ------------------------------------------------------------------ sheets */
 
+/**
+ * A sheet: the app's one modal surface, now a real dialog underneath.
+ *
+ * The call site is unchanged — render it when it should be open, give it an
+ * `onClose` — because forty screens do exactly that and this change is about
+ * behaviour, not about churning them. What is new is everything a dialog is
+ * supposed to do and this one could not: focus is trapped inside it, Tab cannot
+ * wander onto the screen behind, focus returns to whatever opened it, the rest
+ * of the page is hidden from a screen reader, and the page underneath keeps its
+ * scroll position instead of jumping to the top on close.
+ */
 export function Sheet({
   title, children, onClose, footer, wide,
 }: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean }) {
   const t = useT();
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.body.style.overflow = '';
-    };
-  }, [onClose]);
-
-  return createPortal(
-    <div className="overlay" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`sheet${wide ? ' wide' : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : t('action.close')}>
-        <div className="grabber" />
-        {title && (
-          <header>
-            <strong className="grow truncate">{title}</strong>
-            <button className="btn ghost icon" onClick={onClose} aria-label={t('action.close')}><Icon name="close" /></button>
-          </header>
-        )}
-        <div className="body">{children}</div>
-        {footer && <footer>{footer}</footer>}
-      </div>
-    </div>,
-    document.body,
+  return (
+    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+      {/* `sheet` is kept as a hook, not a style — the CSS that used to draw it
+          is gone, and this is what tests and the odd screen-specific rule use
+          to find the surface. */}
+      <DialogContent className="sheet" wide={wide} closeLabel={t('action.close')} aria-describedby={undefined}>
+        {title
+          ? <DialogHeader><DialogTitle>{title}</DialogTitle></DialogHeader>
+          : <VisuallyHiddenTitle>{t('action.close')}</VisuallyHiddenTitle>}
+        <DialogBody>{children}</DialogBody>
+        {footer && <DialogFooter>{footer}</DialogFooter>}
+      </DialogContent>
+    </Dialog>
   );
 }
+
+/** A dialog must have a title even when the design shows none. */
+const VisuallyHiddenTitle = ({ children }: { children: ReactNode }) => (
+  <DialogTitle className="sr-only">{children}</DialogTitle>
+);
 
 /* -------------------------------------------------------------- lightbox */
 
@@ -203,10 +220,10 @@ export function Lightbox({ src, alt, onClose }: { src: string; alt?: string; onC
   return createPortal(
     <div className="lightbox" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
       <img src={src} alt={alt ?? ''} />
-      <button className="btn ghost icon lightbox-close" onClick={onClose} aria-label={t('action.close')}>
+      <Button variant="ghost" size="icon" className="lightbox-close" onClick={onClose} aria-label={t('action.close')}>
         <Icon name="close" />
-      </button>
-      <a className="btn sm lightbox-open" href={src} target="_blank" rel="noreferrer">{t('common.openOriginal')}</a>
+      </Button>
+      <a className={cn(buttonVariants({ size: 'sm' }), 'lightbox-open')} href={src} target="_blank" rel="noreferrer">{t('common.openOriginal')}</a>
     </div>,
     document.body,
   );
@@ -245,88 +262,29 @@ export interface MenuItem {
   section?: string;
 }
 
-export function Menu({
-  items, onClose, anchor, search, empty,
-}: { items: MenuItem[]; onClose: () => void; anchor: DOMRect | null; search?: boolean; empty?: string }) {
-  const t = useT();
-  const [query, setQuery] = useState('');
-  const ref = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ top: number; left: number }>({ top: anchor?.bottom ?? 0, left: anchor?.left ?? 0 });
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => `${typeof item.label === 'string' ? item.label : ''} ${item.hint ?? ''}`.toLowerCase().includes(q));
-  }, [items, query]);
-
-  useLayoutEffect(() => {
-    const box = ref.current?.getBoundingClientRect();
-    if (!box || !anchor) return;
-    const margin = 8;
-    const left = Math.min(Math.max(margin, anchor.left), window.innerWidth - box.width - margin);
-    const below = anchor.bottom + 6;
-    const top = below + box.height > window.innerHeight - margin
-      ? Math.max(margin, anchor.top - box.height - 6)
-      : below;
-    setPosition({ top, left });
-  }, [anchor, filtered.length]);
-
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
-    const onClick = (event: MouseEvent) => {
-      if (!ref.current?.contains(event.target as Node)) onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    setTimeout(() => document.addEventListener('pointerdown', onClick), 0);
-    return () => {
-      document.removeEventListener('keydown', onKey);
-      document.removeEventListener('pointerdown', onClick);
-    };
-  }, [onClose]);
-
-  let lastSection: string | undefined;
-  return createPortal(
-    <div className="menu" ref={ref} style={position} role="menu">
-      {search && (
-        <input
-          className="search" autoFocus placeholder={t('common.filterPlaceholder')} value={query}
-          onChange={(e) => setQuery(e.target.value)}
-        />
-      )}
-      {filtered.length === 0 && <div className="section">{empty ?? t('common.nothingHere')}</div>}
-      {filtered.map((item) => {
-        const header = item.section && item.section !== lastSection ? item.section : null;
-        lastSection = item.section;
-        return (
-          <div key={item.id}>
-            {header && <div className="section">{header}</div>}
-            <button
-              role="menuitem"
-              style={item.danger ? { color: 'var(--danger)' } : undefined}
-              onClick={() => {
-                item.onSelect?.();
-                onClose();
-              }}
-            >
-              {item.icon}
-              <span className="grow truncate">{item.label}</span>
-              {item.hint && <span className="muted" style={{ fontSize: 11.5 }}>{item.hint}</span>}
-            </button>
-          </div>
-        );
-      })}
-    </div>,
-    document.body,
-  );
-}
-
-/** Button that opens a menu anchored to itself. */
+/**
+ * A menu, anchored to the button that opens it.
+ *
+ * Same `items` array as before — the screens pass a list of `{ id, label,
+ * icon, onSelect }` and nothing about that changes. Underneath it is now a real
+ * menu: arrow keys and Home/End move through it, typing jumps to an item,
+ * Escape closes and gives the button its focus back, and it flips above the
+ * button when there is no room below instead of hanging off the window.
+ *
+ * The optional search box stays, because typeahead is not the same thing as
+ * filtering when a list is forty people long. Keys typed in it are kept from
+ * the menu's own typeahead, which would otherwise move the highlight while
+ * somebody is trying to type a name.
+ */
 export function MenuButton({
-  items, children, className = 'btn ghost', title, label, search, disabled, empty,
+  items, children, className, variant = 'ghost', size = 'default', title, label, search, disabled, empty,
 }: {
   items: MenuItem[];
   children: ReactNode;
+  /** Extra classes. The look of the trigger comes from `variant` and `size`. */
   className?: string;
+  variant?: VariantProps<typeof buttonVariants>['variant'];
+  size?: VariantProps<typeof buttonVariants>['size'];
   title?: string;
   /**
    * Accessible name. An icon-only menu button otherwise announces as "button"
@@ -337,17 +295,62 @@ export function MenuButton({
   disabled?: boolean;
   empty?: string;
 }) {
-  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const t = useT();
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => `${typeof item.label === 'string' ? item.label : ''} ${item.hint ?? ''}`.toLowerCase().includes(q));
+  }, [items, query]);
+
+  let lastSection: string | undefined;
   return (
-    <>
-      <button
-        className={className} title={title} aria-label={label ?? title} disabled={disabled} type="button"
-        onClick={(event) => setAnchor(event.currentTarget.getBoundingClientRect())}
-      >
-        {children}
-      </button>
-      {anchor && <Menu items={items} anchor={anchor} onClose={() => setAnchor(null)} search={search} empty={empty} />}
-    </>
+    <Menu onOpenChange={(open) => { if (!open) setQuery(''); }}>
+      <MenuTrigger asChild>
+        <button
+          className={cn(buttonVariants({ variant, size }), className)}
+          title={title}
+          aria-label={label ?? title}
+          disabled={disabled}
+          type="button"
+        >
+          {children}
+        </button>
+      </MenuTrigger>
+      <MenuContent align="start">
+        {search && (
+          <Input
+            className="mb-1 h-8 text-[13px]"
+            autoFocus
+            placeholder={t('common.filterPlaceholder')}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              // Everything except the keys that mean "leave the box": otherwise
+              // the menu's typeahead moves the highlight as somebody types.
+              if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp', 'Tab'].includes(event.key)) event.stopPropagation();
+            }}
+          />
+        )}
+        {filtered.length === 0 && (
+          <div className="px-2 py-2 text-[12.5px] text-muted">{empty ?? t('common.nothingHere')}</div>
+        )}
+        {filtered.map((item) => {
+          const header = item.section && item.section !== lastSection ? item.section : null;
+          lastSection = item.section;
+          return (
+            <Fragment key={item.id}>
+              {header && <MenuLabel>{header}</MenuLabel>}
+              <MenuItem danger={item.danger} onSelect={() => item.onSelect?.()}>
+                {item.icon}
+                <span className="flex-1 min-w-0 truncate">{item.label}</span>
+                {item.hint && <span className="text-[11.5px] text-muted">{item.hint}</span>}
+              </MenuItem>
+            </Fragment>
+          );
+        })}
+      </MenuContent>
+    </Menu>
   );
 }
 
@@ -438,7 +441,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {typeof children === 'object' && children !== null && 'props' in (children as any)
         ? <div>{children}</div>
         : children}
-      {hint && <span className="hint">{hint}</span>}
+      {hint && <span className="text-[12px] text-muted">{hint}</span>}
     </div>
   );
 }
@@ -472,8 +475,8 @@ export function useConfirm() {
       }}
       footer={
         <>
-          <button className="btn" onClick={() => { request.resolve(false); setRequest(null); }}>{t('action.cancel')}</button>
-          <button className="btn danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel ?? t('action.delete')}</button>
+          <Button onClick={() => { request.resolve(false); setRequest(null); }}>{t('action.cancel')}</Button>
+          <Button variant="danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel ?? t('action.delete')}</Button>
         </>
       }
     >

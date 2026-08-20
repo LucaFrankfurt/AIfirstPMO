@@ -5,6 +5,8 @@ import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers, useSession } from '../session';
 import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
+import { Input } from '../components/ui/field';
+import { Chip, chipDot, chipVariants } from './ui/chip';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
 /* ----------------------------------------------------------------- lookups */
@@ -49,7 +51,7 @@ export function StatePicker({ task, compact }: { task: Task; compact?: boolean }
     onSelect: () => update('task', task.id, { state_id: state.id }),
   }));
   return (
-    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('task.state')}>
+    <MenuButton items={items} size={compact ? 'iconSm' : 'sm'} title={current?.name ?? t('task.state')}>
       <StateDot group={current?.group_key} color={current?.color} />
       {!compact && <span className="truncate">{current?.name ?? t('task.noState')}</span>}
     </MenuButton>
@@ -76,7 +78,7 @@ export function TypePicker({ task, compact }: { task: Task; compact?: boolean })
   ];
 
   return (
-    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={current?.name ?? t('type.label')}>
+    <MenuButton items={items} size={compact ? 'iconSm' : 'sm'} title={current?.name ?? t('type.label')}>
       <span aria-hidden>{current?.icon ?? '◇'}</span>
       {!compact && <span className="truncate">{current?.name ?? t('type.none')}</span>}
     </MenuButton>
@@ -92,7 +94,7 @@ export function PriorityPicker({ task, compact }: { task: Task; compact?: boolea
     onSelect: () => update('task', task.id, { priority }),
   }));
   return (
-    <MenuButton items={items} className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={t(priorityKey(task.priority))}>
+    <MenuButton items={items} size={compact ? 'iconSm' : 'sm'} title={t(priorityKey(task.priority))}>
       <PriorityBars priority={task.priority} />
       {!compact && <span>{t(priorityKey(task.priority))}</span>}
     </MenuButton>
@@ -112,7 +114,7 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
   }));
   const people = (task.assignees ?? []).map((id) => members.find((m) => m.id === id)).filter(Boolean) as any[];
   return (
-    <MenuButton items={items} search className={`btn ghost ${compact ? 'icon sm' : 'sm'}`} title={t('task.assignees')}>
+    <MenuButton items={items} search size={compact ? 'iconSm' : 'sm'} title={t('task.assignees')}>
       {people.length ? <AvatarStack users={people} size={compact ? 18 : 20} /> : <Icon name="users" size={14} />}
       {!compact && <span className="truncate">{people.length ? people.map((p) => p.name).join(', ') : t('task.unassigned')}</span>}
     </MenuButton>
@@ -127,11 +129,11 @@ export function LabelPicker({ task }: { task: Task }) {
     id: label.id,
     label: label.name,
     hint: applied.has(label.id) ? '✓' : undefined,
-    icon: <span className="dot" style={{ background: label.color, width: 8, height: 8, borderRadius: 4 }} />,
+    icon: <span className={chipDot} style={{ background: label.color, width: 8, height: 8, borderRadius: 4 }} />,
     onSelect: () => toggleLabel(task, label.id),
   }));
   return (
-    <MenuButton items={items} search className="btn ghost sm" title={t('task.labels')} empty={t('task.noLabelsYet')}>
+    <MenuButton items={items} search variant="ghost" size="sm" title={t('task.labels')} empty={t('task.noLabelsYet')}>
       <Icon name="bolt" size={14} />
       <span>{applied.size ? t('task.labelCount', { count: applied.size }) : t('task.labels')}</span>
     </MenuButton>
@@ -152,7 +154,7 @@ export function CyclePicker({ task }: { task: Task }) {
     })),
   ];
   return (
-    <MenuButton items={items} className="btn ghost sm" title={t('task.cycle')}>
+    <MenuButton items={items} variant="ghost" size="sm" title={t('task.cycle')}>
       <Icon name="cycle" size={14} />
       <span className="truncate">{current?.name ?? t('task.noCycle')}</span>
     </MenuButton>
@@ -168,7 +170,7 @@ export function ModulePicker({ task }: { task: Task }) {
     ...modules.map((module) => ({ id: module.id, label: module.name, onSelect: () => update('task', task.id, { module_id: module.id }) })),
   ];
   return (
-    <MenuButton items={items} className="btn ghost sm" title={t('task.module')}>
+    <MenuButton items={items} variant="ghost" size="sm" title={t('task.module')}>
       <Icon name="target" size={14} />
       <span className="truncate">{current?.name ?? t('task.noModule')}</span>
     </MenuButton>
@@ -177,8 +179,7 @@ export function ModulePicker({ task }: { task: Task }) {
 
 export function DateField({ value, onChange, label }: { value?: string | null; onChange: (value: string | null) => void; label: string }) {
   return (
-    <input
-      className="input"
+    <Input
       type="date"
       aria-label={label}
       value={value ?? ''}
@@ -199,8 +200,8 @@ export function LabelChips({ ids, projectId }: { ids: string[]; projectId?: stri
         const label = labels.find((l) => l.id === id);
         if (!label) return null;
         return (
-          <span className="chip" key={id}>
-            <span className="dot" style={{ background: label.color }} />
+          <span className={chipVariants()} key={id}>
+            <span className={chipDot} style={{ background: label.color }} />
             {label.name}
           </span>
         );
@@ -247,7 +248,7 @@ export function TaskRow({
       <span className="title">{task.title}</span>
       <span className="meta">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
-        {!!subtasks.length && <span className="chip" title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
+        {!!subtasks.length && <span className={chipVariants()} title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
         {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         <AvatarStack users={people} size={20} />
@@ -276,14 +277,14 @@ export function TaskCard({
       onDragStart={onDragStart}
       onClick={() => onOpen(task)}
     >
-      <div className="row" style={{ marginBottom: 4 }}>
-        <span className="mono muted">{task.identifier}</span>
-        <span className="grow" />
+      <div className="flex items-center gap-2 mb-1">
+        <span className="mono text-muted">{task.identifier}</span>
+        <span className="flex-1 min-w-0" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         {moveTargets && moveTargets.length > 1 && (
           <span onClick={(event) => event.stopPropagation()}>
             <MenuButton
-              className="btn ghost sm icon"
+              variant="ghost" size="iconSm"
               title={t('task.moveTo')}
               items={moveTargets.map((target) => ({
                 id: target.id,
@@ -301,8 +302,8 @@ export function TaskCard({
       <div className="footer">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
         {task.due_date && <span className={`chip ${dueClass(task.due_date)}`}>{shortDate(task.due_date)}</span>}
-        {task.estimate != null && <span className="chip">{task.estimate}p</span>}
-        <span className="grow" />
+        {task.estimate != null && <Chip>{task.estimate}p</Chip>}
+        <span className="flex-1 min-w-0" />
         <AvatarStack users={people} size={20} />
       </div>
     </article>

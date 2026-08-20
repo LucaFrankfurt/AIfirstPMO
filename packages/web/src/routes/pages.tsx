@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { Comments } from '../components/comments';
@@ -18,6 +18,11 @@ import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useCollaborativeText } from '../lib/collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
+import { SectionHeading } from '../components/ui/section';
+import { navItem } from '../components/ui/nav';
+import { chipDot } from '../components/ui/chip';
 import { useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- tree */
@@ -49,20 +54,20 @@ function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; ac
   const [open, setOpen] = useState(true);
   return (
     <>
-      <div className="row" style={{ gap: 0, paddingInlineStart: depth * 12 }}>
+      <div className="flex items-center gap-2" style={{ gap: 0, paddingInlineStart: depth * 12 }}>
         {node.children.length > 0 ? (
-          <button className="btn ghost sm icon" onClick={() => setOpen(!open)} aria-label={t('page.toggleTree')}>
+          <Button variant="ghost" size="iconSm" onClick={() => setOpen(!open)} aria-label={t('page.toggleTree')}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
-          </button>
+          </Button>
         ) : (
           <span style={{ width: 27 }} />
         )}
         <button
-          className={`nav-item${activeId === node.page.id ? ' active' : ''}`}
+          className={navItem({ active: activeId === node.page.id })}
           onClick={() => navigate(`/pages/${node.page.id}`)}
         >
           <span style={{ width: 16 }}>{node.page.icon ?? '📄'}</span>
-          <span className="grow truncate">{node.page.title || t('common.untitled')}</span>
+          <span className="flex-1 min-w-0 truncate">{node.page.title || t('common.untitled')}</span>
         </button>
       </div>
       {open && node.children.map((child) => <TreeItem key={child.page.id} node={child} depth={depth + 1} activeId={activeId} />)}
@@ -99,14 +104,14 @@ export function PagesIndex() {
       <Header title={t('page.listTitle')}>
         {inUse.length > 0 && (
           <MenuButton
-            className="btn sm"
+            variant="secondary" size="sm"
             items={[
               { id: 'all', label: t('page.allPages'), hint: filter ? undefined : '✓', onSelect: () => setFilter('') },
               ...inUse.map((label) => ({
                 id: label.id,
                 section: t('page.filterByLabel'),
                 label: label.name,
-                icon: <span className="dot" style={{ background: label.color }} />,
+                icon: <span className={chipDot} style={{ background: label.color }} />,
                 hint: filter === label.id ? '✓' : undefined,
                 onSelect: () => setFilter(label.id),
               })),
@@ -118,7 +123,7 @@ export function PagesIndex() {
         )}
         {templates.length > 0 && (
           <MenuButton
-            className="btn sm"
+            variant="secondary" size="sm"
             items={templates.map((template) => ({
               id: template.id,
               label: `${template.icon ?? '📄'} ${template.title}`,
@@ -134,34 +139,40 @@ export function PagesIndex() {
           </MenuButton>
         )}
         {canWrite && (
-          <button className="btn primary sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
+          <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
-          </button>
+          </Button>
         )}
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
             hint={t('page.emptyHint')} guide="pages"
-            action={<button className="btn primary" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>{t('page.writeFirst')}</button>}
+            action={<Button variant="primary" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>{t('page.writeFirst')}</Button>}
           />
         ) : (
           <>
-            <h2 style={{ fontSize: 14, marginBottom: 8 }}>{t('page.recentlyEdited')}</h2>
-            <div className="grid two" style={{ marginBottom: 22 }}>
+            <h2 className="mb-2 text-sm font-semibold">{t('page.recentlyEdited')}</h2>
+            {/* Links, not buttons that navigate: a page is a thing people open
+                in a second tab, and a button cannot be. */}
+            <div className="mb-6 grid gap-3 sm:grid-cols-2">
               {recent.map((page) => (
-                <button className="card" key={page.id} style={{ textAlign: 'left' }} onClick={() => navigate(`/pages/${page.id}`)}>
-                  <div className="row" style={{ marginBottom: 4 }}>
-                    <span>{page.icon ?? '📄'}</span>
-                    <strong className="grow truncate">{page.title || t('common.untitled')}</strong>
-                  </div>
-                  <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>{excerpt(page.content, 110) || t('page.emptyPage')}</p>
-                  <span className="muted" style={{ fontSize: 11.5 }}>{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
-                </button>
+                <Link
+                  key={page.id}
+                  to={`/pages/${page.id}`}
+                  className="flex flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                >
+                  <span className="flex items-center gap-2">
+                    <span aria-hidden="true">{page.icon ?? '📄'}</span>
+                    <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
+                  </span>
+                  <p className="m-0 text-[12.5px] text-muted">{excerpt(page.content, 110) || t('page.emptyPage')}</p>
+                  <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
+                </Link>
               ))}
             </div>
-            <h2 style={{ fontSize: 14, marginBottom: 8 }}>{t('page.all')}</h2>
+            <h2 className="mb-2 text-sm font-semibold">{t('page.all')}</h2>
             {tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} />)}
           </>
         )}
@@ -229,8 +240,8 @@ export function PageDetail() {
 
   return (
     <>
-      <Header title={<span className="row" style={{ gap: 6 }}><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
-        <button className="btn sm" hidden={!canWrite} onClick={() => {
+      <Header title={<span className="flex items-center gap-2 gap-1.5"><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
+        <Button size="sm" hidden={!canWrite} onClick={() => {
           if (editing) {
             flush();
             if (title !== page.title) update('page', id, { title });
@@ -238,9 +249,9 @@ export function PageDetail() {
           setEditing(!editing);
         }}>
           {editing ? <><Icon name="check" size={14} /> {t('action.done')}</> : <>{t('action.edit')}</>}
-        </button>
+        </Button>
         <MenuButton
-          className="btn ghost sm icon"
+          variant="ghost" size="iconSm"
           label={t('common.moreActions')}
           items={[
             { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
@@ -299,16 +310,15 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
-      <div className="page" style={{ maxWidth: 820 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 820 }}>
         {editing ? (
           <>
-            <div className="row" style={{ marginBottom: 10 }}>
-              <input
-                className="input" style={{ width: 60, textAlign: 'center', fontSize: 18 }} value={page.icon ?? '📄'}
+            <div className="flex items-center gap-2 mb-2.5">
+              <Input style={{ width: 60, textAlign: 'center', fontSize: 18 }} value={page.icon ?? '📄'}
                 maxLength={4} onChange={(event) => update('page', id, { icon: event.target.value })}
               />
-              <input
-                className="input grow" style={{ fontSize: 19, fontWeight: 600 }} value={title}
+              <Input
+                className="flex-1 min-w-0 font-semibold" style={{ fontSize: 19 }} value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={() => update('page', id, { title: title.trim() || t('common.untitled') })}
               />
@@ -317,12 +327,12 @@ export function PageDetail() {
             {/* Quiet, and only while it is true: somebody wanting to know why a
                 sentence appeared under their cursor should be able to find out,
                 and nobody else should have to look at it. */}
-            {merged && <span className="hint" style={{ display: 'block', marginTop: 6 }}>{t('page.mergedIn')}</span>}
+            {merged && <span className="text-[12px] text-muted mt-1.5" style={{ display: 'block' }}>{t('page.mergedIn')}</span>}
           </>
         ) : (
           <>
             <h1 style={{ fontSize: 26, marginBottom: 6 }}>{page.title || t('common.untitled')}</h1>
-            <div className="row muted" style={{ fontSize: 12, marginBottom: 18 }}>
+            <div className="flex items-center gap-2 text-muted text-[12.5px] mb-[18px]">
               <span>{author ? t('page.byAuthor', { name: author.name }) : ''}</span>
               <span>· {t('page.updatedAgo', { time: relativeTime(page.updated_at) })}</span>
               {page.project_id && <span>· {byId('project', page.project_id)?.name}</span>}
@@ -330,7 +340,7 @@ export function PageDetail() {
               {watching && <span>· {t('page.watching')}</span>}
               {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
-            <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}><PageLabelChips page={page} /></div>
+            <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
             {page.content?.trim()
               ? (
                 <div className="annotatable" ref={setBody}>
@@ -338,17 +348,17 @@ export function PageDetail() {
                   {bubble}
                 </div>
               )
-              : <button className="btn" onClick={() => setEditing(true)}>{t('page.startWriting')}</button>}
+              : <Button onClick={() => setEditing(true)}>{t('page.startWriting')}</Button>}
           </>
         )}
 
         {children.length > 0 && (
-          <section style={{ marginTop: 28 }}>
-            <h3 style={{ fontSize: 14, marginBottom: 6 }}>{t('page.subpages')}</h3>
+          <section className="mt-7">
+            <SectionHeading tight>{t('page.subpages')}</SectionHeading>
             {children.map((child) => (
-              <button key={child.id} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate(`/pages/${child.id}`)}>
+              <button key={child.id} className="task-row text-left" style={{ width: '100%' }} onClick={() => navigate(`/pages/${child.id}`)}>
                 <span>{child.icon ?? '📄'}</span>
-                <span className="grow truncate">{child.title}</span>
+                <span className="flex-1 min-w-0 truncate">{child.title}</span>
               </button>
             ))}
           </section>
@@ -358,9 +368,9 @@ export function PageDetail() {
             what people said about it — and mid-edit it is simply in the way. */}
         {!editing && (
           <section style={{ marginTop: 32, borderTop: '1px solid var(--line)', paddingTop: 18 }}>
-            <div className="row" style={{ marginBottom: 12 }}>
-              <h3 style={{ fontSize: 14, margin: 0 }}>{t('page.discussion')}</h3>
-              <span className="muted" style={{ fontSize: 12 }}>· {t('annotate.hint')}</span>
+            <div className="flex items-center gap-2 mb-3">
+              <SectionHeading tight>{t('page.discussion')}</SectionHeading>
+              <span className="text-muted text-[12.5px]">· {t('annotate.hint')}</span>
             </div>
             <Comments
               target={{ page_id: id }}
@@ -388,18 +398,17 @@ export function PageDetail() {
 
       {history && (
         <Sheet title={t('page.history')} onClose={() => setHistory(null)}>
-          {history.length === 0 && <p className="muted">{t('page.noVersions')}</p>}
+          {history.length === 0 && <p className="text-muted">{t('page.noVersions')}</p>}
           {history.map((version) => (
-            <div className="row" key={version.id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
-              <div className="grow">
-                <strong style={{ fontSize: 13 }}>{version.title}</strong>
-                <div className="muted" style={{ fontSize: 12 }}>
+            <div className="flex items-center gap-2" key={version.id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
+              <div className="flex-1 min-w-0">
+                <strong className="text-[13.5px]">{version.title}</strong>
+                <div className="text-muted text-[12.5px]">
                   {shortDate(version.created_at)} · {members.get(version.author_id)?.name ?? t('common.someone')} · {t('page.versionSize', { count: version.size })}
                 </div>
               </div>
-              <button className="btn ghost sm" onClick={() => setDiffing(version.id)}>{t('page.compare')}</button>
-              <button
-                className="btn sm"
+              <Button variant="ghost" size="sm" onClick={() => setDiffing(version.id)}>{t('page.compare')}</Button>
+              <Button size="sm"
                 onClick={async () => {
                   if (!(await confirm(t('page.restoreConfirm'), t('action.restore')))) return;
                   await api.restoreVersion(id, version.id);
@@ -409,7 +418,7 @@ export function PageDetail() {
                 }}
               >
                 {t('action.restore')}
-              </button>
+              </Button>
             </div>
           ))}
         </Sheet>

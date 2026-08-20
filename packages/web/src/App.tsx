@@ -36,7 +36,7 @@ function TaskRoute() {
 function Boot() {
   return (
     <div className="auth">
-      <div className="col" style={{ alignItems: 'center', gap: 14 }}>
+      <div className="flex flex-col gap-2 gap-3.5" style={{ alignItems: 'center' }}>
         <img src="/icon.svg" width={46} height={46} alt="" style={{ borderRadius: 12 }} />
         <div className="skeleton" style={{ width: 160, height: 10 }} />
       </div>

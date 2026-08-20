@@ -8,6 +8,8 @@ import { priorityKey, useT } from '../lib/i18n';
 import { useMe, useMembers, useSession } from '../session';
 import { MarkdownEditor } from './Markdown';
 import { useStates } from './task-parts';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from './ui';
 
 const LAST_PROJECT_KEY = 'kolibri.last-project';
@@ -100,21 +102,20 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={() => submit(true)} disabled={!title.trim() || !projectId} title={t('quickAdd.saveAndNewHint')}>
+          <Button onClick={() => submit(true)} disabled={!title.trim() || !projectId} title={t('quickAdd.saveAndNewHint')}>
             {t('quickAdd.saveAndNew')}
-          </button>
-          <button className="btn primary" onClick={() => submit(false)} disabled={!title.trim() || !projectId}>
+          </Button>
+          <Button variant="primary" onClick={() => submit(false)} disabled={!title.trim() || !projectId}>
             {t('quickAdd.create')}
-          </button>
+          </Button>
         </>
       }
     >
       {!projects.length ? (
-        <p className="muted">{t('quickAdd.needProject')}</p>
+        <p className="text-muted">{t('quickAdd.needProject')}</p>
       ) : (
         <>
-          <input
-            className="input"
+          <Input
             autoFocus
             placeholder={t('quickAdd.placeholder')}
             value={title}
@@ -122,17 +123,17 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             onKeyDown={(event) => {
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(false);
             }}
-            style={{ fontSize: 16, marginBottom: 10 }}
+            className="text-base mb-2.5"
           />
 
-          <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>
-            <MenuButton items={projectItems} className="btn sm" search>
+          <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
+            <MenuButton items={projectItems} variant="secondary" size="sm" search>
               <span>{project ? `${project.icon ?? ''} ${project.name}` : t('quickAdd.project')}</span>
               <Icon name="chevronDown" size={13} />
             </MenuButton>
 
             <MenuButton
-              className="btn sm"
+              variant="secondary" size="sm"
               items={states.map((state) => ({
                 id: state.id,
                 label: state.name,
@@ -145,7 +146,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             </MenuButton>
 
             <MenuButton
-              className="btn sm"
+              variant="secondary" size="sm"
               items={PRIORITIES.map((value) => ({
                 id: value,
                 label: t(priorityKey(value)),
@@ -157,15 +158,15 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
               {t(priorityKey(priority))}
             </MenuButton>
 
-            <MenuButton items={memberItems} className="btn sm" search>
+            <MenuButton items={memberItems} variant="secondary" size="sm" search>
               <Icon name="users" size={14} />
               {assignees.length ? t('quickAdd.assigned', { count: assignees.length }) : t('quickAdd.assign')}
             </MenuButton>
 
-            <input className="input" type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
+            <Input type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
 
             <MenuButton
-              className="btn sm"
+              variant="secondary" size="sm"
               disabled={applying}
               empty={t('tpl.pickEmpty')}
               items={templates.map((template) => ({
@@ -193,9 +194,9 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
           {more ? (
             <MarkdownEditor value={description} onChange={setDescription} minHeight={110} placeholder={t('quickAdd.descriptionPlaceholder')} />
           ) : (
-            <button className="btn ghost sm" onClick={() => setMore(true)}>
+            <Button variant="ghost" size="sm" onClick={() => setMore(true)}>
               <Icon name="plus" size={13} /> {t('quickAdd.addDescription')}
-            </button>
+            </Button>
           )}
         </>
       )}

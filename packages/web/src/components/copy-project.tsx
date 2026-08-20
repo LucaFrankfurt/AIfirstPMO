@@ -11,6 +11,8 @@ import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
+import { Button } from '../components/ui/button';
+import { Input, Select } from './ui/field';
 import { Icon, Sheet, useToast } from './ui';
 
 export function CopyProjectSheet({ projectId, onClose, onCopied }: {
@@ -64,30 +66,30 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
   return (
     <Sheet title={t('copy.title')} onClose={onClose}>
       <form onSubmit={submit}>
-        <p className="hint" style={{ marginBottom: 12 }}>{t('copy.hint')}</p>
-        {error && <div className="error" style={{ marginBottom: 10 }}>{error}</div>}
+        <p className="text-[12px] text-muted mb-3">{t('copy.hint')}</p>
+        {error && <div className="error mb-2.5">{error}</div>}
 
         <div className="field">
           <label htmlFor="copy-name">{t('copy.name')}</label>
-          <input id="copy-name" className="input" required value={name} autoFocus
+          <Input id="copy-name" required value={name} autoFocus
             onChange={(event) => setName(event.target.value)} />
         </div>
 
         <div className="field">
           <label htmlFor="copy-key">{t('copy.key')}</label>
-          <input id="copy-key" className="input" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
+          <Input id="copy-key" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
             onChange={(event) => setKey(event.target.value.toUpperCase())} />
-          <span className="hint">{t('copy.keyAuto')}</span>
+          <span className="text-[12px] text-muted">{t('copy.keyAuto')}</span>
         </div>
 
         <div className="field">
           <label htmlFor="copy-parent">{t('copy.parent')}</label>
-          <select id="copy-parent" className="select" value={parentId} onChange={(event) => setParentId(event.target.value)}>
+          <Select id="copy-parent" value={parentId} onChange={(event) => setParentId(event.target.value)}>
             <option value="">{t('project.parentNone')}</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>{project.icon} {project.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <strong style={{ fontSize: 13, display: 'block', margin: '14px 0 6px' }}>{t('copy.include')}</strong>
@@ -97,24 +99,24 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
           ['pages', t('copy.pages')],
           ['tasks', t('copy.tasks')],
         ] as const).map(([field, label]) => (
-          <label className="row" key={field} style={{ gap: 8, padding: '4px 0', fontSize: 13 }}>
+          <label className="flex items-center gap-2" key={field} style={{ gap: 8, padding: '4px 0', fontSize: 13 }}>
             <input type="checkbox" checked={include[field]} onChange={() => toggle(field)} />
             {label}
           </label>
         ))}
         {include.tasks && (
           <>
-            <label className="row" style={{ gap: 8, padding: '4px 0 4px 24px', fontSize: 13 }}>
+            <label className="flex items-center gap-2 text-[13.5px]" style={{ padding: '4px 0 4px 24px' }}>
               <input type="checkbox" checked={include.doneTasks} onChange={() => toggle('doneTasks')} />
               {t('copy.doneTasks')}
             </label>
-            <span className="hint" style={{ display: 'block', marginTop: 4 }}>{t('copy.tasksHint')}</span>
+            <span className="text-[12px] text-muted mt-1" style={{ display: 'block' }}>{t('copy.tasksHint')}</span>
           </>
         )}
 
-        <button className="btn primary block lg" type="submit" disabled={busy || !name.trim()} style={{ marginTop: 16 }}>
+        <Button variant="primary" size="lg" block type="submit" disabled={busy || !name.trim()} className="mt-4">
           {busy ? t('copy.working') : <><Icon name="copy" size={14} /> {t('copy.submit')}</>}
-        </button>
+        </Button>
       </form>
     </Sheet>
   );

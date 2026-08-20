@@ -15,6 +15,8 @@ import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, TypePicker, stateOf,
 } from './task-parts';
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from './ui';
+import { Input, Select } from '../components/ui/field';
+import { Button } from '../components/ui/button';
 
 export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClose: () => void; onOpen: (task: Task) => void }) {
   const t = useT();
@@ -82,15 +84,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         wide
         onClose={onClose}
         title={
-          <span className="row" style={{ gap: 6 }}>
+          <span className="flex items-center gap-2 gap-1.5">
             <StateDot group={state?.group_key} color={state?.color} />
-            <span className="mono muted">{task.identifier}</span>
-            {project && <span className="muted truncate">· {project.name}</span>}
+            <span className="mono text-muted">{task.identifier}</span>
+            {project && <span className="text-muted truncate">· {project.name}</span>}
           </span>
         }
       >
-        <input
-          className="input"
+        <Input
           style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -98,7 +99,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
         />
 
-        <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}>
+        <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5">
           <StatePicker task={task} />
           <TypePicker task={task} />
           <PriorityPicker task={task} />
@@ -107,7 +108,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           <CyclePicker task={task} />
           <ModulePicker task={task} />
           <MenuButton
-            className="btn ghost sm"
+            variant="ghost" size="sm"
             label={t('common.moreActions')}
             items={[
               { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
@@ -138,15 +139,14 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </MenuButton>
         </div>
 
-        <div className="row wrap" style={{ gap: 10, marginBottom: 16 }}>
-          <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-            <span className="muted">{t('task.due')}</span>
+        <div className="flex items-center gap-2 flex-wrap gap-2.5 mb-4">
+          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+            <span className="text-muted">{t('task.due')}</span>
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
-          <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-            <span className="muted">{t('task.repeats')}</span>
-            <select
-              className="select" style={{ width: 130 }}
+          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+            <span className="text-muted">{t('task.repeats')}</span>
+            <Select style={{ width: 130 }}
               value={task.recurrence ?? ''}
               onChange={(event) => update('task', task.id, { recurrence: event.target.value || null })}
             >
@@ -155,12 +155,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="weekly">{t('task.repeatsWeekly')}</option>
               <option value="weekly:2">{t('task.repeatsFortnightly')}</option>
               <option value="monthly">{t('task.repeatsMonthly')}</option>
-            </select>
+            </Select>
           </label>
-          <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-            <span className="muted">{t('task.estimate')}</span>
-            <input
-              className="input" type="number" min={0} step={1} style={{ width: 84 }}
+          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
+            <span className="text-muted">{t('task.estimate')}</span>
+            <Input type="number" min={0} step={1} style={{ width: 84 }}
               value={task.estimate ?? ''}
               onChange={(event) => update('task', task.id, { estimate: event.target.value === '' ? null : Number(event.target.value) })}
             />
@@ -172,23 +171,22 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <TaskFields task={task} />
 
         {/* description */}
-        <section style={{ marginBottom: 18 }}>
+        <section className="mb-[18px]">
           {editingDescription ? (
             <>
               <MarkdownEditor value={description} onChange={setDescription} attachTo={{ task_id: task.id }} autoFocus />
-              <div className="row" style={{ marginTop: 8 }}>
-                <button
-                  className="btn primary sm"
+              <div className="flex items-center gap-2 mt-2">
+                <Button variant="primary" size="sm"
                   onClick={() => {
                     update('task', task.id, { description });
                     setEditingDescription(false);
                   }}
                 >
                   {t('action.save')}
-                </button>
-                <button className="btn sm" onClick={() => { setDescription(task.description ?? ''); setEditingDescription(false); }}>
+                </Button>
+                <Button size="sm" onClick={() => { setDescription(task.description ?? ''); setEditingDescription(false); }}>
                   {t('action.cancel')}
-                </button>
+                </Button>
               </div>
             </>
           ) : (
@@ -207,16 +205,16 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                     }}
                   />
                 )
-                : <span className="muted">{t('task.addDescription')}</span>}
+                : <span className="text-muted">{t('task.addDescription')}</span>}
             </div>
           )}
         </section>
 
         {/* sub-tasks */}
-        <section style={{ marginBottom: 18 }}>
-          <div className="row" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>{t('task.subtasks')}</strong>
-            <span className="muted" style={{ fontSize: 12 }}>
+        <section className="mb-[18px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <strong className="text-[13.5px]">{t('task.subtasks')}</strong>
+            <span className="text-muted text-[12.5px]">
               {t('task.subtaskCount', {
                 done: subtasks.filter((child) => stateOf(child)?.group_key === 'completed').length,
                 total: subtasks.length,
@@ -224,17 +222,17 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             </span>
           </div>
           {subtasks.map((child) => (
-            <div key={child.id} className="row" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
+            <div key={child.id} className="flex items-center gap-2" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
               <StateDot group={stateOf(child)?.group_key} color={stateOf(child)?.color} />
-              <button className="btn ghost sm grow" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(child)}>
-                <span className="mono muted">{child.identifier}</span>
+              <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(child)}>
+                <span className="mono text-muted">{child.identifier}</span>
                 <span className="truncate">{child.title}</span>
-              </button>
+              </Button>
             </div>
           ))}
           <form
-            className="row"
-            style={{ marginTop: 8 }}
+            className="flex items-center gap-2 mt-2"
+           
             onSubmit={(event) => {
               event.preventDefault();
               if (!newSubtask.trim()) return;
@@ -242,21 +240,21 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               setNewSubtask('');
             }}
           >
-            <input className="input" placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
-            <button className="btn sm" type="submit"><Icon name="plus" size={14} /></button>
+            <Input placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
+            <Button size="sm" type="submit"><Icon name="plus" size={14} /></Button>
           </form>
         </section>
 
         <Relations task={task} onOpen={onOpen} />
 
         {/* attachments */}
-        <section style={{ marginBottom: 18 }}>
-          <div className="row" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>{t('task.files')}</strong>
-            <span className="grow" />
-            <button className="btn ghost sm" onClick={() => fileInput.current?.click()}>
+        <section className="mb-[18px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <strong className="text-[13.5px]">{t('task.files')}</strong>
+            <span className="flex-1 min-w-0" />
+            <Button variant="ghost" size="sm" onClick={() => fileInput.current?.click()}>
               <Icon name="attach" size={14} /> {t('task.attach')}
-            </button>
+            </Button>
             <input
               ref={fileInput} type="file" hidden multiple
               onChange={(event) => {
@@ -265,13 +263,13 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               }}
             />
           </div>
-          {attachments.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>{t('task.noFiles')}</span>}
-          <div className="col" style={{ gap: 6 }}>
+          {attachments.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noFiles')}</span>}
+          <div className="flex flex-col gap-2 gap-1.5">
             {attachments.map((file) => (
               <a className="attachment" key={file.id} href={file.url} target="_blank" rel="noreferrer">
                 {file.mime?.startsWith('image/') ? <img src={file.url} alt="" /> : <Icon name="page" />}
-                <span className="grow truncate">{file.name}</span>
-                <span className="muted">{Math.max(1, Math.round((file.size ?? 0) / 1024))} KB</span>
+                <span className="flex-1 min-w-0 truncate">{file.name}</span>
+                <span className="text-muted">{Math.max(1, Math.round((file.size ?? 0) / 1024))} KB</span>
               </a>
             ))}
           </div>
@@ -279,7 +277,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         {/* discussion */}
         <section>
-          <div className="tabs" style={{ marginBottom: 10 }}>
+          <div className="tabs mb-2.5">
             <button className={tab === 'comments' ? 'active' : ''} onClick={() => setTab('comments')}>
               {t('task.comments')} {comments.length ? `(${comments.length})` : ''}
             </button>
@@ -289,27 +287,27 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           {tab === 'comments' ? (
             <Comments target={{ task_id: task.id }} />
           ) : (
-            <div className="col" style={{ gap: 8 }}>
-              {activity.length === 0 && <span className="muted" style={{ fontSize: 12.5 }}>{t('task.noActivity')}</span>}
+            <div className="flex flex-col gap-2">
+              {activity.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noActivity')}</span>}
               {activity.map((entry) => (
-                <div key={entry.id} className="row" style={{ fontSize: 12.5, gap: 7 }}>
+                <div key={entry.id} className="flex items-center gap-2 text-[12.5px]" style={{ gap: 7 }}>
                   <Avatar user={members.get(entry.actor_id)} size={18} />
-                  <span className="soft grow">
+                  <span className="soft flex-1 min-w-0">
                     <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
                     {entry.verb === 'created'
                       ? t('task.activityCreated')
                       : t('task.activityChanged', { field: entry.field?.replace('_id', '') ?? t('task.activitySomething') })}
                   </span>
-                  <span className="muted">{relativeTime(entry.created_at)}</span>
+                  <span className="text-muted">{relativeTime(entry.created_at)}</span>
                 </div>
               ))}
             </div>
           )}
         </section>
 
-        <div className="muted" style={{ fontSize: 11.5, marginTop: 18 }}>
+        <div className="text-muted text-[11.5px] mt-[18px]">
           {t('task.createdUpdated', { created: shortDate(task.created_at), updated: relativeTime(task.updated_at) })}
-          {task.labels?.length ? <span className="row wrap" style={{ marginTop: 6 }}><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
+          {task.labels?.length ? <span className="flex items-center gap-2 flex-wrap mt-1.5"><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
         </div>
       </Sheet>
       {dialog}
