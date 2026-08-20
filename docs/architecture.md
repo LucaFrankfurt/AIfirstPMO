@@ -177,6 +177,10 @@ That has one consequence that made the port possible without a flag day: **dark 
 variants**, because the variables are already redefined for dark, so a ported screen and an unported
 one agree on every colour.
 
+The rules the interface follows — tokens, the type scale, the layout breakpoint, and the seven
+checkable ones about focus, labels, colour and empty states — are in [`design.md`](design.md), along
+with the order to port a screen in.
+
 The interactive primitives — dialog, menu, tooltip — are Radix underneath (`components/ui/`). Their
 API in `components/ui.tsx` is unchanged, because forty screens import `Sheet` and `MenuButton` and
 the point was the behaviour, not churning the call sites. What that behaviour is, concretely: focus

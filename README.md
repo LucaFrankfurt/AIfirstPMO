@@ -193,6 +193,8 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
 - [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV, and what it does with a row it cannot read
 - [`docs/insights.md`](docs/insights.md) — throughput, burn-up and cycle time, and the rules the charts follow
+- [`docs/design.md`](docs/design.md) — the tokens, the type scale, the seven rules that are not about
+  looks, and the order to port a screen in
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the
