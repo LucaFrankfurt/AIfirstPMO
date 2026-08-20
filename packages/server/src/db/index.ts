@@ -69,6 +69,13 @@ for (const [table, column, definition] of [
   ['notifications', 'channel_id', 'TEXT'],
   ['channels', 'invite_policy', `TEXT NOT NULL DEFAULT 'members'`],
   ['messages', 'reactions', `TEXT NOT NULL DEFAULT '{}'`],
+  // An access token granted through OAuth is an API token like any other, so it
+  // lives in the same table — which means it appears in Settings beside the
+  // rest and the same Revoke button stops it. These two columns are what a
+  // hand-made token does not have: who it was granted to, and the refresh token
+  // that mints the next one.
+  ['api_tokens', 'client_id', 'TEXT'],
+  ['api_tokens', 'refresh_hash', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

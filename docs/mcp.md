@@ -4,23 +4,36 @@ Kolibri implements the [Model Context Protocol](https://modelcontextprotocol.io)
 work the board the way a teammate would: read the backlog, file issues, move them, comment, write
 pages. It is a first-class client, not a scraping target.
 
-Protocol version `2025-06-18`. Two transports, one implementation:
+Protocol version `2025-06-18`. Two transports and two ways to sign in, one implementation:
 
 - **Streamable HTTP** — `POST /mcp` with `Authorization: Bearer kol_…`
-- **stdio** — `npx @kolibri/mcp`, which pipes JSON-RPC to that same endpoint
+- **stdio** — `packages/mcp`, a small bridge that pipes JSON-RPC to that same endpoint
+
+Authentication is an API token in a header, or OAuth for clients that cannot hold one — which is
+what Claude on the web needs. See [Signing in](#signing-in-for-clients-that-cannot-hold-a-header).
 
 ## Setup
 
 1. **Settings → API & MCP → Create token.** Pin it to a workspace so tools do not need a
    `workspace_id` argument. Use scope `read` for an assistant that should only look.
-2. Add it to your client:
+2. Point your client at the instance. Which of the two transports you want depends only on what the
+   client speaks — the tools are the same either way, because they are the same implementation.
+
+**A client that speaks HTTP** needs nothing installed. Claude Code, for example:
+
+```bash
+claude mcp add --transport http kolibri https://kolibri.example.com/mcp \
+  --header "Authorization: Bearer kol_…"
+```
+
+**A client that only speaks stdio** runs the bridge, which pipes JSON-RPC to that same endpoint:
 
 ```jsonc
 {
   "mcpServers": {
     "kolibri": {
-      "command": "npx",
-      "args": ["-y", "@kolibri/mcp"],
+      "command": "node",
+      "args": ["/path/to/kolibri/packages/mcp/src/index.ts"],
       "env": {
         "KOLIBRI_URL": "https://kolibri.example.com",
         "KOLIBRI_TOKEN": "kol_…"
@@ -29,6 +42,63 @@ Protocol version `2025-06-18`. Two transports, one implementation:
   }
 }
 ```
+
+A path into a checkout, and not `npx @kolibri/mcp`, because **the bridge is not published to npm
+yet** — this said otherwise for a while and the instruction simply failed with a 404. It needs Node
+22.18 or newer, which is what runs the server too; nothing is built or installed.
+
+**Claude on the web** takes neither: a connector added at claude.ai has nowhere to put a header and
+signs in instead. Paste the instance URL — `https://kolibri.example.com` — as a custom connector and
+press Connect. See the next section for what happens then.
+
+## Signing in, for clients that cannot hold a header
+
+A token in a header is the whole story for Claude Code, an editor, a script. It is no story at all
+for a connector on the web, which has one text box for a URL and no way to carry a secret. So the
+instance is an OAuth 2.1 authorization server as well as a resource server, and everything the
+client needs has to be reachable from that one URL.
+
+| | |
+|---|---|
+| `GET /.well-known/oauth-protected-resource` | what guards `/mcp`, and which server authorises it |
+| `GET /.well-known/oauth-authorization-server` | where to send somebody, and where to redeem the code |
+| `POST /oauth/register` | a client registers itself (RFC 7591) |
+| `GET`/`POST /oauth/authorize` | the consent screen, and the decision |
+| `POST /oauth/token` | code → token, and refresh → token |
+| `POST /oauth/revoke` | give one back |
+
+A `401` from `/mcp` carries `WWW-Authenticate: Bearer resource_metadata="…"`, so a client that
+arrives with nothing still finds the first of those.
+
+Four things are worth stating plainly, because each is a decision rather than an implementation
+detail:
+
+- **Registration is open, and grants nothing.** A remote assistant cannot exist here before somebody
+  pastes the URL into it, and there is no admin standing by to approve an app nobody has heard of.
+  Registering yields a name and a set of redirect URIs. What grants access is a person signing in
+  and pressing Allow.
+- **PKCE with S256, or nothing.** These clients are public and cannot keep a secret, so the proof
+  that whoever redeems a code is whoever asked for it is the verifier. `plain` is not offered.
+- **A code is single use and lives for a minute.** It travels through a browser redirect, which
+  means through an address bar and a history. Redeeming it — successfully or not — burns it.
+- **A refresh token rotates.** Using one revokes it and issues the next, so a leaked copy is worth
+  one race and then nothing.
+
+What comes out is an **ordinary API token**. It appears in *Settings → API & MCP* beside the
+hand-made ones with the connector's name on it, and the same Revoke button stops it. One place to
+look, one thing to press.
+
+The consent screen is server-rendered rather than part of the app, because it has to work inside a
+popup the client opened, with no router in the way. It names the client, names the account, says
+whether write access was asked for, and lets somebody pick which workspace — the granted token is
+pinned to it and cannot reach another.
+
+One detail that cost an afternoon and is worth remembering: the instance sends
+`form-action 'self'` on every response, and a browser applies that to where a form's **redirect**
+lands, not just where it posts. The consent page therefore serves a policy naming the client's
+origin — widened by exactly the one address the consent is about. Without it Chrome silently refuses
+to submit the form and the flow stops on a page that looks perfectly fine. No server-side test can
+see that, which is why the walkthrough presses the button in a real browser.
 
 Verify from a shell:
 
@@ -133,4 +203,6 @@ The token owner's permissions apply, always:
 - guests cannot write,
 - a token pinned to a workspace cannot reach another one, even if the account is a member.
 
-Revoke a token in **Settings → API & MCP**; it stops working immediately.
+Revoke a token in **Settings → API & MCP**; it stops working immediately. A connector authorised on
+the web is listed there under its own name and is revoked the same way — the OAuth flow issues an
+ordinary token, so there is one list and one button rather than two of each.
