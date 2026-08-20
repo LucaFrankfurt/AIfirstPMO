@@ -51,7 +51,7 @@ export function Settings() {
           </button>
         ))}
       </div>
-      <div className="page" style={{ maxWidth: 680 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 680 }}>
         {tab === 'profile' && <Profile />}
         {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
@@ -177,7 +177,7 @@ function Profile() {
       </div>
 
       <SectionHeading>{t('profile.password')}</SectionHeading>
-      <div className="flex items-center gap-2 flex-wrap gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Input type="password" placeholder={t('profile.currentPassword')} autoComplete="current-password"
           style={{ maxWidth: 220 }} value={passwords.current}
           onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
@@ -485,7 +485,7 @@ function Members() {
       {members.map((member) => (
         <div className="flex items-center gap-2" key={member.user_id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={{ id: member.user_id, name: member.name, avatar_url: member.avatar_url }} size={30} />
-          <div className="flex-1 min-w-0 min-w-0">
+          <div className="flex-1 min-w-0">
             <div className="truncate">{member.name}</div>
             <div className="text-muted truncate text-[12.5px]">{member.email}</div>
           </div>
@@ -598,7 +598,7 @@ function ApiSettings() {
 
       {tokens.map((token) => (
         <div className="flex items-center gap-2" key={token.id} style={{ padding: '7px 0', borderTop: '1px solid var(--line)' }}>
-          <div className="flex-1 min-w-0 min-w-0">
+          <div className="flex-1 min-w-0">
             <div className="truncate">{token.name}</div>
             <div className="text-muted mono truncate">{token.prefix}… · {token.scopes}</div>
           </div>
@@ -674,15 +674,15 @@ function DataSettings() {
     <>
       <AuditLog />
 
-      <div className="divider" style={{ margin: '22px 0' }} />
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
 
       <Webhooks />
 
-      <div className="divider" style={{ margin: '22px 0' }} />
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
 
       <Trash />
 
-      <div className="divider" style={{ margin: '22px 0' }} />
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
 
       <SectionHeading tight>{t('data.offlineCopy')}</SectionHeading>
       <p className="text-muted text-[13.5px]">{t('data.offlineIntro')}</p>

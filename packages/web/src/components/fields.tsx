@@ -188,7 +188,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
       {fields.map((field) => (
         <div key={field.id} className="stack-card">
-          <div className="flex items-center gap-2 gap-2">
+          <div className="flex items-center gap-2">
             <Input
               className="flex-1 min-w-0" value={field.name} aria-label={t('field.name')}
               onChange={(event) => update('field', field.id, { name: event.target.value })}

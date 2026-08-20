@@ -76,7 +76,7 @@ export function TwoFactor() {
       )}
 
       {on ? (
-        <div className="flex items-center gap-2 gap-2">
+        <div className="flex items-center gap-2">
           <Chip><Icon name="check" size={12} /> {t('security.twoFactorOn')}</Chip>
           <Button variant="danger" size="sm"
             onClick={async () => {

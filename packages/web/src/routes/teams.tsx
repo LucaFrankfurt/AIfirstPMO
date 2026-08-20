@@ -26,7 +26,7 @@ export function Teams() {
   return (
     <>
       <Header title={t('team.title')} />
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <form
           className="flex items-center gap-2 mb-4"
           onSubmit={(event) => {
@@ -44,7 +44,7 @@ export function Teams() {
           <Empty emoji="👥" title={t('team.emptyTitle')} hint={t('team.emptyHint')} guide="teams" />
         )}
 
-        <div className="grid two">
+        <div className="grid gap-3 sm:grid-cols-2">
           {teams.map((team) => {
             const people = teamMembers
               .filter((membership) => membership.team_id === team.id)

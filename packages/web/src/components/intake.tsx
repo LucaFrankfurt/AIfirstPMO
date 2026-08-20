@@ -68,7 +68,7 @@ export function Triage({ projectId }: { projectId: string }) {
   };
 
   return (
-    <div className="page">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5">
         <div className="flex items-center gap-2 gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
           {(['new', 'handled'] as const).map((which) => (
@@ -99,10 +99,10 @@ export function Triage({ projectId }: { projectId: string }) {
           hint={t('intake.emptyHint')}
         />
       ) : (
-        <div className="grid gap-2.5">
+        <div className="grid gap-3 gap-2.5">
           {shown.map((intake) => (
             <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
-              <div className="flex items-center gap-2 gap-2" style={{ alignItems: 'flex-start' }}>
+              <div className="flex items-center gap-2" style={{ alignItems: 'flex-start' }}>
                 <div className="flex-1 min-w-0">
                   <strong style={{ fontSize: 14.5 }}>{intake.title}</strong>
                   <div className="text-muted text-[12.5px] mt-0.5">
@@ -209,7 +209,7 @@ function AcceptSheet({
         <Input id="intake-title" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} />
         <span className="text-[12px] text-muted">{t('intake.titleHint')}</span>
       </div>
-      <div className="grid two">
+      <div className="grid gap-3 sm:grid-cols-2">
         <div className="field">
           <label htmlFor="intake-state">{t('view.groupState')}</label>
           <Select id="intake-state" value={stateId} onChange={(event) => setStateId(event.target.value)}>

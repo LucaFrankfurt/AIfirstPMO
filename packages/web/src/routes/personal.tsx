@@ -60,11 +60,11 @@ export function MyWork() {
       <Header title={t('myWork.title')}>
         <ViewControls view={view} onChange={setView} saveable />
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <SetupChecklist />
 
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
-          <div className="grid two mb-[18px]">
+          <div className="grid gap-3 sm:grid-cols-2 mb-[18px]">
             {buckets.overdue.length > 0 && (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
                 <div className="flex items-center gap-2 mb-2">
@@ -140,7 +140,7 @@ export function Inbox() {
           <Icon name="check" size={14} /> <span className="hide-sm">{t('inbox.markAllRead')}</span>
         </Button>
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {shown.length === 0 ? (
           <Empty emoji="📭" title={t('inbox.emptyTitle')} hint={t('inbox.emptyHint')} guide="collab" />
         ) : (
@@ -165,10 +165,10 @@ export function Inbox() {
                 }}
               >
                 <Avatar user={actor} size={26} />
-                <span className="flex-1 min-w-0 min-w-0">
+                <span className="flex-1 min-w-0">
                   <span className="flex items-center gap-2 gap-1.5">
                     <strong className="text-[13.5px]">{notification.title}</strong>
-                    {!notification.read_at && <span className="badge-dot" />}
+                    {!notification.read_at && <span className="size-1.5 flex-none rounded-full bg-accent" />}
                   </span>
                   {notification.body && <span className="text-muted truncate text-[12.5px]">{excerpt(notification.body, 90)}</span>}
                 </span>
@@ -244,7 +244,7 @@ export function Search() {
   return (
     <>
       <Header title={t('search.title')} />
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <Input
           autoFocus
           placeholder={t('search.placeholder')}
@@ -260,7 +260,7 @@ export function Search() {
           results.map((hit) => (
             <button key={`${hit.kind}-${hit.id}`} className="task-row text-left" style={{ width: '100%' }} onClick={() => open(hit)}>
               <Icon name={hit.kind === 'task' ? 'check' : hit.kind === 'page' ? 'page' : 'folder'} size={15} />
-              <span className="flex-1 min-w-0 min-w-0">
+              <span className="flex-1 min-w-0">
                 <div className="truncate">{hit.title}</div>
                 {hit.snippet && <div className="text-muted truncate text-[12.5px]">{hit.snippet}</div>}
               </span>
@@ -286,7 +286,7 @@ export function More() {
   return (
     <>
       <Header title={t('nav.more')} />
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <div className="flex items-center gap-2 mb-4">
           <Avatar user={user ?? undefined} size={40} />
           <div className="flex-1 min-w-0">

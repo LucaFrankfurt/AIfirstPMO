@@ -235,7 +235,7 @@ export function Portfolio() {
   }
 
   return (
-    <div className="page">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="kpi-row">
         <Stat label={t('portfolio.projects')} value={String(projects.length)} />
         <Stat label={t('portfolio.open')} value={String(totals.open)} hint={t('portfolio.acrossAll')} />

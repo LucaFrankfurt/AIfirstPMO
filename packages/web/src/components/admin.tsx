@@ -153,7 +153,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
 
   return (
     <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2">
-      <div className="flex items-center gap-2 gap-2">
+      <div className="flex items-center gap-2">
         <Input
           className="flex-1 min-w-0" value={hook.name ?? ''} placeholder={t('hooks.name')} aria-label={t('hooks.name')}
           onChange={(event) => update('webhook', hook.id, { name: event.target.value })}
@@ -170,7 +170,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
         </Button>
       </div>
       {inbound ? (
-        <div className="flex items-center gap-2 gap-2" style={{ margin: '6px 0' }}>
+        <div className="flex items-center gap-2" style={{ margin: '6px 0' }}>
           <Input
             className="flex-1 min-w-0" readOnly value={secret?.url ?? t('hooks.inHidden')}
             aria-label={t('hooks.inUrl')} onFocus={(event) => event.currentTarget.select()}
@@ -197,7 +197,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
       )}
 
       {!inbound && (
-        <div className="flex items-center gap-2 gap-2 mb-1.5">
+        <div className="flex items-center gap-2 mb-1.5">
           <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('hooks.format')}</span>
             <Select style={{ width: 150 }} value={hook.format ?? 'kolibri'}

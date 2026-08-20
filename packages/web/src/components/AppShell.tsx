@@ -214,7 +214,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         )}
 
         <div className="flex-1 min-w-0" />
-        <div className="divider" />
+        <div className="my-2 h-px bg-line" />
         <MenuButton items={accountItems} className={navItem()}>
           <Avatar user={user ?? undefined} size={22} />
           <span className="flex-1 min-w-0 truncate">{user?.name ?? t('nav.account')}</span>
@@ -228,7 +228,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavLink to="/" end><Icon name="home" size={20} />{t('nav.myWork')}</NavLink>
           <NavLink to="/inbox">
             <Icon name="inbox" size={20} />
-            {unread > 0 && <span className="badge-dot" />}
+            {unread > 0 && <span className="size-1.5 flex-none rounded-full bg-accent" />}
             {t('nav.inbox')}
           </NavLink>
           <button

@@ -126,7 +126,7 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
 
   return (
     <section className="mb-[18px]">
-      <div className="flex items-center gap-2 gap-2 mb-2">
+      <div className="flex items-center gap-2 mb-2">
         <strong className="text-[13.5px]">{t('time.title')}</strong>
         {/* Logged time only. `tasks.estimate` is points, not hours — the app
             calls them "estimate points" — so putting the two side by side would

@@ -116,7 +116,7 @@ export function AutomationSettings() {
       {templates.map((template) => (
         <div className="auto-row" key={template.id}>
           <span className="auto-glyph">{template.icon ?? KIND_ICON[template.kind as TemplateKind] ?? '📋'}</span>
-          <span className="flex-1 min-w-0 min-w-0">
+          <span className="flex-1 min-w-0">
             <span className="auto-name">{template.name}</span>
             <span className="auto-meta">
               {scopeName(template.project_id)} · {t(KIND_KEY[template.kind as TemplateKind] ?? 'tpl.kindTask')}
@@ -157,7 +157,7 @@ export function AutomationSettings() {
           >
             <i />
           </button>
-          <span className="flex-1 min-w-0 min-w-0">
+          <span className="flex-1 min-w-0">
             <span className="auto-name">{rule.name}</span>
             <span className="auto-meta">{scopeName(rule.project_id)} · {describe(rule, t)}</span>
           </span>
@@ -705,7 +705,7 @@ function RunLog({ automationId, onClose }: { automationId: string; onClose: () =
         return (
           <div className="auto-run" key={entry.id}>
             <span className={`auto-run-dot${entry.skipped ? ' skipped' : ''}`} />
-            <span className="flex-1 min-w-0 min-w-0">
+            <span className="flex-1 min-w-0">
               <span className="auto-name">
                 {entry.task_identifier} {entry.task_title}
               </span>

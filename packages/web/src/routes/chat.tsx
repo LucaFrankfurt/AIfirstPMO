@@ -125,7 +125,7 @@ export function Chat() {
   const others = useMemo(() => [...colleagues.values()].filter((member) => member.id !== me), [colleagues, me]);
 
   return (
-    <div className="page chat">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 chat">
       <aside className="chat-list">
         <div className="flex items-center gap-2 mb-2">
           <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>

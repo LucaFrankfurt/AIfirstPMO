@@ -91,7 +91,7 @@ function Overview() {
     <>
       <p className="guide-lead">{t('guide.intro')}</p>
 
-      <div className="grid three mb-[22px]">
+      <div className="grid gap-3 lg:grid-cols-3 mb-[22px]">
         <Principle icon="refresh" title="guide.principleOfflineTitle" body="guide.principleOfflineBody" />
         <Principle icon="home" title="guide.principleHostTitle" body="guide.principleHostBody" />
         <Principle icon="sparkle" title="guide.principleAssistantTitle" body="guide.principleAssistantBody" />
@@ -109,7 +109,7 @@ function Overview() {
         <li>{t('guide.firstFive4')}</li>
         <li>{t('guide.firstFive5')}</li>
       </ol>
-      <div className="flex items-center gap-2 flex-wrap gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Link className={buttonVariants({ variant: 'primary', size: 'sm' })} to="/projects/new">
           {t('guide.startHere')} <Icon name="chevronRight" size={13} />
         </Link>
@@ -356,7 +356,7 @@ export function Help() {
           </button>
         ))}
       </div>
-      <div className="page guide">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 guide">
         {section === 'overview' && <Overview />}
         {section === 'hierarchy' && <Hierarchy />}
         {section === 'features' && <Features />}

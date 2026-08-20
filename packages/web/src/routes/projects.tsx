@@ -111,8 +111,8 @@ export function ProjectList() {
           <Button variant="primary" size="sm" onClick={() => navigate('/projects/new')}><Icon name="plus" size={14} /> {t('action.create')}</Button>
         )}
       </Header>
-      <div className="page">
-        <div className="grid two">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <div className="grid gap-3 sm:grid-cols-2">
           {projects.map((project) => <ProjectCard key={project.id} projectId={project.id} />)}
         </div>
         {!projects.length && (
@@ -180,7 +180,7 @@ export function ProjectNew() {
   return (
     <>
       <Header title={t('project.new')} />
-      <div className="page" style={{ maxWidth: 560 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 560 }}>
         <form onSubmit={submit}>
           <div className="field">
             <label htmlFor="p-name">{t('project.name')}</label>
@@ -296,7 +296,7 @@ export function ProjectPage() {
           ? <div style={{ height: 'calc(100dvh - var(--header-height) - 110px)' }}>
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
           </div>
-          : <div className="page" style={{ paddingInline: 0 }}>
+          : <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ paddingInline: 0 }}>
             <TaskViews
               tasks={visible} view={view} projectId={id} onOpen={openTask}
               onChange={setView} selection={selection}
@@ -329,7 +329,7 @@ function Cycles({ projectId }: { projectId: string }) {
   const day = today();
 
   return (
-    <div className="page">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[15px]">{t('cycle.title')}</h2>
         <span className="flex-1 min-w-0" />
@@ -338,7 +338,7 @@ function Cycles({ projectId }: { projectId: string }) {
 
       {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} guide="planning" />}
 
-      <div className="grid two">
+      <div className="grid gap-3 sm:grid-cols-2">
         {cycles.map((cycle) => {
           const active = cycle.start_date && cycle.end_date && cycle.start_date <= day && cycle.end_date >= day;
           return (
@@ -449,7 +449,7 @@ export function CyclePage() {
         <ViewControls view={view} onChange={setView} projectId={cycle.project_id} />
         <Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
           <div className="flex items-center gap-2 mb-2">
             <div className="flex-1 min-w-0">
@@ -480,7 +480,7 @@ function Modules({ projectId }: { projectId: string }) {
   const [name, setName] = useState('');
 
   return (
-    <div className="page">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[15px]">{t('module.title')}</h2>
         <span className="text-muted text-[12.5px]">{t('module.subtitle')}</span>
@@ -501,7 +501,7 @@ function Modules({ projectId }: { projectId: string }) {
 
       {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
 
-      <div className="grid two">
+      <div className="grid gap-3 sm:grid-cols-2">
         {modules.map((module) => {
           const tasks = list('task', (task) => task.module_id === module.id);
           const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
@@ -559,7 +559,7 @@ export function ModulePage() {
       <Header title={module.name}>
         <ViewControls view={view} onChange={setView} projectId={module.project_id} />
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {module.description && <Markdown source={module.description} />}
         <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={openTask} />
       </div>
@@ -576,7 +576,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
   const pages = useQuery(() => list('page', (p) => p.project_id === projectId && !p.archived), [projectId]);
 
   return (
-    <div className="page">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[15px]">{t('project.pagesTitle')}</h2>
         <span className="flex-1 min-w-0" />
@@ -681,7 +681,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   if (!project) return null;
 
   return (
-    <div className="page" style={{ maxWidth: 620 }}>
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 620 }}>
       <div className="field">
         <label htmlFor="s-name">{t('project.name')}</label>
         <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
@@ -887,7 +887,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <ProjectTime projectId={projectId} />
 
       <SectionHeading>{t('import.title')}</SectionHeading>
-      <div className="flex items-center gap-2 flex-wrap gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Button onClick={() => setImporting(true)}>
           <Icon name="attach" size={14} /> {t('import.action')}
         </Button>
@@ -928,7 +928,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         />
       )}
 
-      <div className="divider" style={{ margin: '22px 0' }} />
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
       <div className="flex items-center gap-2">
         <Button onClick={() => update('project', projectId, { archived: project.archived ? 0 : 1 })}>
           <Icon name="archive" size={14} /> {project.archived ? t('project.unarchive') : t('project.archive')}

@@ -136,7 +136,7 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
         </label>
       ) : (
         <>
-          <div className="flex items-center gap-2 gap-2 mb-3 text-[12.5px]">
+          <div className="flex items-center gap-2 mb-3 text-[12.5px]">
             <Icon name="page" size={14} />
             <strong className="truncate">{fileName}</strong>
             <span className="text-muted">
@@ -152,7 +152,7 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
               <p className="text-[12px] text-muted mb-2.5">{t('import.mapHint')}</p>
               <div className="import-map">
                 {(table?.columns ?? []).map((column) => (
-                  <div className="flex items-center gap-2 gap-2" key={column}>
+                  <div className="flex items-center gap-2" key={column}>
                     <span className="truncate flex-1 min-w-0" title={column}>{column}</span>
                     <span className="text-muted truncate flex-1 text-[12.5px]">
                       {table?.rows[0]?.[column] || '—'}
@@ -175,7 +175,7 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
             </>
           ) : (
             <>
-              <div className="flex items-center gap-2 flex-wrap gap-2 mb-3">
+              <div className="flex items-center gap-2 flex-wrap mb-3">
                 <Chip>{t('import.willCreate', { count: preview.created })}</Chip>
                 {preview.skipped > 0 && <Chip>{t('import.willSkip', { count: preview.skipped })}</Chip>}
                 {preview.problems.length > 0 && (
@@ -221,7 +221,7 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                   <h4 className="text-[13.5px] mb-1.5">{t('import.problems')}</h4>
                   <div className="import-problems">
                     {preview.problems.slice(0, 40).map((problem, index) => (
-                      <div className="flex items-center gap-2 gap-2 text-[12.5px]" key={index}>
+                      <div className="flex items-center gap-2 text-[12.5px]" key={index}>
                         <span className="text-muted" style={{ minWidth: 54 }}>
                           {problem.row ? t('import.rowNumber', { row: problem.row }) : ''}
                         </span>

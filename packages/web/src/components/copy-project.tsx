@@ -106,7 +106,7 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
         ))}
         {include.tasks && (
           <>
-            <label className="flex items-center gap-2 gap-2 text-[13.5px]" style={{ padding: '4px 0 4px 24px' }}>
+            <label className="flex items-center gap-2 text-[13.5px]" style={{ padding: '4px 0 4px 24px' }}>
               <input type="checkbox" checked={include.doneTasks} onChange={() => toggle('doneTasks')} />
               {t('copy.doneTasks')}
             </label>

@@ -144,7 +144,7 @@ export function PagesIndex() {
           </Button>
         )}
       </Header>
-      <div className="page">
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
@@ -161,9 +161,7 @@ export function PagesIndex() {
                 <Link
                   key={page.id}
                   to={`/pages/${page.id}`}
-                  className="flex flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left
-                    transition-colors hover:border-line-strong hover:bg-hover
-                    outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  className="flex flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                 >
                   <span className="flex items-center gap-2">
                     <span aria-hidden="true">{page.icon ?? '📄'}</span>
@@ -312,7 +310,7 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
-      <div className="page" style={{ maxWidth: 820 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 820 }}>
         {editing ? (
           <>
             <div className="flex items-center gap-2 mb-2.5">

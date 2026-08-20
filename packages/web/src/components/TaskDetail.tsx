@@ -287,7 +287,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           {tab === 'comments' ? (
             <Comments target={{ task_id: task.id }} />
           ) : (
-            <div className="flex flex-col gap-2 gap-2">
+            <div className="flex flex-col gap-2">
               {activity.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noActivity')}</span>}
               {activity.map((entry) => (
                 <div key={entry.id} className="flex items-center gap-2 text-[12.5px]" style={{ gap: 7 }}>

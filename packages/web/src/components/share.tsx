@@ -85,7 +85,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
 
       {shares.map((share) => (
         <div className="stack-card" key={share.id}>
-          <div className="flex items-center gap-2 gap-2">
+          <div className="flex items-center gap-2">
             <Input
               className="flex-1 min-w-0" readOnly value={shareUrl(share) || t('share.minting')}
               aria-label={t('share.link')}

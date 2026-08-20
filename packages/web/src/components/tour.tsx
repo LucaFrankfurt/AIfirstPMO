@@ -218,7 +218,7 @@ export function WelcomeTour() {
         <>
           <h3 className="tour-h">{t('tour.doneTitle')}</h3>
           <p className="soft">{t('tour.doneBody')}</p>
-          <div className="flex items-center gap-2 flex-wrap gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button
               onClick={() => {
                 finish();
@@ -335,7 +335,7 @@ export function SetupChecklist() {
       {items.map((item) => (
         <div className={`setup-item${item.done ? ' done' : ''}`} key={item.id}>
           <span className="setup-tick">{item.done && <Icon name="check" size={12} />}</span>
-          <span className="flex-1 min-w-0 min-w-0">
+          <span className="flex-1 min-w-0">
             <span className="setup-label">{t(item.label)}</span>
             <span className="setup-hint">{t(item.hint)}</span>
           </span>

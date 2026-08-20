@@ -184,7 +184,7 @@ export function Planner() {
   const nowX = x(today());
 
   return (
-    <div className="page planner">
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 planner">
       <div className="flex items-center gap-2 flex-wrap gap-2.5 mb-2.5">
         <h2 className="text-base m-0">{t('planner.title')}</h2>
         <span className="flex-1 min-w-0" />

@@ -452,8 +452,11 @@ await step('mobile layout', async () => {
     .map((a) => a.getAttribute('href'))
     .filter((href) => href && href !== '/' && !href.startsWith('/t/')))]);
   await m.click('.tabbar a[href="/more"]');
-  await m.waitForSelector('.page a[href="/chat"]', { timeout: 5000 });
-  const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('.tabbar a[href], .page a[href]')]
+  // `:visible` because the desktop sidebar is in the DOM at this width too,
+  // hidden by CSS — and a link nobody can see is not a link a phone reaches.
+  await m.waitForSelector('a[href="/chat"]:visible', { timeout: 5000 });
+  const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('a[href]')]
+    .filter((a) => a.offsetParent !== null)
     .map((a) => a.getAttribute('href'))));
   const missing = wanted.filter((href) => !reachable.has(href));
   if (missing.length) throw new Error(`the sidebar reaches these and a phone does not: ${missing.join(', ')}`);

@@ -158,5 +158,22 @@ The port is deliberately incremental. The order inside one screen:
    stylesheet shrinks along the way instead of in one frightening commit at the end.
 5. Walk the screen with the keyboard only, and once at 390px wide.
 
-`app.css` is the progress bar: it was **1,862 lines** when the port started, and **1,847** after the
-primitives went in.
+`app.css` is the progress bar: **1,862 lines** when the port started, **1,713** now.
+
+## What stays in CSS, and why
+
+The port is not aiming at zero. Three kinds of rule belong in the stylesheet and moving them would
+make the code worse:
+
+- **The tokens and the reset.** Everything else is built on them, including Tailwind's own theme.
+- **`.md` — the rendered markdown.** That HTML is produced by `renderMarkdown` as a *string*, on the
+  server as well as in the browser: a shared page and a notification email go through the same
+  renderer. It cannot carry Tailwind classes, so its styling is CSS by necessity rather than by
+  preference.
+- **Bespoke layout scenes**: the gantt grid, the roadmap, the planner rows, the board columns, the
+  guide's animated diagrams. These are one-of-a-kind geometry, often with keyframes and
+  `grid-template` maths. A component's worth of utility classes describing a single chart is not
+  more maintainable than the twelve lines of CSS it replaces; it is the same thing, written where it
+  is harder to read.
+
+Everything that is a *component* — anything that appears twice — is Tailwind.
