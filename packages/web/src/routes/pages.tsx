@@ -19,6 +19,7 @@ import { pull } from '../lib/sync';
 import { useCollaborativeText } from '../lib/collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { useT } from '../lib/i18n';
 
 /* ------------------------------------------------------------------- tree */
@@ -312,12 +313,11 @@ export function PageDetail() {
         {editing ? (
           <>
             <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
-              <input
-                className="input" style={{ width: 60, textAlign: 'center', fontSize: 18 }} value={page.icon ?? '📄'}
+              <Input style={{ width: 60, textAlign: 'center', fontSize: 18 }} value={page.icon ?? '📄'}
                 maxLength={4} onChange={(event) => update('page', id, { icon: event.target.value })}
               />
-              <input
-                className="input flex-1 min-w-0" style={{ fontSize: 19, fontWeight: 600 }} value={title}
+              <Input
+                className="flex-1 min-w-0" style={{ fontSize: 19, fontWeight: 600 }} value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={() => update('page', id, { title: title.trim() || t('common.untitled') })}
               />

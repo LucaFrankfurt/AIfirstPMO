@@ -5,6 +5,7 @@ import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers, useSession } from '../session';
 import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
+import { Input } from '../components/ui/field';
 import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
 
 /* ----------------------------------------------------------------- lookups */
@@ -177,8 +178,7 @@ export function ModulePicker({ task }: { task: Task }) {
 
 export function DateField({ value, onChange, label }: { value?: string | null; onChange: (value: string | null) => void; label: string }) {
   return (
-    <input
-      className="input"
+    <Input
       type="date"
       aria-label={label}
       value={value ?? ''}

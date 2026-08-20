@@ -15,6 +15,7 @@ import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, TypePicker, stateOf,
 } from './task-parts';
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from './ui';
+import { Input, Select } from '../components/ui/field';
 import { Button } from '../components/ui/button';
 
 export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClose: () => void; onOpen: (task: Task) => void }) {
@@ -90,8 +91,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </span>
         }
       >
-        <input
-          className="input"
+        <Input
           style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -146,8 +146,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </label>
           <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
             <span className="text-muted">{t('task.repeats')}</span>
-            <select
-              className="select" style={{ width: 130 }}
+            <Select style={{ width: 130 }}
               value={task.recurrence ?? ''}
               onChange={(event) => update('task', task.id, { recurrence: event.target.value || null })}
             >
@@ -156,12 +155,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="weekly">{t('task.repeatsWeekly')}</option>
               <option value="weekly:2">{t('task.repeatsFortnightly')}</option>
               <option value="monthly">{t('task.repeatsMonthly')}</option>
-            </select>
+            </Select>
           </label>
           <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
             <span className="text-muted">{t('task.estimate')}</span>
-            <input
-              className="input" type="number" min={0} step={1} style={{ width: 84 }}
+            <Input type="number" min={0} step={1} style={{ width: 84 }}
               value={task.estimate ?? ''}
               onChange={(event) => update('task', task.id, { estimate: event.target.value === '' ? null : Number(event.target.value) })}
             />
@@ -242,7 +240,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               setNewSubtask('');
             }}
           >
-            <input className="input" placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
+            <Input placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
             <Button size="sm" type="submit"><Icon name="plus" size={14} /></Button>
           </form>
         </section>

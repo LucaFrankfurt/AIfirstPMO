@@ -17,6 +17,7 @@ import { useMe, usePeople, useSession } from '../session';
 import { useUnreadMessages } from './chat';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { SetupChecklist } from '../components/tour';
 
 const KIND_KEY: Record<string, TranslationKey> = {
@@ -243,8 +244,7 @@ export function Search() {
     <>
       <Header title={t('search.title')} />
       <div className="page">
-        <input
-          className="input"
+        <Input
           autoFocus
           placeholder={t('search.placeholder')}
           value={query}

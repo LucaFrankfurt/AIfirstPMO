@@ -37,6 +37,7 @@ import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { Input } from '../components/ui/field';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
 /* --------------------------------------------------------------- the pieces */
@@ -548,9 +549,8 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
     <Sheet title={`#${channel.name}`} onClose={onClose}>
       <div className="field">
         <label htmlFor="channel-topic">{t('chat.topic')}</label>
-        <input
+        <Input
           id="channel-topic"
-          className="input"
           defaultValue={channel.topic ?? ''}
           disabled={!mayRetitle}
           placeholder={t('chat.topicHint')}
@@ -688,9 +688,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
     >
         <div className="field">
           <label htmlFor="new-channel-name">{t('chat.name')}</label>
-          <input
+          <Input
             id="new-channel-name"
-            className="input"
             value={name}
             onChange={(event) => setName(event.target.value)}
             autoFocus
@@ -703,9 +702,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         {taken && <p className="text-[12px] text-muted" style={{ fontSize: 12, color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
         <div className="field">
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
-          <input
+          <Input
             id="new-channel-topic"
-            className="input"
             value={topic}
             onChange={(event) => setTopic(event.target.value)}
             placeholder={t('chat.topicHint')}
@@ -764,9 +762,8 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
     <Sheet title={t('chat.findTitle')} onClose={onClose}>
       <div className="field">
         <label htmlFor="find-person">{t('chat.findLabel')}</label>
-        <input
+        <Input
           id="find-person"
-          className="input"
           value={query}
           autoFocus
           placeholder={t('chat.findPlaceholder')}

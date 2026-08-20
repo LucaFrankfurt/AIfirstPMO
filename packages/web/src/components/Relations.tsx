@@ -4,6 +4,7 @@ import { create, remove, update } from '../lib/mutations';
 import { relationKey, useT } from '../lib/i18n';
 import { Icon, MenuButton, StateDot, type MenuItem } from './ui';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { stateOf } from './task-parts';
 
 /** The other side of a relation, so an incoming row reads correctly. */
@@ -78,8 +79,7 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
             {row.ownsLag && (
               <label className="flex items-center gap-2" style={{ gap: 4, fontSize: 12 }} title={t('relation.lagHint')}>
                 <span className="text-muted hide-sm">{t('relation.lag')}</span>
-                <input
-                  className="input" type="number" min={0} max={365} style={{ width: 62 }}
+                <Input type="number" min={0} max={365} style={{ width: 62 }}
                   aria-label={t('relation.lag')}
                   value={row.lag}
                   onChange={(event) => update('relation', row.id, {

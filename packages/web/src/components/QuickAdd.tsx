@@ -9,6 +9,7 @@ import { useMe, useMembers, useSession } from '../session';
 import { MarkdownEditor } from './Markdown';
 import { useStates } from './task-parts';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from './ui';
 
 const LAST_PROJECT_KEY = 'kolibri.last-project';
@@ -114,8 +115,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
         <p className="text-muted">{t('quickAdd.needProject')}</p>
       ) : (
         <>
-          <input
-            className="input"
+          <Input
             autoFocus
             placeholder={t('quickAdd.placeholder')}
             value={title}
@@ -163,7 +163,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
               {assignees.length ? t('quickAdd.assigned', { count: assignees.length }) : t('quickAdd.assign')}
             </MenuButton>
 
-            <input className="input" type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
+            <Input type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
 
             <MenuButton
               variant="secondary" size="sm"

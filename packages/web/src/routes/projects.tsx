@@ -26,6 +26,7 @@ import { configOf, useProjectDefaultView } from '../components/saved-views';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { Input, Select, Textarea } from '../components/ui/field';
 import { Triage, useNewIntakeCount } from '../components/intake';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
@@ -181,8 +182,8 @@ export function ProjectNew() {
         <form onSubmit={submit}>
           <div className="field">
             <label htmlFor="p-name">{t('project.name')}</label>
-            <input
-              id="p-name" className="input" required autoFocus value={form.name}
+            <Input
+              id="p-name" required autoFocus value={form.name}
               onChange={(event) => setForm({ ...form, name: event.target.value })}
               placeholder={t('project.namePlaceholder')}
             />
@@ -190,12 +191,12 @@ export function ProjectNew() {
           <div className="flex items-center gap-2" style={{ gap: 10, alignItems: 'flex-start' }}>
             <div className="field" style={{ width: 120 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
-              <input id="p-icon" className="input" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
+              <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
             </div>
             <div className="field flex-1 min-w-0">
               <label htmlFor="p-key">{t('project.key')}</label>
-              <input
-                id="p-key" className="input mono" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
+              <Input className="mono"
+                id="p-key" value={form.key} maxLength={6} placeholder={t('project.keyAuto')}
                 onChange={(event) => setForm({ ...form, key: event.target.value.toUpperCase() })}
               />
               <span className="text-[12px] text-muted">{t('project.keyHint')}</span>
@@ -203,15 +204,15 @@ export function ProjectNew() {
           </div>
           <div className="field">
             <label htmlFor="p-desc">{t('project.description')}</label>
-            <textarea id="p-desc" className="textarea" style={{ minHeight: 80 }} value={form.description}
+            <Textarea id="p-desc" style={{ minHeight: 80 }} value={form.description}
               onChange={(event) => setForm({ ...form, description: event.target.value })} />
           </div>
           <div className="field">
             <label htmlFor="p-vis">{t('project.visibility')}</label>
-            <select id="p-vis" className="select" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
+            <Select id="p-vis" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
               <option value="public">{t('project.visibilityPublic')}</option>
               <option value="private">{t('project.visibilityPrivate')}</option>
-            </select>
+            </Select>
           </div>
           <Button variant="primary" size="lg" block disabled={busy || !form.name.trim()}>
             {busy ? t('project.creating') : t('project.createSubmit')}
@@ -398,21 +399,21 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     >
       <div className="field">
         <label htmlFor="c-name">{t('cycle.name')}</label>
-        <input id="c-name" className="input" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
       <div className="flex items-center gap-2" style={{ gap: 10 }}>
         <div className="field flex-1 min-w-0">
           <label htmlFor="c-start">{t('cycle.starts')}</label>
-          <input id="c-start" className="input" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
+          <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="c-end">{t('cycle.ends')}</label>
-          <input id="c-end" className="input" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
+          <Input id="c-end" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
         </div>
       </div>
       <div className="field">
         <label htmlFor="c-desc">{t('cycle.goal')}</label>
-        <textarea id="c-desc" className="textarea" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <Textarea id="c-desc" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
     </Sheet>
   );
@@ -492,7 +493,7 @@ function Modules({ projectId }: { projectId: string }) {
           setName('');
         }}
       >
-        <input className="input" placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
+        <Input placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
         <Button type="submit"><Icon name="plus" size={14} /></Button>
       </form>
 
@@ -526,8 +527,8 @@ function Modules({ projectId }: { projectId: string }) {
               <div className="flex items-center gap-2 text-muted" style={{ fontSize: 12, marginTop: 6 }}>
                 <span>{done}/{tasks.length}</span>
                 <span className="flex-1 min-w-0" />
-                <input
-                  className="input sm" type="date" style={{ width: 150, height: 28 }}
+                <Input
+                  inputSize="sm" type="date" style={{ width: 150, height: 28 }}
                   value={module.target_date ?? ''}
                   onChange={(event) => update('module', module.id, { target_date: event.target.value || null })}
                 />
@@ -681,28 +682,28 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     <div className="page" style={{ maxWidth: 620 }}>
       <div className="field">
         <label htmlFor="s-name">{t('project.name')}</label>
-        <input id="s-name" className="input" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
+        <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
       </div>
       <div className="field">
         <label htmlFor="s-desc">{t('project.description')}</label>
-        <textarea id="s-desc" className="textarea" value={project.description ?? ''}
+        <Textarea id="s-desc" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
       <div className="flex items-center gap-2" style={{ gap: 10 }}>
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-parent">{t('project.parent')}</label>
-          <select
-            id="s-parent" className="select" value={project.parent_id ?? ''}
+          <Select
+            id="s-parent" value={project.parent_id ?? ''}
             onChange={(event) => update('project', projectId, { parent_id: event.target.value || null })}
           >
             <option value="">{t('project.parentNone')}</option>
             {siblings.map((other) => <option key={other.id} value={other.id}>{other.icon} {other.name}</option>)}
-          </select>
+          </Select>
           <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-start">{t('project.startDate')}</label>
-          <input id="s-start" className="input" type="date" value={project.start_date ?? ''}
+          <Input id="s-start" type="date" value={project.start_date ?? ''}
             onChange={(event) => update('project', projectId, { start_date: event.target.value || null })} />
         </div>
       </div>
@@ -710,14 +711,14 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <div className="flex items-center gap-2" style={{ gap: 10 }}>
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-lead">{t('project.lead')}</label>
-          <select id="s-lead" className="select" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
+          <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
             <option value="">{t('common.nobody')}</option>
             {members.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-          </select>
+          </Select>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-target">{t('project.targetDate')}</label>
-          <input id="s-target" className="input" type="date" value={project.target_date ?? ''}
+          <Input id="s-target" type="date" value={project.target_date ?? ''}
             onChange={(event) => update('project', projectId, { target_date: event.target.value || null })} />
         </div>
       </div>
@@ -762,14 +763,14 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               aria-label={t('project.stateColour')}
               onChange={(event) => update('state', state.id, { color: event.target.value })}
             />
-            <input className="input flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
+            <Input className="flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
               onChange={(event) => update('state', state.id, { name: event.target.value })} />
-            <select className="select" style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
+            <Select style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
               onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
               {STATE_GROUPS.map((group) => (
                 <option key={group} value={group}>{t(groupKey(group))}</option>
               ))}
-            </select>
+            </Select>
             <Button variant="ghost" size="icon" aria-label={t('project.deleteState')} onClick={async () => {
               if (states.length <= 1) return;
               if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
@@ -780,16 +781,14 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10, marginTop: 8 }}>
             <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
               <span className="text-muted">{t('state.wipLimit')}</span>
-              <input
-                className="input" type="number" min={0} max={99} style={{ width: 70 }}
+              <Input type="number" min={0} max={99} style={{ width: 70 }}
                 value={state.wip_limit || ''} placeholder="0"
                 onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
               />
             </label>
             <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
               <span className="text-muted">{t('state.allowedRoles')}</span>
-              <select
-                className="select" style={{ width: 200 }}
+              <Select style={{ width: 200 }}
                 value={state.allowed_roles?.[0] ?? ''}
                 onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
               >
@@ -797,7 +796,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
                 {(['member', 'admin', 'owner'] as const).map((role) => (
                   <option key={role} value={role}>{t(roleKey(role))}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
         </div>
@@ -817,14 +816,13 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('type.settingsHint')}</p>
       {types.map((type) => (
         <div className="flex items-center gap-2" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
-          <input
-            className="input" style={{ width: 56, textAlign: 'center' }} maxLength={4}
+          <Input style={{ width: 56, textAlign: 'center' }} maxLength={4}
             aria-label={t('type.label')}
             value={type.icon ?? ''}
             onChange={(event) => update('taskType', type.id, { icon: event.target.value || null })}
           />
-          <input
-            className="input flex-1 min-w-0"
+          <Input
+            className="flex-1 min-w-0"
             value={type.name}
             aria-label={type.name}
             onChange={(event) => update('taskType', type.id, { name: event.target.value })}
@@ -879,7 +877,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           setNewLabel('');
         }}
       >
-        <input className="input" placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
+        <Input placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
         <Button type="submit"><Icon name="plus" size={14} /></Button>
       </form>
 

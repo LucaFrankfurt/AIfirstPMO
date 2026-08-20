@@ -17,6 +17,7 @@ import { useCanWrite, useMemberMap } from '../session';
 import { Icon, useConfirm } from './ui';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
+import { Input, Select, Textarea } from '../components/ui/field';
 import { DateField } from './task-parts';
 
 export const kindKey = (kind: string): TranslationKey => `field.kind.${kind}` as TranslationKey;
@@ -66,12 +67,12 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
   switch (field.kind) {
     case 'long_text':
       return (
-        <textarea id={id} className="textarea" rows={3} value={String(value ?? '')}
+        <Textarea id={id} rows={3} value={String(value ?? '')}
           onChange={(event) => onChange(event.target.value)} />
       );
     case 'number':
       return (
-        <input id={id} className="input" type="number" style={{ width: 120 }} value={value === null ? '' : String(value)}
+        <Input id={id} type="number" style={{ width: 120 }} value={value === null ? '' : String(value)}
           onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))} />
       );
     case 'date':
@@ -83,7 +84,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
     case 'url':
       return (
         <div className="flex items-center gap-2" style={{ gap: 6 }}>
-          <input id={id} className="input flex-1 min-w-0" type="url" placeholder="https://" value={String(value ?? '')}
+          <Input className="flex-1 min-w-0" id={id} type="url" placeholder="https://" value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)} />
           {!!value && (
             <a className={buttonVariants({ variant: 'ghost', size: 'iconSm' })} href={String(value)} target="_blank" rel="noreferrer noopener"
@@ -95,10 +96,10 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     case 'select':
       return (
-        <select id={id} className="select" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+        <Select id={id} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
           <option value="">{t('field.noValue')}</option>
           {field.options.map((option) => <option key={option} value={option}>{option}</option>)}
-        </select>
+        </Select>
       );
     case 'multi_select': {
       const chosen = (value as string[]) ?? [];
@@ -120,14 +121,14 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
     }
     case 'person':
       return (
-        <select id={id} className="select" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
+        <Select id={id} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)}>
           <option value="">{t('common.nobody')}</option>
           {[...members.values()].map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-        </select>
+        </Select>
       );
     default:
       return (
-        <input id={id} className="input" value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />
+        <Input id={id} value={String(value ?? '')} onChange={(event) => onChange(event.target.value)} />
       );
   }
 }
@@ -188,16 +189,15 @@ export function ProjectFields({ projectId }: { projectId: string }) {
       {fields.map((field) => (
         <div key={field.id} className="stack-card">
           <div className="flex items-center gap-2" style={{ gap: 8 }}>
-            <input
-              className="input flex-1 min-w-0" value={field.name} aria-label={t('field.name')}
+            <Input
+              className="flex-1 min-w-0" value={field.name} aria-label={t('field.name')}
               onChange={(event) => update('field', field.id, { name: event.target.value })}
             />
-            <select
-              className="select" style={{ width: 150 }} value={field.kind} aria-label={t('field.kind')}
+            <Select style={{ width: 150 }} value={field.kind} aria-label={t('field.kind')}
               onChange={(event) => update('field', field.id, { kind: event.target.value as FieldKind })}
             >
               {FIELD_KINDS.map((kind) => <option key={kind} value={kind}>{t(kindKey(kind))}</option>)}
-            </select>
+            </Select>
             <Button variant="ghost" size="iconSm" aria-expanded={open === field.id} aria-label={t('field.options')}
               onClick={() => setOpen(open === field.id ? null : field.id)}
             >
@@ -217,8 +217,8 @@ export function ProjectFields({ projectId }: { projectId: string }) {
               {(field.kind === 'select' || field.kind === 'multi_select') && (
                 <div className="field">
                   <label htmlFor={`opt-${field.id}`}>{t('field.choices')}</label>
-                  <input
-                    id={`opt-${field.id}`} className="input" value={field.options.join(', ')}
+                  <Input
+                    id={`opt-${field.id}`} value={field.options.join(', ')}
                     placeholder={t('field.choicesPlaceholder')}
                     onChange={(event) => update('field', field.id, {
                       options: event.target.value.split(',').map((o) => o.trim()).filter(Boolean),
@@ -229,8 +229,8 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
               <div className="field">
                 <label htmlFor={`help-${field.id}`}>{t('field.help')}</label>
-                <input
-                  id={`help-${field.id}`} className="input" value={field.help ?? ''}
+                <Input
+                  id={`help-${field.id}`} value={field.help ?? ''}
                   onChange={(event) => update('field', field.id, { help: event.target.value || null })}
                 />
               </div>

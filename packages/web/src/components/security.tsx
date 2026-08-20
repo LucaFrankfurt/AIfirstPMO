@@ -12,6 +12,7 @@ import { relativeTime } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Input } from './ui/field';
 import { Icon, useConfirm, useToast } from './ui';
 
 /* ------------------------------------------------------------ two factor */
@@ -99,12 +100,12 @@ export function TwoFactor() {
               library, and every authenticator app takes a typed secret. */}
           <div className="field">
             <label htmlFor="totp-secret">{t('security.secret')}</label>
-            <input id="totp-secret" className="input" readOnly value={setup.secret.replace(/(.{4})/g, '$1 ').trim()} />
+            <Input id="totp-secret" readOnly value={setup.secret.replace(/(.{4})/g, '$1 ').trim()} />
           </div>
           <div className="field">
             <label htmlFor="totp-code">{t('security.enterCode')}</label>
-            <input
-              id="totp-code" className="input" inputMode="numeric" autoComplete="one-time-code"
+            <Input
+              id="totp-code" inputMode="numeric" autoComplete="one-time-code"
               style={{ width: 130, letterSpacing: 2 }}
               value={code}
               onChange={(event) => setCode(event.target.value)}

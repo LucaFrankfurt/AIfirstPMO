@@ -25,6 +25,7 @@ import { OverviewDiagram } from './diagrams';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { Input, Select } from '../components/ui/field';
 import { Icon, Sheet, useToast } from './ui';
 
 const TOUR_KEY = 'kolibri.tour';
@@ -144,9 +145,8 @@ export function WelcomeTour() {
 
           <div className="field">
             <label htmlFor="tour-locale">{t('profile.language')}</label>
-            <select
+            <Select
               id="tour-locale"
-              className="select"
               value={locale}
               onChange={async (event) => {
                 const next = event.target.value as Locale;
@@ -156,7 +156,7 @@ export function WelcomeTour() {
               }}
             >
               {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
-            </select>
+            </Select>
           </div>
 
           <div className="field">
@@ -185,8 +185,7 @@ export function WelcomeTour() {
             <p className="tour-ok"><Icon name="check" size={15} /> {t('tour.projectDone', { name: created })}</p>
           ) : (
             <div className="flex items-center gap-2">
-              <input
-                className="input"
+              <Input
                 autoFocus
                 placeholder={t('project.namePlaceholder')}
                 value={projectName}

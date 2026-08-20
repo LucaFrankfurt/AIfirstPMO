@@ -14,6 +14,7 @@ import { create, remove, update } from '../lib/mutations';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { Icon, Sheet, useConfirm, useToast } from './ui';
 
 export const shareUrl = (share: Share): string =>
@@ -85,8 +86,8 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
       {shares.map((share) => (
         <div className="stack-card" key={share.id}>
           <div className="flex items-center gap-2" style={{ gap: 8 }}>
-            <input
-              className="input flex-1 min-w-0" readOnly value={shareUrl(share) || t('share.minting')}
+            <Input
+              className="flex-1 min-w-0" readOnly value={shareUrl(share) || t('share.minting')}
               aria-label={t('share.link')}
               onFocus={(event) => event.currentTarget.select()}
             />
@@ -110,8 +111,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
           <div className="flex items-center gap-2 flex-wrap" style={{ gap: 12, marginTop: 8, fontSize: 12.5 }}>
             <label className="flex items-center gap-2" style={{ gap: 6 }}>
               <span className="text-muted">{t('share.expires')}</span>
-              <input
-                className="input" type="date" style={{ width: 150 }}
+              <Input type="date" style={{ width: 150 }}
                 value={share.expires_at ? new Date(share.expires_at).toISOString().slice(0, 10) : ''}
                 onChange={(event) => update('share', share.id, {
                   expires_at: event.target.value ? Date.parse(`${event.target.value}T23:59:59Z`) : null,

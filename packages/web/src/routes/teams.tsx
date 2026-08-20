@@ -7,6 +7,7 @@ import { create, remove, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
 import { useMembers, useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { useT } from '../lib/i18n';
 
 export function Teams() {
@@ -34,7 +35,7 @@ export function Teams() {
             setName('');
           }}
         >
-          <input className="input" placeholder={t('team.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
+          <Input placeholder={t('team.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
           <Button type="submit"><Icon name="plus" size={14} /> {t('action.add')}</Button>
         </form>
 
@@ -56,8 +57,8 @@ export function Teams() {
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>
                 <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
                   <span style={{ fontSize: 18 }}>{team.icon ?? '👥'}</span>
-                  <input
-                    className="input flex-1 min-w-0" style={{ border: 'none', background: 'none', fontWeight: 600 }}
+                  <Input
+                    className="flex-1 min-w-0" style={{ border: 'none', background: 'none', fontWeight: 600 }}
                     value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
                   />
                   <span className="chip mono">{team.key}</span>

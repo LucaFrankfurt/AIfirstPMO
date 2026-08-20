@@ -15,6 +15,7 @@ import { PushToggle } from '../components/push';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { Input, Select, Textarea } from '../components/ui/field';
 import { TelegramConnection } from '../components/telegram';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
@@ -121,11 +122,11 @@ function Profile() {
 
       <div className="field">
         <label htmlFor="me-name">{t('profile.displayName')}</label>
-        <input id="me-name" className="input" value={name} onChange={(event) => setName(event.target.value)} />
+        <Input id="me-name" value={name} onChange={(event) => setName(event.target.value)} />
       </div>
       <div className="field">
         <label htmlFor="me-bio">{t('profile.bio')}</label>
-        <textarea id="me-bio" className="textarea" style={{ minHeight: 70 }} value={bio ?? ''} onChange={(event) => setBio(event.target.value)} />
+        <Textarea id="me-bio" style={{ minHeight: 70 }} value={bio ?? ''} onChange={(event) => setBio(event.target.value)} />
       </div>
       <Button variant="primary"
         onClick={async () => {
@@ -138,8 +139,7 @@ function Profile() {
       </Button>
 
       <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.language')}</h3>
-      <select
-        className="select"
+      <Select
         style={{ maxWidth: 220 }}
         value={locale}
         aria-label={t('profile.language')}
@@ -152,7 +152,7 @@ function Profile() {
         }}
       >
         {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
-      </select>
+      </Select>
       <span className="text-[12px] text-muted" style={{ display: 'block', marginTop: 4 }}>{t('profile.languageHint')}</span>
       {/* Said where it is chosen, so nobody finds out from an odd sentence
           three screens later. */}
@@ -176,13 +176,11 @@ function Profile() {
 
       <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.password')}</h3>
       <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
-        <input
-          className="input" type="password" placeholder={t('profile.currentPassword')} autoComplete="current-password"
+        <Input type="password" placeholder={t('profile.currentPassword')} autoComplete="current-password"
           style={{ maxWidth: 220 }} value={passwords.current}
           onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
         />
-        <input
-          className="input" type="password" placeholder={t('profile.newPassword')} autoComplete="new-password"
+        <Input type="password" placeholder={t('profile.newPassword')} autoComplete="new-password"
           style={{ maxWidth: 220 }} value={passwords.next}
           onChange={(event) => setPasswords({ ...passwords, next: event.target.value })}
         />
@@ -419,7 +417,7 @@ function WorkspaceSettings() {
     <>
       <div className="field">
         <label htmlFor="ws-name">{t('workspace.name')}</label>
-        <input id="ws-name" className="input" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
+        <Input id="ws-name" value={name} disabled={!canEdit} onChange={(event) => setName(event.target.value)} />
         {!canEdit && <span className="text-[12px] text-muted">{t('workspace.adminOnly')}</span>}
       </div>
       <Button variant="primary" disabled={!canEdit}
@@ -443,7 +441,7 @@ function WorkspaceSettings() {
 
       <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('workspace.new')}</h3>
       <div className="flex items-center gap-2">
-        <input className="input" placeholder={t('common.name')} value={creating} onChange={(event) => setCreating(event.target.value)} />
+        <Input placeholder={t('common.name')} value={creating} onChange={(event) => setCreating(event.target.value)} />
         <Button
           disabled={!creating.trim()}
           onClick={async () => {
@@ -491,15 +489,14 @@ function Members() {
           </div>
           {member.last_seen_at && <span className="text-muted" style={{ fontSize: 11.5 }}>{relativeTime(member.last_seen_at)}</span>}
           {canManage ? (
-            <select
-              className="select" style={{ width: 110 }} value={member.role}
+            <Select style={{ width: 110 }} value={member.role}
               onChange={async (event) => {
                 await api.patch(`/api/workspaces/${workspaceId}/members/${member.user_id}`, { role: event.target.value });
                 load();
               }}
             >
               {ROLES.map((option) => <option key={option} value={option}>{t(roleKey(option))}</option>)}
-            </select>
+            </Select>
           ) : (
             <span className="chip">{t(roleKey(member.role))}</span>
           )}
@@ -585,7 +582,7 @@ function ApiSettings() {
 
       <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('api.tokens')}</h3>
       <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-        <input className="input" placeholder={t('api.tokenName')} value={name} onChange={(event) => setName(event.target.value)} />
+        <Input placeholder={t('api.tokenName')} value={name} onChange={(event) => setName(event.target.value)} />
         <Button variant="primary"
           onClick={async () => {
             const token = await api.createToken({ name, workspaceId });

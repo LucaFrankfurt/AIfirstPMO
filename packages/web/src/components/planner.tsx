@@ -23,6 +23,7 @@ import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
 import { update } from '../lib/mutations';
 import { useCanWrite, useMembers, useSession } from '../session';
+import { Input, Select } from '../components/ui/field';
 import { Avatar, Empty, Icon, StateDot } from './ui';
 
 const DAY_WIDTH = 12;
@@ -189,17 +190,16 @@ export function Planner() {
         <span className="flex-1 min-w-0" />
         <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
           <span className="text-muted">{t('planner.limit')}</span>
-          <input
-            className="input" type="number" min={1} max={20} style={{ width: 62 }}
+          <Input type="number" min={1} max={20} style={{ width: 62 }}
             value={limit} onChange={(event) => setLimit(Math.max(1, Number(event.target.value) || 1))}
           />
         </label>
         <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
           <span className="text-muted">{t('planner.weeks')}</span>
-          <select className="select" style={{ width: 90 }} value={weeks}
+          <Select style={{ width: 90 }} value={weeks}
             onChange={(event) => setWeeks(Number(event.target.value))}>
             {[4, 8, 13, 26].map((count) => <option key={count} value={count}>{count}</option>)}
-          </select>
+          </Select>
         </label>
       </div>
 

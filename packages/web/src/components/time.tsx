@@ -18,6 +18,7 @@ import { create, remove, update } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
 import { useMe, useMemberMap, useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { Avatar, Icon, useConfirm, useToast } from './ui';
 
 /** Minutes on the clock right now, for a row that is still running. */
@@ -156,22 +157,20 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
 
       {open && (
         <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 10 }}>
-          <input
-            className="input" style={{ width: 90 }} autoFocus
+          <Input style={{ width: 90 }} autoFocus
             placeholder={t('time.amountPlaceholder')}
             aria-label={t('time.amount')}
             value={amount}
             onChange={(event) => setAmount(event.target.value)}
             onKeyDown={(event) => event.key === 'Enter' && log()}
           />
-          <input
-            className="input" type="date" style={{ width: 148 }}
+          <Input type="date" style={{ width: 148 }}
             aria-label={t('time.date')}
             value={date}
             onChange={(event) => setDate(event.target.value)}
           />
-          <input
-            className="input flex-1 min-w-0" style={{ minWidth: 120 }}
+          <Input
+            className="flex-1 min-w-0" style={{ minWidth: 120 }}
             placeholder={t('time.notePlaceholder')}
             aria-label={t('time.note')}
             value={note}

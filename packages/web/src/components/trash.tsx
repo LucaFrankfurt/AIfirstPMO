@@ -23,6 +23,7 @@ import { useMemberMap, useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { Input } from '../components/ui/field';
 import { Empty, Icon, useConfirm, useToast } from './ui';
 
 /** What can end up in here, and what to call it. */
@@ -153,8 +154,8 @@ export function Trash() {
             </button>
           ))}
         </div>
-        <input
-          className="input flex-1 min-w-0"
+        <Input
+          className="flex-1 min-w-0"
           style={{ minWidth: 160 }}
           placeholder={t('trash.filter')}
           aria-label={t('trash.filter')}

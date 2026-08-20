@@ -12,6 +12,7 @@ import { list, useQuery } from '../lib/store';
 import { useSession } from '../session';
 import { Avatar, Empty, Icon, useConfirm, useToast } from './ui';
 import { Button } from '../components/ui/button';
+import { Input, Select } from '../components/ui/field';
 import { useMemberMap } from '../session';
 
 /* ------------------------------------------------------------ audit log */
@@ -117,8 +118,8 @@ export function Webhooks() {
           setUrl('');
         }}
       >
-        <input
-          className="input flex-1 min-w-0" type="url" placeholder="https://example.com/hooks/kolibri"
+        <Input
+          className="flex-1 min-w-0" type="url" placeholder="https://example.com/hooks/kolibri"
           aria-label={t('hooks.url')} value={url} onChange={(event) => setUrl(event.target.value)}
         />
         <Button type="submit"><Icon name="plus" size={14} /> {t('hooks.add')}</Button>
@@ -151,8 +152,8 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
   return (
     <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginBottom: 8 }}>
       <div className="flex items-center gap-2" style={{ gap: 8 }}>
-        <input
-          className="input flex-1 min-w-0" value={hook.name ?? ''} placeholder={t('hooks.name')} aria-label={t('hooks.name')}
+        <Input
+          className="flex-1 min-w-0" value={hook.name ?? ''} placeholder={t('hooks.name')} aria-label={t('hooks.name')}
           onChange={(event) => update('webhook', hook.id, { name: event.target.value })}
         />
         <label className="flex items-center gap-2" style={{ gap: 5, fontSize: 12.5 }}>
@@ -168,8 +169,8 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
       </div>
       {inbound ? (
         <div className="flex items-center gap-2" style={{ gap: 8, margin: '6px 0' }}>
-          <input
-            className="input flex-1 min-w-0" readOnly value={secret?.url ?? t('hooks.inHidden')}
+          <Input
+            className="flex-1 min-w-0" readOnly value={secret?.url ?? t('hooks.inHidden')}
             aria-label={t('hooks.inUrl')} onFocus={(event) => event.currentTarget.select()}
           />
           <Button size="sm"
@@ -197,14 +198,13 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
         <div className="flex items-center gap-2" style={{ gap: 8, marginBottom: 6 }}>
           <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
             <span className="text-muted">{t('hooks.format')}</span>
-            <select
-              className="select" style={{ width: 150 }} value={hook.format ?? 'kolibri'}
+            <Select style={{ width: 150 }} value={hook.format ?? 'kolibri'}
               onChange={(event) => update('webhook', hook.id, { format: event.target.value })}
             >
               <option value="kolibri">{t('hooks.formatKolibri')}</option>
               <option value="slack">Slack / Mattermost</option>
               <option value="discord">Discord</option>
-            </select>
+            </Select>
           </label>
         </div>
       )}

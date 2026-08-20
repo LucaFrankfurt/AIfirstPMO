@@ -118,7 +118,7 @@ await page.screenshot({ path: `${shots}/2-board.png` });
 await step('open task detail + comment', async () => {
   await page.click('.task-card');
   await page.waitForSelector('.sheet', { timeout: 5000 });
-  const title = await page.locator('.sheet .input').first().inputValue();
+  const title = await page.locator('.sheet input[type=text], .sheet input:not([type])').first().inputValue();
   console.log('     task:', title.slice(0, 40));
 });
 await page.screenshot({ path: `${shots}/3-task.png` });
@@ -127,7 +127,7 @@ await step('create task through quick add', async () => {
   await page.keyboard.press('Escape');
   await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
   await page.waitForSelector('.sheet');
-  await page.fill('.sheet input.input >> nth=0', 'Playwright smoke task');
+  await page.fill('.sheet input >> nth=0', 'Playwright smoke task');
   await page.click(`button:has-text("${LABELS.createTask}")`);
   await page.waitForTimeout(1200);
 });
@@ -616,7 +616,7 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
       await view.waitForSelector('.sidebar', { timeout: 15000 });
       await closeTour(view);
       await view.click(`button:has-text("${LABELS.newChannel}")`);
-      await view.waitForSelector('.sheet input.input', { timeout: 5000 });
+      await view.waitForSelector('.sheet input', { timeout: 5000 });
       await view.waitForTimeout(300);
 
       const seen = await view.evaluate(() => {
@@ -625,7 +625,7 @@ await step('a pinned theme reaches the controls the browser paints itself', asyn
         return {
           scheme: getComputedStyle(document.documentElement).colorScheme,
           sheet: luma(getComputedStyle(sheet).backgroundColor),
-          field: luma(getComputedStyle(sheet.querySelector('input.input')).backgroundColor),
+          field: luma(getComputedStyle(sheet.querySelector('input')).backgroundColor),
         };
       });
       if (seen.scheme !== pinned) throw new Error(`pinned ${pinned} but color-scheme is "${seen.scheme}"`);

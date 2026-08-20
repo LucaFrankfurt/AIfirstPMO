@@ -22,6 +22,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Button } from '../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from './ui/menu';
 import { buttonVariants } from './ui/button';
+import { Input } from '../components/ui/field';
 import { cn } from '../lib/cn';
 
 /* ------------------------------------------------------------------- icons */
@@ -318,8 +319,8 @@ export function MenuButton({
       </MenuTrigger>
       <MenuContent align="start">
         {search && (
-          <input
-            className="input mb-1 h-8 text-[13px]"
+          <Input
+            className="mb-1 h-8 text-[13px]"
             autoFocus
             placeholder={t('common.filterPlaceholder')}
             value={query}

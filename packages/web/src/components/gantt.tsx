@@ -21,6 +21,7 @@ import { byId, list, useQuery } from '../lib/store';
 import { create, update } from '../lib/mutations';
 import { useCanWrite } from '../session';
 import { Button } from '../components/ui/button';
+import { Select } from '../components/ui/field';
 import { Empty, Icon, StateDot, useToast } from './ui';
 
 /** How wide a day is, per zoom step. */
@@ -261,14 +262,14 @@ export function GanttView({ tasks, onOpen, projectId }: {
         <span className="text-muted" style={{ fontSize: 12 }}>{t('gantt.hint')}</span>
         <span className="flex-1 min-w-0" />
         {baselines.length > 0 && (
-          <select
-            className="select sm" style={{ width: 'auto' }} value={baselineId}
+          <Select
+            inputSize="sm" style={{ width: 'auto' }} value={baselineId}
             aria-label={t('baseline.compare')}
             onChange={(event) => setBaselineId(event.target.value)}
           >
             <option value="">{t('baseline.none')}</option>
             {baselines.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-          </select>
+          </Select>
         )}
         {canWrite && projectId && (
           <Button variant="ghost" size="sm" onClick={() => takeBaseline()} title={t('baseline.hint')}>

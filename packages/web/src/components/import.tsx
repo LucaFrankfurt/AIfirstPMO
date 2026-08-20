@@ -20,6 +20,7 @@ import { shortDate } from '../lib/format';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Select } from '../components/ui/field';
 import { Icon, Sheet, useToast } from './ui';
 
 const FIELD_KEY: Record<ImportField, TranslationKey> = {
@@ -155,8 +156,7 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                     <span className="text-muted truncate" style={{ flex: 1, fontSize: 12 }}>
                       {table?.rows[0]?.[column] || '—'}
                     </span>
-                    <select
-                      className="select"
+                    <Select
                       style={{ width: 150 }}
                       aria-label={t('import.mapColumn', { column })}
                       value={mapping[column] ?? ''}
@@ -166,7 +166,7 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                       {IMPORT_FIELDS.map((field) => (
                         <option key={field} value={field}>{t(FIELD_KEY[field])}</option>
                       ))}
-                    </select>
+                    </Select>
                   </div>
                 ))}
               </div>

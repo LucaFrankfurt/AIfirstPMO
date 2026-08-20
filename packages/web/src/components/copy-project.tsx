@@ -12,6 +12,7 @@ import { byId, list, useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
 import { Button } from '../components/ui/button';
+import { Input, Select } from './ui/field';
 import { Icon, Sheet, useToast } from './ui';
 
 export function CopyProjectSheet({ projectId, onClose, onCopied }: {
@@ -70,25 +71,25 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
 
         <div className="field">
           <label htmlFor="copy-name">{t('copy.name')}</label>
-          <input id="copy-name" className="input" required value={name} autoFocus
+          <Input id="copy-name" required value={name} autoFocus
             onChange={(event) => setName(event.target.value)} />
         </div>
 
         <div className="field">
           <label htmlFor="copy-key">{t('copy.key')}</label>
-          <input id="copy-key" className="input" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
+          <Input id="copy-key" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
             onChange={(event) => setKey(event.target.value.toUpperCase())} />
           <span className="text-[12px] text-muted">{t('copy.keyAuto')}</span>
         </div>
 
         <div className="field">
           <label htmlFor="copy-parent">{t('copy.parent')}</label>
-          <select id="copy-parent" className="select" value={parentId} onChange={(event) => setParentId(event.target.value)}>
+          <Select id="copy-parent" value={parentId} onChange={(event) => setParentId(event.target.value)}>
             <option value="">{t('project.parentNone')}</option>
             {projects.map((project) => (
               <option key={project.id} value={project.id}>{project.icon} {project.name}</option>
             ))}
-          </select>
+          </Select>
         </div>
 
         <strong style={{ fontSize: 13, display: 'block', margin: '14px 0 6px' }}>{t('copy.include')}</strong>

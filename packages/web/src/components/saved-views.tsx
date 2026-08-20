@@ -26,6 +26,7 @@ import { ShareSheet, type ShareTarget } from './share';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
+import { Input } from './ui/field';
 import { DEFAULT_VIEW, type ViewConfig } from './views';
 
 /** The stored row, read back as the shape the screens work in. */
@@ -300,9 +301,8 @@ function ViewNameSheet({
     >
       <div className="field">
         <label htmlFor="view-name">{t('view.name')}</label>
-        <input
+        <Input
           id="view-name"
-          className="input"
           autoFocus
           value={name}
           placeholder={t('view.namePlaceholder')}

@@ -10,6 +10,7 @@ import { useT, type TranslationKey } from '../lib/i18n';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Avatar, Icon, useLightbox, useToast } from './ui';
+import { Textarea } from './ui/field';
 
 /**
  * What a reference in this workspace may point at.
@@ -362,9 +363,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
         </div>
       ) : (
         <>
-        <textarea
+        <Textarea
           ref={ref}
-          className="textarea"
           style={{ minHeight }}
           value={value}
           placeholder={placeholder ?? t('editor.placeholder')}

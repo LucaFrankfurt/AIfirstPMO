@@ -5,6 +5,7 @@ import { useSession } from '../session';
 import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../lib/i18n';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
+import { Input, Select } from '../components/ui/field';
 import { Icon } from '../components/ui';
 
 export function Login() {
@@ -125,23 +126,23 @@ export function Login() {
         {mode === 'register' && (
           <div className="field">
             <label htmlFor="name">{t('login.yourName')}</label>
-            <input id="name" className="input" value={form.name} autoComplete="name"
+            <Input id="name" value={form.name} autoComplete="name"
               onChange={(event) => setForm({ ...form, name: event.target.value })} />
           </div>
         )}
 
         <div className="field">
           <label htmlFor="email">{t('login.email')}</label>
-          <input
-            id="email" className="input" type="email" required autoComplete="email" autoFocus={mode === 'login'}
+          <Input
+            id="email" type="email" required autoComplete="email" autoFocus={mode === 'login'}
             value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })}
           />
         </div>
 
         <div className="field">
           <label htmlFor="password">{t('login.password')}</label>
-          <input
-            id="password" className="input" type="password" required minLength={8}
+          <Input
+            id="password" type="password" required minLength={8}
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })}
           />
@@ -151,8 +152,8 @@ export function Login() {
         {mode === 'register' && !code && (
           <div className="field">
             <label htmlFor="workspace">{t('login.workspaceName')}</label>
-            <input
-              id="workspace" className="input" placeholder={t('login.workspacePlaceholder')} value={form.workspace}
+            <Input
+              id="workspace" placeholder={t('login.workspacePlaceholder')} value={form.workspace}
               onChange={(event) => setForm({ ...form, workspace: event.target.value })}
             />
           </div>
@@ -178,15 +179,14 @@ export function Login() {
         <div className="flex items-center gap-2 text-muted" style={{ justifyContent: 'center', marginTop: 18, fontSize: 12, gap: 10 }}>
           <span className="flex items-center gap-2" style={{ gap: 5 }}><Icon name="bolt" size={13} /> {t('login.footer')}</span>
           <span aria-hidden="true">·</span>
-          <select
-            className="input"
+          <Select
             aria-label={t('profile.language')}
             value={locale}
             onChange={(event) => setLocale(event.target.value as Locale)}
             style={{ width: 'auto', padding: '2px 4px', fontSize: 12, border: 'none', background: 'none' }}
           >
             {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
-          </select>
+          </Select>
         </div>
       </form>
     </div>
