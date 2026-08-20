@@ -28,9 +28,31 @@ export function registerMcpRoutes(router: Router): void {
     return undefined;
   });
 
-  /** Discovery for humans and for clients that probe with GET. */
+  /**
+   * A GET is two different questions, and answering the wrong one breaks the
+   * connector.
+   *
+   * With `Accept: text/event-stream` the client is opening the optional
+   * server-to-client stream. This server has nothing to push — it is stateless,
+   * every answer is the response to a POST — and the transport's own answer for
+   * that case is **405 with an `Allow` header**, not a body. Returning the
+   * discovery JSON instead is what broke claude.ai: it opened the stream, got
+   * `application/json`, read to the end of the content length and saw the
+   * stream close, which it reports as "your connection was interrupted". Claude
+   * Code never opens that stream, which is why the same server worked there and
+   * not on the web.
+   *
+   * Without that header it is a person or a script asking what this endpoint
+   * is, and a list of tools is a more useful reply than a 405.
+   *
+   * Order matters: the auth check comes first so that an unauthenticated probe
+   * still gets the 401 that carries `WWW-Authenticate`. That header is the
+   * whole of how a connector added at claude.ai finds the sign-in from nothing
+   * but a URL, and a 405 would hide it.
+   */
   router.get('/mcp', (ctx: Ctx) => {
     if (!ctx.auth) throw challenge(ctx);
+    if (String(ctx.req.headers.accept ?? '').includes('text/event-stream')) return noStream(ctx);
     return {
       protocolVersion: PROTOCOL_VERSION,
       transport: 'streamable-http',
@@ -38,6 +60,25 @@ export function registerMcpRoutes(router: Router): void {
       workspace: contextFor(ctx).defaultWorkspace,
     };
   });
+
+  /**
+   * Session termination, for a transport with no sessions.
+   *
+   * The client may send this when it disconnects. There is nothing to tear
+   * down, and the transport says to answer 405 rather than pretend — a 404
+   * says "wrong address", which is a different and more alarming thing to tell
+   * a client that has been talking to this endpoint all along.
+   */
+  router.delete('/mcp', (ctx: Ctx) => noStream(ctx));
+}
+
+/** "This endpoint exists, and does not do that." */
+function noStream(ctx: Ctx): undefined {
+  send(ctx.res, 405, {
+    error: 'method_not_allowed',
+    message: 'This endpoint answers POST. It keeps no session and opens no server-to-client stream.',
+  }, { allow: 'POST' });
+  return undefined;
 }
 
 function contextFor(ctx: Ctx): McpCtx {

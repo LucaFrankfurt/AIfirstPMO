@@ -8,10 +8,16 @@ import { cn } from '../../lib/cn';
  * Chips carry a colour from the data often enough that `style` stays the right
  * tool for that one property — what this settles is everything around it, so a
  * label chip and a date chip are the same shape.
+ *
+ * 32px tall, which is the floor for something you tap. They were 22: a fine
+ * label and a poor button, and enough of them navigate — a project chip on a
+ * team card, an option in a field — that the difference was real on a phone.
+ * One height for all of them rather than two, because a row of chips at two
+ * sizes reads as a mistake.
  */
 export const chipVariants = cva(
-  'inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2 '
-  + 'text-[11.5px] leading-[20px] h-[22px]',
+  'inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-full border px-2.5 '
+  + 'text-[11.5px] leading-[30px] h-8',
   {
     variants: {
       tone: {

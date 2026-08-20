@@ -113,9 +113,11 @@ that already worked is untouched and only the ones that did not get darker.
 every value solved at exactly the floor landed on 4.48 — passing the maths and failing the check.
 
 **Touch targets**, checked on the same run: the rule is 36px, or 32 inside a dense row that is itself
-clickable. Chips (22px), planner bars (20px) and the sync pill are deliberately smaller and are
-indicators or secondary shortcuts, not primary controls. A control whose *parent* carries the padding
-is the case to watch — the group-collapse toggle looked like a 35px row and answered to 19px of it.
+clickable. **Chips are 32px** — they were 22, which is a comfortable label and a poor button, and a
+good number of them navigate somewhere. What is left below 32 is a timeline bar, a disclosure
+triangle and the sync pill: marks and indicators rather than controls, and each is reachable another
+way. A control whose *parent* carries the padding is the case to watch — the group-collapse toggle
+looked like a 35px row and answered to 19px of it.
 
 ## Tokens
 
