@@ -236,7 +236,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onClick={() => setAdding(true)} aria-label={t('nav.newTask')}
             hidden={!canWrite}
           >
-            <span style={{ background: 'var(--accent)', color: '#fff', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
+            <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 34, height: 34, borderRadius: 12, display: 'grid', placeItems: 'center' }}>
               <Icon name="plus" size={19} />
             </span>
           </button>
@@ -255,7 +255,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 export function Header({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
   return (
     <header className="header">
-      <h1 className="flex-1 min-w-0 truncate">{title}</h1>
+      {/* `min-w-[72px]`, not `min-w-0`: the header scrolls sideways rather than
+          squeezing, so a title that may shrink to nothing shrinks to nothing —
+          which is what it did, leaving a screen with no name on it. */}
+      <h1 className="flex-1 min-w-[72px] truncate">{title}</h1>
       {children}
       <SyncPill />
     </header>

@@ -108,6 +108,37 @@ curl -s -X POST $URL/mcp -H "Authorization: Bearer $TOKEN" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 ```
 
+### The half of the transport that is not a POST
+
+Every answer this server gives is the response to a POST. It keeps no session and has nothing to
+push, so the two other verbs the transport defines both answer **405 with `Allow: POST`**:
+
+| | |
+|---|---|
+| `GET /mcp` with `Accept: text/event-stream` | the optional server-to-client stream, which this server does not open |
+| `DELETE /mcp` | session teardown, for a transport with no sessions |
+
+That is the transport's own answer for a stateless server, and getting it wrong is subtle in a way
+worth writing down. This endpoint used to answer that GET with `200` and a JSON description of
+itself. **Claude Code worked and Claude on the web did not**: Code never opens the stream, the web
+client does, and what it got was a document that ended at its content length — a stream that closed
+the moment it opened, reported as *"your connection was interrupted"*. Everything else about the
+connector — discovery, OAuth, the token — was fine, which is what made it hard to see.
+
+A plain `GET /mcp` with no `Accept: text/event-stream` still answers `200` with the protocol
+version, the transport and the tool list. That is for people and scripts, and it is a more useful
+reply than a 405 to someone typing the URL.
+
+The auth check runs **before** the 405. An unauthenticated probe must still receive the `401` that
+carries `WWW-Authenticate`, because that header is the whole of how a connector added at claude.ai
+finds the sign-in from nothing but a URL — answering 405 first would hide it.
+
+```bash
+curl -is $URL/mcp -H "Authorization: Bearer $TOKEN" -H 'Accept: text/event-stream' | head -2
+# HTTP/1.1 405 Method Not Allowed
+# allow: POST
+```
+
 ## Tools
 
 Tasks are addressed by id or by the identifier humans use (`WEB-42`). Projects accept id, key or

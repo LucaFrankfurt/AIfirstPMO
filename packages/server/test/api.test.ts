@@ -292,6 +292,57 @@ describe('kolibri api', () => {
     assert.equal(initialize.result.serverInfo.name, 'kolibri');
   });
 
+  /**
+   * The half of the transport that is not a POST.
+   *
+   * This is what made the same server work in Claude Code and fail on
+   * claude.ai. A client may open the optional server-to-client stream with a
+   * GET; this one has nothing to push, and the transport says to answer 405.
+   * It answered 200 with the discovery JSON instead, so the client opened a
+   * stream, read to the end of the content length, and reported the connection
+   * as interrupted. Nothing in the POST path could catch that.
+   */
+  it('refuses the stream a stateless server cannot open, and says so with Allow', async () => {
+    const stream = await fetch(`${base}/mcp`, {
+      headers: { authorization: `Bearer ${apiToken}`, accept: 'text/event-stream' },
+    });
+    assert.equal(stream.status, 405);
+    assert.equal(stream.headers.get('allow'), 'POST');
+
+    // Same answer for the session teardown of a transport with no sessions —
+    // 404 would say "wrong address" about an endpoint the client has been
+    // talking to all along.
+    const gone = await fetch(`${base}/mcp`, {
+      method: 'DELETE',
+      headers: { authorization: `Bearer ${apiToken}` },
+    });
+    assert.equal(gone.status, 405);
+    assert.equal(gone.headers.get('allow'), 'POST');
+  });
+
+  it('still answers a plain GET with what this endpoint is', async () => {
+    const described = await api('/mcp', { token: apiToken });
+    assert.equal(described.transport, 'streamable-http');
+    assert.ok(described.tools.includes('create_task'));
+  });
+
+  /**
+   * Discovery has to survive the 405.
+   *
+   * A client with no credentials probing the endpoint — with any `Accept` —
+   * must still get the 401 that carries `WWW-Authenticate`, because that header
+   * is the whole of how a connector added at claude.ai finds the sign-in from
+   * nothing but a URL. Returning 405 before checking the credentials would hide
+   * it and leave the connector with no way in.
+   */
+  it('challenges an unauthenticated probe even when it asks for the stream', async () => {
+    for (const accept of ['text/event-stream', 'application/json']) {
+      const response = await fetch(`${base}/mcp`, { headers: { accept } });
+      assert.equal(response.status, 401, accept);
+      assert.match(response.headers.get('www-authenticate') ?? '', /resource_metadata=/, accept);
+    }
+  });
+
   it('gives a new project its kinds of work, and a new task the default one', async () => {
     const types = await api(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
     assert.deepEqual(types.map((type: any) => type.name), ['Task', 'Bug', 'Feature']);

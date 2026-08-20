@@ -52,6 +52,73 @@ So the order is the documented one, and the rules follow from it:
   whose submit button lost `type="submit"`, a `htmlFor` pointing at nothing, and two utilities in
   one string that contradict each other.
 
+## Width is not the window
+
+The three helpers that switch a control between its wide form and its compact one — `hide-sm`,
+`only-sm`, `not-sm` — are **container queries on `.main`**, not media queries on the viewport. The
+distinction is the whole point:
+
+At 900px the sidebar appears and takes 248px. A window growing from 899 to 900 therefore leaves the
+screen with *less* room than it had — 652px instead of 899. Keyed to the window, the wide project
+header rendered into that and did not fit: its controls wrapped onto a second row, drew over the tab
+strip below, and squeezed the title to nothing. The band was 900–940px, which is a laptop with the
+window not quite maximised, and nobody finds that by looking at one screenshot.
+
+- **The threshold is 764px of content**, which is what the busiest bar in the app needs — a project
+  header carrying saved views, five layout buttons, filter, display and the add button. Measured,
+  not guessed.
+- **Every use of the three must be inside `.main`.** A container query with no container never
+  matches, so a label moved into the sidebar, or into a dialog (Radix portals those to `<body>`),
+  would not turn compact — it would vanish.
+- **`container-type` does not make `.main` a containing block for `position: fixed` descendants**,
+  whatever layout containment usually implies. The selection bar still positions against the
+  viewport and still carries `--sidebar-width` in its inset. This was checked in a browser after
+  being written the other way, which put the bar under the sidebar.
+- **Nothing in a one-row bar may `flex-wrap`.** `.header` is 52px tall and scrolls sideways when its
+  contents do not fit; a second row has nowhere to go and lands on whatever is beneath it.
+- **A bar's title carries `min-w-[72px]`, never `min-w-0`.** The floor is what makes "the header
+  scrolls rather than squeezing the title away" true, and a utility saying `0` silently removes it.
+
+`node scripts/responsive.mjs` (`npm run check:responsive`) walks every screen from 340px to 1600px
+in 20px steps and asks whether the page scrolls sideways, whether a one-row bar is taller than
+itself, whether a header control reaches over the tabs, and whether a title has been squeezed away.
+
+## Colour is measured, not eyeballed
+
+The person who picks a grey can always read it. That is the whole problem, so none of this is
+settled by looking:
+
+`node scripts/contrast.mjs` (`npm run check:contrast`) walks twelve screens in **four modes** —
+light and dark, desktop and phone — and for every element that renders text computes the real
+background (walking up through transparency and blending as it goes) and the WCAG contrast against
+it. The floor is 4.5:1, or 3:1 for large text.
+
+Everything it found the first time it ran had been there since long before the port:
+
+| | Was | Now |
+|---|---|---|
+| `--fg-muted`, light | 3.20 on white, 2.88 on a hovered row | ≥ 4.6 on every surface |
+| `--fg-muted`, dark | 4.17 on the page, 3.89 on a card | ≥ 4.6 on every surface |
+| `--danger` / `--ok`, dark | 3.06 and 3.92 — never re-stepped | re-stepped for the dark surface |
+| `--warn`, light | 2.65 | re-stepped |
+| Avatar initials | 6.7:1 on a blue one, 1.6:1 on a yellow-green one | ≥ 4.6 on all of them |
+| White on `var(--accent)` | 5.4 light, 3.5 dark | `var(--accent-fg)`, which is what that token is for |
+
+**Avatars solve their own lightness.** A fixed `hsl(hue 62% 52%)` cannot work, because lightness is
+not brightness: at the same 52%, blue gave white 6.7:1 and yellow-green gave 1.6. `colorFor` now
+binary-searches the darkest-necessary lightness per hue and caps it at the old 52%, so every avatar
+that already worked is untouched and only the ones that did not get darker.
+
+**Solve for 4.6, not 4.5.** Rounding a solution to six hex digits moves it by a hundredth or two, and
+every value solved at exactly the floor landed on 4.48 — passing the maths and failing the check.
+
+**Touch targets**, checked on the same run: the rule is 36px, or 32 inside a dense row that is itself
+clickable. **Chips are 32px** — they were 22, which is a comfortable label and a poor button, and a
+good number of them navigate somewhere. What is left below 32 is a timeline bar, a disclosure
+triangle and the sync pill: marks and indicators rather than controls, and each is reachable another
+way. A control whose *parent* carries the padding is the case to watch — the group-collapse toggle
+looked like a 35px row and answered to 19px of it.
+
 ## Tokens
 
 Everything visual comes from a CSS custom property in `styles/app.css`. They are aliased into
@@ -78,6 +145,11 @@ themes. A ported screen and an unported one cannot disagree about a colour.
 
 Three levels of ink and no more. A fourth grey is how a hierarchy stops being one.
 
+**All three are readable, including the faintest.** `--fg-muted` is for hints and timestamps, and
+"not important" is not an exemption — it was #8b909b, which is 3.20:1 on white and 2.88 on a hovered
+row, and it carried the tab labels. Both themes now solve it for 4.5:1 against `bg`, `sunken`,
+`raised`, `hover` and `active`. The hierarchy is intact: 16.9 / 8.2 / 5.5 on the page.
+
 ### Accent and status
 
 `--accent` is the only brand colour, and it means **"this is the action"** or **"you are here"**.
@@ -87,6 +159,11 @@ it.
 `--ok`, `--warn`, `--danger` mean exactly what they say, and are **reserved**: a warning colour used
 for emphasis is a warning nobody will believe. They always ship with a word or an icon as well as
 the colour, because roughly one reader in twelve cannot separate the red from the green.
+
+**Dark re-steps them, it does not reuse them.** They are text colours as often as they are fills —
+`late` is a red word, a due-today date is an amber one — so each has to clear 4.5:1 against the
+surface it lands on. Reused unchanged, the light theme's red measured 3.06 against the dark page and
+its green 3.92. Amber was already fine and stays. Same rule the chart pair follows.
 
 Charts get `--chart-1` and `--chart-2`, re-stepped rather than flipped for dark. See
 [`insights.md`](insights.md).
@@ -129,9 +206,15 @@ and never zooms back out. The `Input` component handles this: `text-[16px] sm:te
 ## Layout
 
 Mobile-first. One breakpoint that matters, **900px**: below it the bottom bar and full-width sheets,
-above it the sidebar and centred dialogs. The stylesheet currently also breaks at 699, 700, 800 and
-1000; those are accidents to be folded into 900 (or into Tailwind's `sm`/`lg`) as screens are
-ported.
+above it the sidebar and centred dialogs. That one is about the *window*, because it decides what
+the window contains.
+
+Everything about whether a control fits is about the *content column* instead, and asks `.main` —
+see [Width is not the window](#width-is-not-the-window). The two are not interchangeable and the
+bug that proved it lived at 910px.
+
+The stylesheet also breaks at 699, 800 and 1000; those are accidents to be folded into 900 (or into
+Tailwind's `sm`/`lg`) as screens are ported.
 
 Spacing is Tailwind's 4px scale. The sidebar is `--sidebar-width` (248px) and the header
 `--header-height` (52px), because two things need to agree about them.
@@ -198,7 +281,8 @@ The port is deliberately incremental. The order inside one screen:
    were still on screen, and every form in the app lost its spacing without a single error.
 5. Walk the screen with the keyboard only, and once at 390px wide.
 6. Run `npm test` — the source-level checks in `packages/web/test/forms.test.ts` catch the three
-   things a codemod breaks silently — and `node scripts/unstyled.mjs`.
+   things a codemod breaks silently — then `npm run check:css`, `npm run check:responsive` and
+   `npm run check:contrast`.
 
 `app.css` is the progress bar: **1,862 lines** when the port started, **1,847** now — up from 1,713,
 because four rules the port had deleted too early came back.

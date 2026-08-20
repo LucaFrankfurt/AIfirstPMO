@@ -247,7 +247,11 @@ export function ViewControls({
         : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
 
   return (
-    <div className="flex items-center flex-wrap gap-1.5">
+    // Emphatically not `flex-wrap`. Every one of these lives in the header,
+    // which is one row 52px tall and scrolls sideways when its contents do not
+    // fit — see `.header` in `app.css`. Allowed to wrap, the second row had
+    // nowhere to go and drew itself straight over the tab strip below.
+    <div className="flex items-center gap-1.5">
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
@@ -369,9 +373,13 @@ export function ListView({
                   <input type="checkbox" checked={allSelected} aria-label={t('select.selectGroup')} onChange={() => {}} />
                 </span>
               )}
+              {/* The row's vertical padding lives on this button rather than on
+                  the row, so the whole 35px band is tappable. With `padding: 0`
+                  it looked like a row and answered to 19px of it, which on a
+                  phone reads as a button that sometimes works. */}
               <button
                 className="flex-1 min-w-0 flex items-center gap-2"
-                style={{ border: 'none', background: 'none', cursor: 'pointer', gap: 7, padding: 0, font: 'inherit', color: 'inherit' }}
+                style={{ border: 'none', background: 'none', cursor: 'pointer', gap: 7, padding: '10px 0 6px', font: 'inherit', color: 'inherit' }}
                 onClick={() => setCollapsed((current) => ({ ...current, [group.id]: !current[group.id] }))}
               >
                 <Icon name={collapsed[group.id] ? 'chevronRight' : 'chevronDown'} size={13} />
