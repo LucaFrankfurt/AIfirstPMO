@@ -1,5 +1,5 @@
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
-import { all, get, run } from '../db/index.ts';
+import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { forbidden, unauthorized, type Ctx, parseCookies } from './http.ts';
 import { token, uid } from './ids.ts';
@@ -44,8 +44,12 @@ export function createSession(userId: string, userAgent?: string): string {
   return raw;
 }
 
-export function destroySession(raw: string): void {
-  run(`DELETE FROM sessions WHERE token_hash = ?`, hashToken(raw));
+/** Returns whose session it was, so callers can act on the departure. */
+export function destroySession(raw: string): string | null {
+  const hash = hashToken(raw);
+  const row = get<Row>(`SELECT user_id FROM sessions WHERE token_hash = ?`, hash);
+  run(`DELETE FROM sessions WHERE token_hash = ?`, hash);
+  return row ? String(row.user_id) : null;
 }
 
 /* -------------------------------------------------------------------- auth */

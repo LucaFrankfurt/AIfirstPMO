@@ -16,6 +16,7 @@ import { hasRole, requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { badRequest, forbidden, readJson, type Ctx, type Router } from '../lib/http.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
 import { subscribe } from '../lib/bus.ts';
+import { snapshot, subscribePresence, touch, visiblePeople } from '../lib/presence.ts';
 
 /** Activities are history, not state: they are read on demand, never mirrored. */
 const SYNCED: EntityName[] = ENTITY_NAMES.filter((name) => name !== 'activity');
@@ -218,6 +219,24 @@ export function registerSyncRoutes(router: Router): void {
     return response;
   });
 
+  /**
+   * Heartbeat. "I am still here, and I am typing in this conversation."
+   *
+   * A POST rather than a message up the stream because the stream only goes one
+   * way, and adding a second socket to carry three bytes every 25 seconds is a
+   * worse trade than a request the browser already knows how to retry.
+   */
+  router.post('/api/presence', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const body = await readJson<{ typing?: string | null }>(ctx).catch(() => ({}) as { typing?: string | null });
+    // `undefined` means "just a heartbeat, leave the typing state alone";
+    // `null` means "I stopped". They are not the same and the distinction is
+    // the whole reason the composer can clear the indicator the moment it
+    // empties instead of waiting eight seconds for it to expire.
+    touch(auth.userId, body?.typing === undefined ? undefined : (body.typing || null));
+    return { ok: true };
+  });
+
   /** Realtime nudge: "the workspace moved to seq N, pull again". */
   router.get('/api/sync/stream', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
@@ -234,15 +253,45 @@ export function registerSyncRoutes(router: Router): void {
     ctx.res.write(`retry: 3000\n`);
     ctx.res.write(`event: hello\ndata: ${JSON.stringify({ cursor: currentSeq(), userId: auth.userId })}\n\n`);
 
+    // Opening the stream is itself a sign of life, so the first heartbeat is
+    // free and a name lights up the moment the app loads rather than 25
+    // seconds later.
+    touch(auth.userId);
+
+    // Whom this connection may hear about. Recomputed at most twice a minute,
+    // and only when somebody unknown turns up — a new direct conversation is
+    // the one thing that can widen this set, and it is rare enough that a
+    // query per presence event would be pure waste.
+    let visible = visiblePeople(auth.userId);
+    let visibleAt = Date.now();
+    const mayHearAbout = (userId: string): boolean => {
+      if (visible.has(userId)) return true;
+      if (Date.now() - visibleAt < 30_000) return false;
+      visible = visiblePeople(auth.userId);
+      visibleAt = Date.now();
+      return visible.has(userId);
+    };
+
+    ctx.res.write(`event: presence\ndata: ${JSON.stringify({ people: snapshot(visible) })}\n\n`);
+
     const unsubscribe = subscribe(workspaceId, (event) => {
       if (event.origin && event.origin === clientId) return; // do not echo the sender
       ctx.res.write(`event: change\ndata: ${JSON.stringify({ cursor: event.seq, kind: event.kind })}\n\n`);
+    });
+
+    // Presence rides this connection but carries no cursor and never touches
+    // one: it is a separate event, and a client that ignores it loses nothing.
+    const unwatch = subscribePresence((event) => {
+      if (event.userId === auth.userId) return; // you know whether you are typing
+      if (!mayHearAbout(event.userId)) return;
+      ctx.res.write(`event: presence\ndata: ${JSON.stringify({ people: [event] })}\n\n`);
     });
 
     const keepAlive = setInterval(() => ctx.res.write(`: ping\n\n`), 25_000);
     const stop = () => {
       clearInterval(keepAlive);
       unsubscribe();
+      unwatch();
       ctx.res.end();
     };
     ctx.req.on('close', stop);

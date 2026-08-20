@@ -281,14 +281,53 @@ Message authors are matched by email like everything else in the document; anybo
 does not know becomes the person who pressed import. Reactions do not survive — those ids mean
 nothing here.
 
+## Presence and typing
+
+This is the one thing in the messenger that is **not a row**, and it is worth being explicit about
+why the rule bent rather than pretending it did not.
+
+Everything else here is written down, synced, and still true tomorrow. Presence is true for the next
+few seconds and then it is not. A row per heartbeat would mean a write per keystroke, a tombstone
+per closed tab, and a sync cursor that moves constantly for information nobody will ever read back.
+So it lives in memory on the server, it is lost on restart, and that is correct.
+
+This document used to say that if presence were ever added it should be **its own transport, not a
+widening of the change stream**. What it was protecting is that catching up after a tunnel and
+hearing about a change live are one code path — a second kind of event carrying a cursor would be a
+second way for a client's idea of `seq` to be wrong. So presence shares the *connection* (one socket
+per client rather than two) and nothing else: it carries no `seq`, it never touches the cursor, it
+arrives under its own event name, and a client that drops every presence frame syncs exactly as
+correctly as one that reads them.
+
+**Two clocks, deliberately different.** *Online* expires after 45 seconds and clients beat every 25,
+so one missed beat is forgiven and a closed laptop goes dark inside a minute. *Typing* expires after
+8 and is refreshed no more than every 3 while somebody is actually typing — a stale "still typing…"
+over an empty composer is worse than no indicator at all, because it is a wrong answer rather than a
+missing one.
+
+**The heartbeat follows the tab, not the socket.** A backgrounded tab on a phone can hold a
+connection open for minutes after the phone went into a pocket, so "the socket is up" is a poor
+answer to "is anyone there". The client beats only while `document.visibilityState` is `visible`,
+and stops typing the moment the tab is hidden.
+
+**It is not a directory.** Presence obeys the same rule the sync filter applies to a `user` row:
+somebody in a workspace with you, or somebody you are already in a direct conversation with. Without
+that, a dot would be a way to enumerate the accounts on an instance — the exact thing the `user`
+filter exists to prevent. The set is recomputed at most twice a minute per connection, and only when
+somebody unknown turns up, so a new direct conversation lights up within half a minute.
+
+**What is shown.** A dot on a person, never on a channel: *somebody in here is online* is not a fact
+anybody acts on. Online is a dot and offline is its absence rather than a second colour, so the
+reader who cannot separate green from red is reading a shape. The typing line sits on a fixed row
+above the composer whether or not anybody is typing, because a line that appears and disappears
+shoves the conversation up and down while somebody is trying to read it.
+
+Signing out drops the dot immediately. Closing a tab does not — a person with two tabs open would
+blink offline and back on every time they closed one, so the last tab simply stops beating and they
+fade within the minute.
+
 ## What is deliberately not here
 
-- **No typing indicator, and no presence dot.** Both are ephemeral state, and this app's realtime
-  channel carries *"something changed up to seq N"* and nothing else — on purpose, so that catching
-  up after a tunnel and hearing about a change live are one code path. Per-keystroke state would
-  mean a second mechanism with its own failure modes and its own reconnection logic, in exchange for
-  something nobody has needed to do their work. If it is added later it should be its own transport,
-  not a widening of this one.
 - **No read receipts.** The read marker exists and is private. Making it public is a different
   product with different social consequences, and it is a one-way door.
 - **No voice or video.** Not a thing a project tool should be reimplementing.
@@ -302,7 +341,9 @@ nothing here.
 | `packages/shared/src/chat.ts` | the rules both sides have to agree on — the derived id, unread, titles, name shape |
 | `packages/shared/src/entities.ts` | `channel`, `message`, `channelRead` |
 | `packages/server/src/lib/repo.ts` | the invariants, the guards, and the notification rules |
-| `packages/server/src/routes/sync.ts` | the visibility filter for a delta pull |
+| `packages/server/src/routes/sync.ts` | the visibility filter for a delta pull, and the presence frames on the stream |
+| `packages/server/src/lib/presence.ts` | who is here and who is typing — in memory, never a row |
+| `packages/web/src/lib/presence.ts` | the same on the client: the heartbeat, the store, and the hooks |
 | `packages/web/src/routes/chat.tsx` | the screen |
 | `packages/shared/src/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
 | `packages/web/src/components/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |

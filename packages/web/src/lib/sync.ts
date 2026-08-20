@@ -13,6 +13,7 @@ import {
 import { api, ApiError } from './api';
 import * as idb from './idb';
 import { currentLocale, translate } from './i18n';
+import { applyPresence, clearPresence, startBeating, stopBeating } from './presence';
 import { applyChanges, hydrate, notifyStore, purgedRows, reset, tables } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
@@ -268,11 +269,29 @@ function connect(): void {
   if (!workspaceId) return;
   stream = new EventSource(`/api/sync/stream?workspace=${workspaceId}&client=${clientId}`, { withCredentials: true });
   stream.addEventListener('change', () => void pull());
+  // Presence rides the same connection and is handled entirely separately: it
+  // carries no cursor, so it never triggers a pull and a dropped presence event
+  // costs nothing but a stale dot until the next one.
+  let first = true;
+  stream.addEventListener('presence', (event) => {
+    try {
+      applyPresence(JSON.parse((event as MessageEvent).data), first);
+      first = false;
+    } catch {
+      /* malformed frame: the next one will be fine */
+    }
+  });
   stream.addEventListener('error', () => {
     // EventSource reconnects on its own; a pull on recovery closes any gap.
+    clearPresence();
+    stopBeating();
     if (stream?.readyState === EventSource.CLOSED) setTimeout(connect, 5000);
   });
-  stream.addEventListener('open', () => void pull());
+  stream.addEventListener('open', () => {
+    first = true;
+    startBeating();
+    void pull();
+  });
 }
 
 window.addEventListener('online', () => {

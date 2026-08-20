@@ -7,13 +7,11 @@
  * already tells their device that something moved. There is no socket, no
  * second protocol, and nothing here that has to be reconnected.
  *
- * What is deliberately *not* here is a typing indicator and a presence dot.
- * Both are ephemeral state, and this app's realtime channel carries "something
- * changed up to seq N" and nothing else — on purpose, so that catching up after
- * a tunnel and hearing about a change live are one code path. Adding
- * per-keystroke state to it would mean a second mechanism with its own failure
- * modes, in exchange for a feature nobody has ever needed to do their work.
- * `docs/chat.md` says so out loud rather than leaving it to be noticed.
+ * The one exception is the presence dot and the typing line, and they keep the
+ * exception honest: they are not rows, they never touch the sync cursor, and
+ * they are delivered under their own event name on the same connection. See
+ * `lib/presence.ts` on this side and `lib/presence.ts` on the server. A device
+ * that ignores them entirely loses a dot and nothing else.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -32,6 +30,7 @@ import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
+import { setTyping, useOnline, useTypists } from '../lib/presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Button } from '../components/ui/button';
@@ -43,6 +42,33 @@ import { Chip } from '../components/ui/chip';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
 /* --------------------------------------------------------------- the pieces */
+
+/**
+ * Here or not.
+ *
+ * Presence is shown as a dot or as nothing, never as green against red: the
+ * absent state is an absence, so the one reader in twelve who cannot separate
+ * the two hues is reading a shape rather than a colour. The word is on the
+ * tooltip and in the accessible name either way.
+ */
+function PresenceDot({ userId, className }: { userId: string; className?: string }) {
+  const t = useT();
+  const online = useOnline(userId);
+  if (!online) return null;
+  return (
+    <span
+      className={cn('inline-block h-[7px] w-[7px] shrink-0 rounded-full bg-ok', className)}
+      title={t('presence.online')}
+      aria-label={t('presence.online')}
+      role="img"
+    />
+  );
+}
+
+/** The other half of a direct conversation, or nothing for a channel. */
+const partnerOf = (channel: Channel, me: string): string | undefined =>
+  (channel.kind === 'direct' ? (channel.members ?? []).find((id) => id !== me) : undefined);
+
 
 /** Conversations this device knows about, newest activity first. */
 function useConversations(me: string) {
@@ -172,6 +198,7 @@ export function Chat() {
           >
             <Avatar user={member} size={20} />
             <span className="flex-1 min-w-0 truncate">{member.name}</span>
+            <PresenceDot userId={member.id} />
           </button>
         ))}
         {canWrite && (
@@ -227,10 +254,14 @@ function ConversationRow({ channel, me, active, title, onOpen }: {
   onOpen: () => void;
 }) {
   const unread = useUnread(channel.id, me);
+  // Only a direct conversation has a dot: a channel is not a person, and
+  // "somebody in here is online" is not a fact anybody acts on.
+  const partner = partnerOf(channel, me);
   return (
     <button className={cn(navItem({ active }), 'chat-row')} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
       <span className="flex-1 min-w-0 truncate">{title}</span>
+      {partner && <PresenceDot userId={partner} />}
       {unread > 0 && <span className={navCount}>{unread}</span>}
     </button>
   );
@@ -278,9 +309,14 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
     create('message', { channel_id: channel.id, body, reply_to: replyTo, workspace_id: channel.workspace_id ?? null });
     setDraft('');
     setReplyTo(null);
+    setTyping(null);
   };
 
+  // Switching conversations, or closing this one, stops the line over there.
+  useEffect(() => () => setTyping(null), [channel.id]);
+
   const title = channelTitle(channel, me, (id) => members.get(id)?.name);
+  const partner = partnerOf(channel, me);
 
   return (
     <>
@@ -292,7 +328,10 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         </Button>
         <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={16} />
         <div className="flex-1 min-w-0">
-          <strong>{title}</strong>
+          <span className="flex items-center gap-1.5">
+            <strong className="truncate">{title}</strong>
+            {partner && <PresenceDot userId={partner} />}
+          </span>
           {channel.topic && <div className="text-muted text-[12.5px]">{channel.topic}</div>}
         </div>
         <NotifyMenu channel={channel} me={me} />
@@ -393,9 +432,16 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             </Button>
           </div>
         )}
+        <Typing channelId={channel.id} me={me} />
         <MarkdownEditor
           value={draft}
-          onChange={setDraft}
+          onChange={(next) => {
+            setDraft(next);
+            // The empty composer is not "still typing" — somebody who deletes
+            // what they wrote and walks away should not leave the line up for
+            // the other person to keep watching.
+            setTyping(next.trim() ? channel.id : null);
+          }}
           minHeight={54}
           placeholder={t('chat.placeholder', { where: title })}
           onSubmit={send}
@@ -413,6 +459,29 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       )}
       {dialog}
     </>
+  );
+}
+
+/**
+ * "Anna is typing…", above the composer.
+ *
+ * It occupies a fixed line whether or not anybody is typing, because a line
+ * that appears and disappears shoves the entire conversation up and down while
+ * somebody is trying to read it.
+ */
+function Typing({ channelId, me }: { channelId: string; me: string }) {
+  const t = useT();
+  const members = usePeople();
+  const who = useTypists(channelId, me);
+  const name = (id: string) => members.get(id)?.name ?? t('common.someone');
+
+  const text = who.length === 0 ? ''
+    : who.length === 1 ? t('chat.typing', { name: name(who[0]) })
+    : who.length === 2 ? t('chat.typingTwo', { first: name(who[0]), second: name(who[1]) })
+    : t('chat.typingMany');
+
+  return (
+    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted" aria-live="polite">{text}</p>
   );
 }
 

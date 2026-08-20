@@ -1,6 +1,7 @@
 import type { SessionInfo, WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
+import { leave } from '../lib/presence.ts';
 import {
   SESSION_COOKIE, createSession, destroySession, hashPassword, hashToken,
   loadMemberships, requireAuth, requireWorkspace, verifyPassword,
@@ -336,7 +337,10 @@ export function registerAuthRoutes(router: Router): void {
 
   router.post('/api/auth/logout', (ctx) => {
     const raw = parseCookies(ctx.req)[SESSION_COOKIE];
-    if (raw) destroySession(raw);
+    // Read who it was before the session is gone, so signing out drops the
+    // green dot immediately instead of leaving it lit for another minute.
+    const who = raw ? destroySession(raw) : null;
+    if (who) leave(who);
     ctx.res.setHeader('set-cookie', cookie(SESSION_COOKIE, '', { maxAge: 0 }));
     return { ok: true };
   });

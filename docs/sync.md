@@ -196,5 +196,8 @@ text and knows nothing about any of this. A `content` written on its own, by the
 
 ## What this is not
 
-It is not multiplayer *presence*: no cursors, no avatars in the margin, no "Ada is typing". The
-merging is the part that matters and the part that is hard to add later; the decoration is not.
+It is not multiplayer *presence* **in a page**: no cursors, no avatars in the margin, no "Ada is
+typing" over a paragraph. The merging is the part that matters and the part that is hard to add
+later; the decoration is not. Chat does carry a dot and a typing line, and it carries them on the
+same connection without touching the cursor — see [`chat.md`](chat.md), which explains why that is
+not a hole in the rule above.

@@ -230,6 +230,67 @@ await page.screenshot({ path: `${shots}/4c-chat-rich.png` });
 await page.screenshot({ path: `${shots}/4b-chat.png` });
 
 /**
+ * Presence, with two people actually in the room.
+ *
+ * The only way to test this is with two browsers: a dot that lights up for
+ * yourself proves nothing, and the whole feature is one person seeing another
+ * person's state. Grace opens a direct conversation with Ada and starts typing;
+ * Ada, who is already looking at it, has to see both the dot and the line —
+ * and has to see the line go away when Grace stops.
+ */
+await step('chat: a dot says who is here, and a line says who is typing', async () => {
+  const second = await browser.newContext({ viewport: { width: 1100, height: 800 }, locale });
+  const other = await second.newPage();
+  try {
+    await other.goto(base, { waitUntil: 'domcontentloaded' });
+    await other.evaluate((value) => localStorage.setItem('kolibri.locale', value), locale);
+    await other.goto(base, { waitUntil: 'networkidle' });
+    await other.fill('#email', 'grace@kolibri.dev');
+    await other.fill('#password', 'kolibri-demo');
+    await other.click('button[type=submit]');
+    await other.waitForSelector('.sidebar', { timeout: 15000 });
+    await closeTour(other);
+
+    // Grace opens the conversation with Ada. The id is derived, so this is the
+    // same row Ada will open from her side.
+    await other.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+    await closeTour(other);
+    await other.locator('.chat-list .chat-person', { hasText: 'Ada' }).first().click();
+    await other.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+
+    await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
+    await closeTour(page);
+    await page.locator('.chat-list .chat-person, .chat-list .chat-row').filter({ hasText: 'Grace' }).first().click();
+    await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
+
+    // The dot: Grace is here, and Ada's copy of the header says so.
+    await page.waitForSelector('.chat-header [role=img]', { timeout: 8000 });
+    console.log('     presence dots on Ada\'s screen:', await page.locator('.chat-list [role=img], .chat-header [role=img]').count());
+
+    // The line: Grace types, Ada reads it within a second or two.
+    await other.locator('.chat-composer textarea').fill('writing something…');
+    await page.waitForFunction(
+      () => (document.querySelector('.chat-composer p[aria-live]')?.textContent ?? '').trim().length > 0,
+      null,
+      { timeout: 8000 },
+    );
+    const line = (await page.locator('.chat-composer p[aria-live]').innerText()).trim();
+    console.log('     typing line:', JSON.stringify(line));
+    if (!line.includes('Grace')) throw new Error(`typing line did not name Grace: "${line}"`);
+
+    // And it goes away again: an emptied composer is not "still typing".
+    await other.locator('.chat-composer textarea').fill('');
+    await page.waitForFunction(
+      () => (document.querySelector('.chat-composer p[aria-live]')?.textContent ?? '').trim().length === 0,
+      null,
+      { timeout: 8000 },
+    );
+  } finally {
+    await second.close();
+  }
+});
+
+/**
  * References to work, written in a chat line.
  *
  * The half that matters is the half that must *not* link: the renderer is told
