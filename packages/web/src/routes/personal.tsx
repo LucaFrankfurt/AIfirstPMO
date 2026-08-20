@@ -63,10 +63,10 @@ export function MyWork() {
         <SetupChecklist />
 
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
-          <div className="grid two" style={{ marginBottom: 18 }}>
+          <div className="grid two mb-[18px]">
             {buckets.overdue.length > 0 && (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-                <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                <div className="flex items-center gap-2 mb-2">
                   <strong className="due-overdue">{t('myWork.overdue')}</strong>
                   <span className="text-muted">{buckets.overdue.length}</span>
                 </div>
@@ -77,7 +77,7 @@ export function MyWork() {
             )}
             {buckets.today.length > 0 && (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-                <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+                <div className="flex items-center gap-2 mb-2">
                   <strong className="due-today">{t('myWork.dueToday')}</strong>
                   <span className="text-muted">{buckets.today.length}</span>
                 </div>
@@ -98,8 +98,8 @@ export function MyWork() {
         <SelectionBar selection={selection} tasks={visible} />
 
         {created.length > 0 && (
-          <section style={{ marginTop: 26 }}>
-            <h2 style={{ fontSize: 14, marginBottom: 6 }}>{t('myWork.createdByYou')}</h2>
+          <section className="mt-[26px]">
+            <h2 className="text-sm mb-1.5">{t('myWork.createdByYou')}</h2>
             {created.map((task) => <TaskRow key={task.id} task={task} onOpen={openTask} showProject />)}
           </section>
         )}
@@ -164,14 +164,14 @@ export function Inbox() {
                 }}
               >
                 <Avatar user={actor} size={26} />
-                <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
-                  <span className="flex items-center gap-2" style={{ gap: 6 }}>
-                    <strong style={{ fontSize: 13.5 }}>{notification.title}</strong>
+                <span className="flex-1 min-w-0 min-w-0">
+                  <span className="flex items-center gap-2 gap-1.5">
+                    <strong className="text-[13.5px]">{notification.title}</strong>
                     {!notification.read_at && <span className="badge-dot" />}
                   </span>
-                  {notification.body && <span className="text-muted truncate" style={{ fontSize: 12.5 }}>{excerpt(notification.body, 90)}</span>}
+                  {notification.body && <span className="text-muted truncate text-[12.5px]">{excerpt(notification.body, 90)}</span>}
                 </span>
-                <span className="text-muted" style={{ fontSize: 11.5 }}>{relativeTime(notification.created_at)}</span>
+                <span className="text-muted text-[11.5px]">{relativeTime(notification.created_at)}</span>
               </button>
             );
           })
@@ -249,7 +249,7 @@ export function Search() {
           placeholder={t('search.placeholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          style={{ marginBottom: 14, fontSize: 16 }}
+          className="mb-3.5 text-base"
         />
         {query.trim().length < 2 ? (
           <Empty emoji="🔎" title={t('search.promptTitle')} hint={t('search.promptHint')} />
@@ -257,13 +257,13 @@ export function Search() {
           <Empty emoji="🫙" title={t('search.noResults', { query })} />
         ) : (
           results.map((hit) => (
-            <button key={`${hit.kind}-${hit.id}`} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => open(hit)}>
+            <button key={`${hit.kind}-${hit.id}`} className="task-row text-left" style={{ width: '100%' }} onClick={() => open(hit)}>
               <Icon name={hit.kind === 'task' ? 'check' : hit.kind === 'page' ? 'page' : 'folder'} size={15} />
-              <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+              <span className="flex-1 min-w-0 min-w-0">
                 <div className="truncate">{hit.title}</div>
-                {hit.snippet && <div className="text-muted truncate" style={{ fontSize: 12 }}>{hit.snippet}</div>}
+                {hit.snippet && <div className="text-muted truncate text-[12.5px]">{hit.snippet}</div>}
               </span>
-              <span className="text-muted" style={{ fontSize: 11.5 }}>{KIND_KEY[hit.kind] ? t(KIND_KEY[hit.kind]) : hit.kind}</span>
+              <span className="text-muted text-[11.5px]">{KIND_KEY[hit.kind] ? t(KIND_KEY[hit.kind]) : hit.kind}</span>
             </button>
           ))
         )}
@@ -286,11 +286,11 @@ export function More() {
     <>
       <Header title={t('nav.more')} />
       <div className="page">
-        <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2 mb-4">
           <Avatar user={user ?? undefined} size={40} />
           <div className="flex-1 min-w-0">
             <strong>{user?.name}</strong>
-            <div className="text-muted" style={{ fontSize: 12.5 }}>{user?.email}</div>
+            <div className="text-muted text-[12.5px]">{user?.email}</div>
           </div>
         </div>
 
@@ -301,7 +301,7 @@ export function More() {
         {/* Links rather than buttons that navigate: a long-press to open in a
             new tab is a thing people do, and it also means "can a phone reach
             this?" is a question about hrefs that a test can ask. */}
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ padding: 6, marginBottom: 14 }}>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
           <Link className="nav-item" to="/chat">
             <Icon name="chat" size={16} /> <span className="flex-1 min-w-0">{t('nav.chat')}</span>
             {unreadMessages > 0 && <span className="count">{unreadMessages}</span>}
@@ -315,7 +315,7 @@ export function More() {
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ padding: 6, marginBottom: 14 }}>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
           {projects.map((project) => (
             <Link key={project.id} className="nav-item" to={`/projects/${project.id}`}>
               <span style={{ width: 18 }}>{project.icon ?? '•'}</span> {project.name}
@@ -331,7 +331,7 @@ export function More() {
         {(session?.workspaces.length ?? 0) > 1 && (
           <>
             <div className="nav-section">{t('nav.workspaces')}</div>
-            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ padding: 6, marginBottom: 14 }}>
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
               {session?.workspaces.map((workspace) => (
                 <button
                   key={workspace.id}

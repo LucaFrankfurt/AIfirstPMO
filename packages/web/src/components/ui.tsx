@@ -93,9 +93,9 @@ export function Icon({ name, size = 16, className }: { name: IconName | string; 
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
-      className={`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined}
+      className={cn(`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined, 'flex-none')}
       stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
-      style={{ flex: 'none' }}
+     
     >
       <path d={(PATHS as Record<string, string>)[name] ?? PATHS.dots} />
     </svg>

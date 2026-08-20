@@ -340,7 +340,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             {snippet.icon}
           </button>
         ))}
-        <label className={buttonVariants({ variant: 'ghost', size: 'sm' })} title={t('editor.attachImage')} style={{ cursor: 'pointer' }}>
+        <label className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'cursor-pointer')} title={t('editor.attachImage')}>
           <Icon name="image" size={14} />
           <input
             type="file" hidden multiple accept="image/*,application/pdf"
@@ -351,7 +351,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           />
         </label>
         <span className="flex-1 min-w-0" />
-        {busy && <span className="text-muted" style={{ fontSize: 12 }}>{t('editor.uploading')}</span>}
+        {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
         <button type="button" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), preview && 'bg-active text-fg')} onClick={() => setPreview(!preview)}>
           {preview ? t('editor.write') : t('editor.preview')}
         </button>
@@ -479,7 +479,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon || '#'}</span>
                 <span className="flex-1 min-w-0 truncate">{choice.label}</span>
-                <span className="text-muted mono truncate" style={{ fontSize: 11 }}>{choice.hint}</span>
+                <span className="text-muted mono truncate text-[11.5px]">{choice.hint}</span>
               </button>
             ))}
           </div>
@@ -499,7 +499,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
               >
                 <Avatar user={member} size={18} />
                 <span className="flex-1 min-w-0 truncate">{member.name}</span>
-                <span className="text-muted truncate" style={{ fontSize: 11 }}>{member.email}</span>
+                <span className="text-muted truncate text-[11.5px]">{member.email}</span>
               </button>
             ))}
           </div>

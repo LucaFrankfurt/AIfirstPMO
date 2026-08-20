@@ -66,8 +66,8 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
   return (
     <Sheet title={t('copy.title')} onClose={onClose}>
       <form onSubmit={submit}>
-        <p className="text-[12px] text-muted" style={{ marginBottom: 12 }}>{t('copy.hint')}</p>
-        {error && <div className="error" style={{ marginBottom: 10 }}>{error}</div>}
+        <p className="text-[12px] text-muted mb-3">{t('copy.hint')}</p>
+        {error && <div className="error mb-2.5">{error}</div>}
 
         <div className="field">
           <label htmlFor="copy-name">{t('copy.name')}</label>
@@ -106,15 +106,15 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
         ))}
         {include.tasks && (
           <>
-            <label className="flex items-center gap-2" style={{ gap: 8, padding: '4px 0 4px 24px', fontSize: 13 }}>
+            <label className="flex items-center gap-2 gap-2 text-[13.5px]" style={{ padding: '4px 0 4px 24px' }}>
               <input type="checkbox" checked={include.doneTasks} onChange={() => toggle('doneTasks')} />
               {t('copy.doneTasks')}
             </label>
-            <span className="text-[12px] text-muted" style={{ display: 'block', marginTop: 4 }}>{t('copy.tasksHint')}</span>
+            <span className="text-[12px] text-muted mt-1" style={{ display: 'block' }}>{t('copy.tasksHint')}</span>
           </>
         )}
 
-        <Button variant="primary" size="lg" block type="submit" disabled={busy || !name.trim()} style={{ marginTop: 16 }}>
+        <Button variant="primary" size="lg" block type="submit" disabled={busy || !name.trim()} className="mt-4">
           {busy ? t('copy.working') : <><Icon name="copy" size={14} /> {t('copy.submit')}</>}
         </Button>
       </form>

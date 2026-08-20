@@ -27,7 +27,7 @@ export function Teams() {
       <Header title={t('team.title')} />
       <div className="page">
         <form
-          className="flex items-center gap-2" style={{ marginBottom: 16 }}
+          className="flex items-center gap-2 mb-4"
           onSubmit={(event) => {
             event.preventDefault();
             if (!name.trim()) return;
@@ -55,10 +55,10 @@ export function Teams() {
 
             return (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>
-                <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-                  <span style={{ fontSize: 18 }}>{team.icon ?? '👥'}</span>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-lg">{team.icon ?? '👥'}</span>
                   <Input
-                    className="flex-1 min-w-0" style={{ border: 'none', background: 'none', fontWeight: 600 }}
+                    className="flex-1 min-w-0 font-semibold" style={{ border: 'none', background: 'none' }}
                     value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
                   />
                   <span className="chip mono">{team.key}</span>
@@ -93,23 +93,23 @@ export function Teams() {
                   </MenuButton>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 10 }}>
+                <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
                   {people.map((person) => (
                     <span className="chip" key={person.id}>
                       <Avatar user={person} size={16} /> {person.name}
                     </span>
                   ))}
-                  {!people.length && <span className="text-muted" style={{ fontSize: 12.5 }}>{t('team.noMembers')}</span>}
+                  {!people.length && <span className="text-muted text-[12.5px]">{t('team.noMembers')}</span>}
                 </div>
 
                 <Progress value={done} total={tasks.length} />
-                <div className="flex items-center gap-2 text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+                <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
                   <span>{t('team.projectCount', { count: teamProjects.length })}</span>
                   <span className="flex-1 min-w-0" />
                   <span>{t('team.tasksDone', { done, total: tasks.length })}</span>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginTop: 10 }}>
+                <div className="flex items-center gap-2 flex-wrap gap-1.5 mt-2.5">
                   {teamProjects.map((project) => (
                     <button className="chip button" key={project.id} onClick={() => navigate(`/projects/${project.id}`)}>
                       {project.icon} {project.name}

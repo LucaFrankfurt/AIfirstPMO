@@ -83,7 +83,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     case 'url':
       return (
-        <div className="flex items-center gap-2" style={{ gap: 6 }}>
+        <div className="flex items-center gap-2 gap-1.5">
           <Input className="flex-1 min-w-0" id={id} type="url" placeholder="https://" value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)} />
           {!!value && (
@@ -104,7 +104,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
     case 'multi_select': {
       const chosen = (value as string[]) ?? [];
       return (
-        <div className="flex items-center gap-2 flex-wrap" style={{ gap: 5 }}>
+        <div className="flex items-center gap-2 flex-wrap gap-[5px]">
           {field.options.map((option) => (
             <button
               key={option} type="button"
@@ -115,7 +115,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
               {option}
             </button>
           ))}
-          {!field.options.length && <span className="text-muted" style={{ fontSize: 12 }}>{t('field.noOptions')}</span>}
+          {!field.options.length && <span className="text-muted text-[12.5px]">{t('field.noOptions')}</span>}
         </div>
       );
     }
@@ -143,7 +143,7 @@ export function TaskFields({ task }: { task: Task }) {
   if (!fields.length) return null;
 
   return (
-    <section style={{ marginBottom: 18 }}>
+    <section className="mb-[18px]">
       <strong style={{ fontSize: 13, display: 'block', marginBottom: 8 }}>{t('field.sectionTitle')}</strong>
       <div className="field-grid">
         {fields.map((field) => {
@@ -156,7 +156,7 @@ export function TaskFields({ task }: { task: Task }) {
               <label htmlFor={`cf-${field.id}`}>
                 {field.name}
                 {/* A prompt, not a gate: the task saves either way. */}
-                {!!field.required && empty && <span className="text-muted" style={{ marginInlineStart: 5 }}>{t('field.wanted')}</span>}
+                {!!field.required && empty && <span className="text-muted ms-[5px]">{t('field.wanted')}</span>}
               </label>
               {canWrite
                 ? <FieldInput field={field} value={value} onChange={(next) => setFieldValue(task, field, next)} />
@@ -184,11 +184,11 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('field.settingsHint')}</p>
+      <p className="text-[12px] text-muted mb-2">{t('field.settingsHint')}</p>
 
       {fields.map((field) => (
         <div key={field.id} className="stack-card">
-          <div className="flex items-center gap-2" style={{ gap: 8 }}>
+          <div className="flex items-center gap-2 gap-2">
             <Input
               className="flex-1 min-w-0" value={field.name} aria-label={t('field.name')}
               onChange={(event) => update('field', field.id, { name: event.target.value })}
@@ -213,7 +213,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
           </div>
 
           {open === field.id && (
-            <div style={{ marginTop: 10 }}>
+            <div className="mt-2.5">
               {(field.kind === 'select' || field.kind === 'multi_select') && (
                 <div className="field">
                   <label htmlFor={`opt-${field.id}`}>{t('field.choices')}</label>
@@ -237,7 +237,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
               <div className="field">
                 <label>{t('field.appliesTo')}</label>
-                <div className="flex items-center gap-2 flex-wrap" style={{ gap: 5 }}>
+                <div className="flex items-center gap-2 flex-wrap gap-[5px]">
                   <button
                     type="button" className={`chip button${field.type_ids.length ? '' : ' on'}`}
                     aria-pressed={!field.type_ids.length}
@@ -263,16 +263,16 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                 <span className="text-[12px] text-muted">{t('field.appliesToHint')}</span>
               </div>
 
-              <label className="flex items-center gap-2" style={{ gap: 7, fontSize: 13 }}>
+              <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.required}
                   onChange={(event) => update('field', field.id, { required: event.target.checked ? 1 : 0 })}
                 />
                 {t('field.required')}
               </label>
-              <span className="text-[12px] text-muted" style={{ display: 'block', marginBottom: 8 }}>{t('field.requiredHint')}</span>
+              <span className="text-[12px] text-muted mb-2" style={{ display: 'block' }}>{t('field.requiredHint')}</span>
 
-              <label className="flex items-center gap-2" style={{ gap: 7, fontSize: 13 }}>
+              <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.show_in_table}
                   onChange={(event) => update('field', field.id, { show_in_table: event.target.checked ? 1 : 0 })}
@@ -284,7 +284,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
         </div>
       ))}
 
-      <Button size="sm" style={{ marginTop: 8 }}
+      <Button size="sm" className="mt-2"
         onClick={() => {
           const id = create('field', {
             project_id: projectId,

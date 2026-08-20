@@ -27,6 +27,7 @@ import { create, remove, update } from '../lib/mutations';
 import { pull } from '../lib/sync';
 import { Button } from '../components/ui/button';
 import { Input, Select, Textarea } from '../components/ui/field';
+import { SectionHeading } from '../components/ui/section';
 import { useMembers, useSession } from '../session';
 
 const KIND_KEY: Record<TemplateKind, TranslationKey> = {
@@ -96,12 +97,12 @@ export function AutomationSettings() {
 
   return (
     <>
-      <p className="text-muted" style={{ fontSize: 13 }}>{t('auto.intro')}</p>
+      <p className="text-muted text-[13.5px]">{t('auto.intro')}</p>
       <GuideHint to="automation" />
 
       {/* ------------------------------------------------------- templates */}
       <div className="flex items-center gap-2" style={{ margin: '20px 0 8px' }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>{t('tpl.title')}</h3>
+        <SectionHeading tight>{t('tpl.title')}</SectionHeading>
         <span className="flex-1 min-w-0" />
         {canManage && (
           <Button size="sm" onClick={() => setEditingTemplate('new')}>
@@ -109,13 +110,13 @@ export function AutomationSettings() {
           </Button>
         )}
       </div>
-      <p className="text-muted" style={{ fontSize: 12.5, marginTop: 0 }}>{t('tpl.lead')}</p>
+      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>{t('tpl.lead')}</p>
 
       {!templates.length && <Empty emoji="📋" title={t('tpl.empty')} hint={t('tpl.emptyHint')} guide="automation" />}
       {templates.map((template) => (
         <div className="auto-row" key={template.id}>
           <span className="auto-glyph">{template.icon ?? KIND_ICON[template.kind as TemplateKind] ?? '📋'}</span>
-          <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+          <span className="flex-1 min-w-0 min-w-0">
             <span className="auto-name">{template.name}</span>
             <span className="auto-meta">
               {scopeName(template.project_id)} · {t(KIND_KEY[template.kind as TemplateKind] ?? 'tpl.kindTask')}
@@ -131,7 +132,7 @@ export function AutomationSettings() {
 
       {/* ----------------------------------------------------------- rules */}
       <div className="flex items-center gap-2" style={{ margin: '26px 0 8px' }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>{t('auto.title')}</h3>
+        <SectionHeading tight>{t('auto.title')}</SectionHeading>
         <span className="flex-1 min-w-0" />
         {canManage && (
           <Button size="sm" disabled={!templates.length} onClick={() => setEditingRule('new')}>
@@ -139,7 +140,7 @@ export function AutomationSettings() {
           </Button>
         )}
       </div>
-      <p className="text-muted" style={{ fontSize: 12.5, marginTop: 0 }}>
+      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>
         {templates.length ? t('auto.lead') : t('auto.needTemplate')}
       </p>
 
@@ -156,7 +157,7 @@ export function AutomationSettings() {
           >
             <i />
           </button>
-          <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+          <span className="flex-1 min-w-0 min-w-0">
             <span className="auto-name">{rule.name}</span>
             <span className="auto-meta">{scopeName(rule.project_id)} · {describe(rule, t)}</span>
           </span>
@@ -288,7 +289,7 @@ function TemplateEditor({
         <Input id="tpl-name" autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} />
       </div>
 
-      <div className="flex items-center gap-2" style={{ gap: 10, alignItems: 'flex-start' }}>
+      <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
         <div className="field" style={{ width: 96 }}>
           <label htmlFor="tpl-icon">{t('project.icon')}</label>
           <Input id="tpl-icon" maxLength={4} value={form.icon} onChange={(e) => set('icon', e.target.value)} />
@@ -322,7 +323,7 @@ function TemplateEditor({
         <MarkdownEditor value={form.description} onChange={(value) => set('description', value)} minHeight={130} />
       </div>
 
-      <div className="flex items-center gap-2" style={{ gap: 10, alignItems: 'flex-start' }}>
+      <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
         <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-priority">{t('task.priority')}</label>
           <Select id="tpl-priority" value={form.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
@@ -479,7 +480,7 @@ function RuleEditor({
       </div>
 
       <h4 className="auto-h">{t('auto.trigger')}</h4>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10, alignItems: 'flex-start' }}>
+      <div className="flex items-center gap-2 flex-wrap gap-2.5" style={{ alignItems: 'flex-start' }}>
         <div className="field flex-1 min-w-0">
           <label htmlFor="rule-trigger">{t('auto.event')}</label>
           <Select
@@ -545,7 +546,7 @@ function RuleEditor({
         </div>
       ) : (
         <>
-          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10 }}>
+          <div className="flex items-center gap-2 flex-wrap gap-2.5">
             <div className="field">
               <label htmlFor="rule-priority">{t('task.priority')}</label>
               <Select id="rule-priority" style={{ width: 150 }} value={form.action_priority}
@@ -588,7 +589,7 @@ function RuleEditor({
       <h4 className="auto-h">{t('auto.recipients')}</h4>
       <p className="text-[12px] text-muted" style={{ marginTop: -4 }}>{t('auto.recipientsHint')}</p>
       {form.recipients.map((recipient, index) => (
-        <div className="flex items-center gap-2 auto-recipient" key={index} style={{ marginBottom: 6 }}>
+        <div className="flex items-center gap-2 auto-recipient mb-1.5" key={index}>
           <Select
             className="flex-1 min-w-0"
             aria-label={t('auto.recipients')}
@@ -638,7 +639,7 @@ function RuleEditor({
         <Icon name="plus" size={13} /> {t('auto.addRecipient')}
       </Button>
 
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10, alignItems: 'flex-start', marginTop: 14 }}>
+      <div className="flex items-center gap-2 flex-wrap gap-2.5 mt-3.5" style={{ alignItems: 'flex-start' }}>
         <div className="field flex-1 min-w-0">
           <label htmlFor="rule-fanout">{t('auto.fanOut')}</label>
           <Select id="rule-fanout" value={form.fan_out} onChange={(e) => set('fan_out', e.target.value as FanOut)}>
@@ -697,14 +698,14 @@ function RunLog({ automationId, onClose }: { automationId: string; onClose: () =
 
   return (
     <Sheet title={t('auto.runs')} onClose={onClose}>
-      <p className="text-muted" style={{ fontSize: 12.5, marginTop: 0 }}>{t('auto.runsLead')}</p>
+      <p className="text-muted text-[12.5px]" style={{ marginTop: 0 }}>{t('auto.runsLead')}</p>
       {runs && !runs.length && <p className="text-muted">{t('auto.noRuns')}</p>}
       {runs?.map((entry) => {
         const actor = members.find((member) => member.id === entry.actor_id);
         return (
           <div className="auto-run" key={entry.id}>
             <span className={`auto-run-dot${entry.skipped ? ' skipped' : ''}`} />
-            <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+            <span className="flex-1 min-w-0 min-w-0">
               <span className="auto-name">
                 {entry.task_identifier} {entry.task_title}
               </span>

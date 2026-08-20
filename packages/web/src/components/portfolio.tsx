@@ -251,15 +251,15 @@ export function Portfolio() {
       <h3 className="chart-title">{t('portfolio.roadmap')}</h3>
       {bars.length
         ? <Roadmap bars={bars} from={range.from} to={range.to} />
-        : <p className="text-muted" style={{ fontSize: 13 }}>{t('portfolio.noDates')}</p>}
+        : <p className="text-muted text-[13.5px]">{t('portfolio.noDates')}</p>}
 
       {undated.length > 0 && (
-        <p className="text-muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+        <p className="text-muted text-[12.5px] mt-2.5">
           <Icon name="calendar" size={12} /> {t('portfolio.undated', { names: undated.map((p) => p.name).join(', ') })}
         </p>
       )}
 
-      <h3 className="chart-title" style={{ marginTop: 22 }}>{t('portfolio.openByProject')}</h3>
+      <h3 className="chart-title mt-[22px]">{t('portfolio.openByProject')}</h3>
       <Bars
         caption={t('portfolio.openByProject')}
         data={projects.map((project) => ({
@@ -269,7 +269,7 @@ export function Portfolio() {
         }))}
       />
 
-      <h3 className="chart-title" style={{ marginTop: 22 }}>{t('portfolio.status')}</h3>
+      <h3 className="chart-title mt-[22px]">{t('portfolio.status')}</h3>
       <div className="table-wrap">
         <table className="task-table">
           <thead>

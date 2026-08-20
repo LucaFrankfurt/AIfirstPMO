@@ -276,7 +276,7 @@ export function TaskCard({
       onDragStart={onDragStart}
       onClick={() => onOpen(task)}
     >
-      <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
+      <div className="flex items-center gap-2 mb-1">
         <span className="mono text-muted">{task.identifier}</span>
         <span className="flex-1 min-w-0" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}

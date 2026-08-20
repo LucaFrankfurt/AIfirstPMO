@@ -160,7 +160,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="sidebar">
         <MenuButton items={workspaceItems} className="nav-item" title={t('nav.switchWorkspace')}>
           <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
-          <span className="flex-1 min-w-0 truncate" style={{ fontWeight: 600 }}>
+          <span className="flex-1 min-w-0 truncate font-semibold">
             {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
           </span>
           <Icon name="chevronDown" size={14} />

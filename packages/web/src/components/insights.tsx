@@ -192,7 +192,7 @@ function Lines({ series, labels, caption }: { series: Series[]; labels: string[]
         )}
       </div>
       <div className="chart-axis">
-        <span style={{ flex: 1 }}>{labels[0]}</span>
+        <span className="flex-1">{labels[0]}</span>
         <span style={{ flex: 1, textAlign: 'end' }}>{labels[labels.length - 1]}</span>
       </div>
       <figcaption>{caption}</figcaption>

@@ -124,9 +124,9 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
   };
 
   return (
-    <section style={{ marginBottom: 18 }}>
-      <div className="flex items-center gap-2" style={{ gap: 8, marginBottom: 8 }}>
-        <strong style={{ fontSize: 13 }}>{t('time.title')}</strong>
+    <section className="mb-[18px]">
+      <div className="flex items-center gap-2 gap-2 mb-2">
+        <strong className="text-[13.5px]">{t('time.title')}</strong>
         {/* Logged time only. `tasks.estimate` is points, not hours — the app
             calls them "estimate points" — so putting the two side by side would
             be comparing a guess at size with a measurement of time. Showing
@@ -146,17 +146,17 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
       </div>
 
       {runningHere && (
-        <p className="text-muted" style={{ fontSize: 12, marginBottom: 8 }} aria-live="polite">
+        <p className="text-muted text-[12.5px] mb-2" aria-live="polite">
           {t('time.runningFor', { amount: duration(elapsed) })}
         </p>
       )}
       {running && !runningHere && (
         // Saying where the clock is beats a person hunting for it.
-        <p className="text-[12px] text-danger" style={{ marginBottom: 8 }}>{t('time.runningElsewhere')}</p>
+        <p className="text-[12px] text-danger mb-2">{t('time.runningElsewhere')}</p>
       )}
 
       {open && (
-        <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 10 }}>
+        <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
           <Input style={{ width: 90 }} autoFocus
             placeholder={t('time.amountPlaceholder')}
             aria-label={t('time.amount')}
@@ -217,11 +217,11 @@ export function ProjectTime({ projectId }: { projectId: string }) {
   for (const entry of entries) byPerson.set(entry.user_id, (byPerson.get(entry.user_id) ?? 0) + (entry.minutes ?? 0));
   const people = [...byPerson.entries()].sort((a, b) => b[1] - a[1]);
 
-  if (!entries.length) return <p className="text-muted" style={{ fontSize: 12.5 }}>{t('time.noneYet')}</p>;
+  if (!entries.length) return <p className="text-muted text-[12.5px]">{t('time.noneYet')}</p>;
 
   return (
-    <div className="flex flex-col gap-2" style={{ gap: 6 }}>
-      <div className="flex items-center gap-2" style={{ fontSize: 13 }}>
+    <div className="flex flex-col gap-2 gap-1.5">
+      <div className="flex items-center gap-2 text-[13.5px]">
         <strong className="flex-1 min-w-0">{t('time.total')}</strong>
         <span>{duration(total)}</span>
       </div>

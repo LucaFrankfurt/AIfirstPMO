@@ -13,6 +13,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useT } from '../lib/i18n';
 import { buttonVariants } from '../components/ui/button';
+import { SectionHeading } from './ui/section';
 import { Icon, useToast } from './ui';
 
 type State = 'unsupported' | 'off' | 'on' | 'denied' | 'working';
@@ -97,10 +98,10 @@ export function PushToggle() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('push.title')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('push.hint')}</p>
+      <SectionHeading>{t('push.title')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('push.hint')}</p>
       {state === 'denied' ? (
-        <p className="text-muted" style={{ fontSize: 12.5 }}>{t('push.denied')}</p>
+        <p className="text-muted text-[12.5px]">{t('push.denied')}</p>
       ) : (
         <button
           className={buttonVariants({ variant: state === 'on' ? 'secondary' : 'primary' })}

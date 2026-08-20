@@ -91,7 +91,7 @@ function Overview() {
     <>
       <p className="guide-lead">{t('guide.intro')}</p>
 
-      <div className="grid three" style={{ marginBottom: 22 }}>
+      <div className="grid three mb-[22px]">
         <Principle icon="refresh" title="guide.principleOfflineTitle" body="guide.principleOfflineBody" />
         <Principle icon="home" title="guide.principleHostTitle" body="guide.principleHostBody" />
         <Principle icon="sparkle" title="guide.principleAssistantTitle" body="guide.principleAssistantBody" />
@@ -109,7 +109,7 @@ function Overview() {
         <li>{t('guide.firstFive4')}</li>
         <li>{t('guide.firstFive5')}</li>
       </ol>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
+      <div className="flex items-center gap-2 flex-wrap gap-2">
         <Link className={buttonVariants({ variant: 'primary', size: 'sm' })} to="/projects/new">
           {t('guide.startHere')} <Icon name="chevronRight" size={13} />
         </Link>
@@ -120,7 +120,7 @@ function Overview() {
           <Icon name="check" size={13} /> {t('guide.showChecklist')}
         </Button>
       </div>
-      <p className="soft" style={{ marginTop: 12, fontSize: 12.5 }}>{t('guide.helpFromHere')}</p>
+      <p className="soft mt-3 text-[12.5px]">{t('guide.helpFromHere')}</p>
     </>
   );
 }
@@ -266,7 +266,7 @@ function Features() {
         steps={['guide.automation.h1', 'guide.automation.h2', 'guide.automation.h3', 'guide.automation.h4']}
       >
         <AutomationDiagram />
-        <p className="soft" style={{ fontSize: 12.5, marginTop: 10 }}>{t('guide.automation.newProject')}</p>
+        <p className="soft text-[12.5px] mt-2.5">{t('guide.automation.newProject')}</p>
       </Feature>
 
       <Feature
@@ -309,7 +309,7 @@ function Shortcuts() {
           </div>
         ))}
       </div>
-      <p className="soft" style={{ marginTop: 14 }}>{t('guide.shortcutsMac')}</p>
+      <p className="soft mt-3.5">{t('guide.shortcutsMac')}</p>
     </>
   );
 }

@@ -68,8 +68,8 @@ export function Triage({ projectId }: { projectId: string }) {
 
   return (
     <div className="page">
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 14 }}>
-        <div className="flex items-center gap-2" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5">
+        <div className="flex items-center gap-2 gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
           {(['new', 'handled'] as const).map((which) => (
             <button
               key={which}
@@ -98,13 +98,13 @@ export function Triage({ projectId }: { projectId: string }) {
           hint={t('intake.emptyHint')}
         />
       ) : (
-        <div className="grid" style={{ gap: 10 }}>
+        <div className="grid gap-2.5">
           {shown.map((intake) => (
             <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
-              <div className="flex items-center gap-2" style={{ gap: 8, alignItems: 'flex-start' }}>
+              <div className="flex items-center gap-2 gap-2" style={{ alignItems: 'flex-start' }}>
                 <div className="flex-1 min-w-0">
                   <strong style={{ fontSize: 14.5 }}>{intake.title}</strong>
-                  <div className="text-muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+                  <div className="text-muted text-[12.5px] mt-0.5">
                     {/* Neither the name nor the address was verified, and saying
                         so once is better than a screen that quietly implies it. */}
                     {intake.reporter || intake.email
@@ -124,7 +124,7 @@ export function Triage({ projectId }: { projectId: string }) {
                 <p style={{ margin: '10px 0 0', fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{intake.body}</p>
               )}
               {intake.status === 'new' && canWrite && (
-                <div className="flex items-center gap-2" style={{ gap: 6, marginTop: 12 }}>
+                <div className="flex items-center gap-2 gap-1.5 mt-3">
                   <Button variant="primary" size="sm" onClick={() => setAccepting(intake)}>
                     <Icon name="check" size={13} /> {t('intake.accept')}
                   </Button>
@@ -226,7 +226,7 @@ function AcceptSheet({
       {intake.body && (
         <div className="field">
           <label>{t('intake.whatTheySaid')}</label>
-          <p className="text-muted" style={{ fontSize: 13, whiteSpace: 'pre-wrap', margin: 0 }}>{intake.body}</p>
+          <p className="text-muted text-[13.5px] m-0" style={{ whiteSpace: 'pre-wrap' }}>{intake.body}</p>
           <span className="text-[12px] text-muted">{t('intake.bodyHint')}</span>
         </div>
       )}

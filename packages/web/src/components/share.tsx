@@ -77,15 +77,15 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
 
   return (
     <Sheet title={t(target.kind === 'intake' ? 'intake.linkTitle' : 'share.title')} onClose={onClose}>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 12 }}>{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
+      <p className="text-[12px] text-muted mb-3">{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
 
       {shares.length === 0 && (
-        <p className="text-muted" style={{ fontSize: 13, marginBottom: 12 }}>{t('share.none')}</p>
+        <p className="text-muted text-[13.5px] mb-3">{t('share.none')}</p>
       )}
 
       {shares.map((share) => (
         <div className="stack-card" key={share.id}>
-          <div className="flex items-center gap-2" style={{ gap: 8 }}>
+          <div className="flex items-center gap-2 gap-2">
             <Input
               className="flex-1 min-w-0" readOnly value={shareUrl(share) || t('share.minting')}
               aria-label={t('share.link')}
@@ -108,8 +108,8 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             </Button>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 12, marginTop: 8, fontSize: 12.5 }}>
-            <label className="flex items-center gap-2" style={{ gap: 6 }}>
+          <div className="flex items-center gap-2 flex-wrap gap-3 mt-2 text-[12.5px]">
+            <label className="flex items-center gap-2 gap-1.5">
               <span className="text-muted">{t('share.expires')}</span>
               <Input type="date" style={{ width: 150 }}
                 value={share.expires_at ? new Date(share.expires_at).toISOString().slice(0, 10) : ''}
@@ -119,7 +119,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
               />
             </label>
             {target.kind === 'tasks' && (
-              <label className="flex items-center gap-2" style={{ gap: 6 }}>
+              <label className="flex items-center gap-2 gap-1.5">
                 <input
                   type="checkbox" checked={!!share.include_done}
                   onChange={(event) => update('share', share.id, { include_done: event.target.checked ? 1 : 0 })}
@@ -130,7 +130,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             {/* Off until somebody says otherwise: an unauthenticated write is a
                 thing you opt into, not a default that arrives with a link. */}
             {target.kind === 'page' && (
-              <label className="flex items-center gap-2" style={{ gap: 6 }} title={t('share.allowCommentsHint')}>
+              <label className="flex items-center gap-2 gap-1.5" title={t('share.allowCommentsHint')}>
                 <input
                   type="checkbox" checked={!!share.allow_comments}
                   onChange={(event) => update('share', share.id, { allow_comments: event.target.checked ? 1 : 0 })}
@@ -144,7 +144,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
       ))}
 
       {canShare && (
-        <Button variant="primary" block onClick={makeLink} disabled={busy} style={{ marginTop: 10 }}>
+        <Button variant="primary" block onClick={makeLink} disabled={busy} className="mt-2.5">
           <Icon name="link" size={14} /> {busy ? t('share.making') : t('share.make')}
         </Button>
       )}

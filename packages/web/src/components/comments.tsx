@@ -47,7 +47,7 @@ function Reactions({ comment }: { comment: Comment }) {
   };
 
   return (
-    <div className="flex items-center gap-2 flex-wrap reactions" style={{ gap: 4 }}>
+    <div className="flex items-center gap-2 flex-wrap reactions gap-1">
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -63,7 +63,7 @@ function Reactions({ comment }: { comment: Comment }) {
         label={t('task.react')}
         items={REACTIONS.map((emoji) => ({
           id: emoji,
-          label: <span style={{ fontSize: 16 }}>{emoji}</span>,
+          label: <span className="text-base">{emoji}</span>,
           hint: (reactions[emoji] ?? []).includes(me) ? '✓' : undefined,
           onSelect: () => toggle(emoji),
         }))}
@@ -117,7 +117,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
 
   return (
     <>
-      {comments.length === 0 && empty && <p className="text-muted" style={{ fontSize: 12.5 }}>{empty}</p>}
+      {comments.length === 0 && empty && <p className="text-muted text-[12.5px]">{empty}</p>}
       {comments.map((entry) => {
         const author = members.get(entry.author_id);
         // A note left through a public link has no account behind it. The name
@@ -128,7 +128,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           <div className="comment" key={entry.id}>
             <Avatar user={guest ? undefined : author} size={26} />
             <div className="body">
-              <div className="flex items-center gap-2" style={{ gap: 6 }}>
+              <div className="flex items-center gap-2 gap-1.5">
                 <span className="who">
                   {guest ? (entry.guest_name || t('comment.anonymous')) : (author?.name ?? t('common.someone'))}
                 </span>
@@ -164,7 +164,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           </div>
         );
       })}
-      <div style={{ marginTop: 10 }} ref={editor}>
+      <div className="mt-2.5" ref={editor}>
         {anchor && (
           <div className="flex items-center gap-2 quoted-draft">
             <Icon name="link" size={12} />
@@ -182,7 +182,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           attachTo={target}
           onSubmit={send}
         />
-        <div className="flex items-center gap-2" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
+        <div className="flex items-center gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
           <Button variant="primary" size="sm" disabled={!draft.trim()} onClick={send}>
             <Icon name="send" size={14} /> {t('task.comment')}
           </Button>

@@ -13,6 +13,7 @@ import { useT } from '../lib/i18n';
 import { useSession } from '../session';
 import { Button } from '../components/ui/button';
 import { Input } from './ui/field';
+import { SectionHeading } from './ui/section';
 import { Icon, useConfirm, useToast } from './ui';
 
 /* ------------------------------------------------------------ two factor */
@@ -53,17 +54,17 @@ export function TwoFactor() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('security.twoFactor')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('security.twoFactorHint')}</p>
+      <SectionHeading>{t('security.twoFactor')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('security.twoFactorHint')}</p>
 
       {recovery && (
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginBottom: 12 }}>
-          <strong style={{ fontSize: 13 }}>{t('security.recoveryTitle')}</strong>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3">
+          <strong className="text-[13.5px]">{t('security.recoveryTitle')}</strong>
           <p className="text-[12px] text-muted">{t('security.recoveryHint')}</p>
           <div className="recovery-codes">
             {recovery.map((one) => <code key={one}>{one}</code>)}
           </div>
-          <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
+          <div className="flex items-center gap-2 mt-2">
             <Button size="sm" onClick={() => {
               void navigator.clipboard?.writeText(recovery.join('\n'));
               toast(t('common.copied'));
@@ -74,7 +75,7 @@ export function TwoFactor() {
       )}
 
       {on ? (
-        <div className="flex items-center gap-2" style={{ gap: 8 }}>
+        <div className="flex items-center gap-2 gap-2">
           <span className="chip"><Icon name="check" size={12} /> {t('security.twoFactorOn')}</span>
           <Button variant="danger" size="sm"
             onClick={async () => {
@@ -123,7 +124,7 @@ export function TwoFactor() {
         <Button onClick={() => void start()}>{t('security.turnOn')}</Button>
       )}
 
-      {failed && <p className="text-[12px] text-danger" style={{ marginTop: 8 }}>{failed}</p>}
+      {failed && <p className="text-[12px] text-danger mt-2">{failed}</p>}
       {dialog}
     </>
   );
@@ -141,9 +142,9 @@ export function Sessions() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('security.devices')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('security.devicesHint')}</p>
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ padding: 0 }}>
+      <SectionHeading>{t('security.devices')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('security.devicesHint')}</p>
+      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 p-0">
         {(rows ?? []).map((row) => (
           <div className="flex items-center gap-2 trash-row" key={row.id} style={{ gap: 9 }}>
             <Icon name={row.current ? 'check' : 'users'} size={14} />
@@ -151,7 +152,7 @@ export function Sessions() {
               {describe(row.user_agent) || t('security.unknownDevice')}
             </span>
             {row.current && <span className="chip">{t('security.thisDevice')}</span>}
-            <span className="text-muted" style={{ fontSize: 12 }}>{relativeTime(row.last_used_at ?? row.created_at)}</span>
+            <span className="text-muted text-[12.5px]">{relativeTime(row.last_used_at ?? row.created_at)}</span>
             <Button variant="ghost" size="sm"
               onClick={async () => {
                 await api.revokeSession(row.id);
@@ -166,7 +167,7 @@ export function Sessions() {
             </Button>
           </div>
         ))}
-        {rows && !rows.length && <div className="trash-row text-muted" style={{ fontSize: 12.5 }}>{t('security.noDevices')}</div>}
+        {rows && !rows.length && <div className="trash-row text-muted text-[12.5px]">{t('security.noDevices')}</div>}
       </div>
     </>
   );

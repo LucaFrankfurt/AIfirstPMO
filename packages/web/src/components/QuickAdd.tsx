@@ -123,10 +123,10 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             onKeyDown={(event) => {
               if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) submit(false);
             }}
-            style={{ fontSize: 16, marginBottom: 10 }}
+            className="text-base mb-2.5"
           />
 
-          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 10 }}>
+          <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2.5">
             <MenuButton items={projectItems} variant="secondary" size="sm" search>
               <span>{project ? `${project.icon ?? ''} ${project.name}` : t('quickAdd.project')}</span>
               <Icon name="chevronDown" size={13} />

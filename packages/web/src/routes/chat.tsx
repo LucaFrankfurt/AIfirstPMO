@@ -125,8 +125,8 @@ export function Chat() {
   return (
     <div className="page chat">
       <aside className="chat-list">
-        <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
-          <h1 className="flex-1 min-w-0" style={{ fontSize: 17, margin: 0 }}>{t('chat.title')}</h1>
+        <div className="flex items-center gap-2 mb-2">
+          <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>
           {canWrite && (
             <Button size="sm" onClick={() => setCreating(true)}>
               <Icon name="plus" size={13} /> {t('chat.new')}
@@ -138,7 +138,7 @@ export function Chat() {
             while there is somebody below. Alone, the hint further down says the
             true thing instead, and two hints where one is wrong is worse. */}
         {conversations.length === 0 && (others.length > 0 || !canWrite) && (
-          <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.noneYet')}</p>
+          <p className="text-[12px] text-muted text-[12.5px]">{t('chat.noneYet')}</p>
         )}
 
         {conversations.map((channel) => (
@@ -154,13 +154,13 @@ export function Chat() {
 
         {/* Starting a conversation is a write, and a guest has none. A list of
             people that refuses on click is worse than no list. */}
-        {canWrite && <h2 className="nav-section" style={{ marginTop: 14 }}>{t('chat.people')}</h2>}
+        {canWrite && <h2 className="nav-section mt-3.5">{t('chat.people')}</h2>}
         {/* Alone in this workspace, the list below is empty — the usual state
             on a fresh instance, because signing up a second time makes a second
             workspace rather than joining the first. It is no longer a dead end:
             a direct conversation does not need a workspace in common. */}
         {canWrite && others.length === 0 && (
-          <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.aloneHint')}</p>
+          <p className="text-[12px] text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
           <button
@@ -291,7 +291,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={16} />
         <div className="flex-1 min-w-0">
           <strong>{title}</strong>
-          {channel.topic && <div className="text-muted" style={{ fontSize: 12 }}>{channel.topic}</div>}
+          {channel.topic && <div className="text-muted text-[12.5px]">{channel.topic}</div>}
         </div>
         <NotifyMenu channel={channel} me={me} />
         {channel.kind !== 'direct' && canWrite && (
@@ -303,7 +303,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <div className="chat-stream">
-        {messages.length === 0 && <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.emptyStream')}</p>}
+        {messages.length === 0 && <p className="text-[12px] text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
         {messages.map((message, index) => {
           const author = members.get(message.author_id ?? '');
           // Consecutive lines from the same person within five minutes are one
@@ -321,7 +321,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               {grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />}
               <div className="body">
                 {!grouped && (
-                  <div className="flex items-center gap-2" style={{ gap: 6 }}>
+                  <div className="flex items-center gap-2 gap-1.5">
                     <span className="who">{author?.name ?? t('common.someone')}</span>
                     <span className="when">{relativeTime(message.created_at)}</span>
                     {message.edited_at && <span className="when">· {t('chat.edited')}</span>}
@@ -406,7 +406,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         /* A guest can read an open channel and cannot write anywhere. Saying so
            here beats a composer that takes a paragraph and then refuses it. */
         <div className="chat-composer">
-          <p className="text-[12px] text-muted" style={{ fontSize: 12.5, margin: 0 }}>{t('chat.readOnly')}</p>
+          <p className="text-[12px] text-muted text-[12.5px] m-0">{t('chat.readOnly')}</p>
         </div>
       )}
       {dialog}
@@ -418,9 +418,9 @@ function EditBox({ initial, onDone }: { initial: string; onDone: (body: string) 
   const t = useT();
   const [value, setValue] = useState(initial);
   return (
-    <div className="flex flex-col gap-2" style={{ gap: 6 }}>
+    <div className="flex flex-col gap-2 gap-1.5">
       <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} />
-      <div className="flex items-center gap-2" style={{ gap: 6 }}>
+      <div className="flex items-center gap-2 gap-1.5">
         <Button variant="primary" size="sm" onClick={() => onDone(value)}>{t('action.save')}</Button>
         <Button size="sm" onClick={() => onDone(initial)}>{t('action.cancel')}</Button>
       </div>
@@ -478,7 +478,7 @@ function Reactions({ message, me, canWrite }: { message: Message; me: string; ca
   if (!used.length) return null;
 
   return (
-    <div className="flex items-center gap-2 flex-wrap reactions" style={{ gap: 4 }}>
+    <div className="flex items-center gap-2 flex-wrap reactions gap-1">
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -502,7 +502,7 @@ function AddReaction({ message, me }: { message: Message; me: string }) {
       label={t('task.react')}
       items={REACTIONS.map((emoji) => ({
         id: emoji,
-        label: <span style={{ fontSize: 16 }}>{emoji}</span>,
+        label: <span className="text-base">{emoji}</span>,
         hint: (message.reactions?.[emoji] ?? []).includes(me) ? '✓' : undefined,
         onSelect: () => toggleReaction(message, emoji, me),
       }))}
@@ -603,8 +603,8 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           )}
 
           <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
-          <p className="text-[12px] text-muted" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.whoCanAddHint')}</p>
-          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6 }}>
+          <p className="text-[12px] text-muted mb-2 text-[12.5px]">{t('chat.whoCanAddHint')}</p>
+          <div className="flex items-center gap-2 flex-wrap gap-1.5">
             {(['members', 'admins'] as const).map((policy) => (
               <button
                 key={policy}
@@ -620,12 +620,12 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           </div>
         </>
       ) : (
-        <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.openChannelHint')}</p>
+        <p className="text-[12px] text-muted text-[12.5px]">{t('chat.openChannelHint')}</p>
       )}
 
       <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.closingHint')}</p>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6 }}>
+      <p className="text-[12px] text-muted mb-2 text-[12.5px]">{t('chat.closingHint')}</p>
+      <div className="flex items-center gap-2 flex-wrap gap-1.5">
         <Button size="sm"
           onClick={() => {
             update('channel', channel.id, { archived_at: Date.now() });
@@ -698,8 +698,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         </div>
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
-        {tidy && tidy !== name && <p className="text-[12px] text-muted" style={{ fontSize: 12 }}>{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
-        {taken && <p className="text-[12px] text-muted" style={{ fontSize: 12, color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
+        {tidy && tidy !== name && <p className="text-[12px] text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
+        {taken && <p className="text-[12px] text-muted text-[12.5px]" style={{ color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
         <div className="field">
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
           <Input
@@ -783,7 +783,7 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
         >
           <Avatar user={person} size={22} />
           <span className="flex-1 min-w-0 truncate">{person.name}</span>
-          <span className="text-muted truncate" style={{ fontSize: 11.5 }}>{person.email}</span>
+          <span className="text-muted truncate text-[11.5px]">{person.email}</span>
         </button>
       ))}
     </Sheet>

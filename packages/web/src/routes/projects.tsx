@@ -27,6 +27,7 @@ import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input, Select, Textarea } from '../components/ui/field';
+import { SectionHeading } from '../components/ui/section';
 import { Triage, useNewIntakeCount } from '../components/intake';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
@@ -135,15 +136,15 @@ function ProjectCard({ projectId }: { projectId: string }) {
   if (!project) return null;
 
   return (
-    <button className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ textAlign: 'left', cursor: 'pointer' }} onClick={() => navigate(`/projects/${projectId}`)}>
-      <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
-        <span style={{ fontSize: 18 }}>{project.icon ?? '📁'}</span>
+    <button className="rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left cursor-pointer" onClick={() => navigate(`/projects/${projectId}`)}>
+      <div className="flex items-center gap-2 mb-1.5">
+        <span className="text-lg">{project.icon ?? '📁'}</span>
         <strong className="flex-1 min-w-0 truncate">{project.name}</strong>
         <span className="chip mono">{project.key}</span>
       </div>
-      {project.description && <p className="text-muted truncate" style={{ fontSize: 12.5 }}>{project.description}</p>}
+      {project.description && <p className="text-muted truncate text-[12.5px]">{project.description}</p>}
       <Progress value={done} total={tasks.length} />
-      <div className="flex items-center gap-2 text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+      <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
         <span>{t('project.doneCount', { done, total: tasks.length })}</span>
         <span className="flex-1 min-w-0" />
         {project.target_date && <span>{t('project.target', { date: shortDate(project.target_date) })}</span>}
@@ -188,7 +189,7 @@ export function ProjectNew() {
               placeholder={t('project.namePlaceholder')}
             />
           </div>
-          <div className="flex items-center gap-2" style={{ gap: 10, alignItems: 'flex-start' }}>
+          <div className="flex items-center gap-2 gap-2.5" style={{ alignItems: 'flex-start' }}>
             <div className="field" style={{ width: 120 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
               <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
@@ -328,8 +329,8 @@ function Cycles({ projectId }: { projectId: string }) {
 
   return (
     <div className="page">
-      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>{t('cycle.title')}</h2>
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px]">{t('cycle.title')}</h2>
         <span className="flex-1 min-w-0" />
         <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('cycle.new')}</Button>
       </div>
@@ -341,7 +342,7 @@ function Cycles({ projectId }: { projectId: string }) {
           const active = cycle.start_date && cycle.end_date && cycle.start_date <= day && cycle.end_date >= day;
           return (
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={cycle.id}>
-              <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+              <div className="flex items-center gap-2 mb-2">
                 <strong className="flex-1 min-w-0 truncate">{cycle.name}</strong>
                 {active && <span className="chip" style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
@@ -357,7 +358,7 @@ function Cycles({ projectId }: { projectId: string }) {
                 </MenuButton>
               </div>
               <CycleProgress cycleId={cycle.id} />
-              <Button size="sm" block style={{ marginTop: 10 }} onClick={() => navigate(`/cycles/${cycle.id}`)}>{t('cycle.open')}</Button>
+              <Button size="sm" block className="mt-2.5" onClick={() => navigate(`/cycles/${cycle.id}`)}>{t('cycle.open')}</Button>
             </div>
           );
         })}
@@ -401,7 +402,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         <label htmlFor="c-name">{t('cycle.name')}</label>
         <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="flex items-center gap-2" style={{ gap: 10 }}>
+      <div className="flex items-center gap-2 gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="c-start">{t('cycle.starts')}</label>
           <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
@@ -448,18 +449,18 @@ export function CyclePage() {
         <Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
       </Header>
       <div className="page">
-        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginBottom: 14 }}>
-          <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+        <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
+          <div className="flex items-center gap-2 mb-2">
             <div className="flex-1 min-w-0">
               <strong>{t('cycle.taskProgress', { done: burndown.done, total: burndown.total })}</strong>
-              <div className="text-muted" style={{ fontSize: 12.5 }}>
+              <div className="text-muted text-[12.5px]">
                 {t('cycle.pointProgress', { done: burndown.donePoints, total: burndown.points })}
                 {cycle.start_date && cycle.end_date && ` · ${shortDate(cycle.start_date)} – ${shortDate(cycle.end_date)}`}
               </div>
             </div>
           </div>
           <Progress value={burndown.done} total={burndown.total} />
-          {cycle.description && <p className="text-muted" style={{ marginTop: 8, fontSize: 12.5 }}>{cycle.description}</p>}
+          {cycle.description && <p className="text-muted mt-2 text-[12.5px]">{cycle.description}</p>}
         </div>
         <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={openTask} />
       </div>
@@ -479,13 +480,13 @@ function Modules({ projectId }: { projectId: string }) {
 
   return (
     <div className="page">
-      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>{t('module.title')}</h2>
-        <span className="text-muted" style={{ fontSize: 12.5 }}>{t('module.subtitle')}</span>
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px]">{t('module.title')}</h2>
+        <span className="text-muted text-[12.5px]">{t('module.subtitle')}</span>
       </div>
 
       <form
-        className="flex items-center gap-2" style={{ marginBottom: 14 }}
+        className="flex items-center gap-2 mb-3.5"
         onSubmit={(event) => {
           event.preventDefault();
           if (!name.trim()) return;
@@ -506,7 +507,7 @@ function Modules({ projectId }: { projectId: string }) {
           const lead = members.find((member) => member.id === module.lead_id);
           return (
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={module.id}>
-              <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+              <div className="flex items-center gap-2 mb-1.5">
                 <strong className="flex-1 min-w-0 truncate">{module.name}</strong>
                 {lead && <Avatar user={lead} size={20} />}
                 <MenuButton
@@ -524,7 +525,7 @@ function Modules({ projectId }: { projectId: string }) {
                 </MenuButton>
               </div>
               <Progress value={done} total={tasks.length} />
-              <div className="flex items-center gap-2 text-muted" style={{ fontSize: 12, marginTop: 6 }}>
+              <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
                 <span>{done}/{tasks.length}</span>
                 <span className="flex-1 min-w-0" />
                 <Input
@@ -533,7 +534,7 @@ function Modules({ projectId }: { projectId: string }) {
                   onChange={(event) => update('module', module.id, { target_date: event.target.value || null })}
                 />
               </div>
-              <Button size="sm" block style={{ marginTop: 8 }} onClick={() => navigate(`/modules/${module.id}`)}>{t('action.open')}</Button>
+              <Button size="sm" block className="mt-2" onClick={() => navigate(`/modules/${module.id}`)}>{t('action.open')}</Button>
             </div>
           );
         })}
@@ -575,8 +576,8 @@ function ProjectPages({ projectId }: { projectId: string }) {
 
   return (
     <div className="page">
-      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-        <h2 style={{ fontSize: 15 }}>{t('project.pagesTitle')}</h2>
+      <div className="flex items-center gap-2 mb-3">
+        <h2 className="text-[15px]">{t('project.pagesTitle')}</h2>
         <span className="flex-1 min-w-0" />
         <Button size="sm" onClick={() => navigate(`/pages/${createPage({ project_id: projectId, title: t('common.untitled') }, me)}`)}>
           <Icon name="plus" size={14} /> {t('project.newPage')}
@@ -584,7 +585,7 @@ function ProjectPages({ projectId }: { projectId: string }) {
       </div>
       {!pages.length && <Empty emoji="📄" title={t('project.noPages')} hint={t('project.noPagesHint')} guide="pages" />}
       {pages.map((page) => (
-        <button key={page.id} className="task-row" style={{ width: '100%', textAlign: 'left' }} onClick={() => navigate(`/pages/${page.id}`)}>
+        <button key={page.id} className="task-row text-left" style={{ width: '100%' }} onClick={() => navigate(`/pages/${page.id}`)}>
           <span>{page.icon ?? '📄'}</span>
           <span className="flex-1 min-w-0 truncate">{page.title}</span>
         </button>
@@ -689,7 +690,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Textarea id="s-desc" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
-      <div className="flex items-center gap-2" style={{ gap: 10 }}>
+      <div className="flex items-center gap-2 gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-parent">{t('project.parent')}</label>
           <Select
@@ -708,7 +709,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2" style={{ gap: 10 }}>
+      <div className="flex items-center gap-2 gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-lead">{t('project.lead')}</label>
           <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
@@ -727,7 +728,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           Saturday stays there, because somebody who did that meant it. */}
       <div className="field">
         <label>{t('project.workingDays')}</label>
-        <div className="flex items-center gap-2 flex-wrap" style={{ gap: 4 }} role="group" aria-label={t('project.workingDays')}>
+        <div className="flex items-center gap-2 flex-wrap gap-1" role="group" aria-label={t('project.workingDays')}>
           {WEEKDAYS.map(({ day, key }) => {
             const days = project.working_days ?? DEFAULT_WORKING_DAYS;
             const on = days.includes(day);
@@ -751,7 +752,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       </div>
 
       <div className="flex items-center gap-2" style={{ margin: '18px 0 8px' }}>
-        <h3 style={{ fontSize: 14, margin: 0 }}>{t('project.workflowStates')}</h3>
+        <SectionHeading tight>{t('project.workflowStates')}</SectionHeading>
         <span className="flex-1 min-w-0" />
         <GuideHint to="hierarchy" />
       </div>
@@ -778,15 +779,15 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               <Icon name="trash" size={14} />
             </Button>
           </div>
-          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10, marginTop: 8 }}>
-            <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+          <div className="flex items-center gap-2 flex-wrap gap-2.5 mt-2">
+            <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
               <span className="text-muted">{t('state.wipLimit')}</span>
               <Input type="number" min={0} max={99} style={{ width: 70 }}
                 value={state.wip_limit || ''} placeholder="0"
                 onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
               />
             </label>
-            <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+            <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
               <span className="text-muted">{t('state.allowedRoles')}</span>
               <Select style={{ width: 200 }}
                 value={state.allowed_roles?.[0] ?? ''}
@@ -801,9 +802,9 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           </div>
         </div>
       ))}
-      <p className="text-[12px] text-muted" style={{ marginTop: 4 }}>{t('state.wipLimitHint')}</p>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('state.allowedHint')}</p>
-      <Button size="sm" style={{ marginTop: 6 }}
+      <p className="text-[12px] text-muted mt-1">{t('state.wipLimitHint')}</p>
+      <p className="text-[12px] text-muted mb-2">{t('state.allowedHint')}</p>
+      <Button size="sm" className="mt-1.5"
         onClick={() => create('state', {
           project_id: projectId, name: t('project.newStateName'), group_key: 'unstarted', color: '#64748b',
           sort_order: orderKey(states[states.length - 1]?.sort_order ?? null, null),
@@ -812,8 +813,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Icon name="plus" size={14} /> {t('project.addState')}
       </Button>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('type.settingsTitle')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('type.settingsHint')}</p>
+      <SectionHeading>{t('type.settingsTitle')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('type.settingsHint')}</p>
       {types.map((type) => (
         <div className="flex items-center gap-2" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
           <Input style={{ width: 56, textAlign: 'center' }} maxLength={4}
@@ -857,11 +858,11 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Icon name="plus" size={14} /> {t('type.add')}
       </Button>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('field.settingsTitle')}</h3>
+      <SectionHeading>{t('field.settingsTitle')}</SectionHeading>
       <ProjectFields projectId={projectId} />
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('project.labels')}</h3>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 8 }}>
+      <SectionHeading>{t('project.labels')}</SectionHeading>
+      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-2">
         {labels.map((label) => (
           <span className="chip button" key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
             <span className="dot" style={{ background: label.color }} /> {label.name} ✕
@@ -881,18 +882,18 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Button type="submit"><Icon name="plus" size={14} /></Button>
       </form>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('time.title')}</h3>
+      <SectionHeading>{t('time.title')}</SectionHeading>
       <ProjectTime projectId={projectId} />
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('import.title')}</h3>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
+      <SectionHeading>{t('import.title')}</SectionHeading>
+      <div className="flex items-center gap-2 flex-wrap gap-2">
         <Button onClick={() => setImporting(true)}>
           <Icon name="attach" size={14} /> {t('import.action')}
         </Button>
         <Button onClick={() => void exportJson()}>
           <Icon name="page" size={14} /> {t('transfer.export')}
         </Button>
-        <label className={buttonVariants({  })} style={{ cursor: 'pointer' }}>
+        <label className={cn(buttonVariants({  }), 'cursor-pointer')}>
           <Icon name="plus" size={14} /> {t('transfer.import')}
           <input
             type="file" accept=".json,application/json" style={{ display: 'none' }}
@@ -904,7 +905,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           />
         </label>
       </div>
-      <p className="text-[12px] text-muted" style={{ marginTop: 6 }}>{t('transfer.hint')}</p>
+      <p className="text-[12px] text-muted mt-1.5">{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
       {foreign && (
         <ForeignImportSheet
@@ -914,7 +915,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         />
       )}
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('copy.title')}</h3>
+      <SectionHeading>{t('copy.title')}</SectionHeading>
       <Button onClick={() => setCopying(true)}>
         <Icon name="copy" size={14} /> {t('copy.action')}
       </Button>

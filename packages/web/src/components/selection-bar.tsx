@@ -122,7 +122,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
           </>
         ) : (
           // Saying why is better than an action that silently does nothing.
-          <span className="text-muted hide-sm" style={{ fontSize: 12 }}>{t('select.mixedProjects')}</span>
+          <span className="text-muted hide-sm text-[12.5px]">{t('select.mixedProjects')}</span>
         )}
 
         <MenuButton variant="secondary" size="sm" items={priorityItems}>

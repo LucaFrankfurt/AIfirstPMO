@@ -16,6 +16,7 @@ import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input, Select, Textarea } from '../components/ui/field';
+import { SectionHeading } from '../components/ui/section';
 import { TelegramConnection } from '../components/telegram';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
@@ -76,11 +77,11 @@ function Profile() {
 
   return (
     <>
-      <div className="flex items-center gap-2" style={{ marginBottom: 18 }}>
+      <div className="flex items-center gap-2 mb-[18px]">
         <Avatar user={user ?? undefined} size={48} />
         <div className="flex-1 min-w-0">
           <strong>{user?.name}</strong>
-          <div className="text-muted" style={{ fontSize: 12.5 }}>{user?.email}</div>
+          <div className="text-muted text-[12.5px]">{user?.email}</div>
         </div>
         <label className={buttonVariants({ size: 'sm' })}>
           {uploading ? t('editor.uploading') : t('profile.changePicture')}
@@ -138,7 +139,7 @@ function Profile() {
         {t('profile.save')}
       </Button>
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.language')}</h3>
+      <SectionHeading>{t('profile.language')}</SectionHeading>
       <Select
         style={{ maxWidth: 220 }}
         value={locale}
@@ -153,15 +154,15 @@ function Profile() {
       >
         {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
       </Select>
-      <span className="text-[12px] text-muted" style={{ display: 'block', marginTop: 4 }}>{t('profile.languageHint')}</span>
+      <span className="text-[12px] text-muted mt-1" style={{ display: 'block' }}>{t('profile.languageHint')}</span>
       {/* Said where it is chosen, so nobody finds out from an odd sentence
           three screens later. */}
       {UNREVIEWED[locale] && (
-        <span className="text-[12px] text-danger" style={{ display: 'block', marginTop: 2 }}>{t('profile.languageUnreviewed')}</span>
+        <span className="text-[12px] text-danger mt-0.5" style={{ display: 'block' }}>{t('profile.languageUnreviewed')}</span>
       )}
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.appearance')}</h3>
-      <div className="flex items-center gap-2" style={{ gap: 6 }}>
+      <SectionHeading>{t('profile.appearance')}</SectionHeading>
+      <div className="flex items-center gap-2 gap-1.5">
         {(['system', 'light', 'dark'] as const).map((option) => (
           <button
             key={option}
@@ -174,8 +175,8 @@ function Profile() {
         ))}
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('profile.password')}</h3>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
+      <SectionHeading>{t('profile.password')}</SectionHeading>
+      <div className="flex items-center gap-2 flex-wrap gap-2">
         <Input type="password" placeholder={t('profile.currentPassword')} autoComplete="current-password"
           style={{ maxWidth: 220 }} value={passwords.current}
           onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
@@ -250,12 +251,12 @@ function Suppressions() {
 
   return (
     <>
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('mail.suppressed')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('mail.suppressedHint')}</p>
+      <SectionHeading>{t('mail.suppressed')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('mail.suppressedHint')}</p>
       {rows.map((row) => (
         <div className="flex items-center gap-2" key={row.email} style={{ gap: 8, padding: '5px 0' }}>
-          <span className="flex-1 min-w-0 truncate" style={{ fontSize: 13 }}>{row.email}</span>
-          <span className="text-muted" style={{ fontSize: 12 }} title={row.detail ?? ''}>{row.reason}</span>
+          <span className="flex-1 min-w-0 truncate text-[13.5px]">{row.email}</span>
+          <span className="text-muted text-[12.5px]" title={row.detail ?? ''}>{row.reason}</span>
           <Button size="sm"
             onClick={async () => {
               await api.delete(`/api/mail/suppressions/${encodeURIComponent(row.email)}`);
@@ -292,13 +293,13 @@ function Notifications() {
 
   return (
     <>
-      <p className="text-muted" style={{ fontSize: 13 }}>
+      <p className="text-muted text-[13.5px]">
         {t('notify.intro', { window: batchWindow(t, status?.batchSeconds ?? 120) })}
       </p>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.digest')}</h3>
-      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('notify.digestHint')}</p>
-      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 6 }}>
+      <SectionHeading>{t('notify.digest')}</SectionHeading>
+      <p className="text-[12px] text-muted mb-2">{t('notify.digestHint')}</p>
+      <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-1.5">
         {(['off', 'daily', 'weekly'] as const).map((option) => (
           <button
             key={option}
@@ -316,8 +317,8 @@ function Notifications() {
         ))}
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('notify.emailAbout')}</h3>
-      <div className="flex flex-col gap-2" style={{ gap: 6 }}>
+      <SectionHeading>{t('notify.emailAbout')}</SectionHeading>
+      <div className="flex flex-col gap-2 gap-1.5">
         {PREFERENCES.map((option) => (
           <button
             key={option.value}
@@ -333,7 +334,7 @@ function Notifications() {
               <strong className="flex-1 min-w-0">{t(option.label)}</strong>
               {status?.preference === option.value && <Icon name="check" size={15} />}
             </div>
-            <span className="text-muted" style={{ fontSize: 12.5 }}>{t(option.hint)}</span>
+            <span className="text-muted text-[12.5px]">{t(option.hint)}</span>
           </button>
         ))}
       </div>
@@ -344,24 +345,24 @@ function Notifications() {
 
       <Suppressions />
 
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('notify.delivery')}</h3>
+      <SectionHeading>{t('notify.delivery')}</SectionHeading>
       {status?.mode === 'test-inbox' && (
         <div
           className="rounded-[var(--radius)] border border-line bg-raised p-3.5"
           style={{ marginBottom: 10, borderColor: 'var(--warn)', background: 'color-mix(in srgb, var(--warn) 8%, transparent)' }}
         >
-          <div className="flex items-center gap-2" style={{ gap: 7, marginBottom: 4 }}>
+          <div className="flex items-center gap-2 mb-1" style={{ gap: 7 }}>
             <Icon name="bell" size={15} />
             <strong>{t('notify.captureTitle')}</strong>
           </div>
-          <span className="soft" style={{ fontSize: 12.5 }}>
+          <span className="soft text-[12.5px]">
             {t('notify.captureBody', { host: status.host ?? '' })}
           </span>
         </div>
       )}
       {status?.enabled ? (
         <>
-          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginBottom: 10 }}>
+          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2.5">
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0">{t('notify.relay')}</span>
               <strong className="mono">{status.host}</strong>
@@ -430,7 +431,7 @@ function WorkspaceSettings() {
         {t('action.save')}
       </Button>
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('workspace.yours')}</h3>
+      <SectionHeading>{t('workspace.yours')}</SectionHeading>
       {session?.workspaces.map((entry) => (
         <div className="flex items-center gap-2" key={entry.id} style={{ padding: '6px 0', borderTop: '1px solid var(--line)' }}>
           <span className="flex-1 min-w-0">{entry.name}</span>
@@ -439,7 +440,7 @@ function WorkspaceSettings() {
         </div>
       ))}
 
-      <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('workspace.new')}</h3>
+      <SectionHeading>{t('workspace.new')}</SectionHeading>
       <div className="flex items-center gap-2">
         <Input placeholder={t('common.name')} value={creating} onChange={(event) => setCreating(event.target.value)} />
         <Button
@@ -483,11 +484,11 @@ function Members() {
       {members.map((member) => (
         <div className="flex items-center gap-2" key={member.user_id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={{ id: member.user_id, name: member.name, avatar_url: member.avatar_url }} size={30} />
-          <div className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+          <div className="flex-1 min-w-0 min-w-0">
             <div className="truncate">{member.name}</div>
-            <div className="text-muted truncate" style={{ fontSize: 12 }}>{member.email}</div>
+            <div className="text-muted truncate text-[12.5px]">{member.email}</div>
           </div>
-          {member.last_seen_at && <span className="text-muted" style={{ fontSize: 11.5 }}>{relativeTime(member.last_seen_at)}</span>}
+          {member.last_seen_at && <span className="text-muted text-[11.5px]">{relativeTime(member.last_seen_at)}</span>}
           {canManage ? (
             <Select style={{ width: 110 }} value={member.role}
               onChange={async (event) => {
@@ -516,7 +517,7 @@ function Members() {
 
       {canManage && (
         <>
-          <h3 style={{ fontSize: 14, margin: '24px 0 8px' }}>{t('members.invites')}</h3>
+          <SectionHeading>{t('members.invites')}</SectionHeading>
           <Button
             onClick={async () => {
               const invite = await api.createInvite(workspaceId, 'member');
@@ -577,11 +578,11 @@ function ApiSettings() {
 
   return (
     <>
-      <p className="text-muted" style={{ fontSize: 13 }}>{t('api.intro')}</p>
+      <p className="text-muted text-[13.5px]">{t('api.intro')}</p>
       <GuideHint to="assistant" />
 
-      <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('api.tokens')}</h3>
-      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+      <SectionHeading>{t('api.tokens')}</SectionHeading>
+      <div className="flex items-center gap-2 mb-3">
         <Input placeholder={t('api.tokenName')} value={name} onChange={(event) => setName(event.target.value)} />
         <Button variant="primary"
           onClick={async () => {
@@ -596,11 +597,11 @@ function ApiSettings() {
 
       {tokens.map((token) => (
         <div className="flex items-center gap-2" key={token.id} style={{ padding: '7px 0', borderTop: '1px solid var(--line)' }}>
-          <div className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+          <div className="flex-1 min-w-0 min-w-0">
             <div className="truncate">{token.name}</div>
             <div className="text-muted mono truncate">{token.prefix}… · {token.scopes}</div>
           </div>
-          <span className="text-muted" style={{ fontSize: 11.5 }}>
+          <span className="text-muted text-[11.5px]">
             {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
           </span>
           <Button variant="ghost" size="iconSm"
@@ -614,24 +615,24 @@ function ApiSettings() {
           </Button>
         </div>
       ))}
-      {!tokens.length && <span className="text-muted" style={{ fontSize: 12.5 }}>{t('api.noTokens')}</span>}
+      {!tokens.length && <span className="text-muted text-[12.5px]">{t('api.noTokens')}</span>}
 
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('api.connect')}</h3>
-      <pre className="md" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 12, borderRadius: 10, overflowX: 'auto', fontSize: 12 }}>
+      <SectionHeading>{t('api.connect')}</SectionHeading>
+      <pre className="md text-[12.5px]" style={{ background: 'var(--bg-sunken)', border: '1px solid var(--line)', padding: 12, borderRadius: 10, overflowX: 'auto' }}>
         {snippet}
       </pre>
-      <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
+      <div className="flex items-center gap-2 mt-2">
         <Button size="sm" onClick={() => { void navigator.clipboard?.writeText(snippet); toast(t('api.configCopied')); }}>
           <Icon name="copy" size={14} /> {t('api.copyConfig')}
         </Button>
-        <span className="text-muted" style={{ fontSize: 12 }}>
+        <span className="text-muted text-[12.5px]">
           {t('api.orDirect')}
         </span>
       </div>
       {/* Claude on the web has one box for a URL and nowhere to put a token, so
           it signs in instead. Nothing to configure here — the address is the
           whole of it. */}
-      <p className="text-muted" style={{ fontSize: 12.5, marginTop: 12 }}>
+      <p className="text-muted text-[12.5px] mt-3">
         {t('api.onTheWeb', { url: location.origin })}
       </p>
 
@@ -641,7 +642,7 @@ function ApiSettings() {
           <code className="mono" style={{ display: 'block', wordBreak: 'break-all', background: 'var(--bg-sunken)', padding: 12, borderRadius: 8 }}>
             {created}
           </code>
-          <Button variant="primary" block style={{ marginTop: 12 }}
+          <Button variant="primary" block className="mt-3"
             onClick={() => { void navigator.clipboard?.writeText(created); toast(t('api.tokenCopied')); }}
           >
             <Icon name="copy" size={14} /> {t('api.copyToken')}
@@ -682,10 +683,10 @@ function DataSettings() {
 
       <div className="divider" style={{ margin: '22px 0' }} />
 
-      <h3 style={{ fontSize: 14, marginBottom: 8 }}>{t('data.offlineCopy')}</h3>
-      <p className="text-muted" style={{ fontSize: 13 }}>{t('data.offlineIntro')}</p>
+      <SectionHeading tight>{t('data.offlineCopy')}</SectionHeading>
+      <p className="text-muted text-[13.5px]">{t('data.offlineIntro')}</p>
       <GuideHint to="sync" />
-      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginBottom: 14 }}>
+      <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
         <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('data.localData')}</span><strong>{mb(estimate?.usage)}</strong></div>
         <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('data.available')}</span><strong>{mb(estimate?.quota)}</strong></div>
         <div className="flex items-center gap-2">
@@ -714,8 +715,8 @@ function DataSettings() {
         </Button>
       </div>
 
-      <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('data.export')}</h3>
-      <p className="text-muted" style={{ fontSize: 13 }}>{t('data.exportHint')}</p>
+      <SectionHeading>{t('data.export')}</SectionHeading>
+      <p className="text-muted text-[13.5px]">{t('data.exportHint')}</p>
       {!estimate && <Empty emoji="💾" title={t('data.storageUnavailable')} hint={t('data.storageUnavailableHint')} />}
     </>
   );

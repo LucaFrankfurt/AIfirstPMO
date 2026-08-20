@@ -6,6 +6,7 @@ import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../lib/i18n';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { Input, Select } from '../components/ui/field';
+import { cn } from '../lib/cn';
 import { Icon } from '../components/ui';
 
 export function Login() {
@@ -93,11 +94,11 @@ export function Login() {
   return (
     <div className="auth">
       <form className="box" onSubmit={submit}>
-        <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2 mb-4">
           <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
           <div>
             <h1>{first ? t('login.setupTitle') : mode === 'login' ? t('login.welcomeBack') : t('login.createAccount')}</h1>
-            <span className="text-muted" style={{ fontSize: 12.5 }}>
+            <span className="text-muted text-[12.5px]">
               {invite
                 ? t('login.invitedTo', { workspace: invite.workspace_name })
                 : first ? t('login.firstAccountHint') : t('login.tagline')}
@@ -119,7 +120,7 @@ export function Login() {
         )}
 
         {sso?.only && (
-          <p className="text-muted" style={{ fontSize: 12.5, margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
+          <p className="text-muted text-[12.5px]" style={{ margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
         )}
 
         {!sso?.only && (<>
@@ -159,13 +160,13 @@ export function Login() {
           </div>
         )}
 
-        <Button variant="primary" size="lg" block type="submit" disabled={busy} style={{ marginTop: 6 }}>
+        <Button variant="primary" size="lg" block type="submit" disabled={busy} className="mt-1.5">
           {busy ? t('action.working') : mode === 'login' ? t('login.signIn') : first ? t('login.createInstance') : t('login.createAccountSubmit')}
         </Button>
 
         {!first && (config?.allowSignup || mode === 'register') && (
           <button
-            type="button" className={buttonVariants({ variant: 'ghost', block: true })} style={{ marginTop: 8 }}
+            type="button" className={cn(buttonVariants({ variant: 'ghost', block: true }), 'mt-2')}
             onClick={() => {
               setMode(mode === 'login' ? 'register' : 'login');
               setError('');
@@ -176,8 +177,8 @@ export function Login() {
         )}
         </>)}
 
-        <div className="flex items-center gap-2 text-muted" style={{ justifyContent: 'center', marginTop: 18, fontSize: 12, gap: 10 }}>
-          <span className="flex items-center gap-2" style={{ gap: 5 }}><Icon name="bolt" size={13} /> {t('login.footer')}</span>
+        <div className="flex items-center gap-2 text-muted mt-[18px] text-[12.5px] gap-2.5" style={{ justifyContent: 'center' }}>
+          <span className="flex items-center gap-2 gap-[5px]"><Icon name="bolt" size={13} /> {t('login.footer')}</span>
           <span aria-hidden="true">·</span>
           <Select
             aria-label={t('profile.language')}
@@ -244,11 +245,11 @@ export function AcceptInvite() {
   return (
     <div className="auth">
       <div className="box">
-        <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2 mb-4">
           <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
           <div>
             <h1>{t('login.joinTitle')}</h1>
-            <span className="text-muted" style={{ fontSize: 12.5 }}>
+            <span className="text-muted text-[12.5px]">
               {invite ? t('login.invitedTo', { workspace: invite.workspace_name }) : t('login.tagline')}
             </span>
           </div>
@@ -257,7 +258,7 @@ export function AcceptInvite() {
         {error && <div className="error">{error}</div>}
 
         {user && (
-          <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
+          <p className="text-muted text-[12.5px]" style={{ margin: '0 0 12px' }}>
             {t('login.signedInAs', { email: user.email ?? '' })}
           </p>
         )}
@@ -268,7 +269,7 @@ export function AcceptInvite() {
 
         {/* Signing out lands back on this same URL with no session, which is
             the sign-in form with the invite already attached. */}
-        <button type="button" className={buttonVariants({ variant: 'ghost', block: true })} style={{ marginTop: 8 }} onClick={() => void signOut()}>
+        <button type="button" className={cn(buttonVariants({ variant: 'ghost', block: true }), 'mt-2')} onClick={() => void signOut()}>
           {t('login.useAnotherAccount')}
         </button>
       </div>

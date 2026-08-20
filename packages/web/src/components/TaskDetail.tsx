@@ -84,7 +84,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         wide
         onClose={onClose}
         title={
-          <span className="flex items-center gap-2" style={{ gap: 6 }}>
+          <span className="flex items-center gap-2 gap-1.5">
             <StateDot group={state?.group_key} color={state?.color} />
             <span className="mono text-muted">{task.identifier}</span>
             {project && <span className="text-muted truncate">· {project.name}</span>}
@@ -99,7 +99,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
         />
 
-        <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 14 }}>
+        <div className="flex items-center gap-2 flex-wrap gap-1.5 mb-3.5">
           <StatePicker task={task} />
           <TypePicker task={task} />
           <PriorityPicker task={task} />
@@ -139,12 +139,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </MenuButton>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10, marginBottom: 16 }}>
-          <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+        <div className="flex items-center gap-2 flex-wrap gap-2.5 mb-4">
+          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('task.due')}</span>
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
-          <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('task.repeats')}</span>
             <Select style={{ width: 130 }}
               value={task.recurrence ?? ''}
@@ -157,7 +157,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="monthly">{t('task.repeatsMonthly')}</option>
             </Select>
           </label>
-          <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+          <label className="flex items-center gap-2 gap-1.5 text-[12.5px]">
             <span className="text-muted">{t('task.estimate')}</span>
             <Input type="number" min={0} step={1} style={{ width: 84 }}
               value={task.estimate ?? ''}
@@ -171,11 +171,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <TaskFields task={task} />
 
         {/* description */}
-        <section style={{ marginBottom: 18 }}>
+        <section className="mb-[18px]">
           {editingDescription ? (
             <>
               <MarkdownEditor value={description} onChange={setDescription} attachTo={{ task_id: task.id }} autoFocus />
-              <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
+              <div className="flex items-center gap-2 mt-2">
                 <Button variant="primary" size="sm"
                   onClick={() => {
                     update('task', task.id, { description });
@@ -211,10 +211,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         </section>
 
         {/* sub-tasks */}
-        <section style={{ marginBottom: 18 }}>
-          <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>{t('task.subtasks')}</strong>
-            <span className="text-muted" style={{ fontSize: 12 }}>
+        <section className="mb-[18px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <strong className="text-[13.5px]">{t('task.subtasks')}</strong>
+            <span className="text-muted text-[12.5px]">
               {t('task.subtaskCount', {
                 done: subtasks.filter((child) => stateOf(child)?.group_key === 'completed').length,
                 total: subtasks.length,
@@ -231,8 +231,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             </div>
           ))}
           <form
-            className="flex items-center gap-2"
-            style={{ marginTop: 8 }}
+            className="flex items-center gap-2 mt-2"
+           
             onSubmit={(event) => {
               event.preventDefault();
               if (!newSubtask.trim()) return;
@@ -248,9 +248,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <Relations task={task} onOpen={onOpen} />
 
         {/* attachments */}
-        <section style={{ marginBottom: 18 }}>
-          <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: 13 }}>{t('task.files')}</strong>
+        <section className="mb-[18px]">
+          <div className="flex items-center gap-2 mb-1.5">
+            <strong className="text-[13.5px]">{t('task.files')}</strong>
             <span className="flex-1 min-w-0" />
             <Button variant="ghost" size="sm" onClick={() => fileInput.current?.click()}>
               <Icon name="attach" size={14} /> {t('task.attach')}
@@ -263,8 +263,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               }}
             />
           </div>
-          {attachments.length === 0 && <span className="text-muted" style={{ fontSize: 12.5 }}>{t('task.noFiles')}</span>}
-          <div className="flex flex-col gap-2" style={{ gap: 6 }}>
+          {attachments.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noFiles')}</span>}
+          <div className="flex flex-col gap-2 gap-1.5">
             {attachments.map((file) => (
               <a className="attachment" key={file.id} href={file.url} target="_blank" rel="noreferrer">
                 {file.mime?.startsWith('image/') ? <img src={file.url} alt="" /> : <Icon name="page" />}
@@ -277,7 +277,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         {/* discussion */}
         <section>
-          <div className="tabs" style={{ marginBottom: 10 }}>
+          <div className="tabs mb-2.5">
             <button className={tab === 'comments' ? 'active' : ''} onClick={() => setTab('comments')}>
               {t('task.comments')} {comments.length ? `(${comments.length})` : ''}
             </button>
@@ -287,10 +287,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           {tab === 'comments' ? (
             <Comments target={{ task_id: task.id }} />
           ) : (
-            <div className="flex flex-col gap-2" style={{ gap: 8 }}>
-              {activity.length === 0 && <span className="text-muted" style={{ fontSize: 12.5 }}>{t('task.noActivity')}</span>}
+            <div className="flex flex-col gap-2 gap-2">
+              {activity.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noActivity')}</span>}
               {activity.map((entry) => (
-                <div key={entry.id} className="flex items-center gap-2" style={{ fontSize: 12.5, gap: 7 }}>
+                <div key={entry.id} className="flex items-center gap-2 text-[12.5px]" style={{ gap: 7 }}>
                   <Avatar user={members.get(entry.actor_id)} size={18} />
                   <span className="soft flex-1 min-w-0">
                     <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
@@ -305,9 +305,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           )}
         </section>
 
-        <div className="text-muted" style={{ fontSize: 11.5, marginTop: 18 }}>
+        <div className="text-muted text-[11.5px] mt-[18px]">
           {t('task.createdUpdated', { created: shortDate(task.created_at), updated: relativeTime(task.updated_at) })}
-          {task.labels?.length ? <span className="flex items-center gap-2 flex-wrap" style={{ marginTop: 6 }}><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
+          {task.labels?.length ? <span className="flex items-center gap-2 flex-wrap mt-1.5"><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
         </div>
       </Sheet>
       {dialog}

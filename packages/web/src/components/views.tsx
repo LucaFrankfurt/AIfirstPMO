@@ -246,12 +246,12 @@ export function ViewControls({
         : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
 
   return (
-    <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6 }}>
+    <div className="flex items-center gap-2 flex-wrap gap-1.5">
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
           and the add button. Same choice, one button. */}
-      <div className="flex items-center gap-2 not-sm" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center gap-2 not-sm gap-0.5" style={{ border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
         {BUILT_LAYOUTS.map((layout) => (
           <button
             key={layout}
@@ -526,7 +526,7 @@ export function BoardView({
               </Fragment>
             ))}
             {overColumn === group.id && overIndex !== null && overIndex >= group.tasks.length && <div className="drop-line" />}
-            {!group.tasks.length && <span className="text-muted" style={{ fontSize: 12, padding: '6px 2px' }}>{t('common.empty')}</span>}
+            {!group.tasks.length && <span className="text-muted text-[12.5px]" style={{ padding: '6px 2px' }}>{t('common.empty')}</span>}
           </div>
         </div>
       ))}
@@ -571,7 +571,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
 
   return (
     <div style={{ padding: 12 }}>
-      <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+      <div className="flex items-center gap-2 mb-2.5">
         <Button variant="ghost" size="icon" onClick={() => shift(-1)} aria-label={t('view.previousMonth')}><Icon name="chevronLeft" /></Button>
         <strong>{month.toLocaleDateString(currentLocale(), { month: 'long', year: 'numeric' })}</strong>
         <Button variant="ghost" size="icon" onClick={() => shift(1)} aria-label={t('view.nextMonth')}><Icon name="chevronRight" /></Button>
@@ -596,7 +596,7 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
                   {task.title}
                 </span>
               ))}
-              {items.length > 4 && <span className="text-muted" style={{ fontSize: 10 }}>+{items.length - 4}</span>}
+              {items.length > 4 && <span className="text-muted text-[10px]">+{items.length - 4}</span>}
             </div>
           );
         })}
@@ -795,13 +795,13 @@ export function CycleProgress({ cycleId }: { cycleId: string }) {
   }).length;
   const cycle = byId('cycle', cycleId);
   return (
-    <div className="flex flex-col gap-2" style={{ gap: 6 }}>
-      <div className="flex items-center gap-2" style={{ fontSize: 12.5 }}>
+    <div className="flex flex-col gap-2 gap-1.5">
+      <div className="flex items-center gap-2 text-[12.5px]">
         <span className="flex-1 min-w-0 truncate">{cycle?.name}</span>
         <span className="text-muted">{done}/{tasks.length}</span>
       </div>
       <div className="progress"><i style={{ width: `${tasks.length ? (done / tasks.length) * 100 : 0}%` }} /></div>
-      {cycle?.end_date && <span className="text-muted" style={{ fontSize: 11.5 }}>{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
+      {cycle?.end_date && <span className="text-muted text-[11.5px]">{t('cycle.endsOn', { date: shortDate(cycle.end_date) })}</span>}
     </div>
   );
 }

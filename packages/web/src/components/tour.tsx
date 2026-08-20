@@ -119,7 +119,7 @@ export function WelcomeTour() {
       onClose={finish}
       footer={
         <>
-          <span className="text-muted flex-1 min-w-0" style={{ fontSize: 12 }}>
+          <span className="text-muted flex-1 min-w-0 text-[12.5px]">
             {t('tour.stepOf', { current: index + 1, total: steps.length })}
           </span>
           {index > 0 && <Button onClick={() => setIndex(index - 1)}>{t('tour.back')}</Button>}
@@ -161,7 +161,7 @@ export function WelcomeTour() {
 
           <div className="field">
             <label>{t('profile.appearance')}</label>
-            <div className="flex items-center gap-2" style={{ gap: 6 }}>
+            <div className="flex items-center gap-2 gap-1.5">
               {(['system', 'light', 'dark'] as const).map((option) => (
                 <button
                   key={option}
@@ -218,7 +218,7 @@ export function WelcomeTour() {
         <>
           <h3 className="tour-h">{t('tour.doneTitle')}</h3>
           <p className="soft">{t('tour.doneBody')}</p>
-          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
+          <div className="flex items-center gap-2 flex-wrap gap-2">
             <Button
               onClick={() => {
                 finish();
@@ -313,9 +313,9 @@ export function SetupChecklist() {
 
   return (
     <section className="rounded-[var(--radius)] border border-line bg-raised p-3.5 setup" aria-label={t('setup.title')}>
-      <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
-        <strong style={{ fontSize: 13.5 }}>{t('setup.title')}</strong>
-        <span className="text-muted" style={{ fontSize: 12 }}>{t('setup.progress', { done, total: items.length })}</span>
+      <div className="flex items-center gap-2 mb-2.5">
+        <strong className="text-[13.5px]">{t('setup.title')}</strong>
+        <span className="text-muted text-[12.5px]">{t('setup.progress', { done, total: items.length })}</span>
         <span className="flex-1 min-w-0" />
         <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} to="/guide"><Icon name="help" size={13} /> <span className="hide-sm">{t('nav.guide')}</span></Link>
         <Button variant="ghost" size="sm"
@@ -328,14 +328,14 @@ export function SetupChecklist() {
         </Button>
       </div>
 
-      <div className="progress" style={{ marginBottom: 12 }}>
+      <div className="progress mb-3">
         <i style={{ width: `${(done / items.length) * 100}%` }} />
       </div>
 
       {items.map((item) => (
         <div className={`setup-item${item.done ? ' done' : ''}`} key={item.id}>
           <span className="setup-tick">{item.done && <Icon name="check" size={12} />}</span>
-          <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
+          <span className="flex-1 min-w-0 min-w-0">
             <span className="setup-label">{t(item.label)}</span>
             <span className="setup-hint">{t(item.hint)}</span>
           </span>
