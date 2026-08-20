@@ -13,6 +13,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { Button } from '../components/ui/button';
 import { Icon, useToast } from './ui';
 
 interface Status {
@@ -105,21 +106,20 @@ export function TelegramConnection() {
   return (
     <>
       <h3 style={{ fontSize: 14, margin: '22px 0 8px' }}>{t('telegram.title')}</h3>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('telegram.hint')}</p>
+      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('telegram.hint')}</p>
 
       {status.linked ? (
         <>
-          <div className="card" style={{ marginBottom: 10 }}>
-            <div className="row" style={{ gap: 7 }}>
+          <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginBottom: 10 }}>
+            <div className="flex items-center gap-2" style={{ gap: 7 }}>
               <Icon name="check" size={15} />
-              <strong className="grow">{t('telegram.connectedTitle')}</strong>
+              <strong className="flex-1 min-w-0">{t('telegram.connectedTitle')}</strong>
             </div>
             <span className="soft" style={{ fontSize: 12.5 }}>{t('telegram.connectedBody')}</span>
           </div>
 
-          <div className="row wrap" style={{ gap: 6, marginBottom: 4 }}>
-            <button
-              className="btn"
+          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 4 }}>
+            <Button
               disabled={busy}
               onClick={async () => {
                 setBusy(true);
@@ -134,18 +134,18 @@ export function TelegramConnection() {
               }}
             >
               <Icon name="send" size={14} /> {t('telegram.sendTest')}
-            </button>
-            <button className="btn" disabled={busy} onClick={() => void disconnect()}>
+            </Button>
+            <Button disabled={busy} onClick={() => void disconnect()}>
               {t('telegram.disconnect')}
-            </button>
+            </Button>
           </div>
 
           <h3 style={{ fontSize: 14, margin: '18px 0 8px' }}>{t('telegram.about')}</h3>
-          <div className="col" style={{ gap: 6 }}>
+          <div className="flex flex-col gap-2" style={{ gap: 6 }}>
             {PREFERENCES.map((option) => (
               <button
                 key={option.value}
-                className="card"
+                className="rounded-[var(--radius)] border border-line bg-raised p-3.5"
                 style={{
                   textAlign: 'left',
                   borderColor: status.preference === option.value ? 'var(--accent)' : 'var(--line)',
@@ -153,22 +153,22 @@ export function TelegramConnection() {
                 }}
                 onClick={() => void choose(option.value)}
               >
-                <div className="row">
-                  <strong className="grow">{t(option.label)}</strong>
+                <div className="flex items-center gap-2">
+                  <strong className="flex-1 min-w-0">{t(option.label)}</strong>
                   {status.preference === option.value && <Icon name="check" size={15} />}
                 </div>
-                <span className="muted" style={{ fontSize: 12.5 }}>{t(option.hint)}</span>
+                <span className="text-muted" style={{ fontSize: 12.5 }}>{t(option.hint)}</span>
               </button>
             ))}
           </div>
         </>
       ) : (
         <>
-          <button className="btn primary" disabled={busy} onClick={() => void connect()}>
+          <Button variant="primary" disabled={busy} onClick={() => void connect()}>
             <Icon name="send" size={14} /> {busy ? t('action.working') : t('telegram.connect')}
-          </button>
+          </Button>
           {pending && (
-            <div className="card" style={{ marginTop: 10 }}>
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" style={{ marginTop: 10 }}>
               <span className="soft" style={{ fontSize: 12.5 }}>{t('telegram.waiting')}</span>
               {/* The popup may have been blocked, and on a desktop without
                   Telegram installed the link is the only way through. */}

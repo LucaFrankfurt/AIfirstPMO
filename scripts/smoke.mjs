@@ -87,7 +87,7 @@ await step('first-run tour greets a new device and can be dismissed', async () =
   await page.waitForSelector('.sheet:has(.tour-h)', { timeout: 6000 });
   const heading = await page.locator('.sheet header').innerText();
   if (!heading.includes(LABELS.welcome)) throw new Error(`tour title was "${heading}"`);
-  const steps = (await page.locator('.sheet footer .muted').innerText()).match(/\d+$/)?.[0];
+  const steps = (await page.locator('.sheet footer span').first().innerText()).match(/\d+$/)?.[0];
   console.log('     tour steps for an owner:', steps);
   if (steps !== '5') throw new Error(`expected 5 steps, got ${steps}`);
   await closeTour(page);
@@ -144,8 +144,8 @@ await step('task reached the server', async () => {
 
 await step('pages', async () => {
   await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
-  await page.waitForSelector('.card', { timeout: 5000 });
-  await page.click('.card:has-text("Team handbook")');
+  await page.waitForSelector('a[href^="/pages/"]', { timeout: 5000 });
+  await page.click('a:has-text("Team handbook")');
   await page.waitForSelector('.md h1', { timeout: 5000 });
 });
 await page.screenshot({ path: `${shots}/4-page.png` });
@@ -521,7 +521,7 @@ await step('templates and rules are set up and readable', async () => {
   if (!await page.locator('.auto-switch.on').count()) throw new Error('the seeded rule is off');
 
   // The log opens and says something, even before the rule has ever fired.
-  await page.locator(`.auto-row .btn:has-text("${LABELS.log}")`).first().click();
+  await page.locator(`.auto-row button:has-text("${LABELS.log}")`).first().click();
   await page.waitForSelector('.sheet');
   const log = await page.locator('.sheet .body').innerText();
   if (/auto\.[a-z]|tpl\.[a-z]/i.test(log)) throw new Error(`untranslated key in the log: ${log.slice(0, 60)}`);
@@ -529,7 +529,7 @@ await step('templates and rules are set up and readable', async () => {
   await page.waitForTimeout(250);
 
   // The rule editor opens with its recipient rows.
-  await page.locator('.auto-row').last().locator('.btn').last().click();
+  await page.locator('.auto-row').last().locator('button').last().click();
   await page.waitForSelector('#rule-name', { timeout: 5000 });
   const recipients = await page.locator('.auto-recipient').count();
   if (!recipients) throw new Error('the rule editor shows no recipients');

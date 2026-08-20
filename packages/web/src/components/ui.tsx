@@ -12,13 +12,17 @@ import {
   useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import type { VariantProps } from 'class-variance-authority';
 import { Link } from 'react-router-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from '../lib/format';
 import { priorityKey, useT } from '../lib/i18n';
 import { guideHref, type GuideTarget } from '../lib/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import { Button } from '../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from './ui/menu';
+import { buttonVariants } from './ui/button';
+import { cn } from '../lib/cn';
 
 /* ------------------------------------------------------------------- icons */
 
@@ -215,10 +219,10 @@ export function Lightbox({ src, alt, onClose }: { src: string; alt?: string; onC
   return createPortal(
     <div className="lightbox" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
       <img src={src} alt={alt ?? ''} />
-      <button className="btn ghost icon lightbox-close" onClick={onClose} aria-label={t('action.close')}>
+      <Button variant="ghost" size="icon" className="lightbox-close" onClick={onClose} aria-label={t('action.close')}>
         <Icon name="close" />
-      </button>
-      <a className="btn sm lightbox-open" href={src} target="_blank" rel="noreferrer">{t('common.openOriginal')}</a>
+      </Button>
+      <a className={cn(buttonVariants({ size: 'sm' }), 'lightbox-open')} href={src} target="_blank" rel="noreferrer">{t('common.openOriginal')}</a>
     </div>,
     document.body,
   );
@@ -272,11 +276,14 @@ export interface MenuItem {
  * somebody is trying to type a name.
  */
 export function MenuButton({
-  items, children, className, title, label, search, disabled, empty,
+  items, children, className, variant = 'ghost', size = 'default', title, label, search, disabled, empty,
 }: {
   items: MenuItem[];
   children: ReactNode;
+  /** Extra classes. The look of the trigger comes from `variant` and `size`. */
   className?: string;
+  variant?: VariantProps<typeof buttonVariants>['variant'];
+  size?: VariantProps<typeof buttonVariants>['size'];
   title?: string;
   /**
    * Accessible name. An icon-only menu button otherwise announces as "button"
@@ -299,7 +306,13 @@ export function MenuButton({
   return (
     <Menu onOpenChange={(open) => { if (!open) setQuery(''); }}>
       <MenuTrigger asChild>
-        <button className={className ?? 'btn ghost'} title={title} aria-label={label ?? title} disabled={disabled} type="button">
+        <button
+          className={cn(buttonVariants({ variant, size }), className)}
+          title={title}
+          aria-label={label ?? title}
+          disabled={disabled}
+          type="button"
+        >
           {children}
         </button>
       </MenuTrigger>
@@ -329,7 +342,7 @@ export function MenuButton({
               {header && <MenuLabel>{header}</MenuLabel>}
               <MenuItem danger={item.danger} onSelect={() => item.onSelect?.()}>
                 {item.icon}
-                <span className="grow truncate">{item.label}</span>
+                <span className="flex-1 min-w-0 truncate">{item.label}</span>
                 {item.hint && <span className="text-[11.5px] text-muted">{item.hint}</span>}
               </MenuItem>
             </Fragment>
@@ -427,7 +440,7 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
       {typeof children === 'object' && children !== null && 'props' in (children as any)
         ? <div>{children}</div>
         : children}
-      {hint && <span className="hint">{hint}</span>}
+      {hint && <span className="text-[12px] text-muted">{hint}</span>}
     </div>
   );
 }
@@ -461,8 +474,8 @@ export function useConfirm() {
       }}
       footer={
         <>
-          <button className="btn" onClick={() => { request.resolve(false); setRequest(null); }}>{t('action.cancel')}</button>
-          <button className="btn danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel ?? t('action.delete')}</button>
+          <Button onClick={() => { request.resolve(false); setRequest(null); }}>{t('action.cancel')}</Button>
+          <Button variant="danger" onClick={() => { request.resolve(true); setRequest(null); }}>{request.confirmLabel ?? t('action.delete')}</Button>
         </>
       }
     >

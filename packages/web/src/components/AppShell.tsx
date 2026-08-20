@@ -7,6 +7,7 @@ import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
 import { CommandPalette } from './CommandPalette';
+import { Button } from '../components/ui/button';
 import { useUnreadMessages } from '../routes/chat';
 
 /* ------------------------------------------------------------ sync status */
@@ -62,7 +63,7 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
 const Item = ({ to, icon, children, count }: { to: string; icon: string; children: React.ReactNode; count?: number } & Partial<NavLinkProps>) => (
   <NavLink to={to} className="nav-item" end={to === '/'}>
     <Icon name={icon} size={16} />
-    <span className="grow truncate">{children}</span>
+    <span className="flex-1 min-w-0 truncate">{children}</span>
     {count ? <span className="count">{count}</span> : null}
   </NavLink>
 );
@@ -159,16 +160,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="sidebar">
         <MenuButton items={workspaceItems} className="nav-item" title={t('nav.switchWorkspace')}>
           <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
-          <span className="grow truncate" style={{ fontWeight: 600 }}>
+          <span className="flex-1 min-w-0 truncate" style={{ fontWeight: 600 }}>
             {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
           </span>
           <Icon name="chevronDown" size={14} />
         </MenuButton>
 
         {canWrite && (
-          <button className="btn primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
+          <Button variant="primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
             <Icon name="plus" size={15} /> {t('nav.newTask')}
-          </button>
+          </Button>
         )}
 
         <Item to="/" icon="home" count={myOpen}>{t('nav.myWork')}</Item>
@@ -181,9 +182,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <div className="nav-section">
           {t('nav.projects')}
-          <button className="btn ghost sm icon" onClick={() => navigate('/projects/new')} title={t('nav.newProject')}>
+          <Button variant="ghost" size="iconSm" onClick={() => navigate('/projects/new')} title={t('nav.newProject')}>
             <Icon name="plus" size={13} />
-          </button>
+          </Button>
         </div>
         {nested.map(({ project, depth }) => (
           <NavLink
@@ -191,18 +192,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             style={depth ? { paddingInlineStart: 10 + depth * 13 } : undefined}
           >
             <span style={{ width: 16, textAlign: 'center' }}>{project.icon ?? '•'}</span>
-            <span className="grow truncate">{project.name}</span>
+            <span className="flex-1 min-w-0 truncate">{project.name}</span>
           </NavLink>
         ))}
         {projects.length > 1 && (
           <NavLink to="/portfolio" className="nav-item">
             <Icon name="target" size={15} />
-            <span className="grow truncate">{t('nav.portfolio')}</span>
+            <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
           </NavLink>
         )}
         <NavLink to="/planner" className="nav-item">
           <Icon name="users" size={15} />
-          <span className="grow truncate">{t('nav.planner')}</span>
+          <span className="flex-1 min-w-0 truncate">{t('nav.planner')}</span>
         </NavLink>
         {!projects.length && (
           <button className="nav-item" onClick={() => navigate('/projects/new')}>
@@ -210,11 +211,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </button>
         )}
 
-        <div className="grow" />
+        <div className="flex-1 min-w-0" />
         <div className="divider" />
         <MenuButton items={accountItems} className="nav-item">
           <Avatar user={user ?? undefined} size={22} />
-          <span className="grow truncate">{user?.name ?? t('nav.account')}</span>
+          <span className="flex-1 min-w-0 truncate">{user?.name ?? t('nav.account')}</span>
           <Icon name="dots" size={14} />
         </MenuButton>
       </aside>
@@ -252,7 +253,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 export function Header({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
   return (
     <header className="header">
-      <h1 className="grow truncate">{title}</h1>
+      <h1 className="flex-1 min-w-0 truncate">{title}</h1>
       {children}
       <SyncPill />
     </header>

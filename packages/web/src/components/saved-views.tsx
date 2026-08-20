@@ -23,6 +23,9 @@ import { useCanWrite, useMe, useSession } from '../session';
 import { Icon, MenuButton, Sheet, useConfirm, useToast, type IconName, type MenuItem } from './ui';
 import type { GroupBy } from './task-parts';
 import { ShareSheet, type ShareTarget } from './share';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
 import { DEFAULT_VIEW, type ViewConfig } from './views';
 
 /** The stored row, read back as the shape the screens work in. */
@@ -243,7 +246,7 @@ export function SavedViews({
 
   return (
     <>
-      <MenuButton className="btn sm" items={items} search={views.length > 6}>
+      <MenuButton variant="secondary" size="sm" items={items} search={views.length > 6}>
         <Icon name={active?.icon ?? 'bookmark'} size={14} />
         <span className={`truncate saved-view-name${active ? '' : ' hide-sm'}`} style={{ maxWidth: 140 }}>
           {active ? active.name : t('view.saved')}
@@ -288,10 +291,10 @@ function ViewNameSheet({
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button className="btn primary" disabled={!trimmed || duplicate} onClick={done}>
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="primary" disabled={!trimmed || duplicate} onClick={done}>
             {t('action.save')}
-          </button>
+          </Button>
         </>
       }
     >
@@ -306,14 +309,14 @@ function ViewNameSheet({
           onChange={(event) => setName(event.target.value)}
           onKeyDown={(event) => { if (event.key === 'Enter' && trimmed && !duplicate) done(); }}
         />
-        {duplicate && <span className="hint warn">{t('view.nameTaken')}</span>}
+        {duplicate && <span className="text-[12px] text-danger">{t('view.nameTaken')}</span>}
       </div>
 
       {/* A dozen shapes, not a picker: the icon is here to make one row in a
           menu findable at a glance, and more choices make that harder. */}
       <div className="field">
         <label>{t('view.icon')}</label>
-        <div className="row wrap icon-choices" role="radiogroup" aria-label={t('view.icon')}>
+        <div className="flex items-center gap-2 flex-wrap icon-choices" role="radiogroup" aria-label={t('view.icon')}>
           {VIEW_ICONS.map((choice) => (
             <button
               key={choice}
@@ -321,7 +324,7 @@ function ViewNameSheet({
               role="radio"
               aria-checked={icon === choice}
               aria-label={choice}
-              className={`btn ghost sm${icon === choice ? ' active' : ''}`}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), icon === choice && 'bg-active text-fg')}
               style={icon === choice ? { background: 'var(--bg-active)' } : undefined}
               onClick={() => setIcon(icon === choice ? null : choice)}
             >
@@ -329,14 +332,14 @@ function ViewNameSheet({
             </button>
           ))}
         </div>
-        <span className="hint">{t('view.iconHint')}</span>
+        <span className="text-[12px] text-muted">{t('view.iconHint')}</span>
       </div>
 
       <label className="check-row">
         <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
         <span>
           <span>{t('view.shareWithTeam')}</span>
-          <span className="hint">{shared ? t('view.sharedHint') : t('view.privateHint')}</span>
+          <span className="text-[12px] text-muted">{shared ? t('view.sharedHint') : t('view.privateHint')}</span>
         </span>
       </label>
     </Sheet>

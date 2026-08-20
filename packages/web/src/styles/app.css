@@ -352,35 +352,6 @@ p { margin: 0 0 0.75em; }
 
 /* ----------------------------------------------------------------- pieces */
 
-.btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 32px;
-  padding: 0 11px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--line-strong);
-  background: var(--bg-raised);
-  color: var(--fg);
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 120ms ease, border-color 120ms ease;
-}
-.btn:hover { background: var(--bg-hover); }
-.btn:active { background: var(--bg-active); }
-.btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn.primary:hover { filter: brightness(1.08); }
-.btn.ghost { border-color: transparent; background: transparent; }
-.btn.ghost:hover { background: var(--bg-hover); }
-.btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 35%, var(--line)); }
-.btn.icon { width: 32px; padding: 0; }
-.btn.sm { height: 27px; font-size: 12.5px; padding: 0 8px; }
-.btn.lg { height: 40px; font-size: 14px; padding: 0 16px; }
-.btn.block { width: 100%; }
 
 .input, .textarea, .select {
   width: 100%;
@@ -400,16 +371,13 @@ p { margin: 0 0 0.75em; }
 
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
 .field label { font-size: 12.5px; font-weight: 550; color: var(--fg-soft); }
-.field .hint { font-size: 12px; color: var(--fg-muted); }
-.hint.warn { color: var(--danger); }
 /* A hint is muted text, and a link inside one has to stay a link: without this
    the way out of an empty screen reads as the last three words of a sentence. */
-.hint a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
 /* A checkbox with a label and a line of explanation under it. */
 .check-row { display: flex; gap: 9px; align-items: flex-start; padding: 7px 0; font-size: 13px; cursor: pointer; }
 .check-row input { margin-top: 2px; flex: none; }
-.check-row .hint { display: block; font-size: 12px; color: var(--fg-muted); margin-top: 1px; }
+.check-row .text-\[12px\] { display: block; margin-top: 1px; }
 
 /* Picking a shape for a saved view. Square buttons so the row reads as a set of
    choices rather than as a sentence of icons. */
@@ -547,13 +515,13 @@ p { margin: 0 0 0.75em; }
 }
 .import-drop:hover { background: var(--bg-hover); }
 .import-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
-.import-drop .hint { max-width: 46ch; }
+.import-drop p { max-width: 46ch; }
 
 /* Both lists can be long; they scroll inside the sheet rather than pushing the
    footer — the buttons are the point of the screen. */
 .import-map, .import-problems { max-height: 320px; overflow-y: auto; }
-.import-map > .row { padding: 5px 0; border-bottom: 1px solid var(--line); }
-.import-problems > .row { padding: 4px 0; border-top: 1px solid var(--line); }
+.import-map > div { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.import-problems > div { padding: 4px 0; border-top: 1px solid var(--line); }
 
 /* ---------------------------------------------------------------- charts */
 
@@ -927,14 +895,9 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .divider-text { display: flex; align-items: center; gap: 10px; margin: 14px 0; color: var(--fg-muted); font-size: 12px; }
 .divider-text::before, .divider-text::after { content: ''; flex: 1; height: 1px; background: var(--line); }
 
-.muted { color: var(--fg-muted); }
 .soft { color: var(--fg-soft); }
 .mono { font-family: var(--mono); font-size: 12px; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row { display: flex; align-items: center; gap: 8px; }
-.col { display: flex; flex-direction: column; gap: 8px; }
-.wrap { flex-wrap: wrap; }
-.grow { flex: 1; min-width: 0; }
 
 .page {
   max-width: 1180px;
@@ -957,12 +920,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .empty .emoji { font-size: 26px; }
 
-.card {
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--bg-raised);
-  padding: 14px;
-}
 
 .grid { display: grid; gap: 12px; grid-template-columns: 1fr; }
 @media (min-width: 700px) { .grid.two { grid-template-columns: 1fr 1fr; } }

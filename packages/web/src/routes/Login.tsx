@@ -3,6 +3,8 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useSession } from '../session';
 import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../lib/i18n';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
 import { Icon } from '../components/ui';
 
 export function Login() {
@@ -90,11 +92,11 @@ export function Login() {
   return (
     <div className="auth">
       <form className="box" onSubmit={submit}>
-        <div className="row" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
           <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
           <div>
             <h1>{first ? t('login.setupTitle') : mode === 'login' ? t('login.welcomeBack') : t('login.createAccount')}</h1>
-            <span className="muted" style={{ fontSize: 12.5 }}>
+            <span className="text-muted" style={{ fontSize: 12.5 }}>
               {invite
                 ? t('login.invitedTo', { workspace: invite.workspace_name })
                 : first ? t('login.firstAccountHint') : t('login.tagline')}
@@ -106,7 +108,7 @@ export function Login() {
 
         {sso && (
           <>
-            <a className={`btn block lg ${sso.only ? 'primary' : ''}`} href={ssoHref}>
+            <a className={buttonVariants({ variant: sso.only ? 'primary' : 'secondary', size: 'lg', block: true })} href={ssoHref}>
               <Icon name="shield" size={15} /> {t('login.ssoContinue', { provider: sso.label })}
             </a>
             {!sso.only && (
@@ -116,7 +118,7 @@ export function Login() {
         )}
 
         {sso?.only && (
-          <p className="muted" style={{ fontSize: 12.5, margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
+          <p className="text-muted" style={{ fontSize: 12.5, margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
         )}
 
         {!sso?.only && (<>
@@ -143,7 +145,7 @@ export function Login() {
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })}
           />
-          {mode === 'register' && <span className="hint">{t('login.passwordHint')}</span>}
+          {mode === 'register' && <span className="text-[12px] text-muted">{t('login.passwordHint')}</span>}
         </div>
 
         {mode === 'register' && !code && (
@@ -156,13 +158,13 @@ export function Login() {
           </div>
         )}
 
-        <button className="btn primary block lg" type="submit" disabled={busy} style={{ marginTop: 6 }}>
+        <Button variant="primary" size="lg" block type="submit" disabled={busy} style={{ marginTop: 6 }}>
           {busy ? t('action.working') : mode === 'login' ? t('login.signIn') : first ? t('login.createInstance') : t('login.createAccountSubmit')}
-        </button>
+        </Button>
 
         {!first && (config?.allowSignup || mode === 'register') && (
           <button
-            type="button" className="btn ghost block" style={{ marginTop: 8 }}
+            type="button" className={buttonVariants({ variant: 'ghost', block: true })} style={{ marginTop: 8 }}
             onClick={() => {
               setMode(mode === 'login' ? 'register' : 'login');
               setError('');
@@ -173,8 +175,8 @@ export function Login() {
         )}
         </>)}
 
-        <div className="row muted" style={{ justifyContent: 'center', marginTop: 18, fontSize: 12, gap: 10 }}>
-          <span className="row" style={{ gap: 5 }}><Icon name="bolt" size={13} /> {t('login.footer')}</span>
+        <div className="flex items-center gap-2 text-muted" style={{ justifyContent: 'center', marginTop: 18, fontSize: 12, gap: 10 }}>
+          <span className="flex items-center gap-2" style={{ gap: 5 }}><Icon name="bolt" size={13} /> {t('login.footer')}</span>
           <span aria-hidden="true">·</span>
           <select
             className="input"
@@ -242,11 +244,11 @@ export function AcceptInvite() {
   return (
     <div className="auth">
       <div className="box">
-        <div className="row" style={{ marginBottom: 16 }}>
+        <div className="flex items-center gap-2" style={{ marginBottom: 16 }}>
           <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
           <div>
             <h1>{t('login.joinTitle')}</h1>
-            <span className="muted" style={{ fontSize: 12.5 }}>
+            <span className="text-muted" style={{ fontSize: 12.5 }}>
               {invite ? t('login.invitedTo', { workspace: invite.workspace_name }) : t('login.tagline')}
             </span>
           </div>
@@ -255,18 +257,18 @@ export function AcceptInvite() {
         {error && <div className="error">{error}</div>}
 
         {user && (
-          <p className="muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
+          <p className="text-muted" style={{ fontSize: 12.5, margin: '0 0 12px' }}>
             {t('login.signedInAs', { email: user.email ?? '' })}
           </p>
         )}
 
-        <button className="btn primary block lg" type="button" disabled={busy || !invite} onClick={() => void join()}>
+        <Button variant="primary" size="lg" block type="button" disabled={busy || !invite} onClick={() => void join()}>
           {busy ? t('action.working') : t('login.joinSubmit')}
-        </button>
+        </Button>
 
         {/* Signing out lands back on this same URL with no session, which is
             the sign-in form with the invite already attached. */}
-        <button type="button" className="btn ghost block" style={{ marginTop: 8 }} onClick={() => void signOut()}>
+        <button type="button" className={buttonVariants({ variant: 'ghost', block: true })} style={{ marginTop: 8 }} onClick={() => void signOut()}>
           {t('login.useAnotherAccount')}
         </button>
       </div>

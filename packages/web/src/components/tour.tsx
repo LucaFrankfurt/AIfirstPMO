@@ -22,6 +22,9 @@ import { pull } from '../lib/sync';
 import { useMembers, useSession } from '../session';
 import { THEME_KEY, useTheme } from './AppShell';
 import { OverviewDiagram } from './diagrams';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
 import { Icon, Sheet, useToast } from './ui';
 
 const TOUR_KEY = 'kolibri.tour';
@@ -115,14 +118,14 @@ export function WelcomeTour() {
       onClose={finish}
       footer={
         <>
-          <span className="muted grow" style={{ fontSize: 12 }}>
+          <span className="text-muted flex-1 min-w-0" style={{ fontSize: 12 }}>
             {t('tour.stepOf', { current: index + 1, total: steps.length })}
           </span>
-          {index > 0 && <button className="btn" onClick={() => setIndex(index - 1)}>{t('tour.back')}</button>}
-          {!last && <button className="btn" onClick={finish}>{t('tour.skip')}</button>}
-          <button className="btn primary" onClick={() => (last ? finish() : setIndex(index + 1))}>
+          {index > 0 && <Button onClick={() => setIndex(index - 1)}>{t('tour.back')}</Button>}
+          {!last && <Button onClick={finish}>{t('tour.skip')}</Button>}
+          <Button variant="primary" onClick={() => (last ? finish() : setIndex(index + 1))}>
             {last ? t('tour.finish') : t('tour.next')}
-          </button>
+          </Button>
         </>
       }
     >
@@ -158,11 +161,11 @@ export function WelcomeTour() {
 
           <div className="field">
             <label>{t('profile.appearance')}</label>
-            <div className="row" style={{ gap: 6 }}>
+            <div className="flex items-center gap-2" style={{ gap: 6 }}>
               {(['system', 'light', 'dark'] as const).map((option) => (
                 <button
                   key={option}
-                  className={`btn sm${theme === option ? ' primary' : ''}`}
+                  className={cn(buttonVariants({ size: 'sm' }), theme === option && 'bg-accent text-accent-fg border-accent')}
                   onClick={() => setTheme(option)}
                 >
                   <Icon name={option === 'dark' ? 'moon' : option === 'light' ? 'sun' : 'settings'} size={14} />
@@ -181,7 +184,7 @@ export function WelcomeTour() {
           {created ? (
             <p className="tour-ok"><Icon name="check" size={15} /> {t('tour.projectDone', { name: created })}</p>
           ) : (
-            <div className="row">
+            <div className="flex items-center gap-2">
               <input
                 className="input"
                 autoFocus
@@ -190,9 +193,9 @@ export function WelcomeTour() {
                 onChange={(event) => setProjectName(event.target.value)}
                 onKeyDown={(event) => event.key === 'Enter' && void createProject()}
               />
-              <button className="btn primary" disabled={busy || !projectName.trim()} onClick={() => void createProject()}>
+              <Button variant="primary" disabled={busy || !projectName.trim()} onClick={() => void createProject()}>
                 {busy ? t('project.creating') : t('project.createSubmit')}
-              </button>
+              </Button>
             </div>
           )}
         </>
@@ -205,9 +208,9 @@ export function WelcomeTour() {
           {invited ? (
             <p className="tour-ok"><Icon name="check" size={15} /> {t('tour.inviteReady')}</p>
           ) : (
-            <button className="btn" disabled={busy} onClick={() => void createInvite()}>
+            <Button disabled={busy} onClick={() => void createInvite()}>
               <Icon name="link" size={14} /> {t('members.createInvite')}
-            </button>
+            </Button>
           )}
         </>
       )}
@@ -216,16 +219,15 @@ export function WelcomeTour() {
         <>
           <h3 className="tour-h">{t('tour.doneTitle')}</h3>
           <p className="soft">{t('tour.doneBody')}</p>
-          <div className="row wrap" style={{ gap: 8 }}>
-            <button
-              className="btn"
+          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
+            <Button
               onClick={() => {
                 finish();
                 navigate('/guide');
               }}
             >
               <Icon name="help" size={14} /> {t('tour.openGuide')}
-            </button>
+            </Button>
           </div>
         </>
       )}
@@ -311,21 +313,20 @@ export function SetupChecklist() {
   if (hidden || done === items.length) return null;
 
   return (
-    <section className="card setup" aria-label={t('setup.title')}>
-      <div className="row" style={{ marginBottom: 10 }}>
+    <section className="rounded-[var(--radius)] border border-line bg-raised p-3.5 setup" aria-label={t('setup.title')}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
         <strong style={{ fontSize: 13.5 }}>{t('setup.title')}</strong>
-        <span className="muted" style={{ fontSize: 12 }}>{t('setup.progress', { done, total: items.length })}</span>
-        <span className="grow" />
-        <Link className="btn ghost sm" to="/guide"><Icon name="help" size={13} /> <span className="hide-sm">{t('nav.guide')}</span></Link>
-        <button
-          className="btn ghost sm"
+        <span className="text-muted" style={{ fontSize: 12 }}>{t('setup.progress', { done, total: items.length })}</span>
+        <span className="flex-1 min-w-0" />
+        <Link className={buttonVariants({ variant: 'ghost', size: 'sm' })} to="/guide"><Icon name="help" size={13} /> <span className="hide-sm">{t('nav.guide')}</span></Link>
+        <Button variant="ghost" size="sm"
           onClick={() => {
             localStorage.setItem(CHECKLIST_KEY, 'hidden');
             setHidden(true);
           }}
         >
           {t('setup.hide')}
-        </button>
+        </Button>
       </div>
 
       <div className="progress" style={{ marginBottom: 12 }}>
@@ -335,11 +336,11 @@ export function SetupChecklist() {
       {items.map((item) => (
         <div className={`setup-item${item.done ? ' done' : ''}`} key={item.id}>
           <span className="setup-tick">{item.done && <Icon name="check" size={12} />}</span>
-          <span className="grow" style={{ minWidth: 0 }}>
+          <span className="flex-1 min-w-0" style={{ minWidth: 0 }}>
             <span className="setup-label">{t(item.label)}</span>
             <span className="setup-hint">{t(item.hint)}</span>
           </span>
-          {!item.done && <button className="btn sm" onClick={item.run}>{t(item.cta)}</button>}
+          {!item.done && <Button size="sm" onClick={item.run}>{t(item.cta)}</Button>}
         </div>
       ))}
     </section>

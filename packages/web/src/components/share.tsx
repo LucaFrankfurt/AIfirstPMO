@@ -13,6 +13,7 @@ import { list, useQuery } from '../lib/store';
 import { create, remove, update } from '../lib/mutations';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
+import { Button } from '../components/ui/button';
 import { Icon, Sheet, useConfirm, useToast } from './ui';
 
 export const shareUrl = (share: Share): string =>
@@ -75,42 +76,40 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
 
   return (
     <Sheet title={t(target.kind === 'intake' ? 'intake.linkTitle' : 'share.title')} onClose={onClose}>
-      <p className="hint" style={{ marginBottom: 12 }}>{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
+      <p className="text-[12px] text-muted" style={{ marginBottom: 12 }}>{t(target.kind === 'intake' ? 'intake.linkHint' : 'share.hint')}</p>
 
       {shares.length === 0 && (
-        <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>{t('share.none')}</p>
+        <p className="text-muted" style={{ fontSize: 13, marginBottom: 12 }}>{t('share.none')}</p>
       )}
 
       {shares.map((share) => (
         <div className="stack-card" key={share.id}>
-          <div className="row" style={{ gap: 8 }}>
+          <div className="flex items-center gap-2" style={{ gap: 8 }}>
             <input
-              className="input grow" readOnly value={shareUrl(share) || t('share.minting')}
+              className="input flex-1 min-w-0" readOnly value={shareUrl(share) || t('share.minting')}
               aria-label={t('share.link')}
               onFocus={(event) => event.currentTarget.select()}
             />
-            <button
-              className="btn sm" disabled={!share.token}
+            <Button size="sm" disabled={!share.token}
               onClick={() => {
                 void navigator.clipboard?.writeText(shareUrl(share));
                 toast(t('common.copied'));
               }}
             >
               <Icon name="copy" size={13} /> {t('action.copy')}
-            </button>
-            <button
-              className="btn ghost sm icon" aria-label={t('share.revoke')} title={t('share.revoke')}
+            </Button>
+            <Button variant="ghost" size="iconSm" aria-label={t('share.revoke')} title={t('share.revoke')}
               onClick={async () => {
                 if (await confirm(t('share.revokeConfirm'))) remove('share', share.id);
               }}
             >
               <Icon name="trash" size={13} />
-            </button>
+            </Button>
           </div>
 
-          <div className="row wrap" style={{ gap: 12, marginTop: 8, fontSize: 12.5 }}>
-            <label className="row" style={{ gap: 6 }}>
-              <span className="muted">{t('share.expires')}</span>
+          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 12, marginTop: 8, fontSize: 12.5 }}>
+            <label className="flex items-center gap-2" style={{ gap: 6 }}>
+              <span className="text-muted">{t('share.expires')}</span>
               <input
                 className="input" type="date" style={{ width: 150 }}
                 value={share.expires_at ? new Date(share.expires_at).toISOString().slice(0, 10) : ''}
@@ -120,7 +119,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
               />
             </label>
             {target.kind === 'tasks' && (
-              <label className="row" style={{ gap: 6 }}>
+              <label className="flex items-center gap-2" style={{ gap: 6 }}>
                 <input
                   type="checkbox" checked={!!share.include_done}
                   onChange={(event) => update('share', share.id, { include_done: event.target.checked ? 1 : 0 })}
@@ -131,7 +130,7 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
             {/* Off until somebody says otherwise: an unauthenticated write is a
                 thing you opt into, not a default that arrives with a link. */}
             {target.kind === 'page' && (
-              <label className="row" style={{ gap: 6 }} title={t('share.allowCommentsHint')}>
+              <label className="flex items-center gap-2" style={{ gap: 6 }} title={t('share.allowCommentsHint')}>
                 <input
                   type="checkbox" checked={!!share.allow_comments}
                   onChange={(event) => update('share', share.id, { allow_comments: event.target.checked ? 1 : 0 })}
@@ -139,15 +138,15 @@ export function ShareSheet({ target, onClose }: { target: ShareTarget; onClose: 
                 {t('share.allowComments')}
               </label>
             )}
-            <span className="muted">{t('share.opened', { count: share.views ?? 0 })}</span>
+            <span className="text-muted">{t('share.opened', { count: share.views ?? 0 })}</span>
           </div>
         </div>
       ))}
 
       {canShare && (
-        <button className="btn primary block" onClick={makeLink} disabled={busy} style={{ marginTop: 10 }}>
+        <Button variant="primary" block onClick={makeLink} disabled={busy} style={{ marginTop: 10 }}>
           <Icon name="link" size={14} /> {busy ? t('share.making') : t('share.make')}
-        </button>
+        </Button>
       )}
       {dialog}
     </Sheet>

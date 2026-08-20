@@ -13,6 +13,7 @@ import { byId, list, useQuery } from '../lib/store';
 import { useMembers } from '../session';
 import type { Selection } from './selection';
 import { useLabels, useStates } from './task-parts';
+import { Button } from '../components/ui/button';
 import { Avatar, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuItem } from './ui';
 
 /**
@@ -107,32 +108,32 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
 
         {soleProject ? (
           <>
-            <MenuButton className="btn sm" items={stateItems} search={states.length > 8}>
+            <MenuButton variant="secondary" size="sm" items={stateItems} search={states.length > 8}>
               <StateDot /> <span className="hide-sm">{t('task.state')}</span>
             </MenuButton>
-            <MenuButton className="btn sm" items={labelItems} search={labels.length > 8}>
+            <MenuButton variant="secondary" size="sm" items={labelItems} search={labels.length > 8}>
               <Icon name="target" size={14} /> <span className="hide-sm">{t('task.labels')}</span>
             </MenuButton>
             {cycles.length > 0 && (
-              <MenuButton className="btn sm" items={cycleItems}>
+              <MenuButton variant="secondary" size="sm" items={cycleItems}>
                 <Icon name="cycle" size={14} /> <span className="hide-sm">{t('task.cycle')}</span>
               </MenuButton>
             )}
           </>
         ) : (
           // Saying why is better than an action that silently does nothing.
-          <span className="muted hide-sm" style={{ fontSize: 12 }}>{t('select.mixedProjects')}</span>
+          <span className="text-muted hide-sm" style={{ fontSize: 12 }}>{t('select.mixedProjects')}</span>
         )}
 
-        <MenuButton className="btn sm" items={priorityItems}>
+        <MenuButton variant="secondary" size="sm" items={priorityItems}>
           <Icon name="bolt" size={14} /> <span className="hide-sm">{t('task.priority')}</span>
         </MenuButton>
-        <MenuButton className="btn sm" items={assigneeItems} search={members.length > 8}>
+        <MenuButton variant="secondary" size="sm" items={assigneeItems} search={members.length > 8}>
           <Icon name="users" size={14} /> <span className="hide-sm">{t('task.assignees')}</span>
         </MenuButton>
 
         <MenuButton
-          className="btn ghost sm icon"
+          variant="ghost" size="iconSm"
           title={t('common.more')}
           label={t('common.moreActions')}
           items={[
@@ -164,7 +165,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
           <Icon name="dots" size={15} />
         </MenuButton>
 
-        <button className="btn ghost sm" onClick={selection.clear}>{t('select.clear')}</button>
+        <Button variant="ghost" size="sm" onClick={selection.clear}>{t('select.clear')}</Button>
       </div>
       {dialog}
     </>

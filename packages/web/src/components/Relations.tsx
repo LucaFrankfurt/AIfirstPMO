@@ -3,6 +3,7 @@ import { list, useQuery } from '../lib/store';
 import { create, remove, update } from '../lib/mutations';
 import { relationKey, useT } from '../lib/i18n';
 import { Icon, MenuButton, StateDot, type MenuItem } from './ui';
+import { Button } from '../components/ui/button';
 import { stateOf } from './task-parts';
 
 /** The other side of a relation, so an incoming row reads correctly. */
@@ -54,29 +55,29 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
 
   return (
     <section style={{ marginBottom: 18 }}>
-      <div className="row" style={{ marginBottom: 6 }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
         <strong style={{ fontSize: 13 }}>{t('relation.title')}</strong>
-        <span className="grow" />
-        <MenuButton className="btn ghost sm" items={addItems} search empty={t('relation.noCandidates')}>
+        <span className="flex-1 min-w-0" />
+        <MenuButton variant="ghost" size="sm" items={addItems} search empty={t('relation.noCandidates')}>
           <Icon name="link" size={14} /> {t('relation.link')}
         </MenuButton>
       </div>
 
-      {!rows.length && <span className="muted" style={{ fontSize: 12.5 }}>{t('relation.none')}</span>}
+      {!rows.length && <span className="text-muted" style={{ fontSize: 12.5 }}>{t('relation.none')}</span>}
 
       {rows.map((row) => {
         const state = stateOf(row.other);
         return (
-          <div key={row.id} className="row" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
+          <div key={row.id} className="flex items-center gap-2" style={{ padding: '5px 0', borderTop: '1px solid var(--line)' }}>
             <span className="chip">{t(relationKey(row.kind))}</span>
-            <button className="btn ghost sm grow" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(row.other)}>
+            <Button variant="ghost" size="sm" className="flex-1 min-w-0" style={{ justifyContent: 'flex-start' }} onClick={() => onOpen(row.other)}>
               <StateDot group={state?.group_key} color={state?.color} />
-              <span className="mono muted">{row.other.identifier}</span>
+              <span className="mono text-muted">{row.other.identifier}</span>
               <span className="truncate">{row.other.title}</span>
-            </button>
+            </Button>
             {row.ownsLag && (
-              <label className="row" style={{ gap: 4, fontSize: 12 }} title={t('relation.lagHint')}>
-                <span className="muted hide-sm">{t('relation.lag')}</span>
+              <label className="flex items-center gap-2" style={{ gap: 4, fontSize: 12 }} title={t('relation.lagHint')}>
+                <span className="text-muted hide-sm">{t('relation.lag')}</span>
                 <input
                   className="input" type="number" min={0} max={365} style={{ width: 62 }}
                   aria-label={t('relation.lag')}
@@ -90,9 +91,9 @@ export function Relations({ task, onOpen }: { task: Task; onOpen: (task: Task) =
                 />
               </label>
             )}
-            <button className="btn ghost sm icon" title={t('relation.remove')} onClick={() => remove('relation', row.id)}>
+            <Button variant="ghost" size="iconSm" title={t('relation.remove')} onClick={() => remove('relation', row.id)}>
               <Icon name="close" size={13} />
-            </button>
+            </Button>
           </div>
         );
       })}

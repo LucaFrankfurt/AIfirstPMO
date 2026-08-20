@@ -184,18 +184,18 @@ export function Planner() {
 
   return (
     <div className="page planner">
-      <div className="row wrap" style={{ gap: 10, marginBottom: 10 }}>
+      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 10, marginBottom: 10 }}>
         <h2 style={{ fontSize: 16, margin: 0 }}>{t('planner.title')}</h2>
-        <span className="grow" />
-        <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-          <span className="muted">{t('planner.limit')}</span>
+        <span className="flex-1 min-w-0" />
+        <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+          <span className="text-muted">{t('planner.limit')}</span>
           <input
             className="input" type="number" min={1} max={20} style={{ width: 62 }}
             value={limit} onChange={(event) => setLimit(Math.max(1, Number(event.target.value) || 1))}
           />
         </label>
-        <label className="row" style={{ gap: 6, fontSize: 12.5 }}>
-          <span className="muted">{t('planner.weeks')}</span>
+        <label className="flex items-center gap-2" style={{ gap: 6, fontSize: 12.5 }}>
+          <span className="text-muted">{t('planner.weeks')}</span>
           <select className="select" style={{ width: 90 }} value={weeks}
             onChange={(event) => setWeeks(Number(event.target.value))}>
             {[4, 8, 13, 26].map((count) => <option key={count} value={count}>{count}</option>)}
@@ -203,7 +203,7 @@ export function Planner() {
         </label>
       </div>
 
-      <p className="hint" style={{ marginBottom: 10 }}>{t('planner.hint')}</p>
+      <p className="text-[12px] text-muted" style={{ marginBottom: 10 }}>{t('planner.hint')}</p>
 
       <div className="planner-scroll" ref={board}>
         <div className="planner-names">
@@ -212,7 +212,7 @@ export function Planner() {
             <div className="planner-name" key={lane.id} style={{ height: lane.height }}>
               {lane.user ? <Avatar user={lane.user} size={20} /> : <Icon name="inbox" size={15} />}
               <span className="truncate">{lane.name}</span>
-              <span className="muted" style={{ fontSize: 11 }}>{lane.tasks.length}</span>
+              <span className="text-muted" style={{ fontSize: 11 }}>{lane.tasks.length}</span>
             </div>
           ))}
         </div>
@@ -285,7 +285,7 @@ export function Planner() {
       </div>
 
       {!inWindow.length && (
-        <p className="muted" style={{ fontSize: 13, marginTop: 12 }}>{t('planner.nothingDated')}</p>
+        <p className="text-muted" style={{ fontSize: 13, marginTop: 12 }}>{t('planner.nothingDated')}</p>
       )}
     </div>
   );

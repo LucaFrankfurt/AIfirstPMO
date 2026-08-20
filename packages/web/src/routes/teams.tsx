@@ -6,6 +6,7 @@ import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../compon
 import { create, remove, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
 import { useMembers, useSession } from '../session';
+import { Button } from '../components/ui/button';
 import { useT } from '../lib/i18n';
 
 export function Teams() {
@@ -25,7 +26,7 @@ export function Teams() {
       <Header title={t('team.title')} />
       <div className="page">
         <form
-          className="row" style={{ marginBottom: 16 }}
+          className="flex items-center gap-2" style={{ marginBottom: 16 }}
           onSubmit={(event) => {
             event.preventDefault();
             if (!name.trim()) return;
@@ -34,7 +35,7 @@ export function Teams() {
           }}
         >
           <input className="input" placeholder={t('team.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
-          <button className="btn" type="submit"><Icon name="plus" size={14} /> {t('action.add')}</button>
+          <Button type="submit"><Icon name="plus" size={14} /> {t('action.add')}</Button>
         </form>
 
         {!teams.length && (
@@ -52,16 +53,16 @@ export function Teams() {
             const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
 
             return (
-              <div className="card" key={team.id}>
-                <div className="row" style={{ marginBottom: 8 }}>
+              <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>
+                <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
                   <span style={{ fontSize: 18 }}>{team.icon ?? '👥'}</span>
                   <input
-                    className="input grow" style={{ border: 'none', background: 'none', fontWeight: 600 }}
+                    className="input flex-1 min-w-0" style={{ border: 'none', background: 'none', fontWeight: 600 }}
                     value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
                   />
                   <span className="chip mono">{team.key}</span>
                   <MenuButton
-                    className="btn ghost sm icon"
+                    variant="ghost" size="iconSm"
                     label={t('common.moreActions')}
                     search
                     items={[
@@ -91,23 +92,23 @@ export function Teams() {
                   </MenuButton>
                 </div>
 
-                <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>
+                <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 10 }}>
                   {people.map((person) => (
                     <span className="chip" key={person.id}>
                       <Avatar user={person} size={16} /> {person.name}
                     </span>
                   ))}
-                  {!people.length && <span className="muted" style={{ fontSize: 12.5 }}>{t('team.noMembers')}</span>}
+                  {!people.length && <span className="text-muted" style={{ fontSize: 12.5 }}>{t('team.noMembers')}</span>}
                 </div>
 
                 <Progress value={done} total={tasks.length} />
-                <div className="row muted" style={{ fontSize: 12, marginTop: 6 }}>
+                <div className="flex items-center gap-2 text-muted" style={{ fontSize: 12, marginTop: 6 }}>
                   <span>{t('team.projectCount', { count: teamProjects.length })}</span>
-                  <span className="grow" />
+                  <span className="flex-1 min-w-0" />
                   <span>{t('team.tasksDone', { done, total: tasks.length })}</span>
                 </div>
 
-                <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
+                <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginTop: 10 }}>
                   {teamProjects.map((project) => (
                     <button className="chip button" key={project.id} onClick={() => navigate(`/projects/${project.id}`)}>
                       {project.icon} {project.name}

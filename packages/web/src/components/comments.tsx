@@ -14,6 +14,7 @@ import { list, useQuery } from '../lib/store';
 import { useMe, useMemberMap } from '../session';
 import { anchorLabel, findAnchor, type Anchor, type Comment } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from './Markdown';
+import { Button } from '../components/ui/button';
 import { Avatar, Icon, MenuButton, useConfirm } from './ui';
 
 /** Exactly one of the two, which is also how the row is stored. */
@@ -46,7 +47,7 @@ function Reactions({ comment }: { comment: Comment }) {
   };
 
   return (
-    <div className="row wrap reactions" style={{ gap: 4 }}>
+    <div className="flex items-center gap-2 flex-wrap reactions" style={{ gap: 4 }}>
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -116,7 +117,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
 
   return (
     <>
-      {comments.length === 0 && empty && <p className="muted" style={{ fontSize: 12.5 }}>{empty}</p>}
+      {comments.length === 0 && empty && <p className="text-muted" style={{ fontSize: 12.5 }}>{empty}</p>}
       {comments.map((entry) => {
         const author = members.get(entry.author_id);
         // A note left through a public link has no account behind it. The name
@@ -127,15 +128,14 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           <div className="comment" key={entry.id}>
             <Avatar user={guest ? undefined : author} size={26} />
             <div className="body">
-              <div className="row" style={{ gap: 6 }}>
+              <div className="flex items-center gap-2" style={{ gap: 6 }}>
                 <span className="who">
                   {guest ? (entry.guest_name || t('comment.anonymous')) : (author?.name ?? t('common.someone'))}
                 </span>
                 {guest && <span className="chip">{t('comment.fromOutside')}</span>}
                 <span className="when">{relativeTime(entry.created_at)}</span>
                 {entry.author_id === me && (
-                  <button
-                    className="btn ghost sm"
+                  <Button variant="ghost" size="sm"
                     style={{ marginInlineStart: 'auto' }}
                     aria-label={t('task.deleteCommentLabel')}
                     onClick={async () => {
@@ -143,7 +143,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                     }}
                   >
                     <Icon name="trash" size={13} />
-                  </button>
+                  </Button>
                 )}
               </div>
               {entry.anchor?.quote && (
@@ -166,12 +166,12 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
       })}
       <div style={{ marginTop: 10 }} ref={editor}>
         {anchor && (
-          <div className="row quoted-draft">
+          <div className="flex items-center gap-2 quoted-draft">
             <Icon name="link" size={12} />
-            <span className="grow truncate">{anchorLabel(anchor)}</span>
-            <button className="btn ghost sm icon" aria-label={t('annotate.clear')} onClick={() => onAnchorDone?.()}>
+            <span className="flex-1 min-w-0 truncate">{anchorLabel(anchor)}</span>
+            <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => onAnchorDone?.()}>
               <Icon name="close" size={12} />
-            </button>
+            </Button>
           </div>
         )}
         <MarkdownEditor
@@ -182,10 +182,10 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           attachTo={target}
           onSubmit={send}
         />
-        <div className="row" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
-          <button className="btn primary sm" disabled={!draft.trim()} onClick={send}>
+        <div className="flex items-center gap-2" style={{ marginTop: 8, justifyContent: 'flex-end' }}>
+          <Button variant="primary" size="sm" disabled={!draft.trim()} onClick={send}>
             <Icon name="send" size={14} /> {t('task.comment')}
-          </button>
+          </Button>
         </div>
       </div>
       {dialog}

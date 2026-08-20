@@ -19,6 +19,7 @@ import { priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate } from '../lib/format';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
+import { Button } from '../components/ui/button';
 import { Icon, Sheet, useToast } from './ui';
 
 const FIELD_KEY: Record<ImportField, TranslationKey> = {
@@ -104,15 +105,15 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
           {preview ? (
-            <button className="btn primary" disabled={busy || !preview.created} onClick={() => run(false)}>
+            <Button variant="primary" disabled={busy || !preview.created} onClick={() => run(false)}>
               {t('import.confirm', { count: preview.created })}
-            </button>
+            </Button>
           ) : (
-            <button className="btn primary" disabled={busy || !table?.rows.length || !hasTitle} onClick={() => run(true)}>
+            <Button variant="primary" disabled={busy || !table?.rows.length || !hasTitle} onClick={() => run(true)}>
               {t('import.preview')}
-            </button>
+            </Button>
           )}
         </>
       }
@@ -129,29 +130,29 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
           />
           <Icon name="attach" size={20} />
           <strong>{t('import.chooseFile')}</strong>
-          <span className="hint">{t('import.chooseHint', { max: MAX_ROWS })}</span>
+          <span className="text-[12px] text-muted">{t('import.chooseHint', { max: MAX_ROWS })}</span>
         </label>
       ) : (
         <>
-          <div className="row" style={{ gap: 8, marginBottom: 12, fontSize: 12.5 }}>
+          <div className="flex items-center gap-2" style={{ gap: 8, marginBottom: 12, fontSize: 12.5 }}>
             <Icon name="page" size={14} />
             <strong className="truncate">{fileName}</strong>
-            <span className="muted">
+            <span className="text-muted">
               {t('import.readRows', { count: table?.rows.length ?? 0 })}
               {table && DELIMITER_NAME[table.delimiter] ? ` · ${t(DELIMITER_NAME[table.delimiter])}` : ''}
             </span>
-            <span className="grow" />
-            <button className="btn ghost sm" onClick={() => { setCsv(''); setPreview(null); }}>{t('import.otherFile')}</button>
+            <span className="flex-1 min-w-0" />
+            <Button variant="ghost" size="sm" onClick={() => { setCsv(''); setPreview(null); }}>{t('import.otherFile')}</Button>
           </div>
 
           {!preview ? (
             <>
-              <p className="hint" style={{ marginBottom: 10 }}>{t('import.mapHint')}</p>
+              <p className="text-[12px] text-muted" style={{ marginBottom: 10 }}>{t('import.mapHint')}</p>
               <div className="import-map">
                 {(table?.columns ?? []).map((column) => (
-                  <div className="row" key={column} style={{ gap: 8 }}>
-                    <span className="truncate grow" title={column}>{column}</span>
-                    <span className="muted truncate" style={{ flex: 1, fontSize: 12 }}>
+                  <div className="flex items-center gap-2" key={column} style={{ gap: 8 }}>
+                    <span className="truncate flex-1 min-w-0" title={column}>{column}</span>
+                    <span className="text-muted truncate" style={{ flex: 1, fontSize: 12 }}>
                       {table?.rows[0]?.[column] || '—'}
                     </span>
                     <select
@@ -169,11 +170,11 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                   </div>
                 ))}
               </div>
-              {!hasTitle && <p className="hint warn" style={{ marginTop: 10 }}>{t('import.needTitle')}</p>}
+              {!hasTitle && <p className="text-[12px] text-danger" style={{ marginTop: 10 }}>{t('import.needTitle')}</p>}
             </>
           ) : (
             <>
-              <div className="row wrap" style={{ gap: 8, marginBottom: 12 }}>
+              <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8, marginBottom: 12 }}>
                 <span className="chip">{t('import.willCreate', { count: preview.created })}</span>
                 {preview.skipped > 0 && <span className="chip">{t('import.willSkip', { count: preview.skipped })}</span>}
                 {preview.problems.length > 0 && (
@@ -219,27 +220,27 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                   <h4 style={{ fontSize: 13, marginBottom: 6 }}>{t('import.problems')}</h4>
                   <div className="import-problems">
                     {preview.problems.slice(0, 40).map((problem, index) => (
-                      <div className="row" key={index} style={{ gap: 8, fontSize: 12.5 }}>
-                        <span className="muted" style={{ minWidth: 54 }}>
+                      <div className="flex items-center gap-2" key={index} style={{ gap: 8, fontSize: 12.5 }}>
+                        <span className="text-muted" style={{ minWidth: 54 }}>
                           {problem.row ? t('import.rowNumber', { row: problem.row }) : ''}
                         </span>
-                        <span className="grow">{problem.message}</span>
+                        <span className="flex-1 min-w-0">{problem.message}</span>
                       </div>
                     ))}
                     {preview.problems.length > 40 && (
-                      <p className="muted" style={{ fontSize: 12 }}>{t('import.andMore', { count: preview.problems.length - 40 })}</p>
+                      <p className="text-muted" style={{ fontSize: 12 }}>{t('import.andMore', { count: preview.problems.length - 40 })}</p>
                     )}
                   </div>
                 </>
               )}
 
-              <p className="hint" style={{ marginTop: 12 }}>{t('import.confirmHint')}</p>
+              <p className="text-[12px] text-muted" style={{ marginTop: 12 }}>{t('import.confirmHint')}</p>
             </>
           )}
         </>
       )}
 
-      {failed && <p className="hint warn" style={{ marginTop: 10 }}>{failed}</p>}
+      {failed && <p className="text-[12px] text-danger" style={{ marginTop: 10 }}>{failed}</p>}
     </Sheet>
   );
 }
@@ -278,8 +279,8 @@ export function ForeignImportSheet({
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button className="btn primary" onClick={onImport}>{t('foreign.import')}</button>
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="primary" onClick={onImport}>{t('foreign.import')}</Button>
         </>
       }
     >
@@ -294,7 +295,7 @@ export function ForeignImportSheet({
           </ul>
         </>
       )}
-      <p className="hint" style={{ marginTop: 16 }}>{t('foreign.caveat')}</p>
+      <p className="text-[12px] text-muted" style={{ marginTop: 16 }}>{t('foreign.caveat')}</p>
     </Sheet>
   );
 }

@@ -34,6 +34,9 @@ import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
 /* --------------------------------------------------------------- the pieces */
@@ -121,12 +124,12 @@ export function Chat() {
   return (
     <div className="page chat">
       <aside className="chat-list">
-        <div className="row" style={{ marginBottom: 8 }}>
-          <h1 className="grow" style={{ fontSize: 17, margin: 0 }}>{t('chat.title')}</h1>
+        <div className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+          <h1 className="flex-1 min-w-0" style={{ fontSize: 17, margin: 0 }}>{t('chat.title')}</h1>
           {canWrite && (
-            <button className="btn sm" onClick={() => setCreating(true)}>
+            <Button size="sm" onClick={() => setCreating(true)}>
               <Icon name="plus" size={13} /> {t('chat.new')}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -134,7 +137,7 @@ export function Chat() {
             while there is somebody below. Alone, the hint further down says the
             true thing instead, and two hints where one is wrong is worse. */}
         {conversations.length === 0 && (others.length > 0 || !canWrite) && (
-          <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.noneYet')}</p>
+          <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.noneYet')}</p>
         )}
 
         {conversations.map((channel) => (
@@ -156,7 +159,7 @@ export function Chat() {
             workspace rather than joining the first. It is no longer a dead end:
             a direct conversation does not need a workspace in common. */}
         {canWrite && others.length === 0 && (
-          <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.aloneHint')}</p>
+          <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
           <button
@@ -165,13 +168,13 @@ export function Chat() {
             onClick={() => navigate(`/chat/${openDirect(me, member.id)}`)}
           >
             <Avatar user={member} size={20} />
-            <span className="grow truncate">{member.name}</span>
+            <span className="flex-1 min-w-0 truncate">{member.name}</span>
           </button>
         ))}
         {canWrite && (
           <button className="nav-item chat-find" onClick={() => setFinding(true)}>
             <Icon name="search" size={16} />
-            <span className="grow truncate">{t('chat.findPerson')}</span>
+            <span className="flex-1 min-w-0 truncate">{t('chat.findPerson')}</span>
           </button>
         )}
       </aside>
@@ -224,7 +227,7 @@ function ConversationRow({ channel, me, active, title, onOpen }: {
   return (
     <button className={`nav-item${active ? ' active' : ''}`} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
-      <span className="grow truncate">{title}</span>
+      <span className="flex-1 min-w-0 truncate">{title}</span>
       {unread > 0 && <span className="count">{unread}</span>}
     </button>
   );
@@ -278,28 +281,28 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
 
   return (
     <>
-      <header className="chat-header row">
+      <header className="chat-header flex items-center gap-2">
         {/* On a phone the conversation is the whole screen, so this is the only
             way back to the list. Hidden where the list is already beside it. */}
-        <button className="btn ghost sm icon chat-back" aria-label={t('chat.backToList')} onClick={onBack}>
+        <Button variant="ghost" size="iconSm" className="chat-back" aria-label={t('chat.backToList')} onClick={onBack}>
           <Icon name="chevronLeft" size={16} />
-        </button>
+        </Button>
         <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={16} />
-        <div className="grow">
+        <div className="flex-1 min-w-0">
           <strong>{title}</strong>
-          {channel.topic && <div className="muted" style={{ fontSize: 12 }}>{channel.topic}</div>}
+          {channel.topic && <div className="text-muted" style={{ fontSize: 12 }}>{channel.topic}</div>}
         </div>
         <NotifyMenu channel={channel} me={me} />
         {channel.kind !== 'direct' && canWrite && (
-          <button className="btn ghost sm icon" title={t('chat.manage')} onClick={() => setManaging(true)}>
+          <Button variant="ghost" size="iconSm" title={t('chat.manage')} onClick={() => setManaging(true)}>
             <Icon name="users" size={14} />
-          </button>
+          </Button>
         )}
       </header>
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <div className="chat-stream">
-        {messages.length === 0 && <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.emptyStream')}</p>}
+        {messages.length === 0 && <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.emptyStream')}</p>}
         {messages.map((message, index) => {
           const author = members.get(message.author_id ?? '');
           // Consecutive lines from the same person within five minutes are one
@@ -317,7 +320,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               {grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />}
               <div className="body">
                 {!grouped && (
-                  <div className="row" style={{ gap: 6 }}>
+                  <div className="flex items-center gap-2" style={{ gap: 6 }}>
                     <span className="who">{author?.name ?? t('common.someone')}</span>
                     <span className="when">{relativeTime(message.created_at)}</span>
                     {message.edited_at && <span className="when">· {t('chat.edited')}</span>}
@@ -347,23 +350,22 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               </div>
               <div className="chat-actions">
                 {canWrite && <AddReaction message={message} me={me} />}
-                <button className="btn ghost sm icon" title={t('chat.reply')} onClick={() => setReplyTo(message.id)}>
+                <Button variant="ghost" size="iconSm" title={t('chat.reply')} onClick={() => setReplyTo(message.id)}>
                   <Icon name="link" size={12} />
-                </button>
+                </Button>
                 {message.author_id === me && (
                   <>
-                    <button className="btn ghost sm icon" title={t('action.edit')} onClick={() => setEditing(message.id)}>
+                    <Button variant="ghost" size="iconSm" title={t('action.edit')} onClick={() => setEditing(message.id)}>
                       <Icon name="bolt" size={12} />
-                    </button>
-                    <button
-                      className="btn ghost sm icon"
+                    </Button>
+                    <Button variant="ghost" size="iconSm"
                       title={t('action.delete')}
                       onClick={async () => {
                         if (await confirm(t('chat.deleteMessage'))) remove('message', message.id);
                       }}
                     >
                       <Icon name="trash" size={12} />
-                    </button>
+                    </Button>
                   </>
                 )}
               </div>
@@ -376,16 +378,16 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       {canWrite ? (
       <div className="chat-composer">
         {replyTo && (
-          <div className="row quoted-draft">
+          <div className="flex items-center gap-2 quoted-draft">
             <Icon name="link" size={12} />
-            <span className="grow truncate">
+            <span className="flex-1 min-w-0 truncate">
               {t('chat.replyingTo', {
                 name: members.get(messages.find((m) => m.id === replyTo)?.author_id ?? '')?.name ?? t('common.someone'),
               })}
             </span>
-            <button className="btn ghost sm icon" aria-label={t('annotate.clear')} onClick={() => setReplyTo(null)}>
+            <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => setReplyTo(null)}>
               <Icon name="close" size={12} />
-            </button>
+            </Button>
           </div>
         )}
         <MarkdownEditor
@@ -395,15 +397,15 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           placeholder={t('chat.placeholder', { where: title })}
           onSubmit={send}
         />
-        <button className="btn primary" disabled={!draft.trim()} onClick={send}>
+        <Button variant="primary" disabled={!draft.trim()} onClick={send}>
           <Icon name="send" size={14} /> {t('chat.send')}
-        </button>
+        </Button>
       </div>
       ) : (
         /* A guest can read an open channel and cannot write anywhere. Saying so
            here beats a composer that takes a paragraph and then refuses it. */
         <div className="chat-composer">
-          <p className="hint" style={{ fontSize: 12.5, margin: 0 }}>{t('chat.readOnly')}</p>
+          <p className="text-[12px] text-muted" style={{ fontSize: 12.5, margin: 0 }}>{t('chat.readOnly')}</p>
         </div>
       )}
       {dialog}
@@ -415,11 +417,11 @@ function EditBox({ initial, onDone }: { initial: string; onDone: (body: string) 
   const t = useT();
   const [value, setValue] = useState(initial);
   return (
-    <div className="col" style={{ gap: 6 }}>
+    <div className="flex flex-col gap-2" style={{ gap: 6 }}>
       <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} />
-      <div className="row" style={{ gap: 6 }}>
-        <button className="btn sm primary" onClick={() => onDone(value)}>{t('action.save')}</button>
-        <button className="btn sm" onClick={() => onDone(initial)}>{t('action.cancel')}</button>
+      <div className="flex items-center gap-2" style={{ gap: 6 }}>
+        <Button variant="primary" size="sm" onClick={() => onDone(value)}>{t('action.save')}</Button>
+        <Button size="sm" onClick={() => onDone(initial)}>{t('action.cancel')}</Button>
       </div>
     </div>
   );
@@ -439,7 +441,7 @@ function NotifyMenu({ channel, me }: { channel: Channel; me: string }) {
 
   return (
     <MenuButton
-      className="btn ghost sm"
+      variant="ghost" size="sm"
       label={t('chat.notify')}
       items={(['all', 'mentions', 'none'] as const).map((option) => ({
         id: option,
@@ -475,7 +477,7 @@ function Reactions({ message, me, canWrite }: { message: Message; me: string; ca
   if (!used.length) return null;
 
   return (
-    <div className="row wrap reactions" style={{ gap: 4 }}>
+    <div className="flex items-center gap-2 flex-wrap reactions" style={{ gap: 4 }}>
       {used.map(([emoji, people]) => (
         <button
           key={emoji}
@@ -495,7 +497,7 @@ function AddReaction({ message, me }: { message: Message; me: string }) {
   const t = useT();
   return (
     <MenuButton
-      className="btn ghost sm icon"
+      variant="ghost" size="iconSm"
       label={t('task.react')}
       items={REACTIONS.map((emoji) => ({
         id: emoji,
@@ -562,13 +564,12 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
         <>
           <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.members', { count: inside.length })}</h3>
           {inside.map((id) => (
-            <div className="row" key={id} style={{ gap: 8, padding: '4px 0' }}>
+            <div className="flex items-center gap-2" key={id} style={{ gap: 8, padding: '4px 0' }}>
               <Avatar user={members.get(id)} size={22} />
-              <span className="grow truncate">{members.get(id)?.name ?? id}</span>
+              <span className="flex-1 min-w-0 truncate">{members.get(id)?.name ?? id}</span>
               {channel.created_by === id && <span className="chip">{t('chat.opened')}</span>}
               {(mayManage || id === me) && inside.length > 1 && (
-                <button
-                  className="btn ghost sm"
+                <Button variant="ghost" size="sm"
                   onClick={async () => {
                     if (id === me && !(await confirm(t('chat.confirmLeave')))) return;
                     setMembers(inside.filter((other) => other !== id));
@@ -576,7 +577,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
                   }}
                 >
                   {id === me ? t('chat.leave') : t('chat.remove')}
-                </button>
+                </Button>
               )}
             </div>
           ))}
@@ -594,7 +595,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
                   }}
                 >
                   <Avatar user={member} size={22} />
-                  <span className="grow truncate">{member.name}</span>
+                  <span className="flex-1 min-w-0 truncate">{member.name}</span>
                   <Icon name="plus" size={13} />
                 </button>
               ))}
@@ -602,12 +603,12 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           )}
 
           <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.whoCanAdd')}</h3>
-          <p className="hint" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.whoCanAddHint')}</p>
-          <div className="row wrap" style={{ gap: 6 }}>
+          <p className="text-[12px] text-muted" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.whoCanAddHint')}</p>
+          <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6 }}>
             {(['members', 'admins'] as const).map((policy) => (
               <button
                 key={policy}
-                className={`btn sm${(channel.invite_policy ?? 'members') === policy ? ' active' : ''}`}
+                className={cn(buttonVariants({ size: 'sm' }), (channel.invite_policy ?? 'members') === policy && 'bg-active text-fg')}
                 style={(channel.invite_policy ?? 'members') === policy ? { background: 'var(--bg-active)' } : undefined}
                 aria-pressed={(channel.invite_policy ?? 'members') === policy}
                 disabled={!mayRetitle}
@@ -619,14 +620,13 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           </div>
         </>
       ) : (
-        <p className="hint" style={{ fontSize: 12.5 }}>{t('chat.openChannelHint')}</p>
+        <p className="text-[12px] text-muted" style={{ fontSize: 12.5 }}>{t('chat.openChannelHint')}</p>
       )}
 
       <h3 style={{ fontSize: 14, margin: '18px 0 6px' }}>{t('chat.closing')}</h3>
-      <p className="hint" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.closingHint')}</p>
-      <div className="row wrap" style={{ gap: 6 }}>
-        <button
-          className="btn sm"
+      <p className="text-[12px] text-muted" style={{ marginBottom: 8, fontSize: 12 }}>{t('chat.closingHint')}</p>
+      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6 }}>
+        <Button size="sm"
           onClick={() => {
             update('channel', channel.id, { archived_at: Date.now() });
             toast(t('chat.archived'));
@@ -635,10 +635,9 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
           }}
         >
           <Icon name="archive" size={13} /> {t('chat.archive')}
-        </button>
+        </Button>
         {mayRetitle && (
-          <button
-            className="btn sm danger"
+          <Button variant="danger" size="sm"
             onClick={async () => {
               if (!(await confirm(t('chat.confirmDelete')))) return;
               remove('channel', channel.id);
@@ -647,7 +646,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
             }}
           >
             <Icon name="trash" size={13} /> {t('action.delete')}
-          </button>
+          </Button>
         )}
       </div>
       {dialog}
@@ -672,9 +671,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button
-            className="btn primary"
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="primary"
             disabled={!tidy || taken}
             onClick={() => {
               const id = create('channel', { name: tidy, topic: topic.trim() || null, is_private: isPrivate ? 1 : 0 });
@@ -684,7 +682,7 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
             }}
           >
             {t('chat.create')}
-          </button>
+          </Button>
         </>
       }
     >
@@ -701,8 +699,8 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         </div>
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
-        {tidy && tidy !== name && <p className="hint" style={{ fontSize: 12 }}>{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
-        {taken && <p className="hint" style={{ fontSize: 12, color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
+        {tidy && tidy !== name && <p className="text-[12px] text-muted" style={{ fontSize: 12 }}>{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
+        {taken && <p className="text-[12px] text-muted" style={{ fontSize: 12, color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
         <div className="field">
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
           <input
@@ -717,7 +715,7 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
           <input type="checkbox" checked={isPrivate} onChange={(event) => setPrivate(event.target.checked)} />
           <span>
             <strong>{t('chat.private')}</strong>
-            <span className="hint">{t('chat.privateHint')}</span>
+            <span className="text-[12px] text-muted">{t('chat.privateHint')}</span>
           </span>
         </label>
     </Sheet>
@@ -775,8 +773,8 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
           onChange={(event) => setQuery(event.target.value)}
         />
       </div>
-      {error && <p className="hint warn">{error}</p>}
-      {!error && people.length === 0 && <p className="hint">{t('chat.findNobody')}</p>}
+      {error && <p className="text-[12px] text-danger">{error}</p>}
+      {!error && people.length === 0 && <p className="text-[12px] text-muted">{t('chat.findNobody')}</p>}
       {people.map((person) => (
         <button
           key={person.id}
@@ -787,8 +785,8 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
           }}
         >
           <Avatar user={person} size={22} />
-          <span className="grow truncate">{person.name}</span>
-          <span className="muted truncate" style={{ fontSize: 11.5 }}>{person.email}</span>
+          <span className="flex-1 min-w-0 truncate">{person.name}</span>
+          <span className="text-muted truncate" style={{ fontSize: 11.5 }}>{person.email}</span>
         </button>
       ))}
     </Sheet>

@@ -18,6 +18,7 @@
  */
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { Button } from '../components/ui/button';
 import { Icon } from './ui';
 
 /* --------------------------------------------------------------- motion */
@@ -127,21 +128,20 @@ export function Stage({ captions, children, minHeight = 232, interval = 3000, la
               />
             ))}
           </div>
-          <span className="grow" />
-          <button className="btn ghost sm icon" onClick={() => go(-1)} aria-label={t('guide.previousStep')}>
+          <span className="flex-1 min-w-0" />
+          <Button variant="ghost" size="iconSm" onClick={() => go(-1)} aria-label={t('guide.previousStep')}>
             <Icon name="chevronLeft" size={14} />
-          </button>
-          <button
-            className="btn ghost sm icon"
+          </Button>
+          <Button variant="ghost" size="iconSm"
             onClick={() => setPlaying((current) => !current)}
             aria-label={t(playing ? 'guide.pause' : 'guide.play')}
             title={t(playing ? 'guide.pause' : 'guide.play')}
           >
             <Icon name={playing ? 'pause' : 'play'} size={14} />
-          </button>
-          <button className="btn ghost sm icon" onClick={() => go(1)} aria-label={t('guide.nextStep')}>
+          </Button>
+          <Button variant="ghost" size="iconSm" onClick={() => go(1)} aria-label={t('guide.nextStep')}>
             <Icon name="chevronRight" size={14} />
-          </button>
+          </Button>
         </div>
       </figcaption>
     </figure>

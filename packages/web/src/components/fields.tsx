@@ -15,6 +15,8 @@ import { byId, list, useQuery } from '../lib/store';
 import { create, remove, update } from '../lib/mutations';
 import { useCanWrite, useMemberMap } from '../session';
 import { Icon, useConfirm } from './ui';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
 import { DateField } from './task-parts';
 
 export const kindKey = (kind: string): TranslationKey => `field.kind.${kind}` as TranslationKey;
@@ -80,11 +82,11 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
       );
     case 'url':
       return (
-        <div className="row" style={{ gap: 6 }}>
-          <input id={id} className="input grow" type="url" placeholder="https://" value={String(value ?? '')}
+        <div className="flex items-center gap-2" style={{ gap: 6 }}>
+          <input id={id} className="input flex-1 min-w-0" type="url" placeholder="https://" value={String(value ?? '')}
             onChange={(event) => onChange(event.target.value)} />
           {!!value && (
-            <a className="btn ghost sm icon" href={String(value)} target="_blank" rel="noreferrer noopener"
+            <a className={buttonVariants({ variant: 'ghost', size: 'iconSm' })} href={String(value)} target="_blank" rel="noreferrer noopener"
               aria-label={t('field.open')} title={t('field.open')}>
               <Icon name="link" size={13} />
             </a>
@@ -101,7 +103,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
     case 'multi_select': {
       const chosen = (value as string[]) ?? [];
       return (
-        <div className="row wrap" style={{ gap: 5 }}>
+        <div className="flex items-center gap-2 flex-wrap" style={{ gap: 5 }}>
           {field.options.map((option) => (
             <button
               key={option} type="button"
@@ -112,7 +114,7 @@ function FieldInput({ field, value, onChange }: { field: Field; value: unknown; 
               {option}
             </button>
           ))}
-          {!field.options.length && <span className="muted" style={{ fontSize: 12 }}>{t('field.noOptions')}</span>}
+          {!field.options.length && <span className="text-muted" style={{ fontSize: 12 }}>{t('field.noOptions')}</span>}
         </div>
       );
     }
@@ -153,12 +155,12 @@ export function TaskFields({ task }: { task: Task }) {
               <label htmlFor={`cf-${field.id}`}>
                 {field.name}
                 {/* A prompt, not a gate: the task saves either way. */}
-                {!!field.required && empty && <span className="muted" style={{ marginInlineStart: 5 }}>{t('field.wanted')}</span>}
+                {!!field.required && empty && <span className="text-muted" style={{ marginInlineStart: 5 }}>{t('field.wanted')}</span>}
               </label>
               {canWrite
                 ? <FieldInput field={field} value={value} onChange={(next) => setFieldValue(task, field, next)} />
                 : <span>{field.kind === 'checkbox' ? (value ? '✓' : '—') : String(value || '—')}</span>}
-              {field.help && <span className="hint">{field.help}</span>}
+              {field.help && <span className="text-[12px] text-muted">{field.help}</span>}
             </div>
           );
         })}
@@ -181,13 +183,13 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <p className="hint" style={{ marginBottom: 8 }}>{t('field.settingsHint')}</p>
+      <p className="text-[12px] text-muted" style={{ marginBottom: 8 }}>{t('field.settingsHint')}</p>
 
       {fields.map((field) => (
         <div key={field.id} className="stack-card">
-          <div className="row" style={{ gap: 8 }}>
+          <div className="flex items-center gap-2" style={{ gap: 8 }}>
             <input
-              className="input grow" value={field.name} aria-label={t('field.name')}
+              className="input flex-1 min-w-0" value={field.name} aria-label={t('field.name')}
               onChange={(event) => update('field', field.id, { name: event.target.value })}
             />
             <select
@@ -196,20 +198,18 @@ export function ProjectFields({ projectId }: { projectId: string }) {
             >
               {FIELD_KINDS.map((kind) => <option key={kind} value={kind}>{t(kindKey(kind))}</option>)}
             </select>
-            <button
-              className="btn ghost sm icon" aria-expanded={open === field.id} aria-label={t('field.options')}
+            <Button variant="ghost" size="iconSm" aria-expanded={open === field.id} aria-label={t('field.options')}
               onClick={() => setOpen(open === field.id ? null : field.id)}
             >
               <Icon name={open === field.id ? 'chevronDown' : 'chevronRight'} size={14} />
-            </button>
-            <button
-              className="btn ghost sm icon" aria-label={t('field.remove')} title={t('field.remove')}
+            </Button>
+            <Button variant="ghost" size="iconSm" aria-label={t('field.remove')} title={t('field.remove')}
               onClick={async () => {
                 if (await confirm(t('field.removeConfirm', { name: field.name }))) remove('field', field.id);
               }}
             >
               <Icon name="trash" size={13} />
-            </button>
+            </Button>
           </div>
 
           {open === field.id && (
@@ -237,7 +237,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
 
               <div className="field">
                 <label>{t('field.appliesTo')}</label>
-                <div className="row wrap" style={{ gap: 5 }}>
+                <div className="flex items-center gap-2 flex-wrap" style={{ gap: 5 }}>
                   <button
                     type="button" className={`chip button${field.type_ids.length ? '' : ' on'}`}
                     aria-pressed={!field.type_ids.length}
@@ -260,19 +260,19 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                     </button>
                   ))}
                 </div>
-                <span className="hint">{t('field.appliesToHint')}</span>
+                <span className="text-[12px] text-muted">{t('field.appliesToHint')}</span>
               </div>
 
-              <label className="row" style={{ gap: 7, fontSize: 13 }}>
+              <label className="flex items-center gap-2" style={{ gap: 7, fontSize: 13 }}>
                 <input
                   type="checkbox" checked={!!field.required}
                   onChange={(event) => update('field', field.id, { required: event.target.checked ? 1 : 0 })}
                 />
                 {t('field.required')}
               </label>
-              <span className="hint" style={{ display: 'block', marginBottom: 8 }}>{t('field.requiredHint')}</span>
+              <span className="text-[12px] text-muted" style={{ display: 'block', marginBottom: 8 }}>{t('field.requiredHint')}</span>
 
-              <label className="row" style={{ gap: 7, fontSize: 13 }}>
+              <label className="flex items-center gap-2" style={{ gap: 7, fontSize: 13 }}>
                 <input
                   type="checkbox" checked={!!field.show_in_table}
                   onChange={(event) => update('field', field.id, { show_in_table: event.target.checked ? 1 : 0 })}
@@ -284,8 +284,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
         </div>
       ))}
 
-      <button
-        className="btn sm" style={{ marginTop: 8 }}
+      <Button size="sm" style={{ marginTop: 8 }}
         onClick={() => {
           const id = create('field', {
             project_id: projectId,
@@ -303,7 +302,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
         }}
       >
         <Icon name="plus" size={14} /> {t('field.add')}
-      </button>
+      </Button>
       {dialog}
     </>
   );

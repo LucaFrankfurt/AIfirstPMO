@@ -24,9 +24,7 @@ export function DialogContent({
   return (
     <Primitive.Portal>
       <Primitive.Overlay
-        className="fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[2px]
-          data-[state=open]:animate-in data-[state=closed]:animate-out
-          data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none"
+        className="fixed inset-0 z-50 bg-[var(--overlay)] backdrop-blur-[2px] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in data-[state=closed]:fade-out motion-reduce:animate-none"
       />
       <Primitive.Content
         className={cn(
@@ -42,9 +40,7 @@ export function DialogContent({
       >
         {children}
         <Primitive.Close
-          className="absolute right-3 top-3 grid size-8 place-items-center rounded-[var(--radius-sm)] text-muted
-            transition-colors hover:bg-hover hover:text-fg
-            outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+          className="absolute right-3 top-3 grid size-8 place-items-center rounded-[var(--radius-sm)] text-muted transition-colors hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
           aria-label={closeLabel}
         >
           <X size={16} />

@@ -32,7 +32,7 @@ export function PageLabelChips({ page }: { page: Page }) {
   const ids = page.labels ?? [];
   if (!ids.length) return null;
   return (
-    <span className="row wrap" style={{ gap: 5 }}>
+    <span className="flex items-center gap-2 flex-wrap" style={{ gap: 5 }}>
       {ids.map((id) => {
         const label = byId('label', id);
         if (!label) return null;
@@ -136,15 +136,15 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
 
   return (
     <Sheet title={t('page.whatChanged')} wide onClose={onClose}>
-      {failed && <p className="hint warn">{t('page.historyFailed')}</p>}
-      {old === null && !failed && <p className="muted">{t('common.loading')}</p>}
+      {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
+      {old === null && !failed && <p className="text-muted">{t('common.loading')}</p>}
       {old !== null && (
         <>
-          <p className="hint" style={{ marginBottom: 10 }}>
+          <p className="text-[12px] text-muted" style={{ marginBottom: 10 }}>
             {t('page.diffSummary', { added: summary.added, removed: summary.removed })}
           </p>
           {summary.added === 0 && summary.removed === 0 ? (
-            <p className="muted">{t('page.diffIdentical')}</p>
+            <p className="text-muted">{t('page.diffIdentical')}</p>
           ) : (
             <div className="diff">
               {parts.map((part, index) =>

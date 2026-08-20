@@ -20,6 +20,9 @@ import { pull } from '../lib/sync';
 import { useCanWrite, useMemberMap } from '../session';
 import { ShareSheet } from './share';
 import { useStates, useTypes } from './task-parts';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
+import { cn } from '../lib/cn';
 import { Empty, Icon, Sheet, useConfirm, useToast } from './ui';
 
 /** Everything reported to this project, newest first. */
@@ -64,12 +67,12 @@ export function Triage({ projectId }: { projectId: string }) {
 
   return (
     <div className="page">
-      <div className="row wrap" style={{ gap: 6, marginBottom: 14 }}>
-        <div className="row" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
+      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 6, marginBottom: 14 }}>
+        <div className="flex items-center gap-2" style={{ gap: 2, border: '1px solid var(--line-strong)', borderRadius: 7, padding: 2 }}>
           {(['new', 'handled'] as const).map((which) => (
             <button
               key={which}
-              className={`btn ghost sm${tab === which ? ' active' : ''}`}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), tab === which && 'bg-active text-fg')}
               style={tab === which ? { background: 'var(--bg-active)' } : undefined}
               aria-pressed={tab === which}
               onClick={() => setTab(which)}
@@ -79,11 +82,11 @@ export function Triage({ projectId }: { projectId: string }) {
             </button>
           ))}
         </div>
-        <span className="grow" />
+        <span className="flex-1 min-w-0" />
         {canWrite && (
-          <button className="btn sm" onClick={() => setLinking(true)}>
+          <Button size="sm" onClick={() => setLinking(true)}>
             <Icon name="link" size={13} /> {t('intake.linkAction')}
-          </button>
+          </Button>
         )}
       </div>
 
@@ -96,11 +99,11 @@ export function Triage({ projectId }: { projectId: string }) {
       ) : (
         <div className="grid" style={{ gap: 10 }}>
           {shown.map((intake) => (
-            <article className="card" key={intake.id}>
-              <div className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
-                <div className="grow">
+            <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
+              <div className="flex items-center gap-2" style={{ gap: 8, alignItems: 'flex-start' }}>
+                <div className="flex-1 min-w-0">
                   <strong style={{ fontSize: 14.5 }}>{intake.title}</strong>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>
+                  <div className="text-muted" style={{ fontSize: 12.5, marginTop: 2 }}>
                     {/* Neither the name nor the address was verified, and saying
                         so once is better than a screen that quietly implies it. */}
                     {intake.reporter || intake.email
@@ -120,11 +123,11 @@ export function Triage({ projectId }: { projectId: string }) {
                 <p style={{ margin: '10px 0 0', fontSize: 13.5, whiteSpace: 'pre-wrap' }}>{intake.body}</p>
               )}
               {intake.status === 'new' && canWrite && (
-                <div className="row" style={{ gap: 6, marginTop: 12 }}>
-                  <button className="btn primary sm" onClick={() => setAccepting(intake)}>
+                <div className="flex items-center gap-2" style={{ gap: 6, marginTop: 12 }}>
+                  <Button variant="primary" size="sm" onClick={() => setAccepting(intake)}>
                     <Icon name="check" size={13} /> {t('intake.accept')}
-                  </button>
-                  <button className="btn sm" onClick={() => void decline(intake)}>{t('intake.decline')}</button>
+                  </Button>
+                  <Button size="sm" onClick={() => void decline(intake)}>{t('intake.decline')}</Button>
                 </div>
               )}
             </article>
@@ -192,17 +195,17 @@ function AcceptSheet({
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>{t('action.cancel')}</button>
-          <button className="btn primary" disabled={working || !title.trim()} onClick={() => void accept()}>
+          <Button onClick={onClose}>{t('action.cancel')}</Button>
+          <Button variant="primary" disabled={working || !title.trim()} onClick={() => void accept()}>
             {working ? t('action.working') : t('intake.acceptAction')}
-          </button>
+          </Button>
         </>
       }
     >
       <div className="field">
         <label htmlFor="intake-title">{t('task.title')}</label>
         <input id="intake-title" className="input" autoFocus value={title} onChange={(event) => setTitle(event.target.value)} />
-        <span className="hint">{t('intake.titleHint')}</span>
+        <span className="text-[12px] text-muted">{t('intake.titleHint')}</span>
       </div>
       <div className="grid two">
         <div className="field">
@@ -222,8 +225,8 @@ function AcceptSheet({
       {intake.body && (
         <div className="field">
           <label>{t('intake.whatTheySaid')}</label>
-          <p className="muted" style={{ fontSize: 13, whiteSpace: 'pre-wrap', margin: 0 }}>{intake.body}</p>
-          <span className="hint">{t('intake.bodyHint')}</span>
+          <p className="text-muted" style={{ fontSize: 13, whiteSpace: 'pre-wrap', margin: 0 }}>{intake.body}</p>
+          <span className="text-[12px] text-muted">{t('intake.bodyHint')}</span>
         </div>
       )}
     </Sheet>

@@ -251,10 +251,10 @@ export function Portfolio() {
       <h3 className="chart-title">{t('portfolio.roadmap')}</h3>
       {bars.length
         ? <Roadmap bars={bars} from={range.from} to={range.to} />
-        : <p className="muted" style={{ fontSize: 13 }}>{t('portfolio.noDates')}</p>}
+        : <p className="text-muted" style={{ fontSize: 13 }}>{t('portfolio.noDates')}</p>}
 
       {undated.length > 0 && (
-        <p className="muted" style={{ fontSize: 12.5, marginTop: 10 }}>
+        <p className="text-muted" style={{ fontSize: 12.5, marginTop: 10 }}>
           <Icon name="calendar" size={12} /> {t('portfolio.undated', { names: undated.map((p) => p.name).join(', ') })}
         </p>
       )}

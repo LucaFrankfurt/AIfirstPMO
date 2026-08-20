@@ -21,6 +21,8 @@ import { HierarchyExplorer } from '../components/hierarchy';
 import { Icon } from '../components/ui';
 import { cardId, sectionFor, type GuideSection } from '../lib/guide';
 import { useT, type TranslationKey } from '../lib/i18n';
+import { Button } from '../components/ui/button';
+import { buttonVariants } from '../components/ui/button';
 import { SHOW_CHECKLIST, START_TOUR } from '../components/tour';
 
 type Section = GuideSection;
@@ -63,7 +65,7 @@ function Feature({
         {steps.map((step) => <li key={step}>{t(step)}</li>)}
       </ol>
 
-      <Link className="btn sm" to={to}>
+      <Link className={buttonVariants({ size: 'sm' })} to={to}>
         {t(linkLabel)} <Icon name="chevronRight" size={13} />
       </Link>
     </section>
@@ -73,7 +75,7 @@ function Feature({
 const Principle = ({ icon, title, body }: { icon: string; title: TranslationKey; body: TranslationKey }) => {
   const t = useT();
   return (
-    <div className="card guide-principle">
+    <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-principle">
       <span className="guide-icon"><Icon name={icon} size={16} /></span>
       <strong>{t(title)}</strong>
       <span className="soft">{t(body)}</span>
@@ -107,16 +109,16 @@ function Overview() {
         <li>{t('guide.firstFive4')}</li>
         <li>{t('guide.firstFive5')}</li>
       </ol>
-      <div className="row wrap" style={{ gap: 8 }}>
-        <Link className="btn primary sm" to="/projects/new">
+      <div className="flex items-center gap-2 flex-wrap" style={{ gap: 8 }}>
+        <Link className={buttonVariants({ variant: 'primary', size: 'sm' })} to="/projects/new">
           {t('guide.startHere')} <Icon name="chevronRight" size={13} />
         </Link>
-        <button className="btn sm" onClick={() => window.dispatchEvent(new CustomEvent(START_TOUR))}>
+        <Button size="sm" onClick={() => window.dispatchEvent(new CustomEvent(START_TOUR))}>
           <Icon name="play" size={13} /> {t('guide.restartTour')}
-        </button>
-        <button className="btn sm" onClick={() => window.dispatchEvent(new CustomEvent(SHOW_CHECKLIST))}>
+        </Button>
+        <Button size="sm" onClick={() => window.dispatchEvent(new CustomEvent(SHOW_CHECKLIST))}>
           <Icon name="check" size={13} /> {t('guide.showChecklist')}
-        </button>
+        </Button>
       </div>
       <p className="soft" style={{ marginTop: 12, fontSize: 12.5 }}>{t('guide.helpFromHere')}</p>
     </>
@@ -246,7 +248,7 @@ function Features() {
       >
         <div className="guide-roles">
           {(['owner', 'admin', 'member', 'guest'] as const).map((role) => (
-            <div className="card guide-role" key={role}>
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 guide-role" key={role}>
               <strong>{t(`members.role${role[0].toUpperCase()}${role.slice(1)}` as TranslationKey)}</strong>
               <span className="soft">{t(`guide.role.${role}` as TranslationKey)}</span>
             </div>

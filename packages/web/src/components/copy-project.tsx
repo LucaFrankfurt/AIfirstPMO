@@ -11,6 +11,7 @@ import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useSession } from '../session';
+import { Button } from '../components/ui/button';
 import { Icon, Sheet, useToast } from './ui';
 
 export function CopyProjectSheet({ projectId, onClose, onCopied }: {
@@ -64,7 +65,7 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
   return (
     <Sheet title={t('copy.title')} onClose={onClose}>
       <form onSubmit={submit}>
-        <p className="hint" style={{ marginBottom: 12 }}>{t('copy.hint')}</p>
+        <p className="text-[12px] text-muted" style={{ marginBottom: 12 }}>{t('copy.hint')}</p>
         {error && <div className="error" style={{ marginBottom: 10 }}>{error}</div>}
 
         <div className="field">
@@ -77,7 +78,7 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
           <label htmlFor="copy-key">{t('copy.key')}</label>
           <input id="copy-key" className="input" value={key} maxLength={8} style={{ width: 140, textTransform: 'uppercase' }}
             onChange={(event) => setKey(event.target.value.toUpperCase())} />
-          <span className="hint">{t('copy.keyAuto')}</span>
+          <span className="text-[12px] text-muted">{t('copy.keyAuto')}</span>
         </div>
 
         <div className="field">
@@ -97,24 +98,24 @@ export function CopyProjectSheet({ projectId, onClose, onCopied }: {
           ['pages', t('copy.pages')],
           ['tasks', t('copy.tasks')],
         ] as const).map(([field, label]) => (
-          <label className="row" key={field} style={{ gap: 8, padding: '4px 0', fontSize: 13 }}>
+          <label className="flex items-center gap-2" key={field} style={{ gap: 8, padding: '4px 0', fontSize: 13 }}>
             <input type="checkbox" checked={include[field]} onChange={() => toggle(field)} />
             {label}
           </label>
         ))}
         {include.tasks && (
           <>
-            <label className="row" style={{ gap: 8, padding: '4px 0 4px 24px', fontSize: 13 }}>
+            <label className="flex items-center gap-2" style={{ gap: 8, padding: '4px 0 4px 24px', fontSize: 13 }}>
               <input type="checkbox" checked={include.doneTasks} onChange={() => toggle('doneTasks')} />
               {t('copy.doneTasks')}
             </label>
-            <span className="hint" style={{ display: 'block', marginTop: 4 }}>{t('copy.tasksHint')}</span>
+            <span className="text-[12px] text-muted" style={{ display: 'block', marginTop: 4 }}>{t('copy.tasksHint')}</span>
           </>
         )}
 
-        <button className="btn primary block lg" type="submit" disabled={busy || !name.trim()} style={{ marginTop: 16 }}>
+        <Button variant="primary" size="lg" block type="submit" disabled={busy || !name.trim()} style={{ marginTop: 16 }}>
           {busy ? t('copy.working') : <><Icon name="copy" size={14} /> {t('copy.submit')}</>}
-        </button>
+        </Button>
       </form>
     </Sheet>
   );
