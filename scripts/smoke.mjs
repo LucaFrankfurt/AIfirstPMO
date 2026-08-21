@@ -135,6 +135,46 @@ await step('create task through quick add', async () => {
   await page.waitForTimeout(1200);
 });
 
+/**
+ * The kind of work, chosen at the moment the task is made.
+ *
+ * The form offered a project, a state, a priority, an assignee, a due date and
+ * a template — and no type at all, while the task's own sheet had a picker for
+ * one. So every task started as whatever the server picked, and a project's
+ * custom fields, which are asked for per type, were never asked for.
+ *
+ * Choosing is only half of it: the server fills the type in on arrival when the
+ * client leaves it out, so a client that sends nothing and a client that sends
+ * "Bug" have to end up different. This asks the server which it got.
+ */
+await step('a task can be given its kind of work on the way in', async () => {
+  await page.keyboard.press('Escape');
+  await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
+  await page.waitForSelector('.sheet');
+  await page.fill('.sheet input >> nth=0', 'Smoke: typed on creation');
+
+  const chip = page.locator('.sheet button').filter({ hasText: /Task$|Aufgabe$/ }).first();
+  if (!(await chip.count())) throw new Error('the new-task form offers no kind of work');
+  await chip.click();
+  await page.getByRole('menuitem').filter({ hasText: /Bug/ }).first().click();
+  await page.waitForTimeout(200);
+  await page.click(`button:has-text("${LABELS.createTask}")`);
+  await page.waitForTimeout(1500);
+
+  const named = await page.evaluate(async () => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    const tasks = await json(`/api/workspaces/${ws}/tasks?limit=200`);
+    const task = (tasks.tasks ?? tasks).find((one) => one.title === 'Smoke: typed on creation');
+    if (!task) return null;
+    const types = await json(`/api/workspaces/${ws}/task-types`);
+    return (types.taskTypes ?? types).find((one) => one.id === task.type_id)?.name ?? '(none)';
+  });
+  if (named === null) throw new Error('the task never reached the server');
+  if (!/bug/i.test(named)) throw new Error(`chose Bug, server stored "${named}"`);
+  console.log(`     chosen on creation and kept: ${named}`);
+});
+
 await step('task reached the server', async () => {
   const res = await page.request.get(`${base}/api/health`);
   const body = await res.json();
