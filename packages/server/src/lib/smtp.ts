@@ -9,6 +9,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { connect as netConnect, type Socket } from 'node:net';
 import { connect as tlsConnect, type TLSSocket } from 'node:tls';
+import { assertEmailAddress, headerSafe, isHeaderName } from './address.ts';
 
 export interface SmtpConfig {
   host: string;
@@ -183,8 +184,12 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
       }
     }
 
-    await connection.command(`MAIL FROM:<${mail.from}>`, [250]);
-    await connection.command(`RCPT TO:<${mail.to}>`, [250, 251]);
+    // Checked here, at the socket, and not only where the address was typed.
+    // These two lines *are* the SMTP conversation: an address with a carriage
+    // return in it does not produce a bad envelope, it produces a second
+    // command that this server never wrote.
+    await connection.command(`MAIL FROM:<${assertEmailAddress(mail.from, 'The sender address')}>`, [250]);
+    await connection.command(`RCPT TO:<${assertEmailAddress(mail.to, 'The recipient address')}>`, [250, 251]);
     await connection.command('DATA', [354]);
 
     const body = buildMessage(mail, messageId);
@@ -212,19 +217,22 @@ const base64Lines = (value: string): string =>
 
 export function buildMessage(mail: Mail, messageId: string): string {
   const boundary = `kolibri-${createHash('sha1').update(messageId).digest('hex').slice(0, 24)}`;
-  const from = mail.fromName ? `${encodeHeader(mail.fromName)} <${mail.from}>` : mail.from;
+  const from = mail.fromName ? `${encodeHeader(mail.fromName)} <${assertEmailAddress(mail.from, 'The sender address')}>` : assertEmailAddress(mail.from, 'The sender address');
   const headers: string[] = [
     `From: ${from}`,
-    `To: ${mail.to}`,
+    `To: ${assertEmailAddress(mail.to, 'The recipient address')}`,
     `Subject: ${encodeHeader(mail.subject)}`,
     `Message-ID: ${messageId}`,
     `Date: ${new Date().toUTCString()}`,
     'MIME-Version: 1.0',
     'Auto-Submitted: auto-generated',
   ];
-  if (mail.replyTo) headers.push(`Reply-To: ${mail.replyTo}`);
+  if (mail.replyTo) headers.push(`Reply-To: ${assertEmailAddress(mail.replyTo, 'The reply-to address')}`);
   for (const [key, value] of Object.entries(mail.headers ?? {})) {
-    if (value) headers.push(`${key}: ${value.replace(/[\r\n]/g, ' ')}`);
+    // The name as well as the value: a key with a newline in it writes a
+    // header of somebody else's choosing just as effectively as a value does,
+    // and only the value was being cleaned.
+    if (value && isHeaderName(key)) headers.push(`${key}: ${headerSafe(value)}`);
   }
 
   if (!mail.html) {

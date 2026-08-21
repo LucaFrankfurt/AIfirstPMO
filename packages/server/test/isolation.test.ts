@@ -152,6 +152,31 @@ describe('a stranger holding an id', () => {
     assert.equal(canSeeProject(malloryId, projectId), false, '"public" means everyone in *that* workspace');
   });
 
+  /**
+   * Pointing at a row in a workspace you are not in.
+   *
+   * Found by asking what a *public share* renders, and following it back: a
+   * shared page publishes its children, and nothing stopped a page in another
+   * workspace from naming that page as its parent. Anyone with an account and a
+   * page id could put their own text on a stranger's share link, under the
+   * stranger's workspace name. The reference is refused at the write now, which
+   * is where it was wrong.
+   */
+  it('cannot hang its own page off somebody else’s', async () => {
+    const { body: victim, status: made } = await call(
+      `/api/workspaces/${ada.workspace}/pages`,
+      { cookie: ada.cookie, body: { title: 'Roadmap', content: 'ours' } },
+    );
+    assert.equal(made, 200, 'the owner made their page');
+
+    const { status, body } = await call(
+      `/api/workspaces/${mallory.workspace}/pages`,
+      { cookie: mallory.cookie, body: { title: 'Injected', content: 'theirs', parent_id: victim.id } },
+    );
+    assert.equal(status, 400, 'a parent in another workspace was accepted');
+    assert.match(String(body.message ?? ''), /another workspace/);
+  });
+
   /** And the owner is still fine — a guard that refuses everybody is not a fix. */
   it('while the owner reads it perfectly well', async () => {
     const { body } = await mcp(ada, 'get_task', { task: taskId });

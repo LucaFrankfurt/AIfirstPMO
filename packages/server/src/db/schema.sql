@@ -928,8 +928,14 @@ CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5 (
 );
 
 -- Content-addressed blob store. Uploading the same image twice costs one row.
+-- One blob, one row per workspace that holds it.
+--
+-- Uploads are content-addressed, so two workspaces sending identical bytes
+-- share the stored object. They must not share the *row*: it carries the
+-- workspace, and with `hash` alone as the key the second uploader got no row
+-- at all — and then a 403 reading back the file they had just sent.
 CREATE TABLE IF NOT EXISTS files (
-  hash         TEXT PRIMARY KEY,
+  hash         TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   name         TEXT NOT NULL,
   mime         TEXT NOT NULL,
@@ -937,7 +943,8 @@ CREATE TABLE IF NOT EXISTS files (
   width        INTEGER,
   height       INTEGER,
   created_by   TEXT,
-  created_at   INTEGER NOT NULL
+  created_at   INTEGER NOT NULL,
+  PRIMARY KEY (hash, workspace_id)
 );
 CREATE INDEX IF NOT EXISTS files_workspace ON files (workspace_id);
 

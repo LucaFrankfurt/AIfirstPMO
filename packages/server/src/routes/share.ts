@@ -122,9 +122,15 @@ function html(ctx: Ctx, body: string, status = 200): undefined {
 function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
   const page = get<Row>(`SELECT * FROM pages WHERE id = ? AND deleted_at IS NULL`, share.page_id);
   if (!page) return '';
+  // Scoped to the shared page's own workspace as well as its parentage. The
+  // write path refuses a cross-workspace `parent_id` now, but this query is
+  // what *publishes* a child to strangers, and a published page is the wrong
+  // place to be relying on a check made somewhere else.
   const children = all<Row>(
-    `SELECT * FROM pages WHERE parent_id = ? AND deleted_at IS NULL AND archived = 0 ORDER BY sort_order`,
-    page.id,
+    `SELECT * FROM pages
+      WHERE parent_id = ? AND workspace_id = ? AND deleted_at IS NULL AND archived = 0
+      ORDER BY sort_order`,
+    page.id, page.workspace_id,
   );
   // A page whose body already opens with its own title does not get a second
   // one bolted on top — which is most pages people actually write.

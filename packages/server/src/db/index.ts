@@ -84,6 +84,42 @@ for (const [table, column, definition] of [
 }
 
 /**
+ * `files` was keyed by hash alone, and a hash is not a row.
+ *
+ * Uploads are content-addressed, so two workspaces sending identical bytes
+ * share the stored object — and with `hash` as the whole primary key they also
+ * shared the one row, which belongs to whoever uploaded first. The second
+ * uploader got no row, and then a 403 reading back the file they had just
+ * sent. The key is `(hash, workspace_id)` now; the blob is still stored once.
+ *
+ * Detected by asking whether `hash` is still the sole key, so a restart on an
+ * already-migrated database costs one pragma.
+ */
+{
+  const info = db.prepare(`PRAGMA table_info(files)`).all() as { name: string; pk: number }[];
+  const keyed = info.filter((c) => c.pk > 0).map((c) => c.name);
+  if (keyed.length === 1 && keyed[0] === 'hash') {
+    const columns = info.map((c) => c.name).join(', ');
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const create = (db.prepare(`SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'files'`).get() as { sql: string }).sql;
+      db.exec(create
+        .replace(/\bfiles\b/, 'files__rekeying')
+        .replace(/hash\s+TEXT\s+PRIMARY KEY/i, 'hash TEXT NOT NULL')
+        .replace(/\)\s*$/, ', PRIMARY KEY (hash, workspace_id))'));
+      db.exec(`INSERT INTO files__rekeying (${columns}) SELECT ${columns} FROM files`);
+      db.exec('DROP TABLE files');
+      db.exec('ALTER TABLE files__rekeying RENAME TO files');
+      db.exec('CREATE INDEX IF NOT EXISTS files_workspace ON files (workspace_id)');
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  }
+}
+
+/**
  * Columns that were `NOT NULL` and should not have been.
  *
  * SQLite cannot relax a constraint in place, so the table is rebuilt — the

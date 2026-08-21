@@ -141,7 +141,9 @@ export function reclaimFiles(workspaceId: string): { blobs: number; bytes: numbe
       !!get<Row>(`SELECT 1 AS found FROM ${table} WHERE ${column} LIKE ? LIMIT 1`, needle));
     if (referenced) continue;
 
-    run(`DELETE FROM files WHERE hash = ?`, file.hash);
+    run(`DELETE FROM files WHERE hash = ? AND workspace_id = ?`, file.hash, workspaceId);
+    // The blob is shared, so it only goes when the last row naming it does.
+    if (get<Row>(`SELECT 1 FROM files WHERE hash = ? LIMIT 1`, file.hash)) continue;
     // Outside any transaction and never fatal: a blob that will not delete
     // leaves a file nobody points at, which `kolibri doctor` already counts.
     // Losing the row because a bucket was briefly unreachable is the worse

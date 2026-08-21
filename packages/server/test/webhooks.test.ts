@@ -18,6 +18,7 @@ import type { AddressInfo } from 'node:net';
 const { server } = await import('../src/index.ts');
 const { sign } = await import('../src/lib/webhooks.ts');
 const { run, get } = await import('../src/db/index.ts');
+const { env } = await import('../src/env.ts');
 
 let base = '';
 let cookie = '';
@@ -65,6 +66,11 @@ before(async () => {
   });
   await new Promise<void>((done) => receiver.listen(0, '127.0.0.1', done));
   receiverUrl = `http://127.0.0.1:${(receiver.address() as AddressInfo).port}/hook`;
+  // The receiver is on loopback, which delivery refuses by default — see
+  // `outbound.ts`. Turned on here so these tests can be about the mechanics;
+  // the refusal itself is asserted at the end of this file and unit-tested in
+  // `injection.test.ts`.
+  env.outbound.allowPrivate = true;
 
   const session = await api('/api/auth/register', { email: 'ada@example.com', name: 'Ada', password: 'correct horse battery' });
   workspaceId = session.workspaces[0].id;
@@ -128,6 +134,25 @@ describe('calling out', () => {
     assert.equal(hook.last_status, 500);
     assert.match(hook.last_error, /500/);
     behaviour = 'ok';
+  });
+
+  it('refuses an address on this machine when private targets are not allowed', async () => {
+    // The default, and the reason it is the default: without it, anybody who
+    // can save a webhook can make this server POST to whatever is listening
+    // beside it — the database, the metadata service, a neighbour's admin port.
+    env.outbound.allowPrivate = false;
+    try {
+      received.length = 0;
+      await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Nowhere to go' });
+      await settle();
+
+      assert.equal(received.length, 0, 'nothing left the process');
+      const hook = get<any>(`SELECT last_status, last_error FROM webhooks WHERE url = ?`, receiverUrl);
+      assert.equal(hook.last_status, null);
+      assert.match(hook.last_error, /Refused: .*not a public address/);
+    } finally {
+      env.outbound.allowPrivate = true;
+    }
   });
 
   it('does not wait for a receiver that never answers', async () => {

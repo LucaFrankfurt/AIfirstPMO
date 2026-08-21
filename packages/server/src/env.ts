@@ -172,6 +172,24 @@ export const env = {
     /** Give up on one notification after this many failed sends. */
     maxAttempts: int(process.env.KOLIBRI_TELEGRAM_MAX_ATTEMPTS, 5),
   },
+  /**
+   * Where this server is willing to connect when a *feature* names an address:
+   * an outgoing webhook's URL, a Web Push endpoint.
+   *
+   * By default, nowhere private. A webhook URL is typed in by a person with an
+   * admin role in some workspace, and on an instance where anybody can sign up
+   * and make a workspace that is anybody — so the address is checked, the name
+   * is resolved before the connection rather than during it, and loopback, the
+   * RFC 1918 ranges and the cloud metadata service are all refused.
+   *
+   * Set `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` on an instance where posting to
+   * `http://n8n:5678` on its own docker network is the point. That is a real
+   * thing to want; it is just not a safe default for the instance that has not
+   * thought about it.
+   */
+  outbound: {
+    allowPrivate: bool(process.env.KOLIBRI_ALLOW_PRIVATE_WEBHOOKS, false),
+  },
   /** A shared secret a mail provider posts bounce reports with. Empty disables it. */
   bounceToken: process.env.KOLIBRI_BOUNCE_TOKEN ?? '',
   /**
