@@ -132,6 +132,61 @@ describe('finding the way in from nothing but a URL', () => {
     clientId = body.client_id;
   });
 
+  /**
+   * RFC 7591 §3.2.1: "the authorization server MUST return all registered
+   * metadata about this client".
+   *
+   * This used to answer with six fields of its own invention and drop
+   * everything the client sent — its `scope` above all. A client that asks for
+   * a scope and is told nothing about scope has not been told yes, and a strict
+   * one reads the silence as a refusal. The descriptive fields matter for a
+   * duller reason: they are how a client names itself on the consent screen,
+   * and leaving them out of the reply makes them look rejected.
+   */
+  it('hands back the metadata it registered, not just an id', async () => {
+    resetRateLimits();
+    const { status, body } = await json('/oauth/register', {
+      client_name: 'Claude',
+      redirect_uris: [REDIRECT],
+      scope: 'claudeai',
+      client_uri: 'https://claude.ai',
+      logo_uri: 'https://claude.ai/icon.png',
+      policy_uri: 'https://anthropic.com/legal/privacy',
+      tos_uri: 'https://anthropic.com/legal/consumer-terms',
+      software_id: 'claude-web',
+      software_version: '1.0',
+      contacts: ['support@anthropic.com'],
+    });
+    assert.equal(status, 201);
+
+    // Echoed exactly: this server has no opinion about any of them.
+    assert.equal(body.client_uri, 'https://claude.ai');
+    assert.equal(body.logo_uri, 'https://claude.ai/icon.png');
+    assert.equal(body.policy_uri, 'https://anthropic.com/legal/privacy');
+    assert.equal(body.tos_uri, 'https://anthropic.com/legal/consumer-terms');
+    assert.equal(body.software_id, 'claude-web');
+    assert.equal(body.software_version, '1.0');
+    assert.deepEqual(body.contacts, ['support@anthropic.com']);
+
+    // Substituted, and said out loud: `claudeai` is not a scope this server
+    // has, so it registers the two it does rather than staying silent.
+    assert.equal(body.scope, 'read write');
+    assert.equal(body.token_endpoint_auth_method, 'none');
+    assert.ok(typeof body.client_id_issued_at === 'number');
+  });
+
+  it('does not let a registration smuggle a value of the wrong type into the reply', async () => {
+    resetRateLimits();
+    const { body } = await json('/oauth/register', {
+      client_name: 'Claude',
+      redirect_uris: [REDIRECT],
+      logo_uri: { nested: 'object' },
+      contacts: ['ok@example.com', 42],
+    });
+    assert.equal(body.logo_uri, undefined, 'only strings come back');
+    assert.deepEqual(body.contacts, ['ok@example.com']);
+  });
+
   it('refuses to register a redirect that is neither https nor loopback', async () => {
     const { status, body } = await json('/oauth/register', { client_name: 'Sketchy', redirect_uris: ['http://example.com/cb'] });
     assert.equal(status, 400);

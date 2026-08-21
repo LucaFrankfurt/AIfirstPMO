@@ -133,8 +133,31 @@ get a token is worth nothing to anybody, so only the newest 200 of those are kep
 dropped oldest-first on the next registration. A client that has actually signed somebody in is
 never pruned, however old it is.
 
+The response hands back **the client's registered metadata**, not just an id — RFC 7591 §3.2.1 asks
+for it, and the reason it matters is `scope`. A client that asks for a scope and is told nothing
+about scope has not been told yes, and a strict one reads the silence as a refusal. Values this
+server substitutes rather than accepts (`scope`, `token_endpoint_auth_method`, the grant types) come
+back as what was registered, so the client can see which of the two happened. The descriptive fields
+— `client_uri`, `logo_uri`, `policy_uri`, `tos_uri`, `software_id` — are echoed exactly; they are
+how a client names itself on the consent screen and mean nothing else here.
+
 Errors carry RFC 7591's own codes — `invalid_redirect_uri` rather than a generic one — so a client
 can say which field it got wrong instead of reporting *"registration failed"*.
+
+### When a connector fails and the client is on somebody else's servers
+
+`/oauth/*`, `/mcp` and the `.well-known` documents each log a line — method, path, status, user
+agent. Nothing else does: those are the only paths quiet enough for it, and they are the only ones
+whose failures nobody can watch from outside.
+
+```
+INFO  POST /oauth/register → 201  (Claude-User/1.0)
+WARN  POST /oauth/register → 400  (Claude-User/1.0)
+```
+
+That answers the first question, which is not *why* it failed but **whether the request arrived at
+all**. A connector that reports "registration failed" with nothing in the log never reached this
+server, and the fault is in the metadata it read or the network in front — not in this endpoint.
 
 ```bash
 curl -s -X POST $URL/oauth/register -H 'content-type: application/json' \

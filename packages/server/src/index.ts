@@ -134,6 +134,13 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     method: req.method ?? 'GET',
   };
 
+  // The connector flow, and only that, leaves a trail. When a client on somebody
+  // else's servers says "registration failed" there is otherwise nothing to look
+  // at: the request either never arrived, or arrived and was refused for a
+  // reason only this process knows. One line per step turns a guess into a fact,
+  // and these are the only paths quiet enough to log every hit.
+  if (TRACED.test(url.pathname)) traceStart(ctx);
+
   try {
     ctx.auth = authenticate(ctx) ?? undefined;
     const result = await match.handler(ctx);
@@ -152,6 +159,29 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     send(res, 500, { error: 'internal_error', message: 'Something went wrong' });
   }
 });
+
+/**
+ * The OAuth and MCP endpoints, which are the ones a stranger's software talks
+ * to and the ones nobody can watch from the outside.
+ */
+const TRACED = /^\/(oauth\/|mcp$|\.well-known\/oauth)/;
+
+/**
+ * Log how it ended, once, whatever ends it.
+ *
+ * `finish` fires for a normal response, a streamed one and a connection that
+ * died mid-flight, which is exactly the set of outcomes worth knowing about.
+ * The user agent is included because "which client was this" is the first
+ * question every time, and the response's `error` code is not visible here —
+ * the status and the path have to carry it.
+ */
+function traceStart(ctx: Ctx): void {
+  const agent = String(ctx.req.headers['user-agent'] ?? '').slice(0, 60);
+  ctx.res.on('finish', () => {
+    const status = ctx.res.statusCode;
+    log(status >= 400 ? 'warn' : 'info', `${ctx.method} ${ctx.url.pathname} → ${status}${agent ? `  (${agent})` : ''}`);
+  });
+}
 
 server.keepAliveTimeout = 65_000;
 server.headersTimeout = 70_000;
