@@ -133,8 +133,8 @@ the same reason.
 ## Leaving another tool with its own export
 
 **Project → Settings → Import from JSON** also takes an export from Jira, Linear,
-Plane or OpenProject. The file is recognised by its **shape** rather than by what
-the browser called the download:
+Plane, OpenProject, Trello or Todoist. The file is recognised by its **shape**
+rather than by what the browser called the download:
 
 | Tool | The file | Recognised by |
 |---|---|---|
@@ -142,6 +142,8 @@ the browser called the download:
 | Linear | a GraphQL `issues` query result | `data.issues.nodes` |
 | OpenProject | a `/api/v3/work_packages` collection | `_embedded.elements[].subject` |
 | Plane | an issue list from the API | `results[]` with `name` and `priority` |
+| Trello | *Board menu → More → Print and export → Export as JSON* | `cards[].idList` alongside `lists` |
+| Todoist | a Sync API response or a backup of one | `items[].content` with `project_id` |
 
 What comes across is what those tools agree with Kolibri about: title,
 description, state — with the bucket the source put it in, so a Jira status in
@@ -163,6 +165,35 @@ the screen lists it **before** the import rather than after:
 - **Plane**: cycles, modules and relations, for the same reason — and its people,
   because the issue list identifies them by id and carries no address, so nobody
   can be matched and the tasks arrive unassigned.
+- **Trello**: priority, estimates and relations, because Trello has none of them.
+  Attachments, covers and Power-Up data are not in the file. Archived cards are
+  counted and left out.
+- **Todoist**: reminders, sections, filters, and the *time* on a due date —
+  Kolibri due dates are days.
+
+### The two that need a word of their own
+
+**Trello has no idea which column means finished.** A list is a column and
+carries nothing else, so the state group is guessed from the name — a short list
+of words in the three languages this app speaks, and *in progress* for
+everything else. That guess is in the notes before the import, because a column
+read as "done" makes every card in it look done. Check the states afterwards.
+
+A Trello **checklist** becomes a markdown checklist in the description rather
+than sub-tasks. A Kolibri sub-task is a whole task with its own state, assignee
+and dates; a three-word checklist item is not one, and promoting it to one
+produces a board full of noise.
+
+**Todoist has no columns at all**, so exactly two states are invented — *Open*
+and *Done* — rather than a workflow nobody asked for. Its priorities run the
+other way (`4` is P1, the urgent one) and are inverted on the way in. Everything
+lands in one project, so the Todoist project a task came from becomes a **label**
+— the closest thing that survives and can be filtered on.
+
+Todoist's repeat rules are richer than Kolibri's, which repeats daily, weekly or
+monthly and nothing else. `every 2 weeks` comes across; `every 3rd friday` does
+not, and rather than approximate it into a rule that fires on the wrong day the
+task arrives with its due date and no repeat — counted in the notes.
 
 A link or a parent pointing at an issue that is not in the file is reported and
 dropped rather than guessed at: a task filed under the wrong parent is harder to
@@ -170,7 +201,7 @@ notice than one filed under none.
 
 > **These converters have never been run against a real export.** They were
 > written against each tool's *documented* API shape. The recognisers are narrow
-> — a file that is not clearly one of the four is refused rather than half-read —
+> — a file that is not clearly one of the six is refused rather than half-read —
 > and an import always makes a **new** project, so nothing existing can be
 > damaged by trying. If your export does not read, the shape is the thing to
 > compare; a bug report with the first two issues of the file in it is enough to

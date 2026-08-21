@@ -18,6 +18,7 @@ import { registerMcpRoutes } from './routes/mcp.ts';
 import { registerOAuthRoutes } from './routes/oauth.ts';
 import { registerSearchRoutes } from './routes/search.ts';
 import { registerInboundRoutes } from './routes/inbound.ts';
+import { registerCalendarRoutes } from './routes/calendar.ts';
 import { registerShareRoutes } from './routes/share.ts';
 import { registerSyncRoutes } from './routes/sync.ts';
 
@@ -26,6 +27,10 @@ const router = new Router();
 // Order matters: specific paths must be registered before the generic
 // `/api/workspaces/:ws/:collection` CRUD routes.
 registerAuthRoutes(router);
+// Before `registerEntityRoutes`, which owns the generic `/api/:collection/:id`
+// and would otherwise answer `DELETE /api/me/calendar` with "unknown
+// collection me". Specific before generic, the way the auth routes above are.
+registerCalendarRoutes(router);
 registerSyncRoutes(router);
 registerSearchRoutes(router);
 registerFileRoutes(router);

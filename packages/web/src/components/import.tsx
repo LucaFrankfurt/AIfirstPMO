@@ -257,6 +257,7 @@ export interface Inspection {
 
 const TOOL_NAME: Record<string, string> = {
   jira: 'Jira', linear: 'Linear', plane: 'Plane', openproject: 'OpenProject',
+  trello: 'Trello', todoist: 'Todoist',
 };
 
 /**

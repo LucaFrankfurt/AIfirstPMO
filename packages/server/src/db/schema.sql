@@ -31,6 +31,11 @@ CREATE TABLE IF NOT EXISTS users (
   -- regardless of the preference.
   telegram_chat_id TEXT,
   telegram_prefs TEXT NOT NULL DEFAULT 'all',
+  -- The secret in a calendar feed URL. Null until somebody asks for the URL,
+  -- because a subscribable link that exists before anybody wanted one is a
+  -- link that can leak before anybody knew it was there. Revoking is writing
+  -- a new one; the old URL then answers 404 like any other wrong token.
+  calendar_token TEXT UNIQUE,
   telegram_linked_at INTEGER,
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL,

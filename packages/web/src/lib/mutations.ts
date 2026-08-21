@@ -51,6 +51,8 @@ export interface NewTask {
   parent_id?: string | null;
   due_date?: string | null;
   estimate?: number | null;
+  /** `weekly:2` and friends — see `scheduler.ts`. */
+  recurrence?: string | null;
 }
 
 export function createTask(input: NewTask, actorId: string): string {
@@ -70,6 +72,7 @@ export function createTask(input: NewTask, actorId: string): string {
     parent_id: input.parent_id ?? null,
     due_date: input.due_date ?? null,
     estimate: input.estimate ?? null,
+    recurrence: input.recurrence ?? null,
     archived: 0,
     created_by: actorId,
     // Optimistic placeholder — the server hands back the real identifier.

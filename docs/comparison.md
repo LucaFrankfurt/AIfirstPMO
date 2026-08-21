@@ -87,7 +87,7 @@ multi-select with bulk actions, labels, per-project workflow states, estimates, 
 sub-tasks, relations, pages — and templates with rules, which Plane does not have in this form.
 
 Nothing structural is missing. Import and intake, which used to head this list, are both built:
-exports from Jira, Linear, Plane and OpenProject are recognised by shape and converted with a list
+exports from Jira, Linear, Plane, OpenProject, Trello and Todoist are recognised by shape and converted with a list
 of what cannot come across shown *before* the write, and a share link can be a form whose
 submissions wait under Reports until a member accepts them.
 
@@ -105,7 +105,7 @@ a handful of ergonomics that people are unreasonably attached to.
 |---|---|---|
 | **CalDAV** — tasks in Thunderbird, DAVx5, iOS Reminders | **High for the value** | Kolibri has no calendar protocol at all: no CalDAV, no `VTODO`, not even a read-only `.ics` feed of due dates. This is the single biggest "it does not fit my life" gap, and a subscribable feed is a fraction of the work of full CalDAV |
 | **Natural-language quick add** — `Call client !2 *weekly +work @alice due:Friday` | **High for the work** | `QuickAdd` is a form with dropdowns. Parsing the same tokens out of the title would be one shared module, testable without a browser, and usable by the MCP `create_task` tool for free |
-| **Import from Todoist, Trello, Microsoft To-Do** | Medium | Kolibri reads Jira, Linear, Plane, OpenProject and CSV. Trello in particular is what small teams are leaving |
+| ~~**Import from Todoist, Trello**~~ | **Done** | Both recognised by shape. Trello's state group is guessed from the column name and says so; Todoist's priorities are inverted, its projects become labels, and a repeat rule Kolibri cannot express is refused rather than approximated. Microsoft To-Do is still out |
 | Per-task reminders at an arbitrary time | Low–medium | Reminders exist, relative to a due date. "Remind me Thursday at 09:00" does not |
 | A published mobile app | Low | The PWA is installable and the layout is built for a phone |
 

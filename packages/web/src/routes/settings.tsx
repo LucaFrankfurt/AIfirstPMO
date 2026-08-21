@@ -584,6 +584,82 @@ function Members() {
 
 /* ------------------------------------------------------------- api + mcp */
 
+/**
+ * The calendar feed.
+ *
+ * Deliberately not created until somebody presses the button. A subscribable
+ * URL that exists before anybody wanted one is a URL that can leak before
+ * anybody knew it was there — and a person who never opens this screen has no
+ * feed to leak.
+ */
+function CalendarFeed() {
+  const t = useT();
+  const toast = useToast();
+  const { confirm, dialog } = useConfirm();
+  const [url, setUrl] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    api.calendar().then((result) => { setUrl(result.url); setReady(true); }).catch(() => setReady(true));
+  }, []);
+
+  const copy = (value: string) => {
+    void navigator.clipboard?.writeText(value);
+    toast(t('calendar.copied'));
+  };
+
+  if (!ready) return null;
+
+  return (
+    <>
+      {dialog}
+      <SectionHeading>{t('calendar.title')}</SectionHeading>
+      <p className="text-muted text-[13px] mb-2">{t('calendar.intro')}</p>
+
+      {!url ? (
+        <Button onClick={async () => setUrl((await api.calendarOn()).url)}>
+          <Icon name="calendar" size={14} /> {t('calendar.create')}
+        </Button>
+      ) : (
+        <>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Input readOnly value={url} onFocus={(event) => event.currentTarget.select()} className="flex-1 min-w-0 font-mono text-[12px]" aria-label={t('calendar.title')} />
+            <Button size="sm" onClick={() => copy(url)}>
+              <Icon name="copy" size={14} /> {t('action.copy')}
+            </Button>
+          </div>
+          <p className="text-muted text-[12.5px] mt-2">{t('calendar.paste')}</p>
+          <div className="flex items-center gap-2 flex-wrap mt-2">
+            <Button size="sm" onClick={() => copy(`${url}?kind=todo`)}>
+              <Icon name="list" size={14} /> {t('calendar.asTasks')}
+            </Button>
+            <Button
+              size="sm"
+              onClick={async () => {
+                if (!(await confirm(t('calendar.rotateWarning'), t('calendar.rotate')))) return;
+                setUrl((await api.calendarRotate()).url);
+                toast(t('calendar.rotated'));
+              }}
+            >
+              <Icon name="refresh" size={14} /> {t('calendar.rotate')}
+            </Button>
+            <Button
+              size="sm" variant="danger"
+              onClick={async () => {
+                if (!(await confirm(t('calendar.offWarning'), t('calendar.off')))) return;
+                await api.calendarOff();
+                setUrl(null);
+              }}
+            >
+              {t('calendar.off')}
+            </Button>
+          </div>
+        </>
+      )}
+    </>
+  );
+}
+
 function ApiSettings() {
   const t = useT();
   const { workspaceId } = useSession();
@@ -668,6 +744,8 @@ function ApiSettings() {
       <p className="text-muted text-[12.5px] mt-3">
         {t('api.onTheWeb', { url: location.origin })}
       </p>
+
+      <CalendarFeed />
 
       {created && (
         <Sheet title={t('api.copyNow')} onClose={() => setCreated(null)}>

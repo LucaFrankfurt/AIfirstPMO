@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { PRIORITIES, type Priority } from '@kolibri/shared';
+import { useEffect, useMemo, useState } from 'react';
+import { PRIORITIES, parseQuickAdd, QUICK_ADD_SYNTAX, type Priority } from '@kolibri/shared';
 import { list, useQuery } from '../lib/store';
 import { createTask, defaultStateId } from '../lib/mutations';
 import { api } from '../lib/api';
@@ -11,6 +11,7 @@ import { useStates } from './task-parts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
 import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from './ui';
+import { Chip } from './ui/chip';
 
 const LAST_PROJECT_KEY = 'kolibri.last-project';
 
@@ -50,7 +51,36 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   );
 
   const states = useStates(projectId);
-  const project = projects.find((p) => p.id === projectId);
+
+  const labels = useQuery(
+    () => list('label', (row) => row.workspace_id === workspaceId),
+    [workspaceId],
+  );
+
+  /**
+   * What the line says, as it is typed.
+   *
+   * The parser never invents a field, so `??` here is exactly right: a token
+   * wins where one was typed, and every dropdown keeps whatever it was set to
+   * otherwise. Typing `!high` and then choosing *Low* from the menu leaves the
+   * `!high` visible in the box, which is why the token wins — the alternative
+   * is a form that disagrees with the words next to it.
+   */
+  const parsed = useMemo(() => parseQuickAdd(title, {
+    today: new Date().toISOString().slice(0, 10),
+    meId: me,
+    people: members.map((member) => ({ id: member.id, name: member.name })),
+    projects: projects.map((row) => ({ id: row.id, key: row.key, name: row.name })),
+    labels: labels.map((row) => ({ id: row.id, name: row.name })),
+  }), [title, me, members, projects, labels]);
+
+  const effective = {
+    projectId: parsed.projectId ?? projectId,
+    priority: parsed.priority ?? priority,
+    assignees: parsed.assignees.length ? parsed.assignees : assignees,
+    due: parsed.dueDate ?? due,
+  };
+  const project = projects.find((p) => p.id === effective.projectId);
 
   useEffect(() => {
     if (!projectId && projects[0]) setProjectId(projects[0].id);
@@ -59,18 +89,21 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   useEffect(() => setStateId(defaultStateId(projectId)), [projectId]);
 
   const submit = (keepOpen = false) => {
-    if (!title.trim() || !projectId) return;
+    if (!parsed.title.trim() || !effective.projectId) return;
     createTask({
-      project_id: projectId,
-      title: title.trim(),
+      project_id: effective.projectId,
+      title: parsed.title.trim(),
       description: description.trim() || undefined,
-      priority,
-      assignees,
-      state_id: stateId,
-      due_date: due || null,
+      priority: effective.priority,
+      assignees: effective.assignees,
+      labels: parsed.labels.length ? parsed.labels : undefined,
+      // A state chosen for the old project is not a state in the new one.
+      state_id: parsed.projectId && parsed.projectId !== projectId ? undefined : stateId,
+      due_date: effective.due || null,
       cycle_id: cycleId ?? null,
+      recurrence: parsed.recurrence,
     }, me);
-    localStorage.setItem(LAST_PROJECT_KEY, projectId);
+    localStorage.setItem(LAST_PROJECT_KEY, effective.projectId);
     toast(t('quickAdd.added', { project: project?.name ?? t('quickAdd.project') }));
     if (keepOpen) {
       setTitle('');
@@ -102,10 +135,10 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
       onClose={onClose}
       footer={
         <>
-          <Button onClick={() => submit(true)} disabled={!title.trim() || !projectId} title={t('quickAdd.saveAndNewHint')}>
+          <Button onClick={() => submit(true)} disabled={!parsed.title.trim() || !effective.projectId} title={t('quickAdd.saveAndNewHint')}>
             {t('quickAdd.saveAndNew')}
           </Button>
-          <Button variant="primary" onClick={() => submit(false)} disabled={!title.trim() || !projectId}>
+          <Button variant="primary" onClick={() => submit(false)} disabled={!parsed.title.trim() || !effective.projectId}>
             {t('quickAdd.create')}
           </Button>
         </>
@@ -125,6 +158,22 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
             }}
             className="text-base mb-2.5"
           />
+
+          {/* What the line was read as. Shown rather than only applied, because a
+              parser that quietly changes the priority is a parser nobody
+              trusts — and the token is still in the box to be deleted. */}
+          {parsed.found.length > 0 && (
+            <p className="flex items-center flex-wrap gap-1.5 mb-2.5 text-[12.5px] text-muted">
+              <Icon name="sparkle" size={13} />
+              {t('quickAdd.read')}
+              {parsed.found.map((entry) => (
+                <Chip key={`${entry.kind}-${entry.token}`} title={entry.token}>{entry.label}</Chip>
+              ))}
+            </p>
+          )}
+          {!parsed.found.length && title.trim().length > 2 && (
+            <p className="mb-2.5 text-[12px] text-muted font-mono truncate">{QUICK_ADD_SYNTAX}</p>
+          )}
 
           <div className="flex items-center flex-wrap gap-1.5 mb-2.5">
             <MenuButton items={projectItems} variant="secondary" size="sm" search>
@@ -154,16 +203,19 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
                 onSelect: () => setPriority(value),
               }))}
             >
-              <PriorityBars priority={priority} />
-              {t(priorityKey(priority))}
+              <PriorityBars priority={effective.priority} />
+              {t(priorityKey(effective.priority))}
             </MenuButton>
 
             <MenuButton items={memberItems} variant="secondary" size="sm" search>
               <Icon name="users" size={14} />
-              {assignees.length ? t('quickAdd.assigned', { count: assignees.length }) : t('quickAdd.assign')}
+              {effective.assignees.length ? t('quickAdd.assigned', { count: effective.assignees.length }) : t('quickAdd.assign')}
             </MenuButton>
 
-            <Input type="date" style={{ width: 152 }} value={due} onChange={(event) => setDue(event.target.value)} />
+            <Input
+              type="date" style={{ width: 152 }} aria-label={t('task.due')}
+              value={effective.due} onChange={(event) => setDue(event.target.value)}
+            />
 
             <MenuButton
               variant="secondary" size="sm"

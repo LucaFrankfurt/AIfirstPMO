@@ -25,7 +25,7 @@
  */
 import type { Priority, StateGroup } from './types.ts';
 
-export type ForeignFormat = 'jira' | 'linear' | 'plane' | 'openproject';
+export type ForeignFormat = 'jira' | 'linear' | 'plane' | 'openproject' | 'trello' | 'todoist';
 
 export interface Converted {
   format: ForeignFormat;
@@ -88,6 +88,10 @@ export function detectFormat(document: unknown): ForeignFormat | null {
   if (asArray(dig(doc, 'data.issues.nodes')).length || asArray(dig(doc, 'issues.nodes')).length) return 'linear';
   if (asArray(dig(doc, '_embedded.elements')).some((element) => 'subject' in element)) return 'openproject';
   if (asArray(doc.results).some((result) => 'name' in result && ('sequence_id' in result || 'priority' in result))) return 'plane';
+  // A Trello board export: cards that name the list they sit in, and the lists.
+  if (asArray(doc.cards).some((card) => 'idList' in card) && Array.isArray(doc.lists)) return 'trello';
+  // Todoist: items with `content` rather than a title, filed under a project.
+  if (asArray(doc.items).some((item) => 'content' in item && ('project_id' in item || 'checked' in item))) return 'todoist';
   return null;
 }
 
@@ -100,6 +104,8 @@ export function convert(document: unknown): Converted {
     case 'linear': return fromLinear(doc);
     case 'openproject': return fromOpenProject(doc);
     case 'plane': return fromPlane(doc);
+    case 'trello': return fromTrello(doc);
+    case 'todoist': return fromTodoist(doc);
   }
 }
 
@@ -120,6 +126,8 @@ interface Draft {
   parent: string | null;
   blocks: string[];
   comments: { author: string | null; body: string }[];
+  /** `weekly:2` and friends. Only Todoist carries one; see `scheduler.ts`. */
+  recurrence?: string | null;
 }
 
 interface People {
@@ -190,6 +198,7 @@ function assemble(
     parent_id: draft.parent,
     start_date: draft.start_date,
     due_date: draft.due_date,
+    recurrence: draft.recurrence ?? null,
   }));
 
   const known = new Set(drafts.map((draft) => draft.id));
@@ -494,4 +503,244 @@ function fromPlane(doc: Record<string, unknown>): Converted {
   notes.push('Plane identifies people by id in this file and does not include their addresses, so assignees cannot be matched to anybody here and the tasks arrive unassigned');
   notes.push('Cycles, modules and relations live in other Plane endpoints and are not in this file');
   return assemble('plane', 'Imported from Plane', '', drafts, who, notes);
+}
+
+/* --------------------------------------------------------------- Trello */
+
+/**
+ * A Trello board, exported as JSON from the board menu.
+ *
+ * The interesting difference from the other four: a Trello list is a *column*
+ * and nothing else. It carries no notion of "this column means finished", so
+ * the group has to be guessed from the name — and guessing wrong here matters,
+ * because a column read as `completed` makes every card in it look done.
+ *
+ * So the guess is narrow and says so in the notes: a handful of words in the
+ * three languages this app speaks, and `unstarted` for everything else. A
+ * column called "Blocked" is not finished and is not cancelled; it is a column.
+ */
+const TRELLO_DONE = /^(done|complete[d]?|finished|shipped|closed|fertig|erledigt|abgeschlossen|termin[ée]|fini)\b/i;
+const TRELLO_CANCELLED = /^(cancel(l)?ed|won'?t ?do|abgebrochen|verworfen|annul[ée])\b/i;
+const TRELLO_BACKLOG = /^(backlog|ideas?|icebox|someday|ideen|später|id[ée]es)\b/i;
+
+/** Trello's own colour names, for the labels people never named. */
+const TRELLO_COLOUR: Record<string, string> = {
+  green: 'Green', yellow: 'Yellow', orange: 'Orange', red: 'Red', purple: 'Purple',
+  blue: 'Blue', sky: 'Sky', lime: 'Lime', pink: 'Pink', black: 'Black',
+};
+
+function fromTrello(doc: Record<string, unknown>): Converted {
+  const who = people();
+  const notes: string[] = [];
+
+  const lists = new Map<string, { name: string; group: StateGroup; closed: boolean }>();
+  for (const list of asArray(doc.lists)) {
+    const name = String(list.name ?? '').trim() || 'List';
+    lists.set(String(list.id ?? ''), {
+      name,
+      group: TRELLO_CANCELLED.test(name) ? 'cancelled'
+        : TRELLO_DONE.test(name) ? 'completed'
+          : TRELLO_BACKLOG.test(name) ? 'backlog' : 'unstarted',
+      closed: list.closed === true,
+    });
+  }
+
+  const members = new Map<string, { name: string; username: string }>();
+  for (const member of asArray(doc.members)) {
+    members.set(String(member.id ?? ''), {
+      name: String(member.fullName ?? member.username ?? ''),
+      username: String(member.username ?? ''),
+    });
+  }
+
+  // A checklist is the closest thing Trello has to a sub-task, and Kolibri's
+  // sub-tasks are whole tasks with their own state — which a three-word
+  // checklist item is not. So they become a markdown checklist in the
+  // description, which renders as one and can be ticked where it is read.
+  const checklists = new Map<string, string[]>();
+  let checklistItems = 0;
+  for (const list of asArray(doc.checklists)) {
+    const card = String(list.idCard ?? '');
+    const items = asArray(list.checkItems)
+      .map((item) => `- [${item.state === 'complete' ? 'x' : ' '}] ${String(item.name ?? '').trim()}`)
+      .filter((line) => line.length > 6);
+    if (!card || !items.length) continue;
+    checklistItems += items.length;
+    const title = String(list.name ?? '').trim();
+    checklists.set(card, [...(checklists.get(card) ?? []), ...(title ? [`**${title}**`] : []), ...items]);
+  }
+
+  // Comments are actions, mixed in with every move, rename and archive.
+  const comments = new Map<string, { author: string | null; body: string }[]>();
+  for (const action of asArray(doc.actions)) {
+    if (action.type !== 'commentCard') continue;
+    const data = (action.data ?? {}) as Record<string, unknown>;
+    const card = String((data.card as Record<string, unknown>)?.id ?? '');
+    const body = String(data.text ?? '').trim();
+    if (!card || !body) continue;
+    const creator = (action.memberCreator ?? {}) as Record<string, unknown>;
+    const author = creator.id
+      ? who.id(String(creator.id), String(creator.fullName ?? creator.username ?? ''), '')
+      : null;
+    comments.set(card, [...(comments.get(card) ?? []), { author, body }]);
+  }
+
+  let archived = 0;
+  const drafts: Draft[] = asArray(doc.cards).flatMap((card) => {
+    // An archived card is not a task somebody is going to do. Counted and left
+    // out rather than imported into a board it would clutter.
+    if (card.closed === true) { archived++; return []; }
+    const id = String(card.id ?? '');
+    const list = lists.get(String(card.idList ?? ''));
+    const extra = checklists.get(id);
+    const description = [String(card.desc ?? '').trim(), ...(extra ? ['', ...extra] : [])]
+      .filter((part, index) => index === 0 || part !== undefined).join('\n').trim();
+    return [{
+      id,
+      title: String(card.name ?? '(untitled)'),
+      description,
+      state: list?.name ?? 'Imported',
+      group: list?.group ?? 'unstarted',
+      type: '',
+      // Trello has no priority at all. Inventing one from a label would be a
+      // guess about somebody else's convention.
+      priority: 'none' as Priority,
+      labels: (Array.isArray(card.labels) ? card.labels : []).map((label) => {
+        const entry = label as Record<string, unknown>;
+        return String(entry.name ?? '').trim() || TRELLO_COLOUR[String(entry.color ?? '')] || 'Label';
+      }),
+      assignees: (Array.isArray(card.idMembers) ? card.idMembers : [])
+        .map((memberId) => {
+          const member = members.get(String(memberId));
+          return who.id(String(memberId), member?.name ?? String(memberId), '');
+        }),
+      start_date: day(card.start),
+      due_date: day(card.due),
+      parent: null,
+      blocks: [],
+      comments: comments.get(id) ?? [],
+    }];
+  }).filter((draft) => draft.id && draft.title);
+
+  const closedLists = [...lists.values()].filter((list) => list.closed).length;
+  notes.push('A Trello list is a column and says nothing about whether the work in it is finished, so the state group is guessed from the column name — check the states after importing, because a column read as "done" makes every card in it look done');
+  if (checklistItems) notes.push(`${checklistItems} checklist item${checklistItems === 1 ? '' : 's'} became a markdown checklist in the description rather than sub-tasks, because a Kolibri sub-task is a whole task and a checklist item is not`);
+  if (archived) notes.push(`${archived} archived card${archived === 1 ? '' : 's'} left out`);
+  if (closedLists) notes.push(`${closedLists} archived list${closedLists === 1 ? '' : 's'} still appear${closedLists === 1 ? 's' : ''} as a state, because cards in them were not archived themselves`);
+  notes.push('Trello has no priority, no estimates and no relations between cards, so none of those come across');
+  notes.push('Attachments, cover images and Power-Up data are not in this file and are not fetched');
+
+  return assemble('trello', String(doc.name ?? '').trim() || 'Imported from Trello', '', drafts, who, notes);
+}
+
+/* -------------------------------------------------------------- Todoist */
+
+/**
+ * Todoist, from the Sync API's JSON or a backup of it.
+ *
+ * The awkward part is the opposite of Trello's: Todoist has no columns at all.
+ * A task is open or it is checked, so exactly two states are invented — and
+ * saying that plainly in the notes is better than inventing a workflow nobody
+ * asked for.
+ *
+ * Priorities are upside down: Todoist's `4` is its P1, the urgent one.
+ */
+const TODOIST_PRIORITY: Record<number, Priority> = { 4: 'urgent', 3: 'high', 2: 'medium', 1: 'none' };
+
+/**
+ * `every week`, `every 2 days`, `jeden Monat` → what `scheduler.ts` reads.
+ *
+ * Deliberately only the three shapes Kolibri can actually repeat on. Todoist's
+ * recurrence language is far richer — `every 3rd friday`, `every workday` —
+ * and a rule this cannot honour is better left off the task than approximated
+ * into one that fires on the wrong day.
+ */
+export function todoistRecurrence(phrase: string): string | null {
+  const text = phrase.toLowerCase().trim();
+  if (!/^(every|each|jede[nrs]?|alle|chaque|tous les|toutes les)\b/.test(text)) return null;
+  const every = Number(/\b(\d{1,3})\b/.exec(text)?.[1] ?? 1);
+  if (!Number.isFinite(every) || every < 1) return null;
+  const unit = /\b(day|days|tag|tage|tagen|jour|jours)\b/.test(text) ? 'daily'
+    : /\b(week|weeks|woche|wochen|semaine|semaines)\b/.test(text) ? 'weekly'
+      : /\b(month|months|monat|monate|monaten|mois)\b/.test(text) ? 'monthly'
+        : null;
+  if (!unit) return null;
+  return every === 1 ? unit : `${unit}:${every}`;
+}
+
+function fromTodoist(doc: Record<string, unknown>): Converted {
+  const who = people();
+  const notes: string[] = [];
+
+  const projects = new Map(asArray(doc.projects).map((project) => [String(project.id ?? ''), String(project.name ?? '')]));
+  // v2 hands back label names on the item; the Sync API hands back ids.
+  const labelNames = new Map(asArray(doc.labels).map((label) => [String(label.id ?? ''), String(label.name ?? '')]));
+
+  for (const person of asArray(doc.collaborators)) {
+    who.id(String(person.id ?? ''), String(person.full_name ?? ''), String(person.email ?? ''));
+  }
+
+  const notesFor = new Map<string, { author: string | null; body: string }[]>();
+  for (const note of [...asArray(doc.notes), ...asArray(doc.item_notes)]) {
+    const item = String(note.item_id ?? '');
+    const body = String(note.content ?? '').trim();
+    if (!item || !body) continue;
+    const author = note.posted_uid ? who.id(String(note.posted_uid), '', '') : null;
+    notesFor.set(item, [...(notesFor.get(item) ?? []), { author, body }]);
+  }
+
+  let recurring = 0;
+  let unreadableRecurrence = 0;
+  const drafts: Draft[] = asArray(doc.items).map((item) => {
+    const due = (item.due ?? null) as Record<string, unknown> | null;
+    const phrase = String(due?.string ?? '');
+    const repeat = due?.is_recurring === true ? todoistRecurrence(phrase) : null;
+    if (due?.is_recurring === true) {
+      if (repeat) recurring++; else unreadableRecurrence++;
+    }
+    const done = item.checked === true || item.checked === 1 || item.is_completed === true;
+    return {
+      id: String(item.id ?? ''),
+      title: String(item.content ?? '(untitled)'),
+      description: String(item.description ?? '').trim(),
+      state: done ? 'Done' : 'Open',
+      group: (done ? 'completed' : 'unstarted') as StateGroup,
+      type: '',
+      priority: TODOIST_PRIORITY[Number(item.priority ?? 1)] ?? 'none',
+      labels: (Array.isArray(item.labels) ? item.labels : [])
+        .map((label) => labelNames.get(String(label)) || String(label))
+        .filter(Boolean),
+      assignees: item.responsible_uid ? [who.id(String(item.responsible_uid), '', '')] : [],
+      start_date: null,
+      due_date: day(due?.date),
+      parent: item.parent_id ? String(item.parent_id) : null,
+      blocks: [],
+      comments: notesFor.get(String(item.id ?? '')) ?? [],
+      recurrence: repeat,
+    };
+  }).filter((draft) => draft.id && draft.title);
+
+  // Everything lands in one Kolibri project, so the Todoist project a task came
+  // from would otherwise be lost — it becomes a label, which is the closest
+  // thing that survives and can be filtered on.
+  let filed = 0;
+  for (const draft of drafts) {
+    const item = asArray(doc.items).find((entry) => String(entry.id ?? '') === draft.id);
+    const project = projects.get(String(item?.project_id ?? ''));
+    if (project && !draft.labels.includes(project)) {
+      draft.labels.unshift(project);
+      filed++;
+    }
+  }
+
+  notes.push('Todoist has no columns, so two states are invented — Open and Done — rather than a workflow nobody asked for');
+  if (filed) notes.push(`Everything arrives in one project, so the ${projects.size} Todoist project${projects.size === 1 ? '' : 's'} became labels on the ${filed} task${filed === 1 ? '' : 's'} that were in them`);
+  if (recurring) notes.push(`${recurring} repeating task${recurring === 1 ? '' : 's'} kept ${recurring === 1 ? 'its rule' : 'their rules'}`);
+  if (unreadableRecurrence) {
+    notes.push(`${unreadableRecurrence} repeating task${unreadableRecurrence === 1 ? '' : 's'} used a rule Kolibri cannot express — it repeats daily, weekly or monthly and nothing else — so ${unreadableRecurrence === 1 ? 'it arrives' : 'they arrive'} with the due date and no repeat, rather than repeating on the wrong day`);
+  }
+  notes.push('A due *time* is not kept: Kolibri due dates are days');
+  notes.push('Reminders, sections, filters and karma are not read');
+
+  return assemble('todoist', 'Imported from Todoist', '', drafts, who, notes);
 }
