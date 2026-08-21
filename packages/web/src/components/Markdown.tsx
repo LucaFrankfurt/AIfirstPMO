@@ -333,7 +333,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
       <div className="editor-toolbar">
         {SNIPPETS.map((snippet) => (
           <button
-            key={snippet.title} type="button" className={buttonVariants({ variant: 'ghost', size: 'sm' })} title={t(snippet.title)}
+            key={snippet.title} type="button" className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+            title={t(snippet.title)} aria-label={t(snippet.title)}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => surround(snippet.wrap[0], snippet.wrap[1])}
           >

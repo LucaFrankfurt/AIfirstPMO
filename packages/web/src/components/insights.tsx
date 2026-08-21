@@ -374,14 +374,14 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
       </div>
 
       <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-        <h3 className="chart-title">{t('insights.throughput')}</h3>
+        <h2 className="chart-title">{t('insights.throughput')}</h2>
         <p className="text-[12px] text-muted">{t('insights.throughputHint')}</p>
         <Columns data={throughput} caption={t('insights.throughputCaption')} />
       </div>
 
       {burnUp && (
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-          <h3 className="chart-title">{t('insights.burnUp', { name: burnUp.name })}</h3>
+          <h2 className="chart-title">{t('insights.burnUp', { name: burnUp.name })}</h2>
           <p className="text-[12px] text-muted">{t('insights.burnUpHint')}</p>
           <Lines
             labels={burnUp.labels}
@@ -397,13 +397,13 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
       <div className="grid gap-3 sm:grid-cols-2">
         {byType.length > 0 && (
           <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-            <h3 className="chart-title">{t('insights.byType')}</h3>
+            <h2 className="chart-title">{t('insights.byType')}</h2>
             <Bars data={byType} caption={t('insights.byType')} />
           </div>
         )}
         {byPerson.length > 0 && (
           <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-            <h3 className="chart-title">{t('insights.byPerson')}</h3>
+            <h2 className="chart-title">{t('insights.byPerson')}</h2>
             <p className="text-[12px] text-muted">{t('insights.byPersonHint')}</p>
             <Bars data={byPerson} caption={t('insights.byPerson')} />
           </div>

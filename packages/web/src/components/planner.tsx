@@ -28,7 +28,7 @@ import { Avatar, Empty, Icon, StateDot } from './ui';
 
 const DAY_WIDTH = 12;
 /** Height of one task bar's row inside a person's lane. */
-const SUB = 24;
+const SUB = 28;   // one stacked bar: 24px tall, 4px of air beneath it
 /** The load strip at the foot of every lane. */
 const STRIP = 10;
 const UNASSIGNED = '__nobody__';
@@ -186,7 +186,10 @@ export function Planner() {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center flex-wrap gap-2.5 mb-2.5">
-        <h2 className="text-base m-0">{t('planner.title')}</h2>
+        {/* `h1`, because this is the name of the screen. It was an `h2` and
+            the planner was the one route in the app whose heading outline
+            started halfway down. */}
+        <h1 className="text-base m-0">{t('planner.title')}</h1>
         <span className="flex-1 min-w-0" />
         <label className="flex items-center gap-1.5 text-[12.5px]">
           <span className="text-muted">{t('planner.limit')}</span>

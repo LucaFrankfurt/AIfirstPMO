@@ -178,11 +178,16 @@ function Profile() {
 
       <SectionHeading>{t('profile.password')}</SectionHeading>
       <div className="flex items-center gap-2 flex-wrap">
+        {/* Named as well as hinted. The placeholder is gone as soon as the
+            first character is typed, which is precisely when somebody checking
+            "which box am I in" most needs to be told. */}
         <Input type="password" placeholder={t('profile.currentPassword')} autoComplete="current-password"
+          aria-label={t('profile.currentPassword')}
           style={{ maxWidth: 220 }} value={passwords.current}
           onChange={(event) => setPasswords({ ...passwords, current: event.target.value })}
         />
         <Input type="password" placeholder={t('profile.newPassword')} autoComplete="new-password"
+          aria-label={t('profile.newPassword')}
           style={{ maxWidth: 220 }} value={passwords.next}
           onChange={(event) => setPasswords({ ...passwords, next: event.target.value })}
         />
@@ -524,7 +529,13 @@ function Members() {
             <Chip>{t(roleKey(member.role))}</Chip>
           )}
           {canManage && (
-            <Button variant="ghost" size="iconSm"
+            <Button
+              variant="ghost" size="iconSm"
+              // A bin icon on a row, announcing as "button". Naming the person
+              // as well as the verb matters here more than anywhere: the rows
+              // are identical to a screen reader otherwise.
+              aria-label={`${t('action.remove')} — ${member.name}`}
+              title={`${t('action.remove')} — ${member.name}`}
               onClick={async () => {
                 if (!(await confirm(t('members.remove', { name: member.name }), t('action.remove')))) return;
                 await api.delete(`/api/workspaces/${workspaceId}/members/${member.user_id}`);

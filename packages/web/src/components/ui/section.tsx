@@ -14,6 +14,10 @@ import { cn } from '../../lib/cn';
  * only beat `h1, h2, h3, h4 { margin: 0 }` in `app.css` because that file sits
  * in `@layer components`. See the note at the top of it.
  */
-export function SectionHeading({ className, tight, ...props }: ComponentProps<'h3'> & { tight?: boolean }) {
-  return <h3 className={cn('mb-2 text-sm font-semibold', tight ? 'mt-0' : 'mt-5', className)} {...props} />;
+export function SectionHeading({ className, tight, ...props }: ComponentProps<'h2'> & { tight?: boolean }) {
+  // `h2`, not `h3`. Every screen that uses these has an `h1` in its header and
+  // nothing in between, so an `h3` here left a hole in the outline — and an
+  // outline with a hole in it is what a screen reader's heading list is made
+  // of. The size comes from the utilities either way; only the level changed.
+  return <h2 className={cn('mb-2 text-sm font-semibold', tight ? 'mt-0' : 'mt-5', className)} {...props} />;
 }

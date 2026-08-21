@@ -52,6 +52,8 @@ export const en = {
   'nav.guide': 'Guide',
   'nav.settings': 'Settings',
   'nav.newTask': 'New task',
+  'nav.sidebar': 'Main navigation',
+  'nav.tabbar': 'Sections',
   'nav.newProject': 'New project',
   'nav.firstProject': 'Create your first project',
   'nav.account': 'Account',
@@ -844,6 +846,8 @@ export const en = {
   /* --------------------------------------------------------------- teams */
   'team.title': 'Teams',
   'team.placeholder': 'New team, e.g. Platform',
+  'team.newLabel': 'Name of the new team',
+  'team.nameLabel': 'Team name',
   'team.emptyTitle': 'No teams yet',
   'team.emptyHint': 'Teams group people and projects — useful once more than a handful of people share the workspace.',
   'team.members': 'Members',

@@ -53,6 +53,8 @@ export const de: Catalogue = {
   'nav.guide': 'Anleitung',
   'nav.settings': 'Einstellungen',
   'nav.newTask': 'Neue Aufgabe',
+  'nav.sidebar': 'Hauptnavigation',
+  'nav.tabbar': 'Bereiche',
   'nav.newProject': 'Neues Projekt',
   'nav.firstProject': 'Erstes Projekt anlegen',
   'nav.account': 'Konto',
@@ -845,6 +847,8 @@ export const de: Catalogue = {
   /* --------------------------------------------------------------- teams */
   'team.title': 'Teams',
   'team.placeholder': 'Neues Team, z. B. Plattform',
+  'team.newLabel': 'Name des neuen Teams',
+  'team.nameLabel': 'Teamname',
   'team.emptyTitle': 'Noch keine Teams',
   'team.emptyHint': 'Teams bündeln Personen und Projekte — sinnvoll, sobald mehr als eine Handvoll Leute den Workspace teilen.',
   'team.members': 'Mitglieder',

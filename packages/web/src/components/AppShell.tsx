@@ -30,11 +30,20 @@ function SyncPill() {
     <button
       className={`status-pill ${status.state}`}
       onClick={() => void pull()}
+      // The word beside the dot is `hide-sm`, so on a phone this button is a
+      // coloured dot and nothing else. The name has to come from somewhere.
+      aria-label={`${label} — ${t('sync.now')}`}
       title={status.message ?? (status.lastSyncedAt
         ? t('sync.lastSynced', { time: new Date(status.lastSyncedAt).toLocaleTimeString(currentLocale()) })
         : t('sync.now'))}
     >
-      <span className={chipDot} />
+      {/* `dot` as well as the utilities: every colour this indicator has —
+          green for synced, amber for offline, red for a failure, and the
+          pulsing accent while it works — is keyed on `.status-pill .dot` in
+          the stylesheet, and the class had been dropped. The dot was drawing
+          nothing. On a desktop the word beside it covered for that; on a phone
+          the word is hidden and the status was an empty circle. */}
+      <span className={`dot ${chipDot}`} />
       <span className="hide-sm">{label}</span>
     </button>
   );
@@ -159,7 +168,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="shell">
-      <aside className="sidebar">
+      {/* Labelled, because a second `<aside>` appears on the chat screen and a
+          rotor listing "complementary" twice tells nobody which is which. */}
+      <aside className="sidebar" aria-label={t('nav.sidebar')}>
         <MenuButton items={workspaceItems} className={navItem()} title={t('nav.switchWorkspace')}>
           <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
           <span className="flex-1 min-w-0 truncate font-semibold">
@@ -223,8 +234,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <div className="main">
-        <div className="content">{children}</div>
-        <nav className="tabbar">
+        {/* A real landmark rather than a styled `div`. "Skip to content" and
+            every screen reader's jump-to-main both need something to aim at,
+            and `.main` was only ever a class name. */}
+        <main className="content" id="content">{children}</main>
+        <nav className="tabbar" aria-label={t('nav.tabbar')}>
           <NavLink to="/" end><Icon name="home" size={20} />{t('nav.myWork')}</NavLink>
           <NavLink to="/inbox">
             <Icon name="inbox" size={20} />

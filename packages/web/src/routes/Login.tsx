@@ -92,7 +92,7 @@ export function Login() {
   const ssoHref = `/api/auth/oidc/start?next=${encodeURIComponent(code ? `/invite/${code}` : '/')}`;
 
   return (
-    <div className="auth">
+    <main className="auth">
       <form className="box" onSubmit={submit}>
         <div className="flex items-center gap-2 mb-4">
           <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
@@ -190,7 +190,7 @@ export function Login() {
           </Select>
         </div>
       </form>
-    </div>
+    </main>
   );
 }
 
@@ -243,7 +243,7 @@ export function AcceptInvite() {
   }
 
   return (
-    <div className="auth">
+    <main className="auth">
       <div className="box">
         <div className="flex items-center gap-2 mb-4">
           <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
@@ -273,6 +273,6 @@ export function AcceptInvite() {
           {t('login.useAnotherAccount')}
         </button>
       </div>
-    </div>
+    </main>
   );
 }

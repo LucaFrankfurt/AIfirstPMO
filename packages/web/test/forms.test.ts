@@ -153,3 +153,43 @@ describe('every className literal', () => {
     assert.deepEqual(conflicts, [], `self-conflicting class string(s):\n  ${conflicts.join('\n  ')}`);
   });
 });
+
+/**
+ * An icon and a tooltip is not a name.
+ *
+ * `title` is a hint for a mouse pointer. It is announced inconsistently, it is
+ * skipped entirely by some screen readers, and on a touchscreen it never
+ * appears at all — so a button whose only text is an icon and whose only words
+ * are in a `title` reads as "button" and is, on a phone, a small grey square
+ * nobody can identify. This was most of what the first accessibility pass over
+ * this app found, and the reason the *tool* is not always intuitive is the same
+ * reason: a picture with no word next to it is a guess.
+ *
+ * `Button` and `MenuButton` derive the name from `title` when there is nothing
+ * else, so the components are covered. This catches the raw `<button>` that
+ * does not go through them — the layout switcher was exactly that.
+ */
+describe('every icon-only control', () => {
+  /** Text a screen reader would read out of the tag's own children. */
+  const speaks = (body: string): boolean =>
+    // Words between the tags, ignoring JSX elements and expressions. `{t('x')}`
+    // counts: a translated string is text, whatever it renders to.
+    /(^|>)[^<>{}]*[A-Za-z0-9][^<>{}]*(<|$)/.test(body) || /\{t\(/.test(body) || /\{[a-z]\w*\.(name|title|label)\b/.test(body);
+
+  it('has a name that is not only a title attribute', () => {
+    const mute: string[] = [];
+    for (const { path, text } of files) {
+      for (const match of text.matchAll(/<button\b/g)) {
+        const end = endOfTag(text, match.index!);
+        const tag = text.slice(match.index!, end);
+        if (!/\btitle=/.test(tag)) continue;
+        if (/\baria-label(?:ledby)?=/.test(tag)) continue;
+        const close = text.indexOf('</button>', end);
+        const body = close < 0 ? '' : text.slice(end, close);
+        if (speaks(body)) continue;
+        mute.push(`${path.slice(SRC.length + 1)}:${text.slice(0, match.index).split('\n').length}`);
+      }
+    }
+    assert.deepEqual(mute, [], `button(s) named only by a tooltip: ${mute.join(', ')}`);
+  });
+});

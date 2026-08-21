@@ -279,7 +279,12 @@ These are the ones that decide whether the thing is usable, and they are checkab
 1. **Focus is always visible, and only for the keyboard.** `focus-visible`, never `focus`. A ring on
    a mouse click is noise people learn to ignore, and then they ignore it on Tab too.
 2. **Every icon-only control has an `aria-label`.** A tooltip is not a name — it is decoration that
-   happens to contain the same words.
+   happens to contain the same words, announced inconsistently and never shown at all on a
+   touchscreen. `Button` and `MenuButton` derive the label from `title` when the control has no
+   words of its own, so a call site cannot forget; a raw `<button>` that skips them is caught by
+   the source check in `forms.test.ts`. The derivation is *conditional* on there being no visible
+   text, because an `aria-label` **replaces** the words on screen — a label that drifts from them
+   is a control a voice-control user can see and cannot say.
 3. **Colour is never the only carrier.** Status has a word or a shape beside it.
 4. **An empty state says what to do next**, and links to the guide where there is one. `Empty`
    exists for this; a blank panel is a dead end, and a dead end is where somebody decides the tool
@@ -290,6 +295,45 @@ These are the ones that decide whether the thing is usable, and they are checkab
    name of the thing in the sentence.
 7. **Text is translated, always.** Three catalogues with enforced key parity; a string in a
    component is a bug the walkthrough catches in German and French.
+8. **What you have to hit is at least 24×24.** The *target*, not the drawing: a 15px checkbox in a
+   24px wrapper that carries the click is fine, and padding is how that is done — `.select-box`
+   and the guide's step dots both look exactly as they did. `node scripts/a11y.mjs` measures the
+   rendered boxes rather than the source, and knows about the wrapper.
+9. **The heading outline has no holes in it.** One `h1` per screen, `h2` for the sections under it,
+   and nothing skipped — a screen reader's heading list is the outline, and a hole in it is a
+   screen somebody has to read linearly. `SectionHeading` renders `h2` for exactly this reason.
+10. **The landmarks are real elements and are told apart.** One `<main>`, and any second `<nav>` or
+    `<aside>` carries an `aria-label` — two entries called "complementary" name nothing.
+
+## What the accessibility pass found
+
+`scripts/a11y.mjs` drives a real browser and reads the real computed styles, for the same reason
+`contrast.mjs` does: "it has an `aria-label` somewhere" is a claim about source, and what matters is
+what the accessibility tree ends up holding. It is deliberately not an axe-core wrapper — this
+project ships no runtime dependencies, and the rules that matter for an icon-button-dense project
+tool are a narrower and stricter set than a generic ruleset applies.
+
+The first run reported **44 problems on desktop and 36 on mobile**. What they were, because the
+shape of the list is more useful than the count:
+
+- **Six icon buttons named only by a `title`** — the whole layout switcher (Board, List, Table,
+  Calendar, Timeline) and *New project*. On a phone, six identical grey squares.
+- **One icon button with no name at all**, and it removed a person from the workspace.
+- **Three fields named only by their placeholder** — both password boxes and the new-team field. A
+  placeholder disappears the moment somebody types, which is exactly when "which box am I in"
+  gets asked.
+- **Two screens with no `h1`**, and a `SectionHeading` that rendered `h3` directly under one, so
+  every settings screen had a hole in its outline.
+- **No `<main>` anywhere**, including the sign-in page. `.main` was a class name.
+- **Twenty-six targets under 24×24**, including the checkbox in front of every task in the app.
+- **Zero focus-ring failures.** The `focus-visible` rule in `buttonVariants` had already done its
+  job everywhere, which is what a rule in one place is for.
+
+And one thing that was not an accessibility problem at all but was found by looking: the sync
+indicator's dot carried `chipDot` and not `dot`, so none of the four colours keyed on
+`.status-pill .dot` — green, amber, red, and the pulse while syncing — had been drawing anything.
+On a desktop the word beside it covered for that. On a phone the word is hidden, and the status
+indicator was an empty circle.
 
 ## Porting a screen
 
@@ -304,9 +348,9 @@ The port is deliberately incremental. The order inside one screen:
    commit that added the field components deleted `.field` while seventy-six `<div class="field">`
    were still on screen, and every form in the app lost its spacing without a single error.
 5. Walk the screen with the keyboard only, and once at 390px wide.
-6. Run `npm test` — the source-level checks in `packages/web/test/forms.test.ts` catch the three
-   things a codemod breaks silently — then `npm run check:css`, `npm run check:responsive` and
-   `npm run check:contrast`.
+6. Run `npm test` — the source-level checks in `packages/web/test/forms.test.ts` catch the four
+   things a codemod breaks silently — then `npm run check:css`, `npm run check:responsive`,
+   `npm run check:contrast` and `npm run check:a11y`.
 
 `app.css` is the progress bar: **1,862 lines** when the port started, **1,847** now — up from 1,713,
 because four rules the port had deleted too early came back.

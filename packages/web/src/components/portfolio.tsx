@@ -237,6 +237,9 @@ export function Portfolio() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      {/* The screen had four numbers, three charts and nothing naming any of
+          it — the one route in the app with no heading of its own. */}
+      <h1 className="text-base m-0 mb-2.5">{t('portfolio.title')}</h1>
       <div className="kpi-row">
         <Stat label={t('portfolio.projects')} value={String(projects.length)} />
         <Stat label={t('portfolio.open')} value={String(totals.open)} hint={t('portfolio.acrossAll')} />
@@ -249,7 +252,7 @@ export function Portfolio() {
         {time && <Stat label={t('portfolio.timeLogged')} value={`${totals.hours} h`} />}
       </div>
 
-      <h3 className="chart-title">{t('portfolio.roadmap')}</h3>
+      <h2 className="chart-title">{t('portfolio.roadmap')}</h2>
       {bars.length
         ? <Roadmap bars={bars} from={range.from} to={range.to} />
         : <p className="text-muted text-[13.5px]">{t('portfolio.noDates')}</p>}
@@ -260,7 +263,7 @@ export function Portfolio() {
         </p>
       )}
 
-      <h3 className="chart-title mt-[22px]">{t('portfolio.openByProject')}</h3>
+      <h2 className="chart-title mt-[22px]">{t('portfolio.openByProject')}</h2>
       <Bars
         caption={t('portfolio.openByProject')}
         data={projects.map((project) => ({
@@ -270,7 +273,7 @@ export function Portfolio() {
         }))}
       />
 
-      <h3 className="chart-title mt-[22px]">{t('portfolio.status')}</h3>
+      <h2 className="chart-title mt-[22px]">{t('portfolio.status')}</h2>
       <div className="table-wrap">
         <table className="task-table">
           <thead>

@@ -1,6 +1,6 @@
 import { Slot } from '@radix-ui/react-slot';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ComponentProps } from 'react';
+import { Children, isValidElement, type ComponentProps, type ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 /**
@@ -43,14 +43,41 @@ export const buttonVariants = cva(
   },
 );
 
+/**
+ * Does this button say anything out loud?
+ *
+ * An icon and a tooltip is a button that reads as "button" and nothing else,
+ * which is most of what an accessibility audit of a tool like this one finds.
+ * A button with words in it already has a name and must not be given a second
+ * one — an `aria-label` *replaces* the visible text, so a label that drifts
+ * from the words on screen is worse than no label at all.
+ */
+export function hasText(node: ReactNode): boolean {
+  return Children.toArray(node).some((child) => {
+    if (typeof child === 'string') return child.trim().length > 0;
+    if (typeof child === 'number') return true;
+    if (isValidElement(child)) return hasText((child.props as { children?: ReactNode }).children);
+    return false;
+  });
+}
+
 export function Button({
   className, variant, size, block, asChild = false, ...props
 }: ComponentProps<'button'> & VariantProps<typeof buttonVariants> & { asChild?: boolean }) {
   const Component = asChild ? Slot : 'button';
+  // A `title` is a hint for a mouse. It is not announced reliably, and on a
+  // touchscreen it never appears at all — so on a button with no words of its
+  // own it becomes the name as well as the hint, here, once, rather than at
+  // each of the ninety call sites that would otherwise have to remember.
+  const named = props['aria-label'] ?? props['aria-labelledby'];
+  const label = !named && typeof props.title === 'string' && !hasText(props.children)
+    ? props.title
+    : undefined;
   return (
     <Component
       type={asChild ? undefined : (props.type ?? 'button')}
       className={cn(buttonVariants({ variant, size, block }), className)}
+      aria-label={label}
       {...props}
     />
   );

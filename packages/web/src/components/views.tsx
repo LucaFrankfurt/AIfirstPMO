@@ -264,6 +264,7 @@ export function ViewControls({
             style={view.layout === layout ? { background: 'var(--bg-active)' } : undefined}
             onClick={() => onChange({ ...view, layout })}
             title={t(LAYOUT_KEY[layout])}
+            aria-label={t(LAYOUT_KEY[layout])}
             aria-pressed={view.layout === layout}
           >
             <Icon name={layout} size={14} />

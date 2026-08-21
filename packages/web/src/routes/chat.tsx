@@ -152,7 +152,7 @@ export function Chat() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 chat">
-      <aside className="chat-list">
+      <aside className="chat-list" aria-label={t('chat.title')}>
         <div className="flex items-center gap-2 mb-2">
           <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>
           {canWrite && (
@@ -556,6 +556,9 @@ function Reactions({ message, me, canWrite }: { message: Message; me: string; ca
           className={`reaction${people.includes(me) ? ' mine' : ''}`}
           disabled={!canWrite}
           title={people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}
+          // Otherwise this announces as the emoji alone, and the count and the
+          // names — the entire reason to look at a reaction — are mouse-only.
+          aria-label={`${emoji} ${people.length} · ${people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}`}
           onClick={() => toggleReaction(message, emoji, me)}
         >
           <span aria-hidden>{emoji}</span> {people.length}
