@@ -36,7 +36,7 @@ import { env } from '../env.ts';
 import { buildCsp } from '../lib/csp.ts';
 import { authenticate, hashToken } from '../lib/auth.ts';
 import { token, uid } from '../lib/ids.ts';
-import { badRequest, readJson, send, type Ctx, type Router } from '../lib/http.ts';
+import { badRequest, HttpError, readJson, send, type Ctx, type Router } from '../lib/http.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
 
 /** How long a granted token lasts before the refresh token has to mint another. */
@@ -168,14 +168,20 @@ export function registerOAuthRoutes(router: Router): void {
   /* ---------------------------------------------------------- registration */
 
   router.post('/oauth/register', async (ctx: Ctx) => {
-    enforce(ctx, byAddress(ctx, LIMITS.register, 'oauth-register'));
+    enforce(ctx, byAddress(ctx, LIMITS.oauthClient, 'oauth-register'));
     const body = await readJson<{ client_name?: string; redirect_uris?: string[]; client_uri?: string }>(ctx);
     const uris = (body.redirect_uris ?? []).filter((uri) => typeof uri === 'string' && /^https:\/\//.test(uri));
     // `http://localhost` is allowed because that is where a desktop client's
     // loopback callback lives, and refusing it would rule out every editor.
     const local = (body.redirect_uris ?? []).filter((uri) => /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(uri));
     const all_ = [...uris, ...local];
-    if (!all_.length) throw badRequest('redirect_uris must contain at least one https or loopback URI');
+    // RFC 7591's own code, not a generic one: a client that gets this back can
+    // say which field it got wrong instead of "registration failed".
+    if (!all_.length) {
+      throw new HttpError(400, 'redirect_uris must contain at least one https or loopback URI', 'invalid_redirect_uri');
+    }
+
+    pruneClients();
 
     const id = `kc_${token(16)}`;
     run(
@@ -192,6 +198,34 @@ export function registerOAuthRoutes(router: Router): void {
     });
     return undefined;
   });
+
+/**
+ * The real bound on registration, which is rows rather than requests.
+ *
+ * Anyone may register a client — that is what dynamic registration means — so
+ * the table is writable by the internet and something has to stop it growing
+ * forever. Rate limiting is the wrong tool: it cannot tell a busy Monday
+ * morning from an attack, and set tight enough to matter it locks out the
+ * people it is meant to serve.
+ *
+ * So the cap is on what is left behind. A registration that has never been
+ * used to get a token is worth nothing to anybody: it is either abandoned or
+ * it was never real. Keep the newest `UNUSED_CLIENTS` of those and drop the
+ * rest, oldest first. A client that has actually signed somebody in is never
+ * touched, however old it is.
+ */
+const UNUSED_CLIENTS = 200;
+
+function pruneClients(): void {
+  run(
+    `DELETE FROM oauth_clients
+      WHERE last_used_at IS NULL
+        AND id NOT IN (
+          SELECT id FROM oauth_clients WHERE last_used_at IS NULL ORDER BY created_at DESC LIMIT ?
+        )`,
+    UNUSED_CLIENTS,
+  );
+}
 
   /* ------------------------------------------------------------- authorize */
 

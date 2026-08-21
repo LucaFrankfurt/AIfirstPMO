@@ -133,8 +133,86 @@ describe('finding the way in from nothing but a URL', () => {
   });
 
   it('refuses to register a redirect that is neither https nor loopback', async () => {
-    const { status } = await json('/oauth/register', { client_name: 'Sketchy', redirect_uris: ['http://example.com/cb'] });
+    const { status, body } = await json('/oauth/register', { client_name: 'Sketchy', redirect_uris: ['http://example.com/cb'] });
     assert.equal(status, 400);
+    // RFC 7591's own code, so a client can say which field was wrong instead
+    // of reporting "registration failed" and leaving nobody any the wiser.
+    assert.equal(body.error, 'invalid_redirect_uri');
+  });
+
+  /**
+   * The registration endpoint is not a login endpoint, and treating it as one
+   * broke the connector.
+   *
+   * Claude on the web registers a fresh client for every connection, and all of
+   * them arrive from a handful of shared egress addresses. The old allowance
+   * was five per two minutes for the whole instance, so the fourth person to
+   * connect was refused — and because a refusal cost a token too, retrying
+   * drove the bucket to `-burst` and turned the promised two-minute wait into
+   * twenty. The symptom was "registration with Kolibri's authorization service
+   * failed", however many times you tried.
+   */
+  it('lets a plausible morning of connections through', async () => {
+    resetRateLimits();
+    let created = 0;
+    for (let i = 0; i < 25; i++) {
+      const { status } = await json('/oauth/register', { client_name: 'Claude', redirect_uris: [REDIRECT] });
+      if (status === 201) created++;
+    }
+    assert.equal(created, 25, 'twenty-five people connecting is not an attack');
+  });
+
+  it('keeps the wait it promises, however often it is asked', async () => {
+    resetRateLimits();
+    // Empty the bucket.
+    let refusal: { status: number; body: any } | null = null;
+    for (let i = 0; i < 40 && !refusal; i++) {
+      const attempt = await json('/oauth/register', { client_name: 'Claude', redirect_uris: [REDIRECT] });
+      if (attempt.status === 429) refusal = attempt;
+    }
+    assert.ok(refusal, 'the limit still exists');
+
+    // Ask ten more times. On a limit that deepens, this is what turned two
+    // minutes into twenty; here it must leave the promise exactly where it was.
+    for (let i = 0; i < 10; i++) await json('/oauth/register', { client_name: 'Claude', redirect_uris: [REDIRECT] });
+
+    const { rateLimitInternals } = await import('../src/lib/ratelimit.ts');
+    const bucket = [...rateLimitInternals.buckets.entries()]
+      .find(([key]) => key.startsWith('oauth-register:'))?.[1];
+    assert.ok(bucket, 'the bucket is there to look at');
+    assert.ok(bucket.tokens > -1, `hammering must not dig deeper, tokens were ${bucket.tokens}`);
+  });
+
+  /**
+   * What actually bounds registration: rows, not requests.
+   *
+   * Anyone may register — that is what dynamic registration means — so the
+   * table is writable by the internet. A registration that was never used to
+   * get a token is worth nothing to anybody, so only the newest few hundred of
+   * those are kept. One that has signed somebody in is never touched.
+   */
+  it('caps the registrations nobody ever used, and keeps the ones that worked', async () => {
+    resetRateLimits();
+    const { run, get } = await import('../src/db/index.ts');
+    const count = (where: string) => get<{ n: number }>(`SELECT count(*) AS n FROM oauth_clients WHERE ${where}`)!.n;
+
+    // Old enough to be at the front of the queue for pruning, so nothing this
+    // file registered earlier is at risk. Three of them have signed somebody
+    // in; those must survive being the oldest rows in the table.
+    for (let i = 0; i < 260; i++) {
+      run(
+        `INSERT INTO oauth_clients (id, name, redirect_uris, uri, created_at, last_used_at) VALUES (?, 'filler', '[]', NULL, ?, ?)`,
+        `kc_filler_${i}`, i, i < 3 ? 1 : null,
+      );
+    }
+    assert.ok(count('last_used_at IS NULL') > 201, 'the cap is about to matter');
+
+    const { status } = await json('/oauth/register', { client_name: 'Claude', redirect_uris: [REDIRECT] });
+    assert.equal(status, 201);
+
+    assert.ok(count('last_used_at IS NULL') <= 201, `unused registrations are capped, found ${count('last_used_at IS NULL')}`);
+    assert.equal(count(`id LIKE 'kc_filler_%' AND last_used_at IS NOT NULL`), 3,
+      'a client that has actually signed somebody in is never pruned');
   });
 });
 

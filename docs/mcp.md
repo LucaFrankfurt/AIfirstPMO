@@ -108,6 +108,39 @@ curl -s -X POST $URL/mcp -H "Authorization: Bearer $TOKEN" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 ```
 
+### Registration is not a login
+
+`POST /oauth/register` is dynamic client registration (RFC 7591) — anyone may call it, which is the
+point: it is how a connector added at claude.ai gets a `client_id` from nothing but a URL.
+
+It used to be rate-limited like a sign-up form: five per two minutes, per address, with a refused
+attempt costing a token of its own. Both halves were wrong here, and together they made the
+connector unusable:
+
+- **Claude on the web registers a fresh client for every connection** — its own dialog says so — and
+  every one of those arrives from a handful of shared egress addresses. Five per two minutes is not
+  a safeguard for an instance, it is a queue that the fourth person never gets out of.
+- **A refusal that costs a token is right for a password form** and wrong for a program that is
+  merely being paced. Told to wait 120 seconds, a client waits, retries, is refused again and now
+  owes more than before. With a burst of five that turns a two-minute pause into twenty — so trying
+  again, which is the obvious thing to do, was the one thing that made it worse.
+
+The endpoint now allows 30 in a burst and one every 10 seconds, and a refusal costs nothing: the
+`Retry-After` it sends is the truth.
+
+What bounds registration instead is **rows, not requests**. A registration that was never used to
+get a token is worth nothing to anybody, so only the newest 200 of those are kept and the rest are
+dropped oldest-first on the next registration. A client that has actually signed somebody in is
+never pruned, however old it is.
+
+Errors carry RFC 7591's own codes — `invalid_redirect_uri` rather than a generic one — so a client
+can say which field it got wrong instead of reporting *"registration failed"*.
+
+```bash
+curl -s -X POST $URL/oauth/register -H 'content-type: application/json' \
+  -d '{"client_name":"probe","redirect_uris":["https://example.com/cb"]}' | jq .client_id
+```
+
 ### The half of the transport that is not a POST
 
 Every answer this server gives is the response to a POST. It keeps no session and has nothing to
