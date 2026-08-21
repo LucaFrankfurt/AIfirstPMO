@@ -1,6 +1,7 @@
 import type { SessionInfo, WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
+import { overTls } from '../lib/origin.ts';
 import { leave } from '../lib/presence.ts';
 import {
   SESSION_COOKIE, createSession, destroySession, hashPassword, hashToken,
@@ -68,8 +69,11 @@ function sessionInfo(userId: string): SessionInfo {
 }
 
 function setSessionCookie(ctx: Ctx, raw: string): void {
-  const secure = (ctx.req.headers['x-forwarded-proto'] ?? '').includes('https') || ctx.url.protocol === 'https:';
-  ctx.res.setHeader('set-cookie', cookie(SESSION_COOKIE, raw, { maxAge: env.sessionDays * 86_400, secure }));
+  // `overTls` rather than `x-forwarded-proto` directly: a proxy that forwards
+  // the host and not the scheme used to leave this `false`, and a session
+  // cookie without `Secure` is one a browser will send over plain HTTP. It is
+  // the same question the OAuth metadata asks, so it is now the same answer.
+  ctx.res.setHeader('set-cookie', cookie(SESSION_COOKIE, raw, { maxAge: env.sessionDays * 86_400, secure: overTls(ctx) }));
 }
 
 /**

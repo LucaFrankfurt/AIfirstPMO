@@ -10,6 +10,7 @@ import { startTelegram, stopTelegram } from './lib/telegram.ts';
 import { provision } from './lib/provision.ts';
 import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
+import { overTls } from './lib/origin.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
 import { registerFileRoutes } from './routes/files.ts';
@@ -93,15 +94,23 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
 
 const CSP = buildCsp(env.storage);
 
-function securityHeaders(res: ServerResponse): void {
+function securityHeaders(res: ServerResponse, secure: boolean): void {
   res.setHeader('content-security-policy', CSP);
   res.setHeader('x-content-type-options', 'nosniff');
   res.setHeader('referrer-policy', 'same-origin');
   res.setHeader('x-frame-options', 'DENY');
+  // Only where there is TLS to insist on. Sent to a browser reaching a laptop
+  // over http, this would lock that hostname to https for six months — which
+  // for `localhost` is somebody's afternoon gone.
+  //
+  // No `includeSubDomains` and no `preload`: both are the operator's decision
+  // about hosts this process knows nothing about, and both are hard to undo.
+  if (secure) res.setHeader('strict-transport-security', 'max-age=15552000');
 }
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  securityHeaders(res);
+  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  securityHeaders(res, overTls({ req, res, url, params: {}, query: url.searchParams, method: req.method ?? 'GET' }));
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader('access-control-allow-origin', origin);
@@ -118,7 +127,6 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
   const match = router.match(req.method ?? 'GET', url.pathname);
 
   if (!match) {
