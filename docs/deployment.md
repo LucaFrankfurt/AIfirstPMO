@@ -64,6 +64,7 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_LOG_LEVEL` | `info` | `debug` `info` `warn` `error` |
 | `KOLIBRI_DEFAULT_LOCALE` | `en` | Language for notifications and emails to someone who has not picked one (`en`, `de`). See [`i18n.md`](i18n.md). |
 | `KOLIBRI_TRUST_PROXY` | `true` | Read the client address from `x-forwarded-for`. Correct behind the bundled Caddy; **set it to `false` if the container is published directly**, or every client can pick its own address. See below. |
+| `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS` | `false` | Let outgoing webhooks and push endpoints reach private addresses (loopback, RFC 1918, link-local). Off by default; see [below](#what-the-server-does-to-protect-itself). |
 | `TZ` | `UTC` | Affects date rendering on the server side |
 
 ### Email (optional — see [`notifications.md`](notifications.md))
@@ -389,8 +390,9 @@ The limits worth knowing:
 
 ## What the server does to protect itself
 
-Two things, both on by default and neither of them configurable — there is no
-setting to get wrong.
+Four things. Three are on by default and not configurable — there is no setting
+to get wrong — and the fourth has one switch, because a self-hosted instance can
+have a good reason to turn it off.
 
 **Rate limits** on the routes where guessing is the attack: signing in,
 registering, and looking up an invite code. Each is a token bucket, in memory,
@@ -421,9 +423,46 @@ redirects the browser to MinIO or S3, so that origin is named in `img-src`,
 `media-src` and `connect-src` — otherwise attachments would arrive and be
 discarded. Nothing widens `script-src`, ever.
 
+**Where the server is willing to connect.** Two features hand it a URL: an
+outgoing webhook, whose address a workspace admin types in, and a Web Push
+subscription, whose endpoint the browser supplies. Both are also the classic way
+to make a server reach what the person asking cannot — the container beside it,
+the database on the private network, the cloud metadata service on
+`169.254.169.254` that hands out credentials to anything asking from inside.
+
+So the address is resolved **before** the connection rather than during it,
+every address the name answers with is checked, and the socket is then pinned to
+the address that passed. Pinning is the part that matters: without it a name can
+answer publicly for the check and privately a moment later for the connection.
+Redirects are followed by hand, three at most, with the same check each time and
+without the original headers — a public URL that `302`s to the metadata service
+is the same attack wearing a hat. Loopback, the RFC 1918 ranges, link-local,
+carrier-grade NAT, multicast, and every way IPv6 has of spelling an IPv4 address
+(`::ffff:127.0.0.1`, NAT64, 6to4) are all refused, and so is any scheme that is
+not `http` or `https`.
+
+`KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` turns the check off. Set it when posting to
+`http://n8n:5678` on your own docker network is the point — that is a normal
+thing to want. It is not a safe default for the instance that has not thought
+about it, particularly one where anybody may sign up and make a workspace of
+their own.
+
+**Addresses are refused at the socket, not only at the form.** An email address
+with a carriage return in it is not a typo, it is a second SMTP command; a
+header name with one in it writes a header nobody asked for. Both are refused
+where the message is built, so an address that reached the queue from a form, an
+identity provider, a restored backup or an environment variable meets the same
+check.
+
+**A row may only point at rows in its own workspace.** `parent_id`,
+`project_id`, `state_id` and the rest are checked against the workspace the
+write arrived in, so a page cannot be hung off a page somebody else owns — which
+a public share link would then have published, under their name.
+
 ## Hardening checklist
 
 - [ ] `KOLIBRI_ALLOW_SIGNUP=false` after your team has signed up
+- [ ] `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS` left unset unless webhooks genuinely need to reach your own network
 - [ ] `KOLIBRI_TRUST_PROXY=false` if nothing terminates TLS in front of the container
 - [ ] `KOLIBRI_SECRET` set explicitly and stored in your secret manager
 - [ ] TLS terminated in front, `KOLIBRI_PUBLIC_URL` set to the https URL

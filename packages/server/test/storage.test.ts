@@ -190,7 +190,7 @@ describe('s3 storage', () => {
     const key = 'ab/cd/presigned.txt';
     await storage.put(key, payload, 'text/plain');
 
-    const url = storage.directUrl(key, 'presigned.txt');
+    const url = storage.directUrl(key, 'presigned.txt', 'text/plain');
     assert.ok(url, 'pre-signing is on by default for s3');
     const parsed = new URL(url!);
     assert.equal(parsed.searchParams.get('X-Amz-Algorithm'), 'AWS4-HMAC-SHA256');

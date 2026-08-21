@@ -60,12 +60,17 @@ Give the credentials a policy limited to `GetObject`, `PutObject`, `DeleteObject
 ## How downloads work
 
 A request for `/files/<hash>/<name>` is authenticated and checked against workspace membership
-first. Then:
+first. Uploads are content-addressed, so two workspaces that upload identical bytes share one
+blob and get a row each — the membership check asks whether the hash belongs to a workspace of
+*yours*, not whether it belongs to the first one that uploaded it. Then:
 
 - **disk** — the app streams the file with `Content-Disposition` and `X-Content-Type-Options:
   nosniff`. Only a safe list of types is served inline; everything else downloads.
 - **s3** — the app answers `302` to a pre-signed URL valid for `KOLIBRI_S3_PRESIGN_SECONDS`
-  (default 5 minutes), so the bytes never pass through the app server.
+  (default 5 minutes), so the bytes never pass through the app server. The signature covers
+  `response-content-type` and `response-content-disposition`, so the *same* safe list decides
+  what renders in the browser — an uploaded SVG or HTML file downloads from S3 exactly as it
+  downloads from disk, rather than executing on your origin.
 
 A pre-signed URL is signed **for the host the browser will connect to**, which is not
 `http://minio:9000` — that name only resolves inside the compose network. So pre-signing is off in

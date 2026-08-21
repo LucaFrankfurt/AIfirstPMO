@@ -161,6 +161,8 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
       guardReadStateWrite(id, values, existing, opts);
     }
 
+    if (!opts.system) guardReferences(entity, values, opts);
+
     const forced = created ? applyCreateDefaults(entity, id, values, opts) : {};
     applyInvariants(entity, id, values, existing, forced);
 
@@ -176,6 +178,68 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     if (!opts.silent) publish({ workspaceId: opts.workspaceId, seq, origin: opts.origin, kind: entity });
     return { row, forced, created };
   });
+}
+
+/**
+ * A row may only point at rows in its own workspace.
+ *
+ * This was not checked, and it was reachable: a page in workspace B could be
+ * given `parent_id` of a page in workspace A. The page tree in A is filtered by
+ * workspace and never showed it — but a *public share* of the A page renders
+ * its children, and it rendered that one, on somebody else's link under
+ * somebody else's name. Anyone with an account and a page id could publish
+ * text on a stranger's share.
+ *
+ * So the check goes here rather than in the share renderer. The share was where
+ * it became visible; the write is where it became wrong, and there is no reason
+ * for a cross-workspace reference to exist at all.
+ *
+ * Written out, in the manner of `REFERENCES` in `trash.ts`: a column that names
+ * a row somewhere else is a line here, and a new one is a line to add. The list
+ * is deliberately only the columns a *client* may write — `created_by` and
+ * friends are set by the server and never come off the wire.
+ */
+const SCOPED_REFERENCES: Record<string, string> = {
+  parent_id: '',            // same table as the row being written
+  project_id: 'projects',
+  task_id: 'tasks',
+  page_id: 'pages',
+  comment_id: 'comments',
+  cycle_id: 'cycles',
+  module_id: 'modules',
+  state_id: 'states',
+  type_id: 'task_types',
+  team_id: 'teams',
+  view_id: 'views',
+  field_id: 'custom_fields',
+  template_id: 'templates',
+  related_task_id: 'tasks',
+  target_project_id: 'projects',
+  trigger_state_id: 'states',
+  default_state_id: 'states',
+  default_view_id: 'views',
+  automation_id: 'automations',
+  share_id: 'shares',
+};
+
+function guardReferences(entity: EntityName, values: Record<string, unknown>, opts: WriteOpts): void {
+  const def = entityDef(entity);
+  if (!def) return;
+  for (const [column, referenced] of Object.entries(SCOPED_REFERENCES)) {
+    const value = values[column];
+    if (value === undefined || value === null || value === '') continue;
+    const table = referenced || def.table;
+    const row = get<Row>(`SELECT workspace_id FROM ${table} WHERE id = ?`, String(value));
+    // A row that is not there is somebody else's error to report — a dangling
+    // reference is a 404 elsewhere, not a leak. Only a row that exists *and*
+    // lives in another workspace is refused here.
+    if (!row) continue;
+    // `null` is a workspace of its own: a direct conversation belongs to none,
+    // and nothing in a workspace may point into one.
+    if (row.workspace_id !== opts.workspaceId) {
+      throw badRequest(`${entity}.${column} refers to another workspace`);
+    }
+  }
 }
 
 export function deleteEntity(entity: EntityName, id: string, opts: Omit<WriteOpts, 'op'>): WriteResult {

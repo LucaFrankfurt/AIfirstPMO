@@ -17,6 +17,7 @@ import {
 import {
   HttpError, badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { shortCode, token, uid } from '../lib/ids.ts';
+import { isEmailAddress } from '../lib/address.ts';
 import { byAddress, byValue, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { defaultLocale, isLocale, translate } from '../lib/i18n.ts';
 import {
@@ -31,7 +32,7 @@ import {
   unlink as unlinkTelegram,
 } from '../lib/telegram.ts';
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 
 const publicUser = (row: Row | undefined) => (row ? serialize('user', row) : null);
 
@@ -201,7 +202,7 @@ export function registerAuthRoutes(router: Router): void {
     const email = (body.email ?? '').trim().toLowerCase();
     const name = (body.name ?? '').trim() || email.split('@')[0];
     const password = body.password ?? '';
-    if (!EMAIL_RE.test(email)) throw badRequest('A valid email address is required');
+    if (!isEmailAddress(email)) throw badRequest('A valid email address is required');
     if (password.length < 8) throw badRequest('Password must be at least 8 characters');
 
     const firstUser = !get(`SELECT id FROM users LIMIT 1`);
@@ -633,7 +634,13 @@ export function registerAuthRoutes(router: Router): void {
     requireWorkspace(ctx, ctx.params.id, 'admin');
     const body = await readJson<{ email?: string; role?: WorkspaceRole; expiresInDays?: number }>(ctx);
     const code = shortCode(10);
+    // Validated, and not only because a typo is worth catching: this address
+    // is handed to a mail relay, and until now anything at all could be typed
+    // into it — including the carriage return that turns one recipient into a
+    // relay command. `smtp.ts` refuses it at the socket now too; this is the
+    // half that tells the person who typed it.
     const email = body.email?.trim().toLowerCase() || null;
+    if (email && !isEmailAddress(email)) throw badRequest('A valid email address is required');
     run(
       `INSERT INTO invites (id, workspace_id, email, role, code, created_by, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,

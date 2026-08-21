@@ -10,6 +10,7 @@ import { createReadStream, existsSync, mkdirSync, statSync, unlinkSync, writeFil
 import { Readable } from 'node:stream';
 import { join } from 'node:path';
 import { env } from '../env.ts';
+import { disposition } from './mime.ts';
 import * as s3 from './s3.ts';
 
 export type StorageKind = 'disk' | 's3';
@@ -84,13 +85,13 @@ export async function remove(key: string, kind: StorageKind = activeKind): Promi
  * cost of a short-lived URL that carries its own authorisation — which is why
  * the permission check happens before one is minted.
  */
-export function directUrl(key: string, filename: string, kind: StorageKind = activeKind): string | null {
+export function directUrl(key: string, filename: string, mime: string, kind: StorageKind = activeKind): string | null {
   if (kind !== 's3' || !env.storage.presign) return null;
   // Sign for the host the browser will actually connect to.
   const config = env.storage.publicEndpoint
     ? { ...env.storage.s3, endpoint: env.storage.publicEndpoint }
     : env.storage.s3;
-  return s3.presignGet(config, key, env.storage.presignSeconds, new Date(), filename);
+  return s3.presignGet(config, key, env.storage.presignSeconds, new Date(), filename, mime);
 }
 
 export const describe = (): string =>

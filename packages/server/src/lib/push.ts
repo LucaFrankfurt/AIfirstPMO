@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path';
 import { all, get, run, type Row } from '../db/index.ts';
 import { DATA_DIR, env } from '../env.ts';
 import { uid } from './ids.ts';
+import { BlockedAddress, send } from './outbound.ts';
 
 const b64url = (buffer: Buffer): string => buffer.toString('base64url');
 
@@ -161,10 +162,13 @@ export function notifyDevices(userId: string): void {
 
 async function deliver(row: Row): Promise<void> {
   const endpoint = String(row.endpoint);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const response = await fetch(endpoint, {
+    // The endpoint is whatever the browser handed us, and the browser got it
+    // from whoever it talks to. That is nearly always Google or Mozilla and
+    // occasionally somebody's own push service — but "nearly always" is not a
+    // reason to let a subscription row aim this server at its own network, so
+    // it goes through the same check a webhook does.
+    const response = await send(endpoint, {
       method: 'POST',
       headers: {
         authorization: authorization(endpoint),
@@ -172,21 +176,25 @@ async function deliver(row: Row): Promise<void> {
         ttl: '86400',
         urgency: 'normal',
       },
-      signal: controller.signal,
+      timeoutMs: TIMEOUT_MS,
     });
     if (response.status === 404 || response.status === 410) {
       unsubscribe(endpoint);
       return;
     }
-    if (!response.ok) {
+    if (response.status < 200 || response.status >= 300) {
       fail(row, `HTTP ${response.status}`);
       return;
     }
     run(`UPDATE push_subscriptions SET failures = 0, last_error = NULL, last_sent_at = ? WHERE id = ?`, Date.now(), row.id);
   } catch (error) {
+    // A refused address is permanent, so it does not get five tries: the
+    // subscription is never going to become deliverable on its own.
+    if (error instanceof BlockedAddress) {
+      unsubscribe(endpoint);
+      return;
+    }
     fail(row, error instanceof Error ? error.message.slice(0, 200) : 'failed');
-  } finally {
-    clearTimeout(timer);
   }
 }
 

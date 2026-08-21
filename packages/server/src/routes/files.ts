@@ -3,6 +3,7 @@ import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { badRequest, forbidden, notFound, readBody, type Ctx, type Router } from '../lib/http.ts';
+import { disposition } from '../lib/mime.ts';
 import { imageSize } from '../lib/imagesize.ts';
 import { serverClock } from '../lib/bootstrap.ts';
 import { serialize, writeEntity } from '../lib/repo.ts';
@@ -10,11 +11,6 @@ import * as storage from '../lib/storage.ts';
 import { uid } from '../lib/ids.ts';
 
 /** Types we are willing to hand back with their original content type. */
-const INLINE_TYPES = new Set([
-  'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif',
-  'application/pdf', 'text/plain', 'text/markdown', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/ogg',
-]);
-
 const safeName = (raw: string): string =>
   (raw || 'file').replace(/[\r\n"\\/]/g, '_').replace(/\.\./g, '_').slice(0, 180);
 
@@ -36,15 +32,21 @@ export function registerFileRoutes(router: Router): void {
 
     const hash = createHash('sha256').update(body).digest('hex');
     const key = storage.keyFor(hash, mime);
-    const known = get<Row>(`SELECT hash, storage FROM files WHERE hash = ?`, hash);
+    // Two questions, and they used to be one. *Are these bytes already
+    // stored* decides whether to write the blob; *does this workspace have a
+    // row for them* decides whether to write the row. Answering only the first
+    // meant the second workspace to upload a file got no row — and then a 403
+    // reading back what it had just sent.
+    const stored = get<Row>(`SELECT storage FROM files WHERE hash = ? LIMIT 1`, hash);
+    const mine = get<Row>(`SELECT hash FROM files WHERE hash = ? AND workspace_id = ?`, hash, ctx.params.ws);
 
     // Content-addressed: identical bytes are stored once, whatever the backend.
-    if (!known || !(await storage.exists(key, known.storage))) {
+    if (!stored || !(await storage.exists(key, stored.storage))) {
       await storage.put(key, body, mime);
     }
 
     const size = imageSize(body, mime);
-    if (!known) {
+    if (!mine) {
       run(
         `INSERT INTO files (hash, workspace_id, name, mime, size, width, height, storage, created_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -77,18 +79,21 @@ export function registerFileRoutes(router: Router): void {
 
   router.get('/files/:hash/*', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
-    const file = get<Row>(`SELECT * FROM files WHERE hash = ?`, ctx.params.hash);
-    if (!file) throw notFound('File not found');
-    if (!auth.memberships.has(file.workspace_id)) throw forbidden('Not your workspace');
+    // A hash can belong to more than one workspace. The question is whether it
+    // belongs to one of *yours*, not whether the first row happens to be.
+    const rows = all<Row>(`SELECT * FROM files WHERE hash = ?`, ctx.params.hash);
+    if (!rows.length) throw notFound('File not found');
+    const file = rows.find((row) => auth.memberships.has(String(row.workspace_id)));
+    if (!file) throw forbidden('Not your workspace');
 
     const key = storage.keyFor(file.hash, file.mime);
     const backend = (file.storage ?? 'disk') as storage.StorageKind;
-    const inline = INLINE_TYPES.has(file.mime);
+    const { inline, type } = disposition(String(file.mime));
     const filename = safeName(decodeURIComponent(ctx.params['*'] || file.name));
 
     // With an object store we hand out a short-lived signed URL instead of
     // proxying the bytes — the permission check above still gates who gets one.
-    const direct = storage.directUrl(key, filename, backend);
+    const direct = storage.directUrl(key, filename, String(file.mime), backend);
     if (direct) {
       ctx.res.writeHead(302, { location: direct, 'cache-control': 'private, max-age=60' });
       ctx.res.end();
@@ -99,7 +104,7 @@ export function registerFileRoutes(router: Router): void {
     if (!result) throw notFound('File contents are missing from storage');
 
     ctx.res.writeHead(200, {
-      'content-type': inline ? file.mime : 'application/octet-stream',
+      'content-type': type,
       ...(result.size ? { 'content-length': String(result.size) } : {}),
       'content-disposition': `${inline ? 'inline' : 'attachment'}; filename="${filename}"`,
       // Content-addressed: the bytes behind a hash never change.

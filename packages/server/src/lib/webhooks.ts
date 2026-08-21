@@ -13,6 +13,7 @@
 import { createHmac } from 'node:crypto';
 import { all, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
+import { BlockedAddress, send } from './outbound.ts';
 
 /** What a receiver can subscribe to. Kept short; each one is a promise. */
 export const WEBHOOK_EVENTS = [
@@ -87,11 +88,13 @@ const LABEL: Partial<Record<WebhookEvent, string>> = {
 
 async function deliver(hook: Row, event: WebhookEvent, payload: Record<string, unknown>): Promise<void> {
   const body = bodyFor(hook, event, payload);
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
 
   try {
-    const response = await fetch(String(hook.url), {
+    // `send` rather than `fetch`: the URL on this row is somebody's typing, and
+    // the address it resolves to is checked before a packet goes anywhere near
+    // it. See `outbound.ts` for why that check has to happen here and not in
+    // the form that saved the row.
+    const response = await send(String(hook.url), {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
@@ -100,15 +103,19 @@ async function deliver(hook: Row, event: WebhookEvent, payload: Record<string, u
         ...(hook.secret ? { 'x-kolibri-signature': sign(String(hook.secret), body) } : {}),
       },
       body,
-      signal: controller.signal,
+      timeoutMs: TIMEOUT_MS,
     });
-    record(hook.id, response.status, response.ok ? null : `HTTP ${response.status}`);
+    const ok = response.status >= 200 && response.status < 300;
+    record(hook.id, response.status, ok ? null : `HTTP ${response.status}`);
   } catch (error) {
     // Abort, DNS failure, refused connection — all the same to us: the last
-    // attempt is written down and the next event tries again.
-    record(hook.id, null, error instanceof Error ? error.message.slice(0, 200) : 'failed');
-  } finally {
-    clearTimeout(timer);
+    // attempt is written down and the next event tries again. A refused
+    // *address* is said plainly, because "connection failed" would send
+    // somebody hunting a firewall for a rule this instance made up.
+    const message = error instanceof BlockedAddress
+      ? `Refused: ${error.message}`
+      : error instanceof Error ? error.message : 'failed';
+    record(hook.id, null, message.slice(0, 200));
   }
 }
 

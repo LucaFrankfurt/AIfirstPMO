@@ -21,6 +21,7 @@ const { server } = await import('../src/index.ts');
 const { keys, authorization, notifyDevices, subscribe } = await import('../src/lib/push.ts');
 const { isSuppressed, queueMail, suppress, unsuppress } = await import('../src/lib/mail.ts');
 const { all, get, run } = await import('../src/db/index.ts');
+const { env } = await import('../src/env.ts');
 
 /* ---------------------------------------------------- the push service */
 
@@ -68,6 +69,10 @@ before(async () => {
   await new Promise<void>((done) => service.listen(0, '127.0.0.1', done));
   // `https` in the URL is what the subscriber checks; the socket is local.
   serviceUrl = `http://127.0.0.1:${(service.address() as AddressInfo).port}`;
+  // A push service on loopback is refused by default — see `outbound.ts`. The
+  // stand-in has to be local for the test to see what arrived, so the check is
+  // relaxed here and asserted on its own in `injection.test.ts`.
+  env.outbound.allowPrivate = true;
 
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;

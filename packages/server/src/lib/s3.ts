@@ -6,6 +6,7 @@
  * ~20 MB of dependencies for the same five calls.
  */
 import { createHash, createHmac } from 'node:crypto';
+import { disposition } from './mime.ts';
 
 export interface S3Config {
   endpoint: string;
@@ -115,7 +116,22 @@ export function signUrl(
  * Pre-signed GET URL (query form). Lets the browser fetch straight from the
  * object store, so file downloads do not stream through the app server.
  */
-export function presignGet(config: S3Config, key: string, expiresInSeconds = 300, now = new Date(), filename?: string): string {
+/**
+ * A signed URL for one object.
+ *
+ * `mime` decides what the store is told to serve it as, and it matters: the
+ * store obeys the URL, so a URL that says `inline` renders whatever the
+ * uploader chose as a content type. The disk path refuses that for anything
+ * outside the inline allowlist and this has to refuse it too, or turning on an
+ * object store quietly removes the protection.
+ *
+ * The overrides are query parameters, so they are covered by the signature by
+ * construction — editing one invalidates the URL rather than changing what it
+ * serves.
+ */
+export function presignGet(
+  config: S3Config, key: string, expiresInSeconds = 300, now = new Date(), filename?: string, mime?: string,
+): string {
   const url = objectUrl(config, key);
   const { amzDate, dateStamp } = stamps(now);
   const scope = `${dateStamp}/${config.region}/s3/aws4_request`;
@@ -125,7 +141,13 @@ export function presignGet(config: S3Config, key: string, expiresInSeconds = 300
   url.searchParams.set('X-Amz-Date', amzDate);
   url.searchParams.set('X-Amz-Expires', String(expiresInSeconds));
   url.searchParams.set('X-Amz-SignedHeaders', 'host');
-  if (filename) url.searchParams.set('response-content-disposition', `inline; filename="${filename.replace(/"/g, '')}"`);
+  if (mime) {
+    const { inline, type } = disposition(mime);
+    url.searchParams.set('response-content-type', type);
+    if (filename) url.searchParams.set('response-content-disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename.replace(/"/g, '')}"`);
+  } else if (filename) {
+    url.searchParams.set('response-content-disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+  }
   url.searchParams.sort();
 
   const canonicalRequest = [
