@@ -82,11 +82,17 @@ For the smallest possible install — one container, uploads on the volume, no m
 
 ### Set `KOLIBRI_PUBLIC_URL`, and check what it produced
 
-Not only for links. Every address in the two OAuth discovery documents is built from it, including
-`issuer` — and a client is **required** to reject metadata whose `issuer` does not match the URL it
-fetched the document from (RFC 8414 §3.3). Get that wrong and a connector reads all three documents,
-refuses them, never calls the registration endpoint, and reports that registration failed. Nothing
-in the server log looks broken, because from the server's side nothing was.
+Not only for links. **Three things** are built from it, and all three go quiet rather than loud when
+it is wrong:
+
+- **`issuer` in the OAuth metadata.** A client is *required* to reject metadata whose issuer does not
+  match the URL it fetched the document from (RFC 8414 §3.3). A connector then reads all three
+  documents, refuses them, never calls the registration endpoint, and reports that registration
+  failed — with nothing in the server log to look at, because from the server's side nothing broke.
+- **`Secure` on the session cookie.** Without it a browser will send the session token over plain
+  HTTP.
+- **`Strict-Transport-Security`.** Only sent where there is TLS to insist on, so a laptop is never
+  locked to https by a header it cannot honour.
 
 Without it, the scheme is inferred: `x-forwarded-proto` from the proxy if it sends one, then the
 socket, and failing both a bare hostname is assumed to be TLS while a host with a port is assumed to
@@ -97,7 +103,12 @@ One command says whether it is right on your instance:
 ```bash
 curl -s https://your-host/.well-known/oauth-authorization-server | jq .issuer
 # "https://your-host"   ← must be exactly the URL you just typed, https and all
+
+curl -sI https://your-host/api/health | grep -i strict-transport
+# strict-transport-security: max-age=15552000
 ```
+
+Both come from one function, so if one is right the other is.
 
 ### Single sign-on (optional)
 

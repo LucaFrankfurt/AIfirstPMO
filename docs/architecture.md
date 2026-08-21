@@ -254,6 +254,36 @@ an audit trail, not shared state, and syncing it would put every rule's history 
 the server so there is exactly one implementation, and a remote instance is reachable from any
 client without opening anything but HTTPS.
 
+## Who may see what
+
+Two questions, asked in that order, and the order is the point.
+
+**Workspace membership first.** A workspace is the outer boundary — `docs/sync.md` says nothing is
+shared across two — and every id that arrives from outside is a *claim about a row anywhere in the
+database*, not a statement about the person holding it. The REST routes get this right structurally:
+`requireWorkspace(ctx, row.workspace_id)` runs before any finer guard, so a stranger is turned away
+before visibility is even considered.
+
+**Then project visibility.** `canSeeProject` answers the second question, and **"public" means
+everyone in the project's own workspace** — the screen that sets it says *Everyone in the
+workspace*. It has never meant everyone with an account on the instance.
+
+It used to answer only the second question, and returned `true` for any public project without
+asking whose workspace it was in. That was safe exactly as long as every caller had already scoped
+its query — which nineteen of twenty had. The twentieth was an MCP lookup that took a raw uuid, and
+a stranger holding a task's id could read it, change it and delete it. The workspace check now lives
+inside `canSeeProject`, because a rule that twenty callers have to remember is a rule that one of
+them will forget.
+
+Two consequences worth keeping:
+
+- **A lookup by id is scoped by workspace in the query**, not only by the guard afterwards. An
+  identifier like `WEB-42` is meaningful only inside a workspace and was always scoped; a uuid is
+  meaningful everywhere, which is precisely why it needs the `WHERE`.
+- **Both layers are tested independently.** `test/isolation.test.ts` drives the whole thing from
+  outside with a second account, and also asks `canSeeProject` directly — because with two layers in
+  place, removing either one on its own leaves every end-to-end test green.
+
 ## Trade-offs we accepted
 
 - **Single node.** Sequence numbers and the SSE bus are in-process. Running two replicas needs an

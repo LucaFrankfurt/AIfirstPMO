@@ -69,11 +69,21 @@ function workspaceOf(args: Record<string, any>, ctx: McpCtx): string {
   return first;
 }
 
-/** Accepts an id or a human identifier such as `KOL-42`. */
+/**
+ * Accepts an id or a human identifier such as `KOL-42`.
+ *
+ * Both branches are scoped to the workspace, and the second one is why. An
+ * identifier is only meaningful inside a workspace, so that lookup was always
+ * scoped; a uuid is meaningful everywhere, and looking one up unscoped turned
+ * "I know a task's id" into "I may have that task". The guard underneath
+ * refuses it now too — this is the belt to that pair of braces, and it belongs
+ * here because a query for a row in another workspace is already wrong before
+ * anybody asks who is calling.
+ */
 function findTask(ref: string, workspaceId: string, ctx: McpCtx): Row {
   const row = /^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ref)
     ? get<Row>(`SELECT * FROM tasks WHERE workspace_id = ? AND identifier = ? AND deleted_at IS NULL`, workspaceId, ref.toUpperCase())
-    : get<Row>(`SELECT * FROM tasks WHERE id = ? AND deleted_at IS NULL`, ref);
+    : get<Row>(`SELECT * FROM tasks WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL`, workspaceId, ref);
   if (!row) throw new McpError(`Task ${ref} not found`);
   if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
   return row;

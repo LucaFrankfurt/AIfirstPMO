@@ -1240,10 +1240,31 @@ export function canSeeChannel(userId: string, channelId: string | null | undefin
   return parseIds(channel.members).includes(userId);
 }
 
+/**
+ * Whether this person may see this project.
+ *
+ * **"Public" means everyone in the project's own workspace.** The screen that
+ * sets it says so — *Everyone in the workspace* — and it has never meant
+ * everyone with an account on the instance. This used to return `true` for a
+ * public project without asking whose workspace it was in, which is only ever
+ * safe because most callers had already scoped the query by workspace before
+ * asking. Most is not all: an MCP lookup by raw id had not, and a stranger
+ * holding a task's uuid could read, change and delete it.
+ *
+ * So membership is checked here, at the one place every caller goes through,
+ * rather than trusted to hold at twenty of them. A project id is a claim about
+ * a row anywhere in the database; this is the function that turns it into a
+ * question about the person asking.
+ */
 export function canSeeProject(userId: string, projectId: string | null | undefined): boolean {
   if (!projectId) return true;
   const project = get<Row>(`SELECT workspace_id, visibility FROM projects WHERE id = ?`, projectId);
   if (!project) return false;
+  const member = get(
+    `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    project.workspace_id, userId,
+  );
+  if (!member) return false;
   if (project.visibility === 'public') return true;
   return !!get(`SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ? AND deleted_at IS NULL`, projectId, userId);
 }

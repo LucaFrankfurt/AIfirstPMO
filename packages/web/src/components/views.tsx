@@ -327,7 +327,7 @@ export function ViewControls({
           },
         ]}
       >
-        <Icon name="list" size={14} />
+        <Icon name="sliders" size={14} />
         <span className="hide-sm">{t('view.display')}</span>
       </MenuButton>
     </div>

@@ -38,48 +38,11 @@ import { authenticate, hashToken } from '../lib/auth.ts';
 import { token, uid } from '../lib/ids.ts';
 import { badRequest, HttpError, readJson, send, type Ctx, type Router } from '../lib/http.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
+import { publicOrigin as origin } from '../lib/origin.ts';
 
 /** How long a granted token lasts before the refresh token has to mint another. */
 const ACCESS_TOKEN_MINUTES = 60;
 const CODE_SECONDS = 60;
-
-/**
- * The address this instance answers to, as everybody else has to spell it.
- *
- * Every value in both metadata documents is built from this, and one of them —
- * `issuer` — is checked by the client against the URL it fetched the document
- * from. RFC 8414 §3.3 makes that a MUST: a mismatch is a hard refusal, and the
- * flow ends there with no request to look at afterwards.
- *
- * So the scheme cannot be a guess that is wrong by default. `KOLIBRI_PUBLIC_URL`
- * settles it outright and is the right answer for any real deployment. Failing
- * that, `x-forwarded-proto` from the proxy, then the socket. And failing all
- * three — a proxy that forwards the host and not the scheme, which is a common
- * enough configuration — **assume TLS unless the host says otherwise**.
- *
- * A bare hostname reached this process through something that terminated TLS;
- * an explicit port that is not 443 means somebody is talking to it directly,
- * which in practice means a laptop. Getting this backwards published
- * `http://the-real-domain` as the issuer, which every OAuth client is obliged
- * to reject — and did.
- */
-const origin = (ctx: Ctx): string => {
-  if (env.publicUrl) return env.publicUrl;
-  const host = (ctx.req.headers['x-forwarded-host'] as string) || ctx.req.headers.host || 'localhost';
-  const forwarded = (ctx.req.headers['x-forwarded-proto'] as string)?.split(',')[0]?.trim();
-  const proto = forwarded
-    || ((ctx.req.socket as { encrypted?: boolean }).encrypted ? 'https' : direct(host) ? 'http' : 'https');
-  return `${proto}://${host}`;
-};
-
-/** Whether this host looks like one somebody is reaching without a proxy. */
-function direct(host: string): boolean {
-  const name = host.replace(/:\d+$/, '').replace(/^\[|\]$/g, '');
-  const port = /:(\d+)$/.exec(host)?.[1];
-  if (name === 'localhost' || name === '127.0.0.1' || name === '::1' || name.endsWith('.localhost')) return true;
-  // A port nobody would put in a public URL is a laptop or a container port.
-  return !!port && port !== '443';
-}
 
 /** The thing a token is for, in the one spelling everybody has to agree on. */
 export const resourceUrl = (ctx: Ctx): string => `${origin(ctx)}/mcp`;

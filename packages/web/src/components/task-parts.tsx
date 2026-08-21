@@ -136,7 +136,13 @@ export function LabelPicker({ task }: { task: Task }) {
   return (
     <MenuButton items={items} search variant="ghost" size="sm" title={t('task.labels')} empty={t('task.noLabelsYet')}>
       <Icon name="bolt" size={14} />
-      <span>{applied.size ? t('task.labelCount', { count: applied.size }) : t('task.labels')}</span>
+      {/* Set: say what it is. Unset: the icon and the menu behind it are the
+          whole of it, and a phone has better uses for the width than three
+          chips in a row reporting that nothing has been chosen. The button
+          keeps its name through `title`, which is what a screen reader reads. */}
+      {applied.size
+        ? <span>{t('task.labelCount', { count: applied.size })}</span>
+        : <span className="hidden sm:inline">{t('task.labels')}</span>}
     </MenuButton>
   );
 }
@@ -157,7 +163,9 @@ export function CyclePicker({ task }: { task: Task }) {
   return (
     <MenuButton items={items} variant="ghost" size="sm" title={t('task.cycle')}>
       <Icon name="cycle" size={14} />
-      <span className="truncate">{current?.name ?? t('task.noCycle')}</span>
+      {current
+        ? <span className="truncate">{current.name}</span>
+        : <span className="hidden sm:inline">{t('task.noCycle')}</span>}
     </MenuButton>
   );
 }
@@ -173,7 +181,9 @@ export function ModulePicker({ task }: { task: Task }) {
   return (
     <MenuButton items={items} variant="ghost" size="sm" title={t('task.module')}>
       <Icon name="target" size={14} />
-      <span className="truncate">{current?.name ?? t('task.noModule')}</span>
+      {current
+        ? <span className="truncate">{current.name}</span>
+        : <span className="hidden sm:inline">{t('task.noModule')}</span>}
     </MenuButton>
   );
 }

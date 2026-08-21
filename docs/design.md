@@ -222,6 +222,30 @@ Spacing is Tailwind's 4px scale. The sidebar is `--sidebar-width` (248px) and th
 **Touch targets are 36px or more**, which is what the `default` button size is. `iconSm` (32px) is
 for a control inside a dense row where the whole row is also clickable.
 
+## Two controls must not be the same drawing
+
+The icon set had `list` and `menu` as the same three horizontal strokes. That was invisible on a
+desktop, where both carry a word beside them, and obvious on a phone, where neither does: the
+header put the layout switcher and the display menu side by side and the row read as **two
+hamburgers that did different things**.
+
+- `list` is bulleted now — it is a list *layout*, not a menu.
+- The display control has its own `sliders`, because it sets grouping, sorting and what is shown.
+
+The rule this leaves: **if two controls can appear in one row, they need two glyphs.** Adding a path
+that duplicates an existing one is a decision to make deliberately, and there is exactly one place
+to check — `PATHS` in `components/ui.tsx`.
+
+**A property that is not set spends no words on a phone.** The task sheet's optional pickers —
+labels, cycle, module — used to say *No cycle*, *No module*, *Labels* whether or not anything was
+chosen, three chips reporting absence and taking a row of their own. Set, they say what they are;
+unset, they are their icon, and the menu behind them is unchanged. `title` still names them for a
+pointer and for a screen reader.
+
+**A form is a form.** Three label-and-control pairs sit in one line on a desktop. Letting them wrap
+onto a phone gave three rows each trailing a wide empty gap — the height of a form with none of the
+tidiness. Below `sm` they get one row each, label at the start, control at the end, ends aligned.
+
 ## Components
 
 The interactive primitives are Radix underneath, in `components/ui/`. Their wrappers in
