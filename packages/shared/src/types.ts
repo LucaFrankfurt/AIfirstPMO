@@ -494,6 +494,26 @@ export interface Filters {
   field?: Record<ID, string[]>;
   text?: string;
   due?: 'overdue' | 'today' | 'week' | 'none';
+  /**
+   * The same questions, asked the other way round.
+   *
+   * `Filters` is otherwise a conjunction of "is one of", which cannot say
+   * *not* — and "everything except the done column" is the second thing
+   * anybody wants from a filter. A field named here excludes rather than
+   * includes; for a field that holds a list (assignees, labels) a task is
+   * excluded when **any** of its values is named.
+   */
+  not?: {
+    state?: ID[];
+    type?: ID[];
+    group?: StateGroup[];
+    priority?: Priority[];
+    assignee?: ID[];
+    label?: ID[];
+    cycle?: ID[];
+    module?: ID[];
+    project?: ID[];
+  };
 }
 
 /**

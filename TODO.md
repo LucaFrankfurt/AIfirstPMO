@@ -360,6 +360,11 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       Peritext handle the last cases properly and this does not. There is no cursor presence. And
       tombstones accumulate: `kolibri doctor --fix` folds away the ones nothing points at, on
       purpose rather than on a schedule.
+- [ ] **CalDAV, properly.** The read-only `.ics` feed is built — see
+      [`docs/calendar.md`](docs/calendar.md) — and covers most of the value, which is seeing what is
+      due without opening another tab. Writing back from a calendar client is a protocol rather than
+      an endpoint: `PROPFIND`, `REPORT`, ETags, and a conflict story for a task edited in two places
+      at once. Worth doing, and not the same size as what it follows.
 - [ ] **Multi-node deployment.** The sequence counter, the SSE bus and the mail worker live in the
       process. Running two replicas needs an external counter, a shared bus and a locked queue —
       this is the one scenario where Redis or Postgres genuinely earns its place.

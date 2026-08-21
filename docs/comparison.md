@@ -55,7 +55,8 @@ signed webhooks out and commit-linking webhooks in.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **A query language.** JQL is the thing Jira users actually miss | **High** | Filters here are structured — a column, a set of values. There is no way to write `assignee = me AND due < 7d AND state != done ORDER BY priority`, and no way to save one as text, share it, or paste it into a webhook |
+| ~~**A query language**~~ | **Done, within limits** | `assignee = me AND priority in (urgent, high) AND state != Done` parses onto the same `Filters` the dropdowns produce, and prints back from it — so the box and the menus can never disagree. `!=` and `not in` are new to the model. What it deliberately cannot do is `OR` between two *different* fields, or a date comparison: neither is something a saved view holds, and both say so with a sentence rather than quietly meaning something else |
+| **Sorting in the query, and stored sort** | Low | `ORDER BY` is not part of it; the sort is a separate control on the view |
 | **Dashboards you compose** — gadgets, per-user, across projects | Medium–high | Insights is a fixed set of three charts per project; the portfolio is a fixed roadmap. Neither is arrangeable and neither crosses to "my dashboard" |
 | **Workflow *schemes*** — a workflow shared by several projects, versioned | Medium | States are per project and copied when a project is copied. Changing "the workflow" everywhere means changing each project |
 | **Transition rules beyond who** — required fields on a transition, validators, post-functions | Medium | Kolibri has per-column rules for *who* may move work where. It has no "you may not close this without a resolution" |
@@ -106,7 +107,9 @@ a handful of ergonomics that people are unreasonably attached to.
 | **CalDAV** — tasks in Thunderbird, DAVx5, iOS Reminders | **High for the value** | Kolibri has no calendar protocol at all: no CalDAV, no `VTODO`, not even a read-only `.ics` feed of due dates. This is the single biggest "it does not fit my life" gap, and a subscribable feed is a fraction of the work of full CalDAV |
 | **Natural-language quick add** — `Call client !2 *weekly +work @alice due:Friday` | **High for the work** | `QuickAdd` is a form with dropdowns. Parsing the same tokens out of the title would be one shared module, testable without a browser, and usable by the MCP `create_task` tool for free |
 | ~~**Import from Todoist, Trello**~~ | **Done** | Both recognised by shape. Trello's state group is guessed from the column name and says so; Todoist's priorities are inverted, its projects become labels, and a repeat rule Kolibri cannot express is refused rather than approximated. Microsoft To-Do is still out |
+| **CalDAV write-back** | Medium | The feed is read-only. Ticking a task off in Thunderbird and having it land here needs `PROPFIND`, `REPORT`, ETags and conflict handling — a protocol, not an endpoint |
 | Per-task reminders at an arbitrary time | Low–medium | Reminders exist, relative to a due date. "Remind me Thursday at 09:00" does not |
+| A due *time* | Low | Due dates here are days. Every importer says so, and the calendar feed writes all-day entries |
 | A published mobile app | Low | The PWA is installable and the layout is built for a phone |
 
 ## Against OpenProject
@@ -145,25 +148,24 @@ workspace isolation and injection work all used to be here and are now built —
 Re-ordered as things get built, by value per unit of work rather than by size. Everything above the
 line in earlier revisions is done; what follows is what is actually left.
 
+The four that were small **and** wanted are built: the `.ics` feed, quick add, filter-as-text and the
+two importers. What is left:
+
 | # | What | Why it is next | Effort |
 |---|---|---|---|
-| 1 | **An `.ics` feed** — one subscribable URL per person or per saved view, due dates as events | The biggest "it does not fit my life" gap, and the cheapest thing on this list. A share-style token, a text serialiser, no new storage. Full CalDAV write-back is the sequel, not the prerequisite | small |
-| 2 | **Natural-language quick add** — `!2`, `@alice`, `+project`, `due:friday`, `*weekly` | One shared parser, tested without a browser, and the MCP `create_task` tool gets it for nothing. Vikunja's most-loved feature and the smallest of its advantages to close | small |
-| 3 | **A saved filter as text** — a small query language over the fields views already filter on | The one thing Jira leavers ask for by name. Kolibri already has the filter *model*; this is a parser onto it plus a printer back, so a filter can be shared, pasted and put in a webhook | medium |
-| 4 | **Trello and Todoist importers** | The two exports small teams arrive with. `foreign.ts` already recognises four shapes; these are two more entries in the same registry | small |
-| 5 | **A table of contents, and a cross-page task list** | The only Confluence macros anybody actually misses. The renderer already produces the headings and already parses task items | small |
-| 6 | **Cost on top of time** — rates, budgets, a cost report | Time is tracked and `billable` is stored; nothing reads it. Where OpenProject is genuinely ahead, and parked rather than rejected | medium |
-| 7 | **Composable dashboards** — arrange the charts that exist, per person, across projects | Insights and the portfolio already compute everything; what is missing is letting somebody choose the arrangement | medium |
-| 8 | **Transition validators** — required fields, a resolution on close | The per-column *who* rule is built; the *what* rule is not. Small in the schema, fiddly in the interface | medium |
-| 9 | **Meetings** — agenda, minutes, follow-ups that become tasks | Only worth it for the audience that asks for OpenProject by name | medium–large |
-| 10 | **SAML / LDAP** | Asked for by exactly the organisations that will not adopt without it, and by nobody else | large |
-
-Items 1, 2, 4 and 5 are the ones that are small **and** wanted. They would be a good next block.
+| 1 | **A table of contents, and a cross-page task list** | The only Confluence macros anybody actually misses. The renderer already produces the headings and already parses task items | small |
+| 2 | **Cost on top of time** — rates, budgets, a cost report | Time is tracked and `billable` is stored; nothing reads it. Where OpenProject is genuinely ahead, and parked rather than rejected | medium |
+| 3 | **Composable dashboards** — arrange the charts that exist, per person, across projects | Insights and the portfolio already compute everything; what is missing is letting somebody choose the arrangement | medium |
+| 4 | **Transition validators** — required fields, a resolution on close | The per-column *who* rule is built; the *what* rule is not. Small in the schema, fiddly in the interface | medium |
+| 5 | **CalDAV write-back** | The read-only feed covers most of the value. Writing back is a protocol — `PROPFIND`, `REPORT`, ETags, conflicts — not an endpoint | medium–large |
+| 6 | **Meetings** — agenda, minutes, follow-ups that become tasks | Only worth it for the audience that asks for OpenProject by name | medium–large |
+| 7 | **SAML / LDAP** | Asked for by exactly the organisations that will not adopt without it, and by nobody else | large |
 
 ## What has been closed
 
 For anyone reading this against an older revision: saved views, page comments and mentions in pages,
 rate limiting and the content policy, multi-select with bulk actions, the table layout, time
 tracking, CSV and foreign import, intake, custom fields, sub-projects and the portfolio, OIDC,
-Gantt with dependency scheduling, the trash browser, presence and typing indicators, and the
-accessibility pass were all on the lists above and are now built. The tables reflect that.
+Gantt with dependency scheduling, the trash browser, presence and typing indicators, the
+accessibility pass, the calendar feed, quick-add syntax, filter-as-text, and the Trello and Todoist
+importers were all on the lists above and are now built. The tables reflect that.

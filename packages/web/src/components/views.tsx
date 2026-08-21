@@ -8,13 +8,14 @@ import { byId, list, useQuery } from '../lib/store';
 import { byOrder, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
-import { useMemberMap, useMembers } from '../session';
+import { useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
   useLabels, useStates, useTypes, type BaseGroupBy, type GroupBy,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
+import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
 import { Button } from '../components/ui/button';
@@ -88,6 +89,25 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       if (filters.module?.length && !filters.module.includes(task.module_id ?? '')) return false;
       if (filters.assignee?.length && !filters.assignee.some((id) => (task.assignees ?? []).includes(id))) return false;
       if (filters.label?.length && !filters.label.some((id) => (task.labels ?? []).includes(id))) return false;
+      // The same questions the other way round. Written out beside the
+      // positive ones rather than derived from them: a loop over field names
+      // would be shorter and would not survive the next field that needs a
+      // rule of its own, the way `assignee` and `label` already do.
+      const not = filters.not;
+      if (not) {
+        if (not.state?.includes(task.state_id)) return false;
+        if (not.type?.includes(task.type_id ?? '')) return false;
+        if (not.group?.includes(state?.group_key as any)) return false;
+        if (not.priority?.includes(task.priority)) return false;
+        if (not.project?.includes(task.project_id)) return false;
+        if (not.cycle?.includes(task.cycle_id ?? '')) return false;
+        if (not.module?.includes(task.module_id ?? '')) return false;
+        // A list: excluded when *any* of the task's values is named. "Not
+        // assigned to Ada" means the ones Ada is not on, including the ones
+        // she shares with somebody else.
+        if (not.assignee?.some((id) => (task.assignees ?? []).includes(id))) return false;
+        if (not.label?.some((id) => (task.labels ?? []).includes(id))) return false;
+      }
       if (filters.due === 'overdue' && !(task.due_date && task.due_date < day)) return false;
       if (filters.due === 'today' && task.due_date !== day) return false;
       if (filters.due === 'none' && task.due_date) return false;
@@ -179,6 +199,7 @@ export function ViewControls({
   const labels = useLabels(projectId);
   const members = useMembers();
   const fields = useFields(projectId);
+  const { workspaceId } = useSession();
 
   const toggle = <K extends keyof Filters>(key: K, value: string) => {
     const current = (view.filters[key] as string[] | undefined) ?? [];
@@ -253,6 +274,12 @@ export function ViewControls({
     // nowhere to go and drew itself straight over the tab strip below.
     <div className="flex items-center gap-1.5">
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
+      <QueryBox
+        filters={view.filters}
+        workspaceId={workspaceId}
+        projectId={projectId}
+        onChange={(filters) => onChange({ ...view, filters })}
+      />
       {/* Four buttons side by side are right where there is room and too many
           on a phone, where the header also carries saved views, filter, display
           and the add button. Same choice, one button. */}

@@ -80,6 +80,29 @@ export function tasksMatching(query: ViewQuery): Row[] {
     params.push(...values.map(String));
   }
 
+  // The same questions the other way round. `IS NOT` rather than `NOT IN`,
+  // because SQL's `NOT IN` is false rather than true when the column is null —
+  // so "not in the Done column" would silently drop every task with no state.
+  const not = (query.filters?.not ?? {}) as Record<string, unknown>;
+  for (const [key, values] of Object.entries(not)) {
+    const column = COLUMNS[key];
+    if (!column || !Array.isArray(values) || !values.length) continue;
+    where.push(`(t.${column} IS NULL OR t.${column} NOT IN (${values.map(() => '?').join(', ')}))`);
+    params.push(...values.map(String));
+  }
+  if (Array.isArray(not.group) && not.group.length) {
+    where.push(`(s.group_key IS NULL OR s.group_key NOT IN (${not.group.map(() => '?').join(', ')}))`);
+    params.push(...not.group.map(String));
+  }
+  for (const key of ['assignee', 'label'] as const) {
+    const values = not[key];
+    if (!Array.isArray(values) || !values.length) continue;
+    const column = key === 'assignee' ? 'assignees' : 'labels';
+    where.push(`NOT EXISTS (SELECT 1 FROM json_each(t.${column})
+      WHERE json_each.value IN (${values.map(() => '?').join(', ')}))`);
+    params.push(...values.map(String));
+  }
+
   // Custom fields live in a table of their own. Each field is a separate
   // condition, because two fields are an AND and two answers to one are an OR.
   const filters = query.filters ?? {};
