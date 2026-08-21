@@ -72,8 +72,6 @@ const en = {
   'seed.typeTask': 'Task',
   'seed.typeBug': 'Bug',
   'seed.typeFeature': 'Feature',
-  'seed.labelBug': 'bug',
-  'seed.labelFeature': 'feature',
   'seed.labelImprovement': 'improvement',
   'seed.labelDocumentation': 'documentation',
 
@@ -143,9 +141,6 @@ const de: Catalogue = {
   'seed.typeTask': 'Aufgabe',
   'seed.typeBug': 'Bug',
   'seed.typeFeature': 'Feature',
-  // Bug and Feature are what German teams actually say; the other two are not.
-  'seed.labelBug': 'Bug',
-  'seed.labelFeature': 'Feature',
   'seed.labelImprovement': 'Verbesserung',
   'seed.labelDocumentation': 'Dokumentation',
 
@@ -220,8 +215,6 @@ const fr: Catalogue = {
   'seed.typeTask': 'Tâche',
   'seed.typeBug': 'Bogue',
   'seed.typeFeature': 'Fonctionnalité',
-  'seed.labelBug': 'bogue',
-  'seed.labelFeature': 'fonctionnalité',
   'seed.labelImprovement': 'amélioration',
   'seed.labelDocumentation': 'documentation',
 

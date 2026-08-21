@@ -34,9 +34,23 @@ const DEFAULT_TYPES: { name: ServerKey; icon: string; color: string; isDefault?:
   { name: 'seed.typeFeature', icon: '✨', color: '#0ea5e9' },
 ];
 
+/**
+ * Labels a project starts with — and, just as much, the ones it does not.
+ *
+ * There used to be a `bug` and a `feature` here, beside a type list that also
+ * says Bug and Feature. In German the two were the same word, so a task showed
+ * `✨ Feature` as its type and `Feature` as a label: two fields answering the
+ * same question, and no way to tell which one anybody was filtering on.
+ *
+ * The type won because it is the field with a shape — one per task, an icon and
+ * a colour, a default, a board that can group by it, and the say over which
+ * extra fields a task is asked for. What is left here is what a type cannot be:
+ * more than one at a time, and cutting across the kinds of work rather than
+ * naming one. `i18n.test.ts` refuses the next collision in any language — which
+ * is where this one came from: the German catalogue translated the labels
+ * faithfully, and faithfully is exactly what made them the type names.
+ */
 const DEFAULT_LABELS: { name: ServerKey; color: string }[] = [
-  { name: 'seed.labelBug', color: '#ef4444' },
-  { name: 'seed.labelFeature', color: '#6366f1' },
   { name: 'seed.labelImprovement', color: '#0ea5e9' },
   { name: 'seed.labelDocumentation', color: '#14b8a6' },
 ];
