@@ -169,7 +169,7 @@ export function registerOAuthRoutes(router: Router): void {
 
   router.post('/oauth/register', async (ctx: Ctx) => {
     enforce(ctx, byAddress(ctx, LIMITS.oauthClient, 'oauth-register'));
-    const body = await readJson<{ client_name?: string; redirect_uris?: string[]; client_uri?: string }>(ctx);
+    const body = await readJson<ClientMetadata>(ctx);
     const uris = (body.redirect_uris ?? []).filter((uri) => typeof uri === 'string' && /^https:\/\//.test(uri));
     // `http://localhost` is allowed because that is where a desktop client's
     // loopback callback lives, and refusing it would rule out every editor.
@@ -188,16 +188,65 @@ export function registerOAuthRoutes(router: Router): void {
       `INSERT INTO oauth_clients (id, name, redirect_uris, uri, created_at) VALUES (?, ?, ?, ?, ?)`,
       id, String(body.client_name ?? 'An assistant').slice(0, 120), JSON.stringify(all_), body.client_uri ?? null, Date.now(),
     );
+    /*
+     * RFC 7591 asks for the client's *registered metadata* back, not just an
+     * id: "the authorization server MUST return all registered metadata about
+     * this client". This used to answer with six fields of its own invention
+     * and silently drop everything the client had sent — its scope above all.
+     *
+     * A client that asks for a scope and is told nothing about scope has not
+     * been told yes. Echoing what was accepted, and the values this server
+     * substituted where it would not take what was asked for, is how the client
+     * learns which of the two happened.
+     */
     send(ctx.res, 201, {
       client_id: id,
+      client_id_issued_at: Math.floor(Date.now() / 1000),
       client_name: body.client_name ?? 'An assistant',
       redirect_uris: all_,
+      // Substituted, not echoed: a public client with no secret, and the two
+      // grants this server implements, whatever was asked for.
       token_endpoint_auth_method: 'none',
       grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
+      // Every client registered here may ask for either, and the consent screen
+      // decides what it actually gets. Saying so beats saying nothing.
+      scope: 'read write',
+      ...echoed(body),
     });
     return undefined;
   });
+
+/** The registration fields this server understands well enough to repeat. */
+interface ClientMetadata {
+  client_name?: string;
+  redirect_uris?: string[];
+  client_uri?: string;
+  logo_uri?: string;
+  policy_uri?: string;
+  tos_uri?: string;
+  contacts?: string[];
+  software_id?: string;
+  software_version?: string;
+}
+
+/**
+ * The descriptive fields, handed back exactly as they arrived.
+ *
+ * None of them mean anything to this server — they are how a client names
+ * itself to the person on the consent screen — but leaving them out of the
+ * response makes it look like they were refused. Only strings, and only the
+ * ones asked for, so a registration cannot smuggle a value of another type
+ * into the reply.
+ */
+function echoed(body: ClientMetadata): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of ['client_uri', 'logo_uri', 'policy_uri', 'tos_uri', 'software_id', 'software_version'] as const) {
+    if (typeof body[key] === 'string') out[key] = body[key];
+  }
+  if (Array.isArray(body.contacts)) out.contacts = body.contacts.filter((c) => typeof c === 'string');
+  return out;
+}
 
 /**
  * The real bound on registration, which is rows rather than requests.
