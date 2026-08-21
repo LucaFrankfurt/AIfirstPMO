@@ -25,6 +25,7 @@ const LABELS = {
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
     findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
     newProject: 'New project', createProject: 'Create project',
+    taskLabels: 'Labels',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -32,6 +33,7 @@ const LABELS = {
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
     findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
     newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
+    taskLabels: 'Labels',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -39,6 +41,7 @@ const LABELS = {
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
     findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
     newProject: 'Nouveau projet', createProject: 'Créer le projet',
+    taskLabels: 'Étiquettes',
   },
 }[locale];
 
@@ -223,18 +226,28 @@ await step('a deleted label stops being counted on the tasks that had it', async
   }, ws);
   if (!made) throw new Error('could not create a label to delete');
 
-  /** What the task's own label button says about itself. */
+  /**
+   * What the task's own label button says about itself.
+   *
+   * Found by its title, which is translated — so the title comes from the table
+   * above rather than from a word in this file. The first version matched
+   * `/label/i` and passed in English and German for the same reason: both
+   * translations happen to be the English word. French says Étiquettes, found
+   * nothing, and read the empty string as "the label was never applied".
+   */
   const counted = async () => {
     await page.goto(`${base}/t/${made.task}`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(600);
-    return page.evaluate(() => {
+    return page.evaluate((title) => {
       const button = [...document.querySelectorAll('button')]
-        .find((one) => /label/i.test(one.getAttribute('title') ?? ''));
-      return button ? button.textContent.trim() : '';
-    });
+        .find((one) => (one.getAttribute('title') ?? '') === title);
+      return button ? button.textContent.trim() : null;
+    }, LABELS.taskLabels);
   };
 
   const before = await counted();
+  // `null` and "no digits" are different failures and were reported as one.
+  if (before === null) throw new Error(`no button titled "${LABELS.taskLabels}" on the task`);
   if (!/\d/.test(before)) throw new Error(`the label was not applied — button reads "${before}"`);
 
   await page.evaluate(async (id) => {
@@ -243,6 +256,7 @@ await step('a deleted label stops being counted on the tasks that had it', async
   await page.waitForTimeout(1500);
 
   const after = await counted();
+  if (after === null) throw new Error(`the label button vanished after the delete`);
   if (/\d/.test(after)) throw new Error(`still counting a label that was deleted: "${after}"`);
   console.log(`     "${made.name}" deleted — button went from "${before}" to "${after}"`);
 });
