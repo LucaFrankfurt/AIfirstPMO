@@ -195,6 +195,9 @@ CREATE TABLE IF NOT EXISTS projects (
   status           TEXT NOT NULL DEFAULT 'in_progress',
   visibility       TEXT NOT NULL DEFAULT 'public',
   archived         INTEGER NOT NULL DEFAULT 0,
+  -- A project that only holds other projects: no board, no task button, and
+  -- out of every "which project?" picker. See `Project.is_container`.
+  is_container     INTEGER NOT NULL DEFAULT 0,
   default_state_id TEXT,
   default_view_id  TEXT,
   sort_order       TEXT NOT NULL DEFAULT 'V',

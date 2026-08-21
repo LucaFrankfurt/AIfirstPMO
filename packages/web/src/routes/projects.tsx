@@ -159,8 +159,21 @@ export function ProjectNew() {
   const { workspaceId } = useSession();
   const navigate = useNavigate();
   const toast = useToast();
-  const [form, setForm] = useState({ name: '', key: '', description: '', icon: '🚀', visibility: 'public' });
+  // `?parent=` so "New sub-project" in a project's menu arrives here with the
+  // answer already filled in, rather than asking again for something the
+  // person has just said.
+  const [search] = useSearchParams();
+  const [form, setForm] = useState({
+    name: '', key: '', description: '', icon: '🚀', visibility: 'public',
+    parent_id: search.get('parent') ?? '',
+  });
   const [busy, setBusy] = useState(false);
+
+  const parents = useQuery(
+    () => list('project', (row) => row.workspace_id === workspaceId && !row.archived)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [workspaceId],
+  );
 
   async function submit(event: React.FormEvent): Promise<void> {
     event.preventDefault();
@@ -210,6 +223,18 @@ export function ProjectNew() {
               onChange={(event) => setForm({ ...form, description: event.target.value })} />
           </div>
           <div className="field">
+            <label htmlFor="p-parent">{t('project.parent')}</label>
+            <Select id="p-parent" value={form.parent_id}
+              onChange={(event) => setForm({ ...form, parent_id: event.target.value })}
+            >
+              <option value="">{t('project.parentNone')}</option>
+              {parents.map((other) => (
+                <option key={other.id} value={other.id}>{other.icon} {other.name}</option>
+              ))}
+            </Select>
+            <span className="text-[12px] text-muted">{t('project.parentHint')}</span>
+          </div>
+          <div className="field">
             <label htmlFor="p-vis">{t('project.visibility')}</label>
             <Select id="p-vis" value={form.visibility} onChange={(event) => setForm({ ...form, visibility: event.target.value })}>
               <option value="public">{t('project.visibilityPublic')}</option>
@@ -229,9 +254,91 @@ export function ProjectNew() {
   );
 }
 
+/**
+ * What sits under a container, as cards.
+ *
+ * Each child carries the only two numbers worth showing at this level: how much
+ * of it is done, and whether anything in it is late. A container is a reading
+ * screen — somebody opens it to see where things stand across four projects,
+ * not to move a card.
+ */
+function ContainerChildren({ projectId }: { projectId: string }) {
+  const t = useT();
+  const navigate = useNavigate();
+  const children = useQuery(
+    () => list('project', (row) => row.parent_id === projectId && !row.archived)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [projectId],
+  );
+  const tasks = useQuery(() => list('task', (task) => !task.archived), []);
+
+  if (!children.length) {
+    return (
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <Empty
+          emoji="🗂️"
+          title={t('project.containerEmpty')}
+          hint={t('project.containerEmptyHint')}
+        />
+      </div>
+    );
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  return (
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      <p className="text-muted text-[12.5px] mb-2.5">{t('project.containerCount', { count: children.length })}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {children.map((child) => {
+          const mine = tasks.filter((task) => task.project_id === child.id);
+          const done = mine.filter((task) => byId('state', task.state_id)?.group_key === 'completed').length;
+          const late = mine.filter((task) => task.due_date && task.due_date < today
+            && !['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
+          return (
+            <button
+              key={child.id}
+              type="button"
+              className="rounded-[var(--radius)] border border-line bg-raised p-3.5 text-start"
+              onClick={() => navigate(`/projects/${child.id}`)}
+            >
+              <span className="flex items-center gap-2 mb-2">
+                <span className="text-lg">{child.icon ?? '📁'}</span>
+                <span className="flex-1 min-w-0 truncate font-semibold">{child.name}</span>
+                {child.is_container ? <Icon name="folder" size={14} /> : <Chip className="font-mono">{child.key}</Chip>}
+              </span>
+              {child.is_container ? (
+                <span className="text-muted text-[12.5px]">{t('project.isContainer')}</span>
+              ) : (
+                <>
+                  <Progress value={done} total={mine.length} />
+                  <span className="flex items-center gap-2 mt-1.5 text-[12.5px] text-muted">
+                    <span>{t('project.doneOf', { done, total: mine.length })}</span>
+                    {late > 0 && <span className="text-danger">{t('portfolio.lateCount', { count: late })}</span>}
+                  </span>
+                </>
+              )}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /* ---------------------------------------------------------------- project */
 
 const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'settings'] as const;
+
+/**
+ * What a container shows instead.
+ *
+ * Cycles, modules, reports and insights are all about work, and a container has
+ * none — a screen full of tabs that each say "nothing here" is worse than four
+ * tabs that mean something. Pages stay, because a place to group projects is
+ * exactly where the note explaining the grouping belongs.
+ */
+const CONTAINER_TABS = ['tasks', 'pages', 'settings'] as const;
 type Tab = (typeof TABS)[number];
 
 export function ProjectPage() {
@@ -243,6 +350,7 @@ export function ProjectPage() {
   const [view, setView] = useStoredView(id);
   const selection = useSelection();
   const canWrite = useCanWrite();
+  const isContainer = !!project?.is_container;
   // `?tab=` so a link can point at one — a notification about a report has to
   // land on the reports, not on the task list beside them.
   const [search, setSearch] = useSearchParams();
@@ -266,19 +374,25 @@ export function ProjectPage() {
   return (
     <>
       <Header title={<span className="flex items-center gap-2" style={{ gap: 7 }}><span>{project.icon}</span> {project.name}</span>}>
-        {tab === 'tasks' && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
-        {canWrite && (
+        {tab === 'tasks' && !isContainer && <ViewControls view={view} onChange={setView} projectId={id} saveable />}
+        {canWrite && (isContainer ? (
+          // The button a container needs. "New task" on a screen with no board
+          // is a button that files work where nobody will look for it.
+          <Button variant="primary" size="sm" onClick={() => navigate(`/projects/new?parent=${id}`)}>
+            <Icon name="plus" size={14} /> <span className="hide-sm">{t('project.newSub')}</span>
+          </Button>
+        ) : (
           <Button variant="primary" size="sm" onClick={() => setAdding(true)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('nav.newTask')}</span>
           </Button>
-        )}
+        ))}
       </Header>
 
       <div className="tabs" style={{ padding: '0 12px' }}>
         {/* Reports is always here, even for a project that will never use it.
             Hiding it until an intake link exists would make the one screen that
             explains how to get one the screen nobody can find. */}
-        {TABS.map((name) => (
+        {(isContainer ? CONTAINER_TABS : TABS).map((name) => (
           <button
             key={name}
             className={tab === name ? 'active' : ''}
@@ -289,13 +403,17 @@ export function ProjectPage() {
               setSearch(name === 'tasks' ? {} : { tab: name }, { replace: true });
             }}
           >
-            {t(TAB_KEY[name])}
+            {/* A container's first tab shows projects, not tasks — the label
+                has to say what is behind it, not what it is behind on every
+                other project. */}
+            {t(isContainer && name === 'tasks' ? 'nav.projects' : TAB_KEY[name])}
             {name === 'intake' && waitingReports > 0 && <span className="tab-count">{waitingReports}</span>}
           </button>
         ))}
       </div>
 
-      {tab === 'tasks' && (
+      {tab === 'tasks' && isContainer && <ContainerChildren projectId={id} />}
+      {tab === 'tasks' && !isContainer && (
         view.layout === 'board'
           ? <div style={{ height: 'calc(100dvh - var(--header-height) - 110px)' }}>
             <TaskViews tasks={visible} view={view} projectId={id} onOpen={openTask} />
@@ -307,7 +425,7 @@ export function ProjectPage() {
             />
           </div>
       )}
-      {tab === 'tasks' && <SelectionBar selection={selection} tasks={visible} />}
+      {tab === 'tasks' && !isContainer && <SelectionBar selection={selection} tasks={visible} />}
       {tab === 'cycles' && <Cycles projectId={id} />}
       {tab === 'modules' && <Modules projectId={id} />}
       {tab === 'pages' && <ProjectPages projectId={id} />}
@@ -682,6 +800,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     () => list('project', (other) => other.id !== projectId && !other.archived && other.parent_id !== projectId),
     [projectId],
   );
+  // Why the container box may be refused, said before it is clicked.
+  const taskCount = useQuery(() => list('task', (task) => task.project_id === projectId).length, [projectId]);
   if (!project) return null;
 
   return (
@@ -695,6 +815,25 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Textarea id="s-desc" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
       </div>
+      {/*
+        A container is refused by the server while the project still has tasks,
+        and `forced` sends the old value back — so the box un-ticks itself. The
+        sentence under it is why, said before somebody clicks rather than after.
+      */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!project.is_container}
+          onChange={(event) => update('project', projectId, { is_container: event.target.checked ? 1 : 0 })}
+        />
+        <span>
+          {t('project.isContainer')}
+          <span className="block text-[12px] text-muted">
+            {taskCount > 0 ? t('project.isContainerBusy', { count: taskCount }) : t('project.isContainerHint')}
+          </span>
+        </span>
+      </label>
+
       <div className="flex items-center gap-2.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-parent">{t('project.parent')}</label>

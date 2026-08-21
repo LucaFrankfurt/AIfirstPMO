@@ -5,10 +5,10 @@ import {
   formatFieldValue, isGroupable, orderKey, PRIORITIES, readFieldValue,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
-import { byOrder, update } from '../lib/mutations';
+import { byOrder, create, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
-import { useMemberMap, useMembers, useSession } from '../session';
+import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
   useLabels, useStates, useTypes, type BaseGroupBy, type GroupBy,
@@ -19,6 +19,7 @@ import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
 import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/field';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { navCount } from './ui/nav';
@@ -441,10 +442,20 @@ export function BoardView({
   /** Where in the column the card would land — the gap the line is drawn in. */
   const [overIndex, setOverIndex] = useState<number | null>(null);
 
+  const canWrite = useCanWrite();
+  /** `null` while the button is a button; a string while it is a field. */
+  const [draftColumn, setDraftColumn] = useState<string | null>(null);
+
   const groups = useMemo(
     () => groupTasks(tasks, view.groupBy === 'none' ? 'state' : view.groupBy, { states, members, labels, t }),
     [tasks, view.groupBy, states, members, labels, t],
   );
+
+  // Only on a project's own board, only when the columns are the states, and
+  // only for somebody who may write. A board across several projects has no one
+  // project to add the column to.
+  const grouping = view.groupBy === 'none' ? 'state' : view.groupBy;
+  const canAddColumn = canWrite && !!projectId && grouping === 'state';
 
   /** Dropping on a column both reorders and rewrites the grouped-by field. */
   /**
@@ -567,6 +578,71 @@ export function BoardView({
           </div>
         </div>
       ))}
+
+      {/*
+        A column can only be added when the board *is* the columns — grouped by
+        state. Grouped by assignee, "add a column" would mean adding a person,
+        and by priority it would mean inventing a sixth priority; neither is a
+        thing this button can honestly do.
+
+        It was already possible in Project → Settings, at the foot of a long
+        page. Every other tool puts it at the right-hand end of the board, which
+        is where people look and where the shape of the board makes it obvious
+        what is about to happen.
+      */}
+      {canAddColumn && (
+        <div className="board-column board-add">
+          {draftColumn === null ? (
+            <>
+              <button type="button" onClick={() => setDraftColumn('')}>
+                <Icon name="plus" size={14} /> {t('project.addColumn')}
+              </button>
+              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+            </>
+          ) : (
+            // In place rather than a dialog. Adding three columns in a row is
+            // the normal case the first time somebody sets a board up, and a
+            // dialog that has to be dismissed between each one makes the third
+            // feel like an argument.
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                const name = draftColumn.trim();
+                if (!name) { setDraftColumn(null); return; }
+                create('state', {
+                  project_id: projectId,
+                  name,
+                  group_key: 'unstarted',
+                  color: '#64748b',
+                  sort_order: orderKey(states[states.length - 1]?.sort_order ?? null, null),
+                });
+                setDraftColumn('');
+              }}
+            >
+              <Input
+                autoFocus
+                aria-label={t('project.addColumn')}
+                placeholder={t('project.newColumnPrompt')}
+                value={draftColumn}
+                onChange={(event) => setDraftColumn(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Escape') setDraftColumn(null); }}
+              />
+              {/* Enter submits, and so does this. A form whose only way out is
+                  the Enter key is one nobody finds on a phone — and the source
+                  check in `forms.test.ts` says so before a person has to. */}
+              <div className="flex items-center gap-1.5">
+                <Button type="submit" size="sm" variant="primary" disabled={!draftColumn.trim()}>
+                  {t('action.add')}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" onClick={() => setDraftColumn(null)}>
+                  {t('action.cancel')}
+                </Button>
+              </div>
+              <span className="text-muted text-[12px]">{t('project.addColumnHint')}</span>
+            </form>
+          )}
+        </div>
+      )}
     </div>
   );
 }

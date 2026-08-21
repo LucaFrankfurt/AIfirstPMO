@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, type NavLinkProps } from 'react-router-dom';
-import { list, useQuery } from '../lib/store';
+import { byId as byIdStore, list, useQuery } from '../lib/store';
+import { update } from '../lib/mutations';
 import { pull, subscribeSync, type SyncStatus } from '../lib/sync';
 import { useCanWrite, useMe, useSession } from '../session';
 import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
@@ -11,6 +12,9 @@ import { Button } from '../components/ui/button';
 import { navCount, navItem } from './ui/nav';
 import { chipDot } from './ui/chip';
 import { useUnreadMessages } from '../routes/chat';
+
+/** Which project branches this device has folded. Never synced — see below. */
+const COLLAPSED_KEY = 'kolibri.collapsed-projects';
 
 /* ------------------------------------------------------------ sync status */
 
@@ -95,6 +99,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
   // Sub-projects sit under their parent, and a project whose parent is archived
   // or invisible comes back to the top rather than disappearing with it.
+  /**
+   * Which branches are folded, kept on this device.
+   *
+   * Not synced, and that is the point: whether *I* have the marketing tree
+   * collapsed is not a fact about the workspace, and pushing it as one would
+   * mean two people fighting over a chevron.
+   */
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? '[]') as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const toggleCollapsed = (id: string) => setCollapsed((current) => {
+    const next = new Set(current);
+    if (!next.delete(id)) next.add(id);
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])); } catch { /* private window */ }
+    return next;
+  });
+
+  const [dragging, setDragging] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
+
   const nested = useMemo(() => {
     const known = new Set(projects.map((project) => project.id));
     const children = new Map<string | null, typeof projects>();
@@ -103,16 +131,45 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (!children.has(parent)) children.set(parent, []);
       children.get(parent)!.push(project);
     }
-    const out: { project: (typeof projects)[number]; depth: number }[] = [];
+    const out: { project: (typeof projects)[number]; depth: number; hasChildren: boolean }[] = [];
     const walk = (parent: string | null, depth: number): void => {
       for (const project of children.get(parent) ?? []) {
-        out.push({ project, depth });
-        if (depth < 3) walk(project.id, depth + 1);
+        const hasChildren = (children.get(project.id) ?? []).length > 0;
+        out.push({ project, depth, hasChildren });
+        // A folded branch is not walked, so its children are absent from the
+        // list rather than hidden by CSS — which is what keeps the keyboard
+        // and a screen reader agreeing with what is on screen.
+        if (hasChildren && !collapsed.has(project.id) && depth < 3) walk(project.id, depth + 1);
       }
     };
     walk(null, 0);
     return out;
-  }, [projects]);
+  }, [projects, collapsed]);
+
+  /**
+   * Move the dragged project under another one, or out to the top.
+   *
+   * The two refusals are the whole of the rule: a project cannot be its own
+   * parent, and it cannot be moved under something it already contains — that
+   * makes a ring, and a ring is a sidebar that renders until the stack runs
+   * out. The server refuses a longer loop as well; this is the half that can
+   * refuse it before anything is written.
+   */
+  const reparent = (parentId: string | null) => {
+    const id = dragging;
+    setDragging(null);
+    setDropTarget(null);
+    if (!id || id === parentId) return;
+
+    if (parentId) {
+      const byId = new Map(projects.map((project) => [project.id, project]));
+      for (let at: string | null | undefined = parentId; at; at = byId.get(at)?.parent_id) {
+        if (at === id) return;   // dropping a branch onto its own leaf
+      }
+    }
+    if ((byIdStore('project', id) as { parent_id?: string | null } | undefined)?.parent_id === parentId) return;
+    update('project', id, { parent_id: parentId });
+  };
   const unread = useQuery(() => list('notification', (n) => n.user_id === me && !n.read_at).length, [me]);
   const unreadMessages = useUnreadMessages(me);
   const myOpen = useQuery(
@@ -199,15 +256,35 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Icon name="plus" size={13} />
           </Button>
         </div>
-        {nested.map(({ project, depth }) => (
-          <NavLink
-            key={project.id} to={`/projects/${project.id}`} className={navItem()}
-            style={depth ? { paddingInlineStart: 10 + depth * 13 } : undefined}
-          >
-            <span style={{ width: 16, textAlign: 'center' }}>{project.icon ?? '•'}</span>
-            <span className="flex-1 min-w-0 truncate">{project.name}</span>
-          </NavLink>
+        {nested.map(({ project, depth, hasChildren }) => (
+          <ProjectRow
+            key={project.id}
+            project={project}
+            depth={depth}
+            hasChildren={hasChildren}
+            collapsed={collapsed.has(project.id)}
+            onToggle={() => toggleCollapsed(project.id)}
+            canWrite={canWrite}
+            dropping={dropTarget === project.id}
+            onDragStart={() => setDragging(project.id)}
+            onDragEnd={() => { setDragging(null); setDropTarget(null); }}
+            onDragOver={() => setDropTarget(project.id)}
+            onDrop={() => reparent(project.id)}
+            dragging={dragging === project.id}
+          />
         ))}
+        {/* The only way to say "no parent" with a pointer. A row is a project,
+            so dropping onto one nests; this strip is the outdent, and it only
+            appears while something is actually being dragged. */}
+        {dragging && (
+          <div
+            className={`nav-root-drop${dropTarget === '' ? ' over' : ''}`}
+            onDragOver={(event) => { event.preventDefault(); setDropTarget(''); }}
+            onDrop={(event) => { event.preventDefault(); reparent(null); }}
+          >
+            {t('nav.moveToTop')}
+          </div>
+        )}
         {projects.length > 1 && (
           <NavLink to="/portfolio" className={navItem()}>
             <Icon name="target" size={15} />
@@ -261,6 +338,98 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {adding && <QuickAdd onClose={() => setAdding(false)} />}
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
+    </div>
+  );
+}
+
+/**
+ * One project in the sidebar.
+ *
+ * Three things a flat `NavLink` could not do, and all three are what the
+ * complaint was about: fold a branch, drag a project under another, and reach
+ * "new sub-project" without going through a settings page.
+ *
+ * The chevron sits in the same 16px slot whether or not there is anything to
+ * fold, so a project with children and one without line up — a tree whose rows
+ * shift sideways by the width of a chevron reads as two lists.
+ */
+function ProjectRow({
+  project, depth, hasChildren, collapsed, onToggle, canWrite,
+  dragging, dropping, onDragStart, onDragEnd, onDragOver, onDrop,
+}: {
+  project: { id: string; name: string; icon?: string | null };
+  depth: number;
+  hasChildren: boolean;
+  collapsed: boolean;
+  onToggle: () => void;
+  canWrite: boolean;
+  dragging: boolean;
+  dropping: boolean;
+  onDragStart: () => void;
+  onDragEnd: () => void;
+  onDragOver: () => void;
+  onDrop: () => void;
+}) {
+  const t = useT();
+  const navigate = useNavigate();
+
+  return (
+    <div
+      className={`nav-project${dropping ? ' drop-into' : ''}${dragging ? ' dragging' : ''}`}
+      style={{ paddingInlineStart: depth * 13 }}
+      draggable={canWrite}
+      onDragStart={(event) => {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', project.id);
+        onDragStart();
+      }}
+      onDragEnd={onDragEnd}
+      onDragOver={(event) => { event.preventDefault(); onDragOver(); }}
+      onDrop={(event) => { event.preventDefault(); onDrop(); }}
+    >
+      {hasChildren ? (
+        <button
+          type="button"
+          className="nav-twist"
+          onClick={onToggle}
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? t('nav.expand', { name: project.name }) : t('nav.collapse', { name: project.name })}
+        >
+          <Icon name={collapsed ? 'chevronRight' : 'chevronDown'} size={13} />
+        </button>
+      ) : (
+        <span className="nav-twist" aria-hidden="true" />
+      )}
+
+      <NavLink to={`/projects/${project.id}`} className={navItem()}>
+        <span style={{ width: 16, textAlign: 'center' }}>{project.icon ?? '•'}</span>
+        <span className="flex-1 min-w-0 truncate">{project.name}</span>
+      </NavLink>
+
+      {canWrite && (
+        <MenuButton
+          className="nav-project-menu"
+          variant="ghost"
+          size="iconSm"
+          label={t('common.moreActions')}
+          items={[
+            {
+              id: 'sub',
+              label: t('project.newSub'),
+              icon: <Icon name="plus" size={13} />,
+              onSelect: () => navigate(`/projects/new?parent=${project.id}`),
+            },
+            {
+              id: 'settings',
+              label: t('nav.projectSettings'),
+              icon: <Icon name="settings" size={13} />,
+              onSelect: () => navigate(`/projects/${project.id}?tab=settings`),
+            },
+          ]}
+        >
+          <Icon name="dots" size={13} />
+        </MenuButton>
+      )}
     </div>
   );
 }

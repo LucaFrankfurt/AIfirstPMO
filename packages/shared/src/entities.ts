@@ -122,7 +122,7 @@ export const ENTITIES = {
     fields: [
       'workspace_id', 'team_id', 'parent_id', 'name', 'key', 'description', 'icon', 'color',
       'lead_id', 'start_date', 'target_date', 'status', 'visibility', 'archived',
-      'default_state_id', 'default_view_id', 'working_days', 'sort_order',
+      'default_state_id', 'default_view_id', 'working_days', 'sort_order', 'is_container',
     ],
     json: ['working_days'],
   },

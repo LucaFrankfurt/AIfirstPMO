@@ -142,3 +142,54 @@ describe('a date set over the API', () => {
     assert.ok(dates(b.id)[0]! > '2027-01-08');
   });
 });
+
+/**
+ * A project that only holds other projects.
+ *
+ * A flag rather than a separate "folder" entity, so the interesting part is not
+ * that it can be set — it is what refuses to set it, and what a create can
+ * quietly get away with.
+ */
+describe('container projects', () => {
+  it('accepts a parent when the project is created, and refuses one from elsewhere', async () => {
+    const parent = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Calendoora', key: 'CAL' });
+    const child = await ok(`/api/workspaces/${workspaceId}/projects`, {
+      name: 'Setaside', key: 'SET', parent_id: parent.id,
+    });
+    assert.equal(child.parent_id, parent.id, 'the parent was accepted at creation');
+
+    // Somebody else's project id, which is not this workspace's to nest under.
+    const stranger = await ok(`/api/workspaces/${workspaceId}/projects`, {
+      name: 'Elsewhere', key: 'ELS', parent_id: '00000000-0000-4000-8000-000000000000',
+    });
+    assert.equal(stranger.parent_id, null, 'a parent that is not here is dropped, not written');
+  });
+
+  it('refuses to become a container while it still holds tasks', async () => {
+    const project = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Busy', key: 'BSY' });
+    await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: project.id, title: 'Something to do' });
+
+    const refused = await ok(`/api/projects/${project.id}`, { is_container: 1 }, 'PATCH');
+    assert.equal(refused.is_container, 0, 'the flag was refused, not obeyed');
+  });
+
+  it('lets an empty project become one, and lets it back again', async () => {
+    const project = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Empty', key: 'EMP' });
+
+    const on = await ok(`/api/projects/${project.id}`, { is_container: 1 }, 'PATCH');
+    assert.equal(on.is_container, 1);
+
+    // Always allowed in this direction: there is nothing to hide.
+    const off = await ok(`/api/projects/${project.id}`, { is_container: 0 }, 'PATCH');
+    assert.equal(off.is_container, 0);
+  });
+
+  it('still refuses a loop, however it is asked for', async () => {
+    const top = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Top', key: 'TOP' });
+    const mid = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Mid', key: 'MID', parent_id: top.id });
+    const leaf = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Leaf', key: 'LEA', parent_id: mid.id });
+
+    const looped = await ok(`/api/projects/${top.id}`, { parent_id: leaf.id }, 'PATCH');
+    assert.equal(looped.parent_id, null, 'a ring three deep is still a ring');
+  });
+});

@@ -171,6 +171,16 @@ export interface Project extends Base {
   target_date: ISODate | null;
   status: ProjectStatus;
   visibility: 'public' | 'private';
+  /**
+   * A project that only holds other projects.
+   *
+   * A flag rather than a separate "folder" entity, because a folder would need
+   * its own sync, permissions, trash, REST and MCP surface — and would make
+   * every tree in the app ask whether a parent is a folder or a project. A
+   * container is an ordinary project that has said it has no work of its own,
+   * so it keeps all of that for free and can be turned back at any time.
+   */
+  is_container: number;
   archived: number;
   default_state_id: ID | null;
   /**

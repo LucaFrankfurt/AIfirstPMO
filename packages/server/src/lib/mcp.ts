@@ -124,7 +124,9 @@ function vocabularyFor(workspaceId: string): Vocabulary {
       workspaceId,
     ).map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
     projects: all<Row>(
-      `SELECT id, key, name FROM projects WHERE workspace_id = ? AND deleted_at IS NULL`,
+      // A container holds projects, not tasks, so `#KEY` naming one would file
+      // work somewhere it cannot be seen.
+      `SELECT id, key, name FROM projects WHERE workspace_id = ? AND deleted_at IS NULL AND is_container = 0`,
       workspaceId,
     ).map((row) => ({ id: String(row.id), key: row.key ? String(row.key) : null, name: String(row.name ?? '') })),
     labels: all<Row>(

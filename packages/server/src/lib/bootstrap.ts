@@ -82,12 +82,24 @@ export interface NewProject {
   icon?: string;
   color?: string;
   visibility?: 'public' | 'private';
+  /** The project this one sits under. Checked, not trusted — see below. */
+  parentId?: string | null;
   withDefaults?: boolean;
 }
 
 export function createProject(workspaceId: string, actorId: string, input: NewProject): Row {
   return tx(() => {
     const id = uid();
+    // Checked here rather than left to `guardReferences`, which only runs on
+    // writes that are *not* `system` — and this one is, because it allocates a
+    // key and seeds states in the same transaction. A parent in somebody
+    // else's workspace would otherwise be written without a word.
+    const parentId = input.parentId
+      ? get<Row>(
+        `SELECT id FROM projects WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+        input.parentId, workspaceId,
+      )?.id ?? null
+      : null;
     const key = uniqueKey(workspaceId, input.key || keyFromName(input.name));
     const hlc = () => serverClock.now();
     const { row } = writeEntity('project', id, {
@@ -96,6 +108,7 @@ export function createProject(workspaceId: string, actorId: string, input: NewPr
       name: input.name,
       key,
       description: input.description ?? null,
+      parent_id: parentId,
       icon: input.icon ?? '🚀',
       color: input.color ?? '#6366f1',
       lead_id: actorId,
