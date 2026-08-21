@@ -1409,7 +1409,42 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .auth h1 { font-size: 19px; margin-bottom: 4px; }
 .auth .error { color: var(--danger); font-size: 13px; margin-bottom: 10px; }
 
-.tabs { display: flex; gap: 3px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+/* A tab strip is one row, and it used to scroll in two directions.
+
+   The strip's line was a `border-bottom`, and the active tab's 2px underline
+   was meant to sit on top of it — so the buttons carried `margin-bottom: -1px`
+   to reach down over it. That pixel hung past the strip's box, and
+   `overflow-x: auto` drags the other axis along with it (a non-visible overflow
+   on one axis computes the other's `visible` to `auto`). One pixel was enough:
+   every strip in the app — project, settings, guide, inbox, task — carried a
+   vertical scrollbar it could not use, at every width, on desktop where nothing
+   overflowed sideways at all. The same pixel was clipped away, so the underline
+   the design asked for at 2px was arriving at 1.
+
+   The line moved into an inset shadow, which paints on the padding box instead
+   of outside it. The underline now fits inside the strip and covers the line
+   the way it was supposed to, the strip is the same height it always was, and
+   there is nothing left to scroll to. `overflow-y` is stated anyway — not to
+   patch that pixel, which is gone, but because a single row of tabs has no
+   vertical axis to offer and the next thing added to one should not find one.
+
+   A strip that wants no line turns off the shadow, not the border — see the
+   inbox, which lives inside the header and brings its own. */
+.tabs {
+  display: flex;
+  gap: 3px;
+  box-shadow: inset 0 -1px 0 var(--line);
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* The sideways scroll stays; its 10px of chrome under a 38px strip does not.
+     What replaces it as the signal that there is more is the fade below. */
+  scrollbar-width: none;
+  /* Whatever the browser scrolls to — a focused tab, the active one on load —
+     lands clear of the fade instead of underneath it. */
+  scroll-padding-inline: 28px;
+}
+.tabs::-webkit-scrollbar { display: none; }
+
 .tabs button {
   border: none;
   background: none;
@@ -1418,10 +1453,48 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   color: var(--fg-muted);
   cursor: pointer;
   border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
   white-space: nowrap;
 }
 .tabs button.active { color: var(--fg); border-bottom-color: var(--accent); font-weight: 550; }
+
+/* The button fills the strip's full height, so an outline drawn 2px outside it
+   is drawn outside the scroll box — and a scroll box clips. The ring was
+   arriving as two vertical strokes with its top and bottom sliced off. Inside
+   the button it is a whole rectangle. */
+.tabs button:focus-visible { outline-offset: -2px; }
+
+/* Hiding the scrollbar hides the fact that there is more, so the strip fades at
+   whichever end still has tabs behind it — and at neither end when they all
+   fit. A scroll timeline, so the two widths follow the scroll position rather
+   than a clock; declared properties, so they interpolate as lengths instead of
+   flipping from one string to the next halfway through.
+
+   Their initial 0 doubles as the fallback. A browser without scroll timelines
+   leaves the timeline inactive, never runs the keyframes, and reads 0 at both
+   ends: the strip it gets is the one that was there before any of this — no
+   fade, still scrollable, still keyboard-reachable. */
+@property --tab-fade-start { syntax: '<length>'; inherits: false; initial-value: 0px; }
+@property --tab-fade-end { syntax: '<length>'; inherits: false; initial-value: 0px; }
+
+@supports (animation-timeline: scroll()) {
+  .tabs {
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 var(--tab-fade-start),
+      #000 calc(100% - var(--tab-fade-end)),
+      transparent 100%
+    );
+    animation: tab-edges linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+
+@keyframes tab-edges {
+  0% { --tab-fade-start: 0px; --tab-fade-end: 22px; }
+  8%, 92% { --tab-fade-start: 22px; --tab-fade-end: 22px; }
+  100% { --tab-fade-start: 22px; --tab-fade-end: 0px; }
+}
 
 /* How many reports are waiting. A count rather than a dot: "some" is not enough
    to decide whether to look now. */

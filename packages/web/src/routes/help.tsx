@@ -24,6 +24,7 @@ import { useT, type TranslationKey } from '../lib/i18n';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { SHOW_CHECKLIST, START_TOUR } from '../components/tour';
+import { useTabStrip } from '../lib/tab-strip';
 
 type Section = GuideSection;
 
@@ -321,6 +322,7 @@ export function Help() {
   const [params, setParams] = useSearchParams();
   const target = params.get('to');
   const [section, setSection] = useState<Section>(() => (target ? sectionFor(target) : 'overview'));
+  const strip = useTabStrip(section);
   const highlighted = useRef<string | null>(null);
 
   // Arriving from an empty screen should land on the card that explains it,
@@ -349,7 +351,7 @@ export function Help() {
   return (
     <>
       <Header title={t('guide.title')} />
-      <div className="tabs" style={{ padding: '0 12px' }}>
+      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {(Object.keys(SECTION_KEY) as Section[]).map((name) => (
           <button key={name} className={section === name ? 'active' : ''} onClick={() => choose(name)}>
             {t(SECTION_KEY[name])}
