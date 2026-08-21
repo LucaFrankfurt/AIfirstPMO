@@ -289,7 +289,7 @@ function TemplateEditor({
         <Input id="tpl-name" autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} />
       </div>
 
-      <div className="flex items-center gap-2.5" style={{ alignItems: 'flex-start' }}>
+      <div className="flex items-start gap-2.5">
         <div className="field" style={{ width: 96 }}>
           <label htmlFor="tpl-icon">{t('project.icon')}</label>
           <Input id="tpl-icon" maxLength={4} value={form.icon} onChange={(e) => set('icon', e.target.value)} />
@@ -323,7 +323,7 @@ function TemplateEditor({
         <MarkdownEditor value={form.description} onChange={(value) => set('description', value)} minHeight={130} />
       </div>
 
-      <div className="flex items-center gap-2.5" style={{ alignItems: 'flex-start' }}>
+      <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-priority">{t('task.priority')}</label>
           <Select id="tpl-priority" value={form.priority} onChange={(e) => set('priority', e.target.value as Priority)}>
@@ -480,7 +480,7 @@ function RuleEditor({
       </div>
 
       <h4 className="auto-h">{t('auto.trigger')}</h4>
-      <div className="flex items-center flex-wrap gap-2.5" style={{ alignItems: 'flex-start' }}>
+      <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="rule-trigger">{t('auto.event')}</label>
           <Select
@@ -546,7 +546,7 @@ function RuleEditor({
         </div>
       ) : (
         <>
-          <div className="flex items-center flex-wrap gap-2.5">
+          <div className="flex items-start flex-wrap gap-2.5">
             <div className="field">
               <label htmlFor="rule-priority">{t('task.priority')}</label>
               <Select id="rule-priority" style={{ width: 150 }} value={form.action_priority}
@@ -639,7 +639,7 @@ function RuleEditor({
         <Icon name="plus" size={13} /> {t('auto.addRecipient')}
       </Button>
 
-      <div className="flex items-center flex-wrap gap-2.5 mt-3.5" style={{ alignItems: 'flex-start' }}>
+      <div className="field-row mt-3.5">
         <div className="field flex-1 min-w-0">
           <label htmlFor="rule-fanout">{t('auto.fanOut')}</label>
           <Select id="rule-fanout" value={form.fan_out} onChange={(e) => set('fan_out', e.target.value as FanOut)}>

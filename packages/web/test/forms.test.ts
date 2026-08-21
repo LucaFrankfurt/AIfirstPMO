@@ -220,3 +220,36 @@ describe('every tab strip', () => {
     assert.deepEqual(adrift, [], `tab strip(s) with no useTabStrip: ${adrift.join(', ')}`);
   });
 });
+
+/**
+ * Two fields side by side were being written as `flex items-center`, which
+ * centres each one against the tallest of them. One of a pair almost always
+ * carries a line of help text underneath, so its partner's label came to rest
+ * half a field lower — visible on every screen at every width, and invisible to
+ * everything that is not an eye. Four call sites had already found it and
+ * pinned `alignItems: 'flex-start'` back on inline, which is the tell: a rule
+ * being undone by hand at most of the places that use it.
+ *
+ * `.field-row` is that row, and it also stacks when there is no room for two
+ * columns. Both halves matter — the inline override fixed the alignment and
+ * left a 390px phone with two 178px columns.
+ */
+describe('fields side by side', () => {
+  const rows = files.flatMap(({ path, text }) => {
+    const lines = text.split('\n');
+    return lines.flatMap((line, i) =>
+      /className="[^"]*\bitems-center\b[^"]*"/.test(line) && /className="field[ "]/.test(lines[i + 1] ?? '')
+        ? [`${path.slice(SRC.length + 1)}:${i + 1}`]
+        : []);
+  });
+
+  it('is a .field-row, not a centred flex line', () => {
+    assert.deepEqual(rows, [], `field(s) centred against a taller neighbour: ${rows.join(', ')}`);
+  });
+
+  it('never has its alignment undone inline', () => {
+    const patched = files.flatMap(({ path, text }) =>
+      [...text.matchAll(/alignItems:\s*'flex-start'/g)].map((m) => `${path.slice(SRC.length + 1)}:${text.slice(0, m.index).split('\n').length}`));
+    assert.deepEqual(patched, [], `inline alignment patch(es) — use .field-row: ${patched.join(', ')}`);
+  });
+});

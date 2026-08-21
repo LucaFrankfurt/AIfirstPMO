@@ -102,7 +102,7 @@ export function Triage({ projectId }: { projectId: string }) {
         <div className="grid gap-2.5">
           {shown.map((intake) => (
             <article className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={intake.id}>
-              <div className="flex items-center gap-2" style={{ alignItems: 'flex-start' }}>
+              <div className="flex items-start gap-2">
                 <div className="flex-1 min-w-0">
                   <strong style={{ fontSize: 14.5 }}>{intake.title}</strong>
                   <div className="text-muted text-[12.5px] mt-0.5">

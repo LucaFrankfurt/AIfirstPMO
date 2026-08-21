@@ -204,7 +204,7 @@ export function ProjectNew() {
               placeholder={t('project.namePlaceholder')}
             />
           </div>
-          <div className="flex items-center gap-2.5" style={{ alignItems: 'flex-start' }}>
+          <div className="flex items-start gap-2.5">
             <div className="field" style={{ width: 120 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
               <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
@@ -527,7 +527,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         <label htmlFor="c-name">{t('cycle.name')}</label>
         <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
       </div>
-      <div className="flex items-center gap-2.5">
+      <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="c-start">{t('cycle.starts')}</label>
           <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
@@ -836,7 +836,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </span>
       </label>
 
-      <div className="flex items-center gap-2.5">
+      <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-parent">{t('project.parent')}</label>
           <Select
@@ -855,7 +855,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2.5">
+      <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-lead">{t('project.lead')}</label>
           <Select id="s-lead" value={project.lead_id ?? ''} onChange={(event) => update('project', projectId, { lead_id: event.target.value || null })}>
@@ -904,6 +904,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       </div>
       {states.map((state) => (
         <div className="stack-card" key={state.id}>
+          {/* The name and the two ways to be rid of the state: everything that
+              fits on one line at any width, on one line. */}
           <div className="flex items-center gap-2">
             <input
               type="color" value={state.color} style={{ width: 28, height: 28, border: 'none', background: 'none' }}
@@ -912,12 +914,6 @@ function ProjectSettings({ projectId }: { projectId: string }) {
             />
             <Input className="flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
               onChange={(event) => update('state', state.id, { name: event.target.value })} />
-            <Select style={{ width: 140 }} value={state.group_key} aria-label={t('view.groupState')}
-              onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
-              {STATE_GROUPS.map((group) => (
-                <option key={group} value={group}>{t(groupKey(group))}</option>
-              ))}
-            </Select>
             <Button variant="ghost" size="icon" aria-label={t('project.deleteState')} onClick={async () => {
               if (states.length <= 1) return;
               if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);
@@ -925,17 +921,37 @@ function ProjectSettings({ projectId }: { projectId: string }) {
               <Icon name="trash" size={14} />
             </Button>
           </div>
-          <div className="flex items-center flex-wrap gap-2.5 mt-2">
-            <label className="flex items-center gap-1.5 text-[12.5px]">
-              <span className="text-muted">{t('state.wipLimit')}</span>
-              <Input type="number" min={0} max={99} style={{ width: 70 }}
+          {/*
+            The three settings were a 140px select and two labels sitting to the
+            left of their own controls — so on a phone "Limit" put its box at one
+            indent, "Who may move work here" wrapped onto two lines and put its
+            box at another, and both selects cut their longest option in half.
+            The same rows the form above uses fix all of it: label over control,
+            one column when there is no room for two.
+          */}
+          <div className="field-row mt-2">
+            <div className="field">
+              <label htmlFor={`st-group-${state.id}`}>{t('view.groupState')}</label>
+              <Select id={`st-group-${state.id}`} value={state.group_key}
+                onChange={(event) => update('state', state.id, { group_key: event.target.value })}>
+                {STATE_GROUPS.map((group) => (
+                  <option key={group} value={group}>{t(groupKey(group))}</option>
+                ))}
+              </Select>
+            </div>
+            <div className="field">
+              <label htmlFor={`st-wip-${state.id}`}>{t('state.wipLimit')}</label>
+              {/* Two digits never need a full column; the label above it still
+                  starts on the same edge as its neighbours, which is the part
+                  that has to line up. */}
+              <Input id={`st-wip-${state.id}`} type="number" min={0} max={99} style={{ maxWidth: 110 }}
                 value={state.wip_limit || ''} placeholder="0"
                 onChange={(event) => update('state', state.id, { wip_limit: Number(event.target.value) || 0 })}
               />
-            </label>
-            <label className="flex items-center gap-1.5 text-[12.5px]">
-              <span className="text-muted">{t('state.allowedRoles')}</span>
-              <Select style={{ width: 200 }}
+            </div>
+            <div className="field">
+              <label htmlFor={`st-roles-${state.id}`}>{t('state.allowedRoles')}</label>
+              <Select id={`st-roles-${state.id}`}
                 value={state.allowed_roles?.[0] ?? ''}
                 onChange={(event) => update('state', state.id, { allowed_roles: event.target.value ? [event.target.value] : [] })}
               >
@@ -944,7 +960,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
                   <option key={role} value={role}>{t(roleKey(role))}</option>
                 ))}
               </Select>
-            </label>
+            </div>
           </div>
         </div>
       ))}
