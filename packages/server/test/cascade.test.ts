@@ -184,6 +184,42 @@ describe('container projects', () => {
     assert.equal(off.is_container, 0);
   });
 
+  /**
+   * Two projects with one key make `WEB-42` mean two tasks, and the client
+   * resolving a pasted identifier takes whichever it finds first. The key was
+   * only settable at creation until the settings screen learned to change it,
+   * which is what made this reachable.
+   */
+  it('refuses a key another project in the workspace already holds', async () => {
+    const first = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Web', key: 'WEB' });
+    const second = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Website', key: 'WST' });
+
+    // Bounced rather than thrown: this write may be one row of a sync push from
+    // a device that was offline, and one bad key must not take the batch down.
+    const refused = await ok(`/api/projects/${second.id}`, { key: 'WEB' }, 'PATCH');
+    assert.equal(refused.key, 'WST', 'the key was refused, not obeyed');
+
+    // Case is not a difference: WEB and web are one prefix in every identifier.
+    const lower = await ok(`/api/projects/${second.id}`, { key: 'web' }, 'PATCH');
+    assert.equal(lower.key, 'WST', 'lower case is the same collision');
+
+    // Its own key back is not a collision with itself, and an unrelated edit to
+    // a project keeps working whatever its key is.
+    const kept = await ok(`/api/projects/${second.id}`, { key: 'WST', name: 'Website renamed' }, 'PATCH');
+    assert.equal(kept.key, 'WST');
+    assert.equal(kept.name, 'Website renamed');
+
+    // Free again once the holder gives it up.
+    await ok(`/api/projects/${first.id}`, { key: 'WEB1' }, 'PATCH');
+    const moved = await ok(`/api/projects/${second.id}`, { key: 'WEB' }, 'PATCH');
+    assert.equal(moved.key, 'WEB');
+  });
+
+  it('upper-cases a key however it is typed', async () => {
+    const project = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Lower', key: 'low' });
+    assert.equal(project.key, 'LOW', 'an identifier prefix is upper case or it is two prefixes');
+  });
+
   it('still refuses a loop, however it is asked for', async () => {
     const top = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Top', key: 'TOP' });
     const mid = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Mid', key: 'MID', parent_id: top.id });

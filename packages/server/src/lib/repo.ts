@@ -407,6 +407,39 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
       forced.is_container = values.is_container;
     }
   }
+  /**
+   * One key, one project.
+   *
+   * A key is the prefix of every identifier a project mints, so two projects
+   * holding `WEB` make `WEB-42` name two tasks — and the client resolving a
+   * pasted identifier takes whichever it finds first. It became reachable when
+   * the settings screen learned to change a key that until then could only be
+   * chosen once.
+   *
+   * Refused the way a container is: the old value comes back through `forced`
+   * rather than thrown, because this write may be one row in a sync push from a
+   * device that has been offline, and one bad key should not take the batch
+   * down with it. The screen checks as you type and says which project has it,
+   * so the bounce is the backstop rather than the explanation.
+   *
+   * Upper-cased on the way in whatever was typed: `web` and `WEB` are one
+   * prefix, and storing both would be storing the collision.
+   */
+  if (entity === 'project' && typeof values.key === 'string') {
+    const wanted = values.key.trim().toUpperCase();
+    // `existing` on an update, the incoming row on a create — this runs on both.
+    const workspace = (existing?.workspace_id ?? values.workspace_id) as string | undefined;
+    const taken = wanted && workspace ? get<Row>(
+      `SELECT name FROM projects
+        WHERE workspace_id = ? AND id != ? AND deleted_at IS NULL AND UPPER(key) = ?`,
+      workspace, id, wanted,
+    ) : undefined;
+    const settled = !wanted || taken ? (existing?.key as string | undefined) ?? values.key : wanted;
+    if (settled !== values.key) {
+      values.key = settled;
+      forced.key = settled;
+    }
+  }
   if (entity === 'task') applyTaskInvariants(values, existing, forced);
   if (entity === 'page') applyPageInvariants(values, existing, forced);
   if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);

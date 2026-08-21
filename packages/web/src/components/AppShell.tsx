@@ -7,6 +7,7 @@ import { useCanWrite, useMe, useSession } from '../session';
 import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
+import { useActiveProject } from '../lib/active-project';
 import { CommandPalette } from './CommandPalette';
 import { Button } from '../components/ui/button';
 import { navCount, navItem } from './ui/nav';
@@ -90,6 +91,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const [theme, setTheme] = useTheme();
   const [adding, setAdding] = useState(false);
+  const activeProject = useActiveProject();
   const canWrite = useCanWrite();
   const [palette, setPalette] = useState(false);
 
@@ -336,7 +338,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         </nav>
       </div>
 
-      {adding && <QuickAdd onClose={() => setAdding(false)} />}
+      {/* The board's own button always knew which project it was on. This one —
+          the keyboard shortcut, the phone's +, the header button — did not, and
+          fell back to whichever project was used last. It reads the address bar
+          now, and still falls back to the last one from a screen that is not
+          about a project. */}
+      {adding && <QuickAdd projectId={activeProject} onClose={() => setAdding(false)} />}
       {palette && <CommandPalette onClose={() => setPalette(false)} />}
     </div>
   );
