@@ -108,6 +108,28 @@ curl -s -X POST $URL/mcp -H "Authorization: Bearer $TOKEN" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | jq '.result.tools[].name'
 ```
 
+### The address in the metadata has to be the address you typed
+
+Every value in both discovery documents comes from one place, and `issuer` is checked by the client
+against the URL it fetched the document from — RFC 8414 §3.3 makes that a MUST. A mismatch is a hard
+refusal, and it happens before any request the server could log.
+
+That is what a proxy forwarding the host but not the scheme produces: `http://your-real-domain` as
+the issuer of a document served over https. The symptom is precise and misleading — a connector
+reads all three documents, gets `200` for each, never calls the registration endpoint, and reports
+*"registration failed"*.
+
+Set **`KOLIBRI_PUBLIC_URL`** and the question does not arise. Without it the scheme is inferred:
+`x-forwarded-proto`, then the socket, then a guess — a bare hostname reached this process through
+something that terminated TLS, while a host carrying a port is somebody's laptop.
+
+```bash
+curl -s https://your-host/.well-known/oauth-authorization-server | jq '.issuer, .registration_endpoint'
+```
+
+Both must start with the `https://your-host` you typed. If either says `http://`, that is the bug,
+and no amount of work on the endpoints behind them will help.
+
 ### Registration is not a login
 
 `POST /oauth/register` is dynamic client registration (RFC 7591) — anyone may call it, which is the

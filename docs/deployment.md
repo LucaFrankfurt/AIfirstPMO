@@ -56,7 +56,7 @@ For the smallest possible install — one container, uploads on the volume, no m
 |---|---|---|
 | `PORT` | `4000` | Listen port inside the container |
 | `KOLIBRI_SECRET` | generated | Signs sessions and API tokens. Generated once and stored in the data volume if unset. **Changing it signs everyone out.** |
-| `KOLIBRI_PUBLIC_URL` | empty | Absolute base URL, used in invite links and MCP output |
+| `KOLIBRI_PUBLIC_URL` | empty | Absolute base URL. Invite links, email links, and **every address in the OAuth metadata**. Set it — see below |
 | `KOLIBRI_ALLOW_SIGNUP` | `true` | Set to `false` once the team has accounts; invites still work |
 | `KOLIBRI_MAX_UPLOAD_MB` | `25` | Per-file upload ceiling |
 | `KOLIBRI_SESSION_DAYS` | `60` | Browser session lifetime |
@@ -79,6 +79,25 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_SMTP_INSECURE` | `false` | Accept a self-signed certificate on an internal relay |
 
 `KOLIBRI_PUBLIC_URL` must be set for the links in those emails to point anywhere useful.
+
+### Set `KOLIBRI_PUBLIC_URL`, and check what it produced
+
+Not only for links. Every address in the two OAuth discovery documents is built from it, including
+`issuer` — and a client is **required** to reject metadata whose `issuer` does not match the URL it
+fetched the document from (RFC 8414 §3.3). Get that wrong and a connector reads all three documents,
+refuses them, never calls the registration endpoint, and reports that registration failed. Nothing
+in the server log looks broken, because from the server's side nothing was.
+
+Without it, the scheme is inferred: `x-forwarded-proto` from the proxy if it sends one, then the
+socket, and failing both a bare hostname is assumed to be TLS while a host with a port is assumed to
+be somebody's laptop. That inference is right in the common cases and it is still an inference.
+
+One command says whether it is right on your instance:
+
+```bash
+curl -s https://your-host/.well-known/oauth-authorization-server | jq .issuer
+# "https://your-host"   ← must be exactly the URL you just typed, https and all
+```
 
 ### Single sign-on (optional)
 
