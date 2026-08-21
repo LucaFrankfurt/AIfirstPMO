@@ -741,6 +741,8 @@ export const de: Catalogue = {
   'project.icon': 'Symbol',
   'project.key': 'Kürzel',
   'project.keyHint': 'Wird für Aufgabennummern verwendet, z. B. WEB-42.',
+  'project.keyChangeHint': 'Bereits vergebene Kennungen behalten das alte Kürzel — WEB-42 bleibt WEB-42.',
+  'project.keyTaken': '{name} führt dieses Kürzel bereits — Kennungen würden zwei Aufgaben benennen.',
   'project.keyAuto': 'automatisch',
   'project.description': 'Beschreibung',
   'project.namePlaceholder': 'Website-Relaunch',

@@ -746,6 +746,8 @@ export const fr: Catalogue = {
   'project.icon': 'Symbole',
   'project.key': 'Clé',
   'project.keyHint': 'Utilisée pour les identifiants de tâche, par exemple WEB-42.',
+  'project.keyChangeHint': 'Les identifiants déjà attribués gardent l\'ancien préfixe — WEB-42 reste WEB-42.',
+  'project.keyTaken': '{name} utilise déjà ce préfixe — un identifiant désignerait deux tâches.',
   'project.keyAuto': 'auto',
   'project.description': 'Description',
   'project.namePlaceholder': 'Refonte du site',

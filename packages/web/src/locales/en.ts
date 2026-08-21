@@ -740,6 +740,8 @@ export const en = {
   'project.icon': 'Icon',
   'project.key': 'Key',
   'project.keyHint': 'Used for task identifiers, e.g. WEB-42.',
+  'project.keyChangeHint': 'Identifiers already given out keep the old key — WEB-42 stays WEB-42.',
+  'project.keyTaken': '{name} already uses this key — identifiers would name two tasks.',
   'project.keyAuto': 'auto',
   'project.description': 'Description',
   'project.namePlaceholder': 'Website relaunch',

@@ -253,3 +253,44 @@ describe('fields side by side', () => {
     assert.deepEqual(patched, [], `inline alignment patch(es) — use .field-row: ${patched.join(', ')}`);
   });
 });
+
+/**
+ * Whatever a project can be given when it is made, it can be changed later.
+ *
+ * The icon, the key and the visibility were all set once, on the create form,
+ * and then never again: no field for them anywhere in the settings. The icon is
+ * cosmetic and the key is awkward, but the visibility decides who can see the
+ * project at all — chosen in the two seconds somebody spends on a create form
+ * and permanent from then on.
+ *
+ * That is a whole class rather than three oversights, so it is the class that
+ * is checked: every field the create form writes must be a field the settings
+ * screen writes too. A deliberate exception belongs in this list with a reason
+ * beside it, not in silence.
+ */
+describe('a project made and a project changed', () => {
+  const source = readFileSync(join(SRC, 'routes/projects.tsx'), 'utf8');
+
+  /** The fields the create form starts with — its own `useState` object. */
+  const created = (() => {
+    const from = source.indexOf('const [form, setForm] = useState({');
+    assert.ok(from > 0, 'the create form no longer keeps its fields in one object');
+    const body = source.slice(source.indexOf('{', from) + 1, source.indexOf('});', from));
+    return [...body.matchAll(/(\w+):/g)].map((match) => match[1]);
+  })();
+
+  /** The fields the settings screen writes back. */
+  const settable = new Set(
+    [...source.matchAll(/update\('project', projectId, \{\s*(\w+)/g)].map((match) => match[1]),
+  );
+
+  it('reads both lists — a scan that finds nothing passes everything', () => {
+    assert.ok(created.length >= 4, `only found ${created.length} fields on the create form`);
+    assert.ok(settable.size >= 4, `only found ${settable.size} fields in the settings`);
+  });
+
+  it('can change everything it can be given', () => {
+    const stuck = created.filter((field) => !settable.has(field));
+    assert.deepEqual(stuck, [], `set once at creation and never again: ${stuck.join(', ')}`);
+  });
+});

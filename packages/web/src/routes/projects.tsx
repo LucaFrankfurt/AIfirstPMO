@@ -804,18 +804,70 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   );
   // Why the container box may be refused, said before it is clicked.
   const taskCount = useQuery(() => list('task', (task) => task.project_id === projectId).length, [projectId]);
+  // Which project already holds this key, if any — the same comparison the
+  // server makes, so the two agree about what a collision is.
+  const keyTaken = useQuery(() => {
+    const key = (byId('project', projectId)?.key ?? '').trim().toUpperCase();
+    if (!key) return '';
+    return list('project', (other) => other.id !== projectId && !other.archived
+      && (other.key ?? '').trim().toUpperCase() === key)[0]?.name ?? '';
+  }, [projectId, project?.key]);
   if (!project) return null;
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 620 }}>
-      <div className="field">
-        <label htmlFor="s-name">{t('project.name')}</label>
-        <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
+      {/* Icon beside name, the shape the create form uses — the screen that
+          makes a project and the screen that changes one should not lay the
+          same two fields out differently. */}
+      <div className="flex items-start gap-2.5">
+        <div className="field" style={{ width: 120 }}>
+          <label htmlFor="s-icon">{t('project.icon')}</label>
+          <Input id="s-icon" value={project.icon ?? ''} maxLength={4}
+            onChange={(event) => update('project', projectId, { icon: event.target.value })} />
+        </div>
+        <div className="field flex-1 min-w-0">
+          <label htmlFor="s-name">{t('project.name')}</label>
+          <Input id="s-name" value={project.name} onChange={(event) => update('project', projectId, { name: event.target.value })} />
+        </div>
       </div>
       <div className="field">
         <label htmlFor="s-desc">{t('project.description')}</label>
         <Textarea id="s-desc" value={project.description ?? ''}
           onChange={(event) => update('project', projectId, { description: event.target.value })} />
+      </div>
+
+      {/*
+        Both of these could only ever be chosen once, at the moment the project
+        was created, and never again — so a project made private by accident
+        stayed private, and one whose name changed kept a key that no longer
+        matched it.
+
+        The key is the sharper of the two, because changing it does not go back
+        and rewrite the identifiers already minted from it: BUS-39 stays BUS-39
+        while the next task becomes NEW-40. That is the honest behaviour — a
+        pasted identifier has to keep pointing at what it pointed at — but it is
+        only honest if it is said, so it is said under the field.
+      */}
+      <div className="field-row">
+        <div className="field">
+          <label htmlFor="s-key">{t('project.key')}</label>
+          <Input className="mono" id="s-key" value={project.key ?? ''} maxLength={6}
+            onChange={(event) => update('project', projectId, { key: event.target.value.toUpperCase() })} />
+          {/* The server bounces a taken key back, which on its own is a field
+              that refuses to be typed in for no stated reason. This is the
+              reason, said while it is being typed. */}
+          {keyTaken
+            ? <span className="text-[12px]" style={{ color: 'var(--danger)' }}>{t('project.keyTaken', { name: keyTaken })}</span>
+            : <span className="text-[12px] text-muted">{t('project.keyChangeHint')}</span>}
+        </div>
+        <div className="field">
+          <label htmlFor="s-vis">{t('project.visibility')}</label>
+          <Select id="s-vis" value={project.visibility ?? 'public'}
+            onChange={(event) => update('project', projectId, { visibility: event.target.value })}>
+            <option value="public">{t('project.visibilityPublic')}</option>
+            <option value="private">{t('project.visibilityPrivate')}</option>
+          </Select>
+        </div>
       </div>
       {/*
         A container is refused by the server while the project still has tasks,
