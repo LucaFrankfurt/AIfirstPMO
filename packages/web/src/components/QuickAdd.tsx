@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PRIORITIES, parseQuickAdd, QUICK_ADD_SYNTAX, type Priority } from '@kolibri/shared';
 import { list, useQuery } from '../lib/store';
-import { createTask, defaultStateId } from '../lib/mutations';
+import { createTask, defaultStateId, defaultTypeId } from '../lib/mutations';
 import { api } from '../lib/api';
 import { pull } from '../lib/sync';
 import { priorityKey, useT } from '../lib/i18n';
 import { useMe, useMembers, useSession } from '../session';
 import { MarkdownEditor } from './Markdown';
-import { useStates } from './task-parts';
+import { useStates, useTypes } from './task-parts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
 import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from './ui';
@@ -42,6 +42,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   const [priority, setPriority] = useState<Priority>('none');
   const [assignees, setAssignees] = useState<string[]>([]);
   const [stateId, setStateId] = useState<string | undefined>(undefined);
+  const [typeId, setTypeId] = useState<string | undefined>(undefined);
   const [due, setDue] = useState('');
   const [more, setMore] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -54,6 +55,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   );
 
   const states = useStates(projectId);
+  const types = useTypes(projectId);
 
   const labels = useQuery(
     () => list('label', (row) => row.workspace_id === workspaceId),
@@ -90,6 +92,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   }, [projects, projectId]);
 
   useEffect(() => setStateId(defaultStateId(projectId)), [projectId]);
+  useEffect(() => setTypeId(defaultTypeId(projectId)), [projectId]);
 
   const submit = (keepOpen = false) => {
     if (!parsed.title.trim() || !effective.projectId) return;
@@ -100,8 +103,11 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
       priority: effective.priority,
       assignees: effective.assignees,
       labels: parsed.labels.length ? parsed.labels : undefined,
-      // A state chosen for the old project is not a state in the new one.
+      // A state chosen for the old project is not a state in the new one, and
+      // neither is a type — both belong to the project, and `#KEY` can change
+      // which project this is after they were picked.
       state_id: parsed.projectId && parsed.projectId !== projectId ? undefined : stateId,
+      type_id: parsed.projectId && parsed.projectId !== projectId ? undefined : typeId,
       due_date: effective.due || null,
       cycle_id: cycleId ?? null,
       recurrence: parsed.recurrence,
@@ -197,6 +203,28 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
               {states.find((s) => s.id === stateId)?.name ?? t('task.state')}
             </MenuButton>
 
+            {/* Between the state and the priority, which is where the task's own
+                sheet puts it — the form that makes a thing and the screen that
+                shows it should not disagree about the order of its fields.
+                Absent when the project has no types, the way the sheet's own
+                picker is. */}
+            {types.length > 0 && (
+              <MenuButton
+                variant="secondary" size="sm"
+                title={t('type.label')}
+                items={types.map((type) => ({
+                  id: type.id,
+                  label: type.name,
+                  icon: <span aria-hidden>{type.icon ?? '\u25c7'}</span>,
+                  hint: typeId === type.id ? '\u2713' : undefined,
+                  onSelect: () => setTypeId(type.id),
+                }))}
+              >
+                <span aria-hidden>{types.find((type) => type.id === typeId)?.icon ?? '\u25c7'}</span>
+                <span className="truncate">{types.find((type) => type.id === typeId)?.name ?? t('type.none')}</span>
+              </MenuButton>
+            )}
+
             <MenuButton
               variant="secondary" size="sm"
               items={PRIORITIES.map((value) => ({
@@ -215,10 +243,18 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
               {effective.assignees.length ? t('quickAdd.assigned', { count: effective.assignees.length }) : t('quickAdd.assign')}
             </MenuButton>
 
-            <Input
-              type="date" style={{ width: 152 }} aria-label={t('task.due')}
-              value={effective.due} onChange={(event) => setDue(event.target.value)}
-            />
+            {/* Every other control in this row says what it is. This one said it
+                only to a screen reader: an empty `type="date"` draws a
+                placeholder on some browsers and nothing at all on others, so on
+                a phone it arrived as a blank box between two labelled chips and
+                read as a field that had failed to load. The word is the fix. */}
+            <label className="flex items-center gap-1.5 text-[12.5px]">
+              <span className="text-muted">{t('task.due')}</span>
+              <Input
+                type="date" style={{ width: 152 }} aria-label={t('task.due')}
+                value={effective.due} onChange={(event) => setDue(event.target.value)}
+              />
+            </label>
 
             <MenuButton
               variant="secondary" size="sm"
