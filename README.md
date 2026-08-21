@@ -56,7 +56,7 @@ around three convictions:
 | **Languages** | English, German and French throughout — interface, notifications and emails, each written in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. Adding a fourth is one typed catalogue file |
 | **Integration** | REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
-| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log |
+| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log. A row may only reference rows in its own workspace; an uploaded file is served with its type only if it is on a short inline list, on S3 as well as on disk; a webhook or push endpoint is resolved and checked before the socket is opened and then pinned to the address that passed, so it cannot reach loopback or a cloud metadata service; and an address with a carriage return in it is refused where the message is built, not only where it is typed. See [`docs/security.md`](docs/security.md) |
 
 ## Quick start
 
@@ -153,7 +153,7 @@ it grants is an ordinary token you can revoke in Settings. See [`docs/mcp.md`](d
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
 `create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,
 `apply_template`, `list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`,
-`update_page`, `list_members`, `project_status`, `my_work`.
+`update_page`, `list_members`, `project_status`, `my_work`, `log_time`, `list_time`.
 Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant
@@ -182,8 +182,8 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 ## Documentation
 
 - [`TODO.md`](TODO.md) — what is missing, what is unverified, what was deferred on purpose
-- [`docs/comparison.md`](docs/comparison.md) — an honest gap analysis against Confluence, Plane and
-  OpenProject, and the order those gaps are worth closing in
+- [`docs/comparison.md`](docs/comparison.md) — an honest gap analysis against Jira, Confluence,
+  Plane, Vikunja and OpenProject, and the order those gaps are worth closing in
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
   [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
@@ -193,8 +193,8 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
 - [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV, and what it does with a row it cannot read
 - [`docs/insights.md`](docs/insights.md) — throughput, burn-up and cycle time, and the rules the charts follow
-- [`docs/design.md`](docs/design.md) — the tokens, the type scale, the seven rules that are not about
-  looks, and the order to port a screen in
+- [`docs/design.md`](docs/design.md) — the tokens, the type scale, the ten rules that are not about
+  looks, what the accessibility pass found, and the order to port a screen in
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the
@@ -202,12 +202,14 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/storage.md`](docs/storage.md) — disk vs. S3/MinIO, pre-signed downloads, migrating
 - [`docs/api.md`](docs/api.md) — REST endpoints, auth, uploads
 - [`docs/mcp.md`](docs/mcp.md) — every tool, prompt and resource with examples
+- [`docs/security.md`](docs/security.md) — the threat model, what is checked and where, what has
+  been reviewed and what has not
 - [`docs/deployment.md`](docs/deployment.md) — TLS, backups, upgrades, environment variables
 
 ## Testing
 
 ```bash
-npm test          # API, sync merge, permissions, uploads, MCP, SMTP, S3, translations — no external services
+npm test          # API, sync merge, permissions, uploads, injection, MCP, SMTP, S3, translations
 npm run typecheck # every package, plus the client test project
 node scripts/smoke.mjs                    # browser walkthrough incl. mobile + offline (needs Playwright)
 KOLIBRI_LOCALE=de node scripts/smoke.mjs  # the same walk through the German interface
@@ -217,6 +219,21 @@ KOLIBRI_LOCALE=fr node scripts/smoke.mjs  # and the French one
 The mail tests run against a real SMTP server implemented in the test, and the storage tests
 against a fake S3 that verifies the request signature — so both protocols are exercised, not
 mocked.
+
+Four more checks measure the interface in a real browser rather than asserting about the source,
+because "it has an `aria-label` somewhere" and "the grey is fine" are both claims that have been
+wrong here. Each needs a seeded instance on `KOLIBRI_URL` (default `http://localhost:4400`):
+
+```bash
+npm run check:css         # every class the source uses is actually defined — no build needed
+npm run check:responsive  # 13 screens, 340px to 1600px in 20px steps, looking for overflow
+npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
+npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
+```
+
+They are not decoration. `check:contrast` found twenty unreadable places on its first run,
+`check:responsive` found a layout that came apart between 880 and 940 pixels, and `check:a11y`
+found forty-four problems including the checkbox in front of every task.
 
 ## Project layout
 
