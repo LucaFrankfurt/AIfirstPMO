@@ -87,7 +87,11 @@ function startSmtp(): Promise<number> {
 
 const port = await startSmtp();
 process.env.KOLIBRI_SMTP_URL = `smtp://kolibri:secret@127.0.0.1:${port}`;
-process.env.KOLIBRI_MAIL_FROM = 'kolibri@example.com';
+// The address the project actually ships as its default, rather than a tidier
+// one invented for the test. `kolibri@localhost` has no dot in its domain, and
+// a validator that quietly required one passed this whole suite while the
+// deployment job could not send a single message.
+process.env.KOLIBRI_MAIL_FROM = 'kolibri@localhost';
 process.env.KOLIBRI_PUBLIC_URL = 'https://kolibri.example.com';
 process.env.KOLIBRI_MAIL_BATCH_SECONDS = '0';
 
@@ -154,7 +158,7 @@ describe('email notifications', () => {
     assert.equal(result.failed, 0);
 
     const message = received.at(-1)!;
-    assert.equal(message.from, 'kolibri@example.com');
+    assert.equal(message.from, 'kolibri@localhost');
     assert.deepEqual(message.to, ['ada@example.com']);
     assert.ok(message.authenticated, 'the client must authenticate when credentials are configured');
     assert.match(message.data, /Subject: 2 updates in Kolibri/);
