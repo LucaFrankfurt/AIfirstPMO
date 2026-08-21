@@ -316,6 +316,10 @@ const TOOLS: ToolDef[] = [
         assignee: { type: 'string', description: 'User id, email or name; use "me" for the token owner' },
         priority: { type: 'string', enum: [...PRIORITIES] },
         cycle: { type: 'string', description: 'Cycle id or name, or "current"' },
+        label: {
+          type: 'string',
+          description: 'Label id or name — use list_labels to see what exists. Matched across the workspace, so a per-project label of the same name is found too.',
+        },
         query: { type: 'string', description: 'Full-text filter' },
         due_before: { type: 'string', description: 'ISO date' },
         limit: { type: 'number', default: 50 },
@@ -361,6 +365,20 @@ const TOOLS: ToolDef[] = [
       if (args.due_before) {
         where.push('t.due_date IS NOT NULL AND t.due_date <= ?');
         params.push(String(args.due_before));
+      }
+      if (args.label) {
+        // Advertised by this tool's own description since it was written, and
+        // never implemented: an assistant passed `label` and got an unfiltered
+        // list back, described as filtered. By name across the workspace, like
+        // `type` above — "show me the bugs" should not need the id of each
+        // project's own `bug` row.
+        const ids = all<Row>(
+          `SELECT id FROM labels WHERE workspace_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?))`,
+          workspaceId, String(args.label), String(args.label),
+        ).map((row) => String(row.id));
+        if (!ids.length) throw new McpError(`No label in this workspace is called "${args.label}" — list_labels shows what there is`);
+        where.push(`EXISTS (SELECT 1 FROM json_each(t.labels) WHERE json_each.value IN (${ids.map(() => '?').join(', ')}))`);
+        params.push(...ids);
       }
       if (args.cycle) {
         const cycle = args.cycle === 'current'
@@ -913,6 +931,59 @@ const TOOLS: ToolDef[] = [
       if (args.append) patch.content = `${page.content ?? ''}\n\n${args.append}`;
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       return serialize('page', row);
+    },
+  },
+  {
+    /**
+     * What this workspace calls things.
+     *
+     * The missing half of label support over MCP: `create_task` has always
+     * taken label *names* and created the ones it did not recognise, which
+     * without a way to see the list means an assistant inventing `bugs`
+     * alongside the `bug` that was already there. Case is already forgiven;
+     * a plural is not, and nothing but this list can prevent it.
+     *
+     * The count is here for the same reason it is on `list_members`: a label
+     * used twice in a year and a label used on half the backlog are different
+     * things, and only one number tells them apart.
+     */
+    name: 'list_labels',
+    title: 'List labels',
+    description: 'Labels in the workspace, with how many open tasks carry each. Use before setting labels on a task, so an existing one is reused rather than a near-duplicate created.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Only labels usable in this project — its own, plus the workspace-wide ones' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : undefined;
+      const rows = project
+        ? all<Row>(
+          `SELECT * FROM labels WHERE workspace_id = ? AND deleted_at IS NULL
+             AND (project_id IS NULL OR project_id = ?) ORDER BY name`,
+          workspaceId, project.id,
+        )
+        : all<Row>(`SELECT * FROM labels WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY name`, workspaceId);
+
+      return rows.map((label) => ({
+        id: String(label.id),
+        name: String(label.name),
+        color: label.color ?? null,
+        description: label.description ?? null,
+        // Null rather than a project id means every project here may use it.
+        project_id: label.project_id ?? null,
+        open_tasks: Number(get<Row>(
+          `SELECT count(*) c FROM tasks t LEFT JOIN states s ON s.id = t.state_id
+            WHERE t.workspace_id = ? AND t.deleted_at IS NULL AND t.archived = 0
+              AND (s.group_key IS NULL OR s.group_key NOT IN ('completed','cancelled'))
+              AND EXISTS (SELECT 1 FROM json_each(t.labels) WHERE json_each.value = ?)`,
+          workspaceId, label.id,
+        )?.c ?? 0),
+      }));
     },
   },
   {

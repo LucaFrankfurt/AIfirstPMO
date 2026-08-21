@@ -55,7 +55,7 @@ around three convictions:
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area of the app plus an explorer for how the pieces nest. A screen with nothing on it yet links to the card that explains what goes there. Press `?` |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each written in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. Adding a fourth is one typed catalogue file |
 | **Calendar** | A subscribable `.ics` link per person — everything with a due date that is on you, across every workspace — or one per saved view. Google, Apple, Outlook, Thunderbird, DAVx5. `?kind=todo` writes `VTODO` for a client that wants tasks as tasks. The link does not exist until you ask for it and one button makes every copy of the old one stop working |
-| **Integration** | REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
+| **Integration** | REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, MCP server over HTTP and stdio with 24 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
 | **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log. A row may only reference rows in its own workspace; an uploaded file is served with its type only if it is on a short inline list, on S3 as well as on disk; a webhook or push endpoint is resolved and checked before the socket is opened and then pinned to the address that passed, so it cannot reach loopback or a cloud metadata service; and an address with a carriage return in it is refused where the message is built, not only where it is typed. See [`docs/security.md`](docs/security.md) |
 
@@ -154,7 +154,7 @@ it grants is an ordinary token you can revoke in Settings. See [`docs/mcp.md`](d
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
 `create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,
 `apply_template`, `list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`,
-`update_page`, `list_members`, `project_status`, `my_work`, `log_time`, `list_time`.
+`update_page`, `list_members`, `list_labels`, `project_status`, `my_work`, `log_time`, `list_time`.
 Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant

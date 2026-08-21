@@ -327,6 +327,69 @@ describe('kolibri api', () => {
     assert.equal(plain.result.structuredContent.due_date, null);
   });
 
+  /**
+   * Labels over MCP, both halves.
+   *
+   * The filter half was advertised by `list_tasks`' own description and never
+   * implemented — an assistant passed `label` and got an unfiltered list back,
+   * described as filtered. The listing half did not exist at all, which is how
+   * an assistant ends up creating `bugs` beside the `bug` already there.
+   */
+  it('lists the labels, so an assistant reuses one instead of inventing it', async () => {
+    const listed = await api('/mcp', {
+      token: apiToken,
+      body: { jsonrpc: '2.0', id: 20, method: 'tools/call', params: { name: 'list_labels', arguments: {} } },
+    });
+    // An array return is wrapped — `structuredContent` must be an object.
+    const labels = listed.result.structuredContent.result;
+    assert.ok(Array.isArray(labels) && labels.length >= 4, JSON.stringify(labels).slice(0, 200));
+    const names = labels.map((label: any) => String(label.name).toLowerCase());
+    for (const expected of ['bug', 'feature', 'improvement', 'documentation']) {
+      assert.ok(names.includes(expected), `${expected} missing from ${names.join(', ')}`);
+    }
+    assert.ok(labels.every((label: any) => typeof label.open_tasks === 'number'));
+  });
+
+  it('actually filters by label, which its description has always claimed', async () => {
+    const made = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 21, method: 'tools/call',
+        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Labelled for the filter', labels: ['bug'] } },
+      },
+    });
+    assert.ok(made.result.structuredContent.id);
+
+    const matching = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 22, method: 'tools/call',
+        params: { name: 'list_tasks', arguments: { project: 'WEB', label: 'bug' } },
+      },
+    });
+    const titles = matching.result.structuredContent.result.map((task: any) => task.title);
+    assert.ok(titles.includes('Labelled for the filter'));
+
+    // The proof that it filters at all: the project has more tasks than this.
+    const everything = await api('/mcp', {
+      token: apiToken,
+      body: { jsonrpc: '2.0', id: 23, method: 'tools/call', params: { name: 'list_tasks', arguments: { project: 'WEB' } } },
+    });
+    assert.ok(everything.result.structuredContent.result.length > titles.length,
+      `label filter returned all ${titles.length} tasks, so it did nothing`);
+  });
+
+  it('says so when the label does not exist, rather than returning everything', async () => {
+    const wrong = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 24, method: 'tools/call',
+        params: { name: 'list_tasks', arguments: { project: 'WEB', label: 'no-such-label' } },
+      },
+    });
+    assert.match(JSON.stringify(wrong), /No label in this workspace/);
+  });
+
   it('says which of the two is missing rather than filing a nameless task', async () => {
     const noProject = await api('/mcp', {
       token: apiToken,
