@@ -152,6 +152,52 @@ describe('server catalogue', () => {
 });
 
 /**
+ * What a new project starts with, read out of the source that seeds it.
+ *
+ * A project is given three kinds of work and a handful of labels. Two of those
+ * labels used to be `bug` and `feature` — beside a type list that already said
+ * Bug and Feature. In English the case hid it. In German the catalogue
+ * translated both to the same word, so a task carried `✨ Feature` as its type
+ * and `Feature` as a label: two fields answering one question.
+ *
+ * That is a translation bug that no translator could have caught, because each
+ * string is right on its own. It is only wrong next to the other one — so this
+ * asks the question the catalogues cannot ask themselves, once per language.
+ */
+describe('what a new project starts with', () => {
+  const bootstrap = readFileSync(join(root, 'packages/server/src/lib/bootstrap.ts'), 'utf8');
+
+  /** The `name:` keys of one seed list, read as data rather than imported. */
+  const seeded = (constant: string): string[] => {
+    const from = bootstrap.indexOf(`const ${constant}`);
+    assert.ok(from > 0, `${constant} is not in bootstrap.ts under that name`);
+    const list = bootstrap.slice(from, bootstrap.indexOf('];', from));
+    return [...list.matchAll(/name: '([\w.]+)'/g)].map((match) => match[1]);
+  };
+  const types = seeded('DEFAULT_TYPES');
+  const labels = seeded('DEFAULT_LABELS');
+
+  it('is read at all — a scan that finds nothing passes everything', () => {
+    assert.ok(types.length >= 2, `only found ${types.length} seeded types`);
+    assert.ok(labels.length >= 1, `only found ${labels.length} seeded labels`);
+  });
+
+  it('never offers a label that is already a kind of work, in any language', async () => {
+    const { LOCALES } = await import('../src/lib/i18n.ts');
+    const clashes: string[] = [];
+    for (const [locale, catalogue] of Object.entries(LOCALES)) {
+      const strings = catalogue as Record<string, string>;
+      const named = new Map(types.map((key) => [strings[key].trim().toLocaleLowerCase(locale), strings[key]]));
+      for (const key of labels) {
+        const hit = named.get(strings[key].trim().toLocaleLowerCase(locale));
+        if (hit) clashes.push(`${locale}: the label ${key} is "${strings[key]}", and so is a type`);
+      }
+    }
+    assert.deepEqual(clashes, [], `a seeded label and a seeded type are the same word: ${clashes.join('; ')}`);
+  });
+});
+
+/**
  * Plural forms beyond `_one` and `_other`.
  *
  * The to-do list carried this as an untested claim for a long time: the

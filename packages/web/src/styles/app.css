@@ -493,6 +493,28 @@ p { margin: 0 0 0.75em; }
  * component can take them over later without anything changing on screen.
  */
 .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+
+/* Two or three fields side by side, and stacked once there is no room for that.
+
+   Both halves of that were being got wrong by hand. The rows were `flex
+   items-center`, which centres each field against the tallest of them — and one
+   of a pair almost always carries a line of help text underneath, so its
+   partner's label came to rest half a field lower than its own. Four call sites
+   had already noticed and pinned `alignItems: 'flex-start'` back on inline; the
+   three in the project's settings had not, and that is the ragged column in the
+   screenshot.
+
+   Nothing stacked either, so a 390px phone got two 178px columns: a date input
+   too narrow to read a date in, and a select that cut its own longest option in
+   half. `auto-fit` measures the container rather than the window, which matters
+   because these same rows appear inside dialogs — a 620px form and a 420px
+   sheet should not have to agree about what "narrow" means. */
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0 10px;
+  align-items: start;
+}
 .field label { font-size: 12.5px; font-weight: 550; color: var(--fg-soft); }
 
 /* A checkbox with a label and a line of explanation under it. */

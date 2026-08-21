@@ -8,7 +8,7 @@ process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = process.env.KOLIBRI_TEST_DIR ?? `/tmp/kolibri-test-${process.pid}`;
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 import { Clock, orderKey, type PullResponse, type PushResponse } from '@kolibri/shared';
@@ -333,7 +333,14 @@ describe('kolibri api', () => {
    * The filter half was advertised by `list_tasks`' own description and never
    * implemented — an assistant passed `label` and got an unfiltered list back,
    * described as filtered. The listing half did not exist at all, which is how
-   * an assistant ends up creating `bugs` beside the `bug` already there.
+   * an assistant ends up creating `improvements` beside the `improvement`
+   * already there.
+   *
+   * What it expects to find is read out of the seed rather than typed here.
+   * A list copied into a test is a list that goes on passing after the shipped
+   * one changes — which is what happened when `bug` and `feature` were dropped
+   * for colliding with the type of the same name: this test was the only thing
+   * that noticed, and only because it named them.
    */
   it('lists the labels, so an assistant reuses one instead of inventing it', async () => {
     const listed = await api('/mcp', {
@@ -342,10 +349,18 @@ describe('kolibri api', () => {
     });
     // An array return is wrapped — `structuredContent` must be an object.
     const labels = listed.result.structuredContent.result;
-    assert.ok(Array.isArray(labels) && labels.length >= 4, JSON.stringify(labels).slice(0, 200));
+    // The English names of DEFAULT_LABELS, straight from the file that seeds them.
+    const bootstrap = readFileSync(new URL('../src/lib/bootstrap.ts', import.meta.url), 'utf8');
+    const from = bootstrap.indexOf('const DEFAULT_LABELS');
+    const keys = [...bootstrap.slice(from, bootstrap.indexOf('];', from)).matchAll(/name: '([\w.]+)'/g)].map((m) => m[1]);
+    const { LOCALES } = await import('../src/lib/i18n.ts');
+    const expected = keys.map((key) => (LOCALES.en as Record<string, string>)[key].toLowerCase());
+    assert.ok(expected.length >= 2, `only ${expected.length} seeded labels — the scan is broken`);
+
+    assert.ok(Array.isArray(labels) && labels.length >= expected.length, JSON.stringify(labels).slice(0, 200));
     const names = labels.map((label: any) => String(label.name).toLowerCase());
-    for (const expected of ['bug', 'feature', 'improvement', 'documentation']) {
-      assert.ok(names.includes(expected), `${expected} missing from ${names.join(', ')}`);
+    for (const one of expected) {
+      assert.ok(names.includes(one), `${one} missing from ${names.join(', ')}`);
     }
     assert.ok(labels.every((label: any) => typeof label.open_tasks === 'number'));
   });
