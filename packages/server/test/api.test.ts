@@ -293,6 +293,61 @@ describe('kolibri api', () => {
   });
 
   /**
+   * Quick-add syntax over MCP, and the reason it is opt-in.
+   *
+   * A tool with a schema should mean what the schema says. An assistant that
+   * writes "Discuss with @ada" as a `title` means those words — so `title` is
+   * never parsed, and `quick_add` is there for the other case: relaying a line
+   * a person actually typed.
+   */
+  it('reads a quick-add line when asked, and never parses an ordinary title', async () => {
+    const quick = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 10, method: 'tools/call',
+        params: { name: 'create_task', arguments: { quick_add: 'Redraw the empty state !urgent #WEB due:2026-12-24' } },
+      },
+    });
+    const made = quick.result.structuredContent;
+    assert.equal(made.title, 'Redraw the empty state', 'the tokens came out of the title');
+    assert.equal(made.priority, 'urgent');
+    assert.equal(made.due_date, '2026-12-24');
+    assert.match(made.identifier, /^WEB-/, '#WEB chose the project, so `project` was not needed');
+
+    // The same string as a title is left exactly as typed.
+    const plain = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 11, method: 'tools/call',
+        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Redraw the empty state !urgent #WEB due:2026-12-24' } },
+      },
+    });
+    assert.equal(plain.result.structuredContent.title, 'Redraw the empty state !urgent #WEB due:2026-12-24');
+    assert.equal(plain.result.structuredContent.priority, 'none');
+    assert.equal(plain.result.structuredContent.due_date, null);
+  });
+
+  it('says which of the two is missing rather than filing a nameless task', async () => {
+    const noProject = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 12, method: 'tools/call',
+        params: { name: 'create_task', arguments: { quick_add: 'A task with nowhere to go' } },
+      },
+    });
+    assert.match(JSON.stringify(noProject), /Which project/);
+
+    const noTitle = await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 13, method: 'tools/call',
+        params: { name: 'create_task', arguments: { project: 'WEB', quick_add: '!urgent' } },
+      },
+    });
+    assert.match(JSON.stringify(noTitle), /needs a title/);
+  });
+
+  /**
    * The half of the transport that is not a POST.
    *
    * This is what made the same server work in Claude Code and fail on

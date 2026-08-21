@@ -1,131 +1,171 @@
 # What Kolibri does not do yet
 
-An honest gap analysis against the three tools Kolibri is most often compared
-to: **Confluence** (wiki), **Plane** (issue tracker) and **OpenProject**
-(classic project management).
+An honest gap analysis against the five tools Kolibri is most often compared to: **Jira** (the
+default), **Confluence** (wiki), **Plane** (issue tracker), **Vikunja** (self-hosted task manager)
+and **OpenProject** (classic, plan-driven project management).
 
 Two caveats before the tables.
 
-- The **Kolibri column is verified against this codebase**, not remembered. If
-  something is listed as missing here, `grep` says it is missing.
-- The **other three are not**. Their feature sets come from general knowledge
-  and they move — Plane in particular ships quickly. Treat the comparison side
-  as "roughly current", not as a specification. Check before quoting it at
-  somebody.
+- The **Kolibri column is verified against this codebase**, not remembered. If something is listed
+  as missing here, `grep` says it is missing.
+- The **other five are not**. Their feature sets come from their own documentation and from
+  general knowledge, and they move. Treat that side as "roughly current", not as a specification.
+  Check before quoting it at somebody.
 
-Nothing here is a promise. It is a map of where the edges are, so a decision to
-build or not to build is made with the edges visible. The prioritised end of it
-lives in [`TODO.md`](../TODO.md).
+Nothing here is a promise. It is a map of where the edges are, so a decision to build or not to
+build is made with the edges visible. The prioritised end of it lives in [`TODO.md`](../TODO.md).
 
 ## Where Kolibri is ahead
 
 Worth stating first, because it is the reason the gaps below are acceptable:
 
-- **Offline-first with per-field merge.** Two people editing the same task while
-  one is on a train both keep their change. None of the three do this; they are
-  all request/response applications with a spinner.
-- **MCP natively.** An assistant is a user with a scoped token, not a plugin or
-  a chat sidebar. 23 tools over the same permissions as a person.
-- **A messenger in the same box**, and made of the same rows — so a message sends
-  from a train and arrives when the tunnel ends. None of the three has one:
-  Plane and OpenProject send you to Slack, Confluence has comments. What that
-  buys is not a feature so much as an absence — no second account, no second
-  search, no second place a decision might be recorded. See [`chat.md`](chat.md).
-- **One container, no database to run.** SQLite in the data volume, one Node
-  process. Confluence and OpenProject both want a Postgres and a few gigabytes
-  of RAM before they say hello.
-- **A manual inside the product**, animated and narrated, in three languages,
-  with a first-run tour that configures the instance as it goes.
-- **A timer that is a database row**, so it survives a reload, a second device
-  and a tunnel — see [`time.md`](time.md).
-- **An import that shows you what it read before it writes**, and names the
-  spreadsheet row of everything it could not — see [`import.md`](import.md).
+- **Offline-first with per-field merge.** Two people editing the same task while one is on a train
+  both keep their change. None of the five do this; they are all request/response applications with
+  a spinner. Vikunja comes closest by syncing to a calendar client, which is a different thing.
+- **MCP natively.** An assistant is a user with a scoped token, not a plugin or a chat sidebar. 23
+  tools over the same permissions as a person, and a read-only token is refused by all nine that
+  write. Jira has AI features; none of the five is an MCP server you can point a client at.
+- **A messenger in the same box**, and made of the same rows — so a message sends from a train and
+  arrives when the tunnel ends. None of the five has one: Plane, Vikunja and OpenProject send you to
+  Slack, Confluence has comments, Jira has comments and a Slack app. What that buys is not a feature
+  so much as an absence — no second account, no second search, no second place a decision might be
+  recorded. See [`chat.md`](chat.md).
+- **One container, no database to run.** SQLite in the data volume, one Node process, zero runtime
+  npm dependencies on the server. Confluence, Jira and OpenProject all want a Postgres and a few
+  gigabytes of RAM before they say hello; Vikunja is the only one in the same weight class.
+- **A manual inside the product**, animated and narrated, in three languages, with a first-run tour
+  that configures the instance as it goes.
+- **A timer that is a database row**, so it survives a reload, a second device and a tunnel — see
+  [`time.md`](time.md).
+- **An import that shows you what it read before it writes**, and names the spreadsheet row of
+  everything it could not — see [`import.md`](import.md).
 - **Templates and rules whose recipients are selectors**, not stored names — see
   [`automation.md`](automation.md).
+- **The interface is measured rather than reviewed.** Four scripts drive a real browser: contrast
+  against the background each element actually sits on, layout from 340px to 1600px, accessible
+  names and 24px targets, and every class the source uses. See [`design.md`](design.md).
+
+## Against Jira
+
+The tool most people are leaving, and the one whose absence is felt in specific places rather than
+broadly. Kolibri has: projects with their own workflow states, work item types per project, custom
+fields limited to the types they belong on, sub-tasks, relations, cycles (sprints) with burn-up,
+estimates, saved views, bulk edit, an audit log, rules that fire on an event, scoped API tokens,
+signed webhooks out and commit-linking webhooks in.
+
+| Missing | Weight | Note |
+|---|---|---|
+| ~~**A query language**~~ | **Done, within limits** | `assignee = me AND priority in (urgent, high) AND state != Done` parses onto the same `Filters` the dropdowns produce, and prints back from it — so the box and the menus can never disagree. `!=` and `not in` are new to the model. What it deliberately cannot do is `OR` between two *different* fields, or a date comparison: neither is something a saved view holds, and both say so with a sentence rather than quietly meaning something else |
+| **Sorting in the query, and stored sort** | Low | `ORDER BY` is not part of it; the sort is a separate control on the view |
+| **Dashboards you compose** — gadgets, per-user, across projects | Medium–high | Insights is a fixed set of three charts per project; the portfolio is a fixed roadmap. Neither is arrangeable and neither crosses to "my dashboard" |
+| **Workflow *schemes*** — a workflow shared by several projects, versioned | Medium | States are per project and copied when a project is copied. Changing "the workflow" everywhere means changing each project |
+| **Transition rules beyond who** — required fields on a transition, validators, post-functions | Medium | Kolibri has per-column rules for *who* may move work where. It has no "you may not close this without a resolution" |
+| **SLAs and service management** | Low, unless you run a helpdesk | Intake is built; the clock, the calendar and the breach are not. This is a different product's job |
+| **Marketplace / apps** | Out of scope | Deliberately. The extension surface here is the REST API, webhooks and MCP |
+| Plans / Advanced Roadmaps — cross-project capacity scenarios | Low–medium | The portfolio and the team planner cover the reading half; there is no scenario modelling |
 
 ## Against Confluence
 
-Kolibri has: nested markdown pages, version history with restore *and a diff*,
-labels and filtering, watching, page templates, per-page visibility, markdown
-export, printing to PDF, public read-only share links, drag-and-drop images,
-attachments, comments with @mentions on every page — including **inline
-comments** on a selected passage, which survive the passage being edited around
-— and full-text search across pages and tasks.
+Kolibri has: nested markdown pages that two people can edit at once (the body is a CRDT), version
+history with restore *and* a diff, labels and filtering, watching, page templates, per-page
+visibility, markdown export, printing to PDF, public read-only share links, drag-and-drop images,
+attachments, comments with @mentions on every page — including **inline comments** on a selected
+passage, which survive the passage being edited around — and full-text search across pages and
+tasks.
 
 | Missing | Weight | Note |
 |---|---|---|
 | **Export** to Word | Low | A markdown bundle is built — the page and everything under it — and printing (which is how a PDF is made) is built on the browser's own engine rather than a renderer here |
-| Macros — table of contents, cross-page task lists, embeds | Low–medium | |
+| Macros — table of contents, cross-page task lists, embeds | Low–medium | A table of contents is the cheapest of these and the most asked for |
 | A table editor | Low | Markdown tables render; they cannot be edited as tables |
 | Spaces as a separate container concept | Design difference | Workspace + project carries most of it |
 | Whiteboards, databases | Out of scope | A different product |
 
 ## Against Plane
 
-The closest of the three. Kolibri has cycles, modules, list/board/table/calendar,
-saved views, multi-select with bulk actions, labels, per-project workflow states,
-estimates, time tracking, sub-tasks, relations, pages — and templates with rules,
-which Plane does not have in this form.
+The closest of the five. Kolibri has cycles, modules, list/board/table/calendar, saved views,
+multi-select with bulk actions, labels, per-project workflow states, estimates, time tracking,
+sub-tasks, relations, pages — and templates with rules, which Plane does not have in this form.
+
+Nothing structural is missing. Import and intake, which used to head this list, are both built:
+exports from Jira, Linear, Plane, OpenProject, Trello and Todoist are recognised by shape and converted with a list
+of what cannot come across shown *before* the write, and a share link can be a form whose
+submissions wait under Reports until a member accepts them.
+
+## Against Vikunja
+
+The one closest to Kolibri in spirit — small, self-hosted, one binary, no Postgres required — and
+the comparison that produces the most buildable list, because everything it has that Kolibri lacks
+is small.
+
+Kolibri has more of almost everything structural: cycles, modules, sub-projects, a portfolio, page
+wiki, chat, time tracking, custom fields, automation, MCP. What Vikunja has that Kolibri does not is
+a handful of ergonomics that people are unreasonably attached to.
 
 | Missing | Weight | Note |
 |---|---|---|
-| ~~**Import** from Jira/Linear/Plane's own formats~~ | **Done** | Recognised by shape and converted, with what cannot come across listed before the import — plus CSV with a preview and a per-row report, and a JSON round trip between Kolibri instances. Written against each tool's documented shape, never against a real export |
-| ~~**Intake / triage** — an inbox for reports from outside~~ | **Done** | A share link that is a *form*: what somebody outside sends waits under Reports until a member accepts it, and only then is it a task |
-
-Custom fields used to head this list and are now built — nine kinds, per project, each limited to
-the work item types it belongs on, and views filter and group by them.
+| **CalDAV** — tasks in Thunderbird, DAVx5, iOS Reminders | **High for the value** | Kolibri has no calendar protocol at all: no CalDAV, no `VTODO`, not even a read-only `.ics` feed of due dates. This is the single biggest "it does not fit my life" gap, and a subscribable feed is a fraction of the work of full CalDAV |
+| **Natural-language quick add** — `Call client !2 *weekly +work @alice due:Friday` | **High for the work** | `QuickAdd` is a form with dropdowns. Parsing the same tokens out of the title would be one shared module, testable without a browser, and usable by the MCP `create_task` tool for free |
+| ~~**Import from Todoist, Trello**~~ | **Done** | Both recognised by shape. Trello's state group is guessed from the column name and says so; Todoist's priorities are inverted, its projects become labels, and a repeat rule Kolibri cannot express is refused rather than approximated. Microsoft To-Do is still out |
+| **CalDAV write-back** | Medium | The feed is read-only. Ticking a task off in Thunderbird and having it land here needs `PROPFIND`, `REPORT`, ETags and conflict handling — a protocol, not an endpoint |
+| Per-task reminders at an arbitrary time | Low–medium | Reminders exist, relative to a due date. "Remind me Thursday at 09:00" does not |
+| A due *time* | Low | Due dates here are days. Every importer says so, and the calendar feed writes all-day entries |
+| A published mobile app | Low | The PWA is installable and the layout is built for a phone |
 
 ## Against OpenProject
 
-The widest gap, because this is a different genre — classic, plan-driven project
-management with money in it.
+The widest gap, because this is a different genre — classic, plan-driven project management with
+money in it.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Cost tracking**, hourly rates, budgets | High | Time itself is tracked; money is not |
+| **Cost tracking**, hourly rates, budgets | High | Time itself is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead |
 | **Reports** — cost and utilisation | High | Progress across projects is built (the portfolio); money is not |
+| **Meetings** — agenda, minutes, attendees, follow-ups | Medium | Nothing at all. Pages plus a template covers the artefact but not the workflow |
 | **Capacity in hours** | Medium | A team planner is built — a row per person, load counted in tasks running at once. Hours would need estimates to carry a unit, which is a decision about how a team plans |
 | **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
-| Meetings module (agenda, minutes), forums, news, documents | Depends on audience | |
-| ~30 interface languages | Low each | Kolibri has two, and adding one is a typed catalogue file |
-| BITV / WCAG certification | Unverified | Kolibri has never been audited |
+| Forums, news, documents | Depends on audience | Chat covers the forum case better than a forum does |
+| BIM / construction | Out of scope | An entire edition of a different product |
+| ~30 interface languages | Low each | Kolibri has three, and adding one is a typed catalogue file |
+| BITV / WCAG certification | Unverified | Kolibri has never been audited. `check:a11y` and `check:contrast` measure specific things well; neither is an accreditation |
 
-## Across all three: running it in a company
+## Across all of them: running it in a company
 
-The category where Kolibri has least and all three have something. Parts of it
-are **P1** in `TODO.md`, which is to say: known, and not yet done. Rate limiting,
-the Content-Security-Policy header, refusing cross-site-forgeable content types
-and single sign-on used to head this list and are now built.
+The category where Kolibri has least and all five have something. Rate limiting, the
+Content-Security-Policy, refusing cross-site-forgeable content types, single sign-on, and the
+workspace isolation and injection work all used to be here and are now built — see
+[`security.md`](security.md).
 
 | Missing | Note |
 |---|---|
-| **SSO — SAML / LDAP** | OIDC is built (see `docs/deployment.md`). SAML and LDAP are not, nor is mapping provider groups onto roles |
+| **SSO — SAML / LDAP** | OIDC is built, including mapping provider groups onto roles (see `deployment.md`). SAML and LDAP are not |
+| **SCIM provisioning** | Accounts are created on first sign-in or by invite; there is no directory push |
 | Multi-node / high availability | Deliberate: the sequence counter, the SSE bus and the mail worker live in the process |
+| An external audit | Nobody outside this repository has reviewed the security model |
 
 ## What to build next
 
-Re-ordered as things get built. Everything above the line in the earlier
-revision of this file is done; what follows is what is actually left, ordered by
-value per unit of work rather than by size.
+Re-ordered as things get built, by value per unit of work rather than by size. Everything above the
+line in earlier revisions is done; what follows is what is actually left.
+
+The four that were small **and** wanted are built: the `.ics` feed, quick add, filter-as-text and the
+two importers. What is left:
 
 | # | What | Why it is next | Effort |
 |---|---|---|---|
-| ~~1~~ | ~~Import — CSV~~ | **Done** — mapping guessed, dry run, per-row report. What is left is the parts CSV cannot carry | |
-| ~~2~~ | ~~Work item types~~ | **Done** — per project, grouped and filtered by. Type-*dependent fields* are custom fields, below | |
-| ~~3~~ | ~~Analytics~~ | **Done** — per project, computed from the local mirror | |
-| ~~4~~ | ~~Page extras~~ | **Done** — labels, watching, diff, templates, access, markdown export | |
-| ~~4b~~ | ~~Custom fields, type-dependent~~ | **Done** — nine kinds, per project, limited to work item types, over MCP too | |
-| ~~4c~~ | ~~Sub-projects, project copying, portfolio~~ | **Done** — nesting, any project as a template, and a roadmap across all of them | |
-| ~~5~~ | ~~SSO (OIDC first)~~ | **Done** — code flow with PKCE, optional password lockout, tested against a real signing provider | |
-| 6 | **Cost on top of time** — rates, budgets, reports | Time is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead | medium |
-| ~~7~~ | ~~Gantt with dependency scheduling~~ | **Done** — drag to move, arrows for `blocks`, successors follow, baselines behind | |
-| ~~8~~ | ~~Trash / archive browser~~ | **Done** — Settings → Data, with a way back | |
-
-Item 6 is what is left of this list, and the user has parked it.
+| 1 | **A table of contents, and a cross-page task list** | The only Confluence macros anybody actually misses. The renderer already produces the headings and already parses task items | small |
+| 2 | **Cost on top of time** — rates, budgets, a cost report | Time is tracked and `billable` is stored; nothing reads it. Where OpenProject is genuinely ahead, and parked rather than rejected | medium |
+| 3 | **Composable dashboards** — arrange the charts that exist, per person, across projects | Insights and the portfolio already compute everything; what is missing is letting somebody choose the arrangement | medium |
+| 4 | **Transition validators** — required fields, a resolution on close | The per-column *who* rule is built; the *what* rule is not. Small in the schema, fiddly in the interface | medium |
+| 5 | **CalDAV write-back** | The read-only feed covers most of the value. Writing back is a protocol — `PROPFIND`, `REPORT`, ETags, conflicts — not an endpoint | medium–large |
+| 6 | **Meetings** — agenda, minutes, follow-ups that become tasks | Only worth it for the audience that asks for OpenProject by name | medium–large |
+| 7 | **SAML / LDAP** | Asked for by exactly the organisations that will not adopt without it, and by nobody else | large |
 
 ## What has been closed
 
-For anyone reading this against an older revision: saved views, page comments
-and mentions in pages, rate limiting and the content policy, multi-select with
-bulk actions, the table layout, and time tracking were all on the list above and
-are now built. The tables further up reflect that.
+For anyone reading this against an older revision: saved views, page comments and mentions in pages,
+rate limiting and the content policy, multi-select with bulk actions, the table layout, time
+tracking, CSV and foreign import, intake, custom fields, sub-projects and the portfolio, OIDC,
+Gantt with dependency scheduling, the trash browser, presence and typing indicators, the
+accessibility pass, the calendar feed, quick-add syntax, filter-as-text, and the Trello and Todoist
+importers were all on the lists above and are now built. The tables reflect that.

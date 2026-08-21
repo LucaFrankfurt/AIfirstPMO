@@ -27,18 +27,43 @@ const CONTROL = /[\u0000-\u001f\u007f]/;
  *
  * `\r` and `\n` first and separately from the shape, so the reason a rejection
  * happens is never in doubt.
+ *
+ * Everything after that is deliberately loose, and there is a scar behind that
+ * word. The first version of this required the domain to contain a dot, which
+ * looks obviously right and is obviously wrong: a bare host is a legal domain
+ * in RFC 5321, `KOLIBRI_MAIL_FROM` defaults to **`kolibri@localhost`**, and the
+ * docker-compose overlay relays to `mailpit`. So the check that was added to
+ * keep carriage returns out of an SMTP conversation instead refused this
+ * project's own default sender, and the deployment job went red on a stack
+ * that was working perfectly.
+ *
+ * The lesson is the shape of the rule, not the missing case. This decides one
+ * thing — *can this string be written into a line-oriented protocol without
+ * becoming a second line* — and it must not drift into deciding what somebody's
+ * address is allowed to look like. An address this refuses is a message that
+ * never leaves; an address the relay refuses is an error the relay explains.
  */
 export function isEmailAddress(raw: string): boolean {
   if (typeof raw !== 'string') return false;
-  if (raw.length > 254) return false;
+  if (!raw || raw.length > 254) return false;
   if (CONTROL.test(raw)) return false;
+
   const at = raw.lastIndexOf('@');
   if (at <= 0 || at === raw.length - 1) return false;
   const local = raw.slice(0, at);
   const domain = raw.slice(at + 1);
-  if (/[\s<>,;"\\]/.test(local) || local.length > 64) return false;
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(domain)) return false;
-  return true;
+
+  // The characters that mean something to a header or an envelope, and so
+  // cannot simply be part of a name.
+  if (local.length > 64 || /[\s<>,;:"\\]/.test(local)) return false;
+  if (/[\s<>,;:"\\@]/.test(domain)) return false;
+
+  // Labels rather than a pattern with a dot in it: `localhost` is one label,
+  // `example.co.uk` is three, and both are addresses people really have. What
+  // is refused is a label that is empty (`a@b..com`, `a@.com`) or that starts
+  // or ends with a hyphen — neither of which any relay would resolve.
+  return domain.split('.').every((label) =>
+    label.length > 0 && !label.startsWith('-') && !label.endsWith('-'));
 }
 
 /**

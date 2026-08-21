@@ -7,8 +7,8 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
-  PRIORITIES, fieldAppliesTo, fieldValueId, orderKey, parseDuration, readFieldValue, writeFieldValue,
-  type EntityName,
+  PRIORITIES, fieldAppliesTo, fieldValueId, orderKey, parseDuration, parseQuickAdd, readFieldValue,
+  writeFieldValue, type EntityName, type Vocabulary,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
@@ -105,6 +105,33 @@ function resolveState(projectId: string, name?: string): Row | undefined {
     `SELECT * FROM states WHERE project_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?) OR group_key = lower(?)) ORDER BY sort_order LIMIT 1`,
     projectId, name, name, name,
   );
+}
+
+/**
+ * What quick-add syntax can name in this workspace.
+ *
+ * Read fresh rather than cached: an assistant that just created a project and
+ * then files a task into it by key should find it, and a cache that is one call
+ * stale would be a bug nobody could reproduce twice.
+ */
+function vocabularyFor(workspaceId: string): Vocabulary {
+  return {
+    today: new Date().toISOString().slice(0, 10),
+    people: all<Row>(
+      `SELECT u.id, u.name FROM users u
+         JOIN workspace_members m ON m.user_id = u.id
+        WHERE m.workspace_id = ? AND m.deleted_at IS NULL AND u.deleted_at IS NULL`,
+      workspaceId,
+    ).map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
+    projects: all<Row>(
+      `SELECT id, key, name FROM projects WHERE workspace_id = ? AND deleted_at IS NULL`,
+      workspaceId,
+    ).map((row) => ({ id: String(row.id), key: row.key ? String(row.key) : null, name: String(row.name ?? '') })),
+    labels: all<Row>(
+      `SELECT id, name FROM labels WHERE workspace_id = ? AND deleted_at IS NULL`,
+      workspaceId,
+    ).map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
+  };
 }
 
 function resolveUsers(workspaceId: string, refs: unknown): string[] {
@@ -410,11 +437,26 @@ const TOOLS: ToolDef[] = [
     title: 'Create task',
     description: 'File a new task. Returns the created task including its identifier.',
     schema: {
+      // Neither is required on its own: `quick_add` can carry both the title
+      // and — through `#KEY` — the project. One of the two has to say which.
       type: 'object',
-      required: ['project', 'title'],
+      required: [],
       properties: {
-        project: { type: 'string', description: 'Project id, key or name' },
-        title: { type: 'string' },
+        project: { type: 'string', description: 'Project id, key or name. Required unless quick_add names one with #KEY' },
+        title: { type: 'string', description: 'Required unless quick_add is given' },
+        /**
+         * Opt-in, and deliberately not applied to `title` on its own.
+         *
+         * A tool with a schema should mean what the schema says: an assistant
+         * that writes "Discuss with @ada" as a title means those words, and a
+         * parser that quietly removed them and assigned the task would be a
+         * surprise nobody asked for. This is for the other case — relaying a
+         * line a person actually typed, sigils and all.
+         */
+        quick_add: {
+          type: 'string',
+          description: 'A one-line task in quick-add syntax, e.g. "Redraw the empty state !high @ada #WEB *design due:friday". Overrides title, priority, assignees, labels and due_date where it names them. Use `title` for an ordinary title, even one containing @ or #.',
+        },
         description: { type: 'string', description: 'Markdown' },
         state: { type: 'string' },
         type: { type: 'string', description: "Kind of work, e.g. Bug or Feature — see the project's own list" },
@@ -431,7 +473,12 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
-      const project = findProject(String(args.project), workspaceId, ctx);
+      const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
+      const title = (quick?.title ?? str(args.title) ?? '').trim();
+      if (!title) throw new McpError('A task needs a title — pass `title`, or a `quick_add` line with words in it', -32602);
+      const named = quick?.projectId ?? str(args.project);
+      if (!named) throw new McpError('Which project? Pass `project`, or name one in `quick_add` with #KEY', -32602);
+      const project = findProject(named, workspaceId, ctx);
       const state = resolveState(project.id, str(args.state));
       const parent = args.parent ? findTask(String(args.parent), workspaceId, ctx) : undefined;
       const first = get<Row>(`SELECT sort_order FROM tasks WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id);
@@ -439,14 +486,15 @@ const TOOLS: ToolDef[] = [
       const { row } = writeEntity('task', uid(), {
         workspace_id: workspaceId,
         project_id: project.id,
-        title: String(args.title).slice(0, 500),
+        title: title.slice(0, 500),
         description: str(args.description) ?? null,
         state_id: state?.id,
         type_id: resolveType(project.id, str(args.type))?.id,
-        priority: PRIORITIES.includes(args.priority) ? args.priority : 'none',
-        assignees: resolveUsers(workspaceId, args.assignees),
-        labels: resolveLabels(workspaceId, project.id, args.labels, ctx),
-        due_date: str(args.due_date) ?? null,
+        priority: quick?.priority ?? (PRIORITIES.includes(args.priority) ? args.priority : 'none'),
+        assignees: quick?.assignees.length ? quick.assignees : resolveUsers(workspaceId, args.assignees),
+        labels: quick?.labels.length ? quick.labels : resolveLabels(workspaceId, project.id, args.labels, ctx),
+        due_date: quick?.dueDate ?? str(args.due_date) ?? null,
+        recurrence: quick?.recurrence ?? null,
         estimate: typeof args.estimate === 'number' ? args.estimate : null,
         parent_id: parent?.id ?? null,
         cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,

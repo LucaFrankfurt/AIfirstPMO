@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { convert, detectFormat } from '@kolibri/shared';
+import { convert, detectFormat, todoistRecurrence } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 
@@ -178,14 +178,86 @@ const plane = {
   ],
 };
 
+/**
+ * A Trello board export, as the board menu writes it.
+ *
+ * Deliberately awkward in the two ways real boards are: a card archived and
+ * left in place, and a checklist that is the only record of what the card
+ * actually involves.
+ */
+const trello = {
+  name: 'Marketing',
+  lists: [
+    { id: 'l-1', name: 'Ideas', closed: false },
+    { id: 'l-2', name: 'Doing', closed: false },
+    { id: 'l-3', name: 'Done', closed: false },
+  ],
+  labels: [{ id: 'lb-1', name: 'copy', color: 'green' }, { id: 'lb-2', name: '', color: 'red' }],
+  members: [{ id: 'm-1', fullName: 'Ada Lovelace', username: 'ada' }],
+  cards: [
+    {
+      id: 'c-1', name: 'Rewrite the pricing page', desc: 'The old one buries the price.',
+      idList: 'l-2', closed: false, due: '2026-09-04T12:00:00.000Z', start: null,
+      idMembers: ['m-1'], labels: [{ id: 'lb-1', name: 'copy', color: 'green' }],
+    },
+    {
+      id: 'c-2', name: 'Pick a headline font', desc: '',
+      idList: 'l-3', closed: false, due: null, idMembers: [],
+      labels: [{ id: 'lb-2', name: '', color: 'red' }],
+    },
+    { id: 'c-3', name: 'An old idea', desc: '', idList: 'l-1', closed: true, idMembers: [], labels: [] },
+  ],
+  checklists: [
+    {
+      id: 'ck-1', idCard: 'c-1', name: 'Before publishing',
+      checkItems: [
+        { name: 'Legal read it', state: 'complete' },
+        { name: 'Screenshots redone', state: 'incomplete' },
+      ],
+    },
+  ],
+  actions: [
+    {
+      type: 'commentCard',
+      memberCreator: { id: 'm-1', fullName: 'Ada Lovelace' },
+      data: { text: 'The second paragraph is the problem.', card: { id: 'c-1' } },
+    },
+    { type: 'updateCard', memberCreator: { id: 'm-1' }, data: { card: { id: 'c-1' } } },
+  ],
+};
+
+/** Todoist, from the Sync API. Two projects, a repeat it can read and one it cannot. */
+const todoist = {
+  projects: [{ id: 'p-1', name: 'Work' }, { id: 'p-2', name: 'Home' }],
+  labels: [{ id: 'lb-1', name: 'errand' }],
+  collaborators: [{ id: 'u-1', full_name: 'Ada Lovelace', email: 'ada@example.com' }],
+  items: [
+    {
+      id: 'i-1', content: 'Send the invoice', description: 'For August.',
+      project_id: 'p-1', priority: 4, checked: false,
+      due: { date: '2026-09-01', string: 'every month', is_recurring: true },
+      labels: ['lb-1'], responsible_uid: 'u-1',
+    },
+    {
+      id: 'i-2', content: 'Water the plants', project_id: 'p-2', priority: 1, checked: false,
+      due: { date: '2026-08-25', string: 'every 3rd friday', is_recurring: true }, labels: [],
+    },
+    { id: 'i-3', content: 'Book the train', project_id: 'p-1', priority: 2, checked: true, labels: [] },
+    { id: 'i-4', content: 'Buy tickets first', project_id: 'p-1', priority: 1, checked: false, parent_id: 'i-3', labels: [] },
+  ],
+  notes: [{ id: 'n-1', item_id: 'i-1', content: 'They asked for it as a PDF.', posted_uid: 'u-1' }],
+};
+
 /* ---------------------------------------------------------------- tests */
 
 describe('recognising a file', () => {
-  it('tells the four apart by shape rather than by what the download was called', () => {
+  it('tells the six apart by shape rather than by what the download was called', () => {
     assert.equal(detectFormat(jira), 'jira');
     assert.equal(detectFormat(linear), 'linear');
     assert.equal(detectFormat(openproject), 'openproject');
     assert.equal(detectFormat(plane), 'plane');
+    assert.equal(detectFormat(trello), 'trello');
+    assert.equal(detectFormat(todoist), 'todoist');
   });
 
   it('says no to everything else, including Kolibri’s own', () => {
@@ -319,5 +391,122 @@ describe('through the API', () => {
       body: JSON.stringify({ document: { some: 'spreadsheet' } }),
     });
     assert.equal(response.status, 400);
+  });
+});
+
+describe('a Trello board', () => {
+  const { document, notes } = convert(trello);
+  const doc = document as any;
+  const task = (title: string) => doc.tasks.find((entry: any) => entry.title === title);
+  const state = (id: string) => doc.states.find((entry: any) => entry.id === id);
+
+  it('takes the board name as the project name', () => {
+    assert.equal(doc.project.name, 'Marketing');
+  });
+
+  it('turns each list into a state and guesses only the obvious groups', () => {
+    const doing = state(task('Rewrite the pricing page').state_id);
+    assert.equal(doing.name, 'Doing');
+    // "Doing" is not a word this recognises, and inventing a meaning for it is
+    // how every card in a column ends up looking finished.
+    assert.equal(doing.group_key, 'unstarted');
+
+    const done = state(task('Pick a headline font').state_id);
+    assert.equal(done.name, 'Done');
+    assert.equal(done.group_key, 'completed');
+  });
+
+  it('says out loud that the group is a guess', () => {
+    assert.ok(notes.some((note) => /guessed from the column name/.test(note)),
+      `no warning about the guess in: ${notes.join(' | ')}`);
+  });
+
+  it('leaves archived cards out and counts them', () => {
+    assert.equal(task('An old idea'), undefined);
+    assert.ok(notes.some((note) => /1 archived card left out/.test(note)), notes.join(' | '));
+  });
+
+  it('folds a checklist into the description as a markdown checklist', () => {
+    const description = task('Rewrite the pricing page').description as string;
+    assert.match(description, /The old one buries the price\./);
+    assert.match(description, /\*\*Before publishing\*\*/);
+    assert.match(description, /- \[x\] Legal read it/);
+    assert.match(description, /- \[ \] Screenshots redone/);
+    assert.ok(notes.some((note) => /2 checklist items/.test(note)), notes.join(' | '));
+  });
+
+  it('names an unnamed label by its colour rather than dropping it', () => {
+    const label = doc.labels.find((entry: any) => entry.name === 'Red');
+    assert.ok(label, `no colour-named label in ${JSON.stringify(doc.labels)}`);
+    assert.ok(task('Pick a headline font').labels.includes(label.id));
+  });
+
+  it('reads a comment out of the actions and ignores every other action', () => {
+    assert.equal(doc.comments.length, 1);
+    assert.match(doc.comments[0].body, /second paragraph/);
+  });
+
+  it('keeps the due date as a day', () => {
+    assert.equal(task('Rewrite the pricing page').due_date, '2026-09-04');
+  });
+});
+
+describe('a Todoist export', () => {
+  const { document, notes } = convert(todoist);
+  const doc = document as any;
+  const task = (title: string) => doc.tasks.find((entry: any) => entry.title === title);
+  const label = (id: string) => doc.labels.find((entry: any) => entry.id === id)?.name;
+
+  it('inverts the priorities, because Todoist counts the other way', () => {
+    assert.equal(task('Send the invoice').priority, 'urgent');   // Todoist 4 is P1
+    assert.equal(task('Book the train').priority, 'medium');
+    assert.equal(task('Water the plants').priority, 'none');
+  });
+
+  it('invents exactly two states and says so', () => {
+    assert.equal(doc.states.length, 2);
+    assert.ok(notes.some((note) => /no columns/.test(note)), notes.join(' | '));
+  });
+
+  it('keeps a repeat it can express', () => {
+    assert.equal(task('Send the invoice').recurrence, 'monthly');
+  });
+
+  it('refuses a repeat it cannot, rather than repeating on the wrong day', () => {
+    assert.equal(task('Water the plants').recurrence, null);
+    assert.equal(task('Water the plants').due_date, '2026-08-25', 'the date still arrives');
+    assert.ok(notes.some((note) => /cannot express/.test(note)), notes.join(' | '));
+  });
+
+  it('turns the Todoist project into a label, so it is not lost', () => {
+    assert.ok(task('Send the invoice').labels.map(label).includes('Work'));
+    assert.ok(task('Water the plants').labels.map(label).includes('Home'));
+  });
+
+  it('keeps the parent when it is in the file', () => {
+    assert.equal(task('Buy tickets first').parent_id, task('Book the train').id);
+  });
+
+  it('reads notes as comments', () => {
+    assert.equal(doc.comments.length, 1);
+    assert.match(doc.comments[0].body, /as a PDF/);
+  });
+});
+
+describe('the recurrence phrases Todoist writes', () => {
+  it('reads the three Kolibri can honour, in three languages', () => {
+    assert.equal(todoistRecurrence('every day'), 'daily');
+    assert.equal(todoistRecurrence('every week'), 'weekly');
+    assert.equal(todoistRecurrence('every month'), 'monthly');
+    assert.equal(todoistRecurrence('every 2 weeks'), 'weekly:2');
+    assert.equal(todoistRecurrence('jeden Monat'), 'monthly');
+    assert.equal(todoistRecurrence('alle 3 Tage'), 'daily:3');
+    assert.equal(todoistRecurrence('chaque semaine'), 'weekly');
+  });
+
+  it('refuses everything else rather than approximating it', () => {
+    for (const phrase of ['every 3rd friday', 'every workday', 'every morning', 'tomorrow', '']) {
+      assert.equal(todoistRecurrence(phrase), null, `${phrase} should not be readable`);
+    }
   });
 });

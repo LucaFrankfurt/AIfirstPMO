@@ -5,8 +5,8 @@ Ticked boxes are done; the rest is open. Ordered by "would I run this in product
 
 Legend: **P1** blocks a real deployment · **P2** wanted soon · **P3** nice to have.
 
-Where the edges are against Confluence, Plane and OpenProject — and the order I would close
-them in — is in [`docs/comparison.md`](docs/comparison.md).
+Where the edges are against Jira, Confluence, Plane, Vikunja and OpenProject — and the order I
+would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ---
 
@@ -360,6 +360,11 @@ them in — is in [`docs/comparison.md`](docs/comparison.md).
       Peritext handle the last cases properly and this does not. There is no cursor presence. And
       tombstones accumulate: `kolibri doctor --fix` folds away the ones nothing points at, on
       purpose rather than on a schedule.
+- [ ] **CalDAV, properly.** The read-only `.ics` feed is built — see
+      [`docs/calendar.md`](docs/calendar.md) — and covers most of the value, which is seeing what is
+      due without opening another tab. Writing back from a calendar client is a protocol rather than
+      an endpoint: `PROPFIND`, `REPORT`, ETags, and a conflict story for a task edited in two places
+      at once. Worth doing, and not the same size as what it follows.
 - [ ] **Multi-node deployment.** The sequence counter, the SSE bus and the mail worker live in the
       process. Running two replicas needs an external counter, a shared bus and a locked queue —
       this is the one scenario where Redis or Postgres genuinely earns its place.
@@ -683,10 +688,12 @@ confused later.
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
       see and nothing more. Left out because documenting and shipping what exists came first, not
       because it is hard.
-- [ ] **Typing indicators and presence.** Still out. The realtime channel deliberately carries
-      "something changed up to seq N" and nothing else, so catching up after a tunnel and hearing
-      about a change live are one code path. If they are wanted, the honest shape is a second
-      ephemeral transport rather than widening this one — see [`docs/chat.md`](docs/chat.md).
+- [x] **Typing indicators and presence.** Built, and built the way this entry said to: the sync
+      stream still carries "something changed up to seq N" and nothing else. Presence shares the
+      *connection* and not the *stream* — its own event name, its own state, in memory and never a
+      row — so a client that drops every presence frame syncs exactly as it did. Online expires
+      after 45 seconds and typing after 8. A dot on a person, never on a channel; the typing line
+      sits on a fixed row so it cannot push the composer around. See [`docs/chat.md`](docs/chat.md).
 - [ ] **Read receipts.** The read marker exists and is private. Making it visible to others is a
       one-way door socially, so it stays a decision rather than a feature.
 - [ ] **A deleted direct conversation is never actually purged.** Emptying the trash is scoped to a
@@ -729,10 +736,14 @@ Still to do, in the order it is worth doing:
 - [ ] **The remaining Radix candidates**, where our version is measurably worse: `Select` (a native
       `<select>` cannot be styled consistently and cannot show an icon per option), `Checkbox`,
       `Tabs`, `Popover` for the filter and display controls.
-- [ ] **A usability pass with the primitives in place**, which is the part that was the point:
-      empty, loading and error states written rather than defaulted; touch targets measured on a
-      phone rather than assumed; contrast checked against both surfaces; and a keyboard walk of
-      every screen.
+- [x] **A usability pass with the primitives in place**, which is the part that was the point.
+      Every clause of it is now a script rather than an intention: `check:contrast` measures every
+      element that renders text against the background it actually sits on, in both themes;
+      `check:a11y` measures names, keyboard reach, focus rings, landmarks and 24px targets in a
+      real browser; `check:responsive` walks 340px to 1600px. `Empty` covers the empty states and
+      links to the guide card that explains what goes there. What the first run of each found is
+      in [`docs/design.md`](docs/design.md) — the point of writing it down is that none of it was
+      visible by looking.
 
 ## Known-unknowns
 

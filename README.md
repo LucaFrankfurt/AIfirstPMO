@@ -40,10 +40,10 @@ around three convictions:
 
 | | |
 |---|---|
-| **Work tracking** | Projects with their own workflow states, kinds of work (bug / feature / chore, editable per project) and custom fields — nine kinds, each limited to the types it belongs on — tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, CSV import with a preview before anything is written — parents and blockers resolved on a second pass — exports from Jira, Linear, Plane and OpenProject read by shape, with what cannot come across listed before you commit to it, and a JSON round trip for moving a whole project to another Kolibri |
+| **Work tracking** | Type a whole task on one line — `Redraw the empty state !high @ada #WEB *design due:friday` — and a token nothing answers to stays in the title rather than vanishing. Projects with their own workflow states, kinds of work (bug / feature / chore, editable per project) and custom fields — nine kinds, each limited to the types it belongs on — tasks with sub-tasks, relations (blocks / relates / duplicates), priorities, estimates, labels, due dates, assignees, archiving, CSV import with a preview before anything is written — parents and blockers resolved on a second pass — exports from Jira, Linear, Plane, OpenProject, Trello and Todoist read by shape, with what cannot come across listed before you commit to it, and a JSON round trip for moving a whole project to another Kolibri |
 | **Planning** | Cycles (sprints) with progress and point burn-up, modules (milestones spanning cycles), a timeline where dragging a task moves everything blocked by it — counted in the days the project actually works, with an optional wait on each dependency, and applied on the server too so a date set over the API moves the plan the same way — baselines to draw the plan behind the work, work-in-progress limits, projects that nest under projects, teams that own them, any project copyable as a template, time tracking with a timer that survives a reload, an Insights tab per project — throughput, burn-up, cycle time — a portfolio roadmap across all of them, and a team planner where dragging a task between rows hands it over — all computed from the local mirror |
 | **Templates & rules** | Task templates with a checklist that becomes sub-tasks, repeating tasks, and rules that file one when something happens — including *n* days before a due date — a task entering review asks the people you named for feedback. Recipients are selectors (the lead, whoever is on it, a team), so they keep meaning the right people |
-| **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project — or by a custom field, where dropping a card into a column writes the answer; filter and sort, custom fields included; select several tasks and change them together; save a view under a name with an icon, pin one as what a project opens on, and share it |
+| **Views** | List, Kanban board with drag & drop, table with sortable columns, calendar; group by state / priority / assignee / label / cycle / project — or by a custom field, where dropping a card into a column writes the answer; filter and sort, custom fields included — or **write the filter as text**: `assignee = me AND priority in (urgent, high) AND state != Done`, which prints back from whatever the menus did, so the box and the dropdowns are two views of one thing; select several tasks and change them together; save a view under a name with an icon, pin one as what a project opens on, and share it |
 | **Pages** | Nested markdown wiki that two people can edit at the same time — the body is a CRDT, so both sets of changes survive and every device reads the same thing — with version history, restore and a what-changed diff; labels and filtering; watch a page; page templates; per-page visibility; export as a markdown bundle; print or save as PDF; read-only share links for people outside the workspace, which can invite a note back without showing them the thread; comments and `@mentions`, including inline comments on a selected passage that survive the text being edited around them; drag & drop images |
 | **Intake** | A link that is a form, for people who have no account and should not need one — no session, no script, works on any phone. What arrives waits in a queue and becomes a task only when somebody accepts it, so nothing from outside lands on the board on its own |
 | **Chat** | Channels and direct messages, made of the same synced rows as everything else — so a message sends from a train and arrives when the tunnel ends, with no socket to reconnect. A direct conversation's id is derived from the two people in it, which is why two devices opening one offline end up in one room rather than two half-rooms. Paste a screenshot straight in, react with an emoji, reply to a line. A channel tells you when you are named; turn that up or off per conversation. Private channels keep a member list, and who may change it is settable per channel. A green dot says who is here and a line says who is typing — held in memory, never a row, and carried on the connection that already exists |
@@ -54,9 +54,10 @@ around three convictions:
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages — where a private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area of the app plus an explorer for how the pieces nest. A screen with nothing on it yet links to the card that explains what goes there. Press `?` |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each written in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. Adding a fourth is one typed catalogue file |
+| **Calendar** | A subscribable `.ics` link per person — everything with a due date that is on you, across every workspace — or one per saved view. Google, Apple, Outlook, Thunderbird, DAVx5. `?kind=todo` writes `VTODO` for a client that wants tasks as tasks. The link does not exist until you ask for it and one button makes every copy of the old one stop working |
 | **Integration** | REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, MCP server over HTTP and stdio with 23 tools, 3 prompts and page resources |
 | **Deployment** | One command brings up app + object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS and a dev overlay with a mail capture inbox |
-| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log |
+| **Hardening** | Rate limits on sign-in, registration and invite lookup — per account as well as per address — a Content-Security-Policy with no inline script, two-factor authentication with recovery codes, a device list you can revoke from, single sign-on over OpenID Connect with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log. A row may only reference rows in its own workspace; an uploaded file is served with its type only if it is on a short inline list, on S3 as well as on disk; a webhook or push endpoint is resolved and checked before the socket is opened and then pinned to the address that passed, so it cannot reach loopback or a cloud metadata service; and an address with a carriage return in it is refused where the message is built, not only where it is typed. See [`docs/security.md`](docs/security.md) |
 
 ## Quick start
 
@@ -153,7 +154,7 @@ it grants is an ordinary token you can revoke in Settings. See [`docs/mcp.md`](d
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
 `create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,
 `apply_template`, `list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`,
-`update_page`, `list_members`, `project_status`, `my_work`.
+`update_page`, `list_members`, `project_status`, `my_work`, `log_time`, `list_time`.
 Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant
@@ -182,8 +183,8 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 ## Documentation
 
 - [`TODO.md`](TODO.md) — what is missing, what is unverified, what was deferred on purpose
-- [`docs/comparison.md`](docs/comparison.md) — an honest gap analysis against Confluence, Plane and
-  OpenProject, and the order those gaps are worth closing in
+- [`docs/comparison.md`](docs/comparison.md) — an honest gap analysis against Jira, Confluence,
+  Plane, Vikunja and OpenProject, and the order those gaps are worth closing in
 - [`docs/architecture.md`](docs/architecture.md) — how the pieces fit together, including
   [why there is no Redis or Postgres, and why S3 and email are optional](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional)
 - [`docs/sync.md`](docs/sync.md) — the offline protocol, conflict rules and failure modes
@@ -191,10 +192,12 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/notifications.md`](docs/notifications.md) — in-app, email, Web Push and Telegram delivery, batching, mentions
 - [`docs/chat.md`](docs/chat.md) — channels and direct messages, why a direct conversation has no id of its own, and what is deliberately not in it
 - [`docs/time.md`](docs/time.md) — logging time, what a running timer actually is, and what it is not
-- [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV, and what it does with a row it cannot read
+- [`docs/import.md`](docs/import.md) — bringing a backlog in from a CSV or another tool's export, and what it does with a row it cannot read
+- [`docs/query.md`](docs/query.md) — the two small languages: a task on one line, and a filter as text
+- [`docs/calendar.md`](docs/calendar.md) — the `.ics` feed, what a subscription is worth, and why the URL is a password
 - [`docs/insights.md`](docs/insights.md) — throughput, burn-up and cycle time, and the rules the charts follow
-- [`docs/design.md`](docs/design.md) — the tokens, the type scale, the seven rules that are not about
-  looks, and the order to port a screen in
+- [`docs/design.md`](docs/design.md) — the tokens, the type scale, the ten rules that are not about
+  looks, what the accessibility pass found, and the order to port a screen in
 - [`docs/i18n.md`](docs/i18n.md) — how a language is picked, and how to add one
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the
@@ -202,12 +205,14 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - [`docs/storage.md`](docs/storage.md) — disk vs. S3/MinIO, pre-signed downloads, migrating
 - [`docs/api.md`](docs/api.md) — REST endpoints, auth, uploads
 - [`docs/mcp.md`](docs/mcp.md) — every tool, prompt and resource with examples
+- [`docs/security.md`](docs/security.md) — the threat model, what is checked and where, what has
+  been reviewed and what has not
 - [`docs/deployment.md`](docs/deployment.md) — TLS, backups, upgrades, environment variables
 
 ## Testing
 
 ```bash
-npm test          # API, sync merge, permissions, uploads, MCP, SMTP, S3, translations — no external services
+npm test          # API, sync merge, permissions, uploads, injection, MCP, SMTP, S3, translations
 npm run typecheck # every package, plus the client test project
 node scripts/smoke.mjs                    # browser walkthrough incl. mobile + offline (needs Playwright)
 KOLIBRI_LOCALE=de node scripts/smoke.mjs  # the same walk through the German interface
@@ -217,6 +222,21 @@ KOLIBRI_LOCALE=fr node scripts/smoke.mjs  # and the French one
 The mail tests run against a real SMTP server implemented in the test, and the storage tests
 against a fake S3 that verifies the request signature — so both protocols are exercised, not
 mocked.
+
+Four more checks measure the interface in a real browser rather than asserting about the source,
+because "it has an `aria-label` somewhere" and "the grey is fine" are both claims that have been
+wrong here. Each needs a seeded instance on `KOLIBRI_URL` (default `http://localhost:4400`):
+
+```bash
+npm run check:css         # every class the source uses is actually defined — no build needed
+npm run check:responsive  # 13 screens, 340px to 1600px in 20px steps, looking for overflow
+npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
+npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
+```
+
+They are not decoration. `check:contrast` found twenty unreadable places on its first run,
+`check:responsive` found a layout that came apart between 880 and 940 pixels, and `check:a11y`
+found forty-four problems including the checkbox in front of every task.
 
 ## Project layout
 

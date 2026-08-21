@@ -18,6 +18,7 @@ import { uid } from '../lib/ids.ts';
 import { notifyDevices } from '../lib/push.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { readBody, type Ctx, type Router } from '../lib/http.ts';
+import { readFilters, tasksMatching } from '../lib/viewquery.ts';
 
 const escape = (text: unknown): string =>
   String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -187,73 +188,15 @@ function tasksBody(share: Row): string {
     ? get<Row>(`SELECT * FROM views WHERE id = ? AND deleted_at IS NULL`, share.view_id)
     : undefined;
 
-  const filters = readFilters(view?.filters);
-  const where = ['t.deleted_at IS NULL', 't.archived = 0'];
-  const params: unknown[] = [];
-
-  if (share.project_id) {
-    where.push('t.project_id = ?');
-    params.push(share.project_id);
-  } else {
-    where.push('t.workspace_id = ?');
-    params.push(share.workspace_id);
-  }
-  if (!share.include_done) where.push(`s.group_key NOT IN ('completed', 'cancelled')`);
-  // The saved view names things the way the interface does — `state`, `type`,
-  // `cycle` — and the table names them `state_id` and so on. Mapping the two is
-  // the whole of it, and getting it wrong shows a shared link *more* tasks than
-  // the view it was made from.
-  const COLUMNS: Record<string, string> = {
-    state: 'state_id', type: 'type_id', cycle: 'cycle_id', module: 'module_id',
-    project: 'project_id', priority: 'priority',
-  };
-  for (const [key, values] of Object.entries(filters)) {
-    const column = COLUMNS[key];
-    if (!column || !Array.isArray(values) || !values.length) continue;
-    where.push(`t.${column} IN (${values.map(() => '?').join(', ')})`);
-    params.push(...values.map(String));
-  }
-  // Custom fields, which live in a table of their own. Each field is a separate
-  // condition, because two fields are an AND and two answers to one are an OR.
-  const fieldFilters = (filters.field && typeof filters.field === 'object' ? filters.field : {}) as Record<string, unknown>;
-  for (const [fieldId, wanted] of Object.entries(fieldFilters)) {
-    if (!Array.isArray(wanted) || !wanted.length) continue;
-    const kind = get<Row>(`SELECT kind FROM custom_fields WHERE id = ? AND deleted_at IS NULL`, fieldId)?.kind;
-    if (!kind) continue;
-    const clauses: string[] = [];
-    const answers = wanted.map(String);
-    const exists = (test: string) => `EXISTS (SELECT 1 FROM field_values fv WHERE fv.task_id = t.id
-        AND fv.field_id = ? AND fv.deleted_at IS NULL AND fv.value IS NOT NULL AND fv.value != '' AND (${test}))`;
-
-    if (answers.includes('')) {
-      clauses.push(`NOT ${exists('1 = 1')}`);
-      params.push(fieldId);
-    }
-    if (answers.includes('*')) {
-      clauses.push(exists('1 = 1'));
-      params.push(fieldId);
-    }
-    const values = answers.filter((value) => value !== '' && value !== '*');
-    if (values.length) {
-      // A multi-select is stored as a JSON array, so membership is a LIKE on
-      // the quoted value rather than equality. Ugly, and correct: the quotes
-      // are what stop `"do"` matching `"done"`.
-      const test = String(kind) === 'multi_select'
-        ? values.map(() => `fv.value LIKE ?`).join(' OR ')
-        : `fv.value IN (${values.map(() => '?').join(', ')})`;
-      clauses.push(exists(test));
-      params.push(fieldId, ...(String(kind) === 'multi_select' ? values.map((value) => `%"${value}"%`) : values));
-    }
-    where.push(`(${clauses.join(' OR ')})`);
-  }
-
-  const tasks = all<Row>(
-    `SELECT t.*, s.name AS state_name, s.group_key
-       FROM tasks t LEFT JOIN states s ON s.id = t.state_id
-      WHERE ${where.join(' AND ')}
-      ORDER BY t.sort_order LIMIT 500`,
-    ...params,
-  );
+  // The filter translation lives in `lib/viewquery.ts` — the calendar feed
+  // resolves the same views, and two copies of this is how a shared link and a
+  // subscribed calendar end up disagreeing about what a view contains.
+  const tasks = tasksMatching({
+    workspaceId: String(share.workspace_id),
+    projectId: share.project_id ? String(share.project_id) : null,
+    filters: readFilters(view?.filters),
+    includeDone: !!share.include_done,
+  });
 
   const people = new Map(
     all<Row>(`SELECT id, name FROM users`).map((user) => [String(user.id), String(user.name)]),
@@ -382,15 +325,6 @@ const safeList = (raw: unknown): string[] => {
     return Array.isArray(parsed) ? parsed.map(String) : [];
   } catch {
     return [];
-  }
-};
-
-const readFilters = (raw: unknown): Record<string, unknown> => {
-  try {
-    const parsed = JSON.parse(String(raw ?? '{}'));
-    return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
-  } catch {
-    return {};
   }
 };
 

@@ -76,12 +76,18 @@ for (const [table, column, definition] of [
   // that mints the next one.
   ['api_tokens', 'client_id', 'TEXT'],
   ['api_tokens', 'refresh_hash', 'TEXT'],
+  // Added without UNIQUE, because SQLite cannot add a unique column to a table
+  // that already has rows. The index below is the constraint instead, and it
+  // is the same constraint — it is how SQLite implements UNIQUE anyway.
+  ['users', 'calendar_token', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
     db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
   }
 }
+
+db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calendar_token) WHERE calendar_token IS NOT NULL`);
 
 /**
  * `files` was keyed by hash alone, and a hash is not a row.
