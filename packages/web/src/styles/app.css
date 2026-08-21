@@ -496,12 +496,19 @@ p { margin: 0 0 0.75em; }
 }
 
 
+/* The box stays 15px; the thing you have to hit is 24. WCAG 2.2 asks for 24×24
+   and means the *target*, not the drawing — so the padding does the work and
+   the negative margin gives the space back to the row, which therefore looks
+   exactly as it did. This is the checkbox in front of every task in the app:
+   at 15px it was the smallest and most-used control on the screen. */
 .select-box {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: none;
-  padding: 2px;
-  margin-inline-end: -2px;
+  min-width: 24px;
+  min-height: 24px;
+  margin-inline: -4px -1px;
   cursor: pointer;
 }
 .select-box input { width: 15px; height: 15px; cursor: pointer; }
@@ -806,8 +813,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
    running. Under the bars rather than behind them, so neither hides the other. */
 .planner-load { position: absolute; bottom: 2px; height: 5px; background: var(--chart-1); }
 .planner-load.over { background: var(--danger); }
+/* 24px tall and never narrower than 24 wide. A bar's *length* means something —
+   it is how long the task runs — so a one-day bar is allowed to be short, but
+   not so short that dragging it is a game of accuracy. It grows rightwards past
+   its day rather than shrinking the day. */
 .planner-bar {
-  position: absolute; height: 20px; z-index: 1;
+  position: absolute; height: 24px; min-width: 24px; z-index: 1;
   display: flex; align-items: center; gap: 5px; padding: 0 7px;
   border-radius: 5px; border: 1px solid var(--line-strong); background: var(--bg-raised);
   font: inherit; font-size: 11.5px; color: var(--fg); cursor: grab; touch-action: none;
@@ -1280,6 +1291,11 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .status-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  /* On a phone the word beside the dot is hidden, which left a 25×15 button.
+     The height is the target; the pill still looks the size it did. */
+  min-height: 24px;
+  min-width: 24px;
   gap: 6px;
   font-size: 11.5px;
   color: var(--fg-muted);
@@ -1409,11 +1425,19 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .stage .ordinal { font-family: var(--mono); font-size: 11px; color: var(--fg-muted); flex: none; }
 .stage .controls { display: flex; align-items: center; gap: 4px; }
 .stage .dots { display: flex; gap: 5px; align-items: center; }
+/* Same trick as `.select-box`: the dot is 7px and the button is 24, with the
+   dot drawn by the pseudo-element so the hit area can be bigger than the mark.
+   A 7px tab control is one nobody hits on a phone and everybody hits twice. */
 .stage .dots button {
-  width: 7px; height: 7px; padding: 0; border: none; border-radius: 99px;
-  background: var(--line-strong); cursor: pointer; transition: background 180ms ease, width 180ms ease;
+  width: 24px; height: 24px; padding: 0; border: none; background: none;
+  display: grid; place-items: center; cursor: pointer;
 }
-.stage .dots button.on { background: var(--accent); width: 18px; }
+.stage .dots button::before {
+  content: ''; width: 7px; height: 7px; border-radius: 99px;
+  background: var(--line-strong); transition: background 180ms ease, width 180ms ease;
+}
+.stage .dots button.on::before { background: var(--accent); width: 18px; }
+.stage .dots { margin-inline-start: -6px; }
 
 /* Anything the diagrams reveal fades and lifts into place. */
 .stage [data-on] { transition: opacity 400ms ease, transform 400ms ease; }

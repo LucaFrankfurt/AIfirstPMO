@@ -36,7 +36,15 @@ export function Teams() {
             setName('');
           }}
         >
-          <Input placeholder={t('team.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
+          {/* A placeholder vanishes the moment somebody types in the field, so
+              it cannot be the name. The label is visually hidden rather than
+              absent: the row is a single field beside a button and reads fine
+              without a caption, but it still has to have one. */}
+          <label htmlFor="new-team" className="sr-only">{t('team.newLabel')}</label>
+          <Input
+            id="new-team" placeholder={t('team.placeholder')}
+            value={name} onChange={(event) => setName(event.target.value)}
+          />
           <Button type="submit"><Icon name="plus" size={14} /> {t('action.add')}</Button>
         </form>
 
@@ -58,8 +66,12 @@ export function Teams() {
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">{team.icon ?? '👥'}</span>
+                  {/* Borderless, so it does not look like a field — which is
+                      the point visually and the problem otherwise: nothing on
+                      it said what typing here would change. */}
                   <Input
                     className="flex-1 min-w-0 font-semibold" style={{ border: 'none', background: 'none' }}
+                    aria-label={t('team.nameLabel')}
                     value={team.name} onChange={(event) => update('team', team.id, { name: event.target.value })}
                   />
                   <Chip className="font-mono">{team.key}</Chip>

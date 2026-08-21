@@ -54,6 +54,9 @@ function Reactions({ comment }: { comment: Comment }) {
           key={emoji}
           className={`reaction${people.includes(me) ? ' mine' : ''}`}
           title={people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}
+          // Otherwise this announces as the emoji alone, and the count and the
+          // names — the entire reason to look at a reaction — are mouse-only.
+          aria-label={`${emoji} ${people.length} · ${people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}`}
           onClick={() => toggle(emoji)}
         >
           <span aria-hidden>{emoji}</span> {people.length}

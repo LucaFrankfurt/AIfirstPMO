@@ -21,7 +21,7 @@ import { guideHref, type GuideTarget } from '../lib/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from '../components/ui/button';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from './ui/menu';
-import { buttonVariants } from './ui/button';
+import { buttonVariants, hasText } from './ui/button';
 import { Input } from '../components/ui/field';
 import { cn } from '../lib/cn';
 
@@ -317,7 +317,10 @@ export function MenuButton({
         <button
           className={cn(buttonVariants({ variant, size }), className)}
           title={title}
-          aria-label={label ?? title}
+          // Only when the trigger has no words of its own. A label that
+          // replaces visible text is a control voice-control users can see and
+          // cannot say — see `hasText` in `ui/button.tsx`.
+          aria-label={label ?? (hasText(children) ? undefined : title)}
           disabled={disabled}
           type="button"
         >

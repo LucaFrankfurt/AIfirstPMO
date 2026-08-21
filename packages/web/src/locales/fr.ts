@@ -60,6 +60,8 @@ export const fr: Catalogue = {
   'nav.guide': 'Guide',
   'nav.settings': 'Réglages',
   'nav.newTask': 'Nouvelle tâche',
+  'nav.sidebar': 'Navigation principale',
+  'nav.tabbar': 'Sections',
   'nav.newProject': 'Nouveau projet',
   'nav.firstProject': 'Créer votre premier projet',
   'nav.account': 'Compte',
@@ -849,6 +851,8 @@ export const fr: Catalogue = {
   /* --------------------------------------------------------------- teams */
   'team.title': 'Équipes',
   'team.placeholder': 'Nouvelle équipe, par exemple Plateforme',
+  'team.newLabel': 'Nom de la nouvelle équipe',
+  'team.nameLabel': 'Nom de l\'équipe',
   'team.emptyTitle': 'Aucune équipe pour l’instant',
   'team.emptyHint': 'Les équipes regroupent des personnes et des projets — utile dès que plus d’une poignée de gens partagent l’espace.',
   'team.members': 'Membres',
