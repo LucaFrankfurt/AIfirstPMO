@@ -39,7 +39,8 @@ const PATHS = {
   chevronLeft: 'M15 6l-6 6 6 6',
   dots: 'M12 6h.01M12 12h.01M12 18h.01',
   board: 'M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v13h-3z',
-  list: 'M4 6h16M4 12h16M4 18h16',
+  // Bulleted, so the list *layout* is not the same drawing as a menu.
+  list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
   calendar: 'M4 7h16v13H4zM4 11h16M8 3v4M16 3v4',
   page: 'M6 3h8l4 4v14H6zM14 3v4h4',
   folder: 'M3 7h6l2 2h10v10H3z',
@@ -60,6 +61,12 @@ const PATHS = {
   hash: 'M9 4 7 20M17 4l-2 16M4 9h16M3 15h16',
   bell: 'M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M10.5 20a2 2 0 0 0 3 0',
   menu: 'M4 7h16M4 12h16M4 17h16',
+  // Three lines with a knob on each: display options, not another menu. It
+  // exists because `list` and `menu` were the same three strokes, and the
+  // header put both of them side by side on a phone — the layout switcher
+  // showing the current layout, and the display menu — so the row read as two
+  // hamburgers that did different things.
+  sliders: 'M4 7h16M4 12h16M4 17h16M9 5v4M15 10v4M7 15v4',
   bolt: 'M13 3 5 14h6l-1 7 8-11h-6z',
   bookmark: 'M6 4h12v17l-6-4-6 4z',
   table: 'M3 5h18v14H3zM3 10h18M9 10v9M3 15h18',

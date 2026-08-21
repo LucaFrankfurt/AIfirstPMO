@@ -140,14 +140,21 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </MenuButton>
         </div>
 
-        <div className="flex items-center flex-wrap gap-2.5 mb-4">
-          <label className="flex items-center gap-1.5 text-[12.5px]">
+        {/*
+          * Three label-and-control pairs. On a desktop they sit side by side in
+          * one line. A phone cannot fit that, and letting them wrap gave three
+          * rows each trailing a wide empty gap — the same height as a form and
+          * none of the tidiness. So on a phone they *are* a form: one row each,
+          * label at the start, control at the end, all three ends aligned.
+          */}
+        <div className="flex flex-col gap-2 mb-4 sm:flex-row sm:flex-wrap sm:items-center sm:gap-2.5">
+          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
             <span className="text-muted">{t('task.due')}</span>
             <DateField label={t('task.due')} value={task.due_date} onChange={(value) => update('task', task.id, { due_date: value })} />
           </label>
-          <label className="flex items-center gap-1.5 text-[12.5px]">
+          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
             <span className="text-muted">{t('task.repeats')}</span>
-            <Select style={{ width: 130 }}
+            <Select className="w-[150px] sm:w-[130px]"
               value={task.recurrence ?? ''}
               onChange={(event) => update('task', task.id, { recurrence: event.target.value || null })}
             >
@@ -158,9 +165,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               <option value="monthly">{t('task.repeatsMonthly')}</option>
             </Select>
           </label>
-          <label className="flex items-center gap-1.5 text-[12.5px]">
+          <label className="flex items-center justify-between gap-1.5 text-[12.5px] sm:justify-start">
             <span className="text-muted">{t('task.estimate')}</span>
-            <Input type="number" min={0} step={1} style={{ width: 84 }}
+            <Input type="number" min={0} step={1} className="w-[150px] sm:w-[84px]"
               value={task.estimate ?? ''}
               onChange={(event) => update('task', task.id, { estimate: event.target.value === '' ? null : Number(event.target.value) })}
             />
