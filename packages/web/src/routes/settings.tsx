@@ -19,6 +19,7 @@ import { Input, Select, Textarea } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
 import { Chip, chipVariants } from '../components/ui/chip';
 import { TelegramConnection } from '../components/telegram';
+import { useTabStrip } from '../lib/tab-strip';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
 
@@ -36,6 +37,7 @@ export function Settings() {
   // `?tab=members` so the setup checklist can point at the screen it names.
   const requested = params.get('tab');
   const [tab, setTab] = useState<Tab>(() => (requested && requested in TAB_KEY ? requested as Tab : 'profile'));
+  const strip = useTabStrip(tab);
 
   const choose = (next: Tab) => {
     setTab(next);
@@ -44,7 +46,7 @@ export function Settings() {
   return (
     <>
       <Header title={t('settings.title')} />
-      <div className="tabs" style={{ padding: '0 12px' }}>
+      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {(Object.keys(TAB_KEY) as Tab[]).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
             {t(TAB_KEY[name])}

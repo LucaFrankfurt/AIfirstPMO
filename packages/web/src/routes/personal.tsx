@@ -20,6 +20,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
 import { navCount, navItem } from '../components/ui/nav';
 import { SetupChecklist } from '../components/tour';
+import { useTabStrip } from '../lib/tab-strip';
 
 const KIND_KEY: Record<string, TranslationKey> = {
   task: 'search.kindTask', page: 'search.kindPage',
@@ -121,6 +122,7 @@ export function Inbox() {
   // nameless "?" is worse than the message it announces.
   const members = usePeople();
   const [filter, setFilter] = useState<'unread' | 'all'>('unread');
+  const strip = useTabStrip(filter);
 
   const notifications = useQuery(
     () => list('notification', (n) => n.user_id === me && !n.archived_at)
@@ -132,7 +134,9 @@ export function Inbox() {
   return (
     <>
       <Header title={t('inbox.title')}>
-        <div className="tabs" style={{ border: 'none' }}>
+        {/* The strip's line lives in an inset shadow now, not a border — this
+            one sits inside the header, which draws its own. */}
+        <div ref={strip} className="tabs" style={{ boxShadow: 'none' }}>
           <button className={filter === 'unread' ? 'active' : ''} onClick={() => setFilter('unread')}>{t('inbox.unread')}</button>
           <button className={filter === 'all' ? 'active' : ''} onClick={() => setFilter('all')}>{t('inbox.all')}</button>
         </div>

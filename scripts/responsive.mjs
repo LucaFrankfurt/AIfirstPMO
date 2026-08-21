@@ -9,6 +9,8 @@
  *  - is a bar that is one row tall taller than itself
  *  - does anything in the header reach down over the tab strip
  *  - has the screen's title been squeezed to nothing
+ *  - does any box scroll by a sliver on an axis nobody meant it to have
+ *  - can you see which tab you are on
  *
  * The bug that prompted it lived between 900 and 940 pixels — the band where
  * the sidebar has appeared and taken 248px but the header still thought it had
@@ -45,6 +47,8 @@ const project = await page.evaluate(async () => {
 const SCREENS = [
   ['my work', '/'],
   ['project', `/projects/${project}`],
+  // The last tab of the widest strip: where the active one goes off the end.
+  ['project: settings', `/projects/${project}?tab=settings`],
   ['inbox', '/inbox'],
   ['chat', '/chat'],
   ['pages', '/pages'],
@@ -57,6 +61,43 @@ const SCREENS = [
   ['settings: data', '/settings?tab=data'],
   ['guide', '/guide'],
 ];
+
+/**
+ * Runs in the page. Two questions that do not depend on the width, so they are
+ * asked at a handful of them rather than at all sixty-four.
+ *
+ * **A sliver.** `overflow-x: auto` computes the other axis from `visible` to
+ * `auto`, so a box that overflows by one pixel on an axis it was never meant to
+ * scroll gets a full scrollbar. Every tab strip in the app had one, at every
+ * width, desktop included — a pixel of the active underline hanging past the
+ * box was enough. Three pixels is the line between "someone meant this" and
+ * "something rounded wrong".
+ *
+ * **The tab you are on.** A strip that scrolls can hold the active tab off the
+ * end of itself: on a phone `?tab=settings` opened with the strip at zero, the
+ * settings page below and no underline anywhere on screen.
+ */
+const oddities = () => {
+  const out = [];
+  for (const el of document.querySelectorAll('*')) {
+    const cs = getComputedStyle(el);
+    const scrolls = (v) => v === 'auto' || v === 'scroll';
+    const name = () => `${el.tagName.toLowerCase()}${[...el.classList].map((c) => '.' + c).join('')}`;
+    const y = el.scrollHeight - el.clientHeight;
+    const x = el.scrollWidth - el.clientWidth;
+    if (scrolls(cs.overflowY) && y > 0 && y <= 3) out.push(`${name()} scrolls ${y}px vertically`);
+    if (scrolls(cs.overflowX) && x > 0 && x <= 3) out.push(`${name()} scrolls ${x}px sideways`);
+  }
+
+  for (const strip of document.querySelectorAll('.tabs')) {
+    const active = strip.querySelector('.active');
+    if (!active) continue;
+    const box = strip.getBoundingClientRect();
+    const tab = active.getBoundingClientRect();
+    if (tab.right < box.left + 1 || tab.left > box.right - 1) out.push(`the active tab "${active.textContent.trim()}" is outside its own strip`);
+  }
+  return [...new Set(out)];
+};
 
 /** Runs in the page. Returns the complaints, or an empty list. */
 const inspect = () => {
@@ -102,6 +143,13 @@ for (const [name, path] of SCREENS) {
     const complaints = await page.evaluate(inspect);
     if (complaints.length) bad.push(`${width}px: ${complaints.join('; ')}`);
   }
+  // The width-independent pair, asked where the layout actually changes shape.
+  for (const width of [widths[0], 900, widths.at(-1)]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.waitForTimeout(80);
+    for (const complaint of await page.evaluate(oddities)) bad.push(`${width}px: ${complaint}`);
+  }
+
   if (bad.length) {
     failures += bad.length;
     // Only the ends of a run matter; a hundred consecutive bad widths is one bug.

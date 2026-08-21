@@ -193,3 +193,30 @@ describe('every icon-only control', () => {
     assert.deepEqual(mute, [], `button(s) named only by a tooltip: ${mute.join(', ')}`);
   });
 });
+
+/**
+ * A tab strip scrolls sideways when its labels do not fit, and a scrolled strip
+ * can hold the tab you are on off the end of itself — on a phone, `?tab=…` for
+ * anything but the first tab opened with no underline visible anywhere. The fix
+ * is `useTabStrip`, which is easy to leave off the next strip somebody adds:
+ * nothing throws, and at a desktop width where everything fits, nothing looks
+ * wrong either.
+ */
+describe('every tab strip', () => {
+  const strips = files.flatMap(({ path, text }) =>
+    [...text.matchAll(/<div\b[^>]*className=(?:"tabs[^"]*"|\{[^}]*'tabs[^']*'[^}]*\})[^>]*>/g)].map((match) => ({
+      file: path.slice(SRC.length + 1),
+      line: text.slice(0, match.index).split('\n').length,
+      tag: match[0],
+      imports: text.includes('useTabStrip'),
+    })));
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(strips.length >= 5, `only found ${strips.length} tab strips, which means the scan is broken`);
+  });
+
+  it('keeps the active tab in view', () => {
+    const adrift = strips.filter((s) => !/\bref=\{/.test(s.tag) || !s.imports).map((s) => `${s.file}:${s.line}`);
+    assert.deepEqual(adrift, [], `tab strip(s) with no useTabStrip: ${adrift.join(', ')}`);
+  });
+});

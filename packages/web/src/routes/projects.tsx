@@ -14,6 +14,7 @@ import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { shortDate, today } from '../lib/format';
+import { useTabStrip } from '../lib/tab-strip';
 import { byOrder, create, createPage, remove, update } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
@@ -356,6 +357,7 @@ export function ProjectPage() {
   const [search, setSearch] = useSearchParams();
   const asked = search.get('tab');
   const [tab, setTab] = useState<Tab>(TABS.includes(asked as Tab) ? asked as Tab : 'tasks');
+  const strip = useTabStrip(tab);
   const [adding, setAdding] = useState(false);
 
   const tasks = useQuery(() => list('task', (t) => t.project_id === id && !t.parent_id), [id]);
@@ -388,7 +390,7 @@ export function ProjectPage() {
         ))}
       </Header>
 
-      <div className="tabs" style={{ padding: '0 12px' }}>
+      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {/* Reports is always here, even for a project that will never use it.
             Hiding it until an intake link exists would make the one screen that
             explains how to get one the screen nobody can find. */}

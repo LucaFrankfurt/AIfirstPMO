@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Task } from '@kolibri/shared';
 import { api } from '../lib/api';
+import { useTabStrip } from '../lib/tab-strip';
 import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
@@ -32,6 +33,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const [editingDescription, setEditingDescription] = useState(false);
   const [description, setDescription] = useState(task?.description ?? '');
   const [tab, setTab] = useState<'comments' | 'activity'>('comments');
+  const strip = useTabStrip(tab);
   const [activity, setActivity] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -285,7 +287,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         {/* discussion */}
         <section>
-          <div className="tabs mb-2.5">
+          <div ref={strip} className="tabs mb-2.5">
             <button className={tab === 'comments' ? 'active' : ''} onClick={() => setTab('comments')}>
               {t('task.comments')} {comments.length ? `(${comments.length})` : ''}
             </button>
