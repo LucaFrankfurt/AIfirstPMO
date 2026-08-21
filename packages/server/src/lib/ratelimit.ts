@@ -33,6 +33,20 @@ export interface Limit {
   burst: number;
   /** Seconds to earn one token back. */
   everySeconds: number;
+  /**
+   * Whether a refused attempt still costs a token.
+   *
+   * True for anything that guards a credential: somebody guessing passwords
+   * should be pushed further away by guessing more, and `Retry-After` is a
+   * courtesy they have not earned.
+   *
+   * False where the caller is a program doing something legitimate that we are
+   * merely pacing. A client that is told "wait 120 seconds", waits, and is then
+   * told to wait again has been lied to — and it will keep retrying, which with
+   * this on drives the bucket to `-burst` and turns a two-minute pause into
+   * twenty. That is what locked the OAuth registration endpoint.
+   */
+  deepens?: boolean;
 }
 
 /**
@@ -48,7 +62,24 @@ const SHARED_FACTOR = 20;
 /** Deliberately strict: these are the routes where guessing is the attack. */
 export const LIMITS = {
   login: { burst: 10, everySeconds: 30 },
+  /** Signing up for an account. A credential endpoint: refusals deepen. */
   register: { burst: 5, everySeconds: 120 },
+  /**
+   * Registering an OAuth client, which is not the same thing at all.
+   *
+   * Claude on the web registers a fresh client for every connection — its own
+   * dialog says so — and every one of those arrives from a handful of shared
+   * egress addresses. Five per two minutes for a whole instance is not a
+   * safeguard, it is an outage: the fourth person to connect is refused, and
+   * because refusals used to deepen the bucket, retrying made it worse.
+   *
+   * The abuse this needs to stop is not request rate but unbounded rows, and
+   * that is handled where it belongs — `pruneClients` in `oauth.ts` caps how
+   * many unused registrations may exist at all. So this is generous, honest
+   * about its wait, and no longer the thing standing between a person and
+   * their connector.
+   */
+  oauthClient: { burst: 30, everySeconds: 10, deepens: false },
   invite: { burst: 20, everySeconds: 30 },
   /**
    * Submitting an intake form. Tighter than everything else, because it is the
@@ -64,8 +95,10 @@ function take(key: string, limit: Limit, now: number): boolean {
   bucket.updated = now;
 
   const allowed = bucket.tokens >= 1;
-  // A refusal still costs, so hammering after a 429 does not reset the clock.
-  bucket.tokens = Math.max(-limit.burst, bucket.tokens - 1);
+  // A refusal still costs by default, so hammering after a 429 does not reset
+  // the clock. Where `deepens` is off it costs nothing: the wait we promised
+  // stays the wait, however many times the caller asks.
+  if (allowed || limit.deepens !== false) bucket.tokens = Math.max(-limit.burst, bucket.tokens - 1);
 
   if (buckets.size >= MAX_KEYS && !buckets.has(key)) sweep(now);
   buckets.set(key, bucket);
@@ -157,3 +190,6 @@ export function enforce(ctx: Ctx, checks: Check[]): void {
 
 /** Tests need a clean slate between cases. */
 export const resetRateLimits = (): void => buckets.clear();
+
+/** So a test can look at what a refusal did to the bucket, rather than infer it. */
+export const rateLimitInternals = { buckets };
