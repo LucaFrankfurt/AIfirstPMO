@@ -22,6 +22,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { request as httpRequest } from 'node:http';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
@@ -110,6 +111,59 @@ describe('finding the way in from nothing but a URL', () => {
       assert.equal(body.resource, `${base}/mcp`);
       assert.deepEqual(body.authorization_servers, [base]);
     }
+  });
+
+  /**
+   * The scheme in the metadata is not cosmetic.
+   *
+   * Every value in both documents is built from one `origin()`, and `issuer` is
+   * checked by the client against the URL it fetched the document from — RFC
+   * 8414 §3.3 makes that a MUST. A proxy that forwards the host and not the
+   * scheme used to produce `http://the-real-domain`, which every OAuth client
+   * is obliged to reject. The observed failure was a connector that read all
+   * three metadata documents, never called the registration endpoint, and
+   * reported that registration had failed.
+   */
+  describe('the scheme it advertises', () => {
+    // `fetch` will not let a caller set `Host` — undici takes it from the URL —
+    // and `Host` is the whole point of these cases. So this speaks HTTP.
+    const raw = (path: string, headers: Record<string, string>): Promise<any> =>
+      new Promise((resolve, reject) => {
+        const request = httpRequest(`${base}${path}`, { headers, setHost: false }, (response) => {
+          let text = '';
+          response.on('data', (chunk) => { text += chunk; });
+          response.on('end', () => resolve(JSON.parse(text)));
+        });
+        request.on('error', reject);
+        request.end();
+      });
+
+    const issuerFor = async (headers: Record<string, string>) => (await raw('/.well-known/oauth-authorization-server', headers)).issuer;
+
+    it('assumes TLS for a bare hostname, because that host arrived through a proxy', async () => {
+      assert.equal(await issuerFor({ host: 'app.example.com' }), 'https://app.example.com');
+    });
+
+    it('leaves a laptop alone', async () => {
+      assert.equal(await issuerFor({ host: 'localhost:4000' }), 'http://localhost:4000');
+      assert.equal(await issuerFor({ host: '192.168.1.5:3000' }), 'http://192.168.1.5:3000');
+    });
+
+    it('believes the proxy over the guess, in both directions', async () => {
+      assert.equal(await issuerFor({ host: 'app.example.com', 'x-forwarded-proto': 'http' }), 'http://app.example.com');
+      assert.equal(await issuerFor({ host: 'localhost:4000', 'x-forwarded-proto': 'https' }), 'https://localhost:4000');
+    });
+
+    it('spells the same address in every document, or the client cannot follow the trail', async () => {
+      const headers = { host: 'app.example.com' };
+      const as = await raw('/.well-known/oauth-authorization-server', headers);
+      const resource = await raw('/.well-known/oauth-protected-resource', headers);
+      assert.equal(resource.authorization_servers[0], as.issuer, 'the resource points at the server it fetched');
+      assert.equal(resource.resource, `${as.issuer}/mcp`);
+      for (const endpoint of [as.authorization_endpoint, as.token_endpoint, as.registration_endpoint, as.revocation_endpoint]) {
+        assert.ok(endpoint.startsWith(`${as.issuer}/`), `${endpoint} is not under ${as.issuer}`);
+      }
+    });
   });
 
   it('publishes the endpoints, and offers no way round PKCE', async () => {
