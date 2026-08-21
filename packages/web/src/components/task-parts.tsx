@@ -125,7 +125,12 @@ export function AssigneePicker({ task, compact }: { task: Task; compact?: boolea
 export function LabelPicker({ task }: { task: Task }) {
   const t = useT();
   const labels = useLabels(task.project_id);
-  const applied = new Set(task.labels ?? []);
+  // Only the ones that still exist. A task keeps the id of a label that was
+  // deleted out from under it — every other place that reads them resolves the
+  // id and skips what is gone, and this counted the raw list instead. Delete a
+  // label from the project settings and the button went on saying "1 Label"
+  // over a menu with nothing ticked and a row of chips showing none.
+  const applied = new Set(labels.filter((label) => (task.labels ?? []).includes(label.id)).map((label) => label.id));
   const items: MenuItem[] = labels.map((label) => ({
     id: label.id,
     label: label.name,
