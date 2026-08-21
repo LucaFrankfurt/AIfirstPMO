@@ -146,6 +146,68 @@ await step('task reached the server', async () => {
 });
 
 /**
+ * A label deleted out from under the tasks that carry it.
+ *
+ * A task stores label ids, and deleting a label does not go and edit every task
+ * holding it — so a stale id is a normal state, not a corrupt one. Every place
+ * that shows labels resolves the id and skips what is gone; the count on the
+ * task's own label button did not, and went on reporting "1 label" over a menu
+ * with nothing ticked and a row of chips showing none.
+ *
+ * It is asserted here rather than in a unit test because the whole of it is the
+ * round trip: a real delete, a real sync, and a real render afterwards.
+ *
+ * The label is made here rather than borrowed from the project's own. The first
+ * draft took the first one it found, and since the step's whole job is to
+ * delete it, a second run ate the next one and a fourth run failed for having
+ * nothing left. A step that consumes what it depends on passes exactly once.
+ */
+await step('a deleted label stops being counted on the tasks that had it', async () => {
+  const ws = await page.evaluate(() => localStorage.getItem('kolibri.workspace'));
+  const made = await page.evaluate(async (workspace) => {
+    const json = async (url, init) => (await fetch(url, { credentials: 'include', ...init })).json();
+    const projects = await json(`/api/workspaces/${workspace}/projects`);
+    const project = (projects.projects ?? projects)[0];
+    const label = await json(`/api/workspaces/${workspace}/labels`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ project_id: project.id, name: 'smoke-throwaway', color: '#f59e0b' }),
+    }).then((made) => made.label ?? made);
+    if (!label?.id) return null;
+    const task = await json(`/api/workspaces/${workspace}/tasks`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ title: 'Smoke: stale label', project_id: project.id, labels: [label.id] }),
+    });
+    return { label: label.id, name: label.name, task: (task.task ?? task).id };
+  }, ws);
+  if (!made) throw new Error('could not create a label to delete');
+
+  /** What the task's own label button says about itself. */
+  const counted = async () => {
+    await page.goto(`${base}/t/${made.task}`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(600);
+    return page.evaluate(() => {
+      const button = [...document.querySelectorAll('button')]
+        .find((one) => /label/i.test(one.getAttribute('title') ?? ''));
+      return button ? button.textContent.trim() : '';
+    });
+  };
+
+  const before = await counted();
+  if (!/\d/.test(before)) throw new Error(`the label was not applied — button reads "${before}"`);
+
+  await page.evaluate(async (id) => {
+    await fetch(`/api/labels/${id}`, { method: 'DELETE', credentials: 'include' });
+  }, made.label);
+  await page.waitForTimeout(1500);
+
+  const after = await counted();
+  if (/\d/.test(after)) throw new Error(`still counting a label that was deleted: "${after}"`);
+  console.log(`     "${made.name}" deleted — button went from "${before}" to "${after}"`);
+});
+
+/**
  * A project, made the way somebody makes one.
  *
  * This walkthrough visited every screen and created a task, a channel, a page

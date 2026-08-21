@@ -326,6 +326,12 @@ const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePa
 const MODES = [
   ['desktop', { viewport: { width: 1400, height: 950 } }],
   ['mobile', { ...devices['iPhone 13'] }],
+  // A short window, because height is what makes a column run out of room and
+  // every flex child shrinks by default. The sidebar squashed its *New task*
+  // button to 20px once a workspace had enough projects to overflow — a bug
+  // that only shows on a laptop with a lot of projects, or on any laptop with
+  // the window pulled up. This size finds it without needing either.
+  ['short window', { viewport: { width: 1400, height: 560 } }],
 ];
 
 let failures = 0;
@@ -387,5 +393,5 @@ for (const [label, options] of MODES) {
 }
 
 await browser.close();
-console.log(failures ? `\n${failures} accessibility problem(s)` : '\nnamed, reachable, and visible when focused — on both sizes');
+console.log(failures ? `\n${failures} accessibility problem(s)` : `\nnamed, reachable, and visible when focused — at all ${MODES.length} sizes`);
 process.exit(failures ? 1 : 0);

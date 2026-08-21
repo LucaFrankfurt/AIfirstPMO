@@ -311,6 +311,18 @@ p { margin: 0 0 0.75em; }
   overflow-y: auto;
 }
 
+/* A column that scrolls must not also squash.
+ *
+ * Every flex item shrinks by default, so once the workspace had enough projects
+ * to overflow the sidebar, flex took the space out of the children before the
+ * scrollbar ever appeared. The *New task* button lost the argument first: 34px
+ * tall at six projects, 20px at twelve — under the 24px minimum, and squeezed
+ * by nothing more sinister than somebody's twelfth project.
+ *
+ * Shrinking is the thing a box does *instead* of scrolling, and this one has
+ * already said it scrolls. */
+.sidebar > * { flex: none; }
+
 .main {
   display: flex;
   flex-direction: column;
@@ -911,6 +923,18 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .roadmap-axis {
   position: relative; height: 18px; margin-inline-start: var(--roadmap-label);
   font-size: 11px; color: var(--fg-muted);
+  /* Each label is centred on its mark, so the one nearest the end hangs a little
+     past the axis. On a 340px screen that was two real pixels: enough to widen
+     `main.content` and hand the whole screen a horizontal scrollbar for the
+     sake of a date.
+
+     `clip` says the overhang is not somewhere to scroll to. It costs those two
+     pixels off the end of the last label at the narrowest width, which is a
+     better trade than a scrollbar under every screen. `overflow-clip-margin`
+     was the first attempt and does not work here — the margin area still
+     counts towards an ancestor's scrollable overflow, which is the very thing
+     being got rid of. */
+  overflow-x: clip;
 }
 .roadmap-axis span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
 .roadmap-rows { position: relative; }
