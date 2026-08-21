@@ -409,6 +409,60 @@ p { margin: 0 0 0.75em; }
 
 
 
+/* A project in the sidebar: twisty, link, menu. The grid rather than flex so
+   the chevron slot is exactly as wide whether or not there is a chevron in it —
+   a tree whose rows shift sideways by that width reads as two lists. */
+.nav-project {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  align-items: center;
+  gap: 2px;
+}
+.nav-project > a { min-width: 0; }
+/* 24px to hit, 16px of layout. The negative margin gives the extra width back
+   to the grid, so the chevron sits where the 16px column says it does and the
+   thing you have to press is still the size WCAG asks for — the same trick as
+   `.select-box`, and caught here by `check:a11y` rather than by a person. */
+.nav-twist {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-inline: -4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+}
+.nav-twist:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 4px; }
+.nav-project.dragging { opacity: .45; }
+/* The drop target is drawn on the row, not between rows: dropping *onto* a
+   project is what nests, and a line between two rows would promise reordering
+   that this does not do. */
+.nav-project.drop-into > a {
+  background: var(--accent-soft);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+.nav-project-menu { opacity: 0; transition: opacity .12s; }
+@media (hover: hover) and (pointer: fine) {
+  .nav-project:hover .nav-project-menu,
+  .nav-project:focus-within .nav-project-menu { opacity: 1; }
+}
+/* No hover on a touch screen, so the menu is simply always there. */
+@media (hover: none) { .nav-project-menu { opacity: 1; } }
+
+.nav-root-drop {
+  margin: 2px 4px;
+  padding: 7px 10px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--fg-muted);
+  text-align: center;
+}
+.nav-root-drop.over { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
+
 .nav-section {
   display: flex;
   align-items: center;
@@ -1100,6 +1154,39 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 @media (min-width: 700px) { .board-column { flex: 0 0 300px; } }
 
 .board-column.drop-target { border-color: var(--accent); background: var(--accent-soft); }
+
+/* The trailing column. Dashed and transparent, so it reads as a place a column
+   could go rather than as a column that is there and empty — the difference
+   matters on a board whose last real column is also often empty. */
+.board-add {
+  background: none;
+  border-style: dashed;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 10px;
+  height: fit-content;
+}
+.board-add button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 36px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--fg-soft);
+  background: none;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.board-add button:hover { background: var(--bg-hover); color: var(--fg); }
+.board-add button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.board-add span { font-size: 12px; line-height: 1.45; }
+.board-add form { display: flex; flex-direction: column; gap: 6px; }
 .board-column header {
   display: flex;
   align-items: center;

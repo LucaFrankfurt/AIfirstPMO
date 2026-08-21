@@ -14,7 +14,7 @@ import { Chat } from './routes/chat';
 import { Help } from './routes/help';
 import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
-import { backgroundOf, useOpenTask, useTaskRef } from './lib/navigation';
+import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './lib/navigation';
 import { useSession } from './session';
 import { useI18n, type Locale } from './lib/i18n';
 
@@ -27,7 +27,10 @@ function TaskRoute() {
   const openTask = useOpenTask();
   const close = () => {
     // Went straight to the link: there is nothing to go back to.
-    if (backgroundOf(location)) navigate(-1);
+    // Otherwise pop the whole stack — a sub-task opened from a task is a second
+    // history entry, and closing should not make somebody dismiss the sheet
+    // they came from as well. Browser Back still walks them one at a time.
+    if (backgroundOf(location)) navigate(-stackDepth(location));
     else navigate('/', { replace: true });
   };
   return <TaskDetail taskId={taskId} onClose={close} onOpen={openTask} />;

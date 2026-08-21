@@ -228,7 +228,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 |---|---|
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
-| `list_tasks` | filter by `project`, `state` (name or group), `type` (Bug, Feature, …), `assignee` (`"me"` works), `priority`, `cycle` (`"current"` works), `due_before`, `query` |
+| `list_tasks` | filter by `project`, `state` (name or group), `type` (Bug, Feature, …), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
@@ -236,6 +236,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_templates` | pre-written tasks, with the checklist each one carries |
 | `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
 | `list_members` | people with role and open task count |
+| `list_labels` | labels with the count of open tasks carrying each; `project` narrows to that project's own plus the workspace-wide ones |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 
@@ -243,7 +244,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 
 | Tool | Notes |
 |---|---|
-| `create_task` | project + title required; `type` names one of the project's kinds of work; labels that do not exist yet are created |
+| `create_task` | project + title required — unless `quick_add` carries both; `type` names one of the project's kinds of work; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
 | `update_task` | any field, including `state`, `type`, `assignees`, `cycle`, `due_date`, `archived`. An unknown `type` is refused rather than created |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
@@ -255,6 +256,38 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
+
+### Labels, and the trap in them
+
+`create_task` and `update_task` take label **names** and create the ones they do not recognise. That
+is deliberate — a label is cheap to invent, and refusing an unknown one would mean an assistant
+cannot label anything it did not already know about. The cost is that an assistant with no idea what
+exists files things under `bugs` beside the `bug` that was already there. Case is forgiven; a plural
+is not.
+
+So **call `list_labels` first.** It returns each label with how many open tasks carry it, which is
+the number that separates a label the team actually uses from one somebody invented in March.
+`project` narrows it to that project's own labels plus the workspace-wide ones — the same set
+`create_task` will match against.
+
+Work item **types** behave the opposite way: an unknown `type` is refused rather than created. The
+list of what a team calls its work is not cheap to invent.
+
+### Quick-add syntax, when a person typed the line
+
+`create_task` also takes `quick_add`, a whole task on one line:
+
+```json
+{ "quick_add": "Redraw the empty state !high @ada #WEB *design due:friday" }
+```
+
+It sets the title, priority, assignees, project, labels, due date and repeat from what it recognises,
+and `project` is not needed when `#KEY` names one. The syntax is in [`query.md`](query.md).
+
+**`title` is never parsed, and that is the point.** A tool with a schema should mean what the schema
+says: an assistant writing *"Discuss with @ada"* as a title means those words, and a parser that
+quietly removed them and assigned the task would be a surprise nobody asked for. `quick_add` is for
+the other case — relaying a line a person actually typed, sigils and all.
 
 ### Example
 

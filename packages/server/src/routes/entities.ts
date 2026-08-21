@@ -464,6 +464,7 @@ export function registerEntityRoutes(router: Router): void {
         teamId: (body.team_id as string) ?? null,
         icon: body.icon as string | undefined,
         color: body.color as string | undefined,
+        parentId: (body.parent_id as string) || null,
         visibility: body.visibility === 'private' ? 'private' : 'public',
       });
       return serialize('project', project);

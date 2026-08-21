@@ -26,8 +26,11 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   const members = useMembers();
   const toast = useToast();
 
+  // A container holds projects, not tasks, so it is not somewhere a task can
+  // go — in the menu or through a `#KEY` token.
   const projects = useQuery(
-    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
+    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_container)
+      .sort((a, b) => a.name.localeCompare(b.name)),
     [workspaceId],
   );
 

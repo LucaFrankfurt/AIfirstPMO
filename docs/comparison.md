@@ -78,7 +78,7 @@ tasks.
 | **Export** to Word | Low | A markdown bundle is built — the page and everything under it — and printing (which is how a PDF is made) is built on the browser's own engine rather than a renderer here |
 | Macros — table of contents, cross-page task lists, embeds | Low–medium | A table of contents is the cheapest of these and the most asked for |
 | A table editor | Low | Markdown tables render; they cannot be edited as tables |
-| Spaces as a separate container concept | Design difference | Workspace + project carries most of it |
+| Spaces as a separate container concept | Design difference | Workspace + project + a **container project** — one that holds only other projects — carries it |
 | Whiteboards, databases | Out of scope | A different product |
 
 ## Against Plane

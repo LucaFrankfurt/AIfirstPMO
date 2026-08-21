@@ -2,26 +2,29 @@ import { useCallback } from 'react';
 import { useLocation, useNavigate, type Location } from 'react-router-dom';
 import type { Task } from '@kolibri/shared';
 import { byId, list, useQuery } from './store';
+import { nextTaskState } from './task-stack.ts';
 
 /**
  * Tasks live at `/t/:id` so they can be linked and shared, but they open as a
  * sheet over whatever you were looking at. We remember that screen in the
  * router state; a direct link (no state) falls back to "My work" behind it.
+ *
+ * The stack arithmetic lives in `task-stack.ts` — no imports, so it can be
+ * tested without a browser.
  */
 export function useOpenTask(): (task: Task | { id: string }) => void {
   const navigate = useNavigate();
   const location = useLocation();
   return useCallback(
-    (task) => {
-      const background = (location.state as { background?: Location } | null)?.background ?? location;
-      navigate(`/t/${task.id}`, { state: { background } });
-    },
+    (task) => navigate(`/t/${task.id}`, { state: nextTaskState(location) }),
     [navigate, location],
   );
 }
 
 export const backgroundOf = (location: Location): Location | undefined =>
   (location.state as { background?: Location } | null)?.background;
+
+export { stackDepth } from './task-stack.ts';
 
 /**
  * The task a `/t/...` link names, whether that is a row id or `WEB-42`.

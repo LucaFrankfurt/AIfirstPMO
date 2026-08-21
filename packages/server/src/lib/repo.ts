@@ -387,6 +387,26 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
       forced.parent_id = values.parent_id;
     }
   }
+  /**
+   * A container holds projects, not tasks — so one with tasks in it cannot
+   * become a container.
+   *
+   * Refused rather than obeyed, because the alternative is a screen with no
+   * board on it and work behind it that nobody can reach. `forced` is how the
+   * client is told: the value it sent comes back changed, and the interface
+   * says why. Turning a container back into an ordinary project is always
+   * allowed — there is nothing to hide.
+   */
+  if (entity === 'project' && Number(values.is_container ?? 0) === 1 && existing) {
+    const open = get<Row>(
+      `SELECT 1 AS found FROM tasks WHERE project_id = ? AND deleted_at IS NULL LIMIT 1`,
+      existing.id,
+    );
+    if (open) {
+      values.is_container = existing.is_container ?? 0;
+      forced.is_container = values.is_container;
+    }
+  }
   if (entity === 'task') applyTaskInvariants(values, existing, forced);
   if (entity === 'page') applyPageInvariants(values, existing, forced);
   if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
