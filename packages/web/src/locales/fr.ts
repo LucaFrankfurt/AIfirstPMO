@@ -126,6 +126,8 @@ export const fr: Catalogue = {
   'task.repeatsMonthly': 'Tous les mois',
   'task.repeatsHint': 'La suivante est créée quand celle-ci est terminée, pas quand la date passe.',
   'task.subtasks': 'Sous-tâches',
+  'task.movedToProject': '{task} déplacée vers {project}',
+  'task.moveToProject': 'Déplacer vers un projet',
   'task.addSubtask': 'Ajouter une sous-tâche',
   'task.files': 'Fichiers',
   'task.attach': 'Joindre',

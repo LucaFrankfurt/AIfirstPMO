@@ -8,7 +8,9 @@ import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
 import { useActiveProject } from '../lib/active-project';
+import { isDrag, idFrom, PROJECT_DRAG, startDrag, TASK_DRAG } from '../lib/drag';
 import { useRecordVisits } from '../lib/recents';
+import { useRefile } from './task-parts';
 import { CommandPalette } from './CommandPalette';
 import { Button } from '../components/ui/button';
 import { navCount, navItem } from './ui/nav';
@@ -98,6 +100,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useRecordVisits(workspaceId);
   const canWrite = useCanWrite();
   const [palette, setPalette] = useState(false);
+  // The same move the card's own menu makes — see `useRefile`.
+  const refile = useRefile();
 
   const projects = useQuery(
     () => list('project', (p) => p.workspace_id === workspaceId && !p.archived).sort((a, b) => a.name.localeCompare(b.name)),
@@ -276,6 +280,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             onDragEnd={() => { setDragging(null); setDropTarget(null); }}
             onDragOver={() => setDropTarget(project.id)}
             onDrop={() => reparent(project.id)}
+            onTaskDrop={(taskId) => { setDropTarget(null); refile(taskId, project.id); }}
             dragging={dragging === project.id}
           />
         ))}
@@ -285,8 +290,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {dragging && (
           <div
             className={`nav-root-drop${dropTarget === '' ? ' over' : ''}`}
-            onDragOver={(event) => { event.preventDefault(); setDropTarget(''); }}
-            onDrop={(event) => { event.preventDefault(); reparent(null); }}
+            /* Projects only. "Move to the top" is a thing a project can be and
+               a task cannot — a task always belongs to one. */
+            onDragOver={(event) => {
+              if (!isDrag(event, PROJECT_DRAG)) return;
+              event.preventDefault();
+              setDropTarget('');
+            }}
+            onDrop={(event) => {
+              if (!isDrag(event, PROJECT_DRAG)) return;
+              event.preventDefault();
+              reparent(null);
+            }}
           >
             {t('nav.moveToTop')}
           </div>
@@ -366,9 +381,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
  */
 function ProjectRow({
   project, depth, hasChildren, collapsed, onToggle, canWrite,
-  dragging, dropping, onDragStart, onDragEnd, onDragOver, onDrop,
+  dragging, dropping, onDragStart, onDragEnd, onDragOver, onDrop, onTaskDrop,
 }: {
-  project: { id: string; name: string; icon?: string | null };
+  project: { id: string; name: string; icon?: string | null; is_container?: number };
   depth: number;
   hasChildren: boolean;
   collapsed: boolean;
@@ -380,6 +395,8 @@ function ProjectRow({
   onDragEnd: () => void;
   onDragOver: () => void;
   onDrop: () => void;
+  /** A task was let go over this row. */
+  onTaskDrop: (taskId: string) => void;
 }) {
   const t = useT();
   const navigate = useNavigate();
@@ -390,13 +407,37 @@ function ProjectRow({
       style={{ paddingInlineStart: depth * 13 }}
       draggable={canWrite}
       onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = 'move';
-        event.dataTransfer.setData('text/plain', project.id);
+        startDrag(event, PROJECT_DRAG, project.id);
         onDragStart();
       }}
       onDragEnd={onDragEnd}
-      onDragOver={(event) => { event.preventDefault(); onDragOver(); }}
-      onDrop={(event) => { event.preventDefault(); onDrop(); }}
+      /* Two kinds of thing can land here and they mean different things, so the
+         row says which it will take before it takes it: `preventDefault` is
+         what turns the cursor into a drop cursor, and skipping it is the only
+         way to say no. A container holds projects, not tasks, and the row is
+         allowed to refuse a task on that ground alone. */
+      onDragOver={(event) => {
+        if (isDrag(event, TASK_DRAG)) {
+          if (!canWrite || project.is_container) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = 'move';
+          onDragOver();
+          return;
+        }
+        if (!isDrag(event, PROJECT_DRAG)) return;
+        event.preventDefault();
+        onDragOver();
+      }}
+      onDrop={(event) => {
+        if (isDrag(event, TASK_DRAG)) {
+          event.preventDefault();
+          onTaskDrop(idFrom(event, TASK_DRAG));
+          return;
+        }
+        if (!isDrag(event, PROJECT_DRAG)) return;
+        event.preventDefault();
+        onDrop();
+      }}
     >
       {hasChildren ? (
         <button

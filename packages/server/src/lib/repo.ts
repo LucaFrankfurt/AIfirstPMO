@@ -6,9 +6,11 @@ import {
   entityDef,
   hlcGreater,
   normaliseChannelName,
+  relocate,
   reschedule,
   type CrdtState,
   type EntityName,
+  type ProjectVocabulary,
 } from '@kolibri/shared';
 import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, forbidden, notFound } from './http.ts';
@@ -378,6 +380,51 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
 
 /** Rules the server enforces regardless of what a client sent. */
 function applyInvariants(entity: EntityName, id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+
+  /**
+   * A task that changed projects, and everything on it that belonged to the old
+   * one.
+   *
+   * The interface performs the move itself so the board reacts without a round
+   * trip; this is the same rule applied where the interface is not the caller —
+   * a `PATCH {project_id}` over REST, an MCP call, an import, an automation,
+   * any of which would otherwise leave the row in a column its new board does
+   * not have and wearing labels nothing can render.
+   *
+   * Each field is checked rather than overwritten, so a client that already did
+   * the work is left alone and only what is actually wrong comes back `forced`.
+   */
+  if (entity === 'task' && existing && typeof values.project_id === 'string'
+      && values.project_id !== existing.project_id) {
+    const destination = values.project_id;
+    const landing = relocate(
+      {
+        state_id: asId(existing.state_id),
+        type_id: asId(existing.type_id),
+        labels: parseIds(existing.labels),
+        cycle_id: asId(existing.cycle_id),
+        module_id: asId(existing.module_id),
+      },
+      vocabularyOf(String(existing.project_id)),
+      vocabularyOf(destination),
+    );
+    const effective = (field: string): unknown => (values[field] !== undefined ? values[field] : existing[field]);
+    const belongs = (table: 'states' | 'task_types' | 'labels' | 'cycles' | 'modules', value: unknown): boolean =>
+      typeof value === 'string' && !!get<Row>(
+        `SELECT 1 AS found FROM ${table} WHERE id = ? AND project_id = ? AND deleted_at IS NULL`,
+        value, destination,
+      );
+    const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
+
+    if (!belongs('states', effective('state_id'))) settle('state_id', landing.state_id);
+    if (asId(effective('type_id')) && !belongs('task_types', effective('type_id'))) settle('type_id', landing.type_id);
+    if (parseIds(effective('labels')).some((label) => !belongs('labels', label))) {
+      settle('labels', JSON.stringify(landing.labels));
+    }
+    if (asId(effective('cycle_id')) && !belongs('cycles', effective('cycle_id'))) settle('cycle_id', null);
+    if (asId(effective('module_id')) && !belongs('modules', effective('module_id'))) settle('module_id', null);
+  }
+
   // A project cannot sit under itself, directly or at any remove. Two devices
   // can each make a legal move that is a loop together, so this is checked on
   // write rather than trusted to the interface.
@@ -760,6 +807,33 @@ function applyTaskInvariants(values: Record<string, unknown>, existing: Row | un
       forced.completed_at = null;
     }
   }
+}
+
+const asId = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
+
+/**
+ * What a project offers, read out of SQLite.
+ *
+ * The mirror image of the interface's own reader — the rule that consumes this
+ * is one shared function, so the two cannot drift apart about what "the same
+ * column in another project" means.
+ */
+function vocabularyOf(projectId: string): ProjectVocabulary {
+  return {
+    states: all<Row>(
+      `SELECT id, group_key, sort_order FROM states WHERE project_id = ? AND deleted_at IS NULL`, projectId,
+    ).map((row) => ({ id: String(row.id), group_key: row.group_key as never, sort_order: String(row.sort_order ?? '') })),
+    types: all<Row>(
+      `SELECT id, name, is_default, sort_order FROM task_types WHERE project_id = ? AND deleted_at IS NULL`, projectId,
+    ).map((row) => ({
+      id: String(row.id), name: String(row.name ?? ''),
+      is_default: row.is_default as number | null, sort_order: String(row.sort_order ?? ''),
+    })),
+    labels: all<Row>(
+      `SELECT id, name FROM labels WHERE project_id = ? AND deleted_at IS NULL`, projectId,
+    ).map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),
+    defaultStateId: asId(get<Row>(`SELECT default_state_id FROM projects WHERE id = ?`, projectId)?.default_state_id),
+  };
 }
 
 /* -------------------------------------------------------------- side effects */

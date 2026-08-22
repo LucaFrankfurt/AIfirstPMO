@@ -9,6 +9,7 @@ import { byOrder, create, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
 import { HORIZON_DAYS, plusDays } from '../lib/overview';
+import { startDrag, TASK_DRAG } from '../lib/drag';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
@@ -578,8 +579,9 @@ export function BoardView({
                 }))}
                 onDragStart={(event) => {
                   setDragId(task.id);
-                  event.dataTransfer.effectAllowed = 'move';
-                  event.dataTransfer.setData('text/plain', task.id);
+                  // Typed, so the sidebar can tell a card from a project and
+                  // decide whether it will take it — see `lib/drag.ts`.
+                  startDrag(event, TASK_DRAG, task.id);
                 }}
               />
               </Fragment>

@@ -3,7 +3,10 @@
  * queues the change for the server — so the interface never waits on a network
  * round trip, online or off.
  */
-import { compareOrder, orderKey, type EntityName, type Priority, type Task } from '@kolibri/shared';
+import {
+  compareOrder, orderKey, relocate,
+  type EntityName, type Priority, type ProjectVocabulary, type Task,
+} from '@kolibri/shared';
 import * as idb from './idb';
 import { byId, list, patchLocal, tables } from './store';
 import { currentWorkspace, enqueue } from './sync';
@@ -115,6 +118,55 @@ export function defaultTypeId(projectId: string): string | undefined {
 /** Drop a task between two neighbours, optionally into a different column. */
 export function moveTask(task: Task, before: Task | undefined, after: Task | undefined, patch: Record<string, unknown> = {}): void {
   update('task', task.id, { ...patch, sort_order: orderKey(before?.sort_order ?? null, after?.sort_order ?? null) });
+}
+
+/**
+ * What a project offers, read out of the local mirror.
+ *
+ * Assembled here rather than inside `relocate` so the rule itself stays a pure
+ * function the server can run too — the same code, over rows read from two very
+ * different places.
+ */
+function vocabularyOf(projectId: string): ProjectVocabulary {
+  return {
+    states: list('state', (row) => row.project_id === projectId)
+      .map((row) => ({ id: row.id, group_key: row.group_key, sort_order: row.sort_order })),
+    types: list('taskType', (row) => row.project_id === projectId)
+      .map((row) => ({ id: row.id, name: row.name, is_default: row.is_default, sort_order: row.sort_order })),
+    labels: list('label', (row) => row.project_id === projectId)
+      .map((row) => ({ id: row.id, name: row.name })),
+    defaultStateId: byId('project', projectId)?.default_state_id ?? null,
+  };
+}
+
+/**
+ * File a task under a different project.
+ *
+ * Applied locally rather than left to the server, for the same reason a new
+ * task is: the board has to lose the card and the destination has to gain it
+ * the moment the pointer is released, online or not. The server applies the
+ * same rule when the change arrives, so a client that is out of date about the
+ * destination's columns cannot leave the row in one that does not exist.
+ *
+ * Returns false when there is nothing to do, so the caller can stay quiet about
+ * a drop onto the project the task was already in.
+ */
+export function moveTaskToProject(task: Task, projectId: string): boolean {
+  const destination = byId('project', projectId);
+  if (!destination || destination.archived || destination.is_container) return false;
+  if (task.project_id === projectId) return false;
+
+  const first = list('task', (t) => t.project_id === projectId).sort(byOrder)[0];
+  update('task', task.id, {
+    ...relocate(task, vocabularyOf(task.project_id), vocabularyOf(projectId)),
+    project_id: projectId,
+    // It arrives at the top of its new project rather than wherever its old key
+    // happens to fall: two projects' orderings are unrelated, and a task
+    // landing in the middle of a list it has never been in is a task nobody
+    // sees arrive.
+    sort_order: orderKey(null, first?.sort_order ?? null),
+  });
+  return true;
 }
 
 export function toggleAssignee(task: Task, userId: string): void {
