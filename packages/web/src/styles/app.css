@@ -736,6 +736,21 @@ p { margin: 0 0 0.75em; }
 .stat-value { font-size: 26px; font-weight: 620; line-height: 1.1; letter-spacing: -0.4px; }
 .stat-hint { font-size: 11.5px; color: var(--fg-muted); }
 
+/* A figure that is also a door. `:focus-visible` is the page-wide rule and is
+   not restated; what a button needs here is the alignment a div got for free —
+   `text-align` is inherited from the surrounding text everywhere except inside
+   a button, where the UA centres it. */
+button.stat { width: 100%; text-align: start; cursor: pointer; }
+button.stat:hover { border-color: var(--line-strong); background: var(--bg-hover); }
+/* On, marked with the border rather than a fill: the numbers and their labels
+   keep their text tokens against the same surface as every other tile, so the
+   contrast floor is the one that was already measured. */
+button.stat[aria-pressed='true'] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* Where a pressed tile scrolls to. The header is sticky and would otherwise sit
+   on top of the first row of what you just asked for. */
+.my-work-list { scroll-margin-top: calc(var(--header-height) + 12px); }
+
 /* Where you just were.
 
    Small cards rather than the big squares the idea came from: a project you

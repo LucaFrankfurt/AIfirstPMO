@@ -30,14 +30,34 @@ const isDone = (task: Task): boolean => {
 
 /* ------------------------------------------------------------- primitives */
 
-/** A headline number. Not a one-bar bar chart. */
-export function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="stat">
+/**
+ * A headline number. Not a one-bar bar chart.
+ *
+ * With `onSelect` it is also the way into what it counted, and becomes a real
+ * button rather than a div that listens for clicks — so it is tabbable, says
+ * `aria-pressed`, and answers the space bar. Without one it stays a figure: a
+ * tile that reads as pressable and shows a different set than the number on it
+ * is worse than a tile that does nothing.
+ */
+export function Stat({ label, value, hint, onSelect, active }: {
+  label: string;
+  value: string;
+  hint?: string;
+  onSelect?: () => void;
+  active?: boolean;
+}) {
+  const body = (
+    <>
       <span className="stat-label">{label}</span>
       <strong className="stat-value">{value}</strong>
       {hint && <span className="stat-hint">{hint}</span>}
-    </div>
+    </>
+  );
+  if (!onSelect) return <div className="stat">{body}</div>;
+  return (
+    <button type="button" className="stat" aria-pressed={!!active} onClick={onSelect}>
+      {body}
+    </button>
   );
 }
 

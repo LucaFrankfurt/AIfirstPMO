@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { excerpt, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
@@ -42,8 +42,12 @@ export function MyWork() {
   const [view, setView] = useState<ViewConfig>({ ...DEFAULT_VIEW, groupBy: 'project', orderBy: 'due_date', showDone: false });
   const selection = useSelection();
 
+  // Archived work is left out here rather than downstream, because the figures
+  // and the list are both drawn from this: the view drops archived tasks of its
+  // own accord, so counting them would have put a number on the tile that the
+  // rows it opens could never add up to.
   const mine = useQuery(
-    () => list('task', (t) => t.workspace_id === workspaceId && (t.assignees ?? []).includes(me)),
+    () => list('task', (t) => t.workspace_id === workspaceId && !t.archived && (t.assignees ?? []).includes(me)),
     [workspaceId, me],
   );
   const visible = useVisibleTasks(mine, view);
@@ -79,6 +83,27 @@ export function MyWork() {
 
   const recents = useRecentProjects(workspaceId, 4);
 
+  /**
+   * A figure is also the way into what it counted.
+   *
+   * `due` and `showDone` are the only parts of the view a tile touches — a
+   * filter somebody set themselves survives being sent to the list, because
+   * throwing it away would make the tile a reset button wearing a number.
+   * Pressing the tile that is already on goes back to everything open, so the
+   * row toggles instead of trapping you in one bucket.
+   */
+  const listTop = useRef<HTMLDivElement>(null);
+  const bucket = view.showDone ? undefined : view.filters.due ?? 'open';
+  const show = (next: 'open' | 'week' | 'none') => {
+    const wanted = bucket === next ? 'open' : next;
+    setView({
+      ...view,
+      showDone: false,
+      filters: { ...view.filters, due: wanted === 'open' ? undefined : wanted },
+    });
+    listTop.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   // Their first name, or no greeting at all. Addressing somebody as "" is
   // worse than opening with the list.
   const name = firstName(user?.name);
@@ -100,9 +125,22 @@ export function MyWork() {
 
         {mine.length > 0 && (
           <div className="kpi-row">
-            <Stat label={t('overview.statOpen')} value={String(standing.open)} />
-            <Stat label={t('overview.statSoon')} value={String(standing.soon)} />
-            <Stat label={t('overview.statUnscheduled')} value={String(standing.unscheduled)} />
+            <Stat
+              label={t('overview.statOpen')} value={String(standing.open)}
+              onSelect={() => show('open')} active={bucket === 'open'}
+            />
+            <Stat
+              label={t('overview.statSoon')} value={String(standing.soon)}
+              onSelect={() => show('week')} active={bucket === 'week'}
+            />
+            <Stat
+              label={t('overview.statUnscheduled')} value={String(standing.unscheduled)}
+              onSelect={() => show('none')} active={bucket === 'none'}
+            />
+            {/* Not pressable, and deliberately the odd one out. The figure is
+                the last seven days; the list can filter to "finished" but not
+                to "finished recently", so a press would open a set that does
+                not match the number above it. */}
             <Stat label={t('overview.statDone')} value={String(standing.done)} hint={t('overview.lastDays')} />
           </div>
         )}
@@ -149,11 +187,13 @@ export function MyWork() {
           </div>
         )}
 
-        {visible.length === 0 ? (
-          <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} guide="capture" />
-        ) : (
-          <TaskViews tasks={visible} view={view} onOpen={openTask} showProject onChange={setView} selection={selection} />
-        )}
+        <div ref={listTop} className="my-work-list">
+          {visible.length === 0 ? (
+            <Empty emoji="🎉" title={t('myWork.emptyTitle')} hint={t('myWork.emptyHint')} guide="capture" />
+          ) : (
+            <TaskViews tasks={visible} view={view} onOpen={openTask} showProject onChange={setView} selection={selection} />
+          )}
+        </div>
 
         <SelectionBar selection={selection} tasks={visible} />
 

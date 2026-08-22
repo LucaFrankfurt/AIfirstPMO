@@ -8,6 +8,7 @@ import { byId, list, useQuery } from '../lib/store';
 import { byOrder, create, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
+import { HORIZON_DAYS, plusDays } from '../lib/overview';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
@@ -70,6 +71,10 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
   return useMemo(() => {
     const { filters } = view;
     const day = today();
+    // The same seven days *My work* puts a figure on, borrowed rather than
+    // repeated: the tile is a way into this list, and a count that disagreed
+    // with the rows it opened would be worse than no tile at all.
+    const horizon = plusDays(day, HORIZON_DAYS);
     // Answers are read once for the whole pass rather than per task: a project
     // with a few hundred tasks and half a dozen fields is a few thousand rows,
     // and this runs on every keystroke in the search box.
@@ -112,6 +117,12 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       if (filters.due === 'overdue' && !(task.due_date && task.due_date < day)) return false;
       if (filters.due === 'today' && task.due_date !== day) return false;
       if (filters.due === 'none' && task.due_date) return false;
+      // `due <= 7d` has parsed to this bucket since the query language was
+      // written, and nothing ever acted on it: the filter was accepted, the
+      // chip appeared, and every task stayed on screen. Overdue work is its own
+      // bucket and stays out of this one — "the coming week" is what somebody
+      // asking for it means, and a task from last month is not an answer to it.
+      if (filters.due === 'week' && !(task.due_date && task.due_date >= day && task.due_date <= horizon)) return false;
       if (filters.text) {
         const needle = filters.text.toLowerCase();
         const haystack = `${task.identifier} ${task.title} ${task.description ?? ''}`.toLowerCase();
