@@ -14,6 +14,7 @@ export * from './foreign.ts';
 export * from './chat.ts';
 export * from './quickadd.ts';
 export * from './query.ts';
+export * from './relocate.ts';
 export * as crdt from './text-crdt.ts';
 export type { CrdtState } from './text-crdt.ts';
 export { Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './hlc.ts';

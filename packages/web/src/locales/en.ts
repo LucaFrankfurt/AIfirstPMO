@@ -118,6 +118,8 @@ export const en = {
   'task.repeatsMonthly': 'Every month',
   'task.repeatsHint': 'The next one is created when this one is finished, not when the date passes.',
   'task.subtasks': 'Sub-tasks',
+  'task.movedToProject': '{task} moved to {project}',
+  'task.moveToProject': 'Move to project',
   'task.addSubtask': 'Add a sub-task',
   'task.files': 'Files',
   'task.attach': 'Attach',

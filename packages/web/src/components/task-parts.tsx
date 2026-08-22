@@ -1,6 +1,6 @@
 import { PRIORITIES, fieldKeys, mayEnter, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
-import { byOrder, toggleAssignee, toggleLabel, update } from '../lib/mutations';
+import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
 import { useMemberMap, useMembers, useSession } from '../session';
@@ -8,7 +8,44 @@ import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from '
 import { Input } from '../components/ui/field';
 import { cn } from '../lib/cn';
 import { Chip, chipDot, chipVariants } from './ui/chip';
-import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
+import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, useToast, type MenuItem } from './ui';
+
+/* ------------------------------------------------------------------ moving */
+
+/**
+ * Filing a task under a different project, with the sentence that says so.
+ *
+ * One function for the two ways in, because they are the same act: dropping a
+ * card on a project in the sidebar, and choosing one from the card's own menu.
+ * The menu is not a convenience — a phone has no HTML5 drag and a keyboard has
+ * no drag at all, and a move that exists only for a mouse is a move most of
+ * this app's screens cannot make.
+ *
+ * It says what happened out loud because the card leaves the board it was on.
+ * A row vanishing with nothing said reads as a deletion.
+ */
+export function useRefile(): (taskId: string, projectId: string) => void {
+  const t = useT();
+  const toast = useToast();
+  return (taskId, projectId) => {
+    const task = byId('task', taskId);
+    const destination = byId('project', projectId);
+    if (!task || !destination || !moveTaskToProject(task, projectId)) return;
+    toast(t('task.movedToProject', { task: task.identifier, project: destination.name }));
+  };
+}
+
+/** Where a task could go instead — every project that can hold one. */
+export const useProjectTargets = (task: Task): { id: string; name: string }[] =>
+  useQuery(
+    () => list('project', (project) =>
+      project.workspace_id === task.workspace_id
+      && !project.archived && !project.is_container
+      && project.id !== task.project_id)
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((project) => ({ id: project.id, name: project.name })),
+    [task.workspace_id, task.project_id],
+  );
 
 /* ----------------------------------------------------------------- lookups */
 
@@ -285,6 +322,8 @@ export function TaskCard({
 }) {
   const t = useT();
   const members = useMemberMap();
+  const refile = useRefile();
+  const projects = useProjectTargets(task);
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   return (
     <article
@@ -297,22 +336,34 @@ export function TaskCard({
         <span className="mono text-muted">{task.identifier}</span>
         <span className="flex-1 min-w-0" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
-        {moveTargets && moveTargets.length > 1 && (
+        {(moveTargets && moveTargets.length > 1) || projects.length ? (
           <span onClick={(event) => event.stopPropagation()}>
             <MenuButton
               variant="ghost" size="iconSm"
               title={t('task.moveTo')}
-              items={moveTargets.map((target) => ({
-                id: target.id,
-                section: t('task.moveTo'),
-                label: target.title,
-                onSelect: target.onSelect,
-              }))}
+              items={[
+                ...(moveTargets && moveTargets.length > 1 ? moveTargets.map((target) => ({
+                  id: target.id,
+                  section: t('task.moveTo'),
+                  label: target.title,
+                  onSelect: target.onSelect,
+                })) : []),
+                // The same move the drag makes, for every device that cannot
+                // drag. Second, because moving between columns is the thing
+                // somebody opens this menu for many times a day and changing
+                // project is the thing they do once.
+                ...projects.map((project) => ({
+                  id: `project-${project.id}`,
+                  section: t('task.moveToProject'),
+                  label: project.name,
+                  onSelect: () => refile(task.id, project.id),
+                })),
+              ]}
             >
               <Icon name="dots" size={13} />
             </MenuButton>
           </span>
-        )}
+        ) : null}
       </div>
       <div className="title">{task.title}</div>
       <div className="footer">

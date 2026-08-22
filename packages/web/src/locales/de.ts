@@ -119,6 +119,8 @@ export const de: Catalogue = {
   'task.repeatsMonthly': 'Monatlich',
   'task.repeatsHint': 'Die nächste entsteht, wenn diese fertig ist — nicht, wenn das Datum vorbei ist.',
   'task.subtasks': 'Teilaufgaben',
+  'task.movedToProject': '{task} nach {project} verschoben',
+  'task.moveToProject': 'In Projekt verschieben',
   'task.addSubtask': 'Teilaufgabe hinzufügen',
   'task.files': 'Dateien',
   'task.attach': 'Anhängen',

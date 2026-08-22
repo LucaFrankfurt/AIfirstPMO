@@ -229,6 +229,68 @@ await step('create task through quick add', async () => {
 });
 
 /**
+ * A card dropped onto a project in the sidebar.
+ *
+ * A sidebar row used to accept the drop and then do nothing with it: both a
+ * card and a project handed over `text/plain`, so the row could not tell them
+ * apart, called the reparent path, found no project being dragged and returned.
+ * It looked like it would work for as long as the pointer was down.
+ *
+ * Driven with a real drag rather than by calling the handler, because the half
+ * that was broken was `dataTransfer` — a test that dispatched the drop directly
+ * would have passed against the bug.
+ *
+ * The task is made here rather than borrowed. Moving one is the whole point of
+ * the step, and a step that consumes what a later one reads is a step that
+ * passes once.
+ */
+await step('a card dragged onto a project in the sidebar is filed there', async () => {
+  await page.keyboard.press('Escape');
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
+  await page.waitForSelector('.board-column', { timeout: 6000 });
+
+  await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
+  await page.waitForSelector('.sheet');
+  await page.fill('.sheet input >> nth=0', 'Smoke: filed elsewhere');
+  await page.click(`button:has-text("${LABELS.createTask}")`);
+  await page.waitForTimeout(1400);
+
+  const onBoard = () => page.locator('.task-card').filter({ hasText: 'Smoke: filed elsewhere' });
+  await onBoard().first().waitFor({ timeout: 6000 });
+
+  await onBoard().first().dragTo(page.locator('.sidebar .nav-project:has-text("Public API")').first());
+  await page.waitForTimeout(1500);
+
+  if (await onBoard().count()) throw new Error('the card is still on the board it was dragged off');
+
+  // And the server agrees — the half a purely local move cannot prove, and the
+  // half that decides whether the column it landed in actually exists there.
+  const landed = await page.evaluate(async () => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    const tasks = await json(`/api/workspaces/${ws}/tasks?limit=200`);
+    const task = (tasks.tasks ?? tasks).find((one) => one.title === 'Smoke: filed elsewhere');
+    if (!task) return null;
+    const projects = await json(`/api/workspaces/${ws}/projects`);
+    const states = await json(`/api/workspaces/${ws}/states`);
+    const state = (states.states ?? states).find((one) => one.id === task.state_id);
+    return {
+      identifier: task.identifier,
+      project: (projects.projects ?? projects).find((one) => one.id === task.project_id)?.name ?? '(gone)',
+      stateBelongsHere: !!state && state.project_id === task.project_id,
+    };
+  });
+  if (!landed) throw new Error('the task is not on the server at all');
+  if (landed.project !== 'Public API') throw new Error(`it was filed under ${landed.project}`);
+  if (!landed.stateBelongsHere) throw new Error('it landed in a column belonging to the project it left');
+  // The address somebody may already have pasted somewhere does not change.
+  if (!/^WEB-/.test(landed.identifier)) throw new Error(`the identifier became ${landed.identifier}`);
+  console.log('     ', landed.identifier, 'is now in', landed.project, 'and in a column that project has');
+});
+
+/**
  * The kind of work, chosen at the moment the task is made.
  *
  * The form offered a project, a state, a priority, an assignee, a due date and
