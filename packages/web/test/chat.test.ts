@@ -22,7 +22,7 @@ import { directFetch, installBrowser, net, settle } from './browser.ts';
 installBrowser();
 
 const { server } = await import('../../server/src/index.ts');
-const { directChannelId, messageOrder, readStateId, unreadCount, channelTitle, normaliseChannelName } =
+const { directChannelId, findMentions, messageOrder, readStateId, unreadCount, channelTitle, normaliseChannelName } =
   await import('@kolibri/shared');
 const store = await import('../src/lib/store');
 const sync = await import('../src/lib/sync');
@@ -105,6 +105,26 @@ describe('the rules both sides have to agree on', () => {
     const nameOf = (id: string) => (id === ada ? 'Ada' : id === lin ? 'Lin' : undefined);
     assert.equal(channelTitle(channel, ada, nameOf), 'Lin');
     assert.equal(channelTitle(channel, lin, nameOf), 'Ada');
+  });
+
+  it('reads a handle the way the composer writes one', () => {
+    // The badge and the notification have to agree about who was named, so
+    // both sides call this. First name is what `@` inserts; the rest are what
+    // somebody might type instead.
+    const team = [
+      { id: ada, name: 'Ada Lovelace', email: 'ada@example.com' },
+      { id: lin, name: 'Lin Chen', email: 'lin@example.com' },
+    ];
+    assert.deepEqual(findMentions(team, 'morning @Ada — see @lin'), [ada, lin]);
+    assert.deepEqual(findMentions(team, '@adalovelace has it'), [ada]);
+    assert.deepEqual(findMentions(team, 'ask @ada@example.com'), [ada]);
+    // An address written as an address is somebody's contact detail, not a
+    // mention of them — the handle is read from the `@`, so this one reads as
+    // `@example.com` and answers to nobody.
+    assert.deepEqual(findMentions(team, 'write to ada@example.com about it'), []);
+    // Nobody by that handle, and a bare `@` in an ordinary sentence.
+    assert.deepEqual(findMentions(team, 'ping @grace'), []);
+    assert.deepEqual(findMentions(team, 'the price is 40 @ 2 each'), []);
   });
 
   it('orders a timestamp tie the same way whatever order the rows arrived in', () => {

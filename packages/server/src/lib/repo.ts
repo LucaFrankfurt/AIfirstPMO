@@ -5,6 +5,7 @@ import {
   directMembers,
   entityDef,
   excerpt,
+  findMentions as mentionsIn,
   hlcGreater,
   normaliseChannelName,
   relocate,
@@ -167,7 +168,7 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
     if (!opts.system) guardReferences(entity, values, opts);
 
     const forced = created ? applyCreateDefaults(entity, id, values, opts) : {};
-    applyInvariants(entity, id, values, existing, forced);
+    applyInvariants(entity, id, values, existing, forced, opts);
 
     const seq = nextSeq();
     // The write's own workspace, unless something above decided otherwise: a
@@ -368,7 +369,7 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
 }
 
 /** Rules the server enforces regardless of what a client sent. */
-function applyInvariants(entity: EntityName, id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+function applyInvariants(entity: EntityName, id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
 
   /**
    * A sub-task cannot sit under itself, directly or at any remove.
@@ -498,7 +499,7 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   if (entity === 'task') applyTaskInvariants(values, existing, forced);
   if (entity === 'page') applyPageInvariants(values, existing, forced);
   if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
-  if (entity === 'message') applyMessageInvariants(values, existing, forced);
+  if (entity === 'message') applyMessageInvariants(values, existing, forced, opts);
   if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
 }
 
@@ -584,7 +585,7 @@ function applyChannelInvariants(id: string, values: Record<string, unknown>, exi
  * change channel, it cannot change who said it, and it cannot change what it
  * answered — an edit rewrites the words, not the conversation around them.
  */
-function applyMessageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+function applyMessageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
   if (!existing) return;
   for (const fixed of ['channel_id', 'author_id', 'reply_to'] as const) {
     if (values[fixed] !== undefined && values[fixed] !== existing[fixed]) {
@@ -596,6 +597,52 @@ function applyMessageInvariants(values: Record<string, unknown>, existing: Row |
     values.edited_at = Date.now();
     forced.edited_at = values.edited_at;
   }
+  if (values.reactions !== undefined && !opts.system) {
+    const settled = JSON.stringify(reconcileReactions(values.reactions, existing.reactions, opts.actorId));
+    if (settled !== values.reactions) {
+      values.reactions = settled;
+      forced.reactions = JSON.parse(settled);
+    }
+  }
+}
+
+/**
+ * A reaction is your own name in a list, and only yours is yours to move.
+ *
+ * The client sends the whole map because that is the field it holds, and a
+ * field merges last-writer-wins — so two people reacting in the same moment
+ * used to end with one of the two reactions, and an offline device could
+ * arrive holding a map from before somebody else's. Worse, nothing stopped a
+ * doctored map from removing everybody else's reactions, because "only the
+ * reactions field changed" was the whole of the check.
+ *
+ * So the incoming map is not taken as the answer. It is read for one thing —
+ * whether *this* person is on each emoji — and everybody else's entries are
+ * carried across from the row as it stands. Concurrent reactions merge, and
+ * the only reaction a write can move is the writer's own.
+ */
+function reconcileReactions(incoming: unknown, existing: unknown, actorId: string): Record<string, string[]> {
+  const before = parseReactionMap(existing);
+  const wanted = parseReactionMap(incoming);
+  const merged: Record<string, string[]> = {};
+  for (const emoji of new Set([...Object.keys(before), ...Object.keys(wanted)])) {
+    const others = (before[emoji] ?? []).filter((userId) => userId !== actorId);
+    const people = (wanted[emoji] ?? []).includes(actorId) ? [...others, actorId] : others;
+    // An emoji nobody uses any more leaves rather than lingering as an empty
+    // list, so the row does not fill up with invisible entries.
+    if (people.length) merged[emoji] = people;
+  }
+  return merged;
+}
+
+function parseReactionMap(value: unknown): Record<string, string[]> {
+  const raw = typeof value === 'string' ? safeJson(value) : value;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
+  const out: Record<string, string[]> = {};
+  for (const [emoji, people] of Object.entries(raw as Record<string, unknown>)) {
+    if (Array.isArray(people)) out[emoji] = [...new Set(people.map(String))];
+  }
+  return out;
 }
 
 /**
@@ -1355,30 +1402,26 @@ function fireWebhooks(
  * a first name, a display name without spaces, or an email address — so all
  * three are accepted, and unknown handles are simply left alone.
  */
+/**
+ * Who this text names, among the people of this workspace.
+ *
+ * The reading of a handle lives in `@kolibri/shared` because the screen asks
+ * the same question — a channel set to "only when I am named" has to know
+ * whether a message names you before it counts towards a badge — and a rule
+ * written twice is a rule that drifts. This half is the part only the server
+ * can do: which people there are.
+ */
 export function findMentions(workspaceId: string, text: string): string[] {
-  const body = String(text ?? '');
-  if (!body.includes('@')) return [];
-
-  const handles = new Map<string, string>();
+  if (!String(text ?? '').includes('@')) return [];
   const members = all<Row>(
     `SELECT u.id, u.name, u.email FROM workspace_members m JOIN users u ON u.id = m.user_id
       WHERE m.workspace_id = ? AND m.deleted_at IS NULL AND u.deleted_at IS NULL`,
     workspaceId,
   );
-  for (const member of members) {
-    const email = String(member.email ?? '').toLowerCase();
-    const name = String(member.name ?? '').toLowerCase();
-    for (const handle of [email, email.split('@')[0], name.replace(/\s+/g, ''), name.split(/\s+/)[0]]) {
-      if (handle && handle.length > 1 && !handles.has(handle)) handles.set(handle, member.id);
-    }
-  }
-
-  const found = new Set<string>();
-  for (const match of body.matchAll(/@([\w.+-]+(?:@[\w.-]+\.[a-z]{2,})?)/gi)) {
-    const userId = handles.get(match[1].toLowerCase());
-    if (userId) found.add(userId);
-  }
-  return [...found];
+  return mentionsIn(
+    members.map((member) => ({ id: String(member.id), name: member.name as string, email: member.email as string })),
+    text,
+  );
 }
 
 export function parseIds(value: unknown): string[] {

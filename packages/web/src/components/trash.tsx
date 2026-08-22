@@ -11,6 +11,7 @@
  * that has left the board does not know which of the two happened to it.
  */
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { EntityName } from '@kolibri/shared';
 import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
@@ -94,7 +95,14 @@ export function Trash() {
   const toast = useToast();
   const members = useMemberMap();
   const { confirm, dialog } = useConfirm();
-  const [mode, setMode] = useState<'deleted' | 'archived'>('deleted');
+  // `?show=archived` opens on the archived list rather than the deleted one,
+  // so a link from somewhere that hid something — chat, when a channel is
+  // archived out of its list — lands on the thing it is talking about instead
+  // of next to it.
+  const [params] = useSearchParams();
+  const [mode, setMode] = useState<'deleted' | 'archived'>(
+    params.get('show') === 'archived' ? 'archived' : 'deleted',
+  );
   const [query, setQuery] = useState('');
   const [emptying, setEmptying] = useState(false);
   const canEmpty = role === 'owner' || role === 'admin';
