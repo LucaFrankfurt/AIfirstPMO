@@ -160,6 +160,47 @@ await step('my work opens with where you stand and where you were', async () => 
   await closeTour(page);
 });
 
+/**
+ * A figure is a door, and it has to open onto what it counted.
+ *
+ * The point of pressing every tile rather than one: the seven-day bucket was
+ * declared in the query language, parsed, accepted and shown as a chip, and
+ * nothing anywhere ever applied it — so the filter was on and every task was
+ * still on screen. Comparing the number on the tile against the rows it opens
+ * is the only check that notices that, and it notices it for all three at once.
+ */
+await step('a figure on My work opens the rows it counted', async () => {
+  const tiles = page.locator('.kpi-row button.stat');
+  const pressable = await tiles.count();
+  if (pressable !== 3) throw new Error(`expected three pressable figures, got ${pressable}`);
+  // The last seven days is a window the list cannot express, so that tile is a
+  // figure and nothing more. If it ever becomes a button, this says so.
+  if (await page.locator('.kpi-row .stat:not(button)').count() !== 1) {
+    throw new Error('the finished figure is pressable and would open a set it did not count');
+  }
+
+  const rows = page.locator('.my-work-list .task-row');
+  for (let i = 0; i < pressable; i += 1) {
+    const tile = tiles.nth(i);
+    const label = (await tile.locator('.stat-label').innerText()).trim();
+    const counted = Number(await tile.locator('.stat-value').innerText());
+    await tile.click();
+    await page.waitForTimeout(500);
+    if (await tile.getAttribute('aria-pressed') !== 'true') throw new Error(`${label} did not stay pressed`);
+    const shown = await rows.count();
+    if (shown !== counted) throw new Error(`${label} counts ${counted} and opened ${shown}`);
+    console.log(`     ${label}: counted ${counted}, opened ${shown}`);
+  }
+
+  // Pressing the one that is already on goes back to everything open, so the
+  // row is a toggle rather than a trap.
+  await tiles.nth(pressable - 1).click();
+  await page.waitForTimeout(400);
+  if (await tiles.nth(0).getAttribute('aria-pressed') !== 'true') {
+    throw new Error('pressing the pressed figure did not return to everything open');
+  }
+});
+
 await step('open project board', async () => {
   await page.click('.sidebar a:has-text("Website")');
   await page.waitForSelector('.tabs');
