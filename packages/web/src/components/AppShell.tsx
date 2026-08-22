@@ -343,6 +343,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             {unread > 0 && <span className="size-1.5 flex-none rounded-full bg-accent" />}
             {t('nav.inbox')}
           </NavLink>
+          {/* Beside the inbox, because they are the two surfaces other people
+              write to. It was behind "More" — the one part of this app that is
+              answered in seconds, filed under the menu you open last, on the
+              device most likely to be the only one somebody has. */}
+          <NavLink to="/chat">
+            <Icon name="chat" size={20} />
+            {unreadMessages > 0 && <span className="size-1.5 flex-none rounded-full bg-accent" />}
+            {t('nav.chat')}
+          </NavLink>
           <button
             className={navItem()} style={{ width: 'auto', justifyContent: 'center' }}
             onClick={() => setAdding(true)} aria-label={t('nav.newTask')}

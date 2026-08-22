@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { enterInList, indentList, renderMarkdown, toggleTask, type Edit, type MarkdownOptions } from '@kolibri/shared';
 
@@ -121,6 +121,21 @@ interface EditorProps {
    */
   submitOnEnter?: boolean;
   /**
+   * The message-box shape: one line that grows with what is typed, formatting
+   * folded away behind a toggle, and the buttons along the bottom instead of
+   * the top.
+   *
+   * A conversation is mostly one-line messages, and the full editor put a
+   * nine-button toolbar, a preview toggle and a three-line box in front of
+   * every one of them — about a hundred and fifty pixels of furniture on a
+   * screen where the messages themselves were fighting for room. What the
+   * editor is *good* at underneath — pasting a screenshot, `@` and `#` — is
+   * exactly right for a chat and is all still here.
+   */
+  compact?: boolean;
+  /** Buttons for the bottom bar in `compact` mode — Send, in practice. */
+  actions?: ReactNode;
+  /**
    * The textarea itself, for a caller that has to touch the caret.
    *
    * The page editor does: when somebody else's paragraph arrives while you are
@@ -155,11 +170,13 @@ const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[
  * they are downscaled in the browser first so a phone photo does not push a
  * 12 MB original through a mobile connection.
  */
-export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, submitOnEnter, fieldRef }: EditorProps) {
+export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, submitOnEnter, compact, actions, fieldRef }: EditorProps) {
   const t = useT();
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = fieldRef ?? own;
   const [preview, setPreview] = useState(false);
+  /** Whether the formatting buttons are showing. Compact mode only. */
+  const [tools, setTools] = useState(false);
   /** Where the caret belongs after the next render, set by `rewrite`. */
   const pending = useRef<[number, number] | null>(null);
   const [dropping, setDropping] = useState(false);
@@ -220,6 +237,21 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   useEffect(() => {
     if (autoFocus) ref.current?.focus();
   }, [autoFocus]);
+
+  /**
+   * Grow with the text, up to a point.
+   *
+   * Reset to `auto` first, or `scrollHeight` reports the height it already
+   * has and the box can only ever get taller. The ceiling is there because a
+   * pasted essay should scroll inside the composer rather than push the
+   * conversation off the top of the screen.
+   */
+  useLayoutEffect(() => {
+    const field = ref.current;
+    if (!compact || !field || preview) return;
+    field.style.height = 'auto';
+    field.style.height = `${Math.min(field.scrollHeight, 240)}px`;
+  }, [value, compact, preview]);
 
   useLayoutEffect(() => {
     if (!pending.current) return;
@@ -336,45 +368,66 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     }
   }
 
+  const snippets = SNIPPETS.map((snippet) => (
+    <button
+      key={snippet.title} type="button" className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+      title={t(snippet.title)} aria-label={t(snippet.title)}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => surround(snippet.wrap[0], snippet.wrap[1])}
+    >
+      {snippet.icon}
+    </button>
+  ));
+
+  const attach = (
+    <label className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'cursor-pointer')} title={t('editor.attachImage')}>
+      <Icon name="image" size={14} />
+      <input
+        type="file" hidden multiple accept="image/*,application/pdf"
+        onChange={(event) => {
+          void upload([...(event.target.files ?? [])]);
+          event.target.value = '';
+        }}
+      />
+    </label>
+  );
+
+  const previewToggle = (
+    <button type="button" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), preview && 'bg-active text-fg')} onClick={() => setPreview(!preview)}>
+      {preview ? t('editor.write') : t('editor.preview')}
+    </button>
+  );
+
   return (
-    <div className={`editor${dropping ? ' dropping' : ''}`}>
-      <div className="editor-toolbar">
-        {SNIPPETS.map((snippet) => (
-          <button
-            key={snippet.title} type="button" className={buttonVariants({ variant: 'ghost', size: 'sm' })}
-            title={t(snippet.title)} aria-label={t(snippet.title)}
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={() => surround(snippet.wrap[0], snippet.wrap[1])}
-          >
-            {snippet.icon}
-          </button>
-        ))}
-        <label className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), 'cursor-pointer')} title={t('editor.attachImage')}>
-          <Icon name="image" size={14} />
-          <input
-            type="file" hidden multiple accept="image/*,application/pdf"
-            onChange={(event) => {
-              void upload([...(event.target.files ?? [])]);
-              event.target.value = '';
-            }}
-          />
-        </label>
-        <span className="flex-1 min-w-0" />
-        {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
-        <button type="button" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), preview && 'bg-active text-fg')} onClick={() => setPreview(!preview)}>
-          {preview ? t('editor.write') : t('editor.preview')}
-        </button>
-      </div>
+    <div className={cn('editor', dropping && 'dropping', compact && 'compact')}>
+      {/* Compact keeps the same buttons and puts them underneath, where they
+          are out of the way of the thing being written. The formatting row
+          only exists once somebody asks for it. */}
+      {compact
+        ? tools && <div className="editor-toolbar">{snippets}</div>
+        : (
+          <div className="editor-toolbar">
+            {snippets}
+            {attach}
+            <span className="flex-1 min-w-0" />
+            {busy && <span className="text-muted text-[12.5px]">{t('editor.uploading')}</span>}
+            {previewToggle}
+          </div>
+        )}
 
       {preview ? (
-        <div className="md" style={{ minHeight, border: '1px solid var(--line-strong)', borderTop: 'none', borderRadius: '0 0 7px 7px', padding: 12 }}>
+        <div className="md editor-preview" style={{ minHeight: compact ? 54 : minHeight }}>
           <Markdown source={value || `_${t('editor.nothingToPreview')}_`} onChange={onChange} />
         </div>
       ) : (
         <>
         <Textarea
           ref={ref}
-          style={{ minHeight }}
+          // Compact starts at one line. Inline rather than in the stylesheet
+          // because `Textarea` carries `min-h-20` as a utility, and a utility
+          // beats anything `@layer components` has to say — the same
+          // precedence that made three chat rules silently do nothing.
+          style={{ minHeight: compact ? 34 : minHeight }}
           value={value}
           placeholder={placeholder ?? t('editor.placeholder')}
           onChange={(event) => {
@@ -524,6 +577,26 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           </div>
         )}
         </>
+      )}
+
+      {compact && (
+        <div className="editor-foot">
+          <button
+            type="button"
+            className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }), tools && 'bg-active text-fg')}
+            title={t('editor.formatting')}
+            aria-expanded={tools}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setTools(!tools)}
+          >
+            Aa
+          </button>
+          {attach}
+          {busy && <span className="text-muted text-[12px]">{t('editor.uploading')}</span>}
+          <span className="flex-1 min-w-0" />
+          {previewToggle}
+          {actions}
+        </div>
       )}
     </div>
   );
