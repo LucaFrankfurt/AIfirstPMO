@@ -113,6 +113,14 @@ interface EditorProps {
   attachTo?: { task_id?: string; page_id?: string };
   onSubmit?: () => void;
   /**
+   * Enter submits, the way a conversation expects — Shift+Enter breaks a line
+   * instead. Off by default: everywhere else in the app Enter writes a
+   * paragraph, and a comment box that posts mid-thought teaches people to
+   * draft elsewhere. Continuing a list still wins over submitting, so a
+   * checklist can be typed into a chat without sending after every item.
+   */
+  submitOnEnter?: boolean;
+  /**
    * The textarea itself, for a caller that has to touch the caret.
    *
    * The page editor does: when somebody else's paragraph arrives while you are
@@ -147,7 +155,7 @@ const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[
  * they are downscaled in the browser first so a phone photo does not push a
  * 12 MB original through a mobile connection.
  */
-export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, fieldRef }: EditorProps) {
+export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, autoFocus, attachTo, onSubmit, submitOnEnter, fieldRef }: EditorProps) {
   const t = useT();
   const own = useRef<HTMLTextAreaElement>(null);
   const ref = fieldRef ?? own;
@@ -431,11 +439,21 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             // Enter continues the list somebody is in — another bullet, the next
             // number, another empty checkbox — and ends it on an item they left
             // empty. Both are one pure rewrite of the text; see `editor.ts`.
-            if (event.key === 'Enter' && !event.shiftKey && field && field.selectionStart === field.selectionEnd) {
-              const edit = enterInList(value, field.selectionStart);
-              if (edit) {
+            if (event.key === 'Enter' && !event.shiftKey && field) {
+              if (field.selectionStart === field.selectionEnd) {
+                const edit = enterInList(value, field.selectionStart);
+                if (edit) {
+                  event.preventDefault();
+                  apply(edit);
+                  return;
+                }
+              }
+              // Outside a list, Enter can mean "say it" — but never while an
+              // IME is composing: there Enter commits the character, and
+              // submitting would post half a word.
+              if (onSubmit && submitOnEnter && !event.altKey && !event.nativeEvent.isComposing) {
                 event.preventDefault();
-                apply(edit);
+                onSubmit();
                 return;
               }
             }

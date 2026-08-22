@@ -111,6 +111,28 @@ export function isMember(channel: ChannelLike, userId: string): boolean {
   return (channel.members ?? []).includes(userId);
 }
 
+/**
+ * The order a conversation reads in.
+ *
+ * Time alone is not enough: `created_at` is stamped by the server as it
+ * applies a batch, so an outbox flushed after a tunnel lands in one
+ * millisecond and the stamp says nothing about which line came first. Within
+ * a tie the truth is `seq` — the order the server actually applied them,
+ * which for one device's batch is the order they were typed. A row still on
+ * its way has no seq yet and sorts after the acked ones, which is where the
+ * newest line belongs anyway; the id settles what is left, by plain
+ * comparison rather than `localeCompare`, which may answer differently per
+ * locale.
+ */
+export function messageOrder(
+  a: { created_at: number; id: string; seq?: number | null },
+  b: { created_at: number; id: string; seq?: number | null },
+): number {
+  return a.created_at - b.created_at
+    || (a.seq ?? Number.MAX_SAFE_INTEGER) - (b.seq ?? Number.MAX_SAFE_INTEGER)
+    || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+}
+
 /** Everything unread here, not counting your own. */
 export function unreadCount(messages: MessageLike[], lastReadAt: number, userId: string): number {
   let count = 0;

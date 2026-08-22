@@ -13,12 +13,13 @@
  * `lib/presence.ts` on this side and `lib/presence.ts` on the server. A device
  * that ignores them entirely loses a dot and nothing else.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   canManageMembers,
   channelTitle,
   directChannelId,
+  messageOrder,
   normaliseChannelName,
   readStateId,
   unreadCount,
@@ -69,6 +70,29 @@ function PresenceDot({ userId, className }: { userId: string; className?: string
 const partnerOf = (channel: Channel, me: string): string | undefined =>
   (channel.kind === 'direct' ? (channel.members ?? []).find((id) => id !== me) : undefined);
 
+/**
+ * Whether Enter sends.
+ *
+ * Where the primary pointer is fine there is a keyboard in front of somebody,
+ * and Enter-to-send is what every messenger has taught their hands. Where it
+ * is coarse — a phone, a tablet — the return key is how you get a second
+ * line, and the send button is under your thumb anyway. Shift+Enter breaks a
+ * line either way, and Cmd/Ctrl+Enter keeps sending everywhere.
+ */
+const SEND_ON_ENTER = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
+
+/**
+ * Unsent words, kept per conversation.
+ *
+ * `Conversation` below is keyed by channel, so switching conversations drops
+ * its state — that is the fix for a draft following you into the wrong room
+ * and sitting one click from the wrong audience. This map is the other half:
+ * what you were writing is waiting when you come back. A plain module map
+ * rather than a row, because a draft is this device's business and nobody
+ * else's.
+ */
+const drafts = new Map<string, string>();
+
 
 /** Conversations this device knows about, newest activity first. */
 function useConversations(me: string) {
@@ -84,7 +108,9 @@ function useConversations(me: string) {
       // device made on the way to typing; it is not a conversation until
       // there is something in it.
       .filter((channel) => channel.kind !== 'direct' || lastAt.has(channel.id))
-      .sort((a, b) => (lastAt.get(b.id) ?? b.created_at) - (lastAt.get(a.id) ?? a.created_at));
+      // The id breaks activity-time ties, so two devices agree on the order.
+      .sort((a, b) => (lastAt.get(b.id) ?? b.created_at) - (lastAt.get(a.id) ?? a.created_at)
+        || (a.id < b.id ? -1 : 1));
   }, [me]);
 }
 
@@ -151,7 +177,15 @@ export function Chat() {
   const others = useMemo(() => [...colleagues.values()].filter((member) => member.id !== me), [colleagues, me]);
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 chat">
+    /* The bottom padding clears the tab bar while there is one — it hides at
+       900px, the same width at which the list appears beside the conversation
+       — and then drops to a sliver: the composer is pinned, but a send button
+       flush against the window edge reads as cut off even when every pixel of
+       it is there. All three steps are `min-[…]` variants rather than mixing
+       in `sm:`, because Tailwind emits arbitrary variants before named ones —
+       a `sm:` rule would win the ≥900px tie by source order and the sliver
+       would never apply. */
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pt-5 min-[640px]:pb-16 min-[900px]:pb-2.5 chat">
       <aside className="chat-list" aria-label={t('chat.title')}>
         <div className="flex items-center gap-2 mb-2">
           <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>
@@ -210,9 +244,13 @@ export function Chat() {
       </aside>
 
       <section className="chat-main">
+        {/* The key is load-bearing: without it React reuses one Conversation
+            across channels, and its draft, reply target and edit state follow
+            you into whichever room you open next — a paragraph meant for the
+            team, one click from sending to a client. */}
         {current
-          ? <Conversation channel={current} me={me} onBack={() => navigate('/chat')} />
-          : <Empty emoji="💬" title={t('chat.pickTitle')} hint={t('chat.pickHint')} guide="collab" />}
+          ? <Conversation key={current.id} channel={current} me={me} onBack={() => navigate('/chat')} />
+          : <Empty emoji="💬" title={t('chat.pickTitle')} hint={t('chat.pickHint')} guide="chat" />}
       </section>
 
       {creating && <NewChannel onClose={() => setCreating(false)} onCreated={(created) => navigate(`/chat/${created}`)} />}
@@ -274,15 +312,28 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const members = usePeople();
   const { confirm, dialog } = useConfirm();
   const canWrite = useCanWrite();
-  const [draft, setDraft] = useState('');
+  const [draft, setDraftState] = useState(() => drafts.get(channel.id) ?? '');
   const [editing, setEditing] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [managing, setManaging] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  const stream = useRef<HTMLDivElement>(null);
+  /**
+   * Whether the reader is at the newest line. Maintained on scroll rather
+   * than measured when a message arrives, because by then the new message has
+   * already grown the container and the answer would depend on how tall it
+   * is. Starts true: a conversation opens at its newest line.
+   */
+  const stuck = useRef(true);
+
+  const setDraft = (next: string) => {
+    setDraftState(next);
+    if (next) drafts.set(channel.id, next);
+    else drafts.delete(channel.id);
+  };
 
   const messages = useQuery(
     () => list('message', (message) => message.channel_id === channel.id && !message.deleted_at)
-      .sort((a, b) => a.created_at - b.created_at),
+      .sort(messageOrder),
     [channel.id],
   );
 
@@ -299,9 +350,16 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
     else create('channelRead', { id: markerId, channel_id: channel.id, last_read_at: latest, workspace_id: channel.workspace_id ?? null }, markerId);
   }, [latest, marker, markerId, channel.id]);
 
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, channel.id]);
+  // A new message moves the view only for a reader who is already at the
+  // bottom — somebody scrolled up is reading, and dragging them down
+  // mid-sentence is worse than the new message arriving a scroll away. A
+  // layout effect, so the first render is never painted at the top of the
+  // history. Scrolls the stream itself rather than `scrollIntoView`, which
+  // walks every scrollable ancestor.
+  useLayoutEffect(() => {
+    const el = stream.current;
+    if (el && stuck.current) el.scrollTop = el.scrollHeight;
+  }, [messages.length]);
 
   const send = () => {
     const body = draft.trim();
@@ -321,9 +379,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   return (
     <>
       <header className="chat-header flex items-center gap-2">
-        {/* On a phone the conversation is the whole screen, so this is the only
-            way back to the list. Hidden where the list is already beside it. */}
-        <Button variant="ghost" size="iconSm" className="chat-back" aria-label={t('chat.backToList')} onClick={onBack}>
+        {/* On a phone the conversation is the whole screen, so this is the
+            only way back to the list. Hidden from 900px up — the width at
+            which the list appears beside it, not the generic 700px helper,
+            which would leave a band with neither the list nor the way back.
+            A utility rather than a stylesheet rule: the button's own
+            `inline-flex` utility beats anything `@layer components` says. */}
+        <Button variant="ghost" size="iconSm" className="min-[900px]:hidden" aria-label={t('chat.backToList')} onClick={onBack}>
           <Icon name="chevronLeft" size={16} />
         </Button>
         <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={16} />
@@ -343,7 +405,14 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       </header>
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
-      <div className="chat-stream">
+      <div
+        className="chat-stream"
+        ref={stream}
+        onScroll={() => {
+          const el = stream.current;
+          if (el) stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        }}
+      >
         {messages.length === 0 && <p className="text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
         {messages.map((message, index) => {
           const author = members.get(message.author_id ?? '');
@@ -414,7 +483,6 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             </div>
           );
         })}
-        <div ref={bottom} />
       </div>
 
       {canWrite ? (
@@ -432,7 +500,11 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             </Button>
           </div>
         )}
-        <Typing channelId={channel.id} me={me} />
+        <Typing
+          channelId={channel.id}
+          me={me}
+          idle={SEND_ON_ENTER && draft.trim() ? t('chat.enterHint') : undefined}
+        />
         <MarkdownEditor
           value={draft}
           onChange={(next) => {
@@ -445,8 +517,9 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           minHeight={54}
           placeholder={t('chat.placeholder', { where: title })}
           onSubmit={send}
+          submitOnEnter={SEND_ON_ENTER}
         />
-        <Button variant="primary" disabled={!draft.trim()} onClick={send}>
+        <Button variant="primary" className="self-end" disabled={!draft.trim()} onClick={send}>
           <Icon name="send" size={14} /> {t('chat.send')}
         </Button>
       </div>
@@ -467,9 +540,12 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
  *
  * It occupies a fixed line whether or not anybody is typing, because a line
  * that appears and disappears shoves the entire conversation up and down while
- * somebody is trying to read it.
+ * somebody is trying to read it. While the line would be empty it can carry
+ * `idle` instead — the "Enter sends" hint lives there, in space already paid
+ * for. The live region is the inner span, so the hint coming and going is
+ * never read out as somebody typing.
  */
-function Typing({ channelId, me }: { channelId: string; me: string }) {
+function Typing({ channelId, me, idle }: { channelId: string; me: string; idle?: string }) {
   const t = useT();
   const members = usePeople();
   const who = useTypists(channelId, me);
@@ -481,7 +557,10 @@ function Typing({ channelId, me }: { channelId: string; me: string }) {
     : t('chat.typingMany');
 
   return (
-    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted" aria-live="polite">{text}</p>
+    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted">
+      <span aria-live="polite">{text}</span>
+      {!text && idle}
+    </p>
   );
 }
 
@@ -490,7 +569,7 @@ function EditBox({ initial, onDone }: { initial: string; onDone: (body: string) 
   const [value, setValue] = useState(initial);
   return (
     <div className="flex flex-col gap-1.5">
-      <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} />
+      <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} submitOnEnter={SEND_ON_ENTER} />
       <div className="flex items-center gap-1.5">
         <Button variant="primary" size="sm" onClick={() => onDone(value)}>{t('action.save')}</Button>
         <Button size="sm" onClick={() => onDone(initial)}>{t('action.cancel')}</Button>
@@ -820,7 +899,10 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
     const timer = setTimeout(() => {
       api.get<typeof people>(`/api/people?q=${encodeURIComponent(query.trim())}`)
         .then((found) => {
-          if (!cancelled) setPeople(found.filter((person) => person.id !== me));
+          if (cancelled) return;
+          setPeople(found.filter((person) => person.id !== me));
+          // A search that has recovered stops apologising for the one before.
+          setError('');
         })
         .catch((err) => {
           if (!cancelled) setError(err instanceof Error ? err.message : t('common.somethingWentWrong'));

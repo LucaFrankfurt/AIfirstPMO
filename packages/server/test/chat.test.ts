@@ -230,6 +230,33 @@ describe('saying something', () => {
     const result = await raw(people.ada, `/api/workspaces/${workspaceId}/messages`, { channel_id: closed, body: 'still here?' });
     assert.equal(result.status, 400);
   });
+
+  it('may answer a message in the same conversation, and only there', async () => {
+    const asked = await post(people.ada, 'messages', { channel_id: channel, body: 'lunch?' });
+    const answer = await post(people.ada, 'messages', { channel_id: channel, body: 'yes', reply_to: asked.id });
+    assert.equal(answer.reply_to, asked.id);
+
+    // A client once leaked its reply state across a channel switch, which is
+    // how a reply pointing into another room can genuinely arrive here.
+    const elsewhere = (await post(people.ada, 'channels', { name: 'elsewhere-entirely' })).id;
+    const across = await raw(people.ada, `/api/workspaces/${workspaceId}/messages`, {
+      channel_id: elsewhere, body: 'answering across rooms', reply_to: asked.id,
+    });
+    assert.equal(across.status, 400);
+    const nowhere = await raw(people.ada, `/api/workspaces/${workspaceId}/messages`, {
+      channel_id: channel, body: 'answering nothing', reply_to: 'no-such-message',
+    });
+    assert.equal(nowhere.status, 400);
+  });
+
+  it('keeps what a message answered, whatever an edit claims', async () => {
+    const asked = await post(people.ada, 'messages', { channel_id: channel, body: 'original question' });
+    const other = await post(people.ada, 'messages', { channel_id: channel, body: 'a different line' });
+    const answer = await post(people.ada, 'messages', { channel_id: channel, body: 'the answer', reply_to: asked.id });
+    const edited = await as(people.ada, `/api/messages/${answer.id}`, { body: 'the answer, reworded', reply_to: other.id }, 'PATCH');
+    assert.equal(edited.body, 'the answer, reworded');
+    assert.equal(edited.reply_to, asked.id);
+  });
 });
 
 /* --------------------------------------------------------------- visibility */

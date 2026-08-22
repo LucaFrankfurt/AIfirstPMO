@@ -4,6 +4,7 @@ import {
   crdt,
   directMembers,
   entityDef,
+  excerpt,
   hlcGreater,
   normaliseChannelName,
   relocate,
@@ -580,11 +581,12 @@ function applyChannelInvariants(id: string, values: Record<string, unknown>, exi
  * The body may be edited by its author — that is what `edited_at` records, and
  * it is stamped here rather than trusted, because "edited" is a claim about
  * this server's clock. Everything else about a message is fixed: it cannot
- * change channel, and it cannot change who said it.
+ * change channel, it cannot change who said it, and it cannot change what it
+ * answered — an edit rewrites the words, not the conversation around them.
  */
 function applyMessageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   if (!existing) return;
-  for (const fixed of ['channel_id', 'author_id'] as const) {
+  for (const fixed of ['channel_id', 'author_id', 'reply_to'] as const) {
     if (values[fixed] !== undefined && values[fixed] !== existing[fixed]) {
       values[fixed] = existing[fixed];
       forced[fixed] = existing[fixed];
@@ -732,6 +734,16 @@ function guardMessageWrite(id: string, values: Record<string, unknown>, existing
   }
   const channel = get<Row>(`SELECT archived_at FROM channels WHERE id = ?`, channelId);
   if (channel?.archived_at) throw badRequest('That conversation is archived');
+  // A reply answers something said in the same conversation. The client only
+  // offers replies to what is on screen, so anything else arriving here is a
+  // stale draft or somebody probing — and a quote resolved across rooms would
+  // read words to people who may not see the room they were said in.
+  if (values.reply_to != null) {
+    const answered = get<Row>(`SELECT channel_id FROM messages WHERE id = ?`, String(values.reply_to));
+    if (!answered || String(answered.channel_id) !== channelId) {
+      throw badRequest('A reply must answer a message in the same conversation');
+    }
+  }
 }
 
 /**
@@ -1208,7 +1220,11 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
           title: (t) => (direct
             ? t('notify.directMessage', { name: displayName(opts.actorId) })
             : t('notify.message', { name: displayName(opts.actorId), channel: `#${channel.name}` })),
-          body: String(row.body ?? '').slice(0, 280),
+          // Through `excerpt` rather than sliced raw: a push notification
+          // renders no markdown, and a phone buzzing with `**` and `](` reads
+          // as a bug in exactly the moment the message was urgent enough to
+          // buzz for.
+          body: excerpt(String(row.body ?? ''), 280),
           // Without this the notification says something happened and then has
           // nowhere to take you, which is worse than not sending it.
           channelId: String(channel.id),
