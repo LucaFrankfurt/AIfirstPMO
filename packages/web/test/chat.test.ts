@@ -22,7 +22,7 @@ import { directFetch, installBrowser, net, settle } from './browser.ts';
 installBrowser();
 
 const { server } = await import('../../server/src/index.ts');
-const { directChannelId, readStateId, unreadCount, channelTitle, normaliseChannelName } =
+const { directChannelId, messageOrder, readStateId, unreadCount, channelTitle, normaliseChannelName } =
   await import('@kolibri/shared');
 const store = await import('../src/lib/store');
 const sync = await import('../src/lib/sync');
@@ -105,6 +105,22 @@ describe('the rules both sides have to agree on', () => {
     const nameOf = (id: string) => (id === ada ? 'Ada' : id === lin ? 'Lin' : undefined);
     assert.equal(channelTitle(channel, ada, nameOf), 'Lin');
     assert.equal(channelTitle(channel, lin, nameOf), 'Ada');
+  });
+
+  it('orders a timestamp tie the same way whatever order the rows arrived in', () => {
+    // Four messages, three sharing a millisecond — the shape a sync batch
+    // produces, where the server's stamp collapses the whole flush. `seq` is
+    // the order the server applied them; the unacked one (no seq yet) is the
+    // newest and reads last. Every arrival order must be the same conversation.
+    const messages = [
+      { id: 'm-pending', created_at: 5 },
+      { id: 'm-second', created_at: 5, seq: 12 },
+      { id: 'm-first', created_at: 5, seq: 11 },
+      { id: 'm-earlier', created_at: 4, seq: 9 },
+    ];
+    const reading = (rows: typeof messages) => [...rows].sort(messageOrder).map((m) => m.id);
+    assert.deepEqual(reading(messages), ['m-earlier', 'm-first', 'm-second', 'm-pending']);
+    assert.deepEqual(reading([...messages].reverse()), ['m-earlier', 'm-first', 'm-second', 'm-pending']);
   });
 });
 

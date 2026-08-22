@@ -24,6 +24,31 @@ export function shortDate(value?: string | number | null): string {
   return date.toLocaleDateString(currentLocale(), { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
+/**
+ * The whole moment, spelled out.
+ *
+ * "3 minutes ago" is the right thing to read and the wrong thing to rely on:
+ * it is computed once at render and quietly goes stale, and it cannot answer
+ * "was that before or after the deploy". This is what hangs off a hover.
+ */
+export function exactTime(timestamp?: number | null): string {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleString(currentLocale(), { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/**
+ * When, in the width a list row can spare: a clock time for today, a date
+ * before that. The unit carries the age, so no row has to say "yesterday".
+ */
+export function briefWhen(timestamp?: number | null): string {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  if (date.toDateString() === new Date().toDateString()) {
+    return date.toLocaleTimeString(currentLocale(), { hour: 'numeric', minute: '2-digit' });
+  }
+  return shortDate(timestamp);
+}
+
 export function relativeTime(timestamp?: number | null): string {
   if (!timestamp) return '';
   const diff = timestamp - Date.now();

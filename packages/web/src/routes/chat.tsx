@@ -13,12 +13,14 @@
  * `lib/presence.ts` on this side and `lib/presence.ts` on the server. A device
  * that ignores them entirely loses a dot and nothing else.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   canManageMembers,
   channelTitle,
   directChannelId,
+  excerpt,
+  messageOrder,
   normaliseChannelName,
   readStateId,
   unreadCount,
@@ -29,7 +31,7 @@ import { api } from '../lib/api';
 import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
-import { relativeTime } from '../lib/format';
+import { briefWhen, exactTime, relativeTime } from '../lib/format';
 import { setTyping, useOnline, useTypists } from '../lib/presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
@@ -39,6 +41,7 @@ import { cn } from '../lib/cn';
 import { Input } from '../components/ui/field';
 import { navCount, navItem } from '../components/ui/nav';
 import { Chip } from '../components/ui/chip';
+import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
 
 /* --------------------------------------------------------------- the pieces */
@@ -69,22 +72,66 @@ function PresenceDot({ userId, className }: { userId: string; className?: string
 const partnerOf = (channel: Channel, me: string): string | undefined =>
   (channel.kind === 'direct' ? (channel.members ?? []).find((id) => id !== me) : undefined);
 
+/**
+ * Whether Enter sends.
+ *
+ * Where the primary pointer is fine there is a keyboard in front of somebody,
+ * and Enter-to-send is what every messenger has taught their hands. Where it
+ * is coarse — a phone, a tablet — the return key is how you get a second
+ * line, and the send button is under your thumb anyway. Shift+Enter breaks a
+ * line either way, and Cmd/Ctrl+Enter keeps sending everywhere.
+ */
+const SEND_ON_ENTER = typeof window !== 'undefined' && !window.matchMedia('(pointer: coarse)').matches;
 
-/** Conversations this device knows about, newest activity first. */
+/**
+ * How big a button in the bar over a message is.
+ *
+ * Set at the call sites rather than in the stylesheet, because `cn` merges
+ * Tailwind classes and so replaces the variant's own `size-8` — which a rule
+ * in `@layer components` could never do. It matters that this is one number:
+ * the trailing gutter that keeps message text out from under the bar is sized
+ * against the bar's width, and the two have to agree.
+ */
+const ACTION_SIZE = 'size-[26px]';
+
+/**
+ * Unsent words, kept per conversation.
+ *
+ * `Conversation` below is keyed by channel, so switching conversations drops
+ * its state — that is the fix for a draft following you into the wrong room
+ * and sitting one click from the wrong audience. This map is the other half:
+ * what you were writing is waiting when you come back. A plain module map
+ * rather than a row, because a draft is this device's business and nobody
+ * else's.
+ */
+const drafts = new Map<string, string>();
+
+
+/**
+ * Conversations this device knows about, newest activity first — each with the
+ * last thing said in it.
+ *
+ * The last message, not just its time: a list of bare names cannot answer the
+ * question people open it with, which is what happened while they were away.
+ * It costs nothing extra — the walk to find the newest was already here.
+ */
 function useConversations(me: string) {
   return useQuery(() => {
     const channels = list('channel', (channel) => !channel.deleted_at && !channel.archived_at);
-    const lastAt = new Map<string, number>();
+    const last = new Map<string, Message>();
     for (const message of list('message', (message) => !message.deleted_at)) {
-      const at = lastAt.get(message.channel_id) ?? 0;
-      if (message.created_at > at) lastAt.set(message.channel_id, message.created_at);
+      const held = last.get(message.channel_id);
+      if (!held || messageOrder(held, message) < 0) last.set(message.channel_id, message);
     }
+    const when = (channel: Channel) => last.get(channel.id)?.created_at ?? channel.created_at;
     return channels
       // A direct conversation with nothing in it yet is a row somebody's
       // device made on the way to typing; it is not a conversation until
       // there is something in it.
-      .filter((channel) => channel.kind !== 'direct' || lastAt.has(channel.id))
-      .sort((a, b) => (lastAt.get(b.id) ?? b.created_at) - (lastAt.get(a.id) ?? a.created_at));
+      .filter((channel) => channel.kind !== 'direct' || last.has(channel.id))
+      // The id breaks activity-time ties, so two devices agree on the order.
+      .sort((a, b) => when(b) - when(a) || (a.id < b.id ? -1 : 1))
+      .map((channel) => ({ channel, last: last.get(channel.id) }));
   }, [me]);
 }
 
@@ -151,7 +198,15 @@ export function Chat() {
   const others = useMemo(() => [...colleagues.values()].filter((member) => member.id !== me), [colleagues, me]);
 
   return (
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 chat">
+    /* The bottom padding clears the tab bar while there is one — it hides at
+       900px, the same width at which the list appears beside the conversation
+       — and then drops to a sliver: the composer is pinned, but a send button
+       flush against the window edge reads as cut off even when every pixel of
+       it is there. All three steps are `min-[…]` variants rather than mixing
+       in `sm:`, because Tailwind emits arbitrary variants before named ones —
+       a `sm:` rule would win the ≥900px tie by source order and the sliver
+       would never apply. */
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pt-5 min-[640px]:pb-16 min-[900px]:pb-2.5 chat">
       <aside className="chat-list" aria-label={t('chat.title')}>
         <div className="flex items-center gap-2 mb-2">
           <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>
@@ -169,10 +224,11 @@ export function Chat() {
           <p className="text-muted text-[12.5px]">{t('chat.noneYet')}</p>
         )}
 
-        {conversations.map((channel) => (
+        {conversations.map(({ channel, last }) => (
           <ConversationRow
             key={channel.id}
             channel={channel}
+            last={last}
             me={me}
             active={channel.id === id}
             title={channelTitle(channel, me, nameOf)}
@@ -210,9 +266,13 @@ export function Chat() {
       </aside>
 
       <section className="chat-main">
+        {/* The key is load-bearing: without it React reuses one Conversation
+            across channels, and its draft, reply target and edit state follow
+            you into whichever room you open next — a paragraph meant for the
+            team, one click from sending to a client. */}
         {current
-          ? <Conversation channel={current} me={me} onBack={() => navigate('/chat')} />
-          : <Empty emoji="💬" title={t('chat.pickTitle')} hint={t('chat.pickHint')} guide="collab" />}
+          ? <Conversation key={current.id} channel={current} me={me} onBack={() => navigate('/chat')} />
+          : <Empty emoji="💬" title={t('chat.pickTitle')} hint={t('chat.pickHint')} guide="chat" />}
       </section>
 
       {creating && <NewChannel onClose={() => setCreating(false)} onCreated={(created) => navigate(`/chat/${created}`)} />}
@@ -246,22 +306,45 @@ function openDirect(me: string, them: string): string {
   return id;
 }
 
-function ConversationRow({ channel, me, active, title, onOpen }: {
+function ConversationRow({ channel, last, me, active, title, onOpen }: {
   channel: Channel;
+  last?: Message;
   me: string;
   active: boolean;
   title: string;
   onOpen: () => void;
 }) {
+  const t = useT();
+  const members = usePeople();
   const unread = useUnread(channel.id, me);
   // Only a direct conversation has a dot: a channel is not a person, and
   // "somebody in here is online" is not a fact anybody acts on.
   const partner = partnerOf(channel, me);
+
+  // Who said it, where that is not already obvious. A direct conversation is
+  // named after the other person, so their name on every line is noise — but
+  // "You:" is worth saying in both, because whether the last word was yours
+  // decides whether the row is waiting for you.
+  const author = last?.author_id === me
+    ? t('chat.youSaid')
+    : channel.kind === 'direct' ? undefined : members.get(last?.author_id ?? '')?.name;
+  const said = excerpt(last?.body ?? '', 60);
+
   return (
-    <button className={cn(navItem({ active }), 'chat-row')} onClick={onOpen}>
+    <button className={cn(navItem({ active }), 'chat-row', unread > 0 && 'unread')} onClick={onOpen}>
       <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={15} />
-      <span className="flex-1 min-w-0 truncate">{title}</span>
-      {partner && <PresenceDot userId={partner} />}
+      <span className="chat-row-body">
+        <span className="chat-row-line">
+          <span className="chat-row-title truncate">{title}</span>
+          {partner && <PresenceDot userId={partner} />}
+          <span className="chat-row-when">{briefWhen(last?.created_at)}</span>
+        </span>
+        {said && (
+          <span className="chat-row-said truncate">
+            {author ? `${author}: ` : ''}{said}
+          </span>
+        )}
+      </span>
       {unread > 0 && <span className={navCount}>{unread}</span>}
     </button>
   );
@@ -274,15 +357,35 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const members = usePeople();
   const { confirm, dialog } = useConfirm();
   const canWrite = useCanWrite();
-  const [draft, setDraft] = useState('');
+  const [draft, setDraftState] = useState(() => drafts.get(channel.id) ?? '');
   const [editing, setEditing] = useState<string | null>(null);
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [managing, setManaging] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  /** Which message has been asked for its actions, where there is no hover. */
+  const [tapped, setTapped] = useState<string | null>(null);
+  const stream = useRef<HTMLDivElement>(null);
+  const composer = useRef<HTMLTextAreaElement>(null);
+  /** Lines that arrived while the reader was up in the history. */
+  const [waiting, setWaiting] = useState(0);
+  /**
+   * Whether the reader is at the newest line. Maintained on scroll rather
+   * than measured when a message arrives, because by then the new message has
+   * already grown the container and the answer would depend on how tall it
+   * is. Starts true: a conversation opens at its newest line.
+   */
+  const stuck = useRef(true);
+  /** How many lines the last layout pass had, so the next one knows the delta. */
+  const counted = useRef(0);
+
+  const setDraft = (next: string) => {
+    setDraftState(next);
+    if (next) drafts.set(channel.id, next);
+    else drafts.delete(channel.id);
+  };
 
   const messages = useQuery(
     () => list('message', (message) => message.channel_id === channel.id && !message.deleted_at)
-      .sort((a, b) => a.created_at - b.created_at),
+      .sort(messageOrder),
     [channel.id],
   );
 
@@ -290,18 +393,59 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const marker = useQuery(() => byId('channelRead', markerId), [markerId]);
   const latest = messages.at(-1)?.created_at ?? 0;
 
-  // Reading is what marks it read. Written on a change rather than on every
-  // render, and only forwards: a marker that went backwards would make a
-  // conversation somebody has just read unread again on their other device.
+  /**
+   * Reading is what marks it read — and a tab in the background is not being
+   * read. Without the check, a conversation left open behind another window
+   * marks everything that arrives as seen: the badge never lights, the other
+   * devices agree it was read, and nobody ever read a word. The heartbeat next
+   * door has always asked this question; this had not.
+   *
+   * Written on a change rather than on every render, and only forwards: a
+   * marker that went backwards would make a conversation somebody has just
+   * read unread again on their other device.
+   */
   useEffect(() => {
     if (!latest || latest <= (marker?.last_read_at ?? 0)) return;
-    if (marker) update('channelRead', markerId, { last_read_at: latest });
-    else create('channelRead', { id: markerId, channel_id: channel.id, last_read_at: latest, workspace_id: channel.workspace_id ?? null }, markerId);
-  }, [latest, marker, markerId, channel.id]);
+    const mark = () => {
+      if (document.visibilityState !== 'visible' || !document.hasFocus()) return;
+      if (marker) update('channelRead', markerId, { last_read_at: latest });
+      else create('channelRead', { id: markerId, channel_id: channel.id, last_read_at: latest, workspace_id: channel.workspace_id ?? null }, markerId);
+    };
+    mark();
+    // Whatever arrived while the tab was away is caught up the moment it comes
+    // back, rather than waiting for the next message to arrive.
+    window.addEventListener('focus', mark);
+    document.addEventListener('visibilitychange', mark);
+    return () => {
+      window.removeEventListener('focus', mark);
+      document.removeEventListener('visibilitychange', mark);
+    };
+  }, [latest, marker, markerId, channel.id, channel.workspace_id]);
 
-  useEffect(() => {
-    bottom.current?.scrollIntoView({ block: 'end' });
-  }, [messages.length, channel.id]);
+  const toBottom = () => {
+    const el = stream.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    stuck.current = true;
+    setWaiting(0);
+  };
+
+  // A new message moves the view only for a reader who is already at the
+  // bottom — somebody scrolled up is reading, and dragging them down
+  // mid-sentence is worse than the new message arriving a scroll away. They
+  // are told it arrived instead, and one click catches them up. A layout
+  // effect, so the first render is never painted at the top of the history.
+  useLayoutEffect(() => {
+    const el = stream.current;
+    const arrived = messages.length - counted.current;
+    counted.current = messages.length;
+    if (el && stuck.current) {
+      el.scrollTop = el.scrollHeight;
+      setWaiting(0);
+    } else if (arrived > 0) {
+      setWaiting((held) => held + arrived);
+    }
+  }, [messages.length]);
 
   const send = () => {
     const body = draft.trim();
@@ -310,6 +454,33 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
     setDraft('');
     setReplyTo(null);
     setTyping(null);
+  };
+
+  // Choosing to reply is choosing to write, so the caret goes where the
+  // writing happens. Without this the chip appeared above a box the cursor was
+  // not in, and the next thing typed went wherever it had been.
+  const startReply = (id: string) => {
+    setReplyTo(id);
+    composer.current?.focus();
+  };
+
+  /**
+   * Go to the message being quoted.
+   *
+   * Measured against the stream's own box rather than `offsetTop`, which is
+   * relative to whichever ancestor happens to be positioned, and scrolled a
+   * third of the way down so the quoted line lands with its context above it.
+   */
+  const jumpTo = (id: string) => {
+    const box = stream.current;
+    const target = box?.querySelector<HTMLElement>(`[data-message="${id}"]`);
+    if (!box || !target) return;
+    box.scrollTop += target.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 3;
+    target.classList.remove('found');
+    // Reading the layout between the two flushes the class change, so the
+    // animation restarts when the same message is jumped to twice.
+    void target.offsetWidth;
+    target.classList.add('found');
   };
 
   // Switching conversations, or closing this one, stops the line over there.
@@ -321,9 +492,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   return (
     <>
       <header className="chat-header flex items-center gap-2">
-        {/* On a phone the conversation is the whole screen, so this is the only
-            way back to the list. Hidden where the list is already beside it. */}
-        <Button variant="ghost" size="iconSm" className="chat-back" aria-label={t('chat.backToList')} onClick={onBack}>
+        {/* On a phone the conversation is the whole screen, so this is the
+            only way back to the list. Hidden from 900px up — the width at
+            which the list appears beside it, not the generic 700px helper,
+            which would leave a band with neither the list nor the way back.
+            A utility rather than a stylesheet rule: the button's own
+            `inline-flex` utility beats anything `@layer components` says. */}
+        <Button variant="ghost" size="iconSm" className="min-[900px]:hidden" aria-label={t('chat.backToList')} onClick={onBack}>
           <Icon name="chevronLeft" size={16} />
         </Button>
         <Icon name={channel.kind === 'direct' ? 'chat' : 'hash'} size={16} />
@@ -343,7 +518,18 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       </header>
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
-      <div className="chat-stream">
+      <div
+        className="chat-stream"
+        ref={stream}
+        onScroll={() => {
+          const el = stream.current;
+          if (!el) return;
+          stuck.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+          // Scrolling down to the newest line is reading it; the notice about
+          // it has done its job and goes.
+          if (stuck.current && waiting) setWaiting(0);
+        }}
+      >
         {messages.length === 0 && <p className="text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
         {messages.map((message, index) => {
           const author = members.get(message.author_id ?? '');
@@ -358,25 +544,47 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           const answered = message.reply_to ? messages.find((m) => m.id === message.reply_to) : undefined;
 
           return (
-            <div className={`chat-message${grouped ? ' grouped' : ''}`} key={message.id}>
+            <div
+              className={cn('chat-message', grouped && 'grouped', tapped === message.id && 'tapped')}
+              key={message.id}
+              data-message={message.id}
+              // Every line can be asked when it was said, not only the one at
+              // the top of a block — and a relative stamp rendered once is
+              // wrong by the time anybody reads it twice.
+              title={exactTime(message.created_at)}
+            >
               {grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />}
               <div className="body">
                 {!grouped && (
                   <div className="flex items-center gap-1.5">
                     <span className="who">{author?.name ?? t('common.someone')}</span>
                     <span className="when">{relativeTime(message.created_at)}</span>
-                    {message.edited_at && <span className="when">· {t('chat.edited')}</span>}
                   </div>
                 )}
-                {answered && (
-                  <div className="quoted">
-                    <Icon name="link" size={11} />
+                {/* The quote is a way back to what was said, so it is a button
+                    — and `orphan` is the same "it is not there any more" this
+                    class already means beside a comment. The answer outlives
+                    the question, and saying so beats dropping the quote and
+                    leaving a reply that answers nothing visible. */}
+                {message.reply_to && (answered ? (
+                  <button className="quoted" title={t('chat.jumpToReplied')} onClick={() => jumpTo(answered.id)}>
+                    <Icon name="reply" size={11} />
                     {' '}
-                    {members.get(answered.author_id ?? '')?.name ?? t('common.someone')}:
-                    {' '}
-                    {String(answered.body).slice(0, 80)}
-                  </div>
-                )}
+                    {/* One string rather than a name, a colon and a body glued
+                        together here: the punctuation between somebody's name
+                        and their words is a translator's decision. The body is
+                        the words and not the markdown — `**ship it**` in a
+                        quote should read as what somebody said. */}
+                    {t('chat.quoted', {
+                      name: members.get(answered.author_id ?? '')?.name ?? t('common.someone'),
+                      said: excerpt(answered.body ?? '', 80),
+                    })}
+                  </button>
+                ) : (
+                  <p className="quoted orphan">
+                    <Icon name="reply" size={11} /> <em>{t('chat.replyGone')}</em>
+                  </p>
+                ))}
                 {editing === message.id ? (
                   <EditBox
                     initial={message.body}
@@ -386,21 +594,36 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                     }}
                   />
                 ) : (
-                  <Markdown source={message.body} />
+                  <>
+                    <Markdown source={message.body} />
+                    {/* After the body rather than up beside the name: a
+                        grouped line has no name row, so an edit to one went
+                        unmarked — the one case the mark exists for. */}
+                    {message.edited_at && <span className="when">{t('chat.edited')}</span>}
+                  </>
                 )}
                 <Reactions message={message} me={me} canWrite={canWrite} />
               </div>
+              {/* Shown only where there is no hover to reveal the bar with. */}
+              <button
+                className="chat-more"
+                aria-label={t('chat.messageActions')}
+                aria-expanded={tapped === message.id}
+                onClick={() => setTapped(tapped === message.id ? null : message.id)}
+              >
+                <Icon name="dots" size={14} />
+              </button>
               <div className="chat-actions">
                 {canWrite && <AddReaction message={message} me={me} />}
-                <Button variant="ghost" size="iconSm" title={t('chat.reply')} onClick={() => setReplyTo(message.id)}>
-                  <Icon name="link" size={12} />
+                <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('chat.reply')} onClick={() => startReply(message.id)}>
+                  <Icon name="reply" size={13} />
                 </Button>
                 {message.author_id === me && (
                   <>
-                    <Button variant="ghost" size="iconSm" title={t('action.edit')} onClick={() => setEditing(message.id)}>
-                      <Icon name="bolt" size={12} />
+                    <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('action.edit')} onClick={() => setEditing(message.id)}>
+                      <Icon name="pencil" size={13} />
                     </Button>
-                    <Button variant="ghost" size="iconSm"
+                    <Button variant="ghost" size="iconSm" className={ACTION_SIZE}
                       title={t('action.delete')}
                       onClick={async () => {
                         if (await confirm(t('chat.deleteMessage'))) remove('message', message.id);
@@ -414,14 +637,23 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             </div>
           );
         })}
-        <div ref={bottom} />
       </div>
+
+      {/* Reading history while a conversation moves: the stream stays where it
+          was, and this says what is waiting below rather than dragging the
+          reader to it. */}
+      {waiting > 0 && (
+        <button className="chat-jump" onClick={toBottom}>
+          <Icon name="chevronDown" size={13} />
+          {t('chat.waiting', { count: waiting })}
+        </button>
+      )}
 
       {canWrite ? (
       <div className="chat-composer">
         {replyTo && (
           <div className="flex items-center gap-2 quoted-draft">
-            <Icon name="link" size={12} />
+            <Icon name="reply" size={12} />
             <span className="flex-1 min-w-0 truncate">
               {t('chat.replyingTo', {
                 name: members.get(messages.find((m) => m.id === replyTo)?.author_id ?? '')?.name ?? t('common.someone'),
@@ -432,7 +664,11 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             </Button>
           </div>
         )}
-        <Typing channelId={channel.id} me={me} />
+        <Typing
+          channelId={channel.id}
+          me={me}
+          idle={SEND_ON_ENTER && draft.trim() ? t('chat.enterHint') : undefined}
+        />
         <MarkdownEditor
           value={draft}
           onChange={(next) => {
@@ -442,13 +678,17 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             // the other person to keep watching.
             setTyping(next.trim() ? channel.id : null);
           }}
-          minHeight={54}
           placeholder={t('chat.placeholder', { where: title })}
           onSubmit={send}
+          submitOnEnter={SEND_ON_ENTER}
+          fieldRef={composer}
+          compact
+          actions={(
+            <Button variant="primary" size="sm" disabled={!draft.trim()} onClick={send}>
+              <Icon name="send" size={13} /> {t('chat.send')}
+            </Button>
+          )}
         />
-        <Button variant="primary" disabled={!draft.trim()} onClick={send}>
-          <Icon name="send" size={14} /> {t('chat.send')}
-        </Button>
       </div>
       ) : (
         /* A guest can read an open channel and cannot write anywhere. Saying so
@@ -467,9 +707,12 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
  *
  * It occupies a fixed line whether or not anybody is typing, because a line
  * that appears and disappears shoves the entire conversation up and down while
- * somebody is trying to read it.
+ * somebody is trying to read it. While the line would be empty it can carry
+ * `idle` instead — the "Enter sends" hint lives there, in space already paid
+ * for. The live region is the inner span, so the hint coming and going is
+ * never read out as somebody typing.
  */
-function Typing({ channelId, me }: { channelId: string; me: string }) {
+function Typing({ channelId, me, idle }: { channelId: string; me: string; idle?: string }) {
   const t = useT();
   const members = usePeople();
   const who = useTypists(channelId, me);
@@ -481,7 +724,10 @@ function Typing({ channelId, me }: { channelId: string; me: string }) {
     : t('chat.typingMany');
 
   return (
-    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted" aria-live="polite">{text}</p>
+    <p className="m-0 h-[15px] truncate text-[11.5px] text-muted">
+      <span aria-live="polite">{text}</span>
+      {!text && idle}
+    </p>
   );
 }
 
@@ -490,7 +736,9 @@ function EditBox({ initial, onDone }: { initial: string; onDone: (body: string) 
   const [value, setValue] = useState(initial);
   return (
     <div className="flex flex-col gap-1.5">
-      <MarkdownEditor value={value} onChange={setValue} minHeight={54} onSubmit={() => onDone(value)} />
+      {/* Same shape as the composer: editing a line in place should feel like
+          writing it did, not like opening a document. */}
+      <MarkdownEditor value={value} onChange={setValue} autoFocus compact onSubmit={() => onDone(value)} submitOnEnter={SEND_ON_ENTER} />
       <div className="flex items-center gap-1.5">
         <Button variant="primary" size="sm" onClick={() => onDone(value)}>{t('action.save')}</Button>
         <Button size="sm" onClick={() => onDone(initial)}>{t('action.cancel')}</Button>
@@ -568,21 +816,44 @@ function Reactions({ message, me, canWrite }: { message: Message; me: string; ca
   );
 }
 
+/**
+ * Six emoji, in a row.
+ *
+ * This was a menu, and a menu is a column of full-width rows at least thirteen
+ * rem across — so six characters came out as a tall ladder of mostly empty
+ * space, tall enough to cover the composer. A picker is a different shape from
+ * a list of commands, so it uses a different primitive.
+ */
 function AddReaction({ message, me }: { message: Message; me: string }) {
   const t = useT();
+  const [open, setOpen] = useState(false);
   return (
-    <MenuButton
-      variant="ghost" size="iconSm"
-      label={t('task.react')}
-      items={REACTIONS.map((emoji) => ({
-        id: emoji,
-        label: <span className="text-base">{emoji}</span>,
-        hint: (message.reactions?.[emoji] ?? []).includes(me) ? '✓' : undefined,
-        onSelect: () => toggleReaction(message, emoji, me),
-      }))}
-    >
-      <Icon name="sparkle" size={12} />
-    </MenuButton>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('task.react')}>
+          <Icon name="emoji" size={13} />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="flex gap-0.5" aria-label={t('task.react')}>
+        {REACTIONS.map((emoji) => {
+          const mine = (message.reactions?.[emoji] ?? []).includes(me);
+          return (
+            <button
+              key={emoji}
+              className={cn('reaction-pick', mine && 'mine')}
+              aria-pressed={mine}
+              aria-label={emoji}
+              onClick={() => {
+                toggleReaction(message, emoji, me);
+                setOpen(false);
+              }}
+            >
+              <span aria-hidden>{emoji}</span>
+            </button>
+          );
+        })}
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -820,7 +1091,10 @@ function FindPerson({ me, onClose, onPick }: { me: string; onClose: () => void; 
     const timer = setTimeout(() => {
       api.get<typeof people>(`/api/people?q=${encodeURIComponent(query.trim())}`)
         .then((found) => {
-          if (!cancelled) setPeople(found.filter((person) => person.id !== me));
+          if (cancelled) return;
+          setPeople(found.filter((person) => person.id !== me));
+          // A search that has recovered stops apologising for the one before.
+          setError('');
         })
         .catch((err) => {
           if (!cancelled) setError(err instanceof Error ? err.message : t('common.somethingWentWrong'));

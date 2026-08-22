@@ -2,7 +2,7 @@
   "name": "kolibri",
   "version": "0.1.0",
   "private": true,
-  "description": "Kolibri \u2014 open source work OS: projects, tasks, cycles, pages. Offline-first, self-hosted, MCP-native.",
+  "description": "Kolibri — open source work OS: projects, tasks, cycles, pages. Offline-first, self-hosted, MCP-native.",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -35,5 +35,8 @@
   "devDependencies": {
     "@types/node": "^22.20.1",
     "typescript": "^5.9.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
   }
 }

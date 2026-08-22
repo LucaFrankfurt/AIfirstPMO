@@ -1453,6 +1453,45 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   min-height: 160px;
 }
 .editor.dropping textarea { border-color: var(--accent); background: var(--accent-soft); }
+.editor-preview {
+  border: 1px solid var(--line-strong);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  padding: 12px;
+}
+
+/*
+ * The message-box shape.
+ *
+ * One line to start with, growing as it is typed into, with the buttons along
+ * the bottom — and in the interface font rather than the monospace one, because
+ * this is somebody talking, not somebody writing a document.
+ */
+/* The one-line floor is set inline at the call site, where it beats the
+   `min-h-20` utility the shared Textarea carries. */
+.editor.compact textarea {
+  resize: none;
+  overflow-y: auto;
+  border-bottom: none;
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  font-family: var(--font);
+  font-size: 13.5px;
+  line-height: 1.5;
+}
+/* Flat where the formatting row is sitting on top of it. */
+.editor.compact:has(.editor-toolbar) textarea { border-radius: 0; }
+.editor.compact .editor-preview { border-radius: 0; }
+.editor.compact .editor-foot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 5px;
+  border: 1px solid var(--line-strong);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.editor.compact .editor-foot .btn { height: 26px; }
 
 /* --------------------------------------------------------------- specifics */
 
@@ -2082,20 +2121,33 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .content:has(.chat) { overflow: hidden; }
 
 .chat { display: grid; grid-template-columns: 1fr; min-height: 0; height: 100%; }
-/* `.page` ends in 80px of breathing room for the bottom bar. A composer that is
-   already pinned to the bottom does not want it — but not zero either: a send
-   button flush against the edge of the window reads as cut off even when every
-   pixel of it is there. */
-.page.chat { padding-bottom: 10px; }
-
-/* The way back to the list, on the widths where the list is not beside you.
-   Tied to the same 900px the list rule uses rather than to the generic
-   small-screen helper, which switches at 700 and would leave a band where
-   neither the list nor the way back to it is on screen. */
-.chat-back { display: inline-flex; }
-@media (min-width: 900px) { .chat-back { display: none; } }
+/* The chat's own bottom padding, the back-to-the-list button and the send
+   button are styled by utilities in `chat.tsx` rather than rules here: this
+   file is in `@layer components`, and a utility on the element always wins —
+   three chat rules sat here matching classes the Tailwind port had removed,
+   silently doing nothing. The reasons live as comments at those call sites. */
 .chat-list { min-width: 0; }
 .chat-main { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+
+/*
+ * Two lines: what the conversation is, and what was last said in it.
+ *
+ * A row used to be a name and nothing else, which cannot answer the question
+ * people open this list to ask — what happened while I was away — so every row
+ * had to be clicked to find out. The icon is nudged down to sit on the title's
+ * line rather than centred against both.
+ */
+.chat-row { align-items: flex-start; }
+.chat-row > svg { margin-top: 4px; }
+.chat-row-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.chat-row-line { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.chat-row-title { flex: 1; min-width: 0; }
+.chat-row-when { flex: none; font-size: 11px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.chat-row-said { font-size: 12px; line-height: 1.35; color: var(--fg-muted); font-weight: 400; }
+/* Unread is carried by weight as well as by the count, so the row reads as
+   waiting at a glance rather than only to somebody checking the number. */
+.chat-row.unread .chat-row-title { font-weight: 600; color: var(--fg); }
+.chat-row.unread .chat-row-said { color: var(--fg-soft); }
 
 /* One screen at a time on a phone: with a conversation open it shows only that,
    and with none open the list is already the answer to "pick a conversation",
@@ -2122,12 +2174,15 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   overflow-y: auto;
   padding: 10px 0;
   min-height: 0;
-  /* A stream that is shorter than its box should sit at the bottom, where the
-     newest message is, rather than floating in the middle of the empty part. */
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
 }
+/* A stream shorter than its box sits at the bottom, where the newest message
+   is, rather than floating in the middle of the empty part. An auto margin
+   rather than `justify-content: flex-end`, which looks identical right up
+   until the messages outgrow the box: overflow past a flex container's start
+   edge is not scrollable, and every message above the fold was unreachable. */
+.chat-stream > :first-child { margin-top: auto; }
 
 .chat-message { display: flex; gap: 9px; padding: 3px 0; position: relative; }
 .chat-message:not(.grouped) { padding-top: 10px; }
@@ -2138,10 +2193,21 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .chat-message .gutter { width: 26px; flex: none; }
 .chat-message p:last-child { margin-bottom: 0; }
 
+/*
+ * The actions live over the message's top-right corner, and the corner is kept
+ * empty for them.
+ *
+ * Lifting the bar into the gap above the row is half the fix — a bar tall
+ * enough to hold a button is taller than the gap between two grouped lines, so
+ * on its own it still lands on the words. The other half is the gutter below:
+ * the text column simply stops before the corner the bar occupies, always,
+ * so nothing has to move when the bar appears and nothing is ever behind it.
+ */
 .chat-actions {
   position: absolute;
   inset-inline-end: 0;
-  top: 0;
+  top: -13px;
+  z-index: 1;
   display: flex;
   gap: 2px;
   background: var(--bg-raised);
@@ -2149,12 +2215,101 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-radius: var(--radius-sm);
   padding: 1px;
   opacity: 0;
+  /* Invisible and still in the way: at `opacity: 0` the bar goes on catching
+     clicks, which on a touch screen meant the dot-button underneath it could
+     not be tapped at all. Focus is deliberately still allowed through, so a
+     keyboard can tab in and `:focus-within` below brings it into view. */
+  pointer-events: none;
   transition: opacity 120ms ease;
 }
-.chat-message:hover .chat-actions,
-.chat-actions:focus-within { opacity: 1; }
-/* A hover-only control is unreachable on a touch screen, so there it stays. */
-@media (hover: none) { .chat-actions { opacity: 1; position: static; border: 0; background: none; } }
+/* Scoped, because a tap on a touch screen leaves a hover behind it: unscoped,
+   this lit the bar on whichever message was last touched and left it there,
+   fighting the dot-button that is supposed to be in charge down there. */
+@media (hover: hover) {
+  .chat-message:hover .chat-actions { opacity: 1; pointer-events: auto; }
+}
+.chat-actions:focus-within { opacity: 1; pointer-events: auto; }
+
+/* Room for the bar, on the pointers that have a hover to reveal it with. Wide
+   screens only: the gutter is a fraction of a desktop column and a third of a
+   phone's. */
+@media (hover: hover) and (min-width: 700px) {
+  .chat-message .body { padding-inline-end: 122px; }
+}
+
+/*
+ * Touch has no hover to reveal anything with, and the answer used to be
+ * "show all four on every line, in the text flow" — which took a third of the
+ * column away from every message on the narrowest screen there is. Now one
+ * dot-button asks, and the bar answers.
+ */
+.chat-more { display: none; }
+@media (hover: none) {
+  .chat-more {
+    display: inline-flex;
+    position: absolute;
+    inset-inline-end: 0;
+    top: 0;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 22px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+  }
+  .chat-message .body { padding-inline-end: 26px; }
+  .chat-message.tapped .chat-actions { opacity: 1; pointer-events: auto; }
+  .chat-message.tapped .chat-more { opacity: 0; }
+}
+
+/* Where a jumped-to message lands: bright for a moment, then not. Long enough
+   to find with your eye, short enough that it is gone before it is annoying. */
+@keyframes chat-found {
+  from { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+  to { background: transparent; }
+}
+.chat-message.found { animation: chat-found 1.6s ease-out; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .chat-message.found { animation-duration: 2.4s; }
+}
+
+/* "3 new messages", between the stream and the composer, for a reader who is
+   up in the history while the conversation moves below them. */
+.chat-jump {
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: -6px;
+  padding: 3px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-sm);
+  font-size: 12px;
+  color: var(--fg-soft);
+  cursor: pointer;
+}
+.chat-jump:hover { background: var(--bg-hover); color: var(--fg); }
+
+/* One row of six, in a popover sized by its contents. */
+.reaction-pick {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  font-size: 17px;
+  line-height: 1;
+  cursor: pointer;
+}
+.reaction-pick:hover { background: var(--bg-hover); }
+.reaction-pick.mine { background: var(--accent-soft); }
 
 .chat-composer {
   flex: none;
@@ -2165,7 +2320,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   gap: 8px;
   padding-bottom: env(safe-area-inset-bottom);
 }
-.chat-composer > .btn { align-self: flex-end; }
 
 
 }

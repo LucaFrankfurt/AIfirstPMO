@@ -68,6 +68,13 @@ const PATHS = {
   // hamburgers that did different things.
   sliders: 'M4 7h16M4 12h16M4 17h16M9 5v4M15 10v4M7 15v4',
   bolt: 'M13 3 5 14h6l-1 7 8-11h-6z',
+  // Three that exist because a chat had to borrow: editing was a lightning
+  // bolt, replying was a chain link, and reacting was a sparkle — a toolbar of
+  // metaphors nobody could guess, revealed only on hover, which is the same as
+  // unlabelled. The originals still mean priority, links and the assistant.
+  pencil: 'M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM14 6l4 4',
+  reply: 'M9 7 4 12l5 5M4 12h9a6 6 0 0 1 6 6v2',
+  emoji: 'M11 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.5 11h.01M13.5 11h.01M8 15c1 1.5 5 1.5 6 0M19 3v4M21 5h-4',
   bookmark: 'M6 4h12v17l-6-4-6 4z',
   table: 'M3 5h18v14H3zM3 10h18M9 10v9M3 15h18',
   gantt: 'M4 6h9M7 12h11M4 18h7M3 3v18',
@@ -88,7 +95,7 @@ const PATHS = {
  * Icons that mean "forwards" or "away" rather than naming a thing. They are
  * mirrored under a right-to-left direction, where forwards is the other way.
  */
-const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout']);
+const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout', 'reply']);
 
 /**
  * The names above, as a type. `Icon` itself still takes any string — plenty of
