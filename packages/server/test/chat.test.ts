@@ -249,6 +249,29 @@ describe('saying something', () => {
     assert.equal(nowhere.status, 400);
   });
 
+  it('merges two people reacting at once instead of keeping one', async () => {
+    const message = await post(people.ada, 'messages', { channel_id: channel, body: 'ship it?' });
+    // Both devices react from the map as it looked before either of them did —
+    // which is what an offline pair, or a fast pair, actually sends.
+    await as(people.ada, `/api/messages/${message.id}`, { reactions: { '👍': [people.ada.id] } }, 'PATCH');
+    const after = await as(people.lin, `/api/messages/${message.id}`, { reactions: { '🎉': [people.lin.id] } }, 'PATCH');
+    assert.deepEqual(after.reactions, { '👍': [people.ada.id], '🎉': [people.lin.id] });
+  });
+
+  it('lets a reaction be taken back, but only your own', async () => {
+    const message = await post(people.ada, 'messages', { channel_id: channel, body: 'both of us' });
+    await as(people.ada, `/api/messages/${message.id}`, { reactions: { '👀': [people.ada.id] } }, 'PATCH');
+    await as(people.lin, `/api/messages/${message.id}`, { reactions: { '👀': [people.ada.id, people.lin.id] } }, 'PATCH');
+
+    // Lin takes hers back and Ada's stays.
+    const mine = await as(people.lin, `/api/messages/${message.id}`, { reactions: {} }, 'PATCH');
+    assert.deepEqual(mine.reactions, { '👀': [people.ada.id] });
+
+    // ...and Lin cannot take Ada's back by sending a map without her in it.
+    const theirs = await as(people.lin, `/api/messages/${message.id}`, { reactions: { '👀': [people.lin.id] } }, 'PATCH');
+    assert.deepEqual(theirs.reactions, { '👀': [people.ada.id, people.lin.id] });
+  });
+
   it('keeps what a message answered, whatever an edit claims', async () => {
     const asked = await post(people.ada, 'messages', { channel_id: channel, body: 'original question' });
     const other = await post(people.ada, 'messages', { channel_id: channel, body: 'a different line' });

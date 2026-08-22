@@ -49,6 +49,16 @@ export function briefWhen(timestamp?: number | null): string {
   return shortDate(timestamp);
 }
 
+/** A day named in full, for the line that separates one from the next. */
+export function longDate(timestamp?: number | null): string {
+  if (!timestamp) return '';
+  const date = new Date(timestamp);
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return date.toLocaleDateString(currentLocale(), {
+    weekday: 'long', day: 'numeric', month: 'long', ...(sameYear ? {} : { year: 'numeric' }),
+  });
+}
+
 export function relativeTime(timestamp?: number | null): string {
   if (!timestamp) return '';
   const diff = timestamp - Date.now();

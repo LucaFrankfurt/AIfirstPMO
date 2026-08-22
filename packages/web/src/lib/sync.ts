@@ -41,6 +41,22 @@ function setStatus(patch: Partial<SyncStatus>): void {
 
 export const getStatus = (): SyncStatus => status;
 
+/**
+ * Whether this row is still waiting for the network.
+ *
+ * `status.pending` counts the queue, which answers "is anything unsent" and
+ * not "is *this* unsent" — and the second is the one a conversation needs, so
+ * that a message written in a tunnel can say it has not left yet instead of
+ * looking exactly like one that arrived. Scanning the outbox is cheap because
+ * a full outbox is a short list; if it ever is not, nothing is being sent and
+ * that is the larger problem.
+ *
+ * Subscribe with `subscribeSync`: the queue only changes where the status
+ * does, so a listener there already sees every change to this.
+ */
+export const isPendingRow = (entity: EntityName, entityId: string): boolean =>
+  outbox.some((mutation) => mutation.entity === entity && mutation.entityId === entityId);
+
 /* ------------------------------------------------------------------ engine */
 
 const CLIENT_KEY = 'kolibri.client-id';

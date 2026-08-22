@@ -620,10 +620,11 @@ await step('chat: a picture, a reaction, and a member list that can be added to'
 
   await page.locator('.chat-message').first().hover();
   await page.locator('.chat-message .chat-actions button').first().click();
-  // A menu item is a `role=menuitem`, not a `<button>`: that is the pattern a
-  // screen reader expects inside `role=menu`, and it is what Radix renders.
-  await page.waitForSelector('.menu [role=menuitem]', { timeout: 3000 });
-  await page.locator('.menu [role=menuitem]').first().click();
+  // Six emoji in a row rather than a column of menu rows: a picker is a
+  // different shape from a list of commands, so it is a popover of plain
+  // buttons and not `role=menuitem` under `role=menu`.
+  await page.waitForSelector('.reaction-pick', { timeout: 3000 });
+  await page.locator('.reaction-pick').first().click();
   await page.waitForTimeout(500);
   const chips = await page.locator('.chat-stream .reaction').count();
   if (!chips) throw new Error('reacting left no chip');
@@ -673,18 +674,18 @@ await step('chat: a dot says who is here, and a line says who is typing', async 
     // The line: Grace types, Ada reads it within a second or two.
     await other.locator('.chat-composer textarea').fill('writing something…');
     await page.waitForFunction(
-      () => (document.querySelector('.chat-composer p[aria-live]')?.textContent ?? '').trim().length > 0,
+      () => (document.querySelector('.chat-composer [aria-live]')?.textContent ?? '').trim().length > 0,
       null,
       { timeout: 8000 },
     );
-    const line = (await page.locator('.chat-composer p[aria-live]').innerText()).trim();
+    const line = (await page.locator('.chat-composer [aria-live]').innerText()).trim();
     console.log('     typing line:', JSON.stringify(line));
     if (!line.includes('Grace')) throw new Error(`typing line did not name Grace: "${line}"`);
 
     // And it goes away again: an emptied composer is not "still typing".
     await other.locator('.chat-composer textarea').fill('');
     await page.waitForFunction(
-      () => (document.querySelector('.chat-composer p[aria-live]')?.textContent ?? '').trim().length === 0,
+      () => (document.querySelector('.chat-composer [aria-live]')?.textContent ?? '').trim().length === 0,
       null,
       { timeout: 8000 },
     );
@@ -761,6 +762,111 @@ await step('chat: anybody on the instance can be written to', async () => {
   const title = await page.locator('.chat-header strong').innerText();
   if (!/grace/i.test(title)) throw new Error(`opened a conversation with "${title}"`);
   console.log('     opened a conversation with:', title);
+});
+
+/**
+ * The four that were broken, and are not allowed to break again.
+ *
+ * Every one of these lived in the screen rather than in the model, which is
+ * why a thorough set of unit tests never saw them: the history could not be
+ * scrolled, a draft followed you into the next conversation and sat one click
+ * from the wrong audience, a batch of messages could read out of order, and
+ * Enter did not send. They are here rather than beside the other chat steps
+ * because they are not a feature — they are four assertions standing over
+ * four specific holes.
+ *
+ * Set up through the API rather than by typing thirty messages: this is about
+ * what the screen does with a conversation, not about how it got one, and a
+ * walkthrough that spends forty seconds sending is a walkthrough people turn
+ * off.
+ */
+await step('chat: history, drafts, order and Enter — the four that were broken', async () => {
+  const stamp = `${locale} ${Date.now()}`;
+  const rooms = await page.evaluate(async (mark) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const make = async (name) => (await (await fetch(`/api/workspaces/${ws}/channels`, {
+      method: 'POST', credentials: 'include',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name }),
+    })).json()).id;
+    const long = await make(`long ${mark}`);
+    const other = await make(`other ${mark}`);
+    for (let i = 1; i <= 40; i++) {
+      await fetch(`/api/workspaces/${ws}/messages`, {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ channel_id: long, body: `line ${String(i).padStart(2, '0')}` }),
+      });
+    }
+    return { long, other };
+  }, stamp);
+
+  await page.goto(`${base}/chat/${rooms.long}`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.chat-message', { timeout: 8000 });
+  await page.waitForTimeout(600);
+
+  // The order the lines were written in is the order they read in. A batch
+  // like this one lands inside a millisecond or two, so a sort on the
+  // timestamp alone decides these by whatever the store happened to return.
+  const order = await page.locator('.chat-message .body').allInnerTexts();
+  const numbers = order.map((line) => Number(line.match(/line (\d+)/)?.[1])).filter(Number.isFinite);
+  const ascending = numbers.every((n, i) => i === 0 || numbers[i - 1] < n);
+  if (numbers.length < 20) throw new Error(`only ${numbers.length} of the 40 lines were drawn`);
+  if (!ascending) throw new Error(`the conversation reads out of order: ${numbers.slice(0, 12).join(', ')}…`);
+
+  // The history can be reached. A stream that bottom-aligns itself with
+  // `justify-content` looks identical to one that does not, right up until the
+  // messages outgrow the box and everything above the fold becomes unreachable.
+  const reachable = await page.evaluate(async () => {
+    const stream = document.querySelector('.chat-stream');
+    if (stream.scrollHeight <= stream.clientHeight) return 'the conversation is not tall enough to test';
+    stream.scrollTop = 0;
+    await new Promise((done) => setTimeout(done, 400));
+    if (stream.scrollTop !== 0) return 'the stream refused to scroll up';
+    // Reaching the top may draw older messages; either way the first line
+    // drawn must now be inside the box rather than clipped above it.
+    const first = stream.querySelector('.chat-message');
+    return first.getBoundingClientRect().top >= stream.getBoundingClientRect().top - 2
+      ? null
+      : 'the oldest message drawn is still above the top of the stream';
+  });
+  if (reachable) throw new Error(reachable);
+
+  // A draft belongs to the conversation it was written in, and stays there.
+  // Switched by clicking rather than by navigating: the leak this is standing
+  // over was one React component being reused across conversations, which a
+  // full page load would tear down and hide. Drafts live in memory for the
+  // session, so a reload here would prove nothing either way.
+  await page.evaluate(() => { document.querySelector('.chat-stream').scrollTop = 1e6; });
+  const secret = `draft that must not follow me ${stamp}`;
+  await page.fill('.chat-composer textarea', secret);
+  await page.waitForTimeout(250);
+
+  const openRow = async (prefix) => {
+    await page.locator('.chat-list .chat-row').filter({ hasText: prefix }).first().click();
+    await page.waitForSelector('.chat-composer textarea', { timeout: 8000 });
+    await page.waitForTimeout(300);
+  };
+  await openRow(`other-${locale}-`);
+  const carried = await page.locator('.chat-composer textarea').inputValue();
+  if (carried.trim()) throw new Error(`the draft followed into another conversation: "${carried}"`);
+
+  await openRow(`long-${locale}-`);
+  const kept = await page.locator('.chat-composer textarea').inputValue();
+  if (kept !== secret) throw new Error(`the draft was not waiting where it was written: "${kept}"`);
+
+  // ...and Enter sends it, on a pointer that has a keyboard behind it.
+  const before = await page.locator('.chat-message').count();
+  await page.locator('.chat-composer textarea').click();
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(900);
+  const after = await page.locator('.chat-message').count();
+  if (after !== before + 1) throw new Error(`Enter did not send: ${before} messages, then ${after}`);
+  if ((await page.locator('.chat-composer textarea').inputValue()).trim()) {
+    throw new Error('Enter sent the message and left it in the box');
+  }
+  console.log('     40 lines in order, history reachable, draft kept, Enter sends');
 });
 
 /**
@@ -904,21 +1010,29 @@ await step('mobile layout', async () => {
   /*
    * Everything the sidebar reaches, a phone reaches too.
    *
-   * The bottom bar holds five things and the sidebar holds a dozen, so
-   * "More" is the rest of the app rather than a convenience — anything the
-   * sidebar has and this screen has not is *unreachable* on a phone. Chat
-   * was, and nobody noticed until somebody tried to use it on a phone. So
-   * the desktop sidebar is read for its destinations and this screen is
-   * asked for the same ones, instead of a list here that has to be
-   * remembered when the sidebar grows.
+   * The bottom bar holds a handful and the sidebar holds a dozen, so "More"
+   * is the rest of the app rather than a convenience — anything the sidebar
+   * has and this screen has not is *unreachable* on a phone. Chat was, and
+   * nobody noticed until somebody tried to use it on a phone; it has a slot
+   * of its own in the bar now, and is still listed here too. So the desktop
+   * sidebar is read for its destinations and this screen is asked for the
+   * same ones, instead of a list here that has to be remembered when the
+   * sidebar grows.
    */
   const wanted = await page.locator('.sidebar a[href]').evaluateAll((links) => [...new Set(links
     .map((a) => a.getAttribute('href'))
     .filter((href) => href && href !== '/' && !href.startsWith('/t/')))]);
   await m.click('.tabbar a[href="/more"]');
-  // `:visible` because the desktop sidebar is in the DOM at this width too,
-  // hidden by CSS — and a link nobody can see is not a link a phone reaches.
-  await m.waitForSelector('a[href="/chat"]:visible', { timeout: 5000 });
+  // Waited for by the screen's own content rather than by a link that happens
+  // to be on it: `a[href="/chat"]` was the marker until chat earned a place in
+  // the bar as well, at which point it matched before this screen had drawn
+  // anything and every destination came back missing.
+  await m.waitForURL(/\/more(\?|$)/, { timeout: 5000 });
+  await m.waitForFunction(
+    () => document.querySelectorAll('main.content a[href]').length > 3,
+    null,
+    { timeout: 5000 },
+  );
   const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('a[href]')]
     .filter((a) => a.offsetParent !== null)
     .map((a) => a.getAttribute('href'))));

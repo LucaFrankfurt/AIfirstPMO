@@ -11,7 +11,7 @@
  * has put the phone in a pocket, so "the socket is up" is a poor answer to "is
  * anyone there"; "the tab was visible in the last 45 seconds" is a good one.
  */
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { api } from './api';
 
 const BEAT_MS = 25_000;
@@ -155,6 +155,21 @@ export function useOnline(userId: string | null | undefined): boolean {
     () => (userId ? people.get(userId)?.online === true : false),
     () => false,
   );
+}
+
+/**
+ * Everybody known to be here, for a list that wants to sort by it.
+ *
+ * A joined string for the same reason `useTypists` uses one: the snapshot is
+ * compared by identity, and a fresh Set on every read is an endless render.
+ */
+export function useOnlineIds(): Set<string> {
+  const joined = useSyncExternalStore(
+    subscribePresence,
+    () => [...people.keys()].sort().join(','),
+    () => '',
+  );
+  return useMemo(() => new Set(joined ? joined.split(',') : []), [joined]);
 }
 
 /**

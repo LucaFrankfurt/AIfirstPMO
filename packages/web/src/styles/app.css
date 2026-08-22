@@ -1590,6 +1590,20 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .tabs::-webkit-scrollbar { display: none; }
 
+/*
+ * A strip that runs edge to edge, with its tabs inset to line up with the
+ * content underneath — and the inset is the first thing to go when the tabs
+ * want the room.
+ *
+ * Padding cannot do that: padding inside a scroll box is space the content
+ * does not get, so twenty-four pixels of alignment turned "these seven tabs
+ * fit with room to spare" into a strip that scrolled by two, complete with a
+ * fade over nothing. Two shrinkable flex spacers give the same alignment and
+ * hand it back before any of that happens.
+ */
+.tabs-inset::before,
+.tabs-inset::after { content: ""; flex: 0 1 12px; }
+
 .tabs button {
   border: none;
   background: none;
@@ -2294,6 +2308,84 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   cursor: pointer;
 }
 .chat-jump:hover { background: var(--bg-hover); color: var(--fg); }
+
+/* A line naming the day, with the day's first message under it. Without one,
+   yesterday evening runs straight into this morning. */
+.chat-day {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 4px;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+}
+.chat-day::before, .chat-day::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+.chat-day > span { flex: none; }
+
+/* The way further back, at the top of what is drawn. */
+.chat-earlier {
+  align-self: center;
+  margin: 4px 0 8px;
+  padding: 3px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-soft);
+  cursor: pointer;
+}
+.chat-earlier:hover { background: var(--bg-hover); color: var(--fg); }
+
+/* Find in this conversation, under the header. */
+.chat-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 6px 2px;
+  border-bottom: 1px solid var(--line);
+  color: var(--fg-muted);
+}
+.chat-search-box {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: none;
+  outline: none;
+  font: inherit;
+  font-size: 13.5px;
+  color: var(--fg);
+}
+/* A result is out of its context by definition, so it carries a way back. */
+.chat-in-context {
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  font-size: 11.5px;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Still on this device. Quiet: it is a reassurance, not a warning. */
+.chat-unsent {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+.chat-blank { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--fg-soft); }
+
+/* A checkbox in a message belongs to whoever wrote it. It was rendered
+   disabled and styled exactly like one you can tick, which is an invitation to
+   click something that will not answer. */
+.md li.md-task input:disabled { opacity: 0.55; cursor: default; }
 
 /* One row of six, in a popover sized by its contents. */
 .reaction-pick {
