@@ -13,26 +13,29 @@
  * `lib/presence.ts` on this side and `lib/presence.ts` on the server. A device
  * that ignores them entirely loses a dot and nothing else.
  */
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   canManageMembers,
   channelTitle,
   directChannelId,
   excerpt,
+  findMentions,
   messageOrder,
   normaliseChannelName,
   readStateId,
   unreadCount,
   type Channel,
+  type Mentionable,
   type Message,
 } from '@kolibri/shared';
 import { api } from '../lib/api';
 import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
-import { briefWhen, exactTime, relativeTime } from '../lib/format';
-import { setTyping, useOnline, useTypists } from '../lib/presence';
+import { briefWhen, exactTime, longDate, relativeTime } from '../lib/format';
+import { isPendingRow, subscribeSync } from '../lib/sync';
+import { setTyping, useOnline, useOnlineIds, useTypists } from '../lib/presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Button } from '../components/ui/button';
@@ -94,6 +97,77 @@ const SEND_ON_ENTER = typeof window !== 'undefined' && !window.matchMedia('(poin
  */
 const ACTION_SIZE = 'size-[26px]';
 
+/** How many messages a conversation draws at once, and grows by. */
+const PAGE = 60;
+
+/**
+ * A clock that ticks once a minute, for everything that says "3 minutes ago".
+ *
+ * Those were worked out once, when the message was drawn, and then never
+ * again — so a conversation left open said "now" about something said an hour
+ * ago. One interval for the whole screen rather than one per message, and it
+ * only exists while something is watching it.
+ */
+const minute = {
+  at: 0,
+  listeners: new Set<() => void>(),
+  timer: undefined as ReturnType<typeof setInterval> | undefined,
+};
+
+function subscribeMinute(listener: () => void): () => void {
+  minute.listeners.add(listener);
+  minute.timer ??= setInterval(() => {
+    minute.at = Date.now();
+    for (const each of minute.listeners) each();
+  }, 60_000);
+  return () => {
+    minute.listeners.delete(listener);
+    if (!minute.listeners.size) {
+      clearInterval(minute.timer);
+      minute.timer = undefined;
+    }
+  };
+}
+
+const useMinute = (): number => useSyncExternalStore(subscribeMinute, () => minute.at, () => 0);
+
+/**
+ * The day a line was said, as a person would say it.
+ *
+ * Today and yesterday by name, because a date for either reads as further
+ * away than it is; anything older as the date itself.
+ */
+function dayLabel(at: number, t: ReturnType<typeof useT>): string {
+  const now = new Date();
+  const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (at >= midnight) return t('chat.today');
+  if (at >= midnight - 86_400_000) return t('chat.yesterday');
+  return longDate(at);
+}
+
+/**
+ * A mark on your own line while it is still on this device.
+ *
+ * The promise this whole app is built on — write it on a train, it sends
+ * itself when the tunnel ends — was invisible: a message waiting in the
+ * outbox looked exactly like one that had arrived, which leaves somebody
+ * wondering precisely when they were told not to have to.
+ */
+function Unsent({ id }: { id: string }) {
+  const t = useT();
+  const waiting = useSyncExternalStore(
+    subscribeSync,
+    () => isPendingRow('message', id),
+    () => false,
+  );
+  if (!waiting) return null;
+  return (
+    <span className="chat-unsent" title={t('chat.unsentHint')}>
+      <Icon name="refresh" size={11} /> {t('chat.unsent')}
+    </span>
+  );
+}
+
 /**
  * Unsent words, kept per conversation.
  *
@@ -149,6 +223,32 @@ function useUnread(channelId: string, me: string): number {
 }
 
 /**
+ * What the badge in the sidebar is counting.
+ *
+ * The same thing the bell menu promises, which it did not used to be: a
+ * channel set to "only when I am named" still poured every message into the
+ * badge, so the menu taught one contract and the number followed another —
+ * and a number that counts things you asked not to hear about is a number
+ * people stop reading.
+ *
+ * A direct message always counts; a channel counts everything on "all" and
+ * only what names you on "mentions". `findMentions` is the rule the server
+ * notifies by, so the badge and the notification cannot disagree.
+ */
+function countsForBadge(
+  message: Message,
+  notify: string | undefined,
+  kind: string,
+  people: Mentionable[],
+  me: string,
+): boolean {
+  if (notify === 'none') return false;
+  const level = notify ?? (kind === 'direct' ? 'all' : 'mentions');
+  if (level === 'all' || kind === 'direct') return true;
+  return findMentions(people, message.body ?? '').includes(me);
+}
+
+/**
  * Everything unread, for the badge in the sidebar.
  *
  * Counted for a guest too. A read marker is the one thing somebody with no
@@ -157,6 +257,8 @@ function useUnread(channelId: string, me: string): number {
  * climb and never come down. See `guestWritable` in the entity registry.
  */
 export function useUnreadMessages(me: string): number {
+  const people = usePeople();
+  const roster = useMemo(() => [...people.values()], [people]);
   return useQuery(() => {
     const markers = new Map(list('channelRead', (marker) => marker.user_id === me).map((m) => [m.channel_id, m]));
     const byChannel = new Map<string, Message[]>();
@@ -169,10 +271,16 @@ export function useUnreadMessages(me: string): number {
     for (const [channelId, messages] of byChannel) {
       const marker = markers.get(channelId);
       if (marker?.notify === 'none') continue;
-      total += unreadCount(messages, marker?.last_read_at ?? 0, me);
+      const channel = byId('channel', channelId);
+      if (!channel || channel.deleted_at || channel.archived_at) continue;
+      const since = marker?.last_read_at ?? 0;
+      for (const message of messages) {
+        if (message.deleted_at || message.author_id === me || message.created_at <= since) continue;
+        if (countsForBadge(message, marker?.notify, channel.kind, roster, me)) total += 1;
+      }
     }
     return total;
-  }, [me]);
+  }, [me, roster]);
 }
 
 /* ---------------------------------------------------------------- the screen */
@@ -195,7 +303,29 @@ export function Chat() {
 
   const current = useQuery(() => (id ? byId('channel', id) : undefined), [id]);
   const nameOf = (userId: string) => members.get(userId)?.name;
-  const others = useMemo(() => [...colleagues.values()].filter((member) => member.id !== me), [colleagues, me]);
+  const here = useOnlineIds();
+  const archived = useQuery(
+    () => list('channel', (channel) => !!channel.archived_at && !channel.deleted_at).length,
+    [],
+  );
+
+  /**
+   * People to start with, which is not the same as people.
+   *
+   * Anybody you are already talking to has a row above with the last thing
+   * said in it; repeating them here as a bare name is the same person twice,
+   * offering less. What is left is the shortcut this section is for — somebody
+   * you work with and have not written to — sorted so the ones who are here
+   * now come first, since "can I ask them right now" is the question this
+   * list gets asked.
+   */
+  const others = useMemo(() => {
+    const talking = new Set(conversations.map(({ channel }) => partnerOf(channel, me)).filter(Boolean));
+    return [...colleagues.values()]
+      .filter((member) => member.id !== me && !talking.has(member.id))
+      .sort((a, b) => Number(here.has(b.id)) - Number(here.has(a.id))
+        || (a.name ?? '').localeCompare(b.name ?? ''));
+  }, [colleagues, me, conversations, here]);
 
   return (
     /* The bottom padding clears the tab bar while there is one — it hides at
@@ -220,7 +350,7 @@ export function Chat() {
         {/* "Start a channel, or write to somebody below" is only useful advice
             while there is somebody below. Alone, the hint further down says the
             true thing instead, and two hints where one is wrong is worse. */}
-        {conversations.length === 0 && (others.length > 0 || !canWrite) && (
+        {conversations.length === 0 && (colleagues.size > 1 || !canWrite) && (
           <p className="text-muted text-[12.5px]">{t('chat.noneYet')}</p>
         )}
 
@@ -239,11 +369,13 @@ export function Chat() {
         {/* Starting a conversation is a write, and a guest has none. A list of
             people that refuses on click is worse than no list. */}
         {canWrite && <h2 className="nav-section mt-3.5">{t('chat.people')}</h2>}
-        {/* Alone in this workspace, the list below is empty — the usual state
-            on a fresh instance, because signing up a second time makes a second
-            workspace rather than joining the first. It is no longer a dead end:
-            a direct conversation does not need a workspace in common. */}
-        {canWrite && others.length === 0 && (
+        {/* Alone in this workspace — the usual state on a fresh instance,
+            because signing up a second time makes a second workspace rather
+            than joining the first. It is no longer a dead end: a direct
+            conversation does not need a workspace in common. Asked of the
+            workspace rather than of the list below, which is also empty when
+            you are simply already talking to everybody in it. */}
+        {canWrite && colleagues.size <= 1 && (
           <p className="text-muted text-[12.5px]">{t('chat.aloneHint')}</p>
         )}
         {canWrite && others.map((member) => (
@@ -258,10 +390,21 @@ export function Chat() {
           </button>
         ))}
         {canWrite && (
-          <button className={cn(navItem(), 'chat-find')} onClick={() => setFinding(true)}>
+          <button className={cn(navItem(), 'chat-person')} onClick={() => setFinding(true)}>
             <Icon name="search" size={16} />
             <span className="flex-1 min-w-0 truncate">{t('chat.findPerson')}</span>
           </button>
+        )}
+
+        {/* Archiving hid a channel from this list and said nothing about where
+            it went, which made it a one-way door out of the only screen that
+            mentions it. It has always been restorable from Settings → Data;
+            this is the sign pointing there. */}
+        {archived > 0 && (
+          <Link className={cn(navItem(), 'mt-3.5')} to="/settings?tab=data&show=archived">
+            <Icon name="archive" size={15} />
+            <span className="flex-1 min-w-0 truncate">{t('chat.archivedChannels', { count: archived })}</span>
+          </Link>
         )}
       </aside>
 
@@ -275,7 +418,7 @@ export function Chat() {
           : <Empty emoji="💬" title={t('chat.pickTitle')} hint={t('chat.pickHint')} guide="chat" />}
       </section>
 
-      {creating && <NewChannel onClose={() => setCreating(false)} onCreated={(created) => navigate(`/chat/${created}`)} />}
+      {creating && <NewChannel me={me} onClose={() => setCreating(false)} onCreated={(created) => navigate(`/chat/${created}`)} />}
       {finding && (
         <FindPerson
           me={me}
@@ -363,6 +506,18 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const [managing, setManaging] = useState(false);
   /** Which message has been asked for its actions, where there is no hover. */
   const [tapped, setTapped] = useState<string | null>(null);
+  /** The find-in-conversation box: null when it is not open. */
+  const [needle, setNeedle] = useState<string | null>(null);
+  /**
+   * How far back this screen is drawing.
+   *
+   * The whole history used to be sorted and markdown-rendered on every visit,
+   * which is nothing at thirty messages and visible at a few thousand — a
+   * number an active channel reaches in weeks, and one this screen only
+   * started being able to reach at all once the history could be scrolled.
+   * Grows as somebody scrolls back into it.
+   */
+  const [reach, setReach] = useState(PAGE);
   const stream = useRef<HTMLDivElement>(null);
   const composer = useRef<HTMLTextAreaElement>(null);
   /** Lines that arrived while the reader was up in the history. */
@@ -377,6 +532,11 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   /** How many lines the last layout pass had, so the next one knows the delta. */
   const counted = useRef(0);
 
+  // Not a value, a heartbeat: it re-renders this screen once a minute so the
+  // "3 minutes ago" stamps below are worked out again instead of standing
+  // still at whatever they said when the message was drawn.
+  useMinute();
+
   const setDraft = (next: string) => {
     setDraftState(next);
     if (next) drafts.set(channel.id, next);
@@ -388,6 +548,23 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
       .sort(messageOrder),
     [channel.id],
   );
+
+  /**
+   * What the stream is actually drawing.
+   *
+   * Searching and scrolling back are two different questions and this answers
+   * whichever was asked: a search looks through the whole conversation and
+   * shows what matches, and otherwise the newest `reach` messages are drawn
+   * with everything older left undrawn until somebody goes looking for it.
+   */
+  const hunting = needle !== null && needle.trim().length > 0;
+  const found = useMemo(() => {
+    if (!hunting) return [];
+    const query = needle!.trim().toLowerCase();
+    return messages.filter((message) => String(message.body ?? '').toLowerCase().includes(query));
+  }, [hunting, needle, messages]);
+  const drawn = hunting ? found : messages.slice(Math.max(0, messages.length - reach));
+  const older = !hunting && messages.length > drawn.length;
 
   const markerId = readStateId(channel.id, me);
   const marker = useQuery(() => byId('channelRead', markerId), [markerId]);
@@ -447,10 +624,45 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
     }
   }, [messages.length]);
 
+  /**
+   * Reaching further back must not move what is on screen.
+   *
+   * Drawing sixty older messages puts sixty messages' worth of height *above*
+   * the reader, and the browser keeps `scrollTop` — so the line they were
+   * reading jumps to the top and they have to find it again. The height the
+   * stream had is recorded as the reach grows, and the scroll is moved by
+   * however much it gained, which leaves the same line under the same eye.
+   */
+  const heldHeight = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    const el = stream.current;
+    if (!el || heldHeight.current === null) return;
+    el.scrollTop += el.scrollHeight - heldHeight.current;
+    heldHeight.current = null;
+  }, [reach]);
+
+  const reachBack = () => {
+    const el = stream.current;
+    if (!el || heldHeight.current !== null) return;
+    heldHeight.current = el.scrollHeight;
+    setReach((far) => far + PAGE);
+  };
+
   const send = () => {
     const body = draft.trim();
     if (!body) return;
-    create('message', { channel_id: channel.id, body, reply_to: replyTo, workspace_id: channel.workspace_id ?? null });
+    create('message', {
+      channel_id: channel.id,
+      body,
+      reply_to: replyTo,
+      workspace_id: channel.workspace_id ?? null,
+      // Said by whoever is typing. The server stamps this from the session
+      // whatever arrives, so it cannot be claimed — it is here because until
+      // the round trip finished the row had no author at all, and your own
+      // message came up under a grey "?" as something *Someone* said. On a
+      // train that is the whole conversation.
+      author_id: me,
+    });
     setDraft('');
     setReplyTo(null);
     setTyping(null);
@@ -465,23 +677,47 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   };
 
   /**
-   * Go to the message being quoted.
+   * Go to a message, wherever it is.
    *
-   * Measured against the stream's own box rather than `offsetTop`, which is
-   * relative to whichever ancestor happens to be positioned, and scrolled a
-   * third of the way down so the quoted line lands with its context above it.
+   * Two things can be in the way. It may be older than what is drawn, so the
+   * reach is opened far enough to include it first; and it may be hidden
+   * behind a search, so the search closes. Either way the scroll happens after
+   * the render that puts it on screen, which is what `pending` is for.
    */
-  const jumpTo = (id: string) => {
+  const [pendingJump, setPendingJump] = useState<string | null>(null);
+
+  const scrollToMessage = (id: string) => {
     const box = stream.current;
     const target = box?.querySelector<HTMLElement>(`[data-message="${id}"]`);
-    if (!box || !target) return;
+    if (!box || !target) return false;
+    // Measured against the stream's own box rather than `offsetTop`, which is
+    // relative to whichever ancestor happens to be positioned, and left a
+    // third of the way down so the line lands with its context above it.
     box.scrollTop += target.getBoundingClientRect().top - box.getBoundingClientRect().top - box.clientHeight / 3;
+    stuck.current = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
     target.classList.remove('found');
     // Reading the layout between the two flushes the class change, so the
     // animation restarts when the same message is jumped to twice.
     void target.offsetWidth;
     target.classList.add('found');
+    return true;
   };
+
+  const jumpTo = (id: string) => {
+    const at = messages.findIndex((message) => message.id === id);
+    if (at < 0) return;
+    if (needle !== null) setNeedle(null);
+    const needed = messages.length - at + 10;
+    if (needed > reach) setReach(needed);
+    // A message already drawn can be gone to now; anything else has to wait
+    // for the render that draws it.
+    if (needle === null && needed <= reach && scrollToMessage(id)) return;
+    setPendingJump(id);
+  };
+
+  useLayoutEffect(() => {
+    if (pendingJump && scrollToMessage(pendingJump)) setPendingJump(null);
+  }, [pendingJump, reach, needle]);
 
   // Switching conversations, or closing this one, stops the line over there.
   useEffect(() => () => setTyping(null), [channel.id]);
@@ -507,8 +743,25 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             <strong className="truncate">{title}</strong>
             {partner && <PresenceDot userId={partner} />}
           </span>
-          {channel.topic && <div className="text-muted text-[12.5px]">{channel.topic}</div>}
+          {/* Truncated rather than wrapped: a long topic used to take the
+              header to three lines on a phone, which is a tenth of the screen
+              spent on a sentence nobody is reading twice. The whole of it is
+              in the tooltip and in the settings sheet. */}
+          {channel.topic && (
+            <div className="text-muted truncate text-[12.5px]" title={channel.topic}>{channel.topic}</div>
+          )}
         </div>
+        {/* Search reaches every message in this conversation and none outside
+            it — the local mirror already holds them, so this asks nothing of
+            the network and works with none. */}
+        <Button
+          variant="ghost" size="iconSm"
+          title={t('chat.find')}
+          aria-expanded={needle !== null}
+          onClick={() => setNeedle(needle === null ? '' : null)}
+        >
+          <Icon name="search" size={14} />
+        </Button>
         <NotifyMenu channel={channel} me={me} />
         {channel.kind !== 'direct' && canWrite && (
           <Button variant="ghost" size="iconSm" title={t('chat.manage')} onClick={() => setManaging(true)}>
@@ -516,6 +769,26 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           </Button>
         )}
       </header>
+      {needle !== null && (
+        <div className="chat-find">
+          <Icon name="search" size={13} />
+          <input
+            autoFocus
+            className="chat-find-box"
+            value={needle}
+            placeholder={t('chat.findPlaceholderHere')}
+            aria-label={t('chat.find')}
+            onChange={(event) => setNeedle(event.target.value)}
+            onKeyDown={(event) => { if (event.key === 'Escape') setNeedle(null); }}
+          />
+          <span className="text-muted text-[12px] tabular-nums">
+            {hunting ? t('chat.matches', { count: found.length }) : ''}
+          </span>
+          <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => setNeedle(null)}>
+            <Icon name="close" size={12} />
+          </Button>
+        </div>
+      )}
       {managing && <ChannelSettings channel={channel} me={me} onClose={() => setManaging(false)} onGone={onBack} />}
 
       <div
@@ -530,20 +803,46 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
           if (stuck.current && waiting) setWaiting(0);
         }}
       >
-        {messages.length === 0 && <p className="text-muted text-[12.5px]">{t('chat.emptyStream')}</p>}
-        {messages.map((message, index) => {
+        {messages.length === 0 && (
+          <div className="chat-blank">
+            <p className="m-0">{t('chat.emptyStream')}</p>
+            {/* Three things this box can do that nothing on screen says it
+                can. The empty conversation is the one moment there is room to
+                say them. */}
+            {canWrite && <p className="text-muted m-0 text-[12px]">{t('chat.emptyHint')}</p>}
+          </div>
+        )}
+        {hunting && found.length === 0 && (
+          <p className="text-muted text-[12.5px]">{t('chat.noMatches')}</p>
+        )}
+        {older && (
+          <button className="chat-earlier" onClick={reachBack}>
+            {t('chat.earlier', { count: messages.length - drawn.length })}
+          </button>
+        )}
+        {drawn.map((message, index) => {
           const author = members.get(message.author_id ?? '');
           // Consecutive lines from the same person within five minutes are one
           // block. A name and an avatar on every line turns a conversation into
-          // a list of records.
-          const previous = messages[index - 1];
-          const grouped = previous
+          // a list of records. Never while searching: two results from the same
+          // person an hour apart are not a block, and the second would lose the
+          // name and time that make it findable.
+          const previous = drawn[index - 1];
+          const grouped = !hunting && previous
             && previous.author_id === message.author_id
             && message.created_at - previous.created_at < 5 * 60_000
             && !message.reply_to;
           const answered = message.reply_to ? messages.find((m) => m.id === message.reply_to) : undefined;
+          // A new calendar day gets a line saying so. Without it yesterday
+          // evening and this morning read as one conversation.
+          const dayBefore = previous ? new Date(previous.created_at).toDateString() : null;
+          const day = new Date(message.created_at).toDateString();
 
           return (
+            <Fragment key={message.id}>
+            {!hunting && day !== dayBefore && (
+              <div className="chat-day"><span>{dayLabel(message.created_at, t)}</span></div>
+            )}
             <div
               className={cn('chat-message', grouped && 'grouped', tapped === message.id && 'tapped')}
               key={message.id}
@@ -559,6 +858,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                   <div className="flex items-center gap-1.5">
                     <span className="who">{author?.name ?? t('common.someone')}</span>
                     <span className="when">{relativeTime(message.created_at)}</span>
+                    {/* A search result is out of its context by definition, so
+                        it carries a way back into it. */}
+                    {hunting && (
+                      <button className="chat-in-context" onClick={() => jumpTo(message.id)}>
+                        {t('chat.inContext')}
+                      </button>
+                    )}
                   </div>
                 )}
                 {/* The quote is a way back to what was said, so it is a button
@@ -603,6 +909,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                   </>
                 )}
                 <Reactions message={message} me={me} canWrite={canWrite} />
+                {message.author_id === me && <Unsent id={message.id} />}
               </div>
               {/* Shown only where there is no hover to reveal the bar with. */}
               <button
@@ -635,6 +942,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                 )}
               </div>
             </div>
+            </Fragment>
           );
         })}
       </div>
@@ -867,6 +1175,58 @@ function AddReaction({ message, me }: { message: Message; me: string }) {
  * server as well, which it does. This screen only offers what the rule would
  * allow, which is a courtesy rather than the enforcement.
  */
+/**
+ * Change what a channel is called.
+ *
+ * Applied when the field is left rather than on every keystroke, because the
+ * name is normalised on the way in and rewriting it under the cursor while
+ * somebody is still typing is the surprise `chat.willBeCalled` exists to
+ * avoid. A name another channel already holds is refused here with a reason —
+ * including "the other one is archived", which is otherwise a collision with
+ * something invisible.
+ */
+function RenameChannel({ channel, allowed }: { channel: Channel; allowed: boolean }) {
+  const t = useT();
+  const toast = useToast();
+  const [name, setName] = useState(channel.name ?? '');
+  const tidy = normaliseChannelName(name);
+  const clash = useQuery(
+    () => list('channel', (other) => other.id !== channel.id && other.name === tidy && !other.deleted_at)[0],
+    [tidy, channel.id],
+  );
+
+  const apply = () => {
+    if (!tidy || clash || tidy === channel.name) {
+      setName(channel.name ?? '');
+      return;
+    }
+    update('channel', channel.id, { name: tidy });
+    toast(t('chat.renamed', { name: `#${tidy}` }));
+  };
+
+  return (
+    <div className="field">
+      <label htmlFor="channel-name">{t('chat.name')}</label>
+      <Input
+        id="channel-name"
+        value={name}
+        disabled={!allowed}
+        onChange={(event) => setName(event.target.value)}
+        onBlur={apply}
+        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+      />
+      {tidy && tidy !== name && (
+        <p className="text-muted m-0 text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>
+      )}
+      {clash && (
+        <p className="m-0 text-[12.5px]" style={{ color: 'var(--warn)' }}>
+          {clash.archived_at ? t('chat.nameTakenArchived') : t('chat.nameTaken')}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function ChannelSettings({ channel, me, onClose, onGone }: {
   channel: Channel;
   me: string;
@@ -892,6 +1252,10 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
 
   return (
     <Sheet title={`#${channel.name}`} onClose={onClose}>
+      {/* The permission for this has been called `mayRetitle` all along, and
+          until now there was no title to change: a name chosen once was a name
+          forever, however wrong it turned out to be. */}
+      <RenameChannel channel={channel} allowed={mayRetitle} />
       <div className="field">
         <label htmlFor="channel-topic">{t('chat.topic')}</label>
         <Input
@@ -1001,14 +1365,24 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
 
 /* ------------------------------------------------------------- new channel */
 
-function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (id: string) => void }) {
+function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => void; onCreated: (id: string) => void }) {
   const t = useT();
   const toast = useToast();
+  const colleagues = useMemberMap();
   const [name, setName] = useState('');
   const [topic, setTopic] = useState('');
   const [isPrivate, setPrivate] = useState(false);
+  const [invited, setInvited] = useState<string[]>([]);
   const tidy = useMemo(() => normaliseChannelName(name), [name]);
-  const taken = useQuery(() => list('channel', (channel) => channel.name === tidy && !channel.deleted_at).length > 0, [tidy]);
+  const taken = useQuery(
+    () => list('channel', (channel) => channel.name === tidy && !channel.deleted_at)[0],
+    [tidy],
+  );
+
+  const others = useMemo(
+    () => [...colleagues.values()].filter((member) => member.id !== me),
+    [colleagues, me],
+  );
 
   return (
     <Sheet
@@ -1018,9 +1392,17 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         <>
           <Button onClick={onClose}>{t('action.cancel')}</Button>
           <Button variant="primary"
-            disabled={!tidy || taken}
+            disabled={!tidy || !!taken}
             onClick={() => {
-              const id = create('channel', { name: tidy, topic: topic.trim() || null, is_private: isPrivate ? 1 : 0 });
+              const id = create('channel', {
+                name: tidy,
+                topic: topic.trim() || null,
+                is_private: isPrivate ? 1 : 0,
+                // Whoever opened it is in it; the server settles this too, and
+                // sending it means the row this device draws before the round
+                // trip is the row that comes back.
+                ...(isPrivate ? { members: [me, ...invited] } : {}),
+              });
               toast(t('chat.created', { name: `#${tidy}` }));
               onCreated(id);
               onClose();
@@ -1044,7 +1426,15 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
         {/* Shown before it is saved, because "#Design Review" quietly becoming
             "#design-review" afterwards is a surprise. */}
         {tidy && tidy !== name && <p className="text-muted text-[12.5px]">{t('chat.willBeCalled', { name: `#${tidy}` })}</p>}
-        {taken && <p className="text-muted text-[12.5px]" style={{ color: 'var(--warn)' }}>{t('chat.nameTaken')}</p>}
+        {/* A collision with an archived channel used to read as a collision
+            with nothing: the name is taken by a room that is not in the list
+            and cannot be found from here. Saying which it is turns a dead end
+            into a decision. */}
+        {taken && (
+          <p className="m-0 text-[12.5px]" style={{ color: 'var(--warn)' }}>
+            {taken.archived_at ? t('chat.nameTakenArchived') : t('chat.nameTaken')}
+          </p>
+        )}
         <div className="field">
           <label htmlFor="new-channel-topic">{t('chat.topic')}</label>
           <Input
@@ -1061,6 +1451,33 @@ function NewChannel({ onClose, onCreated }: { onClose: () => void; onCreated: (i
             <span className="text-[12px] text-muted">{t('chat.privateHint')}</span>
           </span>
         </label>
+
+        {/* Three or more people is a private channel with a name — a sound
+            model, reached until now by making the channel, opening its
+            settings and adding people one at a time, each with its own toast.
+            The same choice belongs where the channel is being made. */}
+        {isPrivate && !!others.length && (
+          <>
+            <h3 style={{ fontSize: 14, margin: '14px 0 6px' }}>{t('chat.whoElse')}</h3>
+            {others.map((member) => {
+              const picked = invited.includes(member.id);
+              return (
+                <button
+                  key={member.id}
+                  className={cn(navItem({ active: picked }))}
+                  aria-pressed={picked}
+                  onClick={() => setInvited(picked
+                    ? invited.filter((id) => id !== member.id)
+                    : [...invited, member.id])}
+                >
+                  <Avatar user={member} size={22} />
+                  <span className="flex-1 min-w-0 truncate">{member.name}</span>
+                  <Icon name={picked ? 'check' : 'plus'} size={13} />
+                </button>
+              );
+            })}
+          </>
+        )}
     </Sheet>
   );
 }

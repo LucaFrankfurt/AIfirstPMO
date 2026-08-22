@@ -180,6 +180,54 @@ export function normaliseChannelName(input: string): string {
     .slice(0, 60);
 }
 
+/* ------------------------------------------------------------- being named */
+
+/** The little a mention needs to know about somebody. */
+export interface Mentionable {
+  id: string;
+  name?: string | null;
+  email?: string | null;
+}
+
+/**
+ * Who this text names.
+ *
+ * Shared because both sides need the same answer to the same question, and
+ * they used to reach it separately: the server decided who to notify, and the
+ * screen decided whether a channel on "only when I am named" should count
+ * towards the badge. Two implementations of "is this me" is how a badge comes
+ * to disagree with the notification it is supposed to be counting.
+ *
+ * A person answers to their email, the part of it before the `@`, their name
+ * without spaces, and their first name — the last of those being the handle
+ * the composer inserts, so what it writes is what this reads back. One
+ * character is not a handle; it would make `@a` in a sentence a mention.
+ */
+export function findMentions(people: Mentionable[], text: string): string[] {
+  const body = String(text ?? '');
+  if (!body.includes('@')) return [];
+
+  const handles = new Map<string, string>();
+  for (const person of people) {
+    const email = String(person.email ?? '').toLowerCase();
+    const name = String(person.name ?? '').toLowerCase();
+    for (const handle of [email, email.split('@')[0], name.replace(/\s+/g, ''), name.split(/\s+/)[0]]) {
+      if (handle && handle.length > 1 && !handles.has(handle)) handles.set(handle, person.id);
+    }
+  }
+
+  const found = new Set<string>();
+  for (const match of body.matchAll(/@([\w.+-]+(?:@[\w.-]+\.[a-z]{2,})?)/gi)) {
+    const userId = handles.get(match[1].toLowerCase());
+    if (userId) found.add(userId);
+  }
+  return [...found];
+}
+
+/** Whether this text names this person. */
+export const namesMe = (people: Mentionable[], text: string, me: string): boolean =>
+  findMentions(people, text).includes(me);
+
 /* --------------------------------------------------- what counts as urgent */
 
 /**
