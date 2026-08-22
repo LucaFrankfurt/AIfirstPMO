@@ -3,7 +3,7 @@ import { parseQuery, printQuery, hasUnprintable, type Filters, type QueryVocabul
 import { useT } from '../lib/i18n';
 import { useMe, useMembers } from '../session';
 import { list, useQuery } from '../lib/store';
-import { useLabels, useStates, useTypes } from './task-parts';
+import { useLabels, useStates } from './task-parts';
 import { Button } from './ui/button';
 import { Icon, Sheet } from './ui';
 
@@ -33,7 +33,6 @@ export function QueryBox({
   const me = useMe();
   const members = useMembers();
   const states = useStates(projectId);
-  const types = useTypes(projectId);
   const labels = useLabels(projectId);
 
   const cycles = useQuery(() => list('cycle', (row) => row.workspace_id === workspaceId), [workspaceId]);
@@ -43,13 +42,12 @@ export function QueryBox({
   const vocabulary: QueryVocabulary = useMemo(() => ({
     meId: me,
     states: states.map((row) => ({ id: row.id, name: row.name, group_key: row.group_key })),
-    types: types.map((row) => ({ id: row.id, name: row.name })),
     people: members.map((row) => ({ id: row.id, name: row.name, email: row.email })),
     labels: labels.map((row) => ({ id: row.id, name: row.name })),
     cycles: cycles.map((row) => ({ id: row.id, name: row.name })),
     modules: modules.map((row) => ({ id: row.id, name: row.name })),
     projects: projects.map((row) => ({ id: row.id, key: row.key, name: row.name })),
-  }), [me, states, types, members, labels, cycles, modules, projects]);
+  }), [me, states, members, labels, cycles, modules, projects]);
 
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');

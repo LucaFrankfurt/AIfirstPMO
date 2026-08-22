@@ -300,7 +300,7 @@ export function registerEntityRoutes(router: Router): void {
       return { intake: serialize('intake', get<Row>(`SELECT * FROM intakes WHERE id = ?`, intake.id)!) };
     }
 
-    const body = await readJson<{ title?: string; state_id?: string; type_id?: string; assignees?: string[] }>(ctx);
+    const body = await readJson<{ title?: string; state_id?: string; assignees?: string[] }>(ctx);
     // The reporter's words are the description, credited. Their name is not a
     // user here and never will be, so it is prose rather than a foreign key.
     const credit = [intake.reporter, intake.email].filter(Boolean).join(' · ');
@@ -310,7 +310,6 @@ export function registerEntityRoutes(router: Router): void {
       title: String(body.title ?? intake.title),
       description: [intake.body, credit ? `\n\n— reported by ${credit}` : ''].filter(Boolean).join(''),
       state_id: body.state_id,
-      type_id: body.type_id,
       assignees: body.assignees ?? [],
       created_by: auth.userId,
     }, { workspaceId: String(intake.workspace_id), actorId: auth.userId, hlc: serverClock.now() });

@@ -19,7 +19,7 @@ import { list, useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useCanWrite, useMemberMap } from '../session';
 import { ShareSheet } from './share';
-import { useStates, useTypes } from './task-parts';
+import { useStates } from './task-parts';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
@@ -169,10 +169,8 @@ function AcceptSheet({
   const t = useT();
   const toast = useToast();
   const states = useStates(projectId);
-  const types = useTypes(projectId);
   const [title, setTitle] = useState(intake.title);
   const [stateId, setStateId] = useState(states[0]?.id ?? '');
-  const [typeId, setTypeId] = useState('');
   const [working, setWorking] = useState(false);
 
   const accept = async () => {
@@ -181,7 +179,6 @@ function AcceptSheet({
       await api.post(`/api/intakes/${intake.id}/accept`, {
         title: title.trim() || intake.title,
         state_id: stateId || undefined,
-        type_id: typeId || undefined,
       });
       await pull();
       onDone(title.trim() || intake.title);
@@ -214,13 +211,6 @@ function AcceptSheet({
           <label htmlFor="intake-state">{t('view.groupState')}</label>
           <Select id="intake-state" value={stateId} onChange={(event) => setStateId(event.target.value)}>
             {states.map((state) => <option key={state.id} value={state.id}>{state.name}</option>)}
-          </Select>
-        </div>
-        <div className="field">
-          <label htmlFor="intake-type">{t('type.label')}</label>
-          <Select id="intake-type" value={typeId} onChange={(event) => setTypeId(event.target.value)}>
-            <option value="">{t('type.none')}</option>
-            {types.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}
           </Select>
         </div>
       </div>

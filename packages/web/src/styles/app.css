@@ -751,6 +751,22 @@ button.stat[aria-pressed='true'] { border-color: var(--accent); box-shadow: inse
    on top of the first row of what you just asked for. */
 .my-work-list { scroll-margin-top: calc(var(--header-height) + 12px); }
 
+/* The way up, above a sub-task's title.
+
+   Scrolls rather than wraps, and the chevrons stay put while the names shrink:
+   a chain three deep on a phone is the case, and a breadcrumb that reflows onto
+   three lines pushes the title it belongs to off the screen. */
+.parent-trail { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; overflow-x: auto; scrollbar-width: none; }
+.parent-trail::-webkit-scrollbar { display: none; }
+.parent-trail > svg { flex: none; color: var(--fg-muted); }
+.parent-trail button {
+  display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 320px;
+  padding: 2px 6px; border: none; border-radius: var(--radius-sm);
+  background: none; color: var(--fg-soft); font-size: 12.5px; cursor: pointer;
+}
+.parent-trail button:hover { background: var(--bg-hover); color: var(--fg); }
+.parent-trail button .mono { flex: none; color: var(--fg-muted); }
+
 /* Where you just were.
 
    Small cards rather than the big squares the idea came from: a project you

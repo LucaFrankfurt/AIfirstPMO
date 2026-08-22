@@ -154,7 +154,7 @@ describe('server catalogue', () => {
 /**
  * What a new project starts with, read out of the source that seeds it.
  *
- * A project is given three kinds of work and a handful of labels. Two of those
+ * A project is given a handful of labels. Two of those
  * labels used to be `bug` and `feature` — beside a type list that already said
  * Bug and Feature. In English the case hid it. In German the catalogue
  * translated both to the same word, so a task carried `✨ Feature` as its type
@@ -174,26 +174,33 @@ describe('what a new project starts with', () => {
     const list = bootstrap.slice(from, bootstrap.indexOf('];', from));
     return [...list.matchAll(/name: '([\w.]+)'/g)].map((match) => match[1]);
   };
-  const types = seeded('DEFAULT_TYPES');
   const labels = seeded('DEFAULT_LABELS');
 
   it('is read at all — a scan that finds nothing passes everything', () => {
-    assert.ok(types.length >= 2, `only found ${types.length} seeded types`);
-    assert.ok(labels.length >= 1, `only found ${labels.length} seeded labels`);
+    assert.ok(labels.length >= 3, `only found ${labels.length} seeded labels`);
   });
 
-  it('never offers a label that is already a kind of work, in any language', async () => {
+  /**
+   * This used to compare two seeded lists — labels against work item types —
+   * because in German they were the same words and a task showed `Feature` in
+   * two fields. There is one list now, which settles that collision by
+   * construction; what is left to go wrong is the same accident *within* the
+   * list, in a language where two of these translate alike.
+   */
+  it('never offers the same word twice, in any language', async () => {
     const { LOCALES } = await import('../src/lib/i18n.ts');
     const clashes: string[] = [];
     for (const [locale, catalogue] of Object.entries(LOCALES)) {
       const strings = catalogue as Record<string, string>;
-      const named = new Map(types.map((key) => [strings[key].trim().toLocaleLowerCase(locale), strings[key]]));
+      const seen = new Map<string, string>();
       for (const key of labels) {
-        const hit = named.get(strings[key].trim().toLocaleLowerCase(locale));
-        if (hit) clashes.push(`${locale}: the label ${key} is "${strings[key]}", and so is a type`);
+        const word = strings[key].trim().toLocaleLowerCase(locale);
+        const first = seen.get(word);
+        if (first) clashes.push(`${locale}: ${first} and ${key} are both "${strings[key]}"`);
+        else seen.set(word, key);
       }
     }
-    assert.deepEqual(clashes, [], `a seeded label and a seeded type are the same word: ${clashes.join('; ')}`);
+    assert.deepEqual(clashes, [], `two seeded labels are the same word: ${clashes.join('; ')}`);
   });
 });
 

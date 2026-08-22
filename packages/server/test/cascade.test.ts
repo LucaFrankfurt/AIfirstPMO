@@ -62,6 +62,45 @@ after(() => {
 const makeTask = (title: string, start: string, due: string) =>
   ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title, start_date: start, due_date: due });
 
+describe('a sub-task under itself', () => {
+  /**
+   * Nothing could build one until the parent became a field a person can set —
+   * sub-tasks were only ever created *under* something, so no screen offered
+   * the move that closes a circle. The interface leaves those choices out of
+   * its menu now; this is the side that has to hold when the interface is not
+   * the caller, and when two devices each make a legal move offline.
+   */
+  const parentOf = (id: string) => get<any>(`SELECT parent_id FROM tasks WHERE id = ?`, id)!.parent_id;
+
+  it('refuses a task offered itself, and says so through the row it hands back', async () => {
+    const solo = await makeTask('Stands alone', '2026-11-02', '2026-11-03');
+    const answer = await patch(`/api/tasks/${solo.id}`, { parent_id: solo.id });
+    assert.equal(answer.parent_id, null, 'the value comes back changed rather than thrown');
+    assert.equal(parentOf(solo.id), null);
+  });
+
+  it('refuses a child and a grandchild, and keeps the parent it had', async () => {
+    const epic = await makeTask('Rebuild checkout', '2026-11-02', '2026-11-30');
+    const story = await makeTask('Card form', '2026-11-02', '2026-11-10');
+    const chore = await makeTask('Field labels', '2026-11-02', '2026-11-04');
+    await patch(`/api/tasks/${story.id}`, { parent_id: epic.id });
+    await patch(`/api/tasks/${chore.id}`, { parent_id: story.id });
+
+    await patch(`/api/tasks/${epic.id}`, { parent_id: story.id });
+    assert.equal(parentOf(epic.id), null, 'a child cannot become the parent');
+
+    await patch(`/api/tasks/${epic.id}`, { parent_id: chore.id });
+    assert.equal(parentOf(epic.id), null, 'nor a grandchild');
+
+    // And the moves that are not loops still work.
+    const other = await makeTask('Somewhere else', '2026-11-02', '2026-11-03');
+    await patch(`/api/tasks/${epic.id}`, { parent_id: other.id });
+    assert.equal(parentOf(epic.id), other.id, 'moving under an unrelated task is fine');
+    await patch(`/api/tasks/${epic.id}`, { parent_id: null });
+    assert.equal(parentOf(epic.id), null, 'and so is clearing it');
+  });
+});
+
 describe('a date set over the API', () => {
   it('moves everything waiting on it, without the interface being involved', async () => {
     const a = await makeTask('Pour the foundation', '2026-08-10', '2026-08-14');

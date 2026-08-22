@@ -288,25 +288,6 @@ export interface Baseline extends Base {
   entries: Record<ID, [ISODate | null, ISODate | null]>;
 }
 
-/**
- * What kind of thing a task is — a bug, a feature, a chore.
- *
- * Per project, like the workflow states, because two projects disagree about
- * this the same way they disagree about their columns. It changes what a task
- * is called and how it groups, not which fields it has: forms that change per
- * type are custom fields, which is a much larger idea.
- */
-export interface TaskType extends Base {
-  workspace_id: ID;
-  project_id: ID;
-  name: string;
-  icon: string | null;
-  color: string;
-  /** The one new tasks get. Exactly one per project should carry it. */
-  is_default: number;
-  sort_order: string;
-}
-
 export interface Field extends Base {
   workspace_id: ID;
   project_id: ID;
@@ -314,8 +295,6 @@ export interface Field extends Base {
   kind: FieldKind;
   /** Choices, for the two select kinds. Ignored by every other kind. */
   options: string[];
-  /** Which work item types show this field. Empty means all of them. */
-  type_ids: ID[];
   help: string | null;
   /**
    * A prompt, not a gate. Nothing refuses to save a task without it: a task
@@ -355,8 +334,6 @@ export interface Task extends Base {
   title: string;
   description: string | null;
   state_id: ID;
-  /** Which kind of work this is. Null on tasks that predate the project's types. */
-  type_id: ID | null;
   priority: Priority;
   assignees: ID[];
   labels: ID[];
@@ -487,7 +464,6 @@ export interface Attachment extends Base {
 
 export interface Filters {
   state?: ID[];
-  type?: ID[];
   group?: StateGroup[];
   priority?: Priority[];
   assignee?: ID[];
@@ -515,7 +491,6 @@ export interface Filters {
    */
   not?: {
     state?: ID[];
-    type?: ID[];
     group?: StateGroup[];
     priority?: Priority[];
     assignee?: ID[];
@@ -716,7 +691,6 @@ export interface EntityMap {
   projectMember: ProjectMember;
   state: State;
   label: Label;
-  taskType: TaskType;
   field: Field;
   fieldValue: FieldValue;
   baseline: Baseline;

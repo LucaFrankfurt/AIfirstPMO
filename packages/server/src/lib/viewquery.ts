@@ -35,7 +35,7 @@ export interface ViewQuery {
 
 /** `state` → `state_id`, and the five others that need the same treatment. */
 const COLUMNS: Record<string, string> = {
-  state: 'state_id', type: 'type_id', cycle: 'cycle_id', module: 'module_id',
+  state: 'state_id', cycle: 'cycle_id', module: 'module_id',
   project: 'project_id', priority: 'priority',
 };
 

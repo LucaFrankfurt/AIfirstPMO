@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PRIORITIES, parseQuickAdd, QUICK_ADD_SYNTAX, type Priority } from '@kolibri/shared';
 import { list, useQuery } from '../lib/store';
-import { createTask, defaultStateId, defaultTypeId } from '../lib/mutations';
+import { createTask, defaultStateId } from '../lib/mutations';
 import { api } from '../lib/api';
 import { pull } from '../lib/sync';
 import { priorityKey, useT } from '../lib/i18n';
 import { useMe, useMembers, useSession } from '../session';
 import { MarkdownEditor } from './Markdown';
-import { useStates, useTypes } from './task-parts';
+import { useStates } from './task-parts';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/field';
 import { Avatar, Icon, MenuButton, PriorityBars, Sheet, StateDot, useToast, type MenuItem } from './ui';
@@ -42,7 +42,6 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   const [priority, setPriority] = useState<Priority>('none');
   const [assignees, setAssignees] = useState<string[]>([]);
   const [stateId, setStateId] = useState<string | undefined>(undefined);
-  const [typeId, setTypeId] = useState<string | undefined>(undefined);
   const [due, setDue] = useState('');
   const [more, setMore] = useState(false);
   const [applying, setApplying] = useState(false);
@@ -55,7 +54,6 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   );
 
   const states = useStates(projectId);
-  const types = useTypes(projectId);
 
   const labels = useQuery(
     () => list('label', (row) => row.workspace_id === workspaceId),
@@ -71,13 +69,36 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
    * `!high` visible in the box, which is why the token wins — the alternative
    * is a form that disagrees with the words next to it.
    */
-  const parsed = useMemo(() => parseQuickAdd(title, {
-    today: new Date().toISOString().slice(0, 10),
-    meId: me,
-    people: members.map((member) => ({ id: member.id, name: member.name })),
-    projects: projects.map((row) => ({ id: row.id, key: row.key, name: row.name })),
-    labels: labels.map((row) => ({ id: row.id, name: row.name })),
-  }), [title, me, members, projects, labels]);
+  const parsed = useMemo(() => {
+    const vocabulary = {
+      today: new Date().toISOString().slice(0, 10),
+      meId: me,
+      people: members.map((member) => ({ id: member.id, name: member.name })),
+      projects: projects.map((row) => ({ id: row.id, key: row.key, name: row.name })),
+      labels: labels.map((row) => ({ id: row.id, name: row.name })),
+    };
+    /*
+     * Twice, and the second time with the labels narrowed to one project.
+     *
+     * A label belongs to a project, so a workspace with three projects has
+     * three rows called `bug` — and the parser drops a token that matches more
+     * than one, because two labels of the same name are not something it can
+     * choose between. That made `*bug` do nothing at all in any workspace with
+     * more than one project, silently, since the word looked like it had been
+     * understood right up until the task arrived without it.
+     *
+     * The project is what settles it, and the project may be in the line: the
+     * first pass is only there to find `#KEY`. Both passes are pure and run on
+     * a string somebody is still typing, so this costs nothing worth counting.
+     */
+    const scope = parseQuickAdd(title, vocabulary).projectId ?? projectId;
+    return parseQuickAdd(title, {
+      ...vocabulary,
+      labels: labels
+        .filter((row) => !row.project_id || row.project_id === scope)
+        .map((row) => ({ id: row.id, name: row.name })),
+    });
+  }, [title, me, members, projects, labels, projectId]);
 
   const effective = {
     projectId: parsed.projectId ?? projectId,
@@ -92,7 +113,6 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
   }, [projects, projectId]);
 
   useEffect(() => setStateId(defaultStateId(projectId)), [projectId]);
-  useEffect(() => setTypeId(defaultTypeId(projectId)), [projectId]);
 
   const submit = (keepOpen = false) => {
     if (!parsed.title.trim() || !effective.projectId) return;
@@ -103,11 +123,10 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
       priority: effective.priority,
       assignees: effective.assignees,
       labels: parsed.labels.length ? parsed.labels : undefined,
-      // A state chosen for the old project is not a state in the new one, and
-      // neither is a type — both belong to the project, and `#KEY` can change
-      // which project this is after they were picked.
+      // A state chosen for the old project is not a state in the new one: it
+      // belongs to the project, and `#KEY` can change which project this is
+      // after it was picked.
       state_id: parsed.projectId && parsed.projectId !== projectId ? undefined : stateId,
-      type_id: parsed.projectId && parsed.projectId !== projectId ? undefined : typeId,
       due_date: effective.due || null,
       cycle_id: cycleId ?? null,
       recurrence: parsed.recurrence,
@@ -202,28 +221,6 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
               <StateDot group={states.find((s) => s.id === stateId)?.group_key} color={states.find((s) => s.id === stateId)?.color} />
               {states.find((s) => s.id === stateId)?.name ?? t('task.state')}
             </MenuButton>
-
-            {/* Between the state and the priority, which is where the task's own
-                sheet puts it — the form that makes a thing and the screen that
-                shows it should not disagree about the order of its fields.
-                Absent when the project has no types, the way the sheet's own
-                picker is. */}
-            {types.length > 0 && (
-              <MenuButton
-                variant="secondary" size="sm"
-                title={t('type.label')}
-                items={types.map((type) => ({
-                  id: type.id,
-                  label: type.name,
-                  icon: <span aria-hidden>{type.icon ?? '\u25c7'}</span>,
-                  hint: typeId === type.id ? '\u2713' : undefined,
-                  onSelect: () => setTypeId(type.id),
-                }))}
-              >
-                <span aria-hidden>{types.find((type) => type.id === typeId)?.icon ?? '\u25c7'}</span>
-                <span className="truncate">{types.find((type) => type.id === typeId)?.name ?? t('type.none')}</span>
-              </MenuButton>
-            )}
 
             <MenuButton
               variant="secondary" size="sm"

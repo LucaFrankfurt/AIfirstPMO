@@ -165,8 +165,15 @@ function assemble(
   notes: string[],
 ): Converted {
   const states = new Map<string, { id: string; name: string; group_key: StateGroup; sort_order: string }>();
-  const types = new Map<string, { id: string; name: string; sort_order: string }>();
   const labels = new Map<string, { id: string; name: string }>();
+
+  // An issue type from the other tool arrives as a label. Kolibri has one way
+  // of saying what sort of thing a task is, and throwing "Bug" away because it
+  // was called a type over there would lose the most useful word in the file.
+  // Keyed by name, so a "Bug" type and a "bug" label become one label.
+  const remember = (name: string) => {
+    if (name && !labels.has(name)) labels.set(name, { id: `l${labels.size + 1}`, name });
+  };
 
   for (const draft of drafts) {
     if (draft.state && !states.has(draft.state)) {
@@ -175,15 +182,8 @@ function assemble(
         sort_order: String.fromCharCode(65 + Math.min(25, states.size)),
       });
     }
-    if (draft.type && !types.has(draft.type)) {
-      types.set(draft.type, {
-        id: `k${types.size + 1}`, name: draft.type,
-        sort_order: String.fromCharCode(65 + Math.min(25, types.size)),
-      });
-    }
-    for (const label of draft.labels) {
-      if (!labels.has(label)) labels.set(label, { id: `l${labels.size + 1}`, name: label });
-    }
+    remember(draft.type);
+    for (const label of draft.labels) remember(label);
   }
 
   const tasks = drafts.map((draft) => ({
@@ -191,9 +191,10 @@ function assemble(
     title: draft.title,
     description: draft.description || null,
     state_id: states.get(draft.state)?.id ?? null,
-    type_id: types.get(draft.type)?.id ?? null,
     priority: draft.priority,
-    labels: draft.labels.map((label) => labels.get(label)!.id),
+    labels: [...new Set([draft.type, ...draft.labels])]
+      .map((name) => labels.get(name)?.id)
+      .filter((id): id is string => !!id),
     assignees: draft.assignees,
     parent_id: draft.parent,
     start_date: draft.start_date,
@@ -240,7 +241,6 @@ function assemble(
       source: { workspace: format },
       project: { name, key },
       states: [...states.values()],
-      types: [...types.values()],
       labels: [...labels.values()],
       fields: [],
       cycles: [],

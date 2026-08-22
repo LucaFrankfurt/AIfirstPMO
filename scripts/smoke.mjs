@@ -26,6 +26,8 @@ const LABELS = {
     findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
     newProject: 'New project', createProject: 'Create project',
     taskLabels: 'Labels',
+    taskParent: 'Parent',
+    addSubtask: 'Add a sub-task',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -34,6 +36,8 @@ const LABELS = {
     findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
     newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
     taskLabels: 'Labels',
+    taskParent: 'Übergeordnet',
+    addSubtask: 'Teilaufgabe hinzufügen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -42,8 +46,24 @@ const LABELS = {
     findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
     newProject: 'Nouveau projet', createProject: 'Créer le projet',
     taskLabels: 'Étiquettes',
+    taskParent: 'Tâche parente',
+    addSubtask: 'Ajouter une sous-tâche',
   },
 }[locale];
+
+/**
+ * Close whatever sheets are open, however many deep.
+ *
+ * A task opened from a task is a stack, so one Escape pops one level rather
+ * than clearing the screen — and a step that leaves a sheet up hands the next
+ * one a sidebar it cannot click.
+ */
+const closeSheets = async (target) => {
+  for (let depth = 0; depth < 6 && (await target.locator('.sheet').count()); depth++) {
+    await target.keyboard.press('Escape');
+    await target.waitForTimeout(200);
+  }
+};
 
 /** The first-run tour opens over everything; every later step needs it gone. */
 const closeTour = async (target) => {
@@ -314,43 +334,103 @@ await step('a card dragged onto a project in the sidebar is filed there', async 
 });
 
 /**
- * The kind of work, chosen at the moment the task is made.
+ * The way back up from a sub-task.
  *
- * The form offered a project, a state, a priority, an assignee, a due date and
- * a template — and no type at all, while the task's own sheet had a picker for
- * one. So every task started as whatever the server picked, and a project's
- * custom fields, which are asked for per type, were never asked for.
+ * A task sheet has always listed what is under it and never said what it was
+ * under: the link ran one way, so from a child the only way to the parent was
+ * remembering which one it was. Three things have to hold — the trail is there,
+ * it goes somewhere, and the field that sets it refuses the choices that would
+ * make a loop.
  *
- * Choosing is only half of it: the server fills the type in on arrival when the
- * client leaves it out, so a client that sends nothing and a client that sends
- * "Bug" have to end up different. This asks the server which it got.
+ * The loop half is worth a browser rather than a unit test: `family.test.ts`
+ * proves the arithmetic, and this proves the menu is actually built from it.
  */
-await step('a task can be given its kind of work on the way in', async () => {
+await step('a sub-task can find its way back to its parent', async () => {
+  await page.keyboard.press('Escape');
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.waitForTimeout(600);
+  // Either layout: an earlier step leaves this project on the board, and which
+  // view a device last chose is not what this step is about.
+  await page.locator('.task-card, .task-row').first().click();
+  await page.waitForSelector('.sheet', { timeout: 6000 });
+  await page.waitForTimeout(500);
+
+  const parent = (await page.locator('.sheet .mono').first().innerText()).trim();
+  if (!/^WEB-\d+$/.test(parent)) throw new Error(`opened something that is not a task: ${parent}`);
+  if (await page.locator('.sheet .parent-trail').count()) throw new Error('a task with no parent drew a trail anyway');
+
+  await page.getByPlaceholder(LABELS.addSubtask).fill('Smoke: a part of something');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1200);
+  await page.locator('.sheet button', { hasText: 'Smoke: a part of something' }).first().click();
+  await page.waitForTimeout(900);
+
+  const trail = page.locator('.sheet .parent-trail');
+  if (!(await trail.count())) throw new Error('the sub-task shows no way up');
+  const shown = await trail.innerText();
+  if (!shown.includes(parent)) throw new Error(`the trail says "${shown.replace(/\n/g, ' ')}", not ${parent}`);
+
+  const child = (await page.locator('.sheet .mono').first().innerText()).trim();
+  await trail.locator('button').first().click();
+  await page.waitForTimeout(900);
+  const landed = (await page.locator('.sheet .mono').first().innerText()).trim();
+  if (landed !== parent) throw new Error(`the trail led to ${landed} rather than ${parent}`);
+
+  // And the field cannot be used to make a circle.
+  await page.locator(`.sheet button[title="${LABELS.taskParent}"]`).first().click();
+  await page.waitForTimeout(400);
+  const offered = await page.getByRole('menuitem').allInnerTexts();
+  await page.keyboard.press('Escape');
+  if (offered.some((one) => one.includes(parent))) throw new Error('a task is offered as its own parent');
+  if (offered.some((one) => one.includes(child))) throw new Error('a task is offered its own child as a parent');
+  if (!offered.length) throw new Error('the parent menu is empty, so it proves nothing');
+  console.log(`     ${child} leads back to ${parent}, and neither is offered as its parent (${offered.length} that are)`);
+  // Opened a task from a task, so this is a stack rather than one sheet.
+  await closeSheets(page);
+});
+
+/**
+ * What a task is, said at the moment it is made.
+ *
+ * This step used to be about work item types: the create form offered a
+ * project, a state, a priority, an assignee, a due date and a template, and no
+ * type at all, while the task's own sheet had a picker for one. Types are gone
+ * — a task carries labels and nothing else answers that question — and the
+ * check that matters is the same one it always was: what the form says on the
+ * way in has to be what the server stored on the way out.
+ */
+await step('a task can be told what it is on the way in', async () => {
   await page.keyboard.press('Escape');
   await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
   await page.waitForSelector('.sheet');
-  await page.fill('.sheet input >> nth=0', 'Smoke: typed on creation');
-
-  const chip = page.locator('.sheet button').filter({ hasText: /Task$|Aufgabe$/ }).first();
-  if (!(await chip.count())) throw new Error('the new-task form offers no kind of work');
-  await chip.click();
-  await page.getByRole('menuitem').filter({ hasText: /Bug/ }).first().click();
-  await page.waitForTimeout(200);
+  // `*label` is the quick-add syntax the form advertises in its own help.
+  await page.fill('.sheet input >> nth=0', 'Smoke: labelled on creation *bug');
+  // The line is parsed as it is typed, and the form is what carries the result
+  // into the task. Clicking create in the same tick as the fill submits what
+  // the box said before anything had read it.
+  await page.waitForTimeout(400);
+  // What the form says it understood, kept for the failure message: "no label
+  // arrived" and "the line was never read" are different bugs.
+  const understood = (await page.locator('.sheet').innerText()).split('\n').slice(0, 6).join(' / ');
   await page.click(`button:has-text("${LABELS.createTask}")`);
   await page.waitForTimeout(1500);
 
-  const named = await page.evaluate(async () => {
+  const carried = await page.evaluate(async () => {
     const ws = localStorage.getItem('kolibri.workspace');
     const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
     const tasks = await json(`/api/workspaces/${ws}/tasks?limit=200`);
-    const task = (tasks.tasks ?? tasks).find((one) => one.title === 'Smoke: typed on creation');
+    const task = (tasks.tasks ?? tasks).find((one) => one.title.startsWith('Smoke: labelled on creation'));
     if (!task) return null;
-    const types = await json(`/api/workspaces/${ws}/task-types`);
-    return (types.taskTypes ?? types).find((one) => one.id === task.type_id)?.name ?? '(none)';
+    const labels = await json(`/api/workspaces/${ws}/labels`);
+    const all = labels.labels ?? labels;
+    return (task.labels ?? []).map((id) => all.find((one) => one.id === id)?.name ?? '(gone)');
   });
-  if (named === null) throw new Error('the task never reached the server');
-  if (!/bug/i.test(named)) throw new Error(`chose Bug, server stored "${named}"`);
-  console.log(`     chosen on creation and kept: ${named}`);
+  if (carried === null) throw new Error('the task never reached the server');
+  if (!carried.some((name) => /bug/i.test(name))) {
+    throw new Error(`typed *bug, server stored ${JSON.stringify(carried)} — the form said: ${understood}`);
+  }
+  console.log(`     chosen on creation and kept: ${carried.join(', ')}`);
 });
 
 await step('task reached the server', async () => {

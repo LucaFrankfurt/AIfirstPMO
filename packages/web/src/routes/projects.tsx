@@ -9,7 +9,6 @@ import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
 import { ProjectInsights } from '../components/insights';
-import { useTypes } from '../components/task-parts';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -732,7 +731,6 @@ function ProjectSettings({ projectId }: { projectId: string }) {
     [projectId],
   );
   const labels = useQuery(() => list('label', (l) => l.project_id === projectId), [projectId]);
-  const types = useTypes(projectId);
   const [newLabel, setNewLabel] = useState('');
   const [importing, setImporting] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -1025,51 +1023,6 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         })}
       >
         <Icon name="plus" size={14} /> {t('project.addState')}
-      </Button>
-
-      <SectionHeading>{t('type.settingsTitle')}</SectionHeading>
-      <p className="text-[12px] text-muted mb-2">{t('type.settingsHint')}</p>
-      {types.map((type) => (
-        <div className="flex items-center gap-2" key={type.id} style={{ gap: 8, padding: '5px 0' }}>
-          <Input style={{ width: 56, textAlign: 'center' }} maxLength={4}
-            aria-label={t('type.label')}
-            value={type.icon ?? ''}
-            onChange={(event) => update('taskType', type.id, { icon: event.target.value || null })}
-          />
-          <Input
-            className="flex-1 min-w-0"
-            value={type.name}
-            aria-label={type.name}
-            onChange={(event) => update('taskType', type.id, { name: event.target.value })}
-          />
-          <button
-            className={cn(buttonVariants({ size: 'sm' }), type.is_default && 'bg-active text-fg')}
-            style={type.is_default ? { background: 'var(--bg-active)' } : undefined}
-            aria-pressed={!!type.is_default}
-            title={t('type.makeDefault')}
-            onClick={() => {
-              // Exactly one default, so setting one clears the others.
-              for (const other of types) {
-                if (other.is_default && other.id !== type.id) update('taskType', other.id, { is_default: 0 });
-              }
-              update('taskType', type.id, { is_default: 1 });
-            }}
-          >
-            {t('type.isDefault')}
-          </button>
-          <Button variant="ghost" size="iconSm" title={t('type.removeHint')} aria-label={t('type.removeHint')}
-            onClick={() => remove('taskType', type.id)}>
-            <Icon name="trash" size={13} />
-          </Button>
-        </div>
-      ))}
-      <Button size="sm"
-        onClick={() => create('taskType', {
-          project_id: projectId, name: t('type.newName'), icon: '◇', color: '#6366f1', is_default: 0,
-          sort_order: orderKey(types[types.length - 1]?.sort_order ?? null, null),
-        })}
-      >
-        <Icon name="plus" size={14} /> {t('type.add')}
       </Button>
 
       <SectionHeading>{t('field.settingsTitle')}</SectionHeading>

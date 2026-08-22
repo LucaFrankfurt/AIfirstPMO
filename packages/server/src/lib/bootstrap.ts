@@ -23,34 +23,25 @@ export const DEFAULT_STATES: { name: ServerKey; group_key: StateGroup; color: st
 ];
 
 /**
- * The three kinds of work every project starts with.
+ * The words a project starts with.
  *
- * Three, not eight. A list long enough to need thinking about is a list people
+ * There were two lists here once: work item types — Task, Bug, Feature — and
+ * labels beside them, which in German were the same words. A task showed
+ * `✨ Feature` as its type and `Feature` as a label, two fields answering the
+ * same question with no way to tell which one anybody was filtering on.
+ *
+ * That collision is settled by there being one list. Labels won: a label can
+ * say everything a type could say, and a type could never say two things at
+ * once. Bug and Feature come back here because they were always the useful part
+ * of that other list — "Task" did not, because in a task tracker it says
+ * nothing.
+ *
+ * Four, not twelve. A list long enough to need thinking about is a list people
  * pick the first item from; the project settings can add to it.
  */
-const DEFAULT_TYPES: { name: ServerKey; icon: string; color: string; isDefault?: boolean }[] = [
-  { name: 'seed.typeTask', icon: '📋', color: '#6366f1', isDefault: true },
-  { name: 'seed.typeBug', icon: '🐞', color: '#ef4444' },
-  { name: 'seed.typeFeature', icon: '✨', color: '#0ea5e9' },
-];
-
-/**
- * Labels a project starts with — and, just as much, the ones it does not.
- *
- * There used to be a `bug` and a `feature` here, beside a type list that also
- * says Bug and Feature. In German the two were the same word, so a task showed
- * `✨ Feature` as its type and `Feature` as a label: two fields answering the
- * same question, and no way to tell which one anybody was filtering on.
- *
- * The type won because it is the field with a shape — one per task, an icon and
- * a colour, a default, a board that can group by it, and the say over which
- * extra fields a task is asked for. What is left here is what a type cannot be:
- * more than one at a time, and cutting across the kinds of work rather than
- * naming one. `i18n.test.ts` refuses the next collision in any language — which
- * is where this one came from: the German catalogue translated the labels
- * faithfully, and faithfully is exactly what made them the type names.
- */
 const DEFAULT_LABELS: { name: ServerKey; color: string }[] = [
+  { name: 'seed.labelBug', color: '#ef4444' },
+  { name: 'seed.labelFeature', color: '#0ea5e9' },
   { name: 'seed.labelImprovement', color: '#0ea5e9' },
   { name: 'seed.labelDocumentation', color: '#14b8a6' },
 ];
@@ -148,14 +139,6 @@ export function createProject(workspaceId: string, actorId: string, input: NewPr
           group_key: state.group_key, color: state.color, sort_order: orders[index],
         }, { workspaceId, actorId, hlc: hlc(), system: true });
       });
-      const typeOrders = orderKeys(DEFAULT_TYPES.length);
-      DEFAULT_TYPES.forEach((type, index) => {
-        writeEntity('taskType', uid(), {
-          workspace_id: workspaceId, project_id: id, name: t(type.name), icon: type.icon,
-          color: type.color, is_default: type.isDefault ? 1 : 0, sort_order: typeOrders[index],
-        }, { workspaceId, actorId, hlc: hlc(), system: true });
-      });
-
       for (const label of DEFAULT_LABELS) {
         writeEntity('label', uid(), { workspace_id: workspaceId, project_id: id, name: t(label.name), color: label.color },
           { workspaceId, actorId, hlc: hlc(), system: true });

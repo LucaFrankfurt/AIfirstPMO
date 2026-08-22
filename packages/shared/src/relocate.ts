@@ -2,10 +2,10 @@
  * Moving a task from one project to another.
  *
  * Almost everything on a task that is not text belongs to the project it is
- * filed in. The columns are the project's, so are the kinds of work and the
- * labels, and a cycle or a module exists inside exactly one project. Changing
- * `project_id` on its own therefore does not move a task — it produces one that
- * sits in a column its board does not have, wearing labels nothing can render.
+ * filed in. The columns are the project's, so are the labels, and a cycle or a
+ * module exists inside exactly one project. Changing `project_id` on its own
+ * therefore does not move a task — it produces one that sits in a column its
+ * board does not have, wearing labels nothing can render.
  *
  * So the move is this: re-resolve everything scoped to the old project against
  * the new one, and drop what has no counterpart.
@@ -33,7 +33,6 @@ import type { ID, StateGroup } from './types.ts';
 /** Everything on a task that is scoped to its project. */
 export interface Scoped {
   state_id: ID | null;
-  type_id: ID | null;
   labels: ID[];
   cycle_id: ID | null;
   module_id: ID | null;
@@ -42,7 +41,6 @@ export interface Scoped {
 /** What one project offers, in the order it offers it. */
 export interface ProjectVocabulary {
   states: { id: ID; group_key: StateGroup; sort_order: string }[];
-  types: { id: ID; name: string; is_default?: number | boolean | null; sort_order: string }[];
   labels: { id: ID; name: string }[];
   /** The column the project says new work lands in, when it names one. */
   defaultStateId?: ID | null;
@@ -71,23 +69,6 @@ function landingState(group: StateGroup | undefined, to: ProjectVocabulary): ID 
 }
 
 /**
- * The kind of work it lands as.
- *
- * By name, because two projects that both have a "Bug" mean the same thing by
- * it. Otherwise whatever the project starts new work as — the same order the
- * create path uses, so a moved task and a new one agree.
- */
-function landingType(name: string | undefined, to: ProjectVocabulary): ID | null {
-  if (name) {
-    const wanted = fold(name);
-    const match = to.types.find((type) => fold(type.name) === wanted);
-    if (match) return match.id;
-  }
-  const ordered = [...to.types].sort((a, b) => Number(!!b.is_default) - Number(!!a.is_default) || byOrder(a, b));
-  return ordered[0]?.id ?? null;
-}
-
-/**
  * What changes about a task when it is filed somewhere else.
  *
  * `project_id` is the caller's to set — this answers everything that has to
@@ -95,7 +76,6 @@ function landingType(name: string | undefined, to: ProjectVocabulary): ID | null
  */
 export function relocate(task: Scoped, from: ProjectVocabulary, to: ProjectVocabulary): Scoped {
   const group = from.states.find((state) => state.id === task.state_id)?.group_key;
-  const typeName = from.types.find((type) => type.id === task.type_id)?.name;
 
   // Labels carried across by name. A label is a word a team uses, and two
   // projects that both have a "regression" mean the same word — keeping it is
@@ -112,7 +92,6 @@ export function relocate(task: Scoped, from: ProjectVocabulary, to: ProjectVocab
 
   return {
     state_id: landingState(group, to),
-    type_id: landingType(typeName, to),
     labels,
     // A cycle and a module live inside one project and have no counterpart in
     // another. Cleared rather than guessed at: a task quietly appearing in a
