@@ -97,6 +97,22 @@ jobs:
           KOLIBRI_URL: http://127.0.0.1:4400
           KOLIBRI_LOCALE: fr
 
+      # Four questions a walkthrough cannot answer, against the instance it
+      # just walked: a class the stylesheet never defined, a control a screen
+      # reader cannot name, a word under the contrast floor, and a layout that
+      # comes apart at a width nobody happened to open. They have existed as
+      # `npm run check:*` for a while and only ever run by hand, which is the
+      # same as not running — each of them was failing on main by the time
+      # they were first pointed at it.
+      - name: Stylesheet, names, contrast and widths
+        run: |
+          npm run check:css
+          npm run check:a11y
+          npm run check:contrast
+          npm run check:responsive
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+
       - name: What the server thought, if anything went wrong
         if: failure()
         run: cat /tmp/kolibri-server.log || true

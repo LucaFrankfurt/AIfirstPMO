@@ -46,7 +46,7 @@ export function Settings() {
   return (
     <>
       <Header title={t('settings.title')} />
-      <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
+      <div ref={strip} className="tabs tabs-inset">
         {(Object.keys(TAB_KEY) as Tab[]).map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
             {t(TAB_KEY[name])}

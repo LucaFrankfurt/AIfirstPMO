@@ -1590,6 +1590,20 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .tabs::-webkit-scrollbar { display: none; }
 
+/*
+ * A strip that runs edge to edge, with its tabs inset to line up with the
+ * content underneath — and the inset is the first thing to go when the tabs
+ * want the room.
+ *
+ * Padding cannot do that: padding inside a scroll box is space the content
+ * does not get, so twenty-four pixels of alignment turned "these seven tabs
+ * fit with room to spare" into a strip that scrolled by two, complete with a
+ * fade over nothing. Two shrinkable flex spacers give the same alignment and
+ * hand it back before any of that happens.
+ */
+.tabs-inset::before,
+.tabs-inset::after { content: ""; flex: 0 1 12px; }
+
 .tabs button {
   border: none;
   background: none;

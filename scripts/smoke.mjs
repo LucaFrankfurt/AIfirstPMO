@@ -1010,21 +1010,29 @@ await step('mobile layout', async () => {
   /*
    * Everything the sidebar reaches, a phone reaches too.
    *
-   * The bottom bar holds five things and the sidebar holds a dozen, so
-   * "More" is the rest of the app rather than a convenience — anything the
-   * sidebar has and this screen has not is *unreachable* on a phone. Chat
-   * was, and nobody noticed until somebody tried to use it on a phone. So
-   * the desktop sidebar is read for its destinations and this screen is
-   * asked for the same ones, instead of a list here that has to be
-   * remembered when the sidebar grows.
+   * The bottom bar holds a handful and the sidebar holds a dozen, so "More"
+   * is the rest of the app rather than a convenience — anything the sidebar
+   * has and this screen has not is *unreachable* on a phone. Chat was, and
+   * nobody noticed until somebody tried to use it on a phone; it has a slot
+   * of its own in the bar now, and is still listed here too. So the desktop
+   * sidebar is read for its destinations and this screen is asked for the
+   * same ones, instead of a list here that has to be remembered when the
+   * sidebar grows.
    */
   const wanted = await page.locator('.sidebar a[href]').evaluateAll((links) => [...new Set(links
     .map((a) => a.getAttribute('href'))
     .filter((href) => href && href !== '/' && !href.startsWith('/t/')))]);
   await m.click('.tabbar a[href="/more"]');
-  // `:visible` because the desktop sidebar is in the DOM at this width too,
-  // hidden by CSS — and a link nobody can see is not a link a phone reaches.
-  await m.waitForSelector('a[href="/chat"]:visible', { timeout: 5000 });
+  // Waited for by the screen's own content rather than by a link that happens
+  // to be on it: `a[href="/chat"]` was the marker until chat earned a place in
+  // the bar as well, at which point it matched before this screen had drawn
+  // anything and every destination came back missing.
+  await m.waitForURL(/\/more(\?|$)/, { timeout: 5000 });
+  await m.waitForFunction(
+    () => document.querySelectorAll('main.content a[href]').length > 3,
+    null,
+    { timeout: 5000 },
+  );
   const reachable = new Set(await m.evaluate(() => [...document.querySelectorAll('a[href]')]
     .filter((a) => a.offsetParent !== null)
     .map((a) => a.getAttribute('href'))));
