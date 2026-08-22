@@ -286,10 +286,15 @@ describe('a Jira search response', () => {
     );
   });
 
-  it('maps priority, kind, labels and the assignee', () => {
+  it('maps priority, the assignee, and the issue type as a label', () => {
     assert.equal(doc.tasks[0].priority, 'urgent', 'Jira’s Highest');
-    assert.equal(doc.types.find((type: any) => type.id === doc.tasks[0].type_id).name, 'Bug');
-    assert.equal(doc.labels.length, 2);
+    // Kolibri has one way of saying what sort of thing a task is, so an issue
+    // type arrives as a label rather than being thrown away with the column it
+    // came from.
+    const named = (task: any) => task.labels.map((id: string) => doc.labels.find((l: any) => l.id === id).name);
+    assert.ok(named(doc.tasks[0]).includes('Bug'), 'the type came across');
+    // billing, regression, and the two issue types — Bug and Story.
+    assert.deepEqual(doc.labels.map((l: any) => l.name).sort(), ['Bug', 'Story', 'billing', 'regression']);
     assert.equal(doc.people[0].email, 'grace@example.com', 'so the importer can match them by address');
   });
 
@@ -342,7 +347,10 @@ describe('an OpenProject collection', () => {
   });
 
   it('admits it has no labels rather than inventing them from categories', () => {
-    assert.equal(doc.labels.length, 0);
+    // OpenProject's work package *type* does come across as a label — that is
+    // the one word in the file that says what sort of thing this is. Its
+    // categories do not, which is what the note is about.
+    assert.deepEqual(doc.labels.map((label: any) => label.name), ['Task']);
     assert.ok(result.notes.some((note) => /categories are not the same thing/.test(note)));
   });
 });

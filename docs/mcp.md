@@ -244,7 +244,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 
 | Tool | Notes |
 |---|---|
-| `create_task` | project + title required — unless `quick_add` carries both; `type` names one of the project's kinds of work; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
+| `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
 | `update_task` | any field, including `state`, `type`, `assignees`, `cycle`, `due_date`, `archived`. An unknown `type` is refused rather than created |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |

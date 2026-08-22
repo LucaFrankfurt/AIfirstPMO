@@ -28,7 +28,7 @@ Every entity in the registry gets the same five routes, and the list is derived 
 in `packages/shared/src/entities.ts` rather than written out there — a new entity is one line in one
 file and it appears here:
 
-`teams`, `team-members`, `projects`, `project-members`, `states`, `task-types`, `fields`,
+`teams`, `team-members`, `projects`, `project-members`, `states`, `fields`,
 `field-values`, `baselines`, `shares`, `labels`, `tasks`, `relations`, `cycles`, `modules`, `pages`,
 `comments`, `attachments`, `views`, `time-entries`, `templates`, `automations`, `webhooks`,
 `notifications`, `channels`, `messages`, `channel-reads`, `intakes`, `purges`.
@@ -140,13 +140,13 @@ bot token never appears in any response.
 
 ### Custom fields
 
-A project can add fields of its own. `type_ids` is the type-dependent part: empty means every kind
-of work item, otherwise only the ones listed.
+A project can add fields of its own. Every task in the project is asked them — the questions belong
+to the project, not to a kind of task.
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
   -d '{"project_id":"'$PROJECT'","name":"Severity","kind":"select",
-       "options":["Minor","Major","Critical"],"type_ids":["'$BUG_TYPE'"]}' \
+       "options":["Minor","Major","Critical"]}' \
   "$URL/api/workspaces/$WS/fields"
 ```
 
@@ -343,7 +343,7 @@ writing in here". Online expires after 45 seconds and typing after 8. None of it
 ## Misc
 
 ```
-POST /api/intakes/:id/accept            create the task; body may override title, state_id, type_id
+POST /api/intakes/:id/accept            create the task; body may override title and state_id
 POST /api/intakes/:id/decline           mark it dealt with, keep the row
 ```
 

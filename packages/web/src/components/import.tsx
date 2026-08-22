@@ -189,7 +189,6 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                     <tr>
                       <th>{t('table.title')}</th>
                       <th>{t('table.state')}</th>
-                      <th>{t('type.label')}</th>
                       <th>{t('table.priority')}</th>
                       <th>{t('table.due')}</th>
                       <th>{t('table.assignees')}</th>
@@ -201,7 +200,6 @@ export function ImportSheet({ projectId, onClose }: { projectId: string; onClose
                       <tr key={index}>
                         <td className="title">{row.title}</td>
                         <td>{row.state ?? '—'}</td>
-                        <td>{row.type ?? '—'}</td>
                         {/* Translated, and the date already parsed: the point of
                             the preview is seeing what will land, not what was typed. */}
                         <td>{t(priorityKey(row.priority))}</td>

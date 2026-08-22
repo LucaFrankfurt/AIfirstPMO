@@ -2,7 +2,7 @@
  * Moving a task to another project, where the interface is not the caller.
  *
  * Almost everything on a task that is not text belongs to the project it is
- * filed in: the columns, the kinds of work, the labels, the cycle, the module.
+ * filed in: the columns, the labels, the cycle, the module.
  * A caller that sets `project_id` and nothing else — a `PATCH` over REST, an
  * MCP call, an import, an automation — would otherwise leave a row sitting in a
  * column its new board does not have, which renders as a task that is simply
@@ -49,8 +49,6 @@ const statesOf = (projectId: string) =>
   all<any>(`SELECT id, name, group_key FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order`, projectId);
 const labelsOf = (projectId: string) =>
   all<any>(`SELECT id, name FROM labels WHERE project_id = ? AND deleted_at IS NULL`, projectId);
-const typesOf = (projectId: string) =>
-  all<any>(`SELECT id, name FROM task_types WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order`, projectId);
 
 const named = (rows: { id: string; name: string }[], name: string): string => {
   const row = rows.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
@@ -124,20 +122,6 @@ describe('a task filed under a different project', () => {
       'and nothing was created in the destination on the strength of a drag');
   });
 
-  it('matches the kind of work by name, and falls back to the default when there is none', async () => {
-    const bugHere = named(typesOf(from), 'Bug');
-    const withBug = await makeTask('Cart empties itself', { type_id: bugHere });
-    await patch(`/api/tasks/${withBug.id}`, { project_id: to });
-    assert.equal(task(withBug.id).type_id, named(typesOf(to), 'Bug'), 'a Bug is still a Bug');
-
-    const invented = await ok(`/api/workspaces/${workspaceId}/task-types`, { project_id: from, name: 'Photoshoot' });
-    const odd = await makeTask('Shoot the new range', { type_id: invented.id });
-    await patch(`/api/tasks/${odd.id}`, { project_id: to });
-    const landedType = typesOf(to).find((type) => type.id === task(odd.id).type_id);
-    assert.ok(landedType, 'it has a kind of work the destination actually offers');
-    assert.notEqual(landedType.name, 'Photoshoot');
-  });
-
   it('leaves the cycle behind, because a cycle belongs to one project', async () => {
     const cycle = await ok(`/api/workspaces/${workspaceId}/cycles`, {
       project_id: from, name: 'Sprint 12', start_date: '2026-09-01', end_date: '2026-09-14',
@@ -184,6 +168,5 @@ describe('a task filed under a different project', () => {
     const after_ = task(row.id);
     assert.equal(after_.project_id, before.project_id);
     assert.equal(after_.state_id, before.state_id);
-    assert.equal(after_.type_id, before.type_id);
   });
 });

@@ -32,7 +32,6 @@ for (const [table, column, definition] of [
   ['notifications', 'emailed_at', 'INTEGER'],
   ['files', 'storage', `TEXT NOT NULL DEFAULT 'disk'`],
   ['views', 'show_done', 'INTEGER NOT NULL DEFAULT 1'],
-  ['tasks', 'type_id', 'TEXT'],
   ['tasks', 'recurrence', 'TEXT'],
   ['tasks', 'recurred_from', 'TEXT'],
   ['users', 'digest', `TEXT NOT NULL DEFAULT 'off'`],
@@ -183,6 +182,40 @@ if (rebuilt) {
      WHERE workspace_id IS NOT NULL
        AND channel_id IN (SELECT id FROM channels WHERE kind = 'direct');
   `);
+}
+
+/**
+ * Work item types, removed.
+ *
+ * A task used to carry both a type — exactly one of Bug / Feature / Chore — and
+ * any number of labels, and the two answered the same question in two shapes.
+ * One of them had to go and labels won: a label can say everything a type could
+ * say, and a type could never say two things at once.
+ *
+ * The rows go with it, on instruction rather than by default. `DROP COLUMN` and
+ * `DROP TABLE` are the whole migration, guarded by `PRAGMA table_info` so a
+ * restart on an already-migrated database costs three pragmas and nothing else.
+ * There is no reverse: what a task's type was is not recoverable afterwards,
+ * which is what "delete" means and why it was asked before it was done.
+ */
+{
+  const has = (table: string, column: string): boolean =>
+    (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).some((c) => c.name === column);
+  const exists = (table: string): boolean =>
+    !!db.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?`).get(table);
+
+  if (has('tasks', 'type_id') || has('custom_fields', 'type_ids') || exists('task_types')) {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      if (has('tasks', 'type_id')) db.exec('ALTER TABLE tasks DROP COLUMN type_id');
+      if (has('custom_fields', 'type_ids')) db.exec('ALTER TABLE custom_fields DROP COLUMN type_ids');
+      db.exec('DROP TABLE IF EXISTS task_types');
+      db.exec('COMMIT');
+    } catch (err) {
+      db.exec('ROLLBACK');
+      throw err;
+    }
+  }
 }
 
 const stmtCache = new Map<string, StatementSync>();

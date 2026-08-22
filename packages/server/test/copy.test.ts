@@ -60,7 +60,7 @@ before(async () => {
   await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: sourceId, title: 'Checklist', parent_id: page.id });
 
   await ok(`/api/workspaces/${workspaceId}/fields`, {
-    project_id: sourceId, name: 'Account manager', kind: 'person', options: [], type_ids: [],
+    project_id: sourceId, name: 'Account manager', kind: 'person', options: [],
   });
 });
 

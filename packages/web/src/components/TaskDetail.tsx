@@ -13,7 +13,8 @@ import { Relations } from './Relations';
 import { TaskTime } from './time';
 import { TaskFields } from './fields';
 import {
-  AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, PriorityPicker, StatePicker, TypePicker, stateOf,
+  AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, ParentPicker, ParentTrail,
+  PriorityPicker, StatePicker, stateOf,
 } from './task-parts';
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from './ui';
 import { Input, Select } from '../components/ui/field';
@@ -94,6 +95,10 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </span>
         }
       >
+        {/* Above the title, because "what is this a part of" is read before the
+            title rather than after it. */}
+        <ParentTrail task={task} onOpen={onOpen} />
+
         <Input
           style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
@@ -104,12 +109,12 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
           <StatePicker task={task} />
-          <TypePicker task={task} />
           <PriorityPicker task={task} />
           <AssigneePicker task={task} />
           <LabelPicker task={task} />
           <CyclePicker task={task} />
           <ModulePicker task={task} />
+          <ParentPicker task={task} />
           <MenuButton
             variant="ghost" size="sm"
             label={t('common.moreActions')}

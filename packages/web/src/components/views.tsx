@@ -13,7 +13,7 @@ import { startDrag, TASK_DRAG } from '../lib/drag';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
-  useLabels, useStates, useTypes, type BaseGroupBy, type GroupBy,
+  useLabels, useStates, type BaseGroupBy, type GroupBy,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
@@ -53,7 +53,7 @@ const LAYOUT_KEY: Record<string, TranslationKey> = {
 const BUILT_LAYOUTS: Layout[] = ['list', 'board', 'table', 'calendar', 'gantt'];
 
 const GROUP_BY_KEY: Record<BaseGroupBy, TranslationKey> = {
-  state: 'view.groupState', type: 'type.groupBy', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
+  state: 'view.groupState', priority: 'view.groupPriority', assignee: 'view.groupAssignee',
   label: 'view.groupLabel', cycle: 'view.groupCycle', project: 'view.groupProject', none: 'view.noGrouping',
 };
 
@@ -88,7 +88,6 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       const state = byId('state', task.state_id);
       if (!view.showDone && (state?.group_key === 'completed' || state?.group_key === 'cancelled')) return false;
       if (filters.state?.length && !filters.state.includes(task.state_id)) return false;
-      if (filters.type?.length && !filters.type.includes(task.type_id ?? '')) return false;
       if (filters.group?.length && !filters.group.includes(state?.group_key as any)) return false;
       if (filters.priority?.length && !filters.priority.includes(task.priority)) return false;
       if (filters.project?.length && !filters.project.includes(task.project_id)) return false;
@@ -103,7 +102,6 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       const not = filters.not;
       if (not) {
         if (not.state?.includes(task.state_id)) return false;
-        if (not.type?.includes(task.type_id ?? '')) return false;
         if (not.group?.includes(state?.group_key as any)) return false;
         if (not.priority?.includes(task.priority)) return false;
         if (not.project?.includes(task.project_id)) return false;
@@ -208,7 +206,6 @@ export function ViewControls({
 }) {
   const t = useT();
   const states = useStates(projectId);
-  const types = useTypes(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
   const fields = useFields(projectId);
@@ -240,13 +237,6 @@ export function ViewControls({
       hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
       icon: <StateDot group={state.group_key} color={state.color} />,
       onSelect: () => toggle('state', state.id),
-    })),
-    ...types.map((type) => ({
-      id: `type-${type.id}`,
-      section: t('type.label'),
-      label: `${type.icon ?? ''} ${type.name}`.trim(),
-      hint: view.filters.type?.includes(type.id) ? '✓' : undefined,
-      onSelect: () => toggle('type', type.id),
     })),
     ...PRIORITIES.map((priority) => ({
       id: `priority-${priority}`,
@@ -337,7 +327,7 @@ export function ViewControls({
       <MenuButton
         variant="secondary" size="sm"
         items={[
-          ...(['state', 'type', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as BaseGroupBy[]).map((groupBy) => ({
+          ...(['state', 'priority', 'assignee', 'label', 'cycle', 'project', 'none'] as BaseGroupBy[]).map((groupBy) => ({
             id: groupBy,
             section: t('view.groupBy'),
             label: t(GROUP_BY_KEY[groupBy]),
@@ -491,7 +481,6 @@ export function BoardView({
     };
     if (view.groupBy === 'state' || view.groupBy === 'none') patch.state_id = groupId;
     if (view.groupBy === 'priority') patch.priority = groupId;
-    if (view.groupBy === 'type') patch.type_id = groupId === 'none' ? null : groupId;
     if (view.groupBy === 'cycle') patch.cycle_id = groupId === 'none' ? null : groupId;
     if (view.groupBy === 'assignee') patch.assignees = groupId === 'none' ? [] : [groupId];
     if (view.groupBy === 'label') {
@@ -745,7 +734,6 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
 const COLUMNS = [
   { id: 'identifier', label: 'table.id' as const, orderBy: null, narrow: true },
   { id: 'title', label: 'table.title' as const, orderBy: 'title' as const, narrow: false },
-  { id: 'type', label: 'type.label' as const, orderBy: null, narrow: true },
   { id: 'state', label: 'table.state' as const, orderBy: null, narrow: false },
   { id: 'assignees', label: 'table.assignees' as const, orderBy: null, narrow: false },
   { id: 'priority', label: 'table.priority' as const, orderBy: 'priority' as const, narrow: false },
@@ -863,12 +851,6 @@ export function TableView({
                   )}
                   <td className="identifier narrow">{task.identifier}</td>
                   <td className="title">{task.title}</td>
-                  <td className="type narrow">
-                    {(() => {
-                      const type = byId('taskType', task.type_id ?? undefined);
-                      return type ? `${type.icon ?? ''} ${type.name}`.trim() : '';
-                    })()}
-                  </td>
                   <td className="state">
                     <StateDot group={state?.group_key} color={state?.color} /> {state?.name ?? ''}
                   </td>

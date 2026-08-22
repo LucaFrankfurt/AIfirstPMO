@@ -476,54 +476,56 @@ describe('kolibri api', () => {
     }
   });
 
-  it('gives a new project its kinds of work, and a new task the default one', async () => {
-    const types = await api(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
-    assert.deepEqual(types.map((type: any) => type.name), ['Task', 'Bug', 'Feature']);
-    assert.equal(types.filter((type: any) => type.is_default).length, 1, 'exactly one is the default');
-
-    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Typed by default' } });
-    assert.equal(task.type_id, types.find((type: any) => type.is_default).id);
-
-    // And an explicit type is kept rather than overwritten by the default.
-    const bug = types.find((type: any) => type.name === 'Bug');
-    const explicit = await api(`/api/workspaces/${workspaceId}/tasks`, {
-      body: { project_id: projectId, title: 'A real bug', type_id: bug.id },
-    });
-    assert.equal(explicit.type_id, bug.id);
+  it('gives a new project the words it starts with', async () => {
+    // Work item types used to be seeded here too — Task, Bug, Feature — beside
+    // labels that in German were the same words. There is one list now.
+    const labels = await api(`/api/workspaces/${workspaceId}/labels?project_id=${projectId}`);
+    assert.deepEqual(
+      labels.map((label: any) => label.name).sort(),
+      ['bug', 'documentation', 'feature', 'improvement'],
+    );
   });
 
-  it('files and finds work by its kind over MCP', async () => {
+  it('files and finds work by label over MCP', async () => {
     const filed = await api('/mcp', {
       token: apiToken,
       body: {
         jsonrpc: '2.0', id: 30, method: 'tools/call',
-        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Crash on save', type: 'Bug' } },
+        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Crash on save', labels: ['bug'] } },
       },
     });
-    assert.equal(filed.result.structuredContent.type, 'Bug', 'the view says what kind it is');
+    assert.deepEqual(filed.result.structuredContent.labels.length, 1, 'the view says what it is tagged');
+
+    await api('/mcp', {
+      token: apiToken,
+      body: {
+        jsonrpc: '2.0', id: 29, method: 'tools/call',
+        params: { name: 'create_task', arguments: { project: 'WEB', title: 'Nothing special' } },
+      },
+    });
 
     const bugs = await api('/mcp', {
       token: apiToken,
       body: {
         jsonrpc: '2.0', id: 31, method: 'tools/call',
-        params: { name: 'list_tasks', arguments: { project: 'WEB', type: 'Bug' } },
+        params: { name: 'list_tasks', arguments: { project: 'WEB', label: 'bug' } },
       },
     });
     // `list_tasks` returns an array, which the dispatcher wraps as `result`.
     const titles = bugs.result.structuredContent.result.map((task: any) => task.title);
     assert.ok(titles.includes('Crash on save'));
-    assert.ok(!titles.includes('Typed by default'), 'and only that kind');
+    assert.ok(!titles.includes('Nothing special'), 'and only what carries it');
 
-    // A kind the project does not have is refused rather than invented: the
-    // list of what a team calls its work is not something a tool should add to.
+    // A label nobody has is an error on the way *out*, because a filter that
+    // silently matches nothing looks like an empty project.
     const invented = await api('/mcp', {
       token: apiToken,
       body: {
         jsonrpc: '2.0', id: 32, method: 'tools/call',
-        params: { name: 'update_task', arguments: { task: 'WEB-1', type: 'Epic' } },
+        params: { name: 'list_tasks', arguments: { project: 'WEB', label: 'Epic' } },
       },
     });
-    assert.ok(invented.error, 'an unknown kind is an error, not a new type');
+    assert.ok(invented.error, 'an unknown label is an error, not an empty answer');
   });
 
   it('refuses writes from a read-only token', async () => {

@@ -14,7 +14,7 @@ train.
 | **Open / Finished / Typical time / Time logged** | The four numbers worth knowing before looking at anything else |
 | **How much gets finished** | Tasks reaching a done state, per week, for twelve weeks. Steady beats spiky — a tall column after three empty ones usually means the work was finished long before it was marked |
 | **Burn-up** | Two lines over the active cycle: everything in it, and everything finished. They meet when it is done. Scope climbing mid-cycle is work being added, which is worth seeing rather than hiding |
-| **By kind of work** | Where the tasks are, across the project's own types |
+| **By label** | Where the tasks are, across the project's own words. A task may wear several, so the bars add up to more than the project has tasks |
 | **Open work per person** | Unfinished tasks only. A task with two people on it counts for both, which is why the numbers can exceed the total |
 
 **Typical time to finish is a median, not an average.** One task that sat in the

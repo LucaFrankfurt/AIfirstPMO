@@ -46,8 +46,6 @@ export interface NewTask {
   title: string;
   description?: string;
   state_id?: string;
-  /** The kind of work. Left out, the project's default is used. */
-  type_id?: string | null;
   priority?: Priority;
   assignees?: string[];
   labels?: string[];
@@ -62,19 +60,12 @@ export interface NewTask {
 
 export function createTask(input: NewTask, actorId: string): string {
   const stateId = input.state_id ?? defaultStateId(input.project_id);
-  // The same fallback the server applies, applied here too. Not because the
-  // server would get it wrong — it fills the type in on arrival either way —
-  // but because the row is drawn from the local store the moment it is made,
-  // and a task that shows no kind of work for as long as the round trip takes
-  // is a task that looks like it was created wrong.
-  const typeId = input.type_id ?? defaultTypeId(input.project_id);
   const first = list('task', (t) => t.project_id === input.project_id).sort(byOrder)[0];
   return create('task', {
     project_id: input.project_id,
     title: input.title.trim(),
     description: input.description ?? null,
     state_id: stateId,
-    type_id: typeId ?? null,
     priority: input.priority ?? 'none',
     assignees: input.assignees ?? [],
     labels: input.labels ?? [],
@@ -102,19 +93,6 @@ export function defaultStateId(projectId: string): string | undefined {
   return list('state', (s) => s.project_id === projectId).sort(byOrder)[0]?.id;
 }
 
-/**
- * The kind of work a new task starts as.
- *
- * Whichever the project marked default, or simply the first one — the same
- * order the server uses, so the row drawn here and the row that comes back
- * agree. A project can legitimately have no types at all (it predates them),
- * and then a task has none either.
- */
-export function defaultTypeId(projectId: string): string | undefined {
-  const types = list('taskType', (type) => type.project_id === projectId);
-  return [...types].sort((a, b) => Number(!!b.is_default) - Number(!!a.is_default) || byOrder(a, b))[0]?.id;
-}
-
 /** Drop a task between two neighbours, optionally into a different column. */
 export function moveTask(task: Task, before: Task | undefined, after: Task | undefined, patch: Record<string, unknown> = {}): void {
   update('task', task.id, { ...patch, sort_order: orderKey(before?.sort_order ?? null, after?.sort_order ?? null) });
@@ -131,8 +109,6 @@ function vocabularyOf(projectId: string): ProjectVocabulary {
   return {
     states: list('state', (row) => row.project_id === projectId)
       .map((row) => ({ id: row.id, group_key: row.group_key, sort_order: row.sort_order })),
-    types: list('taskType', (row) => row.project_id === projectId)
-      .map((row) => ({ id: row.id, name: row.name, is_default: row.is_default, sort_order: row.sort_order })),
     labels: list('label', (row) => row.project_id === projectId)
       .map((row) => ({ id: row.id, name: row.name })),
     defaultStateId: byId('project', projectId)?.default_state_id ?? null,

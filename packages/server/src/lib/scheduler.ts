@@ -132,7 +132,6 @@ export function rollRecurringTasks(): number {
       title: task.title,
       description: task.description,
       state_id: state?.id ?? null,
-      type_id: task.type_id,
       priority: task.priority,
       assignees: parse(task.assignees),
       labels: parse(task.labels),

@@ -210,7 +210,6 @@ const SCOPED_REFERENCES: Record<string, string> = {
   cycle_id: 'cycles',
   module_id: 'modules',
   state_id: 'states',
-  type_id: 'task_types',
   team_id: 'teams',
   view_id: 'views',
   field_id: 'custom_fields',
@@ -303,17 +302,6 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
         ?? get<Row>(`SELECT id FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id)?.id;
       if (fallback) setForced('state_id', fallback);
     }
-    if (!values.type_id) {
-      // Whichever the project marked default, or simply the first one. A task
-      // with no type is allowed — projects created before types existed have
-      // none — but a new one should not start that way.
-      const fallback = get<Row>(
-        `SELECT id FROM task_types WHERE project_id = ? AND deleted_at IS NULL
-          ORDER BY is_default DESC, sort_order LIMIT 1`,
-        project.id,
-      )?.id;
-      if (fallback) setForced('type_id', fallback);
-    }
     if (!values.created_by) setForced('created_by', opts.actorId);
     if (!values.sort_order) setForced('sort_order', 'V');
     if (!values.subscribers) values.subscribers = JSON.stringify([opts.actorId]);
@@ -382,6 +370,27 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
 function applyInvariants(entity: EntityName, id: string, values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
 
   /**
+   * A sub-task cannot sit under itself, directly or at any remove.
+   *
+   * Nothing could build one until the parent became a field a person can set:
+   * sub-tasks were only ever created *under* something. Now that it can be
+   * chosen, `A → B → A` is two clicks away, and a tree that loops is not a tree
+   * — the breadcrumb above the title walks it, and so does anything that ever
+   * rolls a child up into its parent.
+   *
+   * Refused the way a project loop is: the old value comes back through
+   * `forced` rather than thrown, because this write may be one row of a batch
+   * from a device that has been away.
+   */
+  if (entity === 'task' && values.parent_id !== undefined && existing) {
+    const wanted = values.parent_id as string | null;
+    if (wanted === existing.id || wouldLoop('tasks', String(existing.id), wanted)) {
+      values.parent_id = existing.parent_id ?? null;
+      forced.parent_id = values.parent_id;
+    }
+  }
+
+  /**
    * A task that changed projects, and everything on it that belonged to the old
    * one.
    *
@@ -400,7 +409,6 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
     const landing = relocate(
       {
         state_id: asId(existing.state_id),
-        type_id: asId(existing.type_id),
         labels: parseIds(existing.labels),
         cycle_id: asId(existing.cycle_id),
         module_id: asId(existing.module_id),
@@ -409,7 +417,7 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
       vocabularyOf(destination),
     );
     const effective = (field: string): unknown => (values[field] !== undefined ? values[field] : existing[field]);
-    const belongs = (table: 'states' | 'task_types' | 'labels' | 'cycles' | 'modules', value: unknown): boolean =>
+    const belongs = (table: 'states' | 'labels' | 'cycles' | 'modules', value: unknown): boolean =>
       typeof value === 'string' && !!get<Row>(
         `SELECT 1 AS found FROM ${table} WHERE id = ? AND project_id = ? AND deleted_at IS NULL`,
         value, destination,
@@ -417,7 +425,6 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
     const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
 
     if (!belongs('states', effective('state_id'))) settle('state_id', landing.state_id);
-    if (asId(effective('type_id')) && !belongs('task_types', effective('type_id'))) settle('type_id', landing.type_id);
     if (parseIds(effective('labels')).some((label) => !belongs('labels', label))) {
       settle('labels', JSON.stringify(landing.labels));
     }
@@ -429,7 +436,7 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   // can each make a legal move that is a loop together, so this is checked on
   // write rather than trusted to the interface.
   if (entity === 'project' && values.parent_id !== undefined && existing) {
-    if (wouldLoop(String(existing.id), values.parent_id as string | null)) {
+    if (wouldLoop('projects', String(existing.id), values.parent_id as string | null)) {
       values.parent_id = existing.parent_id ?? null;
       forced.parent_id = values.parent_id;
     }
@@ -782,12 +789,18 @@ function guardTransition(stateId: string, opts: WriteOpts): void {
   throw forbidden(`Only ${allowed.join(' or ')} may move work into “${state.name}”`);
 }
 
-/** Whether making `parentId` the parent of `id` closes a circle. */
-function wouldLoop(id: string, parentId: string | null): boolean {
+/**
+ * Whether making `parentId` the parent of `id` closes a circle.
+ *
+ * The same walk for a project tree and a task tree — two tables, one rule. Both
+ * are written by devices that may be offline, so two moves that are each legal
+ * can be a loop together, and only the side that sees both can say so.
+ */
+function wouldLoop(table: 'projects' | 'tasks', id: string, parentId: string | null): boolean {
   let cursor = parentId;
   for (let hops = 0; cursor && hops < 50; hops++) {
     if (cursor === id) return true;
-    cursor = get<Row>(`SELECT parent_id FROM projects WHERE id = ?`, cursor)?.parent_id ?? null;
+    cursor = get<Row>(`SELECT parent_id FROM ${table} WHERE id = ?`, cursor)?.parent_id ?? null;
   }
   // A chain longer than fifty is a loop somebody already made; refuse to add to it.
   return !!cursor;
@@ -823,12 +836,6 @@ function vocabularyOf(projectId: string): ProjectVocabulary {
     states: all<Row>(
       `SELECT id, group_key, sort_order FROM states WHERE project_id = ? AND deleted_at IS NULL`, projectId,
     ).map((row) => ({ id: String(row.id), group_key: row.group_key as never, sort_order: String(row.sort_order ?? '') })),
-    types: all<Row>(
-      `SELECT id, name, is_default, sort_order FROM task_types WHERE project_id = ? AND deleted_at IS NULL`, projectId,
-    ).map((row) => ({
-      id: String(row.id), name: String(row.name ?? ''),
-      is_default: row.is_default as number | null, sort_order: String(row.sort_order ?? ''),
-    })),
     labels: all<Row>(
       `SELECT id, name FROM labels WHERE project_id = ? AND deleted_at IS NULL`, projectId,
     ).map((row) => ({ id: String(row.id), name: String(row.name ?? '') })),

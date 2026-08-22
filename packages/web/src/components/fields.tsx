@@ -140,7 +140,7 @@ export function TaskFields({ task }: { task: Task }) {
   const canWrite = useCanWrite();
   const all = useFields(task.project_id);
   const values = useValues(task.id);
-  const fields = fieldsForTask(all, task.type_id);
+  const fields = fieldsForTask(all);
   if (!fields.length) return null;
 
   return (
@@ -176,10 +176,6 @@ export function TaskFields({ task }: { task: Task }) {
 export function ProjectFields({ projectId }: { projectId: string }) {
   const t = useT();
   const fields = useFields(projectId);
-  const types = useQuery(
-    () => list('taskType', (type) => type.project_id === projectId).sort((a, b) => (a.sort_order < b.sort_order ? -1 : 1)),
-    [projectId],
-  );
   const [open, setOpen] = useState<string | null>(null);
   const { confirm, dialog } = useConfirm();
 
@@ -236,34 +232,6 @@ export function ProjectFields({ projectId }: { projectId: string }) {
                 />
               </div>
 
-              <div className="field">
-                <label>{t('field.appliesTo')}</label>
-                <div className="flex items-center flex-wrap gap-[5px]">
-                  <button
-                    type="button" className={chipVariants({ tone: field.type_ids.length ? 'default' : 'on', interactive: true })}
-                    aria-pressed={!field.type_ids.length}
-                    onClick={() => update('field', field.id, { type_ids: [] })}
-                  >
-                    {t('field.appliesToAll')}
-                  </button>
-                  {types.map((type) => (
-                    <button
-                      key={type.id} type="button"
-                      className={chipVariants({ tone: field.type_ids.includes(type.id) ? 'on' : 'default', interactive: true })}
-                      aria-pressed={field.type_ids.includes(type.id)}
-                      onClick={() => update('field', field.id, {
-                        type_ids: field.type_ids.includes(type.id)
-                          ? field.type_ids.filter((id) => id !== type.id)
-                          : [...field.type_ids, type.id],
-                      })}
-                    >
-                      {type.icon} {type.name}
-                    </button>
-                  ))}
-                </div>
-                <span className="text-[12px] text-muted">{t('field.appliesToHint')}</span>
-              </div>
-
               <label className="flex items-center gap-2 text-[13.5px]" style={{ gap: 7 }}>
                 <input
                   type="checkbox" checked={!!field.required}
@@ -292,7 +260,6 @@ export function ProjectFields({ projectId }: { projectId: string }) {
             name: t('field.newName'),
             kind: 'text' as FieldKind,
             options: [],
-            type_ids: [],
             help: null,
             required: 0,
             show_in_table: 0,

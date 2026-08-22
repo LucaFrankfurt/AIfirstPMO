@@ -28,7 +28,12 @@ export interface ProjectDoc {
   source?: { workspace?: string; url?: string };
   project: Record<string, unknown>;
   states: Record<string, unknown>[];
-  types: Record<string, unknown>[];
+  /**
+   * Work item types, which no longer exist. Read out of files exported before
+   * they were removed and ignored — the format version has not changed, so an
+   * older export still imports, minus a field nothing can hold any more.
+   */
+  types?: Record<string, unknown>[];
   labels: Record<string, unknown>[];
   fields: Record<string, unknown>[];
   cycles: Record<string, unknown>[];
@@ -98,7 +103,6 @@ export function exportProject(workspaceId: string, projectId: string): ProjectDo
     source: { workspace: String(workspace?.name ?? '') },
     project: clean(project),
     states: live('states', 'project_id = ?', projectId).map(clean),
-    types: live('task_types', 'project_id = ?', projectId).map(clean),
     labels: live('labels', 'project_id = ?', projectId).map(clean),
     fields: live('custom_fields', 'project_id = ?', projectId).map(clean),
     cycles: live('cycles', 'project_id = ?', projectId).map(clean),
@@ -209,7 +213,6 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
     };
 
     for (const row of doc.states ?? []) write('state', row, {});
-    for (const row of doc.types ?? []) write('taskType', row, {});
     for (const row of doc.labels ?? []) write('label', row, {});
     for (const row of doc.fields ?? []) write('field', row, {});
     for (const row of doc.cycles ?? []) write('cycle', row, {});
@@ -223,7 +226,6 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
     for (const row of inTreeOrder(doc.tasks ?? [])) {
       write('task', row, {
         state_id: to(row.state_id),
-        type_id: to(row.type_id),
         parent_id: to(row.parent_id),
         cycle_id: to(row.cycle_id),
         module_id: to(row.module_id),

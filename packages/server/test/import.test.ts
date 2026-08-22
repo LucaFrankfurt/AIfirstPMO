@@ -192,26 +192,29 @@ describe('importing a file', () => {
     assert.equal(created.priority, 'low');
   });
 
-  it('maps a Jira issue type onto the kinds of work the project has', async () => {
+  it('turns a Jira issue type column into labels', async () => {
     const result = await importCsv(
       'Summary,Issue Type\nA real bug,Bug\nSomething else,Story\n',
       { Summary: 'title', 'Issue Type': 'type' },
     );
     assert.equal(result.created, 2);
 
-    const types = await api(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
-    const bug = types.find((type: any) => type.name === 'Bug');
-    const created = (await tasks()).find((task: any) => task.title === 'A real bug');
-    assert.equal(created.type_id, bug.id, 'matched by name');
+    // Every tracker worth importing from has an issue type; Kolibri has one way
+    // of saying what sort of thing a task is. The column arrives as a label
+    // rather than being dropped, and an unseen name is created the way any
+    // label from a file is — labels are cheap and a word from the file is
+    // information.
+    const labels = await api(`/api/workspaces/${workspaceId}/labels?project_id=${projectId}`);
+    const named = (title: string) => (labels as any[])
+      .filter((label) => ((tasksByTitle[title].labels ?? []) as string[]).includes(label.id))
+      .map((label) => label.name);
+    const tasksByTitle = Object.fromEntries((await tasks()).map((task: any) => [task.title, task]));
 
-    // "Story" is not one of this project's kinds. Inventing it would quietly
-    // add to the list of what a team calls its work, so it is reported instead.
-    assert.ok(
-      result.problems.some((problem: any) => /Story/.test(problem.message)),
-      'and an unknown kind is named rather than created',
-    );
-    const other = (await tasks()).find((task: any) => task.title === 'Something else');
-    assert.equal(other.type_id, types.find((type: any) => type.is_default).id, 'it falls back to the default');
+    // "Bug" lands on the project's existing `bug` rather than making a second
+    // one beside it — the same case-folding every label from a file goes
+    // through. "Story" is new, so it is created.
+    assert.deepEqual(named('A real bug'), ['bug']);
+    assert.deepEqual(named('Something else'), ['Story']);
   });
 
   it('refuses a file with no title column instead of importing blanks', async () => {

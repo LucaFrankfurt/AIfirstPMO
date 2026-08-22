@@ -275,7 +275,7 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   const t = useT();
   const members = useMemberMap();
   const tasks = useQuery(() => list('task', (task) => task.project_id === projectId && !task.archived), [projectId]);
-  const types = useQuery(() => list('taskType', (type) => type.project_id === projectId), [projectId]);
+  const labels = useQuery(() => list('label', (row) => !row.project_id || row.project_id === projectId), [projectId]);
   const entries = useQuery(() => list('timeEntry', (entry) => entry.project_id === projectId), [projectId]);
   const cycles = useQuery(() => list('cycle', (cycle) => cycle.project_id === projectId), [projectId]);
 
@@ -348,16 +348,25 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
     return { name: active.name, labels, scope, done };
   }, [tasks, cycles]);
 
-  const byType = useMemo(() => {
-    const rows: Column[] = types.map((type) => ({
-      key: type.id,
-      label: `${type.icon ?? ''} ${type.name}`.trim(),
-      value: tasks.filter((task) => task.type_id === type.id).length,
+  /**
+   * How the work divides by label.
+   *
+   * This counted work item types until they were removed, and the question it
+   * answers is the same one: what sort of thing is this project full of. A task
+   * may wear several labels, so the bars add up to more than the project has
+   * tasks — which is a property of labels rather than a mistake, and the reason
+   * the caption says "tasks with this label" rather than "share of tasks".
+   */
+  const byLabel = useMemo(() => {
+    const rows: Column[] = labels.map((label) => ({
+      key: label.id,
+      label: label.name,
+      value: tasks.filter((task) => (task.labels ?? []).includes(label.id)).length,
     }));
-    const untyped = tasks.filter((task) => !task.type_id).length;
-    if (untyped) rows.push({ key: 'none', label: t('type.none'), value: untyped });
+    const bare = tasks.filter((task) => !(task.labels ?? []).length).length;
+    if (bare) rows.push({ key: 'none', label: t('insights.unlabelled'), value: bare });
     return rows.filter((row) => row.value).sort((a, b) => b.value - a.value);
-  }, [tasks, types, t]);
+  }, [tasks, labels, t]);
 
   const byPerson = useMemo(() => {
     const counts = new Map<string, number>();
@@ -415,10 +424,11 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
       )}
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {byType.length > 0 && (
+        {byLabel.length > 0 && (
           <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
-            <h2 className="chart-title">{t('insights.byType')}</h2>
-            <Bars data={byType} caption={t('insights.byType')} />
+            <h2 className="chart-title">{t('insights.byLabel')}</h2>
+            <p className="text-[12px] text-muted">{t('insights.byLabelHint')}</p>
+            <Bars data={byLabel} caption={t('insights.byLabel')} />
           </div>
         )}
         {byPerson.length > 0 && (

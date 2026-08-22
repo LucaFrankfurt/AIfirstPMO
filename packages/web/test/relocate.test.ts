@@ -11,22 +11,19 @@ import { describe, it } from 'node:test';
 import { relocate, type ProjectVocabulary, type Scoped } from '@kolibri/shared';
 
 const state = (id: string, group: string, order = 'V') => ({ id, group_key: group as never, sort_order: order });
-const type = (id: string, name: string, order = 'V', is_default = 0) => ({ id, name, is_default, sort_order: order });
 
 const WEB: ProjectVocabulary = {
   states: [state('w-todo', 'unstarted', 'A'), state('w-doing', 'started', 'B'), state('w-done', 'completed', 'C')],
-  types: [type('w-task', 'Task', 'A', 1), type('w-bug', 'Bug', 'B')],
   labels: [{ id: 'w-reg', name: 'Regression' }, { id: 'w-photo', name: 'needs-photography' }],
 };
 
 const API: ProjectVocabulary = {
   states: [state('a-backlog', 'backlog', 'A'), state('a-wip', 'started', 'B'), state('a-shipped', 'completed', 'C')],
-  types: [type('a-chore', 'Chore', 'A'), type('a-bug', 'bug', 'B', 1)],
   labels: [{ id: 'a-reg', name: 'regression' }],
 };
 
 const carrying = (over: Partial<Scoped> = {}): Scoped =>
-  ({ state_id: null, type_id: null, labels: [], cycle_id: null, module_id: null, ...over });
+  ({ state_id: null, labels: [], cycle_id: null, module_id: null, ...over });
 
 describe('what changes when a task is filed elsewhere', () => {
   it('lands in the column with the same meaning, whatever it is called', () => {
@@ -51,19 +48,8 @@ describe('what changes when a task is filed elsewhere', () => {
   });
 
   it('answers null rather than an id from the wrong project when there are no columns', () => {
-    const empty: ProjectVocabulary = { states: [], types: [], labels: [] };
-    const landed = relocate(carrying({ state_id: 'w-doing', type_id: 'w-bug' }), WEB, empty);
-    assert.equal(landed.state_id, null);
-    assert.equal(landed.type_id, null);
-  });
-
-  it('matches the kind of work by name, ignoring case', () => {
-    assert.equal(relocate(carrying({ type_id: 'w-bug' }), WEB, API).type_id, 'a-bug');
-  });
-
-  it('otherwise starts it as whatever the destination starts new work as', () => {
-    // "Task" is not a kind of work the API project has; its default is `bug`.
-    assert.equal(relocate(carrying({ type_id: 'w-task' }), WEB, API).type_id, 'a-bug');
+    const empty: ProjectVocabulary = { states: [], labels: [] };
+    assert.equal(relocate(carrying({ state_id: 'w-doing' }), WEB, empty).state_id, null);
   });
 
   it('carries the labels that exist on both sides and drops the rest', () => {
@@ -84,9 +70,8 @@ describe('what changes when a task is filed elsewhere', () => {
   it('is not upset by a task pointing at things the source project no longer has', () => {
     // A state deleted while somebody was offline, say. It has to land
     // somewhere, and the top of the destination is somewhere.
-    const landed = relocate(carrying({ state_id: 'gone', type_id: 'gone', labels: ['gone'] }), WEB, API);
+    const landed = relocate(carrying({ state_id: 'gone', labels: ['gone'] }), WEB, API);
     assert.equal(landed.state_id, 'a-backlog');
-    assert.equal(landed.type_id, 'a-bug');
     assert.deepEqual(landed.labels, []);
   });
 });

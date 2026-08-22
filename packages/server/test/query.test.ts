@@ -17,7 +17,6 @@ const vocabulary: QueryVocabulary = {
     { id: 's-doing', name: 'In Progress', group_key: 'started' },
     { id: 's-done', name: 'Done', group_key: 'completed' },
   ],
-  types: [{ id: 't-bug', name: 'Bug' }, { id: 't-feat', name: 'Feature' }],
   people: [
     { id: 'u-me', name: 'Grace Hopper', email: 'grace@example.com' },
     { id: 'u-ada', name: 'Ada Lovelace', email: 'ada@example.com' },
@@ -52,8 +51,8 @@ describe('what a query can ask', () => {
   });
 
   it('takes a colon as well as an equals, because people type both', () => {
-    assert.deepEqual(parse('type: Bug').filters.type, ['t-bug']);
-    assert.deepEqual(parse('type = Bug').filters.type, ['t-bug']);
+    assert.deepEqual(parse('label: design').filters.label, ['l-design']);
+    assert.deepEqual(parse('label = design').filters.label, ['l-design']);
   });
 
   it('resolves a person by name or by address', () => {

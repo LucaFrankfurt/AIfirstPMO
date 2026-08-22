@@ -13,7 +13,6 @@ export type EntityName =
   | 'project'
   | 'projectMember'
   | 'state'
-  | 'taskType'
   | 'field'
   | 'fieldValue'
   | 'baseline'
@@ -138,22 +137,14 @@ export const ENTITIES = {
     ],
     json: ['allowed_roles'],
   },
-  taskType: {
-    table: 'task_types',
-    fields: ['workspace_id', 'project_id', 'name', 'icon', 'color', 'is_default', 'sort_order'],
-  },
-  /**
-   * A field a project adds to its tasks. `type_ids` is what OpenProject calls a
-   * type-dependent field: empty means every work item type, otherwise only
-   * those — a Bug asks for steps to reproduce, a Feature does not.
-   */
+  /** A field a project adds to its tasks. Every task in the project is asked. */
   field: {
     table: 'custom_fields',
     fields: [
-      'workspace_id', 'project_id', 'name', 'kind', 'options', 'type_ids',
+      'workspace_id', 'project_id', 'name', 'kind', 'options',
       'help', 'required', 'show_in_table', 'archived', 'sort_order',
     ],
-    json: ['options', 'type_ids'],
+    json: ['options'],
   },
   /**
    * One task's answer to one field. Its own row rather than a map on the task,
@@ -173,7 +164,7 @@ export const ENTITIES = {
   task: {
     table: 'tasks',
     fields: [
-      'workspace_id', 'project_id', 'title', 'description', 'state_id', 'type_id', 'priority',
+      'workspace_id', 'project_id', 'title', 'description', 'state_id', 'priority',
       'assignees', 'labels', 'parent_id', 'cycle_id', 'module_id', 'estimate',
       'start_date', 'due_date', 'sort_order', 'completed_at', 'archived', 'created_by',
       'subscribers', 'recurrence', 'recurred_from',
@@ -418,7 +409,6 @@ export const COLLECTIONS: Record<EntityName, string> = {
   project: 'projects',
   projectMember: 'project-members',
   state: 'states',
-  taskType: 'task-types',
   field: 'fields',
   fieldValue: 'field-values',
   baseline: 'baselines',

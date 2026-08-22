@@ -25,7 +25,6 @@ import { PRIORITIES, STATE_GROUPS, type Filters, type Priority, type StateGroup 
 /** What names mean, in this workspace, in this project. */
 export interface QueryVocabulary {
   states?: { id: string; name: string; group_key?: string }[];
-  types?: { id: string; name: string }[];
   people?: { id: string; name: string; email?: string | null }[];
   labels?: { id: string; name: string }[];
   cycles?: { id: string; name: string }[];
@@ -53,7 +52,6 @@ export interface QueryResult {
 /** Every name a clause may start with, and the `Filters` key it writes. */
 const FIELDS = {
   state: 'state', status: 'state',
-  type: 'type', kind: 'type',
   group: 'group', is: 'group',
   priority: 'priority', p: 'priority',
   assignee: 'assignee', assigned: 'assignee',
@@ -69,7 +67,7 @@ type FilterKey = (typeof FIELDS)[keyof typeof FIELDS];
 
 /** Which vocabulary list resolves a name for each field. */
 const LOOKUP: Partial<Record<FilterKey, keyof QueryVocabulary>> = {
-  state: 'states', type: 'types', assignee: 'people',
+  state: 'states', assignee: 'people',
   label: 'labels', cycle: 'cycles', module: 'modules', project: 'projects',
 };
 
@@ -340,7 +338,7 @@ export function printQuery(filters: Filters, vocabulary: QueryVocabulary = {}): 
     clauses.push(`${key} ${operator} ${value}`);
   };
 
-  const ORDER: FilterKey[] = ['project', 'state', 'group', 'type', 'priority', 'assignee', 'label', 'cycle', 'module'];
+  const ORDER: FilterKey[] = ['project', 'state', 'group', 'priority', 'assignee', 'label', 'cycle', 'module'];
   for (const key of ORDER) emit(key, (filters as Record<string, unknown>)[key] as string[], false);
   for (const key of ORDER) emit(key, (filters.not as Record<string, string[]> | undefined)?.[key], true);
 

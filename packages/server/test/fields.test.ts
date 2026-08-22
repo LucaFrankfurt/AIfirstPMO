@@ -25,8 +25,6 @@ let base = '';
 let cookie = '';
 let workspaceId = '';
 let projectId = '';
-let bugTypeId = '';
-let featureTypeId = '';
 
 async function call(path: string, body?: unknown, method?: string) {
   const response = await fetch(`${base}${path}`, {
@@ -53,9 +51,6 @@ before(async () => {
   workspaceId = session.workspaces[0].id;
   const project = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Fields', key: 'FLD' });
   projectId = project.id;
-  const types = await ok(`/api/workspaces/${workspaceId}/task-types?project_id=${projectId}`);
-  bugTypeId = types.find((type: any) => /bug/i.test(type.name))?.id ?? types[0].id;
-  featureTypeId = types.find((type: any) => type.id !== bugTypeId)?.id ?? types[1].id;
 });
 
 after(() => {
@@ -67,27 +62,27 @@ describe('a field a project invented', () => {
   it('round-trips its shape, options and all', async () => {
     const field = await ok(`/api/workspaces/${workspaceId}/fields`, {
       project_id: projectId, name: 'Severity', kind: 'select',
-      options: ['Low', 'High'], type_ids: [bugTypeId], required: 1,
+      options: ['Low', 'High'], required: 1,
     });
     assert.deepEqual(field.options, ['Low', 'High'], 'JSON columns come back as arrays, not as strings');
-    assert.deepEqual(field.type_ids, [bugTypeId]);
 
     const listed = await ok(`/api/workspaces/${workspaceId}/fields?project_id=${projectId}`);
     assert.equal(listed.length, 1);
   });
 
-  it('is asked only on the types it names', async () => {
+  it('is asked on every task in the project', async () => {
+    // Fields used to be askable per work item type. Types are gone, and with
+    // them the only honest way to scope a form — a task carries labels, of
+    // which it may have four, and "which label decides the questions" has no
+    // answer. A project's fields are the project's questions now.
     const fields = await ok(`/api/workspaces/${workspaceId}/fields?project_id=${projectId}`);
-    assert.equal(fieldsForTask(fields, bugTypeId).length, 1, 'a bug is asked');
-    assert.equal(fieldsForTask(fields, featureTypeId).length, 0, 'a feature is not');
-    assert.equal(fieldsForTask(fields, null).length, 0, 'nor is a task with no type at all');
+    assert.equal(fieldsForTask(fields).length, 1);
 
     const everywhere = await ok(`/api/workspaces/${workspaceId}/fields`, {
-      project_id: projectId, name: 'Customer', kind: 'text', options: [], type_ids: [],
+      project_id: projectId, name: 'Customer', kind: 'text', options: [],
     });
     const both = await ok(`/api/workspaces/${workspaceId}/fields?project_id=${projectId}`);
-    assert.equal(fieldsForTask(both, featureTypeId).length, 1, 'an empty type list means every type');
-    assert.equal(fieldsForTask(both, null).length, 1, 'including a task that has none');
+    assert.equal(fieldsForTask(both).length, 2);
     assert.ok(everywhere.id);
   });
 });
@@ -97,7 +92,7 @@ describe('an answer', () => {
   let fieldId = '';
 
   before(async () => {
-    const task = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Broken', type_id: bugTypeId });
+    const task = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Broken' });
     taskId = task.id;
     fieldId = (await ok(`/api/workspaces/${workspaceId}/fields?project_id=${projectId}`))
       .find((f: any) => f.name === 'Severity').id;
@@ -135,12 +130,12 @@ describe('an answer', () => {
 });
 
 describe('over MCP', () => {
-  it('reads back only the fields the task’s type is asked for, and writes one by name', async () => {
+  it('reads the project’s fields back and writes one by name', async () => {
     const field = await ok(`/api/workspaces/${workspaceId}/fields`, {
-      project_id: projectId, name: 'Environment', kind: 'select', options: ['prod', 'staging'], type_ids: [bugTypeId],
+      project_id: projectId, name: 'Environment', kind: 'select', options: ['prod', 'staging'],
     });
-    const bug = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Crash', type_id: bugTypeId });
-    const feature = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Shiny', type_id: featureTypeId });
+    const bug = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Crash' });
+    const feature = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Shiny' });
 
     const rpc = async (name: string, args: unknown) => {
       const result = await ok('/mcp', {
@@ -158,14 +153,9 @@ describe('over MCP', () => {
     );
 
     const other = await rpc('get_task', { task: feature.identifier });
-    assert.equal(other.fields.some((f: any) => f.name === 'Environment'), false, 'a feature is not asked a bug’s question');
-    assert.ok(other.fields.some((f: any) => f.name === 'Customer'), 'but it is asked the ones that apply to everything');
+    assert.ok(other.fields.some((f: any) => f.name === 'Environment'), 'every task in the project is asked');
+    assert.ok(other.fields.some((f: any) => f.name === 'Customer'));
 
-    await assert.rejects(
-      () => rpc('update_task', { task: feature.identifier, fields: { Environment: 'prod' } }),
-      /not asked on this kind/i,
-      'and cannot be made to answer it',
-    );
     await assert.rejects(
       () => rpc('update_task', { task: bug.identifier, fields: { Nonsense: 'x' } }),
       /No field called/i,

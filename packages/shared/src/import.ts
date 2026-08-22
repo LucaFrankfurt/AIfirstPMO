@@ -39,7 +39,6 @@ export interface ImportResult {
   preview: {
     title: string;
     state: string | null;
-    type: string | null;
     priority: Priority;
     assignee: string | null;
     labels: string[];

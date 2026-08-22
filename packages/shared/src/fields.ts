@@ -68,17 +68,18 @@ export function writeFieldValue(kind: FieldKind, value: unknown): string | null 
   }
 }
 
-/** Whether this field is asked on a task of this type. */
-export const fieldAppliesTo = (field: Pick<Field, 'type_ids'>, typeId: ID | null | undefined): boolean =>
-  !field.type_ids?.length || (!!typeId && field.type_ids.includes(typeId));
-
-/** The fields a task actually shows, in order. */
-export function fieldsForTask<T extends Pick<Field, 'type_ids' | 'archived' | 'sort_order'>>(
-  fields: T[],
-  typeId: ID | null | undefined,
-): T[] {
+/**
+ * The fields a task actually shows, in order.
+ *
+ * Every live field of the project, because a project's fields are the project's
+ * questions. They used to be askable per work item type — a Bug asking for
+ * steps to reproduce while a Feature did not — and that scoping went when types
+ * did: a task now carries labels, of which it may have several, and "which of
+ * this task's four labels decides the form" has no honest answer.
+ */
+export function fieldsForTask<T extends Pick<Field, 'archived' | 'sort_order'>>(fields: T[]): T[] {
   return fields
-    .filter((field) => !field.archived && fieldAppliesTo(field, typeId))
+    .filter((field) => !field.archived)
     .sort((a, b) => (a.sort_order < b.sort_order ? -1 : a.sort_order > b.sort_order ? 1 : 0));
 }
 

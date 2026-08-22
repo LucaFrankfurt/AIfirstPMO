@@ -1,5 +1,7 @@
-import { PRIORITIES, fieldKeys, mayEnter, type Label, type Priority, type State, type Task, type TaskType } from '@kolibri/shared';
+import { Fragment } from 'react';
+import { PRIORITIES, fieldKeys, mayEnter, type Label, type Priority, type State, type Task } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
+import { ancestry, descendants } from '../lib/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
 import { dueClass, shortDate } from '../lib/format';
 import { groupKey, priorityKey, useT, type Translate } from '../lib/i18n';
@@ -55,15 +57,6 @@ export const useStates = (projectId?: string | null): State[] =>
     [projectId],
   );
 
-/** The kinds of work a project recognises, in the order it put them in. */
-export const useTypes = (projectId?: string | null): TaskType[] =>
-  useQuery(
-    () => list('taskType', (type) => !projectId || type.project_id === projectId).sort(byOrder),
-    [projectId],
-  );
-
-export const typeOf = (task: Task): TaskType | undefined => byId('taskType', task.type_id ?? undefined);
-
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
     () => list('label', (l) => !l.project_id || !projectId || l.project_id === projectId).sort((a, b) => a.name.localeCompare(b.name)),
@@ -92,33 +85,6 @@ export function StatePicker({ task, compact }: { task: Task; compact?: boolean }
     <MenuButton items={items} size={compact ? 'iconSm' : 'sm'} title={current?.name ?? t('task.state')}>
       <StateDot group={current?.group_key} color={current?.color} />
       {!compact && <span className="truncate">{current?.name ?? t('task.noState')}</span>}
-    </MenuButton>
-  );
-}
-
-export function TypePicker({ task, compact }: { task: Task; compact?: boolean }) {
-  const t = useT();
-  const types = useTypes(task.project_id);
-  const current = typeOf(task);
-  if (!types.length) return null;
-
-  const items: MenuItem[] = [
-    ...types.map((type) => ({
-      id: type.id,
-      label: type.name,
-      icon: <span aria-hidden>{type.icon ?? '•'}</span>,
-      hint: task.type_id === type.id ? '✓' : undefined,
-      onSelect: () => update('task', task.id, { type_id: type.id }),
-    })),
-    // Clearing is offered because a task that predates the project's types has
-    // none, and pretending otherwise would make that state unreachable again.
-    { id: 'none', section: t('view.reset'), label: t('type.none'), onSelect: () => update('task', task.id, { type_id: null }) },
-  ];
-
-  return (
-    <MenuButton items={items} size={compact ? 'iconSm' : 'sm'} title={current?.name ?? t('type.label')}>
-      <span aria-hidden>{current?.icon ?? '◇'}</span>
-      {!compact && <span className="truncate">{current?.name ?? t('type.none')}</span>}
     </MenuButton>
   );
 }
@@ -186,6 +152,84 @@ export function LabelPicker({ task }: { task: Task }) {
         ? <span>{t('task.labelCount', { count: applied.size })}</span>
         : <span className="hidden sm:inline">{t('task.labels')}</span>}
     </MenuButton>
+  );
+}
+
+/**
+ * What this task sits under.
+ *
+ * A task sheet has always listed its sub-tasks and never said what it was a
+ * sub-task *of* — the link ran one way, so from a child there was no way up
+ * except remembering. This is the other half: the field, next to the ones it
+ * belongs beside, and a breadcrumb above the title for getting there.
+ *
+ * Only tasks in the same project are offered. A parent in another project would
+ * be legal in the model — relations already cross projects — but a sub-task
+ * counted on one board and rolled up on another is a number nobody can check.
+ *
+ * The menu leaves out this task and everything under it, because those are the
+ * choices that make a loop. The server refuses them too; this is so nobody has
+ * to find that out by being told no.
+ */
+export function ParentPicker({ task }: { task: Task }) {
+  const t = useT();
+  const family = useQuery(
+    () => list('task', (row) => row.project_id === task.project_id && !row.archived),
+    [task.project_id],
+  );
+  const current = byId('task', task.parent_id);
+  const forbidden = descendants(task.id, family);
+  const candidates = family.filter((row) => !forbidden.has(row.id)).slice(0, 200);
+
+  const items: MenuItem[] = [
+    ...(task.parent_id
+      ? [{ id: 'none', section: t('view.reset'), label: t('task.noParent'), onSelect: () => update('task', task.id, { parent_id: null }) }]
+      : []),
+    ...candidates.map((candidate) => ({
+      id: candidate.id,
+      label: `${candidate.identifier} ${candidate.title}`,
+      hint: task.parent_id === candidate.id ? '✓' : undefined,
+      onSelect: () => update('task', task.id, { parent_id: candidate.id }),
+    })),
+  ];
+
+  return (
+    <MenuButton items={items} variant="ghost" size="sm" search title={t('task.parent')} empty={t('task.noParentCandidates')}>
+      <Icon name="hierarchy" size={14} />
+      {current
+        ? <span className="truncate">{current.identifier}</span>
+        : <span className="hidden sm:inline">{t('task.noParent')}</span>}
+    </MenuButton>
+  );
+}
+
+/**
+ * The way up, above the title.
+ *
+ * The whole chain rather than the immediate parent: a sub-task of a sub-task is
+ * a thing people make, and "which of the three things above me am I looking at"
+ * is the question a breadcrumb exists to answer.
+ */
+export function ParentTrail({ task, onOpen }: { task: Task; onOpen: (task: Task) => void }) {
+  const family = useQuery(() => list('task', (row) => row.project_id === task.project_id), [task.project_id]);
+  const above = useQuery(
+    () => ancestry(task.id, family).slice(0, -1).map((id) => byId('task', id)).filter((row): row is Task => !!row),
+    [task.id, family],
+  );
+  if (!above.length) return null;
+
+  return (
+    <nav className="parent-trail">
+      {above.map((ancestor) => (
+        <Fragment key={ancestor.id}>
+          <button type="button" onClick={() => onOpen(ancestor)} title={ancestor.title}>
+            <span className="mono">{ancestor.identifier}</span>
+            <span className="truncate">{ancestor.title}</span>
+          </button>
+          <Icon name="chevronRight" size={12} aria-hidden />
+        </Fragment>
+      ))}
+    </nav>
   );
 }
 
@@ -391,7 +435,7 @@ export function TaskCard({
 /* --------------------------------------------------------------- grouping */
 
 /** The groupings every project has. */
-export type BaseGroupBy = 'state' | 'type' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
+export type BaseGroupBy = 'state' | 'priority' | 'assignee' | 'label' | 'cycle' | 'project' | 'none';
 
 /**
  * `field:<id>` groups by a custom field the project invented for itself. It is
@@ -475,19 +519,6 @@ export function groupTasks(
       group: state.group_key,
       tasks: tasks.filter((task) => task.state_id === state.id),
     }));
-  }
-
-  if (groupBy === 'type') {
-    const types = list('taskType').sort(byOrder);
-    const groups: Group[] = types.map((type) => ({
-      id: type.id,
-      title: `${type.icon ?? ''} ${type.name}`.trim(),
-      color: type.color,
-      tasks: tasks.filter((task) => task.type_id === type.id),
-    }));
-    // Tasks from before the project had types, and any deliberately cleared.
-    groups.push({ id: 'none', title: t('type.none'), tasks: tasks.filter((task) => !task.type_id) });
-    return groups;
   }
 
   if (groupBy === 'priority') {

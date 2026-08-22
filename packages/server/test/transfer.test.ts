@@ -59,7 +59,7 @@ before(async () => {
   const states = await ok(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
   const labels = await ok(`/api/workspaces/${workspaceId}/labels?project_id=${projectId}`);
   const field = await ok(`/api/workspaces/${workspaceId}/fields`, {
-    project_id: projectId, name: 'Severity', kind: 'select', options: ['Low', 'High'], type_ids: [],
+    project_id: projectId, name: 'Severity', kind: 'select', options: ['Low', 'High'],
   });
 
   const parent = await ok(`/api/workspaces/${workspaceId}/tasks`, {

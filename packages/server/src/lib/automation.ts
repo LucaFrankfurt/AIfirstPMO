@@ -386,7 +386,7 @@ function runOneRule(rule: Row, row: Row, actorId: string, event: TriggerEvent): 
  * task can trigger a rule that moves it back; the depth guard would stop the
  * loop, but the task would still end up somewhere nobody chose.
  */
-const SETTABLE = new Set(['priority', 'assignees', 'labels', 'due_date', 'estimate', 'type_id', 'archived']);
+const SETTABLE = new Set(['priority', 'assignees', 'labels', 'due_date', 'estimate', 'archived']);
 
 /**
  * What a `set_fields` rule actually writes.

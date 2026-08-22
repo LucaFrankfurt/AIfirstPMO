@@ -50,7 +50,6 @@ export interface CopyReport {
  */
 const STRUCTURE: [EntityName, string, string][] = [
   ['state', 'states', 'sort_order'],
-  ['taskType', 'task_types', 'sort_order'],
   ['label', 'labels', 'created_at'],
   ['field', 'custom_fields', 'sort_order'],
 ];
@@ -188,7 +187,6 @@ export function copyProject(
           project_id: projectId,
           workspace_id: workspaceId,
           state_id: mapped(row.state_id),
-          type_id: mapped(row.type_id),
           parent_id: mapped(row.parent_id),
           labels: remapList(row.labels, map),
           // A copy starts unscheduled: cycles and modules belong to the project

@@ -59,7 +59,6 @@ function filterFor(entity: EntityName): string {
       // project — the same rule the tasks it may become already follow.
     case 'task':
     case 'state':
-    case 'taskType':
     case 'field':
     case 'fieldValue':
     case 'baseline':

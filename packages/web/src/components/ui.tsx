@@ -72,6 +72,8 @@ const PATHS = {
   table: 'M3 5h18v14H3zM3 10h18M9 10v9M3 15h18',
   gantt: 'M4 6h9M7 12h11M4 18h7M3 3v18',
   target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
+  // Up and over: the line a sub-task follows to reach what it sits under.
+  hierarchy: 'M18 20h-7a4 4 0 0 1-4-4V5M4 8l3-4 3 4',
   copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
   grip: 'M9 5h.01M15 5h.01M9 12h.01M15 12h.01M9 19h.01M15 19h.01',
   refresh: 'M20 11a8 8 0 1 0-.6 4M20 4v6h-6',
