@@ -390,7 +390,7 @@ export function Chat() {
           </button>
         ))}
         {canWrite && (
-          <button className={cn(navItem(), 'chat-person')} onClick={() => setFinding(true)}>
+          <button className={cn(navItem(), 'chat-find')} onClick={() => setFinding(true)}>
             <Icon name="search" size={16} />
             <span className="flex-1 min-w-0 truncate">{t('chat.findPerson')}</span>
           </button>
@@ -770,11 +770,11 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
         )}
       </header>
       {needle !== null && (
-        <div className="chat-find">
+        <div className="chat-search">
           <Icon name="search" size={13} />
           <input
             autoFocus
-            className="chat-find-box"
+            className="chat-search-box"
             value={needle}
             placeholder={t('chat.findPlaceholderHere')}
             aria-label={t('chat.find')}

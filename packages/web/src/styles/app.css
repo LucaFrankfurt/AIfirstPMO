@@ -2324,7 +2324,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .chat-earlier:hover { background: var(--bg-hover); color: var(--fg); }
 
 /* Find in this conversation, under the header. */
-.chat-find {
+.chat-search {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2333,7 +2333,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-bottom: 1px solid var(--line);
   color: var(--fg-muted);
 }
-.chat-find-box {
+.chat-search-box {
   flex: 1;
   min-width: 0;
   border: none;
