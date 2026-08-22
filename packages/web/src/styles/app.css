@@ -736,6 +736,35 @@ p { margin: 0 0 0.75em; }
 .stat-value { font-size: 26px; font-weight: 620; line-height: 1.1; letter-spacing: -0.4px; }
 .stat-hint { font-size: 11.5px; color: var(--fg-muted); }
 
+/* Where you just were.
+
+   Small cards rather than the big squares the idea came from: a project you
+   were in an hour ago has to be recognisable and one click away, and a wall of
+   mostly-empty tiles above the work is a decoration that pushes the actual
+   list off a phone. The same `auto-fit` floor as the figures above, so the two
+   bands reflow at the same widths rather than each picking its own breakpoint.
+
+   The `max-width` is what stops `auto-fit` from being silly when there is one
+   project in the list: the track is the whole row either way, but the card
+   inside it stays card-sized instead of becoming a 900px-wide button with a
+   word in the corner. */
+.recents { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.recent-card {
+  display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 320px;
+  padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--bg); color: inherit; text-decoration: none;
+}
+.recent-card:hover { border-color: var(--line-strong); background: var(--bg-hover); }
+.recent-card .recent-icon { flex: none; width: 19px; text-align: center; font-size: 15px; line-height: 1.1; }
+.recent-card .recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
+.recent-card .recent-key { flex: none; font-size: 11px; color: var(--fg-muted); letter-spacing: 0.3px; }
+
+/* The name goes on one line and is allowed to run out of room; the rest of the
+   page must not. `min-width: 0` on the greeting is the same fix the header
+   needed — a flex child defaults to its content's width and drags the layout
+   wider than the screen. */
+.greeting { font-size: 21px; font-weight: 620; letter-spacing: -0.4px; min-width: 0; overflow-wrap: anywhere; }
+
 .chart-title { font-size: 14px; margin-bottom: 4px; }
 .chart { margin: 10px 0 0; }
 .chart figcaption { font-size: 11.5px; color: var(--fg-muted); margin-top: 8px; }

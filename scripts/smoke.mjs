@@ -111,6 +111,55 @@ await step('my work has tasks', async () => {
 });
 await page.screenshot({ path: `${shots}/1-mywork.png` });
 
+/**
+ * What My work opens with.
+ *
+ * Three things that break quietly, because none of them throws when it goes: a
+ * greeting that says the reader's name, four figures counted over everything
+ * assigned to them rather than over whatever the current view happens to be
+ * showing, and the projects they were last in.
+ *
+ * The last has a rule worth pinning down. A task sheet is not a visit: `/t/…`
+ * opens *over* the screen you were on rather than taking you anywhere, and
+ * recording it would rearrange the strip behind the sheet while nobody was
+ * looking at it. Nothing else can notice that going wrong.
+ *
+ * Both assertions are on seed data — a person's name and a project's — rather
+ * than on any translated string. Matching a word from the interface here is how
+ * a step ends up proving that English works and calling it three languages.
+ */
+await step('my work opens with where you stand and where you were', async () => {
+  const greeting = await page.locator('.greeting').innerText();
+  if (!greeting.includes('Ada')) throw new Error(`the greeting reads "${greeting}"`);
+
+  const figures = await page.locator('.kpi-row .stat-value').allInnerTexts();
+  if (figures.length !== 4) throw new Error(`expected four figures, got ${figures.length}`);
+  if (figures.some((value) => !/^\d+$/.test(value))) throw new Error(`a figure read ${JSON.stringify(figures)}`);
+  console.log('     open / next 7 days / undated / finished:', figures.join(' '));
+
+  // Nothing has been opened yet on this device, so there is nothing to offer.
+  if (await page.locator('.recents').count()) throw new Error('a fresh device claims a history');
+
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  // A full reload, not a click back: the history lives in localStorage, and
+  // this is the half of that which a same-page navigation would not exercise.
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.recent-card', { timeout: 8000 });
+  const seen = await page.locator('.recent-name').allInnerTexts();
+  if (seen[0] !== 'Website') throw new Error(`recently viewed reads ${JSON.stringify(seen)}`);
+
+  await page.locator('.task-row').first().click();
+  await page.waitForSelector('.sheet', { timeout: 5000 });
+  const after = await page.locator('.recent-name').allInnerTexts();
+  await page.keyboard.press('Escape');
+  if (after.join() !== seen.join()) throw new Error(`opening a task rewrote the history: ${JSON.stringify(after)}`);
+
+  await page.goto(base, { waitUntil: 'networkidle' });
+  await closeTour(page);
+});
+
 await step('open project board', async () => {
   await page.click('.sidebar a:has-text("Website")');
   await page.waitForSelector('.tabs');

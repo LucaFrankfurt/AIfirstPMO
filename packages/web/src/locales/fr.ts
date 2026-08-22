@@ -498,6 +498,18 @@ export const fr: Catalogue = {
   'myWork.emptyHint': 'Profitez-en, ou prenez quelque chose dans un projet.',
   'myWork.createdByYou': 'Créées par vous',
 
+  /* ----------------------------------------------------------- overview */
+  'overview.greetNight': 'Encore debout, {name} ?',
+  'overview.greetMorning': 'Bonjour, {name}',
+  'overview.greetAfternoon': 'Bon après-midi, {name}',
+  'overview.greetEvening': 'Bonsoir, {name}',
+  'overview.statOpen': 'En cours',
+  'overview.statSoon': '7 prochains jours',
+  'overview.statUnscheduled': 'Sans date',
+  'overview.statDone': 'Terminées',
+  'overview.lastDays': '7 derniers jours',
+  'overview.recent': 'Consultés récemment',
+
   /* -------------------------------------------------------------- inbox */
   'inbox.title': 'Boîte de réception',
   'inbox.unread': 'Non lus',
