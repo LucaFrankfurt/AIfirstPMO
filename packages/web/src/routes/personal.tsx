@@ -7,8 +7,11 @@ import { TaskViews, useVisibleTasks, ViewControls, DEFAULT_VIEW, type ViewConfig
 import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { Avatar, Empty, Icon, useToast } from '../components/ui';
+import { Stat } from '../components/insights';
 import { api } from '../lib/api';
-import { relativeTime, today } from '../lib/format';
+import { isDone, relativeTime, today } from '../lib/format';
+import { firstName, greetingKey, summarise } from '../lib/overview';
+import { useRecentProjects } from '../lib/recents';
 
 import { markAllRead, markNotificationRead } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
@@ -35,7 +38,7 @@ export function MyWork() {
   const t = useT();
   const me = useMe();
   const openTask = useOpenTask();
-  const { workspaceId } = useSession();
+  const { workspaceId, user } = useSession();
   const [view, setView] = useState<ViewConfig>({ ...DEFAULT_VIEW, groupBy: 'project', orderBy: 'due_date', showDone: false });
   const selection = useSelection();
 
@@ -51,6 +54,35 @@ export function MyWork() {
     today: visible.filter((task) => task.due_date === day),
   }), [visible, day]);
 
+  /**
+   * The figures at the top.
+   *
+   * Counted over everything assigned to you rather than over what the view is
+   * currently showing: the view hides finished work by default, and an
+   * overview that reports zero finished because of a filter is a lie told by
+   * arithmetic. `useQuery` rather than `useMemo` because whether a task counts
+   * as done is a fact about its *state*, so renaming a column's group has to
+   * move the numbers too.
+   */
+  const standing = useQuery(
+    () => summarise(
+      mine.map((task) => ({
+        due_date: task.due_date,
+        completed_at: task.completed_at,
+        done: isDone(byId('state', task.state_id)?.group_key),
+      })),
+      day,
+      Date.now(),
+    ),
+    [mine, day],
+  );
+
+  const recents = useRecentProjects(workspaceId, 4);
+
+  // Their first name, or no greeting at all. Addressing somebody as "" is
+  // worse than opening with the list.
+  const name = firstName(user?.name);
+
   const created = useQuery(
     () => list('task', (t) => t.created_by === me && !(t.assignees ?? []).includes(me)).slice(0, 8),
     [me],
@@ -62,7 +94,33 @@ export function MyWork() {
         <ViewControls view={view} onChange={setView} saveable />
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        {name && <h2 className="greeting mb-3.5">{t(greetingKey(new Date().getHours()), { name })}</h2>}
+
         <SetupChecklist />
+
+        {mine.length > 0 && (
+          <div className="kpi-row">
+            <Stat label={t('overview.statOpen')} value={String(standing.open)} />
+            <Stat label={t('overview.statSoon')} value={String(standing.soon)} />
+            <Stat label={t('overview.statUnscheduled')} value={String(standing.unscheduled)} />
+            <Stat label={t('overview.statDone')} value={String(standing.done)} hint={t('overview.lastDays')} />
+          </div>
+        )}
+
+        {recents.length > 0 && (
+          <section className="mb-[18px]">
+            <h2 className="text-sm mb-1.5">{t('overview.recent')}</h2>
+            <div className="recents">
+              {recents.map((project) => (
+                <Link key={project.id} className="recent-card" to={`/projects/${project.id}`}>
+                  <span className="recent-icon">{project.icon ?? '\u2022'}</span>
+                  <span className="recent-name">{project.name}</span>
+                  <span className="recent-key">{project.key}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
 
         {(buckets.overdue.length > 0 || buckets.today.length > 0) && (
           <div className="grid gap-3 sm:grid-cols-2 mb-[18px]">

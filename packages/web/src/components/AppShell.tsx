@@ -8,6 +8,7 @@ import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
 import { useActiveProject } from '../lib/active-project';
+import { useRecordVisits } from '../lib/recents';
 import { CommandPalette } from './CommandPalette';
 import { Button } from '../components/ui/button';
 import { navCount, navItem } from './ui/nav';
@@ -92,6 +93,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useTheme();
   const [adding, setAdding] = useState(false);
   const activeProject = useActiveProject();
+  // The shell outlives every route, so this is the one place that sees all of
+  // them — including a project reached by a link inside a task sheet.
+  useRecordVisits(workspaceId);
   const canWrite = useCanWrite();
   const [palette, setPalette] = useState(false);
 

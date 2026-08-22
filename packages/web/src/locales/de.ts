@@ -492,6 +492,18 @@ export const de: Catalogue = {
   'myWork.emptyHint': 'Genieß den Moment — oder schnapp dir etwas aus einem Projekt.',
   'myWork.createdByYou': 'Von dir angelegt',
 
+  /* ----------------------------------------------------------- overview */
+  'overview.greetNight': 'Noch wach, {name}?',
+  'overview.greetMorning': 'Guten Morgen, {name}',
+  'overview.greetAfternoon': 'Weiter geht’s, {name}',
+  'overview.greetEvening': 'Guten Abend, {name}',
+  'overview.statOpen': 'Offen',
+  'overview.statSoon': 'Nächste 7 Tage',
+  'overview.statUnscheduled': 'Ohne Termin',
+  'overview.statDone': 'Erledigt',
+  'overview.lastDays': 'Letzte 7 Tage',
+  'overview.recent': 'Zuletzt angesehen',
+
   /* -------------------------------------------------------------- inbox */
   'inbox.title': 'Posteingang',
   'inbox.unread': 'Ungelesen',

@@ -491,6 +491,18 @@ export const en = {
   'myWork.emptyHint': 'Enjoy it, or pick something up from a project.',
   'myWork.createdByYou': 'Created by you',
 
+  /* ----------------------------------------------------------- overview */
+  'overview.greetNight': 'Still up, {name}?',
+  'overview.greetMorning': 'Good morning, {name}',
+  'overview.greetAfternoon': 'Good afternoon, {name}',
+  'overview.greetEvening': 'Good evening, {name}',
+  'overview.statOpen': 'Open',
+  'overview.statSoon': 'Next 7 days',
+  'overview.statUnscheduled': 'No date',
+  'overview.statDone': 'Finished',
+  'overview.lastDays': 'Last 7 days',
+  'overview.recent': 'Recently viewed',
+
   /* -------------------------------------------------------------- inbox */
   'inbox.title': 'Inbox',
   'inbox.unread': 'Unread',
