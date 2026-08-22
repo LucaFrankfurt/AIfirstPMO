@@ -311,11 +311,21 @@ export function TaskRow({
 }
 
 export function TaskCard({
-  task, onOpen, onDragStart, dragging, moveTargets,
+  task, onOpen, onDragStart, onDragEnd, dragging, moveTargets,
 }: {
   task: Task;
   onOpen: (task: Task) => void;
   onDragStart?: (event: React.DragEvent) => void;
+  /**
+   * The end of the drag, however it ended.
+   *
+   * `dragend` fires on the element the drag started from every time — dropped
+   * on a column, dropped somewhere that refused it, released over nothing, or
+   * cancelled with Escape. It is the only one of those the board hears, which
+   * is why the "being dragged" look has to be cleared here rather than in the
+   * handler for a successful drop.
+   */
+  onDragEnd?: (event: React.DragEvent) => void;
   dragging?: boolean;
   /** Columns this card can be moved to — the touch alternative to dragging. */
   moveTargets?: { id: string; title: string; onSelect: () => void }[];
@@ -330,6 +340,7 @@ export function TaskCard({
       className={`task-card${dragging ? ' dragging' : ''}`}
       draggable
       onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
       onClick={() => onOpen(task)}
     >
       <div className="flex items-center gap-2 mb-1">

@@ -583,6 +583,13 @@ export function BoardView({
                   // decide whether it will take it — see `lib/drag.ts`.
                   startDrag(event, TASK_DRAG, task.id);
                 }}
+                // Every drag ends here, including the ones this board never
+                // hears about: dropped on a project in the sidebar, refused by
+                // one, released over nothing, cancelled with Escape. Clearing
+                // this only in `drop` left the card sitting at 45% opacity
+                // until the board was rebuilt — a task that reads as disabled
+                // because of a gesture that ended somewhere else.
+                onDragEnd={() => { setDragId(null); setOverColumn(null); setOverIndex(null); }}
               />
               </Fragment>
             ))}

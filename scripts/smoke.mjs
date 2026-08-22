@@ -288,6 +288,29 @@ await step('a card dragged onto a project in the sidebar is filed there', async 
   // The address somebody may already have pasted somewhere does not change.
   if (!/^WEB-/.test(landed.identifier)) throw new Error(`the identifier became ${landed.identifier}`);
   console.log('     ', landed.identifier, 'is now in', landed.project, 'and in a column that project has');
+
+  /*
+   * And no card is left looking disabled.
+   *
+   * The board dimmed the card being dragged and cleared that only when one
+   * landed in one of its own columns. Every other ending — a project in the
+   * sidebar, a row that refused it, a release over nothing, Escape — left the
+   * card sitting at 45% opacity until the board was rebuilt, which reads as a
+   * task that has been switched off. `dragend` is the event that fires for all
+   * of them, and this is the check that says so.
+   */
+  const faded = () => page.locator('.task-card').evaluateAll(
+    (nodes) => nodes.filter((node) => getComputedStyle(node).opacity !== '1')
+      .map((node) => node.querySelector('.mono')?.textContent?.trim() ?? '?'));
+  if ((await faded()).length) throw new Error(`greyed out after the move: ${(await faded()).join(', ')}`);
+
+  // The ending that reproduced it: a drop the row declines, because the task is
+  // already filed there.
+  await page.locator('.task-card').first().dragTo(page.locator('.sidebar .nav-project:has-text("Website")').first());
+  await page.waitForTimeout(900);
+  const stuck = await faded();
+  if (stuck.length) throw new Error(`greyed out after a refused drop: ${stuck.join(', ')}`);
+  if (await page.locator('.drop-line').count()) throw new Error('a drop line outlived the drag');
 });
 
 /**
