@@ -57,6 +57,32 @@ export function Markdown({ source, className = '', onChange }: {
   const refs = useMarkdownRefs();
   const options = useMemo(() => ({ ...refs, interactiveTasks: !!onChange }), [refs, onChange]);
   const html = useMemo(() => renderMarkdown(source ?? '', options), [source, options]);
+  /**
+   * The prop object, kept alive between renders — and it has to be.
+   *
+   * Written inline as `dangerouslySetInnerHTML={{ __html: html }}`, this is a
+   * fresh object on every render. React diffs props by reference, so a new
+   * object always looks like a change, and the update it commits for that prop
+   * is `element.innerHTML = html` — unconditionally, without ever comparing the
+   * string. Identical markup, and every node under this div is thrown away and
+   * rebuilt anyway.
+   *
+   * That is expensive, and worse than expensive. A DOM Selection points at text
+   * nodes; replace them and the selection is gone. So selecting a passage in a
+   * page — which sets state, to offer the comment button — re-rendered this
+   * component, rebuilt the body underneath the reader, and dropped the very
+   * selection that had just been made. The page moved at the same moment, from
+   * relaying every block in it. The comment button still worked, because it had
+   * already read the range: the offer survived, the selection did not.
+   *
+   * Diagrams paid for it too. `useMermaid` replaces a marked block with an SVG
+   * after the render; a rewrite puts the unrendered source back, so every
+   * render of a page with a diagram in it drew that diagram again.
+   *
+   * Memoised on `html`, the object stays the same one until the markup really
+   * changes, React sees no change, and the body is left alone.
+   */
+  const inner = useMemo(() => ({ __html: html }), [html]);
   // Click-to-enlarge is delegated: the renderer produces plain HTML, so there
   // are no image components to hand a handler to.
   const { open, lightbox } = useLightbox();
@@ -101,7 +127,7 @@ export function Markdown({ source, className = '', onChange }: {
   if (!source?.trim()) return null;
   return (
     <>
-      <div ref={host} className={`md ${className}`} onClick={click} dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={host} className={`md ${className}`} onClick={click} dangerouslySetInnerHTML={inner} />
       {lightbox}
     </>
   );
