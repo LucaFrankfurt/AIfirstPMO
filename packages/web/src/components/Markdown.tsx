@@ -239,18 +239,28 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   }, [autoFocus]);
 
   /**
-   * Grow with the text, up to a point.
+   * Grow with the text, up to a point — where the browser will not do it.
    *
-   * Reset to `auto` first, or `scrollHeight` reports the height it already
-   * has and the box can only ever get taller. The ceiling is there because a
-   * pasted essay should scroll inside the composer rather than push the
-   * conversation off the top of the screen.
+   * `field-sizing: content` is the whole feature in one line and the shared
+   * `Textarea` already asks for it, so where it is supported this stays out of
+   * the way. Measuring by hand *on top of* it was worse than doing nothing:
+   * `scrollHeight` excludes the border while `box-sizing: border-box` makes
+   * `height` include it, so every compact box came out two pixels short and
+   * carried a scrollbar over an empty line — a grey rule down the inside edge
+   * of every composer on the phone.
+   *
+   * The ceiling lives in the stylesheet so both paths share it: a pasted essay
+   * scrolls inside the composer rather than pushing the conversation off the
+   * top of the screen.
    */
   useLayoutEffect(() => {
     const field = ref.current;
     if (!compact || !field || preview) return;
+    if (CSS.supports?.('field-sizing', 'content')) return;
     field.style.height = 'auto';
-    field.style.height = `${Math.min(field.scrollHeight, 240)}px`;
+    const style = getComputedStyle(field);
+    const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+    field.style.height = `${Math.min(field.scrollHeight + borders, 240)}px`;
   }, [value, compact, preview]);
 
   useLayoutEffect(() => {
@@ -423,10 +433,12 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
         <>
         <Textarea
           ref={ref}
-          // Compact starts at one line. Inline rather than in the stylesheet
-          // because `Textarea` carries `min-h-20` as a utility, and a utility
-          // beats anything `@layer components` has to say — the same
-          // precedence that made three chat rules silently do nothing.
+          // Both of these have to be said as utilities, for the same reason:
+          // `Textarea` ships `min-h-20` and `resize-y`, and a utility beats
+          // anything `@layer components` has to say — which is why the
+          // stylesheet's `resize: none` never took, and every compact box wore
+          // a drag handle in the corner it could not be dragged by.
+          className={compact ? 'min-h-0 resize-none' : undefined}
           style={{ minHeight: compact ? 34 : minHeight }}
           value={value}
           placeholder={placeholder ?? t('editor.placeholder')}

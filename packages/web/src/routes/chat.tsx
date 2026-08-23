@@ -328,15 +328,16 @@ export function Chat() {
   }, [colleagues, me, conversations, here]);
 
   return (
-    /* The bottom padding clears the tab bar while there is one — it hides at
-       900px, the same width at which the list appears beside the conversation
-       — and then drops to a sliver: the composer is pinned, but a send button
-       flush against the window edge reads as cut off even when every pixel of
-       it is there. All three steps are `min-[…]` variants rather than mixing
-       in `sm:`, because Tailwind emits arbitrary variants before named ones —
-       a `sm:` rule would win the ≥900px tie by source order and the sliver
-       would never apply. */
-    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pt-5 min-[640px]:pb-16 min-[900px]:pb-2.5 chat">
+    /* One sliver of bottom padding at every width, because the composer is
+       pinned to the bottom of a full-height column and a send button flush
+       against the edge of the window reads as cut off even when every pixel of
+       it is there.
+       It used to step down from 80px on a phone, on the theory that it had to
+       clear the tab bar. It does not: the bar is a sibling of the scrolling
+       content and takes its own height out of the column. So all that padding
+       ever did was hold the composer eighty pixels off the bar with nothing in
+       between — on the screen with the least room to spare. */
+    <div className="mx-auto max-w-[1180px] px-3 pb-2.5 pt-4 sm:px-6 sm:pt-5 chat">
       <aside className="chat-list" aria-label={t('chat.title')}>
         <div className="flex items-center gap-2 mb-2">
           <h1 className="flex-1 min-w-0 m-0" style={{ fontSize: 17 }}>{t('chat.title')}</h1>

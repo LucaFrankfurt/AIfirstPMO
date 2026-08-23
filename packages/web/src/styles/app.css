@@ -399,6 +399,17 @@ p { margin: 0 0 0.75em; }
 .tabbar a[aria-current='page'] { color: var(--accent); }
 .tabbar .badge-dot { position: absolute; top: 6px; inset-inline-end: 50%; margin-inline-end: -14px; }
 
+/* One line, always. The labels are chosen to fit (`nav.bar.*`), and this is
+   the guard for the translation that does not: a label too long for its sixth
+   of the bar is cut off rather than allowed to wrap, because a wrapped label
+   stretches the bar and drops every other label half a line. */
+.tabbar .tab-label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 @media (min-width: 900px) {
   .shell { grid-template-columns: var(--sidebar-width) 1fr; }
   .sidebar { display: flex; }
@@ -1467,10 +1478,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * the bottom — and in the interface font rather than the monospace one, because
  * this is somebody talking, not somebody writing a document.
  */
-/* The one-line floor is set inline at the call site, where it beats the
-   `min-h-20` utility the shared Textarea carries. */
+/* The one-line floor and the missing drag handle are set as utilities at the
+   call site, where they beat the `min-h-20` and `resize-y` the shared Textarea
+   carries. Only the ceiling is here, because both the browser's own
+   `field-sizing` and the hand-measured fallback have to honour it. */
 .editor.compact textarea {
-  resize: none;
+  max-height: 240px;
   overflow-y: auto;
   border-bottom: none;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;

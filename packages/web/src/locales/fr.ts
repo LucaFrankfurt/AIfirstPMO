@@ -57,6 +57,13 @@ export const fr: Catalogue = {
   'nav.teams': 'Équipes',
   'nav.projects': 'Projets',
   'nav.more': 'Plus',
+  /* Les mots de la barre du bas : plus courts que ceux de la barre
+     latérale, car six entrées se partagent la largeur d’un téléphone. */
+  'nav.bar.myWork': 'Travail',
+  'nav.bar.inbox': 'Boîte',
+  'nav.bar.chat': 'Discussion',
+  'nav.bar.search': 'Recherche',
+  'nav.bar.more': 'Plus',
   'nav.guide': 'Guide',
   'nav.settings': 'Réglages',
   'nav.newTask': 'Nouvelle tâche',

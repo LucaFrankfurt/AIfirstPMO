@@ -659,12 +659,22 @@ await step('chat: a dot says who is here, and a line says who is typing', async 
     // same row Ada will open from her side.
     await other.goto(`${base}/chat`, { waitUntil: 'networkidle' });
     await closeTour(other);
-    await other.locator('.chat-list .chat-person', { hasText: 'Ada' }).first().click();
+    // Matched on the *title*, not the row.
+    //
+    // Either shape will do — somebody you have never written to is a name
+    // under "People", and somebody you have is a conversation row — but a
+    // conversation row also carries the last thing said in it, so a channel
+    // where somebody mentioned Ada matches "Ada" just as well as Ada does,
+    // and sorts above her when it is the more recent. Clicking the title
+    // reaches the row: the span is inside the button.
+    await other.locator('.chat-list .chat-row-title, .chat-list .chat-person')
+      .filter({ hasText: 'Ada' }).first().click();
     await other.waitForSelector('.chat-composer textarea', { timeout: 5000 });
 
     await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
     await closeTour(page);
-    await page.locator('.chat-list .chat-person, .chat-list .chat-row').filter({ hasText: 'Grace' }).first().click();
+    await page.locator('.chat-list .chat-row-title, .chat-list .chat-person')
+      .filter({ hasText: 'Grace' }).first().click();
     await page.waitForSelector('.chat-composer textarea', { timeout: 5000 });
 
     // The dot: Grace is here, and Ada's copy of the header says so.
@@ -844,7 +854,7 @@ await step('chat: history, drafts, order and Enter — the four that were broken
   await page.waitForTimeout(250);
 
   const openRow = async (prefix) => {
-    await page.locator('.chat-list .chat-row').filter({ hasText: prefix }).first().click();
+    await page.locator('.chat-list .chat-row-title').filter({ hasText: prefix }).first().click();
     await page.waitForSelector('.chat-composer textarea', { timeout: 8000 });
     await page.waitForTimeout(300);
   };
