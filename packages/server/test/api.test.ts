@@ -523,6 +523,199 @@ describe('kolibri api', () => {
     );
   });
 
+  it('adds and edits a workflow column, and spells cancelled the way the app does', async () => {
+    const before = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+
+    const made = (await callTool('create_state', {
+      project: 'WEB', name: 'To Be Reviewed', group: 'started', color: '#3B82F6',
+    })).result.structuredContent;
+    assert.equal(made.group, 'started');
+    // Lower-cased on the way in, because that is what the interface produces
+    // and two spellings of one colour are two colours to a string comparison.
+    assert.equal(made.color, '#3b82f6');
+
+    const after = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    assert.equal(after.length, before.length + 1);
+    // Appended, not inserted — a new column must not shove everybody's board.
+    assert.equal(after[after.length - 1].name, 'To Be Reviewed');
+    assert.equal(after[0].is_default, true, 'the default is still the first column');
+
+    /*
+     * The spelling trap.
+     *
+     * Every "what is finished" count in Kolibri is `group_key IN
+     * ('completed','cancelled')` — two Ls. A state stored as `canceled` would
+     * look right in the settings screen and be silently absent from all of
+     * them, so the American spelling is accepted and normalised rather than
+     * stored.
+     */
+    const spelled = (await callTool('update_state', {
+      state_id: made.id, group: 'canceled',
+    })).result.structuredContent;
+    assert.equal(spelled.group, 'cancelled');
+
+    const renamed = (await callTool('update_state', {
+      state_id: made.id, name: 'In QA', color: '#10b981', wip_limit: 3,
+    })).result.structuredContent;
+    assert.equal(renamed.name, 'In QA');
+    assert.equal(renamed.wip_limit, 3);
+
+    // `backlog` is one of the five and must be creatable, even though the
+    // proposal that asked for this tool listed only four groups.
+    assert.equal(
+      (await callTool('create_state', { project: 'WEB', name: 'Icebox', group: 'backlog' })).result.structuredContent.group,
+      'backlog',
+    );
+
+    // Two columns with one name is a board where "move it to In QA" has two answers.
+    assert.match(
+      JSON.stringify(await callTool('create_state', { project: 'WEB', name: 'in qa', group: 'started' })),
+      /already has a state/,
+    );
+    assert.match(
+      JSON.stringify(await callTool('create_state', { project: 'WEB', name: 'Nope', group: 'sideways' })),
+      /Unknown group/,
+    );
+    // Prose in a colour field ends up in a stylesheet.
+    assert.match(
+      JSON.stringify(await callTool('create_state', { project: 'WEB', name: 'Nope2', group: 'started', color: 'blue' })),
+      /hex colour/,
+    );
+  });
+
+  it('edits and deletes a cycle, keeping the tasks that were in it', async () => {
+    const cycle = (await callTool('create_cycle', {
+      project: 'WEB', name: 'Sprint 9', start_date: '2026-09-01', end_date: '2026-09-14',
+    })).result.structuredContent;
+
+    const moved = (await callTool('update_cycle', {
+      cycle: 'Sprint 9', end_date: '2026-09-21', status: 'active', description: 'Two weeks and a bit',
+    })).result.structuredContent;
+    assert.equal(moved.end_date, '2026-09-21');
+    assert.equal(moved.status, 'active');
+
+    // Status round-trips through the listing, so setting it is observable even
+    // though nothing in the interface reads it yet.
+    const listed = (await callTool('list_cycles', { project: 'WEB' })).result.structuredContent.result;
+    assert.equal(listed.find((c: any) => c.id === cycle.id).status, 'active');
+
+    assert.match(
+      JSON.stringify(await callTool('update_cycle', { cycle: 'Sprint 9', start_date: '2026-10-01' })),
+      /cannot end/,
+      'a sprint that ends before it starts is not a sprint',
+    );
+    assert.match(
+      JSON.stringify(await callTool('update_cycle', { cycle: 'Sprint 9', end_date: 'next friday' })),
+      /YYYY-MM-DD/,
+    );
+
+    // A task in the cycle survives the cycle being deleted, and the answer says
+    // how many just lost their sprint.
+    const task = (await callTool('create_task', { project: 'WEB', title: 'In the sprint', cycle: 'Sprint 9' })).result.structuredContent;
+    const gone = (await callTool('delete_cycle', { cycle: 'Sprint 9' })).result.structuredContent;
+    assert.equal(gone.tasks_released, 1);
+    assert.ok(
+      (await callTool('get_task', { task: task.identifier })).result.structuredContent.id,
+      'the task itself is still there',
+    );
+    assert.ok(!(await callTool('list_cycles', { project: 'WEB' })).result.structuredContent.result
+      .some((c: any) => c.id === cycle.id));
+  });
+
+  it('lists and removes attachments', async () => {
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Has files' })).result.structuredContent;
+    const one = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'first.csv', content_base64: Buffer.from('a,b\n1,2\n').toString('base64'),
+    })).result.structuredContent;
+    await callTool('upload_attachment', {
+      task: task.identifier, name: 'second.txt', content_base64: Buffer.from('hello').toString('base64'),
+    });
+
+    const files = (await callTool('list_attachments', { task: task.identifier })).result.structuredContent.result;
+    assert.equal(files.length, 2);
+    assert.deepEqual(files.map((f: any) => f.name), ['first.csv', 'second.txt']);
+    assert.ok(files[0].url.startsWith('/files/'));
+
+    const removed = (await callTool('delete_attachment', { attachment_id: one.attachment.id })).result.structuredContent;
+    assert.equal(removed.deleted, 'first.csv');
+    const left = (await callTool('list_attachments', { task: task.identifier })).result.structuredContent.result;
+    assert.deepEqual(left.map((f: any) => f.name), ['second.txt']);
+
+    // The bytes are content-addressed and shared, so removing the row must not
+    // take the file out from under anything else pointing at it.
+    const still = await fetch(`${base}${one.url}`, { headers: { authorization: `Bearer ${apiToken}` } });
+    assert.equal(still.status, 200, 'the stored bytes are shared and stay put');
+
+    assert.match(JSON.stringify(await callTool('list_attachments', {})), /Pass `task` or `page`/);
+  });
+
+  it('creates and edits labels, refusing one that already exists in scope', async () => {
+    const made = (await callTool('create_label', {
+      name: 'needs-design', color: '#A855F7', description: 'Waiting on a mock',
+    })).result.structuredContent;
+    assert.equal(made.color, '#a855f7');
+    assert.equal(made.project_id, null, 'no project means every project may use it');
+
+    // Case is forgiven when matching, which is the whole point — `create_task`
+    // matches the same way, so this is the collision it cannot see.
+    assert.match(
+      JSON.stringify(await callTool('create_label', { name: 'Needs-Design' })),
+      /already usable here/,
+    );
+    // And a project-scoped one collides with the workspace-wide one too: on a
+    // task the two look identical.
+    assert.match(
+      JSON.stringify(await callTool('create_label', { name: 'needs-design', project: 'WEB' })),
+      /already usable here/,
+    );
+
+    const edited = (await callTool('update_label', {
+      label: 'needs-design', name: 'needs-a-mock', color: '#111827',
+    })).result.structuredContent;
+    assert.equal(edited.name, 'needs-a-mock');
+    assert.equal(edited.color, '#111827');
+
+    // Narrowing a workspace label to one project would strip it from tasks in
+    // every other project that already carry it.
+    assert.match(
+      JSON.stringify(await callTool('update_label', { label: edited.id, workspace_wide: false })),
+      /cannot be narrowed/,
+    );
+  });
+
+  it('updates project metadata, and will not touch the key', async () => {
+    const updated = (await callTool('update_project', {
+      project: 'WEB',
+      name: 'Website relaunch',
+      icon: '🚀',
+      description: 'The public site',
+      status: 'in_progress',
+      target_date: '2026-12-01',
+    })).result.structuredContent;
+
+    assert.equal(updated.name, 'Website relaunch');
+    assert.equal(updated.icon, '🚀');
+    assert.equal(updated.status, 'in_progress');
+    assert.equal(updated.key, 'WEB', 'the key is not settable here');
+
+    // Same spelling rule as the state groups.
+    assert.equal(
+      (await callTool('update_project', { project: 'WEB', status: 'canceled' })).result.structuredContent.status,
+      'cancelled',
+    );
+    assert.match(
+      JSON.stringify(await callTool('update_project', { project: 'WEB', status: 'on fire' })),
+      /Unknown status/,
+    );
+
+    // `key` is not in the schema, so passing it changes nothing rather than
+    // renaming every identifier the project has minted.
+    const ignored = (await callTool('update_project', { project: 'WEB', key: 'SITE', name: 'Website relaunch' })).result.structuredContent;
+    assert.equal(ignored.key, 'WEB');
+
+    await callTool('update_project', { project: 'WEB', status: 'in_progress' });
+  });
+
   it('attaches a file to a task, and refuses what is not a file', async () => {
     const task = (await callTool('create_task', { project: 'WEB', title: 'Needs a report' })).result.structuredContent;
     const csv = 'name,count\nbugs,3\n';

@@ -238,6 +238,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_members` | people with role and open task count |
 | `list_labels` | labels with the count of open tasks carrying each; `project` narrows to that project's own plus the workspace-wide ones |
 | `list_states` | a project's workflow states in board order, each with its `group`, colour, task count, and which one is the default |
+| `list_attachments` | files on a task or a page, with the URL to fetch each |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 
@@ -250,6 +251,11 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
 | `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
 | `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
+| `delete_attachment` | detaches a file; soft, and the shared bytes stay put |
+| `create_state` / `update_state` | add a board column, or change its name, colour, group or WIP limit |
+| `update_cycle` / `delete_cycle` | edit a sprint's dates and name; deleting is soft and keeps the tasks |
+| `create_label` / `update_label` | a label made on purpose, with a colour — refused if one by that name is already usable in scope |
+| `update_project` | name, icon, description, status, lead, dates, archived — **not** the key |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
@@ -286,6 +292,41 @@ worth reading is `group` rather than `name`. Names are per project; the group is
 underneath — `backlog`, `unstarted`, `started`, `completed`, `cancelled` — and it is what every count
 and filter in Kolibri is actually computed from. Match on the name when it is an exact hit, and on
 the group when it is not.
+
+### Editing the board itself
+
+`create_state` appends a column; `update_state` changes its name, colour, group or WIP limit. Two
+things are worth knowing before either.
+
+**`cancelled` has two Ls.** Every "what is finished" count in Kolibri — the board, the project
+digest, the cycle burn-down, `list_tasks`, the label counts — is `group_key IN ('completed',
+'cancelled')`. A state stored as `canceled` would look perfectly right in the settings screen and be
+silently missing from all of them. The American spelling is therefore accepted and normalised rather
+than stored, here and in `update_project`'s status.
+
+**There are five groups, not four**: `backlog`, `unstarted`, `started`, `completed`, `cancelled`.
+`backlog` is the group the default first column belongs to, so leaving it out would make the one
+kind of column MCP could not create the commonest one.
+
+Changing a state's **group** is the consequential edit. It moves no task, but it changes what every
+count in the app says about the tasks already sitting in that column — dragging a column from
+`started` to `completed` marks that work finished everywhere at once.
+
+### Cycles, and a status nothing reads yet
+
+`update_cycle` and `delete_cycle` complete the set. Two honest caveats:
+
+**`status` is recorded, not acted on.** The column is in the model and this writes it, but nothing in
+Kolibri reads it: which cycle is *current* is worked out from the dates
+(`start_date <= today <= end_date`), and that is what `cycle: "current"` resolves through, what the
+burn-down uses and what the project digest reports. Setting a status records an intention. **The
+dates are the part with teeth.** It round-trips through `list_cycles` so at least it is observable.
+
+**Deleting is soft**, the same delete the interface does: the cycle goes to the trash and can be
+restored for `KOLIBRI_TRASH_DAYS`. Tasks in it are kept — they simply lose their cycle — and the
+answer reports how many, so nobody has to guess what a sprint deletion just did.
+
+`update_cycle` also accepts `"current"` as the cycle, so "extend the current sprint" needs no lookup.
 
 ### A batch is one transaction
 
@@ -332,6 +373,37 @@ before decoding, rather than after allocating the very buffer the limit exists t
 stored: `Buffer.from(x, 'base64')` skips what it cannot read instead of failing, so raw text handed
 to it becomes a short buffer of nonsense — stored, attached, and downloaded later as a corrupt file
 with nothing anywhere saying so.
+
+### Attachments, listed and removed
+
+`list_attachments` takes a `task` **or** a `page` — the model hangs files off either, and a tool that
+could only see half of them would send an assistant looking for a file that is plainly there. The
+URLs it returns need the same authorisation as the call; they are not public links, and on an
+object-store deployment they become short-lived signed URLs at the moment they are followed.
+
+`delete_attachment` removes the attachment — the row that puts the file on the task — and **not the
+bytes**. Storage is content-addressed and shared: the same file uploaded to two workspaces is one
+blob with two rows, so deleting the blob would take it out from under somebody else. Sweeping blobs
+that nothing points at any more is a separate job.
+
+### Labels and project metadata
+
+`create_label` is the deliberate counterpart to the accidental path. `create_task` invents a label it
+does not recognise — that is what puts `bugs` next to `bug` — and this one is **refused** when a label
+by that name is already usable in scope, which is exactly the collision the accidental path cannot
+see. Scope counts: a workspace-wide `bug` and a project-local `bug` look identical on a task, so both
+are checked.
+
+`update_label` will widen a project label to the whole workspace but not the reverse: narrowing one
+would strip it from the tasks in every *other* project that already carry it, and deleting a label is
+a different act that should not happen by implication.
+
+`update_project` takes name, icon, description, status, lead, dates and archived. It does **not** take
+the key, deliberately. A key is the prefix of every identifier the project has ever minted, so
+changing it does not rename `WEB-42` — it leaves that task named after a prefix the project no longer
+has. The settings screen allows it because a person doing it is looking at the project; that is not
+the position an assistant is in, and the server settles a rejected key silently through `forced`
+rather than throwing, so a refusal would not even reach the caller as an error.
 
 ### Quick-add syntax, when a person typed the line
 
