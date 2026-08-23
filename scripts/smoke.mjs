@@ -553,6 +553,77 @@ await step('pages', async () => {
 });
 await page.screenshot({ path: `${shots}/4-page.png` });
 
+/**
+ * Selecting a passage in a page leaves the passage selected.
+ *
+ * A regression test for something no unit test can see. Selecting text sets
+ * state — that is what offers the comment button — and the render that follows
+ * used to rebuild the whole rendered body: `dangerouslySetInnerHTML={{ … }}` is
+ * a fresh object every time, React diffs props by reference, and the update it
+ * commits for that prop replaces every node under the div without ever
+ * comparing the markup. A Selection points at text nodes, so replacing them
+ * collapsed it, and relaying every block moved the page at the same moment.
+ *
+ * What made it hard to notice from the outside is that the *offer* survived:
+ * the comment button had already read the range, so commenting still worked
+ * and only the highlight vanished. So this checks all three of the things that
+ * went wrong, not just the one that showed.
+ */
+await step('selecting a passage in a page keeps it selected', async () => {
+  await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.click('a:has-text("Team handbook")');
+  await page.waitForSelector('.md', { timeout: 5000 });
+  await page.waitForTimeout(400);
+
+  const result = await page.evaluate(async () => {
+    const body = document.querySelector('.md');
+    // Any text node long enough to select a phrase inside.
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node && node.data.trim().length < 40) node = walker.nextNode();
+    if (!node) return { skipped: 'no passage long enough to select' };
+
+    let replaced = 0;
+    const observer = new MutationObserver((records) => {
+      for (const record of records) if (record.type === 'childList') replaced += record.removedNodes.length;
+    });
+    observer.observe(body, { childList: true, subtree: true, characterData: true });
+
+    const range = document.createRange();
+    range.setStart(node, 2);
+    range.setEnd(node, 32);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const wanted = selection.toString();
+
+    // What a pointer does at the end of a drag, and what the app listens for.
+    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    await new Promise((done) => setTimeout(done, 600));
+    observer.disconnect();
+
+    return {
+      wanted,
+      kept: selection.isCollapsed ? '' : selection.toString(),
+      replaced,
+    };
+  });
+
+  if (result.skipped) {
+    console.log('     skipped:', result.skipped);
+    return;
+  }
+  if (result.replaced) {
+    throw new Error(`selecting text rebuilt ${result.replaced} nodes of the page body`);
+  }
+  if (result.kept !== result.wanted) {
+    throw new Error(`the selection did not survive: wanted "${result.wanted}", kept "${result.kept}"`);
+  }
+  console.log('     selection survived:', JSON.stringify(result.kept.slice(0, 32)));
+  console.log('     body nodes replaced:', result.replaced);
+});
+
 await step('chat: a channel, a message, and a badge that clears', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);

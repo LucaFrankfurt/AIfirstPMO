@@ -172,9 +172,43 @@ export function useHighlights(
     }
   }, [container, anchored, active, onPick]);
 
+  /**
+   * Repaint when the highlights change — and not while somebody is selecting.
+   *
+   * This had no dependency array, so it ran after every render. `paint` unwraps
+   * each `mark` and puts the text back, which replaces the very text nodes a
+   * live Selection points at: the selection collapses and the page relays. The
+   * render that selecting a passage *causes* — the one that offers the comment
+   * button — was therefore the render that threw the selection away.
+   *
+   * `paint` is stable while nothing has changed (`anchored` comes from a
+   * memoised query, `onPick` is a state setter), so the array alone stops the
+   * repaint-on-every-render. The guard is for the other way in: a sync tick
+   * arriving mid-drag changes the comments, and a repaint that lands then is
+   * just as destructive. It waits for the selection to end, which is the only
+   * moment at which redrawing costs nothing.
+   */
   useEffect(() => {
-    paint();
-  });
+    if (!container) return;
+    if (!selecting(container)) {
+      paint();
+      return;
+    }
+    const later = (): void => {
+      if (selecting(container)) return;
+      document.removeEventListener('selectionchange', later);
+      paint();
+    };
+    document.addEventListener('selectionchange', later);
+    return () => document.removeEventListener('selectionchange', later);
+  }, [container, paint]);
+}
+
+/** Is there a live selection with something in it, inside this element? */
+function selecting(container: HTMLElement): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return false;
+  return container.contains(selection.getRangeAt(0).commonAncestorContainer);
 }
 
 /** Wrap the first occurrence of `quote` in the container's text nodes. */
