@@ -4,6 +4,7 @@ import { enterInList, indentList, renderMarkdown, toggleTask, type Edit, type Ma
 
 import { api } from '../lib/api';
 import { list, useQuery } from '../lib/store';
+import { useMermaid } from '../lib/mermaid';
 import { backgroundOf } from '../lib/navigation';
 import { useMembers, useSession } from '../session';
 import { useT, type TranslationKey } from '../lib/i18n';
@@ -61,6 +62,9 @@ export function Markdown({ source, className = '', onChange }: {
   const { open, lightbox } = useLightbox();
   const navigate = useNavigate();
   const location = useLocation();
+  // ...and diagrams are upgraded the same way, for the same reason.
+  const host = useRef<HTMLDivElement>(null);
+  useMermaid(host, html);
 
   /**
    * Follow a link to somewhere in this app without reloading it.
@@ -97,7 +101,7 @@ export function Markdown({ source, className = '', onChange }: {
   if (!source?.trim()) return null;
   return (
     <>
-      <div className={`md ${className}`} onClick={click} dangerouslySetInnerHTML={{ __html: html }} />
+      <div ref={host} className={`md ${className}`} onClick={click} dangerouslySetInnerHTML={{ __html: html }} />
       {lightbox}
     </>
   );

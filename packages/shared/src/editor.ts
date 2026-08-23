@@ -133,13 +133,19 @@ const TASK = /^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\]\s)/;
 export function toggleTask(source: string, index: number): string {
   const lines = String(source ?? '').split('\n');
   let seen = -1;
-  let fenced = false;
+  /** The marker that opened the block we are inside, or empty out in the open. */
+  let fence = '';
   for (let i = 0; i < lines.length; i++) {
-    if (/^\s*```/.test(lines[i])) {
-      fenced = !fenced;
+    // Tildes as well as backticks, and a fence closes only on its own marker —
+    // the same rule the renderer applies. Counting them differently is how the
+    // box a click lands on stops being the box the reader ticked.
+    const mark = /^\s*(`{3,}|~{3,})/.exec(lines[i]);
+    if (mark) {
+      if (!fence) fence = mark[1][0];
+      else if (mark[1][0] === fence) fence = '';
       continue;
     }
-    if (fenced) continue;
+    if (fence) continue;
     const match = TASK.exec(lines[i]);
     if (!match) continue;
     seen += 1;

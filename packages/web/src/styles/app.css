@@ -1422,7 +1422,19 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .md h1:first-child, .md h2:first-child, .md h3:first-child { margin-top: 0; }
 .md p { margin: 0 0 11px; }
 .md ul, .md ol { margin: 0 0 11px; padding-inline-start: 22px; }
+/* Said back explicitly, because Tailwind's preflight takes the markers off
+   every list in the document — which is right for a nav and a menu, and wrong
+   for the one place in the app where a list is prose. Without these, a bulleted
+   list rendered as an indented paragraph and a numbered one lost its numbers,
+   which is how a page of steps stops reading as steps. */
+.md ul { list-style: disc; }
+.md ul ul { list-style: circle; }
+.md ul ul ul { list-style: square; }
+.md ol { list-style: decimal; }
 .md li { margin: 3px 0; }
+/* A list that nests carries the sub-list's own spacing; a second bottom margin
+   under the last child puts a gap in the middle of one list. */
+.md li > ul, .md li > ol { margin-block: 3px 0; }
 .md li.md-task { list-style: none; margin-inline-start: -18px; display: flex; gap: 7px; align-items: flex-start; }
 .md li.md-task input { margin-top: 4px; }
 .md .md-done { color: var(--fg-muted); text-decoration: line-through; }
@@ -1444,8 +1456,34 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-radius: 5px; padding: 0 4px; white-space: nowrap;
 }
 .md a.md-ref:hover { text-decoration: underline; text-underline-offset: 2px; }
-.md table { border-collapse: collapse; width: 100%; margin-bottom: 12px; }
-.md th, .md td { border: 1px solid var(--line); padding: 6px 9px; text-align: left; }
+/* A table wider than the column it sits in scrolls inside itself rather than
+   pushing the page sideways, which on a phone is the difference between a table
+   and a broken screen. `display: block` is what gives it something to scroll;
+   `max-content` capped at full width is what keeps a two-column table from
+   stretching to fill one. */
+.md table {
+  display: block; width: max-content; max-width: 100%; overflow-x: auto;
+  border-collapse: collapse; margin: 0 0 12px;
+}
+/* `.md` lets prose break anywhere, so a pasted URL cannot push a sheet wider
+   than the screen. A cell is the one place that is wrong: a column squeezed to
+   a phone's width took the rule at its word and produced "Regio n" and
+   "2026-09- 01". Cells wrap between words, and where even that will not fit,
+   the table scrolls. */
+.md th, .md td { border: 1px solid var(--line); padding: 6px 9px; text-align: start; overflow-wrap: normal; }
+.md thead { background: var(--bg-sunken); }
+.md th { font-weight: 600; }
+
+/* A diagram and the source it was drawn from share one <pre>. The code is what
+   a shared page shows — those carry no script on purpose — and what stays on
+   screen while a half-typed diagram will not parse yet. */
+.md .md-mermaid[data-drawn] { background: none; border-color: transparent; padding: 6px 0; }
+.md .md-mermaid[data-drawn] > code { display: none; }
+/* Centred by text-align rather than by flex: a diagram too wide for the screen
+   has to scroll from its left edge, and flex centring puts that edge somewhere
+   no scrollbar can reach. */
+.md .md-diagram { overflow-x: auto; text-align: center; }
+.md .md-diagram svg { max-width: 100%; height: auto; }
 
 .editor { position: relative; }
 .editor-toolbar {
