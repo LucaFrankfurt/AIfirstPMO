@@ -1,5 +1,5 @@
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { cn } from '../../lib/cn';
 
 /**
@@ -46,10 +46,24 @@ export const Textarea = ({ className, ...props }: ComponentProps<'textarea'>) =>
   />
 );
 
-export function Label({ className, hint, children, ...props }: ComponentProps<'label'> & { hint?: string }) {
+/**
+ * A caption, a control, and the line under it that explains the control.
+ *
+ * The control is the child and the caption is a prop, which is the way round
+ * that lets the label *wrap* its input — so the caption is clickable without
+ * an `htmlFor` and an `id` that have to be kept pointing at each other. The
+ * first version had it the other way and took everything as children, which
+ * meant the input rendered inside the caption's span at 12.5px and the hint
+ * came out underneath it. Nothing used it, so nothing noticed.
+ *
+ * The hint sits *below* the control on purpose: "at least 8 characters" is
+ * read after a rejected password far more often than before a typed one.
+ */
+export function Label({ className, label, hint, children, ...props }: ComponentProps<'label'> & { label: ReactNode; hint?: string }) {
   return (
     <label className={cn('flex flex-col gap-1.5', className)} {...props}>
-      <span className="text-[12.5px] font-medium text-soft">{children}</span>
+      <span className="text-[12.5px] font-medium text-soft">{label}</span>
+      {children}
       {hint && <span className="text-[12px] text-muted">{hint}</span>}
     </label>
   );
