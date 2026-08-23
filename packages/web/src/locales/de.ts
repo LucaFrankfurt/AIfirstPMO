@@ -1050,6 +1050,8 @@ export const de: Catalogue = {
   'notify.saved': 'Benachrichtigungen gespeichert',
   'notify.delivery': 'Zustellung',
   'notify.relay': 'Relay',
+  'notify.api': 'Anbieter',
+  'notify.noEncryption': 'unverschlüsselt',
   'notify.sender': 'Absender',
   'notify.queued': 'In der Warteschlange',
   'notify.sendTest': 'Test-E-Mail senden',

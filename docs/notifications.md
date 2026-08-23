@@ -90,9 +90,70 @@ KOLIBRI_MAIL_FROM_NAME=Kolibri
 KOLIBRI_PUBLIC_URL=https://kolibri.example.com            # links in the mail need this
 ```
 
-Or set the pieces separately: `KOLIBRI_SMTP_HOST`, `KOLIBRI_SMTP_PORT`, `KOLIBRI_SMTP_USER`,
-`KOLIBRI_SMTP_PASS`, `KOLIBRI_SMTP_SECURE`. For an internal relay with a self-signed certificate,
-`KOLIBRI_SMTP_INSECURE=true`.
+Or set the pieces separately, which is the shape most providers hand you:
+
+```bash
+KOLIBRI_SMTP_HOST=smtp.example.com
+KOLIBRI_SMTP_PORT=587
+KOLIBRI_SMTP_ENCRYPTION=starttls    # starttls | tls | none
+KOLIBRI_SMTP_USER=…
+KOLIBRI_SMTP_PASS=…
+```
+
+For an internal relay with a self-signed certificate, `KOLIBRI_SMTP_INSECURE=true`.
+
+#### On `KOLIBRI_SMTP_ENCRYPTION`
+
+Unset, it follows the port: `465` means TLS from the first byte, anything else means a plaintext
+connection upgraded with STARTTLS before a word is said. So the common case needs nothing.
+
+What it does **not** do is fall back. `starttls` means the relay has to offer STARTTLS or the
+message is not sent, and that is a change from how this used to work:
+
+> Until this was written, `secure=false` meant "use STARTTLS *if the relay offers it*". A relay that
+> did not — because it was misconfigured that morning, or because somebody in the middle had
+> stripped the capability out of its greeting — got a plaintext connection instead. The next thing
+> Kolibri did was `AUTH PLAIN`, which is the account's password in base64: readable by anyone on the
+> path. Nothing failed and nothing was logged, because the mail went through. That is the whole
+> problem with opportunistic TLS, and it is why the setting now names a guarantee rather than an
+> attempt.
+
+`none` sends in the clear and is only ever right for a capture inbox on the same machine. If
+credentials are also set, Kolibri refuses to open the connection at all rather than hand them over
+unprotected — and the settings screen marks such a relay **not encrypted** next to its address.
+
+### Sending through Scaleway instead of SMTP
+
+Scaleway's [Transactional Email](https://www.scaleway.com/en/docs/transactional-email/) is supported
+directly over its HTTP API, which is worth having for a reason that has nothing to do with Scaleway:
+a great many hosts block outbound 25, 465 and 587 outright, and a request to 443 is the one thing
+that always gets out.
+
+```bash
+KOLIBRI_SCALEWAY_SECRET_KEY=…        # an API key with TransactionalEmailFullAccess
+KOLIBRI_SCALEWAY_PROJECT_ID=…
+KOLIBRI_MAIL_FROM=info@example.com   # must be a verified sender on a verified domain
+KOLIBRI_MAIL_FROM_NAME=Kolibri
+```
+
+The `SCW_SECRET_KEY_EMAIL`, `SCW_PROJECT_ID`, `SCW_EMAIL_API_URL`, `EMAIL_FROM_INFO` and
+`EMAIL_FROM_NAME` names are read as well, because they are what Scaleway's own tooling uses and what
+tends to be sitting in a `.env` already. Kolibri's own names win where both are set.
+
+With both a Scaleway key and an SMTP host configured, Scaleway is used —
+`KOLIBRI_MAIL_TRANSPORT=smtp` or `=scaleway` settles it explicitly.
+
+Everything else is unchanged: the same queue, the same batching window, the same backoff, the same
+suppression list. Two of Scaleway's documented limits are worth knowing before you extend this —
+**ten recipients per call** and **2 MB per message including attachments**. Kolibri sends one
+recipient at a time and attaches nothing, so today both are headroom.
+
+One asymmetry the code is careful about, and which is easy to get backwards: over SMTP a `5xx` reply
+is final and `4xx` means try later, while over HTTP `4xx` is the request being wrong and `5xx` is the
+provider having a bad minute. The queue turns "final" into an entry on the suppression list, so
+reading HTTP `500` as a hard bounce would walk an entire user list off the mailing list during an
+outage — one address at a time, with nobody to notice. Each transport therefore states what its own
+failure means rather than leaving it to be guessed from the message text.
 
 ### Trying it without a mail provider
 

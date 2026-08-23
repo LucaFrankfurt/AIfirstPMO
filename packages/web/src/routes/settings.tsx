@@ -220,8 +220,11 @@ function Profile() {
 interface MailStatus {
   enabled: boolean;
   /** 'test-inbox' means a capture tool — delivered, but nobody receives it. */
-  mode: 'off' | 'relay' | 'test-inbox';
+  mode: 'off' | 'relay' | 'scaleway' | 'test-inbox';
+  transport: 'off' | 'smtp' | 'scaleway';
   host: string | null;
+  /** How the SMTP connection is protected; null when mail goes over the API. */
+  encryption: 'none' | 'starttls' | 'tls' | null;
   from: string;
   batchSeconds: number;
   pending: number;
@@ -372,8 +375,15 @@ function Notifications() {
         <>
           <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2.5">
             <div className="flex items-center gap-2">
-              <span className="flex-1 min-w-0">{t('notify.relay')}</span>
+              <span className="flex-1 min-w-0">{t(status.transport === 'scaleway' ? 'notify.api' : 'notify.relay')}</span>
               <strong className="mono">{status.host}</strong>
+              {/* Said where somebody would look for it: an unencrypted relay is
+                  a deliberate choice for a capture inbox and a mistake
+                  everywhere else, and the settings screen is the only place it
+                  is ever visible. */}
+              {status.encryption === 'none' && (
+                <span className={chipVariants()} style={{ color: 'var(--warn)' }}>{t('notify.noEncryption')}</span>
+              )}
               {status.mode === 'test-inbox' && <span className={chipVariants()} style={{ color: 'var(--warn)' }}>{t('notify.captureChip')}</span>}
             </div>
             <div className="flex items-center gap-2"><span className="flex-1 min-w-0">{t('notify.sender')}</span><strong className="mono">{status.from}</strong></div>

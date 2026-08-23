@@ -716,7 +716,13 @@ export function registerAuthRoutes(router: Router): void {
     return {
       enabled: env.mailEnabled,
       mode: env.mailMode,
-      host: env.mailEnabled ? `${env.mail.host}:${env.mail.port}` : null,
+      transport: env.mailTransport,
+      // Where it goes, whichever way it goes. Never the credentials — this is
+      // readable by any signed-in account, not only an admin.
+      host: env.mailTransport === 'scaleway'
+        ? new URL(env.mail.scaleway.url).host
+        : env.mailEnabled ? `${env.mail.host}:${env.mail.port}` : null,
+      encryption: env.mailTransport === 'smtp' ? env.mail.encryption : null,
       from: env.mail.from,
       batchSeconds: env.mail.batchSeconds,
       pending: pendingCount(),
@@ -726,7 +732,7 @@ export function registerAuthRoutes(router: Router): void {
 
   router.post('/api/mail/test', async (ctx) => {
     const auth = requireAuth(ctx);
-    if (!env.mailEnabled) throw badRequest('No SMTP relay is configured on this instance');
+    if (!env.mailEnabled) throw badRequest('No mail transport is configured on this instance');
     const user = get<Row>(`SELECT email, locale FROM users WHERE id = ?`, auth.userId);
     queueTestMail(user!.email, user!.locale ?? undefined);
     const { flushQueue } = await import('../lib/mail.ts');

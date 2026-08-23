@@ -6,10 +6,37 @@ process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-mail-${process.pid}`;
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { createServer, type Server, type Socket } from 'node:net';
-import { rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { TLSSocket, createSecureContext } from 'node:tls';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+
+/**
+ * A throwaway certificate for the fake relay, made at test time.
+ *
+ * The relay below performs a real STARTTLS upgrade rather than pretending to,
+ * because the upgrade is the part worth testing: it is where the client decides
+ * whether it is safe to say the password, and a fake that answers `220` and
+ * stays in plaintext would agree with a client that never encrypted anything.
+ *
+ * Generated rather than checked in. A private key in a repository is a private
+ * key in a repository even when it is only good for `127.0.0.1`, and every
+ * scanner that reads this project would be right to say so.
+ */
+const certDir = mkdtempSync(join(tmpdir(), 'kolibri-smtp-cert-'));
+execFileSync('openssl', [
+  'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+  '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1',
+  '-keyout', join(certDir, 'key.pem'), '-out', join(certDir, 'cert.pem'),
+], { stdio: 'ignore' });
+const credentials = {
+  key: readFileSync(join(certDir, 'key.pem')),
+  cert: readFileSync(join(certDir, 'cert.pem')),
+};
 
 /* ------------------------------------------------------- fake SMTP server */
 
@@ -23,16 +50,22 @@ interface Received {
 const received: Received[] = [];
 let smtpServer: Server;
 
-function startSmtp(): Promise<number> {
-  smtpServer = createServer((socket: Socket) => {
+/**
+ * `offerStartTls` false is the attack this suite exists to pin down: a relay
+ * that simply does not mention STARTTLS. The client used to shrug and carry on
+ * in plaintext, password and all.
+ */
+function startSmtp(offerStartTls = true): Promise<number> {
+  smtpServer = createServer((plain: Socket) => {
+    let socket: Socket | TLSSocket = plain;
     let state: Received = { from: '', to: [], data: '', authenticated: false };
     let inData = false;
     let buffer = '';
+    let secured = false;
     const send = (line: string) => socket.write(`${line}\r\n`);
     send('220 test.local ESMTP ready');
 
-    socket.setEncoding('utf8');
-    socket.on('data', (chunk: string) => {
+    const read = (chunk: string) => {
       buffer += chunk;
       let index: number;
       while ((index = buffer.indexOf('\r\n')) >= 0) {
@@ -55,8 +88,25 @@ function startSmtp(): Promise<number> {
         const upper = line.toUpperCase();
         if (upper.startsWith('EHLO') || upper.startsWith('HELO')) {
           send('250-test.local');
-          send('250-AUTH PLAIN LOGIN');
+          // AUTH is withheld until the connection is encrypted, which is what a
+          // real relay does and what makes the second EHLO worth sending.
+          if (secured) send('250-AUTH PLAIN LOGIN');
+          if (offerStartTls && !secured) send('250-STARTTLS');
           send('250 SIZE 10240000');
+        } else if (upper === 'STARTTLS') {
+          send('220 2.0.0 Ready to start TLS');
+          plain.removeAllListeners('data');
+          buffer = '';
+          const upgraded = new TLSSocket(plain, {
+            isServer: true,
+            secureContext: createSecureContext(credentials),
+          });
+          socket = upgraded;
+          secured = true;
+          upgraded.setEncoding('utf8');
+          upgraded.on('data', (chunk: string) => read(chunk));
+          upgraded.on('error', () => undefined);
+          continue;
         } else if (upper.startsWith('AUTH PLAIN')) {
           state.authenticated = true;
           send('235 2.7.0 Authentication successful');
@@ -76,8 +126,11 @@ function startSmtp(): Promise<number> {
           send('250 2.0.0 Ok');
         }
       }
-    });
-    socket.on('error', () => undefined);
+    };
+
+    plain.setEncoding('utf8');
+    plain.on('data', read);
+    plain.on('error', () => undefined);
   });
 
   return new Promise((resolve) => {
@@ -86,7 +139,9 @@ function startSmtp(): Promise<number> {
 }
 
 const port = await startSmtp();
-process.env.KOLIBRI_SMTP_URL = `smtp://kolibri:secret@127.0.0.1:${port}`;
+// `insecure=true` for the self-signed certificate above, and nothing else: the
+// connection is really encrypted and the password really is sent inside it.
+process.env.KOLIBRI_SMTP_URL = `smtp://kolibri:secret@127.0.0.1:${port}?insecure=true`;
 // The address the project actually ships as its default, rather than a tidier
 // one invented for the test. `kolibri@localhost` has no dot in its domain, and
 // a validator that quietly required one passed this whole suite while the
@@ -126,6 +181,7 @@ after(() => {
   smtpServer.close();
   db.close();
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
+  rmSync(certDir, { recursive: true, force: true });
 });
 
 const notify = (userId: string, kind: string, title: string, taskId = 'task-1') =>
