@@ -952,7 +952,7 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <span className="flex-1 min-w-0" />
         <GuideHint to="hierarchy" />
       </div>
-      {states.map((state) => (
+      {states.map((state, at) => (
         <div className="stack-card" key={state.id}>
           {/* The name and the two ways to be rid of the state: everything that
               fits on one line at any width, on one line. */}
@@ -964,6 +964,20 @@ function ProjectSettings({ projectId }: { projectId: string }) {
             />
             <Input className="flex-1 min-w-0" value={state.name} aria-label={t('project.name')}
               onChange={(event) => update('state', state.id, { name: event.target.value })} />
+            {/* The order here is the order of the board's columns — the same
+                fractional keys the cards use, applied one level up. */}
+            <Button variant="ghost" size="icon" aria-label={t('state.moveUp')} disabled={at === 0}
+              onClick={() => update('state', state.id, {
+                sort_order: orderKey(states[at - 2]?.sort_order ?? null, states[at - 1]?.sort_order ?? null),
+              })}>
+              <Icon name="chevronUp" size={14} />
+            </Button>
+            <Button variant="ghost" size="icon" aria-label={t('state.moveDown')} disabled={at === states.length - 1}
+              onClick={() => update('state', state.id, {
+                sort_order: orderKey(states[at + 1]?.sort_order ?? null, states[at + 2]?.sort_order ?? null),
+              })}>
+              <Icon name="chevronDown" size={14} />
+            </Button>
             <Button variant="ghost" size="icon" aria-label={t('project.deleteState')} onClick={async () => {
               if (states.length <= 1) return;
               if (await confirm(t('project.deleteStateConfirm', { name: state.name }))) remove('state', state.id);

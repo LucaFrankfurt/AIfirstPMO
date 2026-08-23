@@ -9,11 +9,11 @@ import { byOrder, create, update } from '../lib/mutations';
 import { currentLocale, priorityKey, useT, type TranslationKey } from '../lib/i18n';
 import { shortDate, today } from '../lib/format';
 import { HORIZON_DAYS, plusDays } from '../lib/overview';
-import { startDrag, TASK_DRAG } from '../lib/drag';
+import { idFrom, isDrag, startDrag, STATE_DRAG, TASK_DRAG } from '../lib/drag';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
-  useLabels, useStates, type BaseGroupBy, type GroupBy,
+  useLabels, useModules, useStates, type BaseGroupBy, type GroupBy,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
@@ -207,6 +207,7 @@ export function ViewControls({
   const t = useT();
   const states = useStates(projectId);
   const labels = useLabels(projectId);
+  const modules = useModules(projectId);
   const members = useMembers();
   const fields = useFields(projectId);
   const { workspaceId } = useSession();
@@ -258,6 +259,13 @@ export function ViewControls({
       label: label.name,
       hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
       onSelect: () => toggle('label', label.id),
+    })),
+    ...modules.map((module) => ({
+      id: `module-${module.id}`,
+      section: t('task.module'),
+      label: module.name,
+      hint: view.filters.module?.includes(module.id) ? '✓' : undefined,
+      onSelect: () => toggle('module', module.id),
     })),
     ...fields.flatMap((field) => fieldFilterItems(field, view, t, members, toggleField)),
     { id: 'clear', section: t('view.reset'), label: t('view.clearFilters'), onSelect: () => onChange({ ...view, filters: {} }) },
@@ -443,6 +451,8 @@ export function BoardView({
   const [overColumn, setOverColumn] = useState<string | null>(null);
   /** Where in the column the card would land — the gap the line is drawn in. */
   const [overIndex, setOverIndex] = useState<number | null>(null);
+  /** A column drag in flight: the column under the pointer, and which edge. */
+  const [columnDrop, setColumnDrop] = useState<{ id: string; before: boolean } | null>(null);
 
   const canWrite = useCanWrite();
   /** `null` while the button is a button; a string while it is a field. */
@@ -455,9 +465,10 @@ export function BoardView({
 
   // Only on a project's own board, only when the columns are the states, and
   // only for somebody who may write. A board across several projects has no one
-  // project to add the column to.
+  // project to add a column to — nor an order of its own to change, which is
+  // why the same test gates reordering.
   const grouping = view.groupBy === 'none' ? 'state' : view.groupBy;
-  const canAddColumn = canWrite && !!projectId && grouping === 'state';
+  const ownColumns = canWrite && !!projectId && grouping === 'state';
 
   /** Dropping on a column both reorders and rewrites the grouped-by field. */
   /**
@@ -507,14 +518,39 @@ export function BoardView({
     }
   };
 
+  /**
+   * Reordering the columns is reordering the states: the same fractional keys
+   * the cards use, applied one level up. The order is the project's, not the
+   * viewer's — the settings page and every other member see the change too.
+   */
+  const moveColumn = (stateId: string, targetId: string, before: boolean) => {
+    setColumnDrop(null);
+    if (!ownColumns || stateId === targetId) return;
+    const rest = states.filter((state) => state.id !== stateId);
+    let at = rest.findIndex((state) => state.id === targetId);
+    if (at < 0) return;
+    if (!before) at += 1;
+    update('state', stateId, {
+      sort_order: orderKey(rest[at - 1]?.sort_order ?? null, rest[at]?.sort_order ?? null),
+    });
+  };
+
   return (
     <div className="board">
-      {groups.map((group) => (
+      {groups.map((group, columnAt) => (
         <div
           key={group.id}
-          className={`board-column${overColumn === group.id ? ' drop-target' : ''}`}
+          className={`board-column${overColumn === group.id ? ' drop-target' : ''}${
+            columnDrop?.id === group.id ? (columnDrop.before ? ' col-drop-before' : ' col-drop-after') : ''}`}
           onDragOver={(event) => {
             event.preventDefault();
+            if (isDrag(event, STATE_DRAG)) {
+              // A column drag. The question is which side of this column, not
+              // which gap between its cards.
+              const box = event.currentTarget.getBoundingClientRect();
+              setColumnDrop({ id: group.id, before: event.clientX < box.left + box.width / 2 });
+              return;
+            }
             setOverColumn(group.id);
             // Which gap the pointer is nearest: measure the cards rather than
             // guess, so the line is where the card will actually go.
@@ -530,13 +566,29 @@ export function BoardView({
             }
             setOverIndex(index);
           }}
-          onDragLeave={() => setOverColumn((current) => (current === group.id ? null : current))}
+          onDragLeave={() => {
+            setOverColumn((current) => (current === group.id ? null : current));
+            setColumnDrop((current) => (current?.id === group.id ? null : current));
+          }}
           onDrop={(event) => {
             event.preventDefault();
+            if (isDrag(event, STATE_DRAG)) {
+              // Read the side off the drop itself rather than trusting the
+              // last dragover, which another column may have overwritten.
+              const box = event.currentTarget.getBoundingClientRect();
+              moveColumn(idFrom(event, STATE_DRAG), group.id, event.clientX < box.left + box.width / 2);
+              return;
+            }
             drop(group.id, undefined, overIndex ?? undefined);
           }}
         >
-          <header>
+          {/* The header is the column's handle. Dragging a card and dragging a
+              column are told apart by the drag's type — see `lib/drag.ts`. */}
+          <header
+            draggable={ownColumns}
+            onDragStart={ownColumns ? (event) => startDrag(event, STATE_DRAG, group.id) : undefined}
+            onDragEnd={() => setColumnDrop(null)}
+          >
             {group.color && <StateDot group={group.group} color={group.color} size={10} />}
             <span className="flex-1 min-w-0 truncate">{group.title}</span>
             {(() => {
@@ -552,6 +604,30 @@ export function BoardView({
                 </span>
               );
             })()}
+            {/* The same move the drag makes, for every device that cannot
+                drag — the reason the card's menu exists, one level up. */}
+            {ownColumns && groups.length > 1 && (
+              <MenuButton
+                variant="ghost" size="iconSm"
+                title={t('board.moveColumn')}
+                items={[
+                  ...(columnAt > 0 ? [{
+                    id: 'left',
+                    label: t('board.moveColumnLeft'),
+                    icon: <Icon name="chevronLeft" size={13} />,
+                    onSelect: () => moveColumn(group.id, groups[columnAt - 1].id, true),
+                  }] : []),
+                  ...(columnAt < groups.length - 1 ? [{
+                    id: 'right',
+                    label: t('board.moveColumnRight'),
+                    icon: <Icon name="chevronRight" size={13} />,
+                    onSelect: () => moveColumn(group.id, groups[columnAt + 1].id, false),
+                  }] : []),
+                ]}
+              >
+                <Icon name="dots" size={13} />
+              </MenuButton>
+            )}
           </header>
           <div className="items">
             {group.tasks.map((task, position) => (
@@ -599,7 +675,7 @@ export function BoardView({
         is where people look and where the shape of the board makes it obvious
         what is about to happen.
       */}
-      {canAddColumn && (
+      {ownColumns && (
         <div className="board-column board-add">
           {draftColumn === null ? (
             <>

@@ -1275,6 +1275,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 .board-column.drop-target { border-color: var(--accent); background: var(--accent-soft); }
 
+/* A column drag in flight: a line on the edge the dropped column will take. */
+.board-column.col-drop-before { box-shadow: -3px 0 0 0 var(--accent); }
+.board-column.col-drop-after { box-shadow: 3px 0 0 0 var(--accent); }
+/* The header is the column's handle when the viewer may reorder the board. */
+.board-column header[draggable='true'] { cursor: grab; }
+
 /* The trailing column. Dashed and transparent, so it reads as a place a column
    could go rather than as a column that is there and empty — the difference
    matters on a board whose last real column is also often empty. */

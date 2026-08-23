@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { PRIORITIES, fieldKeys, mayEnter, type Label, type Priority, type State, type Task } from '@kolibri/shared';
+import { PRIORITIES, fieldKeys, mayEnter, type Label, type Module, type Priority, type State, type Task } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { ancestry, descendants } from '../lib/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
@@ -60,6 +60,12 @@ export const useStates = (projectId?: string | null): State[] =>
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
     () => list('label', (l) => !l.project_id || !projectId || l.project_id === projectId).sort((a, b) => a.name.localeCompare(b.name)),
+    [projectId],
+  );
+
+export const useModules = (projectId?: string | null): Module[] =>
+  useQuery(
+    () => list('module', (m) => !projectId || m.project_id === projectId).sort(byOrder),
     [projectId],
   );
 
@@ -378,6 +384,9 @@ export function TaskCard({
   const members = useMemberMap();
   const refile = useRefile();
   const projects = useProjectTargets(task);
+  // Through `useQuery` rather than a bare `byId`: the card is the one place on
+  // the board that says the module's name, so a rename has to reach it.
+  const module = useQuery(() => byId('module', task.module_id), [task.module_id]);
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   return (
     <article
@@ -423,6 +432,12 @@ export function TaskCard({
       <div className="title">{task.title}</div>
       <div className="footer">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
+        {module && (
+          <span className={chipVariants()} title={t('task.module')}>
+            <Icon name="target" size={11} />
+            <span className="truncate">{module.name}</span>
+          </span>
+        )}
         {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date))}>{shortDate(task.due_date)}</span>}
         {task.estimate != null && <Chip>{task.estimate}p</Chip>}
         <span className="flex-1 min-w-0" />

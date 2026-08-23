@@ -532,6 +532,8 @@ export const en = {
 
   /* ------------------------------------------------------------ projects */
   'state.wipLimit': 'Limit',
+  'state.moveUp': 'Move up',
+  'state.moveDown': 'Move down',
   'state.wipLimitHint': 'How many tasks may sit in this column at once. 0 means no limit. Going over is shown, never refused — a board that will not take a card teaches people to work somewhere else.',
   'state.wipHint': 'Agreed limit: {limit}',
   'state.allowedRoles': 'Who may move work here',
@@ -807,7 +809,10 @@ export const en = {
   'project.workflowStates': 'Workflow states',
   'project.addState': 'Add state',
   'project.addColumn': 'Add column',
-  'project.addColumnHint': 'A column is a state. Rename, recolour or reorder them in the project settings.',
+  'board.moveColumn': 'Move column',
+  'board.moveColumnLeft': 'Move left',
+  'board.moveColumnRight': 'Move right',
+  'project.addColumnHint': 'A column is a state. Drag a header to reorder it; rename and recolour in the project settings.',
   'project.newColumnPrompt': 'Column name',
   'project.newStateName': 'New state',
   'project.deleteStateConfirm': 'Delete the state “{name}”? Tasks keep their current state id.',
