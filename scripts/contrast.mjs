@@ -106,6 +106,37 @@ for (const [label, options] of MODES) {
   const ctx = await browser.newContext(options);
   const page = await ctx.newPage();
   await page.goto(base, { waitUntil: 'networkidle' });
+
+  /*
+   * The sign-in screen, before signing in.
+   *
+   * Every walk in this file used to start by getting past this page, which
+   * made it the one screen a stranger sees and the one screen nothing checked.
+   * That mattered little while it was a white card; it matters now that it
+   * carries a panel whose colours are fixed rather than tokenised — those are
+   * not covered by re-stepping a token, so they have to be read off the pixels
+   * like everything else.
+   *
+   * Both modes it can be in: the form as it opens, and the form with the other
+   * one showing, because the register side has fields and a hint the sign-in
+   * side does not.
+   */
+  const auth = new Map();
+  for (const hit of await page.evaluate(PROBE)) if (!auth.has(hit)) auth.set(hit, '/login');
+  const swap = page.locator('.auth-switch').first();
+  if (await swap.count()) {
+    await swap.click();
+    await page.waitForTimeout(300);
+    for (const hit of await page.evaluate(PROBE)) if (!auth.has(hit)) auth.set(hit, '/login (register)');
+    await page.locator('.auth-switch').first().click();
+    await page.waitForTimeout(300);
+  }
+  if (auth.size) {
+    failures += auth.size;
+    console.log(`FAIL ${label} /login — ${auth.size} below the floor`);
+    for (const [hit, where] of [...auth].sort()) console.log(`       ${hit}\n           ${where}`);
+  }
+
   await page.fill('#email', 'ada@kolibri.dev');
   await page.fill('#password', 'kolibri-demo');
   await page.click('button[type=submit]');

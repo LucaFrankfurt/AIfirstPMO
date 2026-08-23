@@ -2,15 +2,15 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useSession } from '../session';
-import { LOCALE_NAMES, localeLabel, useI18n, type Locale } from '../lib/i18n';
-import { Button } from '../components/ui/button';
-import { buttonVariants } from '../components/ui/button';
-import { Input, Select } from '../components/ui/field';
+import { useI18n } from '../lib/i18n';
+import { AuthLayout } from '../components/AuthLayout';
+import { Button, buttonVariants } from '../components/ui/button';
+import { Input, Label } from '../components/ui/field';
 import { cn } from '../lib/cn';
 import { Icon } from '../components/ui';
 
 export function Login() {
-  const { t, locale, setLocale } = useI18n();
+  const { t } = useI18n();
   const { signIn } = useSession();
   const navigate = useNavigate();
   const { code } = useParams();
@@ -92,105 +92,97 @@ export function Login() {
   const ssoHref = `/api/auth/oidc/start?next=${encodeURIComponent(code ? `/invite/${code}` : '/')}`;
 
   return (
-    <main className="auth">
-      <form className="box" onSubmit={submit}>
-        <div className="flex items-center gap-2 mb-4">
-          <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
-          <div>
-            <h1>{first ? t('login.setupTitle') : mode === 'login' ? t('login.welcomeBack') : t('login.createAccount')}</h1>
-            <span className="text-muted text-[12.5px]">
-              {invite
-                ? t('login.invitedTo', { workspace: invite.workspace_name })
-                : first ? t('login.firstAccountHint') : t('login.tagline')}
-            </span>
-          </div>
-        </div>
+    <AuthLayout>
+      <form onSubmit={submit}>
+        <h1>{first ? t('login.setupTitle') : mode === 'login' ? t('login.welcomeBack') : t('login.createAccount')}</h1>
 
-        {error && <div className="error">{error}</div>}
+        {/* One line under the heading carrying whichever of three things is
+            true: you were invited, you are setting the instance up, or you can
+            switch to the other mode. The switch used to be a full-width ghost
+            button under the submit — which is to say, a decision offered after
+            the form had already been filled in. */}
+        <p className="auth-sub">
+          {invite
+            ? t('login.invitedTo', { workspace: invite.workspace_name })
+            : first
+              ? t('login.firstAccountHint')
+              : (config?.allowSignup || mode === 'register') ? (
+                <>
+                  {mode === 'login' ? t('auth.noAccount') : t('auth.haveAccount')}{' '}
+                  <button
+                    type="button"
+                    className="auth-switch"
+                    onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+                  >
+                    {/* The action alone. The lead-in already asked the
+                        question, and "No account yet? Create an account
+                        instead" answers it twice. */}
+                    {mode === 'login' ? t('login.createAccountSubmit') : t('login.signIn')}
+                  </button>
+                </>
+              ) : t('login.tagline')}
+        </p>
 
-        {sso && (
+        {error && <div className="error" role="alert">{error}</div>}
+
+        {sso?.only ? (
           <>
-            <a className={buttonVariants({ variant: sso.only ? 'primary' : 'secondary', size: 'lg', block: true })} href={ssoHref}>
+            <a className={buttonVariants({ variant: 'primary', size: 'lg', block: true })} href={ssoHref}>
               <Icon name="shield" size={15} /> {t('login.ssoContinue', { provider: sso.label })}
             </a>
-            {!sso.only && (
-              <div className="divider-text" aria-hidden="true"><span>{t('login.ssoOr')}</span></div>
+            <p className="text-muted text-[12.5px]" style={{ margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
+          </>
+        ) : (
+          <>
+            <div className="auth-fields">
+              {mode === 'register' && (
+                <Label label={t('login.yourName')}>
+                  <Input value={form.name} autoComplete="name"
+                    onChange={(event) => setForm({ ...form, name: event.target.value })} />
+                </Label>
+              )}
+
+              <Label label={t('login.email')}>
+                <Input
+                  id="email" type="email" required autoComplete="email" autoFocus={mode === 'login'}
+                  value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })}
+                />
+              </Label>
+
+              <Label label={t('login.password')} hint={mode === 'register' ? t('login.passwordHint') : undefined}>
+                <Input
+                  id="password" type="password" required minLength={8}
+                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })}
+                />
+              </Label>
+
+              {mode === 'register' && !code && (
+                <Label label={t('login.workspaceName')}>
+                  <Input
+                    placeholder={t('login.workspacePlaceholder')} value={form.workspace}
+                    onChange={(event) => setForm({ ...form, workspace: event.target.value })}
+                  />
+                </Label>
+              )}
+            </div>
+
+            <Button variant="primary" size="lg" block type="submit" disabled={busy} className="mt-5">
+              {busy ? t('action.working') : mode === 'login' ? t('login.signIn') : first ? t('login.createInstance') : t('login.createAccountSubmit')}
+            </Button>
+
+            {sso && (
+              <>
+                <div className="divider-text" aria-hidden="true"><span>{t('login.ssoOr')}</span></div>
+                <a className={buttonVariants({ variant: 'secondary', size: 'lg', block: true })} href={ssoHref}>
+                  <Icon name="shield" size={15} /> {t('login.ssoContinue', { provider: sso.label })}
+                </a>
+              </>
             )}
           </>
         )}
-
-        {sso?.only && (
-          <p className="text-muted text-[12.5px]" style={{ margin: '12px 0 0' }}>{t('login.ssoOnlyHint')}</p>
-        )}
-
-        {!sso?.only && (<>
-        {mode === 'register' && (
-          <div className="field">
-            <label htmlFor="name">{t('login.yourName')}</label>
-            <Input id="name" value={form.name} autoComplete="name"
-              onChange={(event) => setForm({ ...form, name: event.target.value })} />
-          </div>
-        )}
-
-        <div className="field">
-          <label htmlFor="email">{t('login.email')}</label>
-          <Input
-            id="email" type="email" required autoComplete="email" autoFocus={mode === 'login'}
-            value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })}
-          />
-        </div>
-
-        <div className="field">
-          <label htmlFor="password">{t('login.password')}</label>
-          <Input
-            id="password" type="password" required minLength={8}
-            autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-            value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })}
-          />
-          {mode === 'register' && <span className="text-[12px] text-muted">{t('login.passwordHint')}</span>}
-        </div>
-
-        {mode === 'register' && !code && (
-          <div className="field">
-            <label htmlFor="workspace">{t('login.workspaceName')}</label>
-            <Input
-              id="workspace" placeholder={t('login.workspacePlaceholder')} value={form.workspace}
-              onChange={(event) => setForm({ ...form, workspace: event.target.value })}
-            />
-          </div>
-        )}
-
-        <Button variant="primary" size="lg" block type="submit" disabled={busy} className="mt-1.5">
-          {busy ? t('action.working') : mode === 'login' ? t('login.signIn') : first ? t('login.createInstance') : t('login.createAccountSubmit')}
-        </Button>
-
-        {!first && (config?.allowSignup || mode === 'register') && (
-          <button
-            type="button" className={cn(buttonVariants({ variant: 'ghost', block: true }), 'mt-2')}
-            onClick={() => {
-              setMode(mode === 'login' ? 'register' : 'login');
-              setError('');
-            }}
-          >
-            {mode === 'login' ? t('login.switchToRegister') : t('login.switchToLogin')}
-          </button>
-        )}
-        </>)}
-
-        <div className="flex items-center text-muted mt-[18px] text-[12.5px] gap-2.5" style={{ justifyContent: 'center' }}>
-          <span className="flex items-center gap-[5px]"><Icon name="bolt" size={13} /> {t('login.footer')}</span>
-          <span aria-hidden="true">·</span>
-          <Select
-            aria-label={t('profile.language')}
-            value={locale}
-            onChange={(event) => setLocale(event.target.value as Locale)}
-            style={{ width: 'auto', padding: '2px 4px', fontSize: 12, border: 'none', background: 'none' }}
-          >
-            {(Object.keys(LOCALE_NAMES) as Locale[]).map((value) => <option key={value} value={value}>{localeLabel(value)}</option>)}
-          </Select>
-        </div>
       </form>
-    </main>
+    </AuthLayout>
   );
 }
 
@@ -243,19 +235,17 @@ export function AcceptInvite() {
   }
 
   return (
-    <main className="auth">
+    <AuthLayout>
+      {/* A card, where the sign-in form has none: this is a question with two
+          answers rather than something to fill in, and a pair of buttons on an
+          open page reads as a screen that has not finished loading. */}
       <div className="box">
-        <div className="flex items-center gap-2 mb-4">
-          <img src="/icon.svg" width={30} height={30} alt="" style={{ borderRadius: 8 }} />
-          <div>
-            <h1>{t('login.joinTitle')}</h1>
-            <span className="text-muted text-[12.5px]">
-              {invite ? t('login.invitedTo', { workspace: invite.workspace_name }) : t('login.tagline')}
-            </span>
-          </div>
-        </div>
+        <h1>{t('login.joinTitle')}</h1>
+        <p className="auth-sub">
+          {invite ? t('login.invitedTo', { workspace: invite.workspace_name }) : t('login.tagline')}
+        </p>
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" role="alert">{error}</div>}
 
         {user && (
           <p className="text-muted text-[12.5px]" style={{ margin: '0 0 12px' }}>
@@ -273,6 +263,6 @@ export function AcceptInvite() {
           {t('login.useAnotherAccount')}
         </button>
       </div>
-    </main>
+    </AuthLayout>
   );
 }

@@ -1570,17 +1570,105 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .status-pill.error .dot { background: var(--danger); }
 .status-pill.syncing .dot { background: var(--accent); animation: pulse 1.1s ease-in-out infinite; }
 
-.auth {
-  min-height: 100dvh;
+/* ------------------------------------------------------------ the way in */
+
+/* Two panels: what this is, and the form. See `AuthLayout` for why the left one
+   is allowed to be this loud when nothing else in the app is. */
+.auth { min-height: 100dvh; display: grid; grid-template-columns: 1fr 1fr; background: var(--bg-raised); }
+
+.auth-brand {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px 16px;
-  background: var(--bg-sunken);
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 32px;
+  padding: 40px 44px;
+  /* Fixed rather than tokenised, in both themes. A brand surface, not a themed
+     one — and every colour on it is measured against *this* background rather
+     than against whichever the page happens to be.
+
+     The colour is stated twice on purpose. `contrast.mjs` reads
+     `backgroundColor` and walks up through transparency to find the real
+     surface under a piece of text — and a `linear-gradient` is a
+     `background-image`, so it reads as transparent and the walk runs all the
+     way to the white body. Every word on this panel came back as white-on-white
+     and "unreadable" the first time the check saw it. The solid colour under
+     the gradient is the panel's lightest stop, which is the worst case for
+     light text, so what the check now measures is the hardest version of what a
+     reader actually sees.
+
+     It found something the moment it could see: at the first, brighter purple
+     the body copy came out at 3.88 and the three facts at 4.36, against a floor
+     of 4.5. Pure white on that background is only 5.37, so there was no room to
+     fix it by lightening the type — the panel had to come down instead. Which
+     it should have anyway: a quieter surface is closer to what the rest of this
+     app does, and the note above about spending an accent colour on chrome. */
+  background-color: #4a3fb5;
+  background-image: linear-gradient(155deg, #4a3fb5 0%, #3f3fae 46%, #322f8c 100%);
+  color: #eef0ff;
 }
-.auth .box { width: min(400px, 100%); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 26px 22px; box-shadow: var(--shadow); }
-.auth h1 { font-size: 19px; margin-bottom: 4px; }
-.auth .error { color: var(--danger); font-size: 13px; margin-bottom: 10px; }
+.auth-mark { display: flex; align-items: center; gap: 10px; font-size: 15px; letter-spacing: -0.1px; }
+.auth-mark img { border-radius: 8px; background: #fff; }
+.auth-brand h2 {
+  font-size: clamp(21px, 2.4vw, 27px);
+  line-height: 1.22;
+  letter-spacing: -0.5px;
+  font-weight: 620;
+  color: #fff;
+  margin: 0 0 12px;
+}
+.auth-brand p { font-size: 14px; line-height: 1.6; color: #d6d9fb; margin: 0; max-width: 34ch; }
+.auth-facts { display: flex; flex-direction: column; gap: 11px; margin: 30px 0 0; padding: 0; list-style: none; }
+.auth-facts li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #e4e6ff; }
+.auth-facts svg { flex: none; opacity: 0.85; }
+.auth-licence { font-size: 12px; color: #c3c7f5; }
+
+.auth-pane { display: flex; align-items: center; justify-content: center; padding: 40px 24px; overflow-y: auto; }
+.auth-form { width: min(360px, 100%); }
+/* Only ever seen once the panel beside it is gone — see the note in the shell. */
+.auth-mark-sm { display: none; border-radius: 9px; margin-bottom: 20px; }
+
+.auth h1 { font-size: 21px; font-weight: 620; letter-spacing: -0.3px; margin: 0 0 4px; }
+.auth .error {
+  color: var(--danger);
+  font-size: 13px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  margin-bottom: 14px;
+}
+
+/* One line under the heading: who invited you, that you are setting the
+   instance up, or the way to the other mode. */
+.auth-sub { font-size: 13px; color: var(--fg-muted); margin: 0 0 24px; }
+.auth-switch {
+  border: none; background: none; padding: 0; font: inherit; font-size: inherit;
+  color: var(--accent); font-weight: 520; cursor: pointer; text-underline-offset: 3px;
+}
+.auth-switch:hover { text-decoration: underline; }
+
+.auth-fields { display: flex; flex-direction: column; gap: 14px; }
+
+.auth-footer { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 26px; color: var(--fg-muted); font-size: 12.5px; }
+/* A media query, not a container query — the note in `AuthLayout` says why.
+   860px is where the two panels stop having room to be two panels: below it the
+   form would be narrower than the 360px it is written for. */
+@media (max-width: 860px) {
+  .auth { grid-template-columns: 1fr; background: var(--bg-sunken); }
+  .auth-brand { display: none; }
+  .auth-pane { padding: 28px 20px; }
+  .auth-mark-sm { display: block; }
+}
+
+/* The invite screen keeps a card, because it is a question with two answers
+   rather than a form — and a lone button on an open page reads as unfinished. */
+.auth .box {
+  width: min(400px, 100%);
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 26px 22px;
+  box-shadow: var(--shadow);
+}
 
 /* A tab strip is one row, and it used to scroll in two directions.
 
