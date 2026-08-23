@@ -152,9 +152,11 @@ sign in when it asks — the instance is an OAuth authorization server for exact
 it grants is an ordinary token you can revoke in Settings. See [`docs/mcp.md`](docs/mcp.md).
 
 Tools: `list_workspaces`, `list_projects`, `create_project`, `list_tasks`, `get_task`,
-`create_task`, `update_task`, `delete_task`, `comment_task`, `search`, `list_templates`,
-`apply_template`, `list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`,
-`update_page`, `list_members`, `list_labels`, `project_status`, `my_work`, `log_time`, `list_time`.
+`create_task`, `create_tasks_batch`, `update_task`, `delete_task`, `comment_task`,
+`create_task_relation`, `upload_attachment`, `search`, `list_templates`, `apply_template`,
+`list_cycles`, `create_cycle`, `list_pages`, `get_page`, `create_page`, `update_page`,
+`list_members`, `list_labels`, `list_states`, `project_status`, `my_work`, `log_time`,
+`list_time`.
 Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant

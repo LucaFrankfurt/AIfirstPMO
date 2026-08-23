@@ -228,7 +228,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 |---|---|
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
-| `list_tasks` | filter by `project`, `state` (name or group), `type` (Bug, Feature, …), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `due_before`, `query` |
+| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
@@ -237,6 +237,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
 | `list_members` | people with role and open task count |
 | `list_labels` | labels with the count of open tasks carrying each; `project` narrows to that project's own plus the workspace-wide ones |
+| `list_states` | a project's workflow states in board order, each with its `group`, colour, task count, and which one is the default |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 
@@ -245,7 +246,10 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | Tool | Notes |
 |---|---|
 | `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
-| `update_task` | any field, including `state`, `type`, `assignees`, `cycle`, `due_date`, `archived`. An unknown `type` is refused rather than created |
+| `update_task` | any field, including `state`, `assignees`, `cycle`, `due_date`, `archived` |
+| `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
+| `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
+| `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
@@ -270,8 +274,64 @@ the number that separates a label the team actually uses from one somebody inven
 `project` narrows it to that project's own labels plus the workspace-wide ones — the same set
 `create_task` will match against.
 
-Work item **types** behave the opposite way: an unknown `type` is refused rather than created. The
-list of what a team calls its work is not cheap to invent.
+### States, and why an unknown one is worse than an error
+
+`create_task` and `update_task` take a state by **name**, and neither refuses one it does not
+recognise: `create_task` falls back to the project's first column, and `update_task` leaves the task
+where it is. So an assistant told to "move it to Done" in a project whose last column is called
+*Shipped* reports success and changes nothing — the worst of the three possible outcomes.
+
+**`list_states` is the answer to that.** It returns a project's columns in board order, and the field
+worth reading is `group` rather than `name`. Names are per project; the group is the fixed vocabulary
+underneath — `backlog`, `unstarted`, `started`, `completed`, `cancelled` — and it is what every count
+and filter in Kolibri is actually computed from. Match on the name when it is an exact hit, and on
+the group when it is not.
+
+### A batch is one transaction
+
+`create_tasks_batch` takes up to 100 tasks and files them **all or none**. The reason is not the
+round trips. Twenty separate `create_task` calls can fail on the eleventh and leave ten tasks behind
+that nobody asked for on their own; an assistant that then retries the list makes ten more. With one
+transaction a failed batch leaves nothing, so retrying it is safe and needs no counting.
+
+Each entry takes exactly what `create_task` takes, through the same code — `quick_add` included — so
+a batch cannot quietly follow different rules from a single call. `project` names the project once
+and any entry may override it, which is how one call files a feature into `WEB` and its
+infrastructure work into `OPS`. An error names the entry: `tasks[7]: Which project?`.
+
+### Relations are written once, in one direction
+
+`create_task_relation` writes a single row. The other task shows the mirror image automatically —
+`WEB-1 blocks WEB-2` reads as "blocked by WEB-1" on WEB-2 — so there is no second call to make, and
+asking for the mirror image of a link that already exists returns the existing one with
+`already: true` rather than drawing it twice.
+
+The five kinds are `blocks`, `blocked_by`, `relates_to`, `duplicates` and `duplicated_by`.
+(`duplicate` is understood as `duplicates`, since it is the obvious thing to reach for.)
+
+`blocks` is load-bearing beyond the task detail: the planner and the Gantt chart schedule from it,
+and `lag` — whole working days, 0–365 — is the breathing room between a blocker finishing and its
+dependant starting. **A cycle of blockers is refused**, because nothing in such a ring can ever
+start. Nothing else in the server checks this, since until now the only way to build one was by hand
+in the interface, one link at a time, looking at both tasks. An assistant working from a list can
+build a ten-task ring without ever seeing it.
+
+### Attachments
+
+`upload_attachment` puts bytes on a task, where they appear in its own Files section rather than
+somewhere only an assistant knows about. It closes a real gap: an assistant could already write,
+comment and move tasks, but anything it *produced* — a CSV, a generated report, an image — had
+nowhere to go except pasted into a comment as text.
+
+Content is base64, because MCP carries JSON. That is a genuine cost — the encoding adds a third
+again, and the whole thing is a string in memory at both ends — so the upload limit
+(`KOLIBRI_MAX_UPLOAD_MB`, 25 MB by default) is enforced against the **decoded** size and checked
+before decoding, rather than after allocating the very buffer the limit exists to prevent.
+
+`mime` is optional and guessed from the file name. Input that is not base64 is refused rather than
+stored: `Buffer.from(x, 'base64')` skips what it cannot read instead of failing, so raw text handed
+to it becomes a short buffer of nonsense — stored, attached, and downloaded later as a corrupt file
+with nothing anywhere saying so.
 
 ### Quick-add syntax, when a person typed the line
 

@@ -7,16 +7,17 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
-  PRIORITIES, fieldValueId, orderKey, parseDuration, parseQuickAdd, readFieldValue,
-  writeFieldValue, type EntityName, type Vocabulary,
+  PRIORITIES, RELATION_KINDS, fieldValueId, orderKey, parseDuration, parseQuickAdd, readFieldValue,
+  writeFieldValue, type EntityName, type RelationKind, type Vocabulary,
 } from '@kolibri/shared';
-import { all, get, type Row } from '../db/index.ts';
+import { all, get, tx, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
 import { createProject, serverClock } from './bootstrap.ts';
 import { instantiateTemplate } from './automation.ts';
 import { hasFeature } from './features.ts';
 import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, writeEntity } from './repo.ts';
+import { storeFile } from '../routes/files.ts';
 import { searchWorkspace } from '../routes/search.ts';
 import { uid } from './ids.ts';
 
@@ -36,7 +37,13 @@ interface ToolDef {
   description: string;
   schema: Record<string, unknown>;
   readOnly?: boolean;
-  run: (args: Record<string, any>, ctx: McpCtx) => unknown;
+  /**
+   * May return a promise. Almost none do — every tool here reads and writes
+   * SQLite, which `node:sqlite` does synchronously — but `upload_attachment`
+   * puts bytes in a store that may be an object store across a network, and
+   * one tool that has to wait is enough to make the whole path awaitable.
+   */
+  run: (args: Record<string, any>, ctx: McpCtx) => unknown | Promise<unknown>;
 }
 
 export interface McpCtx {
@@ -97,6 +104,135 @@ function findProject(ref: string, workspaceId: string, ctx: McpCtx): Row {
   if (!row) throw new McpError(`Project ${ref} not found`);
   if (!canSeeProject(ctx.auth.userId, row.id)) throw new McpError('That project is private');
   return row;
+}
+
+/**
+ * File one task, from the arguments `create_task` takes.
+ *
+ * Shared with `create_tasks_batch` so the two cannot drift: a batch that
+ * quietly ignored `quick_add`, or resolved labels differently, would be the
+ * same tool with different rules depending on how many tasks you asked for.
+ *
+ * `fallbackProject` is what the batch passes down — the project named once for
+ * the whole call, which each entry may still override.
+ */
+function fileTask(
+  args: Record<string, any>,
+  workspaceId: string,
+  ctx: McpCtx,
+  fallbackProject?: string,
+): Row {
+  const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
+  const title = (quick?.title ?? str(args.title) ?? '').trim();
+  if (!title) throw new McpError('A task needs a title — pass `title`, or a `quick_add` line with words in it', -32602);
+  const named = quick?.projectId ?? str(args.project) ?? fallbackProject;
+  if (!named) throw new McpError('Which project? Pass `project`, or name one in `quick_add` with #KEY', -32602);
+  const project = findProject(named, workspaceId, ctx);
+  const state = resolveState(project.id, str(args.state));
+  const parent = args.parent ? findTask(String(args.parent), workspaceId, ctx) : undefined;
+  const first = get<Row>(`SELECT sort_order FROM tasks WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id);
+
+  const { row } = writeEntity('task', uid(), {
+    workspace_id: workspaceId,
+    project_id: project.id,
+    title: title.slice(0, 500),
+    description: str(args.description) ?? null,
+    state_id: state?.id,
+    priority: quick?.priority ?? (PRIORITIES.includes(args.priority) ? args.priority : 'none'),
+    assignees: quick?.assignees.length ? quick.assignees : resolveUsers(workspaceId, args.assignees),
+    labels: quick?.labels.length ? quick.labels : resolveLabels(workspaceId, project.id, args.labels, ctx),
+    due_date: quick?.dueDate ?? str(args.due_date) ?? null,
+    recurrence: quick?.recurrence ?? null,
+    estimate: typeof args.estimate === 'number' ? args.estimate : null,
+    parent_id: parent?.id ?? null,
+    cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,
+    sort_order: orderKey(null, first?.sort_order ?? null),
+  }, writeOpts(workspaceId, ctx));
+  return row;
+}
+
+/**
+ * The other side of a relation.
+ *
+ * Mirrors `INVERSE` in the web client's `Relations.tsx`. Two copies of five
+ * pairs is not ideal; `@kolibri/shared` is the better home the day a third
+ * caller wants it.
+ */
+/**
+ * A content type from a file name, for callers that did not say.
+ *
+ * Deliberately short. Guessing wrong is cheap — the type only decides whether a
+ * browser renders the file in place or downloads it, and `disposition()` in
+ * `mime.ts` already refuses to render anything outside its allowlist — so this
+ * covers what an assistant actually produces and lets everything else be an
+ * honest `application/octet-stream`.
+ */
+const MIME_BY_EXTENSION: Record<string, string> = {
+  csv: 'text/csv', json: 'application/json', md: 'text/markdown', txt: 'text/plain',
+  html: 'text/html', xml: 'application/xml', yaml: 'text/yaml', yml: 'text/yaml',
+  pdf: 'application/pdf', zip: 'application/zip',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml',
+};
+
+const mimeFromName = (name: string): string =>
+  MIME_BY_EXTENSION[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
+
+const INVERSE_RELATION: Record<RelationKind, RelationKind> = {
+  blocks: 'blocked_by',
+  blocked_by: 'blocks',
+  relates_to: 'relates_to',
+  duplicates: 'duplicated_by',
+  duplicated_by: 'duplicates',
+};
+
+/**
+ * Would this link close a circle of blockers?
+ *
+ * The new link says *waiter waits for blocker*. That closes a ring exactly
+ * when the blocker already waits, directly or through others, on the waiter —
+ * so the walk starts at the **blocker** and follows "waits for" edges looking
+ * for the waiter.
+ *
+ * Written the other way round first, starting at the waiter, which finds
+ * nothing: a task about to be given a new blocker is by definition not yet
+ * waiting on it, so the search set was empty and every loop was allowed
+ * through. The test that caught it builds A → B → C and then asks for C → A.
+ *
+ * Both stored directions mean the same edge — a `blocks` row from A to B and a
+ * `blocked_by` row from B to A both say "B waits for A" — so the walk reads
+ * both rather than trusting one convention to have been used throughout.
+ *
+ * Bounded at 5000 steps. A workspace whose blocking graph is larger than that
+ * has a worse problem than this query, and an unbounded walk over a graph that
+ * is *already* looped — imported before this check existed — would not return.
+ */
+function blockingLoop(workspaceId: string, source: Row, target: Row, kind: RelationKind): boolean {
+  // Who ends up waiting for whom.
+  const waiter = kind === 'blocks' ? String(target.id) : String(source.id);
+  const blocker = kind === 'blocks' ? String(source.id) : String(target.id);
+
+  const seen = new Set<string>([blocker]);
+  const queue = [blocker];
+  let steps = 0;
+  while (queue.length && steps++ < 5000) {
+    const at = queue.shift() as string;
+    if (at === waiter) return true;
+    // Everything `at` is already waiting for.
+    for (const row of all<Row>(
+      `SELECT task_id, related_task_id, kind FROM task_relations
+        WHERE workspace_id = ? AND deleted_at IS NULL
+          AND ((related_task_id = ? AND kind = 'blocks') OR (task_id = ? AND kind = 'blocked_by'))`,
+      workspaceId, at, at,
+    )) {
+      const upstream = String(row.kind === 'blocks' ? row.task_id : row.related_task_id);
+      if (!seen.has(upstream)) {
+        seen.add(upstream);
+        queue.push(upstream);
+      }
+    }
+  }
+  return false;
 }
 
 function resolveState(projectId: string, name?: string): Row | undefined {
@@ -478,33 +614,89 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
-      const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
-      const title = (quick?.title ?? str(args.title) ?? '').trim();
-      if (!title) throw new McpError('A task needs a title — pass `title`, or a `quick_add` line with words in it', -32602);
-      const named = quick?.projectId ?? str(args.project);
-      if (!named) throw new McpError('Which project? Pass `project`, or name one in `quick_add` with #KEY', -32602);
-      const project = findProject(named, workspaceId, ctx);
-      const state = resolveState(project.id, str(args.state));
-      const parent = args.parent ? findTask(String(args.parent), workspaceId, ctx) : undefined;
-      const first = get<Row>(`SELECT sort_order FROM tasks WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id);
+      return taskView(fileTask(args, workspaceId, ctx, str(args.project)));
+    },
+  },
+  {
+    /**
+     * File many tasks in one call.
+     *
+     * The point is not the round trips — it is that a plan arrives as a plan.
+     * Twenty separate `create_task` calls can fail on the eleventh and leave
+     * ten tasks behind that nobody asked for on their own, and an assistant
+     * that then retries the whole list makes ten more. So the whole batch is
+     * one transaction: every task or none.
+     *
+     * Each entry takes what `create_task` takes, through the same code, so a
+     * batch cannot quietly follow different rules from a single call. `project`
+     * names the project once; an entry may still override it, which is how one
+     * call files a feature into WEB and its infrastructure work into OPS.
+     */
+    name: 'create_tasks_batch',
+    title: 'Create several tasks',
+    description: 'File a list of tasks in one call, as one transaction — if any entry is rejected, none of them are created. Each entry takes the same fields as create_task. Use this for a plan or a checklist rather than calling create_task repeatedly.',
+    schema: {
+      type: 'object',
+      required: ['tasks'],
+      properties: {
+        project: { type: 'string', description: 'Project for every task that does not name its own' },
+        tasks: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 100,
+          description: 'Up to 100. Each entry takes the fields create_task takes.',
+          items: {
+            type: 'object',
+            properties: {
+              project: { type: 'string', description: 'Overrides the call-level project' },
+              title: { type: 'string' },
+              quick_add: { type: 'string', description: 'One-line quick-add syntax; see create_task' },
+              description: { type: 'string' },
+              state: { type: 'string' },
+              priority: { type: 'string', enum: [...PRIORITIES] },
+              assignees: { type: 'array', items: { type: 'string' } },
+              labels: { type: 'array', items: { type: 'string' } },
+              due_date: { type: 'string', description: 'YYYY-MM-DD' },
+              estimate: { type: 'number' },
+              parent: { type: 'string', description: 'Parent task id or identifier' },
+              cycle: { type: 'string' },
+            },
+          },
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      requireWrite(ctx);
+      const workspaceId = workspaceOf(args, ctx);
+      const entries = Array.isArray(args.tasks) ? args.tasks : null;
+      if (!entries?.length) throw new McpError('`tasks` must be a non-empty array', -32602);
+      // A cap rather than a stream. Everything here is one synchronous
+      // transaction, and a runaway list would hold the write lock for as long
+      // as it took — with the rest of the workspace waiting behind it.
+      if (entries.length > 100) {
+        throw new McpError(`${entries.length} tasks in one call is too many — 100 at a time`, -32602);
+      }
 
-      const { row } = writeEntity('task', uid(), {
-        workspace_id: workspaceId,
-        project_id: project.id,
-        title: title.slice(0, 500),
-        description: str(args.description) ?? null,
-        state_id: state?.id,
-        priority: quick?.priority ?? (PRIORITIES.includes(args.priority) ? args.priority : 'none'),
-        assignees: quick?.assignees.length ? quick.assignees : resolveUsers(workspaceId, args.assignees),
-        labels: quick?.labels.length ? quick.labels : resolveLabels(workspaceId, project.id, args.labels, ctx),
-        due_date: quick?.dueDate ?? str(args.due_date) ?? null,
-        recurrence: quick?.recurrence ?? null,
-        estimate: typeof args.estimate === 'number' ? args.estimate : null,
-        parent_id: parent?.id ?? null,
-        cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,
-        sort_order: orderKey(null, first?.sort_order ?? null),
-      }, writeOpts(workspaceId, ctx));
-      return taskView(row);
+      const fallback = str(args.project);
+      // `tx` rolls back on a throw, so a rejected entry takes the whole batch
+      // with it. That is the promise in the description, and it is the reason
+      // an assistant can retry a failed batch without counting what survived.
+      const rows = tx(() => entries.map((entry, index) => {
+        if (!entry || typeof entry !== 'object') {
+          throw new McpError(`tasks[${index}] is not an object`, -32602);
+        }
+        try {
+          return fileTask(entry as Record<string, any>, workspaceId, ctx, fallback);
+        } catch (error) {
+          // Which one failed, out of a hundred. Without the index this reads
+          // as "a task needs a title" against a list nobody can point at.
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new McpError(`tasks[${index}]: ${detail}`, error instanceof McpError ? error.code : -32602);
+        }
+      }));
+
+      return { created: rows.length, tasks: rows.map(taskView) };
     },
   },
   {
@@ -573,6 +765,204 @@ const TOOLS: ToolDef[] = [
       const task = findTask(String(args.task), workspaceId, ctx);
       deleteEntity('task', task.id, writeOpts(workspaceId, ctx));
       return { deleted: task.identifier };
+    },
+  },
+  {
+    /**
+     * Link two tasks.
+     *
+     * One row, one direction. The interface derives the other side when it
+     * reads — a `blocks` row shows as "blocked by" on the task at the far end —
+     * so writing both directions would show every link twice and let the two
+     * halves disagree the moment one is deleted.
+     *
+     * `blocks` is load-bearing beyond the task detail: the planner and the
+     * Gantt chart schedule from it, so a loop there is not a cosmetic mistake.
+     * There is no guard on the pair anywhere else in the server, because until
+     * now the only way to make one was by hand in the interface, one link at a
+     * time, looking at both tasks. An assistant working from a list can build a
+     * ten-task ring without ever seeing it, so the check lives here.
+     */
+    name: 'create_task_relation',
+    title: 'Link two tasks',
+    description: 'Relate two tasks: blocks, blocked_by, relates_to, duplicates or duplicated_by. Written once, in the direction given — the other task shows the mirror image automatically.',
+    schema: {
+      type: 'object',
+      required: ['source_task', 'target_task', 'type'],
+      properties: {
+        source_task: { type: 'string', description: 'Task id or identifier, e.g. WEB-12' },
+        target_task: { type: 'string', description: 'Task id or identifier' },
+        type: {
+          type: 'string',
+          enum: [...RELATION_KINDS],
+          description: 'Read as "source <type> target": WEB-1 blocks WEB-2 means WEB-2 waits for WEB-1',
+        },
+        lag: {
+          type: 'integer',
+          minimum: 0,
+          maximum: 365,
+          description: 'Working days the target waits after the source finishes. Only meaningful for `blocks`, and only the blocker owns it.',
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      requireWrite(ctx);
+      const workspaceId = workspaceOf(args, ctx);
+      const source = findTask(String(args.source_task), workspaceId, ctx);
+      const target = findTask(String(args.target_task), workspaceId, ctx);
+
+      if (source.id === target.id) throw new McpError('A task cannot be related to itself');
+
+      // `duplicate` is not one of the five, and is the obvious thing to reach
+      // for. Naming the alternatives beats "invalid enum value".
+      const asked = String(args.type ?? '').toLowerCase();
+      const kind = (asked === 'duplicate' ? 'duplicates' : asked) as RelationKind;
+      if (!RELATION_KINDS.includes(kind)) {
+        throw new McpError(`Unknown relation ${args.type}. One of: ${RELATION_KINDS.join(', ')}`);
+      }
+
+      // Already linked, in either direction, counting the mirror image: a
+      // `blocks` row from A to B and a `blocked_by` row from B to A are the
+      // same statement, and both would be drawn.
+      const mirror = INVERSE_RELATION[kind];
+      const existing = get<Row>(
+        `SELECT * FROM task_relations
+          WHERE workspace_id = ? AND deleted_at IS NULL
+            AND ((task_id = ? AND related_task_id = ? AND kind = ?)
+              OR (task_id = ? AND related_task_id = ? AND kind = ?))
+          LIMIT 1`,
+        workspaceId, source.id, target.id, kind, target.id, source.id, mirror,
+      );
+      if (existing) {
+        return { id: String(existing.id), kind: String(existing.kind), already: true,
+          source: source.identifier, target: target.identifier };
+      }
+
+      if ((kind === 'blocks' || kind === 'blocked_by') && blockingLoop(workspaceId, source, target, kind)) {
+        throw new McpError(
+          `${source.identifier} and ${target.identifier} would block each other in a circle, and nothing in that circle could ever start`,
+        );
+      }
+
+      const { row } = writeEntity('relation', uid(), {
+        workspace_id: workspaceId,
+        task_id: source.id,
+        related_task_id: target.id,
+        kind,
+        // `NOT NULL DEFAULT 0`, and clamped to the same 0–365 whole days the
+        // interface allows. Negative would be a lead time — "may start before
+        // its blocker ends" — which is the one rule the scheduler exists to
+        // keep, and a fractional working day means nothing to it.
+        lag: kind === 'blocks' && typeof args.lag === 'number'
+          ? Math.max(0, Math.min(365, Math.round(args.lag)))
+          : 0,
+      }, writeOpts(workspaceId, ctx));
+
+      return {
+        id: String(row.id),
+        kind,
+        lag: Number(row.lag ?? 0),
+        source: { id: String(source.id), identifier: source.identifier, title: source.title },
+        target: { id: String(target.id), identifier: target.identifier, title: target.title },
+      };
+    },
+  },
+  {
+    /**
+     * Put a file on a task.
+     *
+     * The gap this closes is not a convenience. An assistant could already
+     * write a task, comment on it and move it, but anything it *produced* — a
+     * CSV, a screenshot, a generated report — had nowhere to go except pasted
+     * into a comment as text. Everything else in Kolibri that carries a file
+     * hangs off the attachment row this writes, so a file put here appears in
+     * the task's own Files section rather than in a place only an assistant
+     * knows about.
+     *
+     * Base64 because MCP carries JSON. That is a real cost — the encoding adds
+     * a third again, and the whole thing is a string in memory on both sides —
+     * so the limit below is enforced against the *decoded* size, and checked
+     * before decoding rather than after.
+     */
+    name: 'upload_attachment',
+    title: 'Attach a file to a task',
+    description: "Upload a file and attach it to a task, where it appears in the task's Files section. Content is base64. Use this for anything you have produced — a report, an export, an image — rather than pasting it into a comment.",
+    schema: {
+      type: 'object',
+      required: ['task', 'name', 'content_base64'],
+      properties: {
+        task: { type: 'string', description: 'Task id or identifier, e.g. WEB-12' },
+        name: { type: 'string', description: 'File name as it should appear, e.g. "burndown.csv"' },
+        content_base64: { type: 'string', description: 'The file, base64 encoded' },
+        mime: {
+          type: 'string',
+          description: 'Content type, e.g. text/csv. Guessed from the file name when omitted.',
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: async (args, ctx) => {
+      requireWrite(ctx);
+      const workspaceId = workspaceOf(args, ctx);
+      const task = findTask(String(args.task), workspaceId, ctx);
+
+      const name = str(args.name);
+      if (!name) throw new McpError('A file needs a name');
+      const encoded = typeof args.content_base64 === 'string' ? args.content_base64.trim() : '';
+      if (!encoded) throw new McpError('`content_base64` is empty');
+
+      /*
+       * Refuse an oversized upload before decoding it, not after.
+       *
+       * Base64 is four characters for every three bytes, so the decoded length
+       * is knowable from the string. Decoding first to measure would mean
+       * allocating the very buffer the limit exists to prevent — a 200 MB
+       * string against a 25 MB limit would be rejected, having already been
+       * held in memory twice.
+       */
+      const approx = Math.floor((encoded.length * 3) / 4);
+      if (approx > env.maxUploadBytes) {
+        throw new McpError(
+          `That file is about ${Math.round(approx / 1024 / 1024)} MB and the limit is ${Math.round(env.maxUploadBytes / 1024 / 1024)} MB`,
+        );
+      }
+
+      /*
+       * And check that it really is base64.
+       *
+       * `Buffer.from(x, 'base64')` never fails: it skips anything outside the
+       * alphabet and stops at the first byte it cannot use. Hand it a JSON
+       * document by mistake and it returns a short buffer of nonsense, which
+       * would be stored, attached, and downloaded later as a corrupt file with
+       * nothing anywhere saying so.
+       */
+      if (!/^[A-Za-z0-9+/\r\n]*={0,2}$/.test(encoded)) {
+        throw new McpError('`content_base64` is not base64 — send the file encoded, not as raw text');
+      }
+      const body = Buffer.from(encoded, 'base64');
+      if (!body.length) throw new McpError('That decodes to no bytes at all');
+      if (body.length > env.maxUploadBytes) {
+        throw new McpError(`That file is larger than the ${Math.round(env.maxUploadBytes / 1024 / 1024)} MB limit`);
+      }
+
+      const stored = await storeFile({
+        workspaceId,
+        userId: ctx.auth.userId,
+        name,
+        mime: str(args.mime) ?? mimeFromName(name),
+        body,
+        taskId: String(task.id),
+      });
+
+      return {
+        task: task.identifier,
+        name: stored.name,
+        mime: stored.mime,
+        size: stored.size,
+        url: stored.url,
+        attachment: stored.attachment,
+      };
     },
   },
   {
@@ -915,6 +1305,59 @@ const TOOLS: ToolDef[] = [
   },
   {
     /**
+     * The states a project actually has, before something is moved into one.
+     *
+     * `create_task` and `update_task` both take a state by name and both
+     * silently fall back when they do not recognise it — `create_task` to the
+     * project's first state, `update_task` to leaving the task where it is. An
+     * assistant told to "move it to Done" in a project whose last column is
+     * called "Shipped" therefore reports success and changes nothing, which is
+     * the worst of the three possible outcomes.
+     *
+     * `group_key` is the part worth reading rather than the name. Every project
+     * may name its columns whatever it likes; the group is the fixed vocabulary
+     * underneath — backlog, unstarted, started, completed, cancelled — and it is
+     * what every count and filter in Kolibri is actually computed from. Match on
+     * that when the name is not an exact hit.
+     */
+    name: 'list_states',
+    title: 'List workflow states',
+    description: "A project's workflow states in board order, with the group each belongs to and how many open tasks sit in it. Read this before moving a task: state names are per project, and an unrecognised name is ignored rather than refused.",
+    readOnly: true,
+    schema: {
+      type: 'object',
+      required: ['project'],
+      properties: {
+        project: { type: 'string', description: 'Project id, key or name' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = findProject(String(args.project), workspaceId, ctx);
+      const rows = all<Row>(
+        `SELECT * FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+        project.id,
+      );
+      return rows.map((state, index) => ({
+        id: String(state.id),
+        name: String(state.name),
+        // One of backlog | unstarted | started | completed | cancelled.
+        group: String(state.group_key),
+        color: state.color ?? null,
+        // Where a new task lands when `create_task` is given no state — the
+        // first in board order, which is the same rule the server itself uses.
+        is_default: index === 0,
+        wip_limit: state.wip_limit ?? null,
+        tasks: Number(get<Row>(
+          `SELECT count(*) c FROM tasks WHERE state_id = ? AND deleted_at IS NULL AND archived = 0`,
+          state.id,
+        )?.c ?? 0),
+      }));
+    },
+  },
+  {
+    /**
      * What this workspace calls things.
      *
      * The missing half of label support over MCP: `create_task` has always
@@ -1177,7 +1620,7 @@ function readResource(uri: string, ctx: McpCtx) {
   return [{ uri, mimeType: 'text/markdown', text: `# ${task.identifier} ${task.title}\n\n${task.description ?? ''}` }];
 }
 
-export function handleRpc(request: RpcRequest, ctx: McpCtx): Record<string, unknown> | null {
+export async function handleRpc(request: RpcRequest, ctx: McpCtx): Promise<Record<string, unknown> | null> {
   const { method, id } = request;
   const params = request.params ?? {};
   const ok = (result: unknown) => ({ jsonrpc: '2.0', id, result });
@@ -1203,7 +1646,7 @@ export function handleRpc(request: RpcRequest, ctx: McpCtx): Record<string, unkn
       case 'tools/call': {
         const tool = TOOLS.find((t) => t.name === params.name);
         if (!tool) throw new McpError(`Unknown tool ${params.name}`);
-        const result = tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
+        const result = await tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
         return ok({
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
           structuredContent: result && typeof result === 'object' && !Array.isArray(result) ? result : { result },

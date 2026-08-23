@@ -425,6 +425,150 @@ describe('kolibri api', () => {
     assert.match(JSON.stringify(noTitle), /needs a title/);
   });
 
+  /** One `tools/call`, without repeating the envelope twenty times. */
+  const callTool = async (name: string, args: Record<string, unknown>, id = Math.floor(Math.random() * 1e6)) =>
+    api('/mcp', { token: apiToken, body: { jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } } });
+
+  it('lists the states a project really has, with the group under each name', async () => {
+    const states = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    assert.ok(states.length >= 3, 'a project starts with a workflow');
+
+    // The group is the part that is stable across projects, and the reason
+    // this tool exists: names are per project, groups are not.
+    for (const state of states) {
+      assert.ok(['backlog', 'unstarted', 'started', 'completed', 'cancelled'].includes(state.group), state.group);
+    }
+    // Exactly one default, and it is the first in board order — the same rule
+    // the server uses when `create_task` is given no state.
+    assert.equal(states.filter((s: any) => s.is_default).length, 1);
+    assert.equal(states[0].is_default, true);
+  });
+
+  it('creates a batch of tasks, or none of them', async () => {
+    const before = (await callTool('list_tasks', { project: 'WEB' })).result.structuredContent.result.length;
+
+    const made = (await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [
+        { title: 'Batch one', priority: 'high' },
+        { title: 'Batch two', labels: ['bug'] },
+        { quick_add: 'Batch three !urgent' },
+      ],
+    })).result.structuredContent;
+    assert.equal(made.created, 3);
+    assert.equal(made.tasks[0].priority, 'high');
+    // Quick-add is read in a batch exactly as it is in a single call.
+    assert.equal(made.tasks[2].priority, 'urgent');
+    assert.equal(made.tasks[2].title, 'Batch three');
+
+    /*
+     * And the promise the description makes: all or nothing.
+     *
+     * The third entry has no title, so the whole call is refused — including
+     * the two perfectly good tasks in front of it. Without the transaction an
+     * assistant retrying a failed batch would double the entries that had
+     * already gone in.
+     */
+    const rejected = await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [{ title: 'Should not survive' }, { title: 'Nor this' }, { description: 'no title at all' }],
+    });
+    assert.match(JSON.stringify(rejected), /tasks\[2\]/, 'the error names which entry failed');
+
+    const after = (await callTool('list_tasks', { project: 'WEB' })).result.structuredContent.result.length;
+    assert.equal(after, before + 3, 'the rejected batch left nothing behind');
+  });
+
+  it('links two tasks once, and refuses a circle of blockers', async () => {
+    const a = (await callTool('create_task', { project: 'WEB', title: 'Foundations' })).result.structuredContent;
+    const b = (await callTool('create_task', { project: 'WEB', title: 'Walls' })).result.structuredContent;
+    const c = (await callTool('create_task', { project: 'WEB', title: 'Roof' })).result.structuredContent;
+
+    const link = (await callTool('create_task_relation', {
+      source_task: a.identifier, target_task: b.identifier, type: 'blocks',
+    })).result.structuredContent;
+    assert.equal(link.kind, 'blocks');
+    assert.equal(link.source.identifier, a.identifier);
+
+    // Asking twice does not draw it twice, and asking for the mirror image is
+    // the same statement rather than a second link.
+    const again = (await callTool('create_task_relation', {
+      source_task: a.identifier, target_task: b.identifier, type: 'blocks',
+    })).result.structuredContent;
+    assert.equal(again.already, true);
+    const mirrored = (await callTool('create_task_relation', {
+      source_task: b.identifier, target_task: a.identifier, type: 'blocked_by',
+    })).result.structuredContent;
+    assert.equal(mirrored.already, true);
+
+    // A → B → C, and then C → A would be a ring in which nothing can start.
+    await callTool('create_task_relation', { source_task: b.identifier, target_task: c.identifier, type: 'blocks' });
+    const loop = await callTool('create_task_relation', {
+      source_task: c.identifier, target_task: a.identifier, type: 'blocks',
+    });
+    assert.match(JSON.stringify(loop), /circle/, 'a blocking loop must be refused');
+
+    // `duplicate` is the obvious wrong guess, and is understood rather than
+    // answered with an enum error.
+    const dup = (await callTool('create_task_relation', {
+      source_task: a.identifier, target_task: c.identifier, type: 'duplicate',
+    })).result.structuredContent;
+    assert.equal(dup.kind, 'duplicates');
+
+    assert.match(
+      JSON.stringify(await callTool('create_task_relation', {
+        source_task: a.identifier, target_task: a.identifier, type: 'relates_to',
+      })),
+      /itself/,
+    );
+  });
+
+  it('attaches a file to a task, and refuses what is not a file', async () => {
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Needs a report' })).result.structuredContent;
+    const csv = 'name,count\nbugs,3\n';
+
+    const uploaded = (await callTool('upload_attachment', {
+      task: task.identifier,
+      name: 'report.csv',
+      content_base64: Buffer.from(csv).toString('base64'),
+    })).result.structuredContent;
+
+    assert.equal(uploaded.task, task.identifier);
+    // Guessed from the name, since none was given.
+    assert.equal(uploaded.mime, 'text/csv');
+    assert.equal(uploaded.size, csv.length);
+    assert.ok(uploaded.attachment?.id, 'an attachment row is what makes it show up on the task');
+
+    // And the bytes come back, through the same URL the interface would use.
+    const back = await fetch(`${base}${uploaded.url}`, { headers: { authorization: `Bearer ${apiToken}` } });
+    assert.equal(await back.text(), csv);
+
+    // The task's own Files section is the attachment list, so it has to be there.
+    const attachments = await api(`/api/workspaces/${workspaceId}/attachments`);
+    assert.ok(attachments.some((row: any) => row.task_id === task.id && row.name === 'report.csv'));
+
+    /*
+     * Not base64.
+     *
+     * `Buffer.from(x, 'base64')` skips what it cannot read rather than
+     * failing, so raw text would be stored as a short buffer of nonsense and
+     * downloaded later as a corrupt file with nothing anywhere saying so.
+     */
+    assert.match(
+      JSON.stringify(await callTool('upload_attachment', {
+        task: task.identifier, name: 'notes.txt', content_base64: 'this is plainly not base64!!',
+      })),
+      /not base64/,
+    );
+
+    assert.match(
+      JSON.stringify(await callTool('upload_attachment', {
+        task: task.identifier, name: 'empty.txt', content_base64: '',
+      })),
+      /empty/,
+    );
+  });
+
   /**
    * The half of the transport that is not a POST.
    *

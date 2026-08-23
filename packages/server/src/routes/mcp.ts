@@ -16,9 +16,16 @@ export function registerMcpRoutes(router: Router): void {
     const mcpCtx = contextFor(ctx);
     const body = await readJson<unknown>(ctx);
     const messages = Array.isArray(body) ? body : [body];
-    const responses = messages
-      .map((message) => handleRpc(message as Record<string, unknown>, mcpCtx))
-      .filter((r): r is Record<string, unknown> => r !== null);
+    // One at a time, not `Promise.all`. A batch is ordered on purpose — create
+    // the project, then file a task into it — and these were strictly
+    // sequential while every tool was synchronous. Now that one of them awaits
+    // a storage write, running them concurrently would quietly change what a
+    // batch means.
+    const responses: Record<string, unknown>[] = [];
+    for (const message of messages) {
+      const answer = await handleRpc(message as Record<string, unknown>, mcpCtx);
+      if (answer !== null) responses.push(answer);
+    }
 
     if (!responses.length) {
       send(ctx.res, 202, null);
