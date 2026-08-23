@@ -50,6 +50,13 @@ export const de: Catalogue = {
   'nav.teams': 'Teams',
   'nav.projects': 'Projekte',
   'nav.more': 'Mehr',
+  /* Die Wörter der unteren Leiste: kürzer als in der Seitenleiste, weil
+     sechs Einträge sich die Breite eines Telefons teilen. */
+  'nav.bar.myWork': 'Aufgaben',
+  'nav.bar.inbox': 'Posteingang',
+  'nav.bar.chat': 'Chat',
+  'nav.bar.search': 'Suche',
+  'nav.bar.more': 'Mehr',
   'nav.guide': 'Anleitung',
   'nav.settings': 'Einstellungen',
   'nav.newTask': 'Neue Aufgabe',
