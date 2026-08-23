@@ -228,7 +228,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 |---|---|
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
-| `list_tasks` | filter by `project`, `state` (name or group), `type` (Bug, Feature, …), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `due_before`, `query` |
+| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
@@ -237,6 +237,8 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
 | `list_members` | people with role and open task count |
 | `list_labels` | labels with the count of open tasks carrying each; `project` narrows to that project's own plus the workspace-wide ones |
+| `list_states` | a project's workflow states in board order, each with its `group`, colour, task count, and which one is the default |
+| `list_attachments` | files on a task or a page, with the URL to fetch each |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 
@@ -245,7 +247,15 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | Tool | Notes |
 |---|---|
 | `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
-| `update_task` | any field, including `state`, `type`, `assignees`, `cycle`, `due_date`, `archived`. An unknown `type` is refused rather than created |
+| `update_task` | any field, including `state`, `assignees`, `cycle`, `due_date`, `archived` |
+| `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
+| `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
+| `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
+| `delete_attachment` | detaches a file; soft, and the shared bytes stay put |
+| `create_state` / `update_state` | add a board column, or change its name, colour, group or WIP limit |
+| `update_cycle` / `delete_cycle` | edit a sprint's dates and name; deleting is soft and keeps the tasks |
+| `create_label` / `update_label` | a label made on purpose, with a colour — refused if one by that name is already usable in scope |
+| `update_project` | name, icon, description, status, lead, dates, archived — **not** the key |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
@@ -270,8 +280,140 @@ the number that separates a label the team actually uses from one somebody inven
 `project` narrows it to that project's own labels plus the workspace-wide ones — the same set
 `create_task` will match against.
 
-Work item **types** behave the opposite way: an unknown `type` is refused rather than created. The
-list of what a team calls its work is not cheap to invent.
+### States, and the two ways an unknown one goes wrong
+
+`create_task` and `update_task` both take a state by **name**, and they treat one they do not
+recognise differently. `update_task` refuses with an error — a failed move is at least a visible
+one. `create_task` falls back silently to the project's default column, so a misspelled state files
+the task somewhere unintended and reports success. Both are avoided the same way: read the list
+first.
+
+**`list_states` is the answer to that.** It returns a project's columns in board order, and the field
+worth reading is `group` rather than `name`. Names are per project; the group is the fixed vocabulary
+underneath — `backlog`, `unstarted`, `started`, `completed`, `cancelled` — and it is what every count
+and filter in Kolibri is actually computed from. Match on the name when it is an exact hit, and on
+the group when it is not.
+
+### Editing the board itself
+
+`create_state` appends a column; `update_state` changes its name, colour, group or WIP limit. Two
+things are worth knowing before either.
+
+**`cancelled` has two Ls.** Every "what is finished" count in Kolibri — the board, the project
+digest, the cycle burn-down, `list_tasks`, the label counts — is `group_key IN ('completed',
+'cancelled')`. A state stored as `canceled` would look perfectly right in the settings screen and be
+silently missing from all of them. The American spelling is therefore accepted and normalised rather
+than stored, here and in `update_project`'s status.
+
+**There are five groups, not four**: `backlog`, `unstarted`, `started`, `completed`, `cancelled`.
+`backlog` is the group the default first column belongs to, so leaving it out would make the one
+kind of column MCP could not create the commonest one.
+
+Changing a state's **group** is the consequential edit. It moves no task, but it changes what every
+count in the app says about the tasks already sitting in that column — dragging a column from
+`started` to `completed` marks that work finished everywhere at once.
+
+### Cycles, and a status nothing reads yet
+
+`update_cycle` and `delete_cycle` complete the set. Two honest caveats:
+
+**`status` is recorded, not acted on.** The column is in the model and this writes it, but nothing in
+Kolibri reads it: which cycle is *current* is worked out from the dates
+(`start_date <= today <= end_date`), and that is what `cycle: "current"` resolves through, what the
+burn-down uses and what the project digest reports. Setting a status records an intention. **The
+dates are the part with teeth.** It round-trips through `list_cycles` so at least it is observable.
+
+**Deleting is soft**, the same delete the interface does: the cycle goes to the trash and can be
+restored for `KOLIBRI_TRASH_DAYS`. Tasks in it are kept — they simply lose their cycle — and the
+answer reports how many, so nobody has to guess what a sprint deletion just did.
+
+`update_cycle` also accepts `"current"` as the cycle, so "extend the current sprint" needs no lookup.
+
+### A batch is one transaction
+
+`create_tasks_batch` takes up to 100 tasks and files them **all or none**. The reason is not the
+round trips. Twenty separate `create_task` calls can fail on the eleventh and leave ten tasks behind
+that nobody asked for on their own; an assistant that then retries the list makes ten more. With one
+transaction a failed batch leaves nothing, so retrying it is safe and needs no counting. That
+includes the effects a database rollback cannot reach: webhooks and push notifications for a batch
+are held until it commits, so a failed batch announces nothing and a retried one announces things
+once.
+
+Entries land on the board **in the order given** — the batch sits as one block at the top, first
+entry first.
+
+Each entry takes exactly what `create_task` takes, through the same code — `quick_add` included — so
+a batch cannot quietly follow different rules from a single call. `project` names the project once
+and any entry may override it, which is how one call files a feature into `WEB` and its
+infrastructure work into `OPS`. An error names the entry: `tasks[7]: Which project?`.
+
+### Relations are written once, in one direction
+
+`create_task_relation` writes a single row. The other task shows the mirror image automatically —
+`WEB-1 blocks WEB-2` reads as "blocked by WEB-1" on WEB-2 — so there is no second call to make, and
+asking for the mirror image of a link that already exists returns the existing one with
+`already: true` rather than drawing it twice.
+
+The five kinds are `blocks`, `blocked_by`, `relates_to`, `duplicates` and `duplicated_by`.
+(`duplicate` is understood as `duplicates`, since it is the obvious thing to reach for.)
+`blocked_by` is stored as the equivalent `blocks` row — the same statement, in the direction the
+planner, the Gantt chart and the scheduling cascade actually read, and the direction that lets a
+`lag` mean something.
+
+`blocks` is load-bearing beyond the task detail: the planner and the Gantt chart schedule from it,
+and `lag` — whole working days, 0–365 — is the breathing room between a blocker finishing and its
+dependant starting. **A cycle of blockers is refused**, because nothing in such a ring can ever
+start. Nothing else in the server checks this, since until now the only way to build one was by hand
+in the interface, one link at a time, looking at both tasks. An assistant working from a list can
+build a ten-task ring without ever seeing it.
+
+### Attachments
+
+`upload_attachment` puts bytes on a task, where they appear in its own Files section rather than
+somewhere only an assistant knows about. It closes a real gap: an assistant could already write,
+comment and move tasks, but anything it *produced* — a CSV, a generated report, an image — had
+nowhere to go except pasted into a comment as text.
+
+Content is base64, because MCP carries JSON. That is a genuine cost — the encoding adds a third
+again, and the whole thing is a string in memory at both ends — so the upload limit
+(`KOLIBRI_MAX_UPLOAD_MB`, 25 MB by default) is enforced against the **decoded** size and checked
+before decoding, rather than after allocating the very buffer the limit exists to prevent.
+
+`mime` is optional and guessed from the file name. Input that is not base64 is refused rather than
+stored: `Buffer.from(x, 'base64')` skips what it cannot read instead of failing, so raw text handed
+to it becomes a short buffer of nonsense — stored, attached, and downloaded later as a corrupt file
+with nothing anywhere saying so.
+
+### Attachments, listed and removed
+
+`list_attachments` takes a `task` **or** a `page` — the model hangs files off either, and a tool that
+could only see half of them would send an assistant looking for a file that is plainly there. The
+URLs it returns need the same authorisation as the call; they are not public links, and on an
+object-store deployment they become short-lived signed URLs at the moment they are followed.
+
+`delete_attachment` removes the attachment — the row that puts the file on the task — and **not the
+bytes**. Storage is content-addressed and shared: the same file uploaded to two workspaces is one
+blob with two rows, so deleting the blob would take it out from under somebody else. Sweeping blobs
+that nothing points at any more is a separate job.
+
+### Labels and project metadata
+
+`create_label` is the deliberate counterpart to the accidental path. `create_task` invents a label it
+does not recognise — that is what puts `bugs` next to `bug` — and this one is **refused** when a label
+by that name is already usable in scope, which is exactly the collision the accidental path cannot
+see. Scope counts: a workspace-wide `bug` and a project-local `bug` look identical on a task, so both
+are checked.
+
+`update_label` will widen a project label to the whole workspace but not the reverse: narrowing one
+would strip it from the tasks in every *other* project that already carry it, and deleting a label is
+a different act that should not happen by implication.
+
+`update_project` takes name, icon, description, status, lead, dates and archived. It does **not** take
+the key, deliberately. A key is the prefix of every identifier the project has ever minted, so
+changing it does not rename `WEB-42` — it leaves that task named after a prefix the project no longer
+has. The settings screen allows it because a person doing it is looking at the project; that is not
+the position an assistant is in, and the server settles a rejected key silently through `forced`
+rather than throwing, so a refusal would not even reach the caller as an error.
 
 ### Quick-add syntax, when a person typed the line
 

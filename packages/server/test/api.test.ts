@@ -16,6 +16,7 @@ import { Clock, orderKey, type PullResponse, type PushResponse } from '@kolibri/
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
 const { server } = await import('../src/index.ts');
+const { all } = await import('../src/db/index.ts');
 
 let base = '';
 let cookie = '';
@@ -423,6 +424,515 @@ describe('kolibri api', () => {
       },
     });
     assert.match(JSON.stringify(noTitle), /needs a title/);
+  });
+
+  /** One `tools/call`, without repeating the envelope twenty times. */
+  const callTool = async (name: string, args: Record<string, unknown>, id = Math.floor(Math.random() * 1e6)) =>
+    api('/mcp', { token: apiToken, body: { jsonrpc: '2.0', id, method: 'tools/call', params: { name, arguments: args } } });
+
+  it('lists the states a project really has, with the group under each name', async () => {
+    const states = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    assert.ok(states.length >= 3, 'a project starts with a workflow');
+
+    // The group is the part that is stable across projects, and the reason
+    // this tool exists: names are per project, groups are not.
+    for (const state of states) {
+      assert.ok(['backlog', 'unstarted', 'started', 'completed', 'cancelled'].includes(state.group), state.group);
+    }
+    // Exactly one default, and it is the first in board order — the same rule
+    // the server uses when `create_task` is given no state.
+    assert.equal(states.filter((s: any) => s.is_default).length, 1);
+    assert.equal(states[0].is_default, true);
+  });
+
+  it('creates a batch of tasks, or none of them', async () => {
+    const before = (await callTool('list_tasks', { project: 'WEB' })).result.structuredContent.result.length;
+
+    const made = (await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [
+        { title: 'Batch one', priority: 'high' },
+        { title: 'Batch two', labels: ['bug'] },
+        { quick_add: 'Batch three !urgent' },
+      ],
+    })).result.structuredContent;
+    assert.equal(made.created, 3);
+    assert.equal(made.tasks[0].priority, 'high');
+    // Quick-add is read in a batch exactly as it is in a single call.
+    assert.equal(made.tasks[2].priority, 'urgent');
+    assert.equal(made.tasks[2].title, 'Batch three');
+
+    /*
+     * And the promise the description makes: all or nothing.
+     *
+     * The third entry has no title, so the whole call is refused — including
+     * the two perfectly good tasks in front of it. Without the transaction an
+     * assistant retrying a failed batch would double the entries that had
+     * already gone in.
+     */
+    const rejected = await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [{ title: 'Should not survive' }, { title: 'Nor this' }, { description: 'no title at all' }],
+    });
+    assert.match(JSON.stringify(rejected), /tasks\[2\]/, 'the error names which entry failed');
+
+    const after = (await callTool('list_tasks', { project: 'WEB' })).result.structuredContent.result.length;
+    assert.equal(after, before + 3, 'the rejected batch left nothing behind');
+  });
+
+  it('links two tasks once, and refuses a circle of blockers', async () => {
+    const a = (await callTool('create_task', { project: 'WEB', title: 'Foundations' })).result.structuredContent;
+    const b = (await callTool('create_task', { project: 'WEB', title: 'Walls' })).result.structuredContent;
+    const c = (await callTool('create_task', { project: 'WEB', title: 'Roof' })).result.structuredContent;
+
+    const link = (await callTool('create_task_relation', {
+      source_task: a.identifier, target_task: b.identifier, type: 'blocks',
+    })).result.structuredContent;
+    assert.equal(link.kind, 'blocks');
+    assert.equal(link.source.identifier, a.identifier);
+
+    // Asking twice does not draw it twice, and asking for the mirror image is
+    // the same statement rather than a second link.
+    const again = (await callTool('create_task_relation', {
+      source_task: a.identifier, target_task: b.identifier, type: 'blocks',
+    })).result.structuredContent;
+    assert.equal(again.already, true);
+    const mirrored = (await callTool('create_task_relation', {
+      source_task: b.identifier, target_task: a.identifier, type: 'blocked_by',
+    })).result.structuredContent;
+    assert.equal(mirrored.already, true);
+
+    // A → B → C, and then C → A would be a ring in which nothing can start.
+    await callTool('create_task_relation', { source_task: b.identifier, target_task: c.identifier, type: 'blocks' });
+    const loop = await callTool('create_task_relation', {
+      source_task: c.identifier, target_task: a.identifier, type: 'blocks',
+    });
+    assert.match(JSON.stringify(loop), /circle/, 'a blocking loop must be refused');
+
+    // `duplicate` is the obvious wrong guess, and is understood rather than
+    // answered with an enum error.
+    const dup = (await callTool('create_task_relation', {
+      source_task: a.identifier, target_task: c.identifier, type: 'duplicate',
+    })).result.structuredContent;
+    assert.equal(dup.kind, 'duplicates');
+
+    assert.match(
+      JSON.stringify(await callTool('create_task_relation', {
+        source_task: a.identifier, target_task: a.identifier, type: 'relates_to',
+      })),
+      /itself/,
+    );
+  });
+
+  it('adds and edits a workflow column, and spells cancelled the way the app does', async () => {
+    const before = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+
+    const made = (await callTool('create_state', {
+      project: 'WEB', name: 'To Be Reviewed', group: 'started', color: '#3B82F6',
+    })).result.structuredContent;
+    assert.equal(made.group, 'started');
+    // Lower-cased on the way in, because that is what the interface produces
+    // and two spellings of one colour are two colours to a string comparison.
+    assert.equal(made.color, '#3b82f6');
+
+    const after = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    assert.equal(after.length, before.length + 1);
+    // Appended, not inserted — a new column must not shove everybody's board.
+    assert.equal(after[after.length - 1].name, 'To Be Reviewed');
+    assert.equal(after[0].is_default, true, 'the default is still the first column');
+
+    /*
+     * The spelling trap.
+     *
+     * Every "what is finished" count in Kolibri is `group_key IN
+     * ('completed','cancelled')` — two Ls. A state stored as `canceled` would
+     * look right in the settings screen and be silently absent from all of
+     * them, so the American spelling is accepted and normalised rather than
+     * stored.
+     */
+    const spelled = (await callTool('update_state', {
+      state_id: made.id, group: 'canceled',
+    })).result.structuredContent;
+    assert.equal(spelled.group, 'cancelled');
+
+    const renamed = (await callTool('update_state', {
+      state_id: made.id, name: 'In QA', color: '#10b981', wip_limit: 3,
+    })).result.structuredContent;
+    assert.equal(renamed.name, 'In QA');
+    assert.equal(renamed.wip_limit, 3);
+
+    // `backlog` is one of the five and must be creatable, even though the
+    // proposal that asked for this tool listed only four groups.
+    assert.equal(
+      (await callTool('create_state', { project: 'WEB', name: 'Icebox', group: 'backlog' })).result.structuredContent.group,
+      'backlog',
+    );
+
+    // Two columns with one name is a board where "move it to In QA" has two answers.
+    assert.match(
+      JSON.stringify(await callTool('create_state', { project: 'WEB', name: 'in qa', group: 'started' })),
+      /already has a state/,
+    );
+    assert.match(
+      JSON.stringify(await callTool('create_state', { project: 'WEB', name: 'Nope', group: 'sideways' })),
+      /Unknown group/,
+    );
+    // Prose in a colour field ends up in a stylesheet.
+    assert.match(
+      JSON.stringify(await callTool('create_state', { project: 'WEB', name: 'Nope2', group: 'started', color: 'blue' })),
+      /hex colour/,
+    );
+  });
+
+  it('edits and deletes a cycle, keeping the tasks that were in it', async () => {
+    const cycle = (await callTool('create_cycle', {
+      project: 'WEB', name: 'Sprint 9', start_date: '2026-09-01', end_date: '2026-09-14',
+    })).result.structuredContent;
+
+    const moved = (await callTool('update_cycle', {
+      cycle: 'Sprint 9', end_date: '2026-09-21', status: 'active', description: 'Two weeks and a bit',
+    })).result.structuredContent;
+    assert.equal(moved.end_date, '2026-09-21');
+    assert.equal(moved.status, 'active');
+
+    // Status round-trips through the listing, so setting it is observable even
+    // though nothing in the interface reads it yet.
+    const listed = (await callTool('list_cycles', { project: 'WEB' })).result.structuredContent.result;
+    assert.equal(listed.find((c: any) => c.id === cycle.id).status, 'active');
+
+    assert.match(
+      JSON.stringify(await callTool('update_cycle', { cycle: 'Sprint 9', start_date: '2026-10-01' })),
+      /cannot end/,
+      'a sprint that ends before it starts is not a sprint',
+    );
+    assert.match(
+      JSON.stringify(await callTool('update_cycle', { cycle: 'Sprint 9', end_date: 'next friday' })),
+      /YYYY-MM-DD/,
+    );
+
+    // A task in the cycle survives the cycle being deleted, and the answer says
+    // how many just lost their sprint.
+    const task = (await callTool('create_task', { project: 'WEB', title: 'In the sprint', cycle: 'Sprint 9' })).result.structuredContent;
+    const gone = (await callTool('delete_cycle', { cycle: 'Sprint 9' })).result.structuredContent;
+    assert.equal(gone.tasks_released, 1);
+    assert.ok(
+      (await callTool('get_task', { task: task.identifier })).result.structuredContent.id,
+      'the task itself is still there',
+    );
+    assert.ok(!(await callTool('list_cycles', { project: 'WEB' })).result.structuredContent.result
+      .some((c: any) => c.id === cycle.id));
+  });
+
+  it('lists and removes attachments', async () => {
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Has files' })).result.structuredContent;
+    const one = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'first.csv', content_base64: Buffer.from('a,b\n1,2\n').toString('base64'),
+    })).result.structuredContent;
+    await callTool('upload_attachment', {
+      task: task.identifier, name: 'second.txt', content_base64: Buffer.from('hello').toString('base64'),
+    });
+
+    const files = (await callTool('list_attachments', { task: task.identifier })).result.structuredContent.result;
+    assert.equal(files.length, 2);
+    assert.deepEqual(files.map((f: any) => f.name), ['first.csv', 'second.txt']);
+    assert.ok(files[0].url.startsWith('/files/'));
+
+    const removed = (await callTool('delete_attachment', { attachment_id: one.attachment.id })).result.structuredContent;
+    assert.equal(removed.deleted, 'first.csv');
+    const left = (await callTool('list_attachments', { task: task.identifier })).result.structuredContent.result;
+    assert.deepEqual(left.map((f: any) => f.name), ['second.txt']);
+
+    // The bytes are content-addressed and shared, so removing the row must not
+    // take the file out from under anything else pointing at it.
+    const still = await fetch(`${base}${one.url}`, { headers: { authorization: `Bearer ${apiToken}` } });
+    assert.equal(still.status, 200, 'the stored bytes are shared and stay put');
+
+    assert.match(JSON.stringify(await callTool('list_attachments', {})), /Pass `task` or `page`/);
+  });
+
+  it('creates and edits labels, refusing one that already exists in scope', async () => {
+    const made = (await callTool('create_label', {
+      name: 'needs-design', color: '#A855F7', description: 'Waiting on a mock',
+    })).result.structuredContent;
+    assert.equal(made.color, '#a855f7');
+    assert.equal(made.project_id, null, 'no project means every project may use it');
+
+    // Case is forgiven when matching, which is the whole point — `create_task`
+    // matches the same way, so this is the collision it cannot see.
+    assert.match(
+      JSON.stringify(await callTool('create_label', { name: 'Needs-Design' })),
+      /already exists/,
+    );
+    // And a project-scoped one collides with the workspace-wide one too: on a
+    // task the two look identical.
+    assert.match(
+      JSON.stringify(await callTool('create_label', { name: 'needs-design', project: 'WEB' })),
+      /already exists/,
+    );
+
+    const edited = (await callTool('update_label', {
+      label: 'needs-design', name: 'needs-a-mock', color: '#111827',
+    })).result.structuredContent;
+    assert.equal(edited.name, 'needs-a-mock');
+    assert.equal(edited.color, '#111827');
+
+    // Narrowing a workspace label to one project would strip it from tasks in
+    // every other project that already carry it.
+    assert.match(
+      JSON.stringify(await callTool('update_label', { label: edited.id, workspace_wide: false })),
+      /cannot be narrowed/,
+    );
+  });
+
+  it('updates project metadata, and will not touch the key', async () => {
+    const updated = (await callTool('update_project', {
+      project: 'WEB',
+      name: 'Website relaunch',
+      icon: '🚀',
+      description: 'The public site',
+      status: 'in_progress',
+      target_date: '2026-12-01',
+    })).result.structuredContent;
+
+    assert.equal(updated.name, 'Website relaunch');
+    assert.equal(updated.icon, '🚀');
+    assert.equal(updated.status, 'in_progress');
+    assert.equal(updated.key, 'WEB', 'the key is not settable here');
+
+    // Same spelling rule as the state groups.
+    assert.equal(
+      (await callTool('update_project', { project: 'WEB', status: 'canceled' })).result.structuredContent.status,
+      'cancelled',
+    );
+    assert.match(
+      JSON.stringify(await callTool('update_project', { project: 'WEB', status: 'on fire' })),
+      /Unknown status/,
+    );
+
+    // `key` is not in the schema, so passing it changes nothing rather than
+    // renaming every identifier the project has minted.
+    const ignored = (await callTool('update_project', { project: 'WEB', key: 'SITE', name: 'Website relaunch' })).result.structuredContent;
+    assert.equal(ignored.key, 'WEB');
+
+    await callTool('update_project', { project: 'WEB', status: 'in_progress' });
+  });
+
+  it('gives a colourless label the colour the schema promises', async () => {
+    // `color` is NOT NULL DEFAULT — writing an explicit null defeated the
+    // default and the insert died with a raw constraint error. The one test
+    // that existed always passed a colour, which is how it never noticed.
+    const plain = (await callTool('create_label', { name: 'plain-colour-check' })).result.structuredContent;
+    assert.equal(plain.color, '#6366f1');
+  });
+
+  it('sees a label clash from both directions, and refuses a widening that would collide', async () => {
+    await callTool('create_project', { name: 'Label pen', key: 'LBL' });
+    await callTool('create_label', { name: 'scoped-first', project: 'LBL' });
+    // The reverse of the existing test: the project label exists, the
+    // workspace-wide one arrives second — and would become usable in the very
+    // project that already has one.
+    assert.match(
+      JSON.stringify(await callTool('create_label', { name: 'Scoped-First' })),
+      /already exists in a project/,
+    );
+
+    // Widening collides the same way: LBL has its own `dupe-x`, so widening
+    // LB2's `dupe-x` would put two identical chips on LBL's tasks. (Neither
+    // lives in WEB, whose starting label set another test asserts verbatim.)
+    await callTool('create_project', { name: 'Label pen two', key: 'LB2' });
+    const mine = (await callTool('create_label', { name: 'dupe-x', project: 'LB2' })).result.structuredContent;
+    await callTool('create_label', { name: 'dupe-x', project: 'LBL' });
+    assert.match(
+      JSON.stringify(await callTool('update_label', { label: mine.id, workspace_wide: true })),
+      /already usable there/,
+    );
+  });
+
+  it('refuses a lead it cannot resolve instead of clearing the real one', async () => {
+    const set = (await callTool('update_project', { project: 'WEB', lead: 'ada@example.com' })).result.structuredContent;
+    assert.ok(set.lead_id, 'the lead resolves by email');
+
+    // The trap: resolveUsers drops what it does not recognise, so a typo used
+    // to come back as success with lead_id null — the wrong person reported as
+    // removed rather than the typo reported at all.
+    assert.match(
+      JSON.stringify(await callTool('update_project', { project: 'WEB', lead: 'No Such Person' })),
+      /No member matching/,
+    );
+    const kept = (await callTool('update_project', { project: 'WEB', status: 'in_progress' })).result.structuredContent;
+    assert.equal(kept.lead_id, set.lead_id, 'the failed update must not have touched the lead');
+
+    const cleared = (await callTool('update_project', { project: 'WEB', lead: null })).result.structuredContent;
+    assert.equal(cleared.lead_id, null, 'null is the one honest way to clear');
+  });
+
+  it('files a batch in the order it was given, at the top of the board', async () => {
+    await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [{ title: 'Order check 1' }, { title: 'Order check 2' }, { title: 'Order check 3' }],
+    });
+    // Each entry used to take the top for itself, so a plan landed reversed.
+    const top = all<any>(
+      `SELECT title FROM tasks WHERE project_id = (SELECT id FROM projects WHERE key = 'WEB')
+        AND deleted_at IS NULL ORDER BY sort_order LIMIT 3`,
+    ).map((row) => row.title);
+    assert.deepEqual(top, ['Order check 1', 'Order check 2', 'Order check 3']);
+  });
+
+  it('stores blocked_by as the blocks row the schedulers actually read', async () => {
+    const x = (await callTool('create_task', { project: 'WEB', title: 'Waits' })).result.structuredContent;
+    const y = (await callTool('create_task', { project: 'WEB', title: 'Holds up' })).result.structuredContent;
+
+    // "X is blocked by Y" — stored flipped, because the planner, the Gantt and
+    // the scheduling cascade all read `kind = 'blocks'` only. Stored verbatim
+    // it displayed correctly and scheduled nothing.
+    const link = (await callTool('create_task_relation', {
+      source_task: x.identifier, target_task: y.identifier, type: 'blocked_by', lag: 3,
+    })).result.structuredContent;
+    assert.equal(link.kind, 'blocks');
+    assert.equal(link.source.identifier, y.identifier);
+    assert.equal(link.target.identifier, x.identifier);
+    // And the flip is what lets the lag count: it belongs to the blocker.
+    assert.equal(link.lag, 3);
+  });
+
+  it('validates dates wherever a task takes one', async () => {
+    assert.match(
+      JSON.stringify(await callTool('create_task', { project: 'WEB', title: 'Bad date', due_date: 'next friday' })),
+      /YYYY-MM-DD/,
+    );
+    assert.match(
+      JSON.stringify(await callTool('create_tasks_batch', {
+        project: 'WEB', tasks: [{ title: 'Fine' }, { title: 'Not fine', due_date: '2026/09/01' }],
+      })),
+      /tasks\[1\].*YYYY-MM-DD/,
+    );
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Dated', due_date: '2026-09-01' })).result.structuredContent;
+    assert.equal(task.due_date, '2026-09-01');
+    assert.match(
+      JSON.stringify(await callTool('update_task', { task: task.identifier, due_date: 'garbage' })),
+      /YYYY-MM-DD/,
+    );
+    // Null still clears — the validation must not take that away.
+    const cleared = (await callTool('update_task', { task: task.identifier, due_date: null })).result.structuredContent;
+    assert.equal(cleared.due_date, null);
+  });
+
+  it('lets a cleared date through the range check', async () => {
+    await callTool('create_cycle', { project: 'WEB', name: 'Clearing', start_date: '2026-09-01', end_date: '2026-09-14' });
+    // Final state: no start, end in August. Legal — but `??` resurrected the
+    // old September start into the check and refused it.
+    const cleared = (await callTool('update_cycle', {
+      cycle: 'Clearing', start_date: null, end_date: '2026-08-20',
+    })).result.structuredContent;
+    assert.equal(cleared.start_date, null);
+    assert.equal(cleared.end_date, '2026-08-20');
+    await callTool('delete_cycle', { cycle: 'Clearing' });
+  });
+
+  it('marks the default state the server actually uses, not merely the first', async () => {
+    const states = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    const progress = states.find((s: any) => s.name === 'In Progress');
+    const webId = all<any>(`SELECT id FROM projects WHERE key = 'WEB'`)[0].id;
+    await api(`/api/projects/${webId}`, { method: 'PATCH', body: { default_state_id: progress.id } });
+
+    // `applyCreateDefaults` prefers the project's own default_state_id; the
+    // first-in-board-order rule is only its fallback. is_default has to say
+    // where a stateless create will really land.
+    const after = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    assert.equal(after.find((s: any) => s.is_default)?.name, 'In Progress');
+    const landed = (await callTool('create_task', { project: 'WEB', title: 'Lands in the default' })).result.structuredContent;
+    assert.equal(landed.state, 'In Progress');
+
+    await api(`/api/projects/${webId}`, { method: 'PATCH', body: { default_state_id: null } });
+  });
+
+  it('accepts an upload larger than the old transport ceiling', async () => {
+    // The tool promised KOLIBRI_MAX_UPLOAD_MB (25 MB) but the MCP route read
+    // its body through readJson's 8 MB default, so anything over ~6 MB died as
+    // a bare HTTP 413 before the tool could answer. Nine megabytes sits square
+    // in the gap: over the old ceiling, under the real limit.
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Big file' })).result.structuredContent;
+    const big = Buffer.alloc(9 * 1024 * 1024, 7);
+    const uploaded = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'big.bin', content_base64: big.toString('base64'),
+    })).result.structuredContent;
+    assert.equal(uploaded.size, big.length);
+  });
+
+  it('refuses a guest the writes REST already refuses them', async () => {
+    const ada = cookie;
+    const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'guest' } });
+    cookie = '';
+    await api('/api/auth/register', { body: { email: 'guest@example.com', name: 'Guest', password: 'a fine password' } });
+    await api(`/api/invites/${invite.code}/accept`, { body: {} });
+    // The premise of the hole: a guest can mint themselves a write-scoped
+    // token, because tokens only ever required membership.
+    const minted = await api('/api/tokens', { body: { name: 'guest-token', workspaceId } });
+    cookie = ada;
+
+    const asGuest = async (name: string, args: Record<string, unknown>) => api('/mcp', {
+      token: minted.token,
+      body: { jsonrpc: '2.0', id: 99, method: 'tools/call', params: { name, arguments: args } },
+    });
+
+    // Every write door says what REST says; reading still works.
+    for (const [name, args] of [
+      ['create_task', { project: 'WEB', title: 'nope' }],
+      ['create_state', { project: 'WEB', name: 'nope', group: 'started' }],
+      ['upload_attachment', { task: 'WEB-1', name: 'x.txt', content_base64: 'aGk=' }],
+      ['update_project', { project: 'WEB', name: 'nope' }],
+    ] as const) {
+      assert.match(JSON.stringify(await asGuest(name, args as Record<string, unknown>)), /Guests cannot create content/, name);
+    }
+    const listed = await asGuest('list_tasks', { project: 'WEB' });
+    assert.ok(listed.result.structuredContent.result.length > 0, 'reading stays open to guests');
+  });
+
+  it('attaches a file to a task, and refuses what is not a file', async () => {
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Needs a report' })).result.structuredContent;
+    const csv = 'name,count\nbugs,3\n';
+
+    const uploaded = (await callTool('upload_attachment', {
+      task: task.identifier,
+      name: 'report.csv',
+      content_base64: Buffer.from(csv).toString('base64'),
+    })).result.structuredContent;
+
+    assert.equal(uploaded.task, task.identifier);
+    // Guessed from the name, since none was given.
+    assert.equal(uploaded.mime, 'text/csv');
+    assert.equal(uploaded.size, csv.length);
+    assert.ok(uploaded.attachment?.id, 'an attachment row is what makes it show up on the task');
+
+    // And the bytes come back, through the same URL the interface would use.
+    const back = await fetch(`${base}${uploaded.url}`, { headers: { authorization: `Bearer ${apiToken}` } });
+    assert.equal(await back.text(), csv);
+
+    // The task's own Files section is the attachment list, so it has to be there.
+    const attachments = await api(`/api/workspaces/${workspaceId}/attachments`);
+    assert.ok(attachments.some((row: any) => row.task_id === task.id && row.name === 'report.csv'));
+
+    /*
+     * Not base64.
+     *
+     * `Buffer.from(x, 'base64')` skips what it cannot read rather than
+     * failing, so raw text would be stored as a short buffer of nonsense and
+     * downloaded later as a corrupt file with nothing anywhere saying so.
+     */
+    assert.match(
+      JSON.stringify(await callTool('upload_attachment', {
+        task: task.identifier, name: 'notes.txt', content_base64: 'this is plainly not base64!!',
+      })),
+      /not base64/,
+    );
+
+    assert.match(
+      JSON.stringify(await callTool('upload_attachment', {
+        task: task.identifier, name: 'empty.txt', content_base64: '',
+      })),
+      /empty/,
+    );
   });
 
   /**

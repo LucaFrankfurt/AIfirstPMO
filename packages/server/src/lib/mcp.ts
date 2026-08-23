@@ -7,16 +7,18 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
-  PRIORITIES, fieldValueId, orderKey, parseDuration, parseQuickAdd, readFieldValue,
-  writeFieldValue, type EntityName, type Vocabulary,
+  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, fieldValueId, orderKey, parseDuration,
+  parseQuickAdd, readFieldValue, writeFieldValue,
+  type EntityName, type ProjectStatus, type RelationKind, type StateGroup, type Vocabulary,
 } from '@kolibri/shared';
-import { all, get, type Row } from '../db/index.ts';
+import { all, get, tx, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import type { Auth } from './auth.ts';
 import { createProject, serverClock } from './bootstrap.ts';
 import { instantiateTemplate } from './automation.ts';
 import { hasFeature } from './features.ts';
-import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, writeEntity } from './repo.ts';
+import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, withEffectsHeld, writeEntity } from './repo.ts';
+import { storeFile } from '../routes/files.ts';
 import { searchWorkspace } from '../routes/search.ts';
 import { uid } from './ids.ts';
 
@@ -36,7 +38,13 @@ interface ToolDef {
   description: string;
   schema: Record<string, unknown>;
   readOnly?: boolean;
-  run: (args: Record<string, any>, ctx: McpCtx) => unknown;
+  /**
+   * May return a promise. Almost none do — every tool here reads and writes
+   * SQLite, which `node:sqlite` does synchronously — but `upload_attachment`
+   * puts bytes in a store that may be an object store across a network, and
+   * one tool that has to wait is enough to make the whole path awaitable.
+   */
+  run: (args: Record<string, any>, ctx: McpCtx) => unknown | Promise<unknown>;
 }
 
 export interface McpCtx {
@@ -99,6 +107,314 @@ function findProject(ref: string, workspaceId: string, ctx: McpCtx): Row {
   return row;
 }
 
+/**
+ * File one task, from the arguments `create_task` takes.
+ *
+ * Shared with `create_tasks_batch` so the two cannot drift: a batch that
+ * quietly ignored `quick_add`, or resolved labels differently, would be the
+ * same tool with different rules depending on how many tasks you asked for.
+ *
+ * `fallbackProject` is what the batch passes down — the project named once for
+ * the whole call, which each entry may still override.
+ */
+function fileTask(
+  args: Record<string, any>,
+  workspaceId: string,
+  ctx: McpCtx,
+  fallbackProject?: string,
+  /**
+   * Threaded through by `create_tasks_batch`, per project, so a list arrives
+   * in the order it was given. A single create places the new task at the top
+   * of the board; each entry of a batch doing that landed the whole batch
+   * *reversed*, because every insert became the top the next insert went
+   * above. The chain keeps the batch as a block at the top, in order: the
+   * first entry takes the old top as its bound, and each later one slots
+   * between its predecessor and that same bound.
+   */
+  order?: Map<string, { prev: string | null; bound: string | null }>,
+): Row {
+  const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
+  const title = (quick?.title ?? str(args.title) ?? '').trim();
+  if (!title) throw new McpError('A task needs a title — pass `title`, or a `quick_add` line with words in it', -32602);
+  const named = quick?.projectId ?? str(args.project) ?? fallbackProject;
+  if (!named) throw new McpError('Which project? Pass `project`, or name one in `quick_add` with #KEY', -32602);
+  const project = findProject(named, workspaceId, ctx);
+  const state = resolveState(project.id, str(args.state));
+  const parent = args.parent ? findTask(String(args.parent), workspaceId, ctx) : undefined;
+
+  let sort: string;
+  const anchor = order?.get(project.id);
+  if (anchor) {
+    sort = orderKey(anchor.prev, anchor.bound);
+    anchor.prev = sort;
+  } else {
+    const first = get<Row>(
+      `SELECT sort_order FROM tasks WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`,
+      project.id,
+    );
+    sort = orderKey(null, first?.sort_order ?? null);
+    order?.set(project.id, { prev: sort, bound: first?.sort_order ?? null });
+  }
+
+  const { row } = writeEntity('task', uid(), {
+    workspace_id: workspaceId,
+    project_id: project.id,
+    title: title.slice(0, 500),
+    description: str(args.description) ?? null,
+    state_id: state?.id,
+    priority: quick?.priority ?? (PRIORITIES.includes(args.priority) ? args.priority : 'none'),
+    assignees: quick?.assignees.length ? quick.assignees : resolveUsers(workspaceId, args.assignees),
+    labels: quick?.labels.length ? quick.labels : resolveLabels(workspaceId, project.id, args.labels, ctx),
+    // Validated here and not only in update_cycle: every date comparison in
+    // the app — `due_before`, the overdue lists, `date('now')` in SQL — is a
+    // string comparison, where a malformed date sorts wrongly instead of
+    // failing. Quick-add dates arrive already normalised by the parser.
+    due_date: quick?.dueDate ?? isoDay(args.due_date, 'due_date'),
+    recurrence: quick?.recurrence ?? null,
+    estimate: typeof args.estimate === 'number' ? args.estimate : null,
+    parent_id: parent?.id ?? null,
+    cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,
+    sort_order: sort,
+  }, writeOpts(workspaceId, ctx));
+  return row;
+}
+
+/**
+ * A content type from a file name, for callers that did not say.
+ *
+ * Deliberately short. Guessing wrong is cheap — the type only decides whether a
+ * browser renders the file in place or downloads it, and `disposition()` in
+ * `mime.ts` already refuses to render anything outside its allowlist — so this
+ * covers what an assistant actually produces and lets everything else be an
+ * honest `application/octet-stream`.
+ */
+const MIME_BY_EXTENSION: Record<string, string> = {
+  csv: 'text/csv', json: 'application/json', md: 'text/markdown', txt: 'text/plain',
+  html: 'text/html', xml: 'application/xml', yaml: 'text/yaml', yml: 'text/yaml',
+  pdf: 'application/pdf', zip: 'application/zip',
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+  webp: 'image/webp', avif: 'image/avif', svg: 'image/svg+xml',
+};
+
+const mimeFromName = (name: string): string =>
+  MIME_BY_EXTENSION[name.split('.').pop()?.toLowerCase() ?? ''] ?? 'application/octet-stream';
+
+/**
+ * A colour Kolibri is willing to store.
+ *
+ * Everything that paints one — the state dot, the label chip, the board column
+ * — writes it straight into a `style`, and the interface only ever produces
+ * `#rrggbb` because it uses `<input type="color">`. A caller typing prose into
+ * the field would put that prose in the stylesheet, so this is checked rather
+ * than trusted.
+ */
+const HEX_COLOUR = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+function colour(value: unknown, field = 'color'): string | undefined {
+  const raw = str(value);
+  if (raw === undefined) return undefined;
+  if (!HEX_COLOUR.test(raw)) throw new McpError(`\`${field}\` must be a hex colour like #3b82f6, not "${raw}"`);
+  return raw.toLowerCase();
+}
+
+/**
+ * A state group, spelled the way this codebase spells it.
+ *
+ * `cancelled`, with two Ls. The American spelling is accepted because it is the
+ * obvious thing to type and the alternative is storing a value that nothing
+ * matches: every "what is finished" count in Kolibri — the board, the project
+ * digest, the cycle burn-down, `list_tasks`, the label counts — is
+ * `group_key IN ('completed','cancelled')`. A state written as `canceled`
+ * would look right in the settings screen and be silently absent from all of
+ * them.
+ *
+ * `backlog` is here too. It is one of the five the app has and the group its
+ * own first column belongs to, so leaving it out would make the default column
+ * the one kind of column MCP could not create.
+ */
+function stateGroup(value: unknown, required: boolean): StateGroup | undefined {
+  const raw = str(value)?.toLowerCase();
+  if (raw === undefined) {
+    if (required) throw new McpError(`\`group\` is required — one of: ${STATE_GROUPS.join(', ')}`);
+    return undefined;
+  }
+  const spelled = (raw === 'canceled' ? 'cancelled' : raw) as StateGroup;
+  if (!STATE_GROUPS.includes(spelled)) {
+    throw new McpError(`Unknown group "${value}". One of: ${STATE_GROUPS.join(', ')}`);
+  }
+  return spelled;
+}
+
+/**
+ * What a cycle's status may say.
+ *
+ * Not in `@kolibri/shared` because nothing else has an opinion about it — the
+ * column is written by this tool and read by nobody, which the tool's own note
+ * explains. It lives here until something in the app depends on it, at which
+ * point it belongs next to `PROJECT_STATUS`.
+ */
+const CYCLE_STATUS = ['upcoming', 'active', 'completed', 'archived'] as const;
+
+/**
+ * A cycle the caller may see, by id or by name.
+ *
+ * `resolveCycle` also understands `"current"`, which is worked out from the
+ * dates — so "update the current cycle" means what somebody would expect it to
+ * mean without them having to look the id up first.
+ */
+function findCycle(ref: string, workspaceId: string, ctx: McpCtx): Row {
+  const row = resolveCycle(workspaceId, ref);
+  if (!row) throw new McpError(`Cycle ${ref} not found`);
+  if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  return row;
+}
+
+/** One label, the same shape from every tool that returns one. */
+const labelView = (row: Row): Record<string, unknown> => ({
+  id: String(row.id),
+  name: String(row.name),
+  color: row.color ?? null,
+  description: row.description ?? null,
+  // Null means every project in the workspace may use it.
+  project_id: row.project_id ?? null,
+});
+
+/** One cycle, as `list_cycles` and the writers both report it. */
+const cycleView = (row: Row): Record<string, unknown> => ({
+  id: String(row.id),
+  project_id: String(row.project_id),
+  name: String(row.name),
+  description: row.description ?? null,
+  start_date: row.start_date ?? null,
+  end_date: row.end_date ?? null,
+  status: row.status ?? null,
+});
+
+/**
+ * A date, as the rest of the app stores one.
+ *
+ * Every date column here is a `YYYY-MM-DD` string compared with `date('now')`
+ * in SQL, so anything else — a timestamp, `"next friday"`, an ISO datetime —
+ * sorts and compares wrongly rather than failing. Cheaper to refuse it.
+ */
+function isoDay(value: unknown, field: string): string | null {
+  const raw = str(value);
+  if (raw === undefined) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new McpError(`\`${field}\` must be YYYY-MM-DD, not "${raw}"`);
+  if (Number.isNaN(Date.parse(`${raw}T00:00:00Z`))) throw new McpError(`\`${field}\` is not a real date: "${raw}"`);
+  return raw;
+}
+
+/** One state, the same shape wherever it is returned. */
+const stateView = (row: Row): Record<string, unknown> => ({
+  id: String(row.id),
+  project_id: String(row.project_id),
+  name: String(row.name),
+  group: String(row.group_key),
+  color: row.color ?? null,
+  wip_limit: Number(row.wip_limit ?? 0),
+});
+
+/** A state in a project the caller may see. */
+function findState(id: string, workspaceId: string, ctx: McpCtx): Row {
+  const row = get<Row>(`SELECT * FROM states WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`, id, workspaceId);
+  if (!row) throw new McpError(`State ${id} not found`);
+  if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  return row;
+}
+
+/**
+ * A page the caller may see, by id or exact title.
+ *
+ * The same rule `get_page` applies, in one place, because `list_attachments`
+ * shipped without it: the page branch checked only workspace and not-deleted,
+ * so the files on a private page — names, sizes and working URLs — were
+ * listable by anybody in the workspace who could not read the page itself.
+ */
+function findPage(ref: string, workspaceId: string, ctx: McpCtx): Row {
+  const page = get<Row>(
+    `SELECT * FROM pages WHERE workspace_id = ? AND (id = ? OR lower(title) = lower(?)) AND deleted_at IS NULL LIMIT 1`,
+    workspaceId, ref, ref,
+  );
+  if (!page) throw new McpError(`Page ${ref} not found`);
+  if (page.access === 'private' && page.created_by !== ctx.auth.userId) throw new McpError('That page is private');
+  return page;
+}
+
+/** A label in this workspace, by id or by name. */
+function findLabel(ref: string, workspaceId: string): Row {
+  const row = get<Row>(
+    `SELECT * FROM labels WHERE workspace_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?)) LIMIT 1`,
+    workspaceId, ref, ref,
+  );
+  if (!row) throw new McpError(`Label ${ref} not found`);
+  return row;
+}
+
+/**
+ * The other side of a relation.
+ *
+ * Mirrors `INVERSE` in the web client's `Relations.tsx`. Two copies of five
+ * pairs is not ideal; `@kolibri/shared` is the better home the day a third
+ * caller wants it.
+ */
+const INVERSE_RELATION: Record<RelationKind, RelationKind> = {
+  blocks: 'blocked_by',
+  blocked_by: 'blocks',
+  relates_to: 'relates_to',
+  duplicates: 'duplicated_by',
+  duplicated_by: 'duplicates',
+};
+
+/**
+ * Would this link close a circle of blockers?
+ *
+ * The new link says *waiter waits for blocker*. That closes a ring exactly
+ * when the blocker already waits, directly or through others, on the waiter —
+ * so the walk starts at the **blocker** and follows "waits for" edges looking
+ * for the waiter.
+ *
+ * Written the other way round first, starting at the waiter, which finds
+ * nothing: a task about to be given a new blocker is by definition not yet
+ * waiting on it, so the search set was empty and every loop was allowed
+ * through. The test that caught it builds A → B → C and then asks for C → A.
+ *
+ * Both stored directions mean the same edge — a `blocks` row from A to B and a
+ * `blocked_by` row from B to A both say "B waits for A" — so the walk reads
+ * both rather than trusting one convention to have been used throughout.
+ *
+ * Bounded at 5000 steps. A workspace whose blocking graph is larger than that
+ * has a worse problem than this query, and an unbounded walk over a graph that
+ * is *already* looped — imported before this check existed — would not return.
+ */
+function blockingLoop(workspaceId: string, source: Row, target: Row, kind: RelationKind): boolean {
+  // Who ends up waiting for whom.
+  const waiter = kind === 'blocks' ? String(target.id) : String(source.id);
+  const blocker = kind === 'blocks' ? String(source.id) : String(target.id);
+
+  const seen = new Set<string>([blocker]);
+  const queue = [blocker];
+  let steps = 0;
+  while (queue.length && steps++ < 5000) {
+    const at = queue.shift() as string;
+    if (at === waiter) return true;
+    // Everything `at` is already waiting for.
+    for (const row of all<Row>(
+      `SELECT task_id, related_task_id, kind FROM task_relations
+        WHERE workspace_id = ? AND deleted_at IS NULL
+          AND ((related_task_id = ? AND kind = 'blocks') OR (task_id = ? AND kind = 'blocked_by'))`,
+      workspaceId, at, at,
+    )) {
+      const upstream = String(row.kind === 'blocks' ? row.task_id : row.related_task_id);
+      if (!seen.has(upstream)) {
+        seen.add(upstream);
+        queue.push(upstream);
+      }
+    }
+  }
+  return false;
+}
+
 function resolveState(projectId: string, name?: string): Row | undefined {
   if (!name) return undefined;
   return get<Row>(
@@ -158,8 +474,23 @@ const writeOpts = (workspaceId: string, ctx: McpCtx) => ({
   origin: 'mcp',
 });
 
-function requireWrite(ctx: McpCtx): void {
+/**
+ * May this caller write to this workspace?
+ *
+ * Two different questions, and both used to be asked only halfway. The scope is
+ * the token's: a read-only token is refused whatever its owner may do. The role
+ * is the person's, and it was not being asked at all — REST refuses a guest
+ * with "Guests cannot create content" on every content write, but a guest
+ * could mint themselves a write-scoped token (tokens only require membership)
+ * and walk straight past that through MCP. The two doors now agree.
+ *
+ * Takes the workspace because a role is per workspace; every write tool
+ * resolves it first anyway.
+ */
+function requireWrite(ctx: McpCtx, workspaceId: string): void {
   if (!ctx.auth.scopes.has('write')) throw new McpError('This token is read-only', -32000);
+  const role = ctx.auth.memberships.get(workspaceId);
+  if (role === 'guest') throw new McpError('Guests cannot create content', -32000);
 }
 
 /**
@@ -290,8 +621,8 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const project = createProject(workspaceId, ctx.auth.userId, {
         name: String(args.name), key: str(args.key), description: str(args.description),
         visibility: args.private ? 'private' : 'public',
@@ -476,35 +807,93 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
-      const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
-      const title = (quick?.title ?? str(args.title) ?? '').trim();
-      if (!title) throw new McpError('A task needs a title — pass `title`, or a `quick_add` line with words in it', -32602);
-      const named = quick?.projectId ?? str(args.project);
-      if (!named) throw new McpError('Which project? Pass `project`, or name one in `quick_add` with #KEY', -32602);
-      const project = findProject(named, workspaceId, ctx);
-      const state = resolveState(project.id, str(args.state));
-      const parent = args.parent ? findTask(String(args.parent), workspaceId, ctx) : undefined;
-      const first = get<Row>(`SELECT sort_order FROM tasks WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order LIMIT 1`, project.id);
+      requireWrite(ctx, workspaceId);
+      return taskView(fileTask(args, workspaceId, ctx, str(args.project)));
+    },
+  },
+  {
+    /**
+     * File many tasks in one call.
+     *
+     * The point is not the round trips — it is that a plan arrives as a plan.
+     * Twenty separate `create_task` calls can fail on the eleventh and leave
+     * ten tasks behind that nobody asked for on their own, and an assistant
+     * that then retries the whole list makes ten more. So the whole batch is
+     * one transaction: every task or none.
+     *
+     * Each entry takes what `create_task` takes, through the same code, so a
+     * batch cannot quietly follow different rules from a single call. `project`
+     * names the project once; an entry may still override it, which is how one
+     * call files a feature into WEB and its infrastructure work into OPS.
+     */
+    name: 'create_tasks_batch',
+    title: 'Create several tasks',
+    description: 'File a list of tasks in one call, as one transaction — if any entry is rejected, none of them are created. Each entry takes the same fields as create_task. Use this for a plan or a checklist rather than calling create_task repeatedly.',
+    schema: {
+      type: 'object',
+      required: ['tasks'],
+      properties: {
+        project: { type: 'string', description: 'Project for every task that does not name its own' },
+        tasks: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 100,
+          description: 'Up to 100. Each entry takes the fields create_task takes.',
+          items: {
+            type: 'object',
+            properties: {
+              project: { type: 'string', description: 'Overrides the call-level project' },
+              title: { type: 'string' },
+              quick_add: { type: 'string', description: 'One-line quick-add syntax; see create_task' },
+              description: { type: 'string' },
+              state: { type: 'string' },
+              priority: { type: 'string', enum: [...PRIORITIES] },
+              assignees: { type: 'array', items: { type: 'string' } },
+              labels: { type: 'array', items: { type: 'string' } },
+              due_date: { type: 'string', description: 'YYYY-MM-DD' },
+              estimate: { type: 'number' },
+              parent: { type: 'string', description: 'Parent task id or identifier' },
+              cycle: { type: 'string' },
+            },
+          },
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const entries = Array.isArray(args.tasks) ? args.tasks : null;
+      if (!entries?.length) throw new McpError('`tasks` must be a non-empty array', -32602);
+      // A cap rather than a stream. Everything here is one synchronous
+      // transaction, and a runaway list would hold the write lock for as long
+      // as it took — with the rest of the workspace waiting behind it.
+      if (entries.length > 100) {
+        throw new McpError(`${entries.length} tasks in one call is too many — 100 at a time`, -32602);
+      }
 
-      const { row } = writeEntity('task', uid(), {
-        workspace_id: workspaceId,
-        project_id: project.id,
-        title: title.slice(0, 500),
-        description: str(args.description) ?? null,
-        state_id: state?.id,
-        priority: quick?.priority ?? (PRIORITIES.includes(args.priority) ? args.priority : 'none'),
-        assignees: quick?.assignees.length ? quick.assignees : resolveUsers(workspaceId, args.assignees),
-        labels: quick?.labels.length ? quick.labels : resolveLabels(workspaceId, project.id, args.labels, ctx),
-        due_date: quick?.dueDate ?? str(args.due_date) ?? null,
-        recurrence: quick?.recurrence ?? null,
-        estimate: typeof args.estimate === 'number' ? args.estimate : null,
-        parent_id: parent?.id ?? null,
-        cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,
-        sort_order: orderKey(null, first?.sort_order ?? null),
-      }, writeOpts(workspaceId, ctx));
-      return taskView(row);
+      const fallback = str(args.project);
+      // `tx` rolls back on a throw, so a rejected entry takes the whole batch
+      // with it — and `withEffectsHeld` extends that promise to the effects a
+      // rollback cannot reach: webhooks and pushes for the early entries wait
+      // for the commit, instead of announcing tasks that end up never existing.
+      const order = new Map<string, { prev: string | null; bound: string | null }>();
+      const rows = withEffectsHeld(() => tx(() => entries.map((entry, index) => {
+        if (!entry || typeof entry !== 'object') {
+          throw new McpError(`tasks[${index}] is not an object`, -32602);
+        }
+        try {
+          return fileTask(entry as Record<string, any>, workspaceId, ctx, fallback, order);
+        } catch (error) {
+          // Which one failed, out of a hundred. Without the index this reads
+          // as "a task needs a title" against a list nobody can point at.
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new McpError(`tasks[${index}]: ${detail}`, error instanceof McpError ? error.code : -32602);
+        }
+      })));
+
+      return { created: rows.length, tasks: rows.map(taskView) };
     },
   },
   {
@@ -536,14 +925,16 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const task = findTask(String(args.task), workspaceId, ctx);
       const patch: Record<string, unknown> = {};
       if (args.title !== undefined) patch.title = String(args.title);
       if (args.description !== undefined) patch.description = args.description;
       if (args.priority !== undefined) patch.priority = args.priority;
-      if (args.due_date !== undefined) patch.due_date = args.due_date;
+      // `isoDay` maps null to null, so clearing still works; what it refuses
+      // is a date the app's string comparisons would silently mis-sort.
+      if (args.due_date !== undefined) patch.due_date = isoDay(args.due_date, 'due_date');
       if (args.start_date !== undefined) patch.start_date = args.start_date;
       if (args.estimate !== undefined) patch.estimate = args.estimate;
       if (args.archived !== undefined) patch.archived = args.archived ? 1 : 0;
@@ -568,11 +959,331 @@ const TOOLS: ToolDef[] = [
     description: 'Soft-delete a task. It disappears from every client but stays recoverable in the database.',
     schema: { type: 'object', required: ['task'], properties: { task: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const task = findTask(String(args.task), workspaceId, ctx);
       deleteEntity('task', task.id, writeOpts(workspaceId, ctx));
       return { deleted: task.identifier };
+    },
+  },
+  {
+    /**
+     * Link two tasks.
+     *
+     * One row, one direction. The interface derives the other side when it
+     * reads — a `blocks` row shows as "blocked by" on the task at the far end —
+     * so writing both directions would show every link twice and let the two
+     * halves disagree the moment one is deleted.
+     *
+     * `blocks` is load-bearing beyond the task detail: the planner and the
+     * Gantt chart schedule from it, so a loop there is not a cosmetic mistake.
+     * There is no guard on the pair anywhere else in the server, because until
+     * now the only way to make one was by hand in the interface, one link at a
+     * time, looking at both tasks. An assistant working from a list can build a
+     * ten-task ring without ever seeing it, so the check lives here.
+     */
+    name: 'create_task_relation',
+    title: 'Link two tasks',
+    description: 'Relate two tasks: blocks, blocked_by, relates_to, duplicates or duplicated_by. One row is written; the other task shows the mirror image automatically. blocked_by is stored as the equivalent blocks row, which is the direction everything that schedules reads.',
+    schema: {
+      type: 'object',
+      required: ['source_task', 'target_task', 'type'],
+      properties: {
+        source_task: { type: 'string', description: 'Task id or identifier, e.g. WEB-12' },
+        target_task: { type: 'string', description: 'Task id or identifier' },
+        type: {
+          type: 'string',
+          enum: [...RELATION_KINDS],
+          description: 'Read as "source <type> target": WEB-1 blocks WEB-2 means WEB-2 waits for WEB-1',
+        },
+        lag: {
+          type: 'integer',
+          minimum: 0,
+          maximum: 365,
+          description: 'Working days the target waits after the source finishes. Only meaningful for `blocks`, and only the blocker owns it.',
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const first = findTask(String(args.source_task), workspaceId, ctx);
+      const second = findTask(String(args.target_task), workspaceId, ctx);
+
+      if (first.id === second.id) throw new McpError('A task cannot be related to itself');
+
+      // `duplicate` is not one of the five, and is the obvious thing to reach
+      // for. Naming the alternatives beats "invalid enum value".
+      const asked = String(args.type ?? '').toLowerCase();
+      let kind = (asked === 'duplicate' ? 'duplicates' : asked) as RelationKind;
+      if (!RELATION_KINDS.includes(kind)) {
+        throw new McpError(`Unknown relation ${args.type}. One of: ${RELATION_KINDS.join(', ')}`);
+      }
+
+      /*
+       * `blocked_by` is stored as the flipped `blocks` row.
+       *
+       * The two spellings are one statement, but only one of them is read by
+       * everything that schedules: the planner, the Gantt chart and the
+       * server-side cascade all filter `kind = 'blocks'`. A `blocked_by` row
+       * stored verbatim *displayed* correctly — the task detail derives the
+       * mirror image — and drew no edge and cascaded nothing, while this tool's
+       * own description promised scheduling. The importer has always normalised
+       * this way (`import.ts`), so this is joining a convention, not adding
+       * one. It also lets `lag` mean something: after the flip the blocker owns
+       * the row, which is the side lag lives on.
+       */
+      let [source, target] = [first, second];
+      if (kind === 'blocked_by') {
+        [source, target] = [second, first];
+        kind = 'blocks';
+      }
+
+      // Already linked, in either direction, counting the mirror image: a
+      // `blocks` row from A to B and a `blocked_by` row from B to A are the
+      // same statement, and both would be drawn.
+      const mirror = INVERSE_RELATION[kind];
+      const existing = get<Row>(
+        `SELECT * FROM task_relations
+          WHERE workspace_id = ? AND deleted_at IS NULL
+            AND ((task_id = ? AND related_task_id = ? AND kind = ?)
+              OR (task_id = ? AND related_task_id = ? AND kind = ?))
+          LIMIT 1`,
+        workspaceId, source.id, target.id, kind, target.id, source.id, mirror,
+      );
+      if (existing) {
+        return { id: String(existing.id), kind: String(existing.kind), already: true,
+          source: source.identifier, target: target.identifier };
+      }
+
+      if (kind === 'blocks' && blockingLoop(workspaceId, source, target, kind)) {
+        throw new McpError(
+          `${source.identifier} and ${target.identifier} would block each other in a circle, and nothing in that circle could ever start`,
+        );
+      }
+
+      const { row } = writeEntity('relation', uid(), {
+        workspace_id: workspaceId,
+        task_id: source.id,
+        related_task_id: target.id,
+        kind,
+        // `NOT NULL DEFAULT 0`, and clamped to the same 0–365 whole days the
+        // interface allows. Negative would be a lead time — "may start before
+        // its blocker ends" — which is the one rule the scheduler exists to
+        // keep, and a fractional working day means nothing to it.
+        lag: kind === 'blocks' && typeof args.lag === 'number'
+          ? Math.max(0, Math.min(365, Math.round(args.lag)))
+          : 0,
+      }, writeOpts(workspaceId, ctx));
+
+      return {
+        id: String(row.id),
+        kind,
+        lag: Number(row.lag ?? 0),
+        source: { id: String(source.id), identifier: source.identifier, title: source.title },
+        target: { id: String(target.id), identifier: target.identifier, title: target.title },
+      };
+    },
+  },
+  {
+    /**
+     * Put a file on a task.
+     *
+     * The gap this closes is not a convenience. An assistant could already
+     * write a task, comment on it and move it, but anything it *produced* — a
+     * CSV, a screenshot, a generated report — had nowhere to go except pasted
+     * into a comment as text. Everything else in Kolibri that carries a file
+     * hangs off the attachment row this writes, so a file put here appears in
+     * the task's own Files section rather than in a place only an assistant
+     * knows about.
+     *
+     * Base64 because MCP carries JSON. That is a real cost — the encoding adds
+     * a third again, and the whole thing is a string in memory on both sides —
+     * so the limit below is enforced against the *decoded* size, and checked
+     * before decoding rather than after.
+     */
+    name: 'upload_attachment',
+    title: 'Attach a file to a task',
+    description: "Upload a file and attach it to a task, where it appears in the task's Files section. Content is base64. Use this for anything you have produced — a report, an export, an image — rather than pasting it into a comment.",
+    schema: {
+      type: 'object',
+      required: ['task', 'name', 'content_base64'],
+      properties: {
+        task: { type: 'string', description: 'Task id or identifier, e.g. WEB-12' },
+        name: { type: 'string', description: 'File name as it should appear, e.g. "burndown.csv"' },
+        content_base64: { type: 'string', description: 'The file, base64 encoded' },
+        mime: {
+          type: 'string',
+          description: 'Content type, e.g. text/csv. Guessed from the file name when omitted.',
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: async (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const task = findTask(String(args.task), workspaceId, ctx);
+
+      const name = str(args.name);
+      if (!name) throw new McpError('A file needs a name');
+      const encoded = typeof args.content_base64 === 'string' ? args.content_base64.trim() : '';
+      if (!encoded) throw new McpError('`content_base64` is empty');
+
+      /*
+       * Refuse an oversized upload before decoding it, not after.
+       *
+       * Base64 is four characters for every three bytes, so the decoded length
+       * is knowable from the string. Decoding first to measure would mean
+       * allocating the very buffer the limit exists to prevent — a 200 MB
+       * string against a 25 MB limit would be rejected, having already been
+       * held in memory twice.
+       */
+      const approx = Math.floor((encoded.length * 3) / 4);
+      if (approx > env.maxUploadBytes) {
+        throw new McpError(
+          `That file is about ${Math.round(approx / 1024 / 1024)} MB and the limit is ${Math.round(env.maxUploadBytes / 1024 / 1024)} MB`,
+        );
+      }
+
+      /*
+       * And check that it really is base64.
+       *
+       * `Buffer.from(x, 'base64')` never fails: it skips anything outside the
+       * alphabet and stops at the first byte it cannot use. Hand it a JSON
+       * document by mistake and it returns a short buffer of nonsense, which
+       * would be stored, attached, and downloaded later as a corrupt file with
+       * nothing anywhere saying so.
+       */
+      if (!/^[A-Za-z0-9+/\r\n]*={0,2}$/.test(encoded)) {
+        throw new McpError('`content_base64` is not base64 — send the file encoded, not as raw text');
+      }
+      const body = Buffer.from(encoded, 'base64');
+      if (!body.length) throw new McpError('That decodes to no bytes at all');
+      if (body.length > env.maxUploadBytes) {
+        throw new McpError(`That file is larger than the ${Math.round(env.maxUploadBytes / 1024 / 1024)} MB limit`);
+      }
+
+      const stored = await storeFile({
+        workspaceId,
+        userId: ctx.auth.userId,
+        name,
+        mime: str(args.mime) ?? mimeFromName(name),
+        body,
+        taskId: String(task.id),
+      });
+
+      return {
+        task: task.identifier,
+        name: stored.name,
+        mime: stored.mime,
+        size: stored.size,
+        url: stored.url,
+        attachment: stored.attachment,
+      };
+    },
+  },
+  {
+    /**
+     * What is already attached, and where to fetch it.
+     *
+     * `page` as well as `task`, because the model hangs attachments off either
+     * and a tool that could only see half of them would send an assistant
+     * looking for a file that is plainly there.
+     *
+     * The URL is the same one the interface uses and needs the same
+     * credentials — it is not a public link, and an object-store deployment
+     * turns it into a short-lived signed one at the moment it is followed.
+     */
+    name: 'list_attachments',
+    title: 'List attachments',
+    description: "Files attached to a task or a page, with the URL to fetch each. The URL needs the same authorisation as this call — it is not a public link.",
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        task: { type: 'string', description: 'Task id or identifier' },
+        page: { type: 'string', description: 'Page id — give this or `task`, not both' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const taskRef = str(args.task);
+      const pageRef = str(args.page);
+      if (!taskRef && !pageRef) throw new McpError('Which one? Pass `task` or `page`');
+      if (taskRef && pageRef) throw new McpError('Pass `task` or `page`, not both');
+
+      // Both branches carry the owner's access rule: a private task's project
+      // and a private page refuse here exactly as get_task and get_page do —
+      // an attachment listing is the page's content with a download URL on it.
+      const where: [string, string] = taskRef
+        ? ['task_id', String(findTask(taskRef, workspaceId, ctx).id)]
+        : ['page_id', String(findPage(String(pageRef), workspaceId, ctx).id)];
+
+      return all<Row>(
+        `SELECT * FROM attachments WHERE workspace_id = ? AND ${where[0]} = ? AND deleted_at IS NULL ORDER BY created_at`,
+        workspaceId, where[1],
+      ).map((row) => ({
+        id: String(row.id),
+        name: String(row.name),
+        mime: row.mime ?? null,
+        size: Number(row.size ?? 0),
+        url: row.url ?? null,
+        width: row.width ?? null,
+        height: row.height ?? null,
+        uploaded_by: row.uploaded_by ?? null,
+        created_at: Number(row.created_at ?? 0),
+      }));
+    },
+  },
+  {
+    /**
+     * Detach a file.
+     *
+     * This removes the attachment — the row that puts the file on the task —
+     * and not the bytes. Storage is content-addressed and shared: the same
+     * bytes uploaded to two workspaces are one blob with two rows, so deleting
+     * the blob here would take the file out from under somebody else. Sweeping
+     * blobs that no row points at any more is a separate job, and deliberately
+     * not this one.
+     *
+     * Soft, like every other delete here: it goes to the trash and can be
+     * restored.
+     */
+    name: 'delete_attachment',
+    title: 'Delete attachment',
+    description: 'Remove a file from the task or page it is attached to. Soft — it goes to the trash and can be restored. The stored bytes are shared and are not deleted.',
+    schema: {
+      type: 'object',
+      required: ['attachment_id'],
+      properties: {
+        attachment_id: { type: 'string', description: 'From list_attachments' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const row = get<Row>(
+        `SELECT * FROM attachments WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`,
+        String(args.attachment_id), workspaceId,
+      );
+      if (!row) throw new McpError(`Attachment ${args.attachment_id} not found`);
+      // An attachment inherits the privacy of whatever it hangs on — and it can
+      // hang on a task, a page, or a comment (which itself hangs on one of the
+      // other two). Checking only the task branch left files on private pages
+      // deletable by people who could not read the page.
+      if (row.task_id) findTask(String(row.task_id), workspaceId, ctx);
+      if (row.page_id) findPage(String(row.page_id), workspaceId, ctx);
+      if (row.comment_id) {
+        const comment = get<Row>(`SELECT task_id, page_id FROM comments WHERE id = ?`, row.comment_id);
+        if (comment?.task_id) findTask(String(comment.task_id), workspaceId, ctx);
+        if (comment?.page_id) findPage(String(comment.page_id), workspaceId, ctx);
+      }
+
+      deleteEntity('attachment', String(row.id), writeOpts(workspaceId, ctx));
+      return { deleted: String(row.name), id: String(row.id) };
     },
   },
   {
@@ -585,8 +1296,8 @@ const TOOLS: ToolDef[] = [
       properties: { task: { type: 'string' }, body: { type: 'string' }, workspace_id: { type: 'string' } },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const task = findTask(String(args.task), workspaceId, ctx);
       const { row } = writeEntity('comment', uid(), {
         workspace_id: workspaceId, task_id: task.id, body: String(args.body), author_id: ctx.auth.userId,
@@ -612,8 +1323,8 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'time');
       const task = findTask(String(args.task), workspaceId, ctx);
       const minutes = parseDuration(String(args.amount));
@@ -787,8 +1498,7 @@ const TOOLS: ToolDef[] = [
         `SELECT * FROM cycles WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} AND deleted_at IS NULL ORDER BY start_date DESC`,
         ...(project ? [workspaceId, project.id] : [workspaceId]),
       ).map((cycle) => ({
-        id: cycle.id, name: cycle.name, start_date: cycle.start_date, end_date: cycle.end_date,
-        project_id: cycle.project_id,
+        ...cycleView(cycle),
         total: Number(get<Row>(`SELECT count(*) c FROM tasks WHERE cycle_id = ? AND deleted_at IS NULL`, cycle.id)?.c ?? 0),
         done: Number(get<Row>(
           `SELECT count(*) c FROM tasks t JOIN states s ON s.id = t.state_id
@@ -811,14 +1521,118 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const project = findProject(String(args.project), workspaceId, ctx);
       const { row } = writeEntity('cycle', uid(), {
         workspace_id: workspaceId, project_id: project.id, name: String(args.name),
         description: str(args.description) ?? null, start_date: str(args.start_date) ?? null, end_date: str(args.end_date) ?? null,
       }, writeOpts(workspaceId, ctx));
       return serialize('cycle', row);
+    },
+  },
+  {
+    /**
+     * Change a cycle's dates, name, description or status.
+     *
+     * **A note on `status`.** The column exists and this writes it, but nothing
+     * in Kolibri reads it yet: the app works out which cycle is current from
+     * the dates — `start_date <= today <= end_date` — and that is what
+     * `cycle: "current"` resolves through, what the burn-down uses, and what
+     * the project digest reports. So setting a status records an intention and
+     * changes no behaviour today. The dates are the part with teeth.
+     *
+     * It is written rather than refused because the field is in the model and
+     * an assistant asked to close a sprint should have somewhere to say so.
+     */
+    name: 'update_cycle',
+    title: 'Update cycle',
+    description: "Change a cycle's name, dates, description or status. Note that which cycle is *current* is worked out from the dates rather than the status — the status is recorded but nothing reads it yet.",
+    schema: {
+      type: 'object',
+      required: ['cycle'],
+      properties: {
+        cycle: { type: 'string', description: 'Cycle id or name' },
+        name: { type: 'string' },
+        start_date: { type: 'string', description: 'YYYY-MM-DD' },
+        end_date: { type: 'string', description: 'YYYY-MM-DD' },
+        description: { type: 'string' },
+        status: { type: 'string', enum: [...CYCLE_STATUS] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const cycle = findCycle(String(args.cycle), workspaceId, ctx);
+
+      const patch: Record<string, unknown> = {};
+      if (str(args.name)) patch.name = str(args.name);
+      if (args.description !== undefined) patch.description = str(args.description) ?? null;
+      if (args.start_date !== undefined) patch.start_date = isoDay(args.start_date, 'start_date');
+      if (args.end_date !== undefined) patch.end_date = isoDay(args.end_date, 'end_date');
+      if (args.status !== undefined) {
+        const status = str(args.status)?.toLowerCase();
+        if (!CYCLE_STATUS.includes(status as (typeof CYCLE_STATUS)[number])) {
+          throw new McpError(`Unknown status "${args.status}". One of: ${CYCLE_STATUS.join(', ')}`);
+        }
+        patch.status = status;
+      }
+      if (!Object.keys(patch).length) {
+        throw new McpError('Nothing to change — pass name, start_date, end_date, description or status');
+      }
+
+      // A sprint that ends before it starts is not a sprint, and every date
+      // window in the app reads the pair rather than one of them. `in` rather
+      // than `??`: a date being *cleared* is in the patch as null, and `??`
+      // would resurrect the old value and refuse an update whose final state
+      // is perfectly legal.
+      const from = ('start_date' in patch ? patch.start_date : cycle.start_date) as string | null;
+      const to = ('end_date' in patch ? patch.end_date : cycle.end_date) as string | null;
+      if (from && to && from > to) throw new McpError(`A cycle cannot end (${to}) before it starts (${from})`);
+
+      const { row } = writeEntity('cycle', String(cycle.id), patch, writeOpts(workspaceId, ctx));
+      return cycleView(row);
+    },
+  },
+  {
+    /**
+     * Delete a cycle.
+     *
+     * A soft delete, the same one the interface does: the row goes to the trash
+     * and can be restored for `KOLIBRI_TRASH_DAYS`. That is what makes this
+     * safe enough for an assistant to call — "delete or archive" is one action
+     * here, because a deleted thing is an archived thing until the trash is
+     * emptied.
+     *
+     * Tasks in the cycle are left alone rather than deleted with it. They keep
+     * pointing at a cycle that is gone, and the repository settles that to
+     * `null` the next time each one is written — which is the existing
+     * behaviour for every reference to a deleted row, not something invented
+     * here. The count comes back in the answer so the caller knows how many
+     * tasks just lost their sprint.
+     */
+    name: 'delete_cycle',
+    title: 'Delete cycle',
+    description: 'Delete a cycle. It goes to the trash and can be restored; tasks in it are kept and simply lose their cycle.',
+    schema: {
+      type: 'object',
+      required: ['cycle'],
+      properties: {
+        cycle: { type: 'string', description: 'Cycle id or name' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const cycle = findCycle(String(args.cycle), workspaceId, ctx);
+      const orphaned = Number(get<Row>(
+        `SELECT count(*) c FROM tasks WHERE cycle_id = ? AND deleted_at IS NULL`, cycle.id,
+      )?.c ?? 0);
+
+      deleteEntity('cycle', String(cycle.id), writeOpts(workspaceId, ctx));
+      return { deleted: String(cycle.name), id: String(cycle.id), tasks_released: orphaned };
     },
   },
   {
@@ -847,12 +1661,7 @@ const TOOLS: ToolDef[] = [
     schema: { type: 'object', required: ['page'], properties: { page: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
-      const page = get<Row>(
-        `SELECT * FROM pages WHERE workspace_id = ? AND (id = ? OR lower(title) = lower(?)) AND deleted_at IS NULL LIMIT 1`,
-        workspaceId, args.page, args.page,
-      );
-      if (!page) throw new McpError(`Page ${args.page} not found`);
-      if (page.access === 'private' && page.created_by !== ctx.auth.userId) throw new McpError('That page is private');
+      const page = findPage(String(args.page), workspaceId, ctx);
       return serialize('page', page);
     },
   },
@@ -869,8 +1678,8 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
       const { row } = writeEntity('page', uid(), {
         workspace_id: workspaceId,
@@ -898,8 +1707,8 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      requireWrite(ctx);
       const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
       const page = get<Row>(
         `SELECT * FROM pages WHERE workspace_id = ? AND (id = ? OR lower(title) = lower(?)) AND deleted_at IS NULL LIMIT 1`,
         workspaceId, args.page, args.page,
@@ -911,6 +1720,170 @@ const TOOLS: ToolDef[] = [
       if (args.append) patch.content = `${page.content ?? ''}\n\n${args.append}`;
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       return serialize('page', row);
+    },
+  },
+  {
+    /**
+     * The states a project actually has, before something is put into one.
+     *
+     * The two writers treat an unknown state name differently, and this list
+     * is how to avoid finding out which. `create_task` falls back silently to
+     * the project's default column, so a misspelled state files the task
+     * somewhere unintended and reports success. `update_task` refuses with an
+     * error. (An earlier version of this text claimed both fell back — wrong,
+     * and worth being precise about here of all places, because this
+     * description ships into every client's tool listing and is what an
+     * assistant believes over the code.)
+     *
+     * `group_key` is the part worth reading rather than the name. Every project
+     * may name its columns whatever it likes; the group is the fixed vocabulary
+     * underneath — backlog, unstarted, started, completed, cancelled — and it is
+     * what every count and filter in Kolibri is actually computed from. Match on
+     * that when the name is not an exact hit.
+     */
+    name: 'list_states',
+    title: 'List workflow states',
+    description: "A project's workflow states in board order, with the group each belongs to and how many open tasks sit in it. Read this before setting a state: names are per project, and create_task silently falls back to the default column on a name it does not recognise (update_task refuses instead).",
+    readOnly: true,
+    schema: {
+      type: 'object',
+      required: ['project'],
+      properties: {
+        project: { type: 'string', description: 'Project id, key or name' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = findProject(String(args.project), workspaceId, ctx);
+      const rows = all<Row>(
+        `SELECT * FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+        project.id,
+      );
+      // Where a stateless create lands: the server prefers the project's own
+      // `default_state_id` and only then the first in board order
+      // (`applyCreateDefaults` in repo.ts). Mirrored verbatim — including the
+      // stale case, where a default pointing at a deleted state means no row
+      // here is the default, which is also exactly what the server would do.
+      const lands = project.default_state_id ?? rows[0]?.id;
+      return rows.map((state) => ({
+        ...stateView(state),
+        is_default: state.id === lands,
+        tasks: Number(get<Row>(
+          `SELECT count(*) c FROM tasks WHERE state_id = ? AND deleted_at IS NULL AND archived = 0`,
+          state.id,
+        )?.c ?? 0),
+      }));
+    },
+  },
+  {
+    /**
+     * Add a column to a project's board.
+     *
+     * Appended at the end, which is where the interface puts one too — a new
+     * column arriving in the middle of somebody's board would move every card
+     * to the right of it while they were looking at it.
+     */
+    name: 'create_state',
+    title: 'Create workflow state',
+    description: 'Add a workflow state (Kanban column) to a project. It is appended after the existing columns.',
+    schema: {
+      type: 'object',
+      required: ['project', 'name', 'group'],
+      properties: {
+        project: { type: 'string', description: 'Project id, key or name' },
+        name: { type: 'string', description: 'What the column is called, e.g. "In QA"' },
+        group: {
+          type: 'string',
+          enum: [...STATE_GROUPS],
+          description: 'Which of the five categories this column counts as. Everything Kolibri counts as finished is `completed` or `cancelled`.',
+        },
+        color: { type: 'string', description: 'Hex, e.g. #3b82f6' },
+        wip_limit: { type: 'integer', minimum: 0, maximum: 99, description: 'Warn above this many tasks; 0 for no limit' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const project = findProject(String(args.project), workspaceId, ctx);
+      const name = str(args.name);
+      if (!name) throw new McpError('A state needs a name');
+
+      // Two columns with one name is a board where "move it to Review" has two
+      // answers, and the caller cannot tell which one it got.
+      const clash = get<Row>(
+        `SELECT name FROM states WHERE project_id = ? AND deleted_at IS NULL AND lower(name) = lower(?)`,
+        project.id, name,
+      );
+      if (clash) throw new McpError(`${project.key} already has a state called "${clash.name}"`);
+
+      const last = get<Row>(
+        `SELECT sort_order FROM states WHERE project_id = ? AND deleted_at IS NULL ORDER BY sort_order DESC LIMIT 1`,
+        project.id,
+      );
+      const { row } = writeEntity('state', uid(), {
+        workspace_id: workspaceId,
+        project_id: project.id,
+        name,
+        group_key: stateGroup(args.group, true),
+        color: colour(args.color) ?? '#64748b',
+        wip_limit: typeof args.wip_limit === 'number' ? Math.max(0, Math.min(99, Math.round(args.wip_limit))) : 0,
+        sort_order: orderKey(last?.sort_order ?? null, null),
+      }, writeOpts(workspaceId, ctx));
+
+      return stateView(row);
+    },
+  },
+  {
+    /**
+     * Rename a column, recolour it, or change what it counts as.
+     *
+     * Changing the group is the consequential one and is worth being deliberate
+     * about: it does not move any task, but it changes what every count in the
+     * app says about the tasks already sitting there. Moving a column from
+     * `started` to `completed` marks that work finished everywhere at once —
+     * the project digest, the cycle burn-down, the label counts, `my_work`.
+     */
+    name: 'update_state',
+    title: 'Update workflow state',
+    description: "Change a workflow state's name, colour, group or WIP limit. Changing the group does not move any task, but it changes what every count in Kolibri says about the tasks already in that column.",
+    schema: {
+      type: 'object',
+      required: ['state_id'],
+      properties: {
+        state_id: { type: 'string', description: 'From list_states' },
+        name: { type: 'string' },
+        color: { type: 'string', description: 'Hex, e.g. #3b82f6' },
+        group: { type: 'string', enum: [...STATE_GROUPS] },
+        wip_limit: { type: 'integer', minimum: 0, maximum: 99 },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const state = findState(String(args.state_id), workspaceId, ctx);
+
+      const patch: Record<string, unknown> = {};
+      const name = str(args.name);
+      if (name) {
+        const clash = get<Row>(
+          `SELECT name FROM states WHERE project_id = ? AND id != ? AND deleted_at IS NULL AND lower(name) = lower(?)`,
+          state.project_id, state.id, name,
+        );
+        if (clash) throw new McpError(`That project already has a state called "${clash.name}"`);
+        patch.name = name;
+      }
+      const tint = colour(args.color);
+      if (tint) patch.color = tint;
+      const group = stateGroup(args.group, false);
+      if (group) patch.group_key = group;
+      if (typeof args.wip_limit === 'number') patch.wip_limit = Math.max(0, Math.min(99, Math.round(args.wip_limit)));
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — pass name, color, group or wip_limit');
+
+      const { row } = writeEntity('state', String(state.id), patch, writeOpts(workspaceId, ctx));
+      return stateView(row);
     },
   },
   {
@@ -964,6 +1937,249 @@ const TOOLS: ToolDef[] = [
           workspaceId, label.id,
         )?.c ?? 0),
       }));
+    },
+  },
+  {
+    /**
+     * Make a label deliberately, rather than by mentioning it.
+     *
+     * `create_task` already invents a label it does not recognise, which is
+     * what makes `bugs` appear next to `bug`. This is the other half: a label
+     * made on purpose, with a colour and a description, and **refused if one
+     * by that name already exists in scope** — which is exactly the collision
+     * the accidental path cannot see.
+     *
+     * Scope matters and is easy to get wrong. A label with no project is
+     * usable by every project in the workspace; one with a project belongs to
+     * that project alone. A workspace-wide `bug` and a project-local `bug` are
+     * two labels that look identical on a task, so the check covers both.
+     */
+    name: 'create_label',
+    title: 'Create label',
+    description: 'Create a label with a colour. Workspace-wide unless `project` is given. Refused if a label by that name is already usable in that scope — call list_labels first.',
+    schema: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+        color: { type: 'string', description: 'Hex, e.g. #3b82f6' },
+        description: { type: 'string' },
+        project: { type: 'string', description: 'Project id, key or name. Omit for a label every project can use.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const name = str(args.name);
+      if (!name) throw new McpError('A label needs a name');
+      const project = str(args.project) ? findProject(String(args.project), workspaceId, ctx) : null;
+
+      /*
+       * Anything the new label would collide with, in either direction.
+       *
+       * Scoped to a project, it collides with that project's own labels and
+       * the workspace-wide ones — the set `create_task` matches against.
+       * Workspace-wide, it collides with *every* label of that name, because
+       * it would become usable in whichever project already has one — the
+       * first version checked only other workspace-wide labels, and let a
+       * global `bug` be created over a project's `bug`, putting two
+       * indistinguishable chips on that project's tasks.
+       */
+      const clash = project
+        ? get<Row>(
+          `SELECT name, project_id FROM labels
+            WHERE workspace_id = ? AND deleted_at IS NULL AND lower(name) = lower(?)
+              AND (project_id IS NULL OR project_id = ?) LIMIT 1`,
+          workspaceId, name, project.id,
+        )
+        : get<Row>(
+          `SELECT name, project_id FROM labels
+            WHERE workspace_id = ? AND deleted_at IS NULL AND lower(name) = lower(?) LIMIT 1`,
+          workspaceId, name,
+        );
+      if (clash) {
+        throw new McpError(
+          `A label called "${clash.name}" already exists${clash.project_id ? ' in a project this one would cover' : ' workspace-wide'} — use update_label, or a different name`,
+        );
+      }
+
+      // The colour column is NOT NULL with a default; an explicit null defeats
+      // the default and the insert fails with a raw constraint error. Omitted,
+      // the default applies — which is what the accidental path
+      // (resolveLabels) has done all along.
+      const tint = colour(args.color);
+      const { row } = writeEntity('label', uid(), {
+        workspace_id: workspaceId,
+        project_id: project?.id ?? null,
+        name,
+        ...(tint ? { color: tint } : {}),
+        description: str(args.description) ?? null,
+      }, writeOpts(workspaceId, ctx));
+      return labelView(row);
+    },
+  },
+  {
+    /**
+     * Rename a label, recolour it, or move it between scopes.
+     *
+     * Addressed by id or by name — an assistant that has just read
+     * `list_labels` has both, and a name is what it will have if it read the
+     * task instead.
+     *
+     * Widening a project label to the whole workspace is allowed; narrowing a
+     * workspace-wide one to a single project is not, because the tasks in every
+     * *other* project that already carry it would keep a label they are no
+     * longer allowed to have. Deleting it deliberately is a different act with
+     * a different tool, and this one should not do it by implication.
+     */
+    name: 'update_label',
+    title: 'Update label',
+    description: "Change a label's name, colour or description, or widen a project label to the whole workspace.",
+    schema: {
+      type: 'object',
+      required: ['label'],
+      properties: {
+        label: { type: 'string', description: 'Label id, or its current name' },
+        name: { type: 'string', description: 'A new name' },
+        color: { type: 'string', description: 'Hex, e.g. #3b82f6' },
+        description: { type: 'string' },
+        workspace_wide: { type: 'boolean', description: 'Detach from its project so every project may use it' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const label = findLabel(String(args.label), workspaceId);
+
+      const patch: Record<string, unknown> = {};
+      const name = str(args.name);
+      if (name) patch.name = name;
+
+      /*
+       * The clash check runs against where the label is *going* — its final
+       * name in its final scope — because a rename and a widening can arrive in
+       * one call, and each changes what the other collides with. A
+       * workspace-wide destination collides with every label of that name; a
+       * project one with its project's own plus the workspace-wide set.
+       */
+      if (name || args.workspace_wide === true) {
+        const finalName = name ?? String(label.name);
+        const finalProject = args.workspace_wide === true ? null : label.project_id ?? null;
+        const clash = finalProject === null
+          ? get<Row>(
+            `SELECT name FROM labels WHERE workspace_id = ? AND id != ? AND deleted_at IS NULL AND lower(name) = lower(?) LIMIT 1`,
+            workspaceId, label.id, finalName,
+          )
+          : get<Row>(
+            `SELECT name FROM labels WHERE workspace_id = ? AND id != ? AND deleted_at IS NULL AND lower(name) = lower(?)
+              AND (project_id IS NULL OR project_id = ?) LIMIT 1`,
+            workspaceId, label.id, finalName, finalProject,
+          );
+        if (clash) throw new McpError(`A label called "${clash.name}" is already usable there`);
+      }
+      const tint = colour(args.color);
+      if (tint) patch.color = tint;
+      if (args.description !== undefined) patch.description = str(args.description) ?? null;
+      if (args.workspace_wide === true) patch.project_id = null;
+      if (args.workspace_wide === false && !label.project_id) {
+        throw new McpError('A workspace-wide label cannot be narrowed to one project — the tasks in the others already carry it');
+      }
+      if (!Object.keys(patch).length) {
+        throw new McpError('Nothing to change — pass name, color, description or workspace_wide');
+      }
+
+      const { row } = writeEntity('label', String(label.id), patch, writeOpts(workspaceId, ctx));
+      return labelView(row);
+    },
+  },
+  {
+    /**
+     * Project metadata.
+     *
+     * Everything except the **key**, which is deliberately not here. A key is
+     * the prefix of every identifier the project has ever minted, so changing
+     * it does not rename `WEB-42` — it leaves that task named after a prefix
+     * the project no longer has. The settings screen allows it because a person
+     * changing it is looking at the project and can see what happens; that is
+     * not the position an assistant is in, and the server bounces a duplicate
+     * key silently through `forced` rather than throwing, so a refusal would
+     * not even reach the caller as an error.
+     */
+    name: 'update_project',
+    title: 'Update project',
+    description: "Change a project's name, icon, description, status, lead or dates. The project key is deliberately not settable here — it is the prefix of every identifier the project has already minted.",
+    schema: {
+      type: 'object',
+      required: ['project'],
+      properties: {
+        project: { type: 'string', description: 'Project id, key or name' },
+        name: { type: 'string' },
+        icon: { type: 'string', description: 'A single emoji' },
+        description: { type: 'string', description: 'Markdown' },
+        status: { type: 'string', enum: [...PROJECT_STATUS] },
+        lead: { type: 'string', description: 'User id, email or name' },
+        start_date: { type: 'string', description: 'YYYY-MM-DD' },
+        target_date: { type: 'string', description: 'YYYY-MM-DD' },
+        archived: { type: 'boolean' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const project = findProject(String(args.project), workspaceId, ctx);
+
+      const patch: Record<string, unknown> = {};
+      if (str(args.name)) patch.name = str(args.name);
+      if (args.icon !== undefined) patch.icon = str(args.icon) ?? null;
+      if (args.description !== undefined) patch.description = str(args.description) ?? null;
+      if (args.status !== undefined) {
+        // `cancelled` here too, for the reason in `stateGroup`.
+        const raw = str(args.status)?.toLowerCase();
+        const status = (raw === 'canceled' ? 'cancelled' : raw) as ProjectStatus;
+        if (!PROJECT_STATUS.includes(status)) {
+          throw new McpError(`Unknown status "${args.status}". One of: ${PROJECT_STATUS.join(', ')}`);
+        }
+        patch.status = status;
+      }
+      if (args.lead !== undefined) {
+        // Refused, not guessed. `resolveUsers` drops what it does not recognise,
+        // so a typo'd name was silently *clearing* the lead while reporting
+        // success — the assistant then tells somebody the wrong person owns the
+        // project. Null is the one honest way to say "no lead".
+        if (args.lead === null || args.lead === '') {
+          patch.lead_id = null;
+        } else {
+          const lead = resolveUsers(workspaceId, [args.lead])[0];
+          if (!lead) throw new McpError(`No member matching "${args.lead}" — pass null to clear the lead`);
+          patch.lead_id = lead;
+        }
+      }
+      if (args.start_date !== undefined) patch.start_date = isoDay(args.start_date, 'start_date');
+      if (args.target_date !== undefined) patch.target_date = isoDay(args.target_date, 'target_date');
+      if (typeof args.archived === 'boolean') patch.archived = args.archived ? 1 : 0;
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change');
+
+      // `in`, not `??` — see the same check on update_cycle.
+      const from = ('start_date' in patch ? patch.start_date : project.start_date) as string | null;
+      const to = ('target_date' in patch ? patch.target_date : project.target_date) as string | null;
+      if (from && to && from > to) throw new McpError(`A project cannot target ${to} and start ${from}`);
+
+      const { row } = writeEntity('project', String(project.id), patch, writeOpts(workspaceId, ctx));
+      return {
+        id: String(row.id),
+        key: String(row.key),
+        name: String(row.name),
+        icon: row.icon ?? null,
+        description: row.description ?? null,
+        status: row.status ?? null,
+        lead_id: row.lead_id ?? null,
+        start_date: row.start_date ?? null,
+        target_date: row.target_date ?? null,
+        archived: !!row.archived,
+      };
     },
   },
   {
@@ -1177,7 +2393,7 @@ function readResource(uri: string, ctx: McpCtx) {
   return [{ uri, mimeType: 'text/markdown', text: `# ${task.identifier} ${task.title}\n\n${task.description ?? ''}` }];
 }
 
-export function handleRpc(request: RpcRequest, ctx: McpCtx): Record<string, unknown> | null {
+export async function handleRpc(request: RpcRequest, ctx: McpCtx): Promise<Record<string, unknown> | null> {
   const { method, id } = request;
   const params = request.params ?? {};
   const ok = (result: unknown) => ({ jsonrpc: '2.0', id, result });
@@ -1203,7 +2419,7 @@ export function handleRpc(request: RpcRequest, ctx: McpCtx): Record<string, unkn
       case 'tools/call': {
         const tool = TOOLS.find((t) => t.name === params.name);
         if (!tool) throw new McpError(`Unknown tool ${params.name}`);
-        const result = tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
+        const result = await tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
         return ok({
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
           structuredContent: result && typeof result === 'object' && !Array.isArray(result) ? result : { result },

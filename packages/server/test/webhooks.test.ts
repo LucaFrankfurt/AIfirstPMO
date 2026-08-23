@@ -106,6 +106,54 @@ describe('calling out', () => {
     assert.equal(expected, `sha256=${createHmac('sha256', 'shh').update(JSON.stringify(received[0].body)).digest('hex')}`);
   });
 
+  it('holds a batch\'s webhooks until the batch commits', async () => {
+    /*
+     * `create_tasks_batch` promises every task or none, and a database
+     * rollback only delivers half of that promise: webhooks used to fire
+     * inline, per write, inside the transaction. A batch that failed on its
+     * last entry had already told this receiver about every earlier one —
+     * tasks that, after the rollback, never existed — and the retry the
+     * transaction makes safe told it about them all again.
+     */
+    run(`UPDATE webhooks SET enabled = 0`); // only this test's hook counts
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'Batch receiver', url: receiverUrl, events: 'task.created', enabled: 1,
+    });
+    const token = (await api('/api/tokens', { name: 'batch', workspaceId })).token;
+    const batch = async (tasks: unknown[]) => {
+      const response = await fetch(`${base}/mcp`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'tools/call',
+          params: { name: 'create_tasks_batch', arguments: { project: 'HK', tasks } },
+        }),
+      });
+      return response.json();
+    };
+
+    // The failing batch: two good entries, then one with no title.
+    received.length = 0;
+    const refused = await batch([{ title: 'Ghost one' }, { title: 'Ghost two' }, { description: 'no title' }]);
+    assert.match(JSON.stringify(refused), /tasks\[2\]/);
+    await settle();
+    assert.equal(received.length, 0, 'a rolled-back batch must announce nothing');
+
+    // The same batch, mended: announced exactly once per task, after commit.
+    received.length = 0;
+    const accepted = await batch([{ title: 'Real one' }, { title: 'Real two' }]);
+    assert.equal((accepted as any).result.structuredContent.created, 2);
+    await settle();
+    assert.deepEqual(
+      received.map((r) => r.body.data.title).sort(),
+      ['Real one', 'Real two'],
+      'a committed batch announces each task exactly once',
+    );
+
+    run(`UPDATE webhooks SET enabled = 0 WHERE id = ?`, hook.id);
+    run(`UPDATE webhooks SET enabled = 1 WHERE id != ?`, hook.id);
+  });
+
   it('sends only the events that were asked for', async () => {
     received.length = 0;
     const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Then change me' });

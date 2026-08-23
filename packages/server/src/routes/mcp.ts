@@ -1,4 +1,5 @@
 import { get, type Row } from '../db/index.ts';
+import { env } from '../env.ts';
 import { authenticate } from '../lib/auth.ts';
 import { handleRpc, PROTOCOL_VERSION, toolNames, type McpCtx } from '../lib/mcp.ts';
 import { readJson, send, unauthorized, type Ctx, type Router } from '../lib/http.ts';
@@ -14,11 +15,30 @@ import { resourceUrl } from './oauth.ts';
 export function registerMcpRoutes(router: Router): void {
   router.post('/mcp', async (ctx: Ctx) => {
     const mcpCtx = contextFor(ctx);
-    const body = await readJson<unknown>(ctx);
+    /*
+     * The body limit is sized for `upload_attachment`, not for JSON.
+     *
+     * `readJson`'s 8 MB default made the documented upload limit unreachable:
+     * a file arrives base64-encoded inside the JSON-RPC envelope, so a 10 MB
+     * attachment is ~13.4 MB on the wire and died here as a bare HTTP 413 —
+     * before the tool could run, so its own friendly size message never fired
+     * and MCP clients saw a transport error instead of a JSON-RPC one. Four
+     * thirds of the decoded limit, plus headroom for the envelope, lets every
+     * upload the tool would accept actually reach it; the tool still enforces
+     * the real limit against the decoded size.
+     */
+    const body = await readJson<unknown>(ctx, Math.ceil(env.maxUploadBytes / 3) * 4 + 256 * 1024);
     const messages = Array.isArray(body) ? body : [body];
-    const responses = messages
-      .map((message) => handleRpc(message as Record<string, unknown>, mcpCtx))
-      .filter((r): r is Record<string, unknown> => r !== null);
+    // One at a time, not `Promise.all`. A batch is ordered on purpose — create
+    // the project, then file a task into it — and these were strictly
+    // sequential while every tool was synchronous. Now that one of them awaits
+    // a storage write, running them concurrently would quietly change what a
+    // batch means.
+    const responses: Record<string, unknown>[] = [];
+    for (const message of messages) {
+      const answer = await handleRpc(message as Record<string, unknown>, mcpCtx);
+      if (answer !== null) responses.push(answer);
+    }
 
     if (!responses.length) {
       send(ctx.res, 202, null);

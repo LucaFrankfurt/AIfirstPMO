@@ -927,9 +927,61 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   }
   if (opts.system) return;
   recordActivity(entity, row, before, changed, opts);
-  notify(entity, row, before, changed, opts);
-  runAutomations(entity, row, before, changed, opts);
-  fireWebhooks(entity, row, before, changed, opts);
+  /*
+   * The two effects that leave the process — notifications reach phones and
+   * webhooks reach other people's servers — honour the deferral window below.
+   * Everything above them is a database write, which a rollback takes back;
+   * these two cannot be taken back, so inside a wrapped transaction they wait
+   * for the commit. `runAutomations` stays inline on purpose: what it *writes*
+   * must land inside the transaction, and what those writes notify comes back
+   * through here and queues itself.
+   */
+  const external = (): void => {
+    notify(entity, row, before, changed, opts);
+    fireWebhooks(entity, row, before, changed, opts);
+  };
+  if (pendingEffects) {
+    pendingEffects.push(external);
+    runAutomations(entity, row, before, changed, opts);
+  } else {
+    notify(entity, row, before, changed, opts);
+    runAutomations(entity, row, before, changed, opts);
+    fireWebhooks(entity, row, before, changed, opts);
+  }
+}
+
+/* ------------------------------------------------------- deferred effects */
+
+let pendingEffects: (() => void)[] | null = null;
+
+/**
+ * Hold the irreversible side effects of every write inside `fn` until it
+ * returns, then release them; a throw discards them along with the writes.
+ *
+ * This exists for `create_tasks_batch`, whose promise is "every task or none".
+ * The database half of that promise was a transaction; the other half was not:
+ * `afterWrite` fired webhooks and push notifications inline, so a batch of
+ * twenty that failed on the twentieth had already told Slack about nineteen
+ * tasks that, after the rollback, never existed — and the retry the
+ * transaction makes safe told it about them all again.
+ *
+ * The queue is released *after* `fn` returns — after the transaction inside it
+ * has committed — so a webhook can never describe an uncommitted row. Nested
+ * windows join the outer one, exactly as nested `tx` calls do.
+ */
+export function withEffectsHeld<T>(fn: () => T): T {
+  if (pendingEffects) return fn();
+  const queue: (() => void)[] = [];
+  pendingEffects = queue;
+  let out: T;
+  try {
+    out = fn();
+  } finally {
+    // Cleared either way; on a throw the queue is simply never released.
+    pendingEffects = null;
+  }
+  for (const effect of queue) effect();
+  return out;
 }
 
 /**
