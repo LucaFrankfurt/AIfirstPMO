@@ -336,12 +336,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             every screen reader's jump-to-main both need something to aim at,
             and `.main` was only ever a class name. */}
         <main className="content" id="content">{children}</main>
+        {/*
+          * The bar's own words, not the sidebar's.
+          *
+          * A column in a sidebar can afford "Meine Aufgaben"; a sixth of a
+          * 390px phone cannot, and it wrapped to two lines — which stretched
+          * every other item to match and left the labels sitting at different
+          * heights. `nav.bar.*` are the short forms, so the constraint is
+          * something a translator can see rather than something they discover.
+          */}
         <nav className="tabbar" aria-label={t('nav.tabbar')}>
-          <NavLink to="/" end><Icon name="home" size={20} />{t('nav.myWork')}</NavLink>
+          <NavLink to="/" end>
+            <Icon name="home" size={20} />
+            <span className="tab-label">{t('nav.bar.myWork')}</span>
+          </NavLink>
           <NavLink to="/inbox">
             <Icon name="inbox" size={20} />
-            {unread > 0 && <span className="size-1.5 flex-none rounded-full bg-accent" />}
-            {t('nav.inbox')}
+            {/* Out of the flow, or it pushes the label down and this one item
+                stands a few pixels lower than the five beside it. */}
+            {unread > 0 && <span className="badge-dot size-1.5 rounded-full bg-accent" />}
+            <span className="tab-label">{t('nav.bar.inbox')}</span>
           </NavLink>
           {/* Beside the inbox, because they are the two surfaces other people
               write to. It was behind "More" — the one part of this app that is
@@ -349,8 +363,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               device most likely to be the only one somebody has. */}
           <NavLink to="/chat">
             <Icon name="chat" size={20} />
-            {unreadMessages > 0 && <span className="size-1.5 flex-none rounded-full bg-accent" />}
-            {t('nav.chat')}
+            {unreadMessages > 0 && <span className="badge-dot size-1.5 rounded-full bg-accent" />}
+            <span className="tab-label">{t('nav.bar.chat')}</span>
           </NavLink>
           <button
             className={navItem()} style={{ width: 'auto', justifyContent: 'center' }}
@@ -361,8 +375,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Icon name="plus" size={19} />
             </span>
           </button>
-          <NavLink to="/search"><Icon name="search" size={20} />{t('nav.search')}</NavLink>
-          <NavLink to="/more"><Icon name="menu" size={20} />{t('nav.more')}</NavLink>
+          <NavLink to="/search">
+            <Icon name="search" size={20} />
+            <span className="tab-label">{t('nav.bar.search')}</span>
+          </NavLink>
+          <NavLink to="/more">
+            <Icon name="menu" size={20} />
+            <span className="tab-label">{t('nav.bar.more')}</span>
+          </NavLink>
         </nav>
       </div>
 

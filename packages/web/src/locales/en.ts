@@ -49,6 +49,13 @@ export const en = {
   'nav.teams': 'Teams',
   'nav.projects': 'Projects',
   'nav.more': 'More',
+  /* The bottom bar's words. Shorter than the sidebar's, because six items
+     share the width of a phone. */
+  'nav.bar.myWork': 'My work',
+  'nav.bar.inbox': 'Inbox',
+  'nav.bar.chat': 'Chat',
+  'nav.bar.search': 'Search',
+  'nav.bar.more': 'More',
   'nav.guide': 'Guide',
   'nav.settings': 'Settings',
   'nav.newTask': 'New task',

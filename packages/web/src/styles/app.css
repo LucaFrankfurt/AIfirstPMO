@@ -399,6 +399,17 @@ p { margin: 0 0 0.75em; }
 .tabbar a[aria-current='page'] { color: var(--accent); }
 .tabbar .badge-dot { position: absolute; top: 6px; inset-inline-end: 50%; margin-inline-end: -14px; }
 
+/* One line, always. The labels are chosen to fit (`nav.bar.*`), and this is
+   the guard for the translation that does not: a label too long for its sixth
+   of the bar is cut off rather than allowed to wrap, because a wrapped label
+   stretches the bar and drops every other label half a line. */
+.tabbar .tab-label {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 @media (min-width: 900px) {
   .shell { grid-template-columns: var(--sidebar-width) 1fr; }
   .sidebar { display: flex; }
@@ -1060,7 +1071,10 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   background: var(--bg-sunken); font-family: var(--mono); font-size: 12.5px; text-align: center;
 }
 
-.reactions { margin-top: 5px; }
+.reactions { margin-top: 4px; }
+/* Under the bubble, on the bubble's side. */
+.chat-message.mine .reactions { justify-content: flex-end; }
+.chat-message .chat-in-context { margin-top: 3px; }
 .reaction {
   display: inline-flex; align-items: center; gap: 4px;
   padding: 1px 7px; border: 1px solid var(--line); border-radius: 999px;
@@ -1467,10 +1481,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * the bottom — and in the interface font rather than the monospace one, because
  * this is somebody talking, not somebody writing a document.
  */
-/* The one-line floor is set inline at the call site, where it beats the
-   `min-h-20` utility the shared Textarea carries. */
+/* The one-line floor and the missing drag handle are set as utilities at the
+   call site, where they beat the `min-h-20` and `resize-y` the shared Textarea
+   carries. Only the ceiling is here, because both the browser's own
+   `field-sizing` and the hand-measured fallback have to honour it. */
 .editor.compact textarea {
-  resize: none;
+  max-height: 240px;
   overflow-y: auto;
   border-bottom: none;
   border-radius: var(--radius-sm) var(--radius-sm) 0 0;
@@ -1481,17 +1497,29 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 /* Flat where the formatting row is sitting on top of it. */
 .editor.compact:has(.editor-toolbar) textarea { border-radius: 0; }
 .editor.compact .editor-preview { border-radius: 0; }
+/*
+ * The bar along the bottom of the compact editor.
+ *
+ * The padding is the radius, and that is the whole of why it is 7 and not 4:
+ * the send button is filled, saturated and sits in the corner, and a filled
+ * corner closer to the edge than the edge's own curve reads as a button with
+ * its corner sliced off. Held a full radius clear on both axes, it reads as a
+ * button inside a box, which is what it is.
+ */
 .editor.compact .editor-foot {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 5px;
+  padding: 7px;
   border: 1px solid var(--line-strong);
   border-top: none;
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   background: var(--bg-sunken);
 }
-.editor.compact .editor-foot .btn { height: 26px; }
+/* The controls keep the size their variant gives them. A rule here could not
+   change it anyway — `h-8` is a utility and this file is a layer — and they
+   should not shrink: these are the touch targets on the screen with the least
+   room, which is the last place to start making them smaller. */
 
 /* --------------------------------------------------------------- specifics */
 
@@ -2286,29 +2314,104 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
    edge is not scrollable, and every message above the fold was unreachable. */
 .chat-stream > :first-child { margin-top: auto; }
 
-.chat-message { display: flex; gap: 9px; padding: 3px 0; position: relative; }
-.chat-message:not(.grouped) { padding-top: 10px; }
-.chat-message .body { flex: 1; min-width: 0; }
-.chat-message .who { font-size: 12.5px; font-weight: 600; }
-.chat-message .when { font-size: 11.5px; color: var(--fg-muted); }
+/*
+ * A message is a bubble, and which side it is on says who said it.
+ *
+ * This was a flat list: every line the full width of the column, every line
+ * the same colour, and the only thing separating one person's from another's
+ * a name printed above each block. Reading back through it, the question
+ * "who said this" was answered by scrolling up to the last name.
+ *
+ * Side and colour answer it without reading anything, which is the whole of
+ * why every messenger does it. What that costs is width — a bubble stops well
+ * short of the far edge, so the eye has an edge to come back to — and the
+ * gained space is where the hover actions now live, instead of the gutter
+ * they used to need carved out of the text column.
+ */
+.chat-message { display: flex; gap: 9px; padding: 1px 0; position: relative; }
+.chat-message:not(.grouped) { padding-top: 9px; }
+.chat-message.mine { flex-direction: row-reverse; }
+.chat-message .body { flex: 0 1 auto; min-width: 0; max-width: min(78%, 34rem); display: flex; flex-direction: column; align-items: flex-start; }
+.chat-message.mine .body { align-items: flex-end; }
 /* Where the avatar would be on a grouped line, so the text stays in one column. */
 .chat-message .gutter { width: 26px; flex: none; }
+
+.bubble {
+  position: relative;
+  max-width: 100%;
+  min-width: 0;
+  padding: 6px 11px 6px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg-raised);
+}
+/* Yours carries the accent, quietly — it is a background for ordinary text,
+   not a highlight, so it stays a tint rather than the accent itself. */
+.chat-message.mine .bubble { background: var(--accent-soft); border-color: transparent; }
+/* The corner nearest the speaker is squared off on the first bubble of a
+   block: the cheap version of a tail, and it points the right way in both
+   directions because it is written in logical properties. */
+.chat-message:not(.grouped):not(.mine) .bubble { border-start-start-radius: 5px; }
+.chat-message:not(.grouped).mine .bubble { border-start-end-radius: 5px; }
+
+.chat-message .who { display: block; font-size: 12.5px; font-weight: 600; margin-bottom: 1px; }
+.chat-message .when { font-size: 11px; color: var(--fg-muted); }
 .chat-message p:last-child { margin-bottom: 0; }
+/* A message can hold a code block or a table, and neither of those is going to
+   fit. They scroll inside the bubble rather than stretching it past the edge
+   of the screen. */
+.bubble .md pre, .bubble .md table { max-width: 100%; overflow-x: auto; }
 
 /*
- * The actions live over the message's top-right corner, and the corner is kept
- * empty for them.
+ * The time sits in the corner of the bubble, and the last paragraph makes room
+ * for it.
  *
- * Lifting the bar into the gap above the row is half the fix — a bar tall
- * enough to hold a button is taller than the gap between two grouped lines, so
- * on its own it still lands on the words. The other half is the gutter below:
- * the text column simply stops before the corner the bar occupies, always,
- * so nothing has to move when the bar appears and nothing is ever behind it.
+ * On its own line it would cost every message a line of height, which on a
+ * phone is the difference between nine messages and seven. Reserved at the end
+ * of the last paragraph instead, so a short message wears its time beside the
+ * words and a long one lets it sit under the last line.
  */
+.bubble .meta {
+  position: absolute;
+  inset-inline-end: 11px;
+  bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1;
+  color: var(--fg-muted);
+  white-space: nowrap;
+}
+.bubble .md > p:last-child::after { content: ""; display: inline-block; width: 3.6rem; }
+.bubble:has(.md > p:last-child) { padding-bottom: 6px; }
+/* Anything whose last line is not a paragraph — an image, a code block, a
+   checklist — cannot reserve the space inline, so the corner is given a line
+   of its own underneath. */
+.bubble:not(:has(.md > p:last-child)) { padding-bottom: 20px; }
+/* Editing replaces the body with a box of its own; the corner steps aside. */
+.bubble:has(.editor) .meta { display: none; }
+.bubble:has(.editor) { padding-bottom: 6px; }
+
+/*
+ * The actions sit in the space beside the bubble, on the side the bubble does
+ * not use.
+ *
+ * This is what the bubbles paid for. Flat full-width lines left nowhere to put
+ * a toolbar except on top of the words, and the fix for that was a hundred and
+ * twenty pixels of gutter carved out of every message's text column, on every
+ * screen wide enough to hover on. A bubble stops at 78%, so the room is
+ * already there — on the left of your own lines and the right of everybody
+ * else's — and the text column gets its width back.
+ */
+.chat-message .body { position: relative; }
 .chat-actions {
   position: absolute;
-  inset-inline-end: 0;
-  top: -13px;
+  /* Just past the bubble's own edge, not the row's: the body shrinks to the
+     bubble, so this follows however wide the message happens to be. */
+  inset-inline-start: 100%;
+  margin-inline-start: 6px;
+  top: 4px;
   z-index: 1;
   display: flex;
   gap: 2px;
@@ -2332,11 +2435,13 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .chat-actions:focus-within { opacity: 1; pointer-events: auto; }
 
-/* Room for the bar, on the pointers that have a hover to reveal it with. Wide
-   screens only: the gutter is a fraction of a desktop column and a third of a
-   phone's. */
-@media (hover: hover) and (min-width: 700px) {
-  .chat-message .body { padding-inline-end: 122px; }
+/* Your own lines put it on the other side, because that is where their free
+   space is. */
+.chat-message.mine .chat-actions {
+  inset-inline-start: auto;
+  inset-inline-end: 100%;
+  margin-inline-start: 0;
+  margin-inline-end: 6px;
 }
 
 /*
@@ -2344,14 +2449,28 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * "show all four on every line, in the text flow" — which took a third of the
  * column away from every message on the narrowest screen there is. Now one
  * dot-button asks, and the bar answers.
+ *
+ * The bar comes back over the bubble here rather than standing beside it: a
+ * phone has no spare 120px next to a message, and a bar hung off the edge of
+ * one pushed the whole conversation sideways — an absolutely positioned box
+ * still counts towards how far its container can scroll. Overlapping is fine
+ * when somebody has just asked for it and it goes away again.
  */
 .chat-more { display: none; }
 @media (hover: none) {
+  .chat-actions {
+    inset-inline-start: auto;
+    inset-inline-end: 0;
+    margin-inline: 0;
+    top: -13px;
+  }
+  .chat-message.mine .chat-actions { inset-inline-end: 0; inset-inline-start: auto; }
   .chat-more {
     display: inline-flex;
     position: absolute;
-    inset-inline-end: 0;
-    top: 0;
+    inset-inline-start: 100%;
+    margin-inline-start: 2px;
+    top: 6px;
     align-items: center;
     justify-content: center;
     width: 24px;
@@ -2362,7 +2481,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
     color: var(--fg-muted);
     cursor: pointer;
   }
-  .chat-message .body { padding-inline-end: 26px; }
+  .chat-message.mine .chat-more {
+    inset-inline-start: auto;
+    inset-inline-end: 100%;
+    margin-inline-start: 0;
+    margin-inline-end: 2px;
+  }
   .chat-message.tapped .chat-actions { opacity: 1; pointer-events: auto; }
   .chat-message.tapped .chat-more { opacity: 0; }
 }
