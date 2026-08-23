@@ -11,3 +11,4 @@ uploads/
 .DS_Store
 coverage/
 .vite/
+__pycache__/
