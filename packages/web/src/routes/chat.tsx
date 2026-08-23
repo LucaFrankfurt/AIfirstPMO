@@ -44,8 +44,8 @@ import { cn } from '../lib/cn';
 import { Input } from '../components/ui/field';
 import { navCount, navItem } from '../components/ui/nav';
 import { Chip } from '../components/ui/chip';
-import { Popover, PopoverContent, PopoverTrigger } from '../components/ui/popover';
 import { Avatar, Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
+import { Reactions, ReactionPicker } from '../components/reactions';
 
 /* --------------------------------------------------------------- the pieces */
 
@@ -918,7 +918,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                     {t('chat.inContext')}
                   </button>
                 )}
-                <Reactions message={message} me={me} canWrite={canWrite} />
+                <Reactions kind="message" id={message.id} reactions={message.reactions} canWrite={canWrite} />
               {/* Shown only where there is no hover to reveal the bar with. */}
               <button
                 className="chat-more"
@@ -929,7 +929,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                 <Icon name="dots" size={14} />
               </button>
               <div className="chat-actions">
-                {canWrite && <AddReaction message={message} me={me} />}
+                {canWrite && (
+                  <ReactionPicker kind="message" id={message.id} reactions={message.reactions}>
+                    <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('task.react')}>
+                      <Icon name="emoji" size={13} />
+                    </Button>
+                  </ReactionPicker>
+                )}
                 <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('chat.reply')} onClick={() => startReply(message.id)}>
                   <Icon name="reply" size={13} />
                 </Button>
@@ -1089,88 +1095,6 @@ function NotifyMenu({ channel, me }: { channel: Channel; me: string }) {
     >
       <Icon name="bell" size={13} />
     </MenuButton>
-  );
-}
-
-/* ---------------------------------------------------------------- reactions */
-
-/** The handful worth having on a work tool. A full picker is a different product. */
-const REACTIONS = ['👍', '🎉', '👀', '🙏', '😄', '🤔'] as const;
-
-const toggleReaction = (message: Message, emoji: string, me: string): void => {
-  const reactions = message.reactions ?? {};
-  const people = reactions[emoji] ?? [];
-  const next = { ...reactions, [emoji]: people.includes(me) ? people.filter((id) => id !== me) : [...people, me] };
-  // An emoji nobody uses any more is removed rather than left as an empty list,
-  // so the row does not slowly fill with invisible entries.
-  if (!next[emoji].length) delete next[emoji];
-  update('message', message.id, { reactions: next });
-};
-
-function Reactions({ message, me, canWrite }: { message: Message; me: string; canWrite: boolean }) {
-  const t = useT();
-  const members = usePeople();
-  const used = Object.entries(message.reactions ?? {}).filter(([, people]) => people?.length);
-  if (!used.length) return null;
-
-  return (
-    <div className="flex items-center flex-wrap reactions gap-1">
-      {used.map(([emoji, people]) => (
-        <button
-          key={emoji}
-          className={`reaction${people.includes(me) ? ' mine' : ''}`}
-          disabled={!canWrite}
-          title={people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}
-          // Otherwise this announces as the emoji alone, and the count and the
-          // names — the entire reason to look at a reaction — are mouse-only.
-          aria-label={`${emoji} ${people.length} · ${people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}`}
-          onClick={() => toggleReaction(message, emoji, me)}
-        >
-          <span aria-hidden>{emoji}</span> {people.length}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/**
- * Six emoji, in a row.
- *
- * This was a menu, and a menu is a column of full-width rows at least thirteen
- * rem across — so six characters came out as a tall ladder of mostly empty
- * space, tall enough to cover the composer. A picker is a different shape from
- * a list of commands, so it uses a different primitive.
- */
-function AddReaction({ message, me }: { message: Message; me: string }) {
-  const t = useT();
-  const [open, setOpen] = useState(false);
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button variant="ghost" size="iconSm" className={ACTION_SIZE} title={t('task.react')}>
-          <Icon name="emoji" size={13} />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="flex gap-0.5" aria-label={t('task.react')}>
-        {REACTIONS.map((emoji) => {
-          const mine = (message.reactions?.[emoji] ?? []).includes(me);
-          return (
-            <button
-              key={emoji}
-              className={cn('reaction-pick', mine && 'mine')}
-              aria-pressed={mine}
-              aria-label={emoji}
-              onClick={() => {
-                toggleReaction(message, emoji, me);
-                setOpen(false);
-              }}
-            >
-              <span aria-hidden>{emoji}</span>
-            </button>
-          );
-        })}
-      </PopoverContent>
-    </Popover>
   );
 }
 

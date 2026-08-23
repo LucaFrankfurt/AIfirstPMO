@@ -9,74 +9,18 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../lib/i18n';
 import { relativeTime } from '../lib/format';
-import { comment as postComment, remove, update } from '../lib/mutations';
+import { comment as postComment, remove } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
-import { useMe, useMemberMap } from '../session';
+import { useCanWrite, useMe, useMemberMap } from '../session';
 import { anchorLabel, findAnchor, type Anchor, type Comment } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from './Markdown';
 import { Button } from '../components/ui/button';
 import { Chip } from './ui/chip';
-import { Avatar, Icon, MenuButton, useConfirm } from './ui';
+import { Avatar, Icon, useConfirm } from './ui';
+import { Reactions, ReactionPicker } from './reactions';
 
 /** Exactly one of the two, which is also how the row is stored. */
 export type CommentTarget = { task_id: string; page_id?: never } | { page_id: string; task_id?: never };
-
-/** The handful worth having on a work tool. A full picker is a different product. */
-const REACTIONS = ['👍', '🎉', '👀', '🙏', '😄', '🤔'] as const;
-
-/**
- * Reactions on a comment.
- *
- * `reactions` has been stored and synced since the first release as
- * `{ emoji: [userId, …] }`; nothing displayed it. Counting is the point — who
- * reacted is a tooltip, not a row of avatars.
- */
-function Reactions({ comment }: { comment: Comment }) {
-  const t = useT();
-  const me = useMe();
-  const members = useMemberMap();
-  const reactions = comment.reactions ?? {};
-  const used = Object.entries(reactions).filter(([, people]) => people?.length);
-
-  const toggle = (emoji: string) => {
-    const people = reactions[emoji] ?? [];
-    const next = { ...reactions, [emoji]: people.includes(me) ? people.filter((id) => id !== me) : [...people, me] };
-    // An emoji nobody uses any more is removed rather than left as an empty
-    // list, so the row does not slowly fill with invisible entries.
-    if (!next[emoji].length) delete next[emoji];
-    update('comment', comment.id, { reactions: next });
-  };
-
-  return (
-    <div className="flex items-center flex-wrap reactions gap-1">
-      {used.map(([emoji, people]) => (
-        <button
-          key={emoji}
-          className={`reaction${people.includes(me) ? ' mine' : ''}`}
-          title={people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}
-          // Otherwise this announces as the emoji alone, and the count and the
-          // names — the entire reason to look at a reaction — are mouse-only.
-          aria-label={`${emoji} ${people.length} · ${people.map((id) => members.get(id)?.name ?? t('common.someone')).join(', ')}`}
-          onClick={() => toggle(emoji)}
-        >
-          <span aria-hidden>{emoji}</span> {people.length}
-        </button>
-      ))}
-      <MenuButton
-        className="reaction add"
-        label={t('task.react')}
-        items={REACTIONS.map((emoji) => ({
-          id: emoji,
-          label: <span className="text-base">{emoji}</span>,
-          hint: (reactions[emoji] ?? []).includes(me) ? '✓' : undefined,
-          onSelect: () => toggle(emoji),
-        }))}
-      >
-        <Icon name="plus" size={12} />
-      </MenuButton>
-    </div>
-  );
-}
 
 export function Comments({ target, empty, anchor, onAnchorDone, source, active, onPick }: {
   target: CommentTarget;
@@ -91,6 +35,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
 }) {
   const t = useT();
   const me = useMe();
+  const canWrite = useCanWrite();
   const members = useMemberMap();
   const { confirm, dialog } = useConfirm();
   const [draft, setDraft] = useState('');
@@ -163,7 +108,15 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                 </button>
               )}
               <Markdown source={entry.body} />
-              <Reactions comment={entry} />
+              <Reactions kind="comment" id={entry.id} reactions={entry.reactions} canWrite={canWrite}>
+                {canWrite && (
+                  <ReactionPicker kind="comment" id={entry.id} reactions={entry.reactions} align="start">
+                    <button className="reaction add" aria-label={t('task.react')} title={t('task.react')}>
+                      <Icon name="plus" size={12} />
+                    </button>
+                  </ReactionPicker>
+                )}
+              </Reactions>
             </div>
           </div>
         );
