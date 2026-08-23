@@ -19,7 +19,10 @@ services:
       mailpit:
         condition: service_started
     environment:
-      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-smtp://mailpit:1025}"
+      # `encryption=none` because Mailpit has no certificate and none of this
+      # leaves the compose network. Spelled out rather than inferred: turning
+      # encryption off is the one thing a configuration should have to say.
+      KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-smtp://mailpit:1025?encryption=none}"
       KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
       # Short window so a test does not wait two minutes for the digest.
       KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-15}"

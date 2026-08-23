@@ -13,6 +13,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { sendMail, type SmtpConfig } from './smtp.ts';
+import { sendViaScaleway } from './scaleway.ts';
+import { DeliveryError, isPermanentFailure, type Deliverable } from './delivery.ts';
 import { uid } from './ids.ts';
 import { isLocale, defaultLocale, translate, type Locale } from './i18n.ts';
 import { isImportantFor } from '@kolibri/shared';
@@ -32,11 +34,31 @@ const important = (kind: string): boolean => isImportantFor('email', kind);
 const smtp = (): SmtpConfig => ({
   host: env.mail.host,
   port: env.mail.port,
-  secure: env.mail.secure,
+  encryption: env.mail.encryption,
   user: env.mail.user,
   pass: env.mail.pass,
   allowInvalidCerts: env.mail.allowInvalidCerts,
 });
+
+/**
+ * The one place that knows there is more than one way out.
+ *
+ * Read per message rather than chosen once at startup, so that a test send from
+ * the settings screen exercises the configuration the instance actually has
+ * rather than the one it booted with.
+ */
+async function deliver(mail: Deliverable): Promise<string> {
+  if (env.mailTransport === 'scaleway') {
+    return sendViaScaleway({
+      url: env.mail.scaleway.url,
+      secretKey: env.mail.scaleway.secretKey,
+      projectId: env.mail.scaleway.projectId,
+    }, mail);
+  }
+  if (env.mailTransport === 'smtp') return sendMail(smtp(), mail);
+  // Reached only if the transport went away between queueing and flushing.
+  throw new DeliveryError('No mail transport is configured', false);
+}
 
 const link = (path: string): string => `${env.publicUrl || 'http://localhost:4000'}${path}`;
 
@@ -117,15 +139,6 @@ export const unsuppress = (email: string): void => {
 export const suppressions = (): Row[] =>
   all<Row>(`SELECT * FROM email_suppressions ORDER BY created_at DESC LIMIT 500`);
 
-/**
- * Whether a relay's refusal is final.
- *
- * A 5xx reply means "this address, this message, never" — retrying it five more
- * times only tells the receiving domain that nobody here is listening. A 4xx is
- * a bad moment, and those are exactly what the backoff is for.
- */
-export const isPermanent = (message: string): boolean => /\b5\d\d\b/.test(message);
-
 export function pendingCount(): number {
   return Number(get<Row>(`SELECT count(*) c FROM email_queue WHERE sent_at IS NULL AND failed_at IS NULL`)?.c ?? 0);
 }
@@ -144,7 +157,7 @@ export async function flushQueue(limit = 20): Promise<{ sent: number; failed: nu
   let failed = 0;
   for (const row of due) {
     try {
-      await sendMail(smtp(), {
+      await deliver({
         from: env.mail.from,
         fromName: env.mail.fromName,
         replyTo: env.mail.replyTo,
@@ -159,7 +172,10 @@ export async function flushQueue(limit = 20): Promise<{ sent: number; failed: nu
     } catch (error) {
       const attempts = Number(row.attempts ?? 0) + 1;
       const message = error instanceof Error ? error.message : 'send failed';
-      const permanent = isPermanent(message);
+      // Asked of the error rather than read out of its text — the two
+      // transports disagree about which status codes are final, and the note on
+      // `DeliveryError` says what reading the text costs.
+      const permanent = isPermanentFailure(error);
       const giveUp = permanent || attempts >= env.mail.maxAttempts;
       // A permanent refusal is the address's problem, not this message's: the
       // address stops being written to at all.
@@ -365,7 +381,10 @@ export function queueInvite(invite: {
 export function queueTestMail(to: string, locale?: string): string | null {
   const chosen = isLocale(locale) ? locale : defaultLocale();
   const t = (key: Parameters<typeof translate>[1], vars?: Record<string, string | number>) => translate(chosen, key, vars);
-  const relay = `${env.mail.host}:${env.mail.port}${env.mail.secure ? ' (TLS)' : ''}`;
+  // What it went through, in the words of whichever thing it went through.
+  const relay = env.mailTransport === 'scaleway'
+    ? `Scaleway Transactional Email (${new URL(env.mail.scaleway.url).host})`
+    : `${env.mail.host}:${env.mail.port} (${env.mail.encryption})`;
   return queueMail({
     to,
     kind: 'test',

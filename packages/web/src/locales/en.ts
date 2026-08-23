@@ -1049,6 +1049,8 @@ export const en = {
   'notify.saved': 'Notification settings saved',
   'notify.delivery': 'Delivery',
   'notify.relay': 'Relay',
+  'notify.api': 'Provider',
+  'notify.noEncryption': 'not encrypted',
   'notify.sender': 'Sender',
   'notify.queued': 'Waiting in the queue',
   'notify.sendTest': 'Send a test email',

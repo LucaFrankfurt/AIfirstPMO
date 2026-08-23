@@ -78,6 +78,12 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_MAIL_BATCH_SECONDS` | `120` | How long notifications are collected before one summary mail goes out |
 | `KOLIBRI_MAIL_MAX_ATTEMPTS` | `6` | Retries before a message is marked failed |
 | `KOLIBRI_SMTP_INSECURE` | `false` | Accept a self-signed certificate on an internal relay |
+| `KOLIBRI_SMTP_ENCRYPTION` | from the port | `starttls` \| `tls` \| `none`. Required, not attempted — a relay that does not offer STARTTLS gets no message rather than a plaintext one |
+| `KOLIBRI_SMTP_HOST` / `_PORT` / `_USER` / `_PASS` | empty / `587` | The same relay set piece by piece instead of as a URL |
+| `KOLIBRI_SCALEWAY_SECRET_KEY` | empty | Send over Scaleway's Transactional Email API instead of SMTP — for hosts that block outbound SMTP ports |
+| `KOLIBRI_SCALEWAY_PROJECT_ID` | empty | The Scaleway project the key belongs to |
+| `KOLIBRI_SCALEWAY_EMAIL_URL` | fr-par endpoint | The regional API endpoint; `fr-par` is the only region the service runs in |
+| `KOLIBRI_MAIL_TRANSPORT` | whichever is configured | `smtp` \| `scaleway`, when both are |
 
 `KOLIBRI_PUBLIC_URL` must be set for the links in those emails to point anywhere useful.
 

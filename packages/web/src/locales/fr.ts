@@ -1053,6 +1053,8 @@ export const fr: Catalogue = {
   'notify.saved': 'Réglages de notification enregistrés',
   'notify.delivery': 'Envoi',
   'notify.relay': 'Relais',
+  'notify.api': 'Fournisseur',
+  'notify.noEncryption': 'non chiffré',
   'notify.sender': 'Expéditeur',
   'notify.queued': 'En attente dans la file',
   'notify.sendTest': 'Envoyer un e-mail de test',

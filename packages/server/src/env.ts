@@ -2,12 +2,21 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseSmtpUrl } from './lib/smtp.ts';
+import { isEncryption, parseSmtpUrl, type SmtpEncryption } from './lib/smtp.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 export const ROOT = resolve(here, '../../..');
 
 const int = (v: string | undefined, fallback: number) => (v && !Number.isNaN(Number(v)) ? Number(v) : fallback);
+/**
+ * A variable that is present but empty is not set.
+ *
+ * `??` alone reads `FOO=""` as a value, and docker-compose writes exactly that
+ * for every `${FOO:-}` it interpolates — so a compose file listing an optional
+ * setting is enough to blank whatever default the code had.
+ */
+const text = (...values: (string | undefined)[]): string | undefined =>
+  values.find((value) => value !== undefined && value.trim() !== '');
 const bool = (v: string | undefined, fallback: boolean) =>
   v === undefined ? fallback : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase());
 
@@ -57,21 +66,64 @@ const storage = {
 };
 
 /**
- * Mail is optional: without an SMTP host Kolibri simply keeps notifications
- * in-app, and every queued message is marked as skipped rather than retried.
+ * Mail is optional: with neither an SMTP host nor a Scaleway key Kolibri simply
+ * keeps notifications in-app, and every queued message is marked as skipped
+ * rather than retried.
  */
 const smtpFromUrl = process.env.KOLIBRI_SMTP_URL ? parseSmtpUrl(process.env.KOLIBRI_SMTP_URL) : null;
 
+/**
+ * How the SMTP connection is protected — see `SmtpEncryption`.
+ *
+ * Unset, it follows the port, because the two ports have meant these two things
+ * for twenty years: 465 is TLS from the first byte, everything else is a
+ * plaintext connection upgraded with STARTTLS. Turning encryption off is never
+ * inferred; `none` has to be typed.
+ *
+ * `KOLIBRI_SMTP_SECURE=true` still means implicit TLS, so an existing
+ * deployment keeps working. What changed underneath is the other half of that
+ * boolean: `false` used to mean "STARTTLS if the relay happens to offer it",
+ * and now means STARTTLS or nothing.
+ */
+const smtpEncryption = (): SmtpEncryption => {
+  const asked = text(process.env.KOLIBRI_SMTP_ENCRYPTION)?.trim().toLowerCase();
+  if (isEncryption(asked)) return asked;
+  if (smtpFromUrl) return smtpFromUrl.encryption;
+  if (bool(process.env.KOLIBRI_SMTP_SECURE, false)) return 'tls';
+  return int(process.env.KOLIBRI_SMTP_PORT, 587) === 465 ? 'tls' : 'starttls';
+};
+
+/**
+ * Scaleway Transactional Email, as an alternative to an SMTP relay.
+ *
+ * The `SCW_*` names are read as well as Kolibri's own. They are the names
+ * Scaleway's own tooling uses and the ones people already have in a `.env`
+ * next to this one, and refusing to look at them would buy consistency at the
+ * cost of a silent "mail is off" for somebody whose configuration is sitting
+ * right there. Kolibri's own names win where both are set.
+ */
+const scaleway = {
+  secretKey: text(process.env.KOLIBRI_SCALEWAY_SECRET_KEY, process.env.SCW_SECRET_KEY_EMAIL) ?? '',
+  projectId: text(process.env.KOLIBRI_SCALEWAY_PROJECT_ID, process.env.SCW_PROJECT_ID) ?? '',
+  // `fr-par` is the only region the service runs in, so the whole URL is the
+  // setting rather than a region name with one legal value.
+  url: text(process.env.KOLIBRI_SCALEWAY_EMAIL_URL, process.env.SCW_EMAIL_API_URL)
+    ?? 'https://api.scaleway.com/transactional-email/v1alpha1/regions/fr-par/emails',
+};
+
 const mail = {
-  host: smtpFromUrl?.host ?? process.env.KOLIBRI_SMTP_HOST ?? '',
+  host: smtpFromUrl?.host ?? text(process.env.KOLIBRI_SMTP_HOST) ?? '',
   port: smtpFromUrl?.port ?? int(process.env.KOLIBRI_SMTP_PORT, 587),
-  secure: smtpFromUrl?.secure ?? bool(process.env.KOLIBRI_SMTP_SECURE, false),
-  user: smtpFromUrl?.user ?? process.env.KOLIBRI_SMTP_USER ?? undefined,
-  pass: smtpFromUrl?.pass ?? process.env.KOLIBRI_SMTP_PASS ?? undefined,
+  encryption: smtpEncryption(),
+  user: smtpFromUrl?.user ?? text(process.env.KOLIBRI_SMTP_USER),
+  pass: smtpFromUrl?.pass ?? text(process.env.KOLIBRI_SMTP_PASS),
   allowInvalidCerts: smtpFromUrl?.allowInvalidCerts ?? bool(process.env.KOLIBRI_SMTP_INSECURE, false),
-  from: process.env.KOLIBRI_MAIL_FROM ?? 'kolibri@localhost',
-  fromName: process.env.KOLIBRI_MAIL_FROM_NAME ?? 'Kolibri',
-  replyTo: process.env.KOLIBRI_MAIL_REPLY_TO ?? undefined,
+  // `EMAIL_FROM_INFO` / `EMAIL_FROM_NAME` for the same reason as the `SCW_*`
+  // names above: they travel with a Scaleway setup.
+  from: text(process.env.KOLIBRI_MAIL_FROM, process.env.EMAIL_FROM_INFO) ?? 'kolibri@localhost',
+  fromName: text(process.env.KOLIBRI_MAIL_FROM_NAME, process.env.EMAIL_FROM_NAME) ?? 'Kolibri',
+  replyTo: text(process.env.KOLIBRI_MAIL_REPLY_TO),
+  scaleway,
   /** Wait this long before emailing, so a burst of activity becomes one message. */
   batchSeconds: int(process.env.KOLIBRI_MAIL_BATCH_SECONDS, 120),
   pollSeconds: int(process.env.KOLIBRI_MAIL_POLL_SECONDS, 20),
@@ -210,13 +262,29 @@ export const env = {
    * messages are delivered and then go nowhere. Worth saying out loud, because
    * every other signal in the app looks identical to real delivery.
    */
-  get mailMode(): 'off' | 'relay' | 'test-inbox' {
+  get mailMode(): 'off' | 'relay' | 'scaleway' | 'test-inbox' {
+    if (this.mailTransport === 'scaleway') return 'scaleway';
     if (!mail.host) return 'off';
     return /^(mailpit|mailhog|maildev|localhost|127\.0\.0\.1|::1)$/i.test(mail.host) ? 'test-inbox' : 'relay';
   },
-  /** Mail is configured; without a host nothing is ever sent. */
+  /**
+   * Which way mail leaves, when there is more than one way it could.
+   *
+   * `KOLIBRI_MAIL_TRANSPORT` settles it outright. Otherwise a Scaleway key
+   * wins, on the grounds that nobody sets an API key for a provider they did
+   * not mean to send through — and a deployment that has both configured
+   * usually has the SMTP block left over from the arrangement it replaced.
+   */
+  get mailTransport(): 'off' | 'smtp' | 'scaleway' {
+    const asked = text(process.env.KOLIBRI_MAIL_TRANSPORT)?.trim().toLowerCase();
+    if (asked === 'smtp') return mail.host ? 'smtp' : 'off';
+    if (asked === 'scaleway') return scaleway.secretKey && scaleway.projectId ? 'scaleway' : 'off';
+    if (scaleway.secretKey && scaleway.projectId) return 'scaleway';
+    return mail.host ? 'smtp' : 'off';
+  },
+  /** Mail is configured; with no transport nothing is ever sent. */
   get mailEnabled(): boolean {
-    return !!mail.host;
+    return this.mailTransport !== 'off';
   },
   /** A bot token is the whole of the Telegram configuration. */
   get telegramEnabled(): boolean {

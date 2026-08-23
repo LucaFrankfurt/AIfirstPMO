@@ -86,8 +86,22 @@ services:
       # which is the source of truth anyway. Set a relay to turn it on:
       #   smtp://user:pass@smtp.example.com:587
       KOLIBRI_SMTP_URL: "${KOLIBRI_SMTP_URL:-}"
-      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-kolibri@localhost}"
-      KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-Kolibri}"
+      # Or piece by piece, which is the shape most providers hand you. The
+      # encryption follows the port unless it is set: 465 is TLS, anything else
+      # is STARTTLS — and STARTTLS is required rather than attempted.
+      KOLIBRI_SMTP_HOST: "${KOLIBRI_SMTP_HOST:-}"
+      KOLIBRI_SMTP_PORT: "${KOLIBRI_SMTP_PORT:-587}"
+      KOLIBRI_SMTP_ENCRYPTION: "${KOLIBRI_SMTP_ENCRYPTION:-}"
+      KOLIBRI_SMTP_USER: "${KOLIBRI_SMTP_USER:-}"
+      KOLIBRI_SMTP_PASS: "${KOLIBRI_SMTP_PASS:-}"
+      # Scaleway Transactional Email instead of a relay, for hosts that block
+      # outbound SMTP ports. See docs/notifications.md.
+      KOLIBRI_MAIL_TRANSPORT: "${KOLIBRI_MAIL_TRANSPORT:-}"
+      KOLIBRI_SCALEWAY_SECRET_KEY: "${KOLIBRI_SCALEWAY_SECRET_KEY:-${SCW_SECRET_KEY_EMAIL:-}}"
+      KOLIBRI_SCALEWAY_PROJECT_ID: "${KOLIBRI_SCALEWAY_PROJECT_ID:-${SCW_PROJECT_ID:-}}"
+      KOLIBRI_SCALEWAY_EMAIL_URL: "${KOLIBRI_SCALEWAY_EMAIL_URL:-${SCW_EMAIL_API_URL:-}}"
+      KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-${EMAIL_FROM_INFO:-kolibri@localhost}}"
+      KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-${EMAIL_FROM_NAME:-Kolibri}}"
       KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
 
       # --- single sign-on ---------------------------------------------------
