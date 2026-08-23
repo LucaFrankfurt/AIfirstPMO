@@ -49,6 +49,18 @@ export function briefWhen(timestamp?: number | null): string {
   return shortDate(timestamp);
 }
 
+/**
+ * Just the clock, for the corner of a message.
+ *
+ * The date is not repeated on every line because the divider above the day's
+ * first message already said it, and a bubble has room for four characters
+ * rather than fourteen. The whole moment is on the hover.
+ */
+export function clockTime(timestamp?: number | null): string {
+  if (!timestamp) return '';
+  return new Date(timestamp).toLocaleTimeString(currentLocale(), { hour: 'numeric', minute: '2-digit' });
+}
+
 /** A day named in full, for the line that separates one from the next. */
 export function longDate(timestamp?: number | null): string {
   if (!timestamp) return '';

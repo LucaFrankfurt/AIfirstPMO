@@ -33,7 +33,7 @@ import { api } from '../lib/api';
 import { create, remove, update } from '../lib/mutations';
 import { list, byId, useQuery } from '../lib/store';
 import { useT } from '../lib/i18n';
-import { briefWhen, exactTime, longDate, relativeTime } from '../lib/format';
+import { briefWhen, clockTime, exactTime, longDate } from '../lib/format';
 import { isPendingRow, subscribeSync } from '../lib/sync';
 import { setTyping, useOnline, useOnlineIds, useTypists } from '../lib/presence';
 import { useCanWrite, useMe, useMemberMap, usePeople, useSession } from '../session';
@@ -834,6 +834,14 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
             && message.created_at - previous.created_at < 5 * 60_000
             && !message.reply_to;
           const answered = message.reply_to ? messages.find((m) => m.id === message.reply_to) : undefined;
+          // Which side of the conversation this is. The single most useful
+          // thing a chat can say about a line, and this one used to say it
+          // only by printing a name above every block.
+          const mine = message.author_id === me;
+          // A name belongs on somebody else's first line in a room with more
+          // than two people in it. In a direct conversation both names are in
+          // the header already, and repeating them down the page is noise.
+          const named = !mine && !grouped && channel.kind !== 'direct';
           // A new calendar day gets a line saying so. Without it yesterday
           // evening and this morning read as one conversation.
           const dayBefore = previous ? new Date(previous.created_at).toDateString() : null;
@@ -845,7 +853,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               <div className="chat-day"><span>{dayLabel(message.created_at, t)}</span></div>
             )}
             <div
-              className={cn('chat-message', grouped && 'grouped', tapped === message.id && 'tapped')}
+              className={cn('chat-message', grouped && 'grouped', mine && 'mine', tapped === message.id && 'tapped')}
               key={message.id}
               data-message={message.id}
               // Every line can be asked when it was said, not only the one at
@@ -853,21 +861,12 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
               // wrong by the time anybody reads it twice.
               title={exactTime(message.created_at)}
             >
-              {grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />}
+              {/* Only the other person gets a face: yours is not news to you,
+                  and on a phone it is a third of the width of the line. */}
+              {!mine && (grouped ? <span className="gutter" /> : <Avatar user={author} size={26} />)}
               <div className="body">
-                {!grouped && (
-                  <div className="flex items-center gap-1.5">
-                    <span className="who">{author?.name ?? t('common.someone')}</span>
-                    <span className="when">{relativeTime(message.created_at)}</span>
-                    {/* A search result is out of its context by definition, so
-                        it carries a way back into it. */}
-                    {hunting && (
-                      <button className="chat-in-context" onClick={() => jumpTo(message.id)}>
-                        {t('chat.inContext')}
-                      </button>
-                    )}
-                  </div>
-                )}
+                <div className="bubble">
+                {named && <span className="who">{author?.name ?? t('common.someone')}</span>}
                 {/* The quote is a way back to what was said, so it is a button
                     — and `orphan` is the same "it is not there any more" this
                     class already means beside a comment. The answer outlives
@@ -901,17 +900,25 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                     }}
                   />
                 ) : (
-                  <>
-                    <Markdown source={message.body} />
-                    {/* After the body rather than up beside the name: a
-                        grouped line has no name row, so an edit to one went
-                        unmarked — the one case the mark exists for. */}
-                    {message.edited_at && <span className="when">{t('chat.edited')}</span>}
-                  </>
+                  <Markdown source={message.body} />
+                )}
+                {/* When it was said, and anything else true about the line,
+                    tucked into the corner of the bubble the way a messenger
+                    puts it — the last paragraph reserves the room for it. */}
+                <span className="meta">
+                  {message.edited_at && <span>{t('chat.edited')}</span>}
+                  {mine && <Unsent id={message.id} />}
+                  <span className="when" title={exactTime(message.created_at)}>{clockTime(message.created_at)}</span>
+                </span>
+                </div>
+                {/* A search result is out of its context by definition, so it
+                    carries a way back into it. */}
+                {hunting && (
+                  <button className="chat-in-context" onClick={() => jumpTo(message.id)}>
+                    {t('chat.inContext')}
+                  </button>
                 )}
                 <Reactions message={message} me={me} canWrite={canWrite} />
-                {message.author_id === me && <Unsent id={message.id} />}
-              </div>
               {/* Shown only where there is no hover to reveal the bar with. */}
               <button
                 className="chat-more"
@@ -941,6 +948,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
                     </Button>
                   </>
                 )}
+              </div>
               </div>
             </div>
             </Fragment>
