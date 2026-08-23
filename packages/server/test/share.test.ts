@@ -50,7 +50,10 @@ before(async () => {
   const page = await ok(`/api/workspaces/${workspaceId}/pages`, {
     project_id: projectId,
     title: 'Release notes',
-    content: '# Release notes\n\nWe shipped **the thing**.\n\n<script>alert(1)</script>\n',
+    content: '# Release notes\n\nWe shipped **the thing**.\n\n'
+      + '| Change | Ships |\n| --- | ---: |\n| the thing | 4.2 |\n\n'
+      + '```mermaid\ngraph TD;\n  A-->B;\n```\n\n'
+      + '<script>alert(1)</script>\n',
   });
   pageId = page.id;
   await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, parent_id: pageId, title: 'Known issues', content: 'None yet.' });
@@ -91,6 +94,19 @@ describe('a shared page', () => {
     // second copy of the title on top of it.
     assert.equal((body.match(/Release notes/g) ?? []).length, 2, 'once in the tab title, once in the document');
     assert.equal(body.includes('<script>alert(1)</script>'), false, 'nothing a person typed becomes markup');
+  });
+
+  /**
+   * A shared page is rendered by the server into one document with no script in
+   * it, which is a decision this file makes on purpose — so the two things a
+   * page can hold that a script would otherwise draw are worth pinning down.
+   */
+  it('draws a table, and leaves a diagram as something readable', async () => {
+    const body = await (await open(`/s/${token}`)).text();
+    assert.match(body, /<table>/, 'a table is a table here too, not a row of pipes');
+    assert.match(body, /<td style="text-align:right">4\.2<\/td>/, 'including the alignment it asked for');
+    assert.match(body, /<pre class="md-mermaid">/);
+    assert.match(body, /graph TD;/, 'a stranger with no script still gets the diagram as text');
   });
 
   it('gives a stranger nothing else', async () => {

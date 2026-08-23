@@ -59,7 +59,7 @@ function document_(title: string, body: string, workspace: string, writable = fa
   pre code { background: none; padding: 0; }
   img { max-width: 100%; height: auto; border-radius: 8px; }
   blockquote { border-inline-start: 3px solid var(--line); padding-inline-start: 12px; color: var(--muted); }
-  table { border-collapse: collapse; width: 100%; display: block; overflow-x: auto; }
+  table { border-collapse: collapse; display: block; width: max-content; max-width: 100%; overflow-x: auto; }
   th, td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: start; vertical-align: top; }
   th { font-size: 12.5px; color: var(--muted); font-weight: 600; }
   .meta { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
