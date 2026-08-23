@@ -16,6 +16,7 @@ import { Clock, orderKey, type PullResponse, type PushResponse } from '@kolibri/
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
 const { server } = await import('../src/index.ts');
+const { all } = await import('../src/db/index.ts');
 
 let base = '';
 let cookie = '';
@@ -660,13 +661,13 @@ describe('kolibri api', () => {
     // matches the same way, so this is the collision it cannot see.
     assert.match(
       JSON.stringify(await callTool('create_label', { name: 'Needs-Design' })),
-      /already usable here/,
+      /already exists/,
     );
     // And a project-scoped one collides with the workspace-wide one too: on a
     // task the two look identical.
     assert.match(
       JSON.stringify(await callTool('create_label', { name: 'needs-design', project: 'WEB' })),
-      /already usable here/,
+      /already exists/,
     );
 
     const edited = (await callTool('update_label', {
@@ -714,6 +715,178 @@ describe('kolibri api', () => {
     assert.equal(ignored.key, 'WEB');
 
     await callTool('update_project', { project: 'WEB', status: 'in_progress' });
+  });
+
+  it('gives a colourless label the colour the schema promises', async () => {
+    // `color` is NOT NULL DEFAULT — writing an explicit null defeated the
+    // default and the insert died with a raw constraint error. The one test
+    // that existed always passed a colour, which is how it never noticed.
+    const plain = (await callTool('create_label', { name: 'plain-colour-check' })).result.structuredContent;
+    assert.equal(plain.color, '#6366f1');
+  });
+
+  it('sees a label clash from both directions, and refuses a widening that would collide', async () => {
+    await callTool('create_project', { name: 'Label pen', key: 'LBL' });
+    await callTool('create_label', { name: 'scoped-first', project: 'LBL' });
+    // The reverse of the existing test: the project label exists, the
+    // workspace-wide one arrives second — and would become usable in the very
+    // project that already has one.
+    assert.match(
+      JSON.stringify(await callTool('create_label', { name: 'Scoped-First' })),
+      /already exists in a project/,
+    );
+
+    // Widening collides the same way: LBL has its own `dupe-x`, so widening
+    // LB2's `dupe-x` would put two identical chips on LBL's tasks. (Neither
+    // lives in WEB, whose starting label set another test asserts verbatim.)
+    await callTool('create_project', { name: 'Label pen two', key: 'LB2' });
+    const mine = (await callTool('create_label', { name: 'dupe-x', project: 'LB2' })).result.structuredContent;
+    await callTool('create_label', { name: 'dupe-x', project: 'LBL' });
+    assert.match(
+      JSON.stringify(await callTool('update_label', { label: mine.id, workspace_wide: true })),
+      /already usable there/,
+    );
+  });
+
+  it('refuses a lead it cannot resolve instead of clearing the real one', async () => {
+    const set = (await callTool('update_project', { project: 'WEB', lead: 'ada@example.com' })).result.structuredContent;
+    assert.ok(set.lead_id, 'the lead resolves by email');
+
+    // The trap: resolveUsers drops what it does not recognise, so a typo used
+    // to come back as success with lead_id null — the wrong person reported as
+    // removed rather than the typo reported at all.
+    assert.match(
+      JSON.stringify(await callTool('update_project', { project: 'WEB', lead: 'No Such Person' })),
+      /No member matching/,
+    );
+    const kept = (await callTool('update_project', { project: 'WEB', status: 'in_progress' })).result.structuredContent;
+    assert.equal(kept.lead_id, set.lead_id, 'the failed update must not have touched the lead');
+
+    const cleared = (await callTool('update_project', { project: 'WEB', lead: null })).result.structuredContent;
+    assert.equal(cleared.lead_id, null, 'null is the one honest way to clear');
+  });
+
+  it('files a batch in the order it was given, at the top of the board', async () => {
+    await callTool('create_tasks_batch', {
+      project: 'WEB',
+      tasks: [{ title: 'Order check 1' }, { title: 'Order check 2' }, { title: 'Order check 3' }],
+    });
+    // Each entry used to take the top for itself, so a plan landed reversed.
+    const top = all<any>(
+      `SELECT title FROM tasks WHERE project_id = (SELECT id FROM projects WHERE key = 'WEB')
+        AND deleted_at IS NULL ORDER BY sort_order LIMIT 3`,
+    ).map((row) => row.title);
+    assert.deepEqual(top, ['Order check 1', 'Order check 2', 'Order check 3']);
+  });
+
+  it('stores blocked_by as the blocks row the schedulers actually read', async () => {
+    const x = (await callTool('create_task', { project: 'WEB', title: 'Waits' })).result.structuredContent;
+    const y = (await callTool('create_task', { project: 'WEB', title: 'Holds up' })).result.structuredContent;
+
+    // "X is blocked by Y" — stored flipped, because the planner, the Gantt and
+    // the scheduling cascade all read `kind = 'blocks'` only. Stored verbatim
+    // it displayed correctly and scheduled nothing.
+    const link = (await callTool('create_task_relation', {
+      source_task: x.identifier, target_task: y.identifier, type: 'blocked_by', lag: 3,
+    })).result.structuredContent;
+    assert.equal(link.kind, 'blocks');
+    assert.equal(link.source.identifier, y.identifier);
+    assert.equal(link.target.identifier, x.identifier);
+    // And the flip is what lets the lag count: it belongs to the blocker.
+    assert.equal(link.lag, 3);
+  });
+
+  it('validates dates wherever a task takes one', async () => {
+    assert.match(
+      JSON.stringify(await callTool('create_task', { project: 'WEB', title: 'Bad date', due_date: 'next friday' })),
+      /YYYY-MM-DD/,
+    );
+    assert.match(
+      JSON.stringify(await callTool('create_tasks_batch', {
+        project: 'WEB', tasks: [{ title: 'Fine' }, { title: 'Not fine', due_date: '2026/09/01' }],
+      })),
+      /tasks\[1\].*YYYY-MM-DD/,
+    );
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Dated', due_date: '2026-09-01' })).result.structuredContent;
+    assert.equal(task.due_date, '2026-09-01');
+    assert.match(
+      JSON.stringify(await callTool('update_task', { task: task.identifier, due_date: 'garbage' })),
+      /YYYY-MM-DD/,
+    );
+    // Null still clears — the validation must not take that away.
+    const cleared = (await callTool('update_task', { task: task.identifier, due_date: null })).result.structuredContent;
+    assert.equal(cleared.due_date, null);
+  });
+
+  it('lets a cleared date through the range check', async () => {
+    await callTool('create_cycle', { project: 'WEB', name: 'Clearing', start_date: '2026-09-01', end_date: '2026-09-14' });
+    // Final state: no start, end in August. Legal — but `??` resurrected the
+    // old September start into the check and refused it.
+    const cleared = (await callTool('update_cycle', {
+      cycle: 'Clearing', start_date: null, end_date: '2026-08-20',
+    })).result.structuredContent;
+    assert.equal(cleared.start_date, null);
+    assert.equal(cleared.end_date, '2026-08-20');
+    await callTool('delete_cycle', { cycle: 'Clearing' });
+  });
+
+  it('marks the default state the server actually uses, not merely the first', async () => {
+    const states = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    const progress = states.find((s: any) => s.name === 'In Progress');
+    const webId = all<any>(`SELECT id FROM projects WHERE key = 'WEB'`)[0].id;
+    await api(`/api/projects/${webId}`, { method: 'PATCH', body: { default_state_id: progress.id } });
+
+    // `applyCreateDefaults` prefers the project's own default_state_id; the
+    // first-in-board-order rule is only its fallback. is_default has to say
+    // where a stateless create will really land.
+    const after = (await callTool('list_states', { project: 'WEB' })).result.structuredContent.result;
+    assert.equal(after.find((s: any) => s.is_default)?.name, 'In Progress');
+    const landed = (await callTool('create_task', { project: 'WEB', title: 'Lands in the default' })).result.structuredContent;
+    assert.equal(landed.state, 'In Progress');
+
+    await api(`/api/projects/${webId}`, { method: 'PATCH', body: { default_state_id: null } });
+  });
+
+  it('accepts an upload larger than the old transport ceiling', async () => {
+    // The tool promised KOLIBRI_MAX_UPLOAD_MB (25 MB) but the MCP route read
+    // its body through readJson's 8 MB default, so anything over ~6 MB died as
+    // a bare HTTP 413 before the tool could answer. Nine megabytes sits square
+    // in the gap: over the old ceiling, under the real limit.
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Big file' })).result.structuredContent;
+    const big = Buffer.alloc(9 * 1024 * 1024, 7);
+    const uploaded = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'big.bin', content_base64: big.toString('base64'),
+    })).result.structuredContent;
+    assert.equal(uploaded.size, big.length);
+  });
+
+  it('refuses a guest the writes REST already refuses them', async () => {
+    const ada = cookie;
+    const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'guest' } });
+    cookie = '';
+    await api('/api/auth/register', { body: { email: 'guest@example.com', name: 'Guest', password: 'a fine password' } });
+    await api(`/api/invites/${invite.code}/accept`, { body: {} });
+    // The premise of the hole: a guest can mint themselves a write-scoped
+    // token, because tokens only ever required membership.
+    const minted = await api('/api/tokens', { body: { name: 'guest-token', workspaceId } });
+    cookie = ada;
+
+    const asGuest = async (name: string, args: Record<string, unknown>) => api('/mcp', {
+      token: minted.token,
+      body: { jsonrpc: '2.0', id: 99, method: 'tools/call', params: { name, arguments: args } },
+    });
+
+    // Every write door says what REST says; reading still works.
+    for (const [name, args] of [
+      ['create_task', { project: 'WEB', title: 'nope' }],
+      ['create_state', { project: 'WEB', name: 'nope', group: 'started' }],
+      ['upload_attachment', { task: 'WEB-1', name: 'x.txt', content_base64: 'aGk=' }],
+      ['update_project', { project: 'WEB', name: 'nope' }],
+    ] as const) {
+      assert.match(JSON.stringify(await asGuest(name, args as Record<string, unknown>)), /Guests cannot create content/, name);
+    }
+    const listed = await asGuest('list_tasks', { project: 'WEB' });
+    assert.ok(listed.result.structuredContent.result.length > 0, 'reading stays open to guests');
   });
 
   it('attaches a file to a task, and refuses what is not a file', async () => {

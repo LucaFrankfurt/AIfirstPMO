@@ -280,12 +280,13 @@ the number that separates a label the team actually uses from one somebody inven
 `project` narrows it to that project's own labels plus the workspace-wide ones — the same set
 `create_task` will match against.
 
-### States, and why an unknown one is worse than an error
+### States, and the two ways an unknown one goes wrong
 
-`create_task` and `update_task` take a state by **name**, and neither refuses one it does not
-recognise: `create_task` falls back to the project's first column, and `update_task` leaves the task
-where it is. So an assistant told to "move it to Done" in a project whose last column is called
-*Shipped* reports success and changes nothing — the worst of the three possible outcomes.
+`create_task` and `update_task` both take a state by **name**, and they treat one they do not
+recognise differently. `update_task` refuses with an error — a failed move is at least a visible
+one. `create_task` falls back silently to the project's default column, so a misspelled state files
+the task somewhere unintended and reports success. Both are avoided the same way: read the list
+first.
 
 **`list_states` is the answer to that.** It returns a project's columns in board order, and the field
 worth reading is `group` rather than `name`. Names are per project; the group is the fixed vocabulary
@@ -333,7 +334,13 @@ answer reports how many, so nobody has to guess what a sprint deletion just did.
 `create_tasks_batch` takes up to 100 tasks and files them **all or none**. The reason is not the
 round trips. Twenty separate `create_task` calls can fail on the eleventh and leave ten tasks behind
 that nobody asked for on their own; an assistant that then retries the list makes ten more. With one
-transaction a failed batch leaves nothing, so retrying it is safe and needs no counting.
+transaction a failed batch leaves nothing, so retrying it is safe and needs no counting. That
+includes the effects a database rollback cannot reach: webhooks and push notifications for a batch
+are held until it commits, so a failed batch announces nothing and a retried one announces things
+once.
+
+Entries land on the board **in the order given** — the batch sits as one block at the top, first
+entry first.
 
 Each entry takes exactly what `create_task` takes, through the same code — `quick_add` included — so
 a batch cannot quietly follow different rules from a single call. `project` names the project once
@@ -349,6 +356,9 @@ asking for the mirror image of a link that already exists returns the existing o
 
 The five kinds are `blocks`, `blocked_by`, `relates_to`, `duplicates` and `duplicated_by`.
 (`duplicate` is understood as `duplicates`, since it is the obvious thing to reach for.)
+`blocked_by` is stored as the equivalent `blocks` row — the same statement, in the direction the
+planner, the Gantt chart and the scheduling cascade actually read, and the direction that lets a
+`lag` mean something.
 
 `blocks` is load-bearing beyond the task detail: the planner and the Gantt chart schedule from it,
 and `lag` — whole working days, 0–365 — is the breathing room between a blocker finishing and its
