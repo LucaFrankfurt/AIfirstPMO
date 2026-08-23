@@ -27,6 +27,8 @@ const LABELS = {
     newProject: 'New project', createProject: 'Create project',
     taskLabels: 'Labels',
     taskParent: 'Parent',
+    filter: 'Filter', module: 'Module',
+    moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
   },
   de: {
@@ -37,6 +39,8 @@ const LABELS = {
     newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
     taskLabels: 'Labels',
     taskParent: 'Übergeordnet',
+    filter: 'Filter', module: 'Modul',
+    moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
   },
   fr: {
@@ -47,6 +51,8 @@ const LABELS = {
     newProject: 'Nouveau projet', createProject: 'Créer le projet',
     taskLabels: 'Étiquettes',
     taskParent: 'Tâche parente',
+    filter: 'Filtrer', module: 'Module',
+    moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
   },
 }[locale];
@@ -230,6 +236,59 @@ await step('open project board', async () => {
   console.log('     board columns:', cols);
 });
 await page.screenshot({ path: `${shots}/2-board.png` });
+
+/**
+ * The two things a card owes the board about its module: saying which one, and
+ * standing aside when the filter names another. Every third seeded task
+ * carries "<project> v2", so both halves have something to prove.
+ */
+await step('module shows on the card and filters the board', async () => {
+  const chip = page.locator(`.task-card span[title="${LABELS.module}"]`).first();
+  await chip.waitFor({ timeout: 5000 });
+  const named = (await chip.innerText()).trim();
+  const all = await page.locator('.task-card').count();
+
+  await page.click(`button:has-text("${LABELS.filter}")`);
+  await page.getByRole('menuitem', { name: named }).click();
+  await page.waitForTimeout(600);
+  const kept = await page.locator('.task-card').count();
+  const chips = await page.locator(`.task-card span[title="${LABELS.module}"]`).count();
+  if (!kept || kept >= all) throw new Error(`filtering on ${named} kept ${kept} of ${all} cards`);
+  if (chips !== kept) throw new Error(`${kept} cards passed the filter but ${chips} carry the module`);
+
+  // The same click takes it off again, so the rest of the run reads a whole board.
+  await page.click(`button:has-text("${LABELS.filter}")`);
+  await page.getByRole('menuitem', { name: named }).click();
+  await page.waitForTimeout(400);
+  if (await page.locator('.task-card').count() !== all) throw new Error('clearing the filter did not restore the board');
+  console.log(`     ${named}: ${kept} of ${all} cards`);
+});
+
+/**
+ * Columns move — through the header menu, which is the same move the drag
+ * makes and the only one a script (or a phone) can perform honestly. Right,
+ * check, left, check: the board ends the step in the order it began.
+ */
+await step('reorder board columns and put them back', async () => {
+  const names = () => page.locator('.board-column header span.truncate').allInnerTexts();
+  const before = await names();
+  if (before.length < 2) throw new Error('one column proves nothing');
+
+  await page.locator(`.board-column header button[title="${LABELS.moveColumn}"]`).first().click();
+  await page.getByRole('menuitem', { name: LABELS.moveRight }).click();
+  await page.waitForTimeout(700);
+  const after = await names();
+  if (after[0] !== before[1] || after[1] !== before[0]) {
+    throw new Error(`moving right: expected ${before[1]} first, saw ${after.slice(0, 2).join(', ')}`);
+  }
+
+  await page.locator(`.board-column header button[title="${LABELS.moveColumn}"]`).nth(1).click();
+  await page.getByRole('menuitem', { name: LABELS.moveLeft }).click();
+  await page.waitForTimeout(700);
+  const restored = await names();
+  if (restored.join('|') !== before.join('|')) throw new Error('moving back did not restore the order');
+  console.log(`     ${before[0]} ⇄ ${before[1]} and back`);
+});
 
 await step('open task detail + comment', async () => {
   await page.click('.task-card');

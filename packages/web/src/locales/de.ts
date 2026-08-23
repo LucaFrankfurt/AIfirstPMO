@@ -533,6 +533,8 @@ export const de: Catalogue = {
 
   /* ------------------------------------------------------------ projects */
   'state.wipLimit': 'Limit',
+  'state.moveUp': 'Nach oben',
+  'state.moveDown': 'Nach unten',
   'state.wipLimitHint': 'Wie viele Aufgaben gleichzeitig in dieser Spalte stehen dürfen. 0 heißt kein Limit. Ein Überschreiten wird angezeigt, nie verhindert — ein Board, das keine Karte annimmt, treibt die Arbeit woanders hin.',
   'state.wipHint': 'Vereinbartes Limit: {limit}',
   'state.allowedRoles': 'Wer Arbeit hierher schieben darf',
@@ -807,8 +809,11 @@ export const de: Catalogue = {
   'project.workingDaysHint': 'Welche Tage die Zeitleiste zählt, wenn sie eine Aufgabe hinter ihren Blocker schiebt. Ein Balken, den man selbst auf einen freien Tag zieht, bleibt dort — das hier ist, was der Planer meidet, nicht was jemandem verboten wird.',
   'project.workflowStates': 'Workflow-Status',
   'project.addState': 'Status hinzufügen',
+  'board.moveColumn': 'Spalte verschieben',
+  'board.moveColumnLeft': 'Nach links',
+  'board.moveColumnRight': 'Nach rechts',
   'project.addColumn': 'Spalte hinzufügen',
-  'project.addColumnHint': 'Eine Spalte ist ein Status. Umbenennen, umfärben und sortieren in den Projekteinstellungen.',
+  'project.addColumnHint': 'Eine Spalte ist ein Status. Zum Sortieren am Kopf ziehen; umbenennen und umfärben in den Projekteinstellungen.',
   'project.newColumnPrompt': 'Name der Spalte',
   'project.newStateName': 'Neuer Status',
   'project.deleteStateConfirm': 'Status „{name}“ löschen? Aufgaben behalten ihren bisherigen Status-Verweis.',
