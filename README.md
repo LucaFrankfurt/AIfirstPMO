@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="packages/web/public/icon.svg" width="72" height="72" alt="" />
+<img src="packages/web/public/icon-192.png" width="72" height="72" alt="" />
 
 # Kolibri
 

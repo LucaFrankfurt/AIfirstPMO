@@ -4,10 +4,16 @@
  * the HTTP cache because it lives in IndexedDB and syncs through /api/sync.
  * Uploaded files are content-addressed, so they are safe to cache forever.
  */
-const VERSION = 'kolibri-v2';
+const VERSION = 'kolibri-v3';
 const SHELL = `${VERSION}-shell`;
 const FILES = `${VERSION}-files`;
-const PRECACHE = ['/', '/index.html', '/icon.svg', '/manifest.webmanifest'];
+/* `icon-192` and `badge-96` are here for the push handler rather than the shell.
+   They are 9KB together, and a notification that renders without its mark
+   because the network was slow is the one moment the mark is doing real work. */
+const PRECACHE = [
+  '/', '/index.html', '/manifest.webmanifest',
+  '/icon.svg', '/icon-192.png', '/badge-96.png',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -58,8 +64,11 @@ self.addEventListener('push', (event) => {
 
     await self.registration.showNotification(title, {
       body,
-      icon: '/icon.svg',
-      badge: '/icon.svg',
+      // Both are PNG rather than the SVG: Chrome on Android silently drops an
+      // SVG notification icon, and a badge is masked down to its alpha, so the
+      // white tile would have arrived in the status bar as a filled square.
+      icon: '/icon-192.png',
+      badge: '/badge-96.png',
       // One at a time: a phone that was off for an hour should not stack
       // fifteen identical banners.
       tag: 'kolibri',
