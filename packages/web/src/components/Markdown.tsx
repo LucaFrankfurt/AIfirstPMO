@@ -380,7 +380,7 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
 
   const snippets = SNIPPETS.map((snippet) => (
     <button
-      key={snippet.title} type="button" className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+      key={snippet.title} type="button" className={cn(buttonVariants({ variant: 'ghost', size: 'sm' }))}
       title={t(snippet.title)} aria-label={t(snippet.title)}
       onMouseDown={(e) => e.preventDefault()}
       onClick={() => surround(snippet.wrap[0], snippet.wrap[1])}

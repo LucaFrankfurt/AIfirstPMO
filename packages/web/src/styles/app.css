@@ -1494,17 +1494,29 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 /* Flat where the formatting row is sitting on top of it. */
 .editor.compact:has(.editor-toolbar) textarea { border-radius: 0; }
 .editor.compact .editor-preview { border-radius: 0; }
+/*
+ * The bar along the bottom of the compact editor.
+ *
+ * The padding is the radius, and that is the whole of why it is 7 and not 4:
+ * the send button is filled, saturated and sits in the corner, and a filled
+ * corner closer to the edge than the edge's own curve reads as a button with
+ * its corner sliced off. Held a full radius clear on both axes, it reads as a
+ * button inside a box, which is what it is.
+ */
 .editor.compact .editor-foot {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 4px 5px;
+  padding: 7px;
   border: 1px solid var(--line-strong);
   border-top: none;
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   background: var(--bg-sunken);
 }
-.editor.compact .editor-foot .btn { height: 26px; }
+/* The controls keep the size their variant gives them. A rule here could not
+   change it anyway — `h-8` is a utility and this file is a layer — and they
+   should not shrink: these are the touch targets on the screen with the least
+   room, which is the last place to start making them smaller. */
 
 /* --------------------------------------------------------------- specifics */
 
