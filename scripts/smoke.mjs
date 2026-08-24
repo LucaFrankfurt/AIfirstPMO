@@ -27,7 +27,7 @@ const LABELS = {
     newProject: 'New project', createProject: 'Create project',
     taskLabels: 'Labels',
     taskParent: 'Parent',
-    filter: 'Filter', module: 'Module',
+    filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
   },
@@ -39,7 +39,7 @@ const LABELS = {
     newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
     taskLabels: 'Labels',
     taskParent: 'Übergeordnet',
-    filter: 'Filter', module: 'Modul',
+    filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
   },
@@ -51,7 +51,7 @@ const LABELS = {
     newProject: 'Nouveau projet', createProject: 'Créer le projet',
     taskLabels: 'Étiquettes',
     taskParent: 'Tâche parente',
-    filter: 'Filtrer', module: 'Module',
+    filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
   },
@@ -238,30 +238,64 @@ await step('open project board', async () => {
 await page.screenshot({ path: `${shots}/2-board.png` });
 
 /**
- * The two things a card owes the board about its module: saying which one, and
- * standing aside when the filter names another. Every third seeded task
- * carries "<project> v2", so both halves have something to prove.
+ * The two things a card owes the board about the plan it belongs to: naming it,
+ * and standing aside when the filter names another one. Both chips are read the
+ * same way because they are the same promise — every third seeded task carries
+ * "<project> v2", and the work in flight carries the running cycle.
  */
-await step('module shows on the card and filters the board', async () => {
-  const chip = page.locator(`.task-card span[title="${LABELS.module}"]`).first();
-  await chip.waitFor({ timeout: 5000 });
-  const named = (await chip.innerText()).trim();
-  const all = await page.locator('.task-card').count();
+for (const kind of ['cycle', 'module']) {
+  await step(`${kind} shows on the card and filters the board`, async () => {
+    const title = LABELS[kind];
+    const chip = page.locator(`.task-card span[title="${title}"]`).first();
+    await chip.waitFor({ timeout: 5000 });
+    const named = (await chip.innerText()).trim();
+    const all = await page.locator('.task-card').count();
 
-  await page.click(`button:has-text("${LABELS.filter}")`);
-  await page.getByRole('menuitem', { name: named }).click();
-  await page.waitForTimeout(600);
-  const kept = await page.locator('.task-card').count();
-  const chips = await page.locator(`.task-card span[title="${LABELS.module}"]`).count();
-  if (!kept || kept >= all) throw new Error(`filtering on ${named} kept ${kept} of ${all} cards`);
-  if (chips !== kept) throw new Error(`${kept} cards passed the filter but ${chips} carry the module`);
+    await page.click(`button:has-text("${LABELS.filter}")`);
+    await page.getByRole('menuitem', { name: named }).click();
+    await page.waitForTimeout(600);
+    const kept = await page.locator('.task-card').count();
+    const chips = await page.locator(`.task-card span[title="${title}"]`).count();
+    if (!kept || kept >= all) throw new Error(`filtering on ${named} kept ${kept} of ${all} cards`);
+    if (chips !== kept) throw new Error(`${kept} cards passed the filter but ${chips} carry the ${kind}`);
 
-  // The same click takes it off again, so the rest of the run reads a whole board.
-  await page.click(`button:has-text("${LABELS.filter}")`);
-  await page.getByRole('menuitem', { name: named }).click();
-  await page.waitForTimeout(400);
-  if (await page.locator('.task-card').count() !== all) throw new Error('clearing the filter did not restore the board');
-  console.log(`     ${named}: ${kept} of ${all} cards`);
+    // The same click takes it off again, so the rest of the run reads a whole board.
+    await page.click(`button:has-text("${LABELS.filter}")`);
+    await page.getByRole('menuitem', { name: named }).click();
+    await page.waitForTimeout(400);
+    if (await page.locator('.task-card').count() !== all) throw new Error('clearing the filter did not restore the board');
+    console.log(`     ${named}: ${kept} of ${all} cards`);
+  });
+}
+
+/**
+ * And the chip knows where it is. A cycle's own board is every task in that
+ * cycle, so naming it on all of them is a column of the same word — the card
+ * that carried the chip on the project board carries none here, which is a
+ * different thing from the chip being broken.
+ */
+await step('a cycle board does not repeat the cycle on every card', async () => {
+  const carded = page.locator(`.task-card:has(span[title="${LABELS.cycle}"])`).first();
+  const named = (await carded.locator(`span[title="${LABELS.cycle}"]`).innerText()).trim();
+  const identifier = (await carded.locator('.mono').innerText()).trim();
+
+  await page.click(`.tabs button:has-text("${LABELS.cycles}")`);
+  await page.locator('.grid > div').filter({ hasText: named }).first()
+    .getByRole('button', { name: LABELS.openCycle }).click();
+  await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
+  await page.waitForSelector('.task-card', { timeout: 5000 });
+
+  const here = await page.locator(`.task-card span[title="${LABELS.cycle}"]`).count();
+  if (here) throw new Error(`${named}'s own board names the cycle on ${here} cards`);
+  const same = page.locator(`.task-card:has(.mono:text-is("${identifier}"))`);
+  if (!(await same.count())) throw new Error(`${identifier} is in ${named} and is not on its board`);
+  console.log(`     ${identifier} says "${named}" on the project board and nothing here`);
+
+  // Back where the walkthrough was, so the steps after this one read the
+  // project's board rather than one cycle's slice of it.
+  await page.click('.sidebar a:has-text("Website")');
+  await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
+  await page.waitForSelector('.board-column', { timeout: 5000 });
 });
 
 /**

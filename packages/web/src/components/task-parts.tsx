@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { PRIORITIES, fieldKeys, mayEnter, type Label, type Module, type Priority, type State, type Task } from '@kolibri/shared';
+import { PRIORITIES, fieldKeys, mayEnter, type Cycle, type Label, type Module, type Priority, type State, type Task } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { ancestry, descendants } from '../lib/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
@@ -60,6 +60,18 @@ export const useStates = (projectId?: string | null): State[] =>
 export const useLabels = (projectId?: string | null): Label[] =>
   useQuery(
     () => list('label', (l) => !l.project_id || !projectId || l.project_id === projectId).sort((a, b) => a.name.localeCompare(b.name)),
+    [projectId],
+  );
+
+/**
+ * The project's cycles, newest first — the order the cycles page itself uses,
+ * because the one somebody wants to filter on is nearly always the one running
+ * now or the one after it, and both are at that end.
+ */
+export const useCycles = (projectId?: string | null): Cycle[] =>
+  useQuery(
+    () => list('cycle', (c) => !projectId || c.project_id === projectId)
+      .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '') || a.name.localeCompare(b.name)),
     [projectId],
   );
 
@@ -280,6 +292,19 @@ export function ModulePicker({ task }: { task: Task }) {
   );
 }
 
+/**
+ * What the screen a card sits on has already said about it.
+ *
+ * A cycle's board holds one cycle's tasks and a module's board one module's, so
+ * a chip naming it on every card is a column of the same word. The card is told
+ * what is already known rather than working it out, because only the screen
+ * knows what its own header says.
+ */
+export interface Implied {
+  cycleId?: string;
+  moduleId?: string;
+}
+
 export function DateField({ value, onChange, label }: { value?: string | null; onChange: (value: string | null) => void; label: string }) {
   return (
     <Input
@@ -361,7 +386,7 @@ export function TaskRow({
 }
 
 export function TaskCard({
-  task, onOpen, onDragStart, onDragEnd, dragging, moveTargets,
+  task, onOpen, onDragStart, onDragEnd, dragging, moveTargets, implied,
 }: {
   task: Task;
   onOpen: (task: Task) => void;
@@ -379,14 +404,22 @@ export function TaskCard({
   dragging?: boolean;
   /** Columns this card can be moved to — the touch alternative to dragging. */
   moveTargets?: { id: string; title: string; onSelect: () => void }[];
+  /** What the screen around the card already says. See `Implied`. */
+  implied?: Implied;
 }) {
   const t = useT();
   const members = useMemberMap();
   const refile = useRefile();
   const projects = useProjectTargets(task);
   // Through `useQuery` rather than a bare `byId`: the card is the one place on
-  // the board that says the module's name, so a rename has to reach it.
+  // the board that says these names, so a rename has to reach it.
   const module = useQuery(() => byId('module', task.module_id), [task.module_id]);
+  const cycle = useQuery(() => byId('cycle', task.cycle_id), [task.cycle_id]);
+  // A cycle's own board is every task in that cycle, and a module's is every
+  // task in that module. Repeating it on all forty cards is a column of the
+  // same word, so the chip stands down when the header has already said it.
+  const showModule = module && module.id !== implied?.moduleId;
+  const showCycle = cycle && cycle.id !== implied?.cycleId;
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   return (
     <article
@@ -432,7 +465,13 @@ export function TaskCard({
       <div className="title">{task.title}</div>
       <div className="footer">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
-        {module && (
+        {showCycle && (
+          <span className={chipVariants()} title={t('task.cycle')}>
+            <Icon name="cycle" size={11} />
+            <span className="truncate">{cycle.name}</span>
+          </span>
+        )}
+        {showModule && (
           <span className={chipVariants()} title={t('task.module')}>
             <Icon name="target" size={11} />
             <span className="truncate">{module.name}</span>

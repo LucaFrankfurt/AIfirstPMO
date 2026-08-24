@@ -586,7 +586,7 @@ export function CyclePage() {
           <Progress value={burndown.done} total={burndown.total} />
           {cycle.description && <p className="text-muted mt-2 text-[12.5px]">{cycle.description}</p>}
         </div>
-        <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={openTask} />
+        <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={openTask} implied={{ cycleId: cycle.id }} />
       </div>
       {adding && <QuickAdd projectId={cycle.project_id} cycleId={id} onClose={() => setAdding(false)} />}
     </>
@@ -684,7 +684,7 @@ export function ModulePage() {
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {module.description && <Markdown source={module.description} />}
-        <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={openTask} />
+        <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={openTask} implied={{ moduleId: module.id }} />
       </div>
     </>
   );
