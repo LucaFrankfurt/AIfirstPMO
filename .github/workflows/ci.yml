@@ -29,6 +29,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run typecheck
+      # A setting the server reads that no compose file passes is documented and
+      # dead. This is static, so it belongs in the fast job.
+      - run: npm run check:compose
       - run: npm test
       - run: npm run build
 
@@ -132,6 +135,11 @@ jobs:
           KOLIBRI_ADMIN_PASSWORD=a good long password
           KOLIBRI_WORKSPACE_NAME=CI
           KOLIBRI_S3_SECRET_KEY=ci-secret-key
+          # Never used to call anybody: no review is asked for here. It is in
+          # this file because the interesting question is whether a key written
+          # in .env reaches the container at all — for three releases it did
+          # not, and nothing failed.
+          ANTHROPIC_API_KEY=sk-ant-not-a-real-key
           EOF
           docker compose up -d --build --wait --wait-timeout 300
 
@@ -144,6 +152,11 @@ jobs:
           # The default stack deliberately has no relay: mail must report "off",
           # never a capture tool dressed up as working delivery.
           echo "$health" | grep -q '"mail":"off"'      || { echo "mail should be off by default"; exit 1; }
+          # The key above was written to .env and nowhere else. If the compose
+          # file stops passing it through, this is where that shows up.
+          echo "$health" | grep -q '"ai":"anthropic"' || {
+            echo "a key in .env did not reach the container"; exit 1
+          }
 
       - name: The owner account exists without anyone clicking anything
         run: |

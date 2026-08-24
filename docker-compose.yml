@@ -53,6 +53,16 @@ services:
       KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-60}"
       KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
       KOLIBRI_DEFAULT_LOCALE: "${KOLIBRI_DEFAULT_LOCALE:-en}"
+      # Read the client address from `x-forwarded-for`. Right behind the
+      # bundled Caddy — set it to false if you publish port 4000 directly, or a
+      # client can invent its own address and with it its own rate limit.
+      KOLIBRI_TRUST_PROXY: "${KOLIBRI_TRUST_PROXY:-true}"
+      # Days a deleted thing stays recoverable. `0` keeps it until an admin
+      # empties the trash themselves.
+      KOLIBRI_TRASH_DAYS: "${KOLIBRI_TRASH_DAYS:-0}"
+      # Let outgoing webhooks reach private addresses (`http://n8n:5678` on this
+      # network). Off by default; see docs/deployment.md.
+      KOLIBRI_ALLOW_PRIVATE_WEBHOOKS: "${KOLIBRI_ALLOW_PRIVATE_WEBHOOKS:-}"
 
       # --- first-run provisioning -----------------------------------------
       # Set these and the owner account exists the moment the stack is up.
@@ -80,6 +90,7 @@ services:
       # endpoint to hand the bandwidth to MinIO.
       KOLIBRI_S3_PRESIGN: "${KOLIBRI_S3_PRESIGN:-false}"
       KOLIBRI_S3_PUBLIC_ENDPOINT: "${KOLIBRI_S3_PUBLIC_ENDPOINT:-}"
+      KOLIBRI_S3_PRESIGN_SECONDS: "${KOLIBRI_S3_PRESIGN_SECONDS:-300}"
 
       # --- email -----------------------------------------------------------
       # Empty means no email at all: notifications stay in the in-app inbox,
@@ -103,6 +114,15 @@ services:
       KOLIBRI_MAIL_FROM: "${KOLIBRI_MAIL_FROM:-${EMAIL_FROM_INFO:-kolibri@localhost}}"
       KOLIBRI_MAIL_FROM_NAME: "${KOLIBRI_MAIL_FROM_NAME:-${EMAIL_FROM_NAME:-Kolibri}}"
       KOLIBRI_MAIL_BATCH_SECONDS: "${KOLIBRI_MAIL_BATCH_SECONDS:-120}"
+      KOLIBRI_MAIL_REPLY_TO: "${KOLIBRI_MAIL_REPLY_TO:-}"
+      KOLIBRI_MAIL_POLL_SECONDS: "${KOLIBRI_MAIL_POLL_SECONDS:-20}"
+      # Give up on a message after this many tries (1, 2, 4 ... minutes apart).
+      KOLIBRI_MAIL_MAX_ATTEMPTS: "${KOLIBRI_MAIL_MAX_ATTEMPTS:-6}"
+      # Accept a self-signed certificate on an internal relay.
+      KOLIBRI_SMTP_INSECURE: "${KOLIBRI_SMTP_INSECURE:-false}"
+      # A shared secret your provider posts bounce reports with, at
+      # POST /api/mail/bounces. Empty disables that endpoint.
+      KOLIBRI_BOUNCE_TOKEN: "${KOLIBRI_BOUNCE_TOKEN:-}"
 
       # --- single sign-on ---------------------------------------------------
       # Empty issuer means the sign-in screen stays a password form. See
@@ -114,6 +134,51 @@ services:
       KOLIBRI_OIDC_LABEL: "${KOLIBRI_OIDC_LABEL:-Single sign-on}"
       KOLIBRI_OIDC_AUTO_CREATE: "${KOLIBRI_OIDC_AUTO_CREATE:-true}"
       KOLIBRI_OIDC_ONLY: "${KOLIBRI_OIDC_ONLY:-false}"
+      # Which workspace accounts made through the provider join (slug or id).
+      KOLIBRI_OIDC_WORKSPACE: "${KOLIBRI_OIDC_WORKSPACE:-}"
+      # With a role map set the directory is the authority — a role changed
+      # inside Kolibri is overwritten on the next sign-in. See docs/deployment.md.
+      KOLIBRI_OIDC_GROUPS_CLAIM: "${KOLIBRI_OIDC_GROUPS_CLAIM:-groups}"
+      KOLIBRI_OIDC_ROLE_MAP: "${KOLIBRI_OIDC_ROLE_MAP:-}"
+      KOLIBRI_OIDC_DEFAULT_ROLE: "${KOLIBRI_OIDC_DEFAULT_ROLE:-member}"
+
+
+      # --- task reviews ------------------------------------------------------
+      # A model reads a task back and suggests clearer wording. Off until both a
+      # key here and "Task reviews" in Settings -> Workspace. See docs/ai.md.
+      #
+      # The three vendor names are passed under their own names on purpose: an
+      # unlabelled key says nothing about whose it is, so it is the vendor
+      # variable that tells the server which provider to talk to.
+      KOLIBRI_AI_PROVIDER: "${KOLIBRI_AI_PROVIDER:-}"
+      KOLIBRI_AI_API_KEY: "${KOLIBRI_AI_API_KEY:-}"
+      ANTHROPIC_API_KEY: "${ANTHROPIC_API_KEY:-}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
+      OPENROUTER_API_KEY: "${OPENROUTER_API_KEY:-}"
+      # Each provider has a default; this is the cost lever.
+      KOLIBRI_AI_MODEL: "${KOLIBRI_AI_MODEL:-}"
+      # For a gateway, a proxy, or a model on this docker network.
+      KOLIBRI_AI_BASE_URL: "${KOLIBRI_AI_BASE_URL:-}"
+      KOLIBRI_AI_TIMEOUT_MS: "${KOLIBRI_AI_TIMEOUT_MS:-20000}"
+      # Reviews one person may ask for: a burst, then one back every N seconds.
+      KOLIBRI_AI_BURST: "${KOLIBRI_AI_BURST:-10}"
+      KOLIBRI_AI_EVERY_SECONDS: "${KOLIBRI_AI_EVERY_SECONDS:-20}"
+
+      # --- native notifications ----------------------------------------------
+      # The VAPID pair is generated into the volume on first use; set it to keep
+      # subscriptions across a restore into a fresh volume.
+      KOLIBRI_PUSH: "${KOLIBRI_PUSH:-true}"
+      KOLIBRI_VAPID_PUBLIC: "${KOLIBRI_VAPID_PUBLIC:-}"
+      KOLIBRI_VAPID_PRIVATE: "${KOLIBRI_VAPID_PRIVATE:-}"
+      KOLIBRI_VAPID_SUBJECT: "${KOLIBRI_VAPID_SUBJECT:-}"
+
+      # --- telegram ----------------------------------------------------------
+      # Off without a bot token, and the token is the whole configuration: each
+      # person links their own chat from inside the app. Long-polled, so this
+      # needs no public URL. See docs/notifications.md.
+      KOLIBRI_TELEGRAM_BOT_TOKEN: "${KOLIBRI_TELEGRAM_BOT_TOKEN:-}"
+      KOLIBRI_TELEGRAM_POLL_SECONDS: "${KOLIBRI_TELEGRAM_POLL_SECONDS:-25}"
+      KOLIBRI_TELEGRAM_MAX_ATTEMPTS: "${KOLIBRI_TELEGRAM_MAX_ATTEMPTS:-5}"
 
       TZ: "${TZ:-UTC}"
     volumes:

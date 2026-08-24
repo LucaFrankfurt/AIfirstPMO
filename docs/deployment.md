@@ -63,7 +63,7 @@ For the smallest possible install — one container, uploads on the volume, no m
 | `KOLIBRI_DATA_DIR` | `/data` | SQLite file, uploads, generated secret |
 | `KOLIBRI_LOG_LEVEL` | `info` | `debug` `info` `warn` `error` |
 | `KOLIBRI_DEFAULT_LOCALE` | `en` | Language for notifications and emails to someone who has not picked one (`en`, `de`). See [`i18n.md`](i18n.md). |
-| `KOLIBRI_TRUST_PROXY` | `true` | Read the client address from `x-forwarded-for`. Correct behind the bundled Caddy; **set it to `false` if the container is published directly**, or every client can pick its own address. See below. |
+| `KOLIBRI_TRUST_PROXY` | `true` (`false` in the lite stack) | Read the client address from `x-forwarded-for`. Correct behind the bundled Caddy or a PaaS proxy; **wrong if the container is published directly**, where every client can then pick its own address. `docker-compose.lite.yml` publishes port 4000 itself with nothing in front, so it defaults the other way. See below. |
 | `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS` | `false` | Let outgoing webhooks and push endpoints reach private addresses (loopback, RFC 1918, link-local). Off by default; see [below](#what-the-server-does-to-protect-itself). |
 | `TZ` | `UTC` | Affects date rendering on the server side |
 
@@ -225,14 +225,50 @@ Coolify → *Add Resource* → *Docker Compose* → this repository → compose 
 4. check that `KOLIBRI_PUBLIC_URL` really resolved to your `https://` domain — invite and email
    links are built from it.
 
+### Which file, and why not the others
+
+`docker-compose.coolify.yml` is the one to point Coolify at. The other three are wrong here for
+concrete reasons, not stylistic ones:
+
+| File | On Coolify |
+|---|---|
+| `docker-compose.coolify.yml` | **Use this.** |
+| `docker-compose.yml` | Publishes ports on the host, which on Coolify **bypasses the proxy entirely** — the app would answer on `:4000` with no TLS beside the domain that has it. It also fixes `container_name`, so a second deployment or a preview environment collides with the first. |
+| `docker-compose.lite.yml` | Same port problem, and it defaults `KOLIBRI_TRUST_PROXY=false` — behind Coolify's proxy that makes every request look like it came from the proxy's address, so one client's rate limit is shared by everybody. |
+| `docker-compose.dev.yml` | An overlay, not a stack. It wires mail to a capture inbox that delivers nothing. |
+
 The Coolify file differs from `docker-compose.yml` only where the platform owns the host:
 
 | | `docker-compose.yml` | `docker-compose.coolify.yml` |
 |---|---|---|
 | Container names | fixed (`kolibri`, `kolibri-minio`) | none — Coolify suffixes with a UUID so deployments cannot collide |
-| Networking | `ports:` published on the host | `expose:` only; Coolify's proxy routes to the port you gave a domain |
+| Networking | `ports:` published on the host | no published ports; the domain you assign is what routes |
 | TLS | optional Caddy (`--profile tls`) | Coolify's proxy |
+| Client address | `KOLIBRI_TRUST_PROXY=true` for the bundled Caddy | `true` — Coolify's proxy is the only thing that reaches the container |
 | Object storage credentials | defaults in the file | `SERVICE_USER_MINIO` / `SERVICE_PASSWORD_MINIO`, generated and stored by Coolify |
+
+### Three things about Coolify worth knowing before you debug something
+
+**`expose:` does not route anything.** As in plain Docker it is documentation. What creates the
+route is the domain you assign to the service, or the `SERVICE_FQDN_KOLIBRI_4000` line that asks
+Coolify for one — the name after `SERVICE_FQDN_` has to match the compose service name or you get
+no domain at all. Do not add a `ports:` mapping to get at the app: on Coolify that publishes on the
+host *outside* the proxy, TLS and all.
+
+**`SERVICE_URL_*`, not `SERVICE_FQDN_*`, for `KOLIBRI_PUBLIC_URL`.** Coolify fills the FQDN form
+with a bare host and no scheme. Absolute links are built by concatenation, so an FQDN there makes
+every invite and email link read `host/t/abc` rather than `https://host/t/abc`. The URL form
+carries the scheme and drops the port, which is what that setting wants.
+
+**Variables you add in the Coolify UI reach the container even if this file never mentions them.**
+Coolify writes one `.env` for the whole resource and attaches it to *every* service with `env_file`.
+Handy, and worth knowing twice over: a secret set for one service is visible in all of them, and
+this file still names each setting explicitly so the field appears in the UI, so a missing one is
+visible, and so nothing depends on that behaviour staying as it is.
+
+**Named volumes are renamed.** `kolibri-data` becomes `<app-uuid>_kolibri-data` on the host, and the
+UUID changes if you delete and recreate the resource. Take snapshots with `kolibri backup` (see
+below) rather than by copying a volume you found by name.
 
 The same shape works on any PaaS that consumes a compose file. On one that only takes a Dockerfile
 (Fly, Railway's simple mode, a plain container host), deploy the image on its own with
