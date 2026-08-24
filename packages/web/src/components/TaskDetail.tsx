@@ -7,6 +7,7 @@ import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { createTask, remove, update } from '../lib/mutations';
 import { useFeature, useMe, useMemberMap, useSession } from '../session';
+import { TaskReviewPanel } from './task-review';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
@@ -224,6 +225,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             </div>
           )}
         </section>
+
+        {/* A review sits under the description, because the description is what
+            it mostly has something to say about — and above the sub-tasks,
+            because "this is three tasks" is a finding that ends up there. */}
+        <TaskReviewPanel task={task} />
 
         {/* sub-tasks */}
         <section className="mb-[18px]">

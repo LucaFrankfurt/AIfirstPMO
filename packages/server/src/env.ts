@@ -134,6 +134,37 @@ const mail = {
  * Optional first-run provisioning, so an automated deployment comes up ready
  * to use instead of waiting for a human to claim the instance in a browser.
  */
+/**
+ * The model that reviews a task, and which company's it is.
+ *
+ * Three providers, one key each, and the vendor's own variable name read
+ * alongside Kolibri's for the same reason the `SCW_*` names are read above: a
+ * `.env` that already has `ANTHROPIC_API_KEY` in it should not need a second
+ * copy of the same secret under a different name.
+ *
+ * Every default lives here rather than in the adapters, so `docs/ai.md` and
+ * this block are the only two places that have to agree.
+ */
+const ai = {
+  key: text(
+    process.env.KOLIBRI_AI_API_KEY,
+    process.env.ANTHROPIC_API_KEY,
+    process.env.GEMINI_API_KEY,
+    process.env.OPENROUTER_API_KEY,
+  ) ?? '',
+  model: text(process.env.KOLIBRI_AI_MODEL) ?? '',
+  /** For a gateway, a proxy, or a model running on the same docker network. */
+  baseUrl: text(process.env.KOLIBRI_AI_BASE_URL)?.replace(/\/$/, '') ?? '',
+  timeoutMs: int(process.env.KOLIBRI_AI_TIMEOUT_MS, 20_000),
+  /**
+   * How many reviews one person may ask for. A review is the first thing in
+   * this app that costs money per click, so the bucket is small and the window
+   * is long — nobody reviewing tasks by hand notices it, and a loop does.
+   */
+  burst: int(process.env.KOLIBRI_AI_BURST, 10),
+  everySeconds: int(process.env.KOLIBRI_AI_EVERY_SECONDS, 20),
+};
+
 const admin = {
   email: process.env.KOLIBRI_ADMIN_EMAIL ?? '',
   password: process.env.KOLIBRI_ADMIN_PASSWORD ?? '',
@@ -289,6 +320,35 @@ export const env = {
   /** A bot token is the whole of the Telegram configuration. */
   get telegramEnabled(): boolean {
     return !!this.telegram.botToken;
+  },
+  ai,
+  /**
+   * Whose model answers, when a key is present at all.
+   *
+   * `KOLIBRI_AI_PROVIDER` settles it outright, and downgrades to `off` when the
+   * provider it names has no key — the same refusal to silently fall through to
+   * a different provider that `mailTransport` makes, and for a stronger reason
+   * here: the fallback would send the workspace's words to a company nobody
+   * chose.
+   *
+   * Otherwise the provider is read off whichever vendor variable is set, with
+   * Anthropic first where several are. A key under `KOLIBRI_AI_API_KEY` alone
+   * says nothing about whose it is, so that case needs the provider named.
+   */
+  get aiProvider(): 'off' | 'anthropic' | 'gemini' | 'openrouter' {
+    const asked = text(process.env.KOLIBRI_AI_PROVIDER)?.trim().toLowerCase();
+    if (asked === 'anthropic' || asked === 'gemini' || asked === 'openrouter') {
+      return ai.key ? asked : 'off';
+    }
+    if (asked) return 'off';
+    if (text(process.env.ANTHROPIC_API_KEY)) return 'anthropic';
+    if (text(process.env.GEMINI_API_KEY)) return 'gemini';
+    if (text(process.env.OPENROUTER_API_KEY)) return 'openrouter';
+    return 'off';
+  },
+  /** A model is reachable. The workspace switch decides whether it is asked. */
+  get aiEnabled(): boolean {
+    return this.aiProvider !== 'off';
   },
 };
 

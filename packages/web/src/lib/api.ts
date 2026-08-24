@@ -1,4 +1,4 @@
-import type { ImportResult, SessionInfo } from '@kolibri/shared';
+import type { ImportResult, SessionInfo, TaskReview } from '@kolibri/shared';
 import { currentLocale, translate } from './i18n';
 
 export class ApiError extends Error {
@@ -56,6 +56,8 @@ export const api = {
   config: () => request<{
     allowSignup: boolean; hasUsers: boolean; maxUploadBytes: number; version: string;
     sso: { label: string; only: boolean } | null;
+    /** Null when no model is configured on this server. */
+    ai: { provider: string } | null;
   }>('/api/config'),
   session: () => request<SessionInfo>('/api/session'),
   login: (email: string, password: string) => request<SessionInfo>('/api/auth/login', json({ email, password })),
@@ -92,6 +94,14 @@ export const api = {
     ),
 
   activity: (taskId: string) => request<any[]>(`/api/tasks/${taskId}/activity`),
+  /**
+   * Ask a model to read a task back.
+   *
+   * Slower than everything else in here — a model takes seconds, not
+   * milliseconds — and nothing is written by it: what comes back is a
+   * suggestion the person decides about. See `docs/ai.md`.
+   */
+  review: (taskId: string) => request<TaskReview>(`/api/tasks/${taskId}/review`, json({})),
   import: (workspaceId: string, body: {
     csv: string; project_id: string; mapping: Record<string, string>; delimiter?: string; dry_run: boolean;
   }) => request<ImportResult>(`/api/workspaces/${workspaceId}/import`, json(body)),

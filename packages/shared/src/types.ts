@@ -128,6 +128,15 @@ export interface WorkspaceFeatures {
    * it does not throw anything away.
    */
   time?: boolean;
+  /**
+   * Asking a model to review a task before anybody else has to read it.
+   *
+   * Two switches guard this rather than one, because it is the only feature
+   * that sends a workspace's own words to somebody else's computer: the
+   * operator supplies a key in the environment, and a workspace admin turns it
+   * on here. Either one off means no button and no request.
+   */
+  ai?: boolean;
 }
 
 export interface Workspace {
@@ -820,6 +829,66 @@ export interface SessionInfo {
   user: User & { two_factor?: boolean };
   workspaces: (Workspace & { role: WorkspaceRole })[];
   token?: string;
+}
+
+/* ------------------------------------------------------------ task review */
+
+/**
+ * What a review can say about, and what happens when it is applied.
+ *
+ * `title` and `description` are the two fields a suggestion may rewrite, and
+ * they are named here rather than left as a free string so that a model
+ * inventing a third one is caught by the parser instead of by `update()`.
+ */
+export type ReviewField = 'title' | 'description';
+
+export const REVIEW_FIELDS: ReviewField[] = ['title', 'description'];
+
+/**
+ * What a finding is about. The kind is a label for the reader — nothing
+ * branches on it — so a model naming a kind nobody thought of is not an error.
+ */
+export type ReviewKind = 'title' | 'description' | 'acceptance' | 'scope' | 'other';
+
+export interface ReviewFinding {
+  kind: ReviewKind;
+  /** What is unclear, in one sentence, addressed to whoever wrote the task. */
+  problem: string;
+  /**
+   * The field this finding offers to rewrite, and the text to put there.
+   *
+   * Both or neither. A finding with no replacement is an observation somebody
+   * has to act on themselves — worth showing, and shown without a button,
+   * because a button that does nothing is worse than no button.
+   */
+  field?: ReviewField;
+  replacement?: string;
+}
+
+export interface TaskReview {
+  verdict: 'clear' | 'needs-work';
+  /** One sentence. The thing somebody reads before deciding to read the rest. */
+  summary: string;
+  findings: ReviewFinding[];
+  /**
+   * What only a person can answer.
+   *
+   * Kept apart from the findings on purpose: a model that cannot tell which
+   * export is meant must ask rather than pick one and write it into the
+   * description with confidence. These are offered as a comment, so the
+   * ambiguity lands on the person who can settle it.
+   */
+  questions: string[];
+  /**
+   * The task as it was when this was written.
+   *
+   * Echoed back so the panel can notice it is talking about text that has since
+   * been edited, rather than offering a replacement for a paragraph that is no
+   * longer there.
+   */
+  reviewed_at: number;
+  /** Which model answered, so the panel can say so without guessing. */
+  model: string;
 }
 
 export const MAX_UPLOAD_BYTES = 25 * 1024 * 1024;

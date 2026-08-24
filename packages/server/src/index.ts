@@ -11,6 +11,7 @@ import { provision } from './lib/provision.ts';
 import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { overTls } from './lib/origin.ts';
+import { registerAiRoutes } from './routes/ai.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
 import { registerFileRoutes } from './routes/files.ts';
@@ -33,6 +34,9 @@ registerAuthRoutes(router);
 registerCalendarRoutes(router);
 registerSyncRoutes(router);
 registerSearchRoutes(router);
+// Also before the generic routes: `/api/tasks/:id/review` is a thing that
+// happens to a task, not a collection called `tasks` with a member `review`.
+registerAiRoutes(router);
 registerFileRoutes(router);
 registerOAuthRoutes(router);
 registerMcpRoutes(router);
@@ -56,6 +60,9 @@ router.get('/api/health', () => ({
   // 'off' | 'relay' | 'test-inbox' — a boolean would call a capture tool
   // "working", which is the confusion this avoids.
   mail: env.mailMode,
+  // Named rather than a boolean, for the same reason `mail` is: which company
+  // answers is the part an operator wants to see confirmed.
+  ai: env.aiProvider,
 }));
 
 /* ------------------------------------------------------------ static files */
