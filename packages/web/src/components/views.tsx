@@ -13,7 +13,7 @@ import { idFrom, isDrag, startDrag, STATE_DRAG, TASK_DRAG } from '../lib/drag';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
-  useLabels, useModules, useStates, type BaseGroupBy, type GroupBy,
+  useCycles, useLabels, useModules, useStates, type BaseGroupBy, type GroupBy, type Implied,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
@@ -207,6 +207,7 @@ export function ViewControls({
   const t = useT();
   const states = useStates(projectId);
   const labels = useLabels(projectId);
+  const cycles = useCycles(projectId);
   const modules = useModules(projectId);
   const members = useMembers();
   const fields = useFields(projectId);
@@ -259,6 +260,13 @@ export function ViewControls({
       label: label.name,
       hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
       onSelect: () => toggle('label', label.id),
+    })),
+    ...cycles.map((cycle) => ({
+      id: `cycle-${cycle.id}`,
+      section: t('task.cycle'),
+      label: cycle.name,
+      hint: view.filters.cycle?.includes(cycle.id) ? '✓' : undefined,
+      onSelect: () => toggle('cycle', cycle.id),
     })),
     ...modules.map((module) => ({
       id: `module-${module.id}`,
@@ -440,8 +448,10 @@ export function ListView({
 /* ------------------------------------------------------------------ board */
 
 export function BoardView({
-  tasks, view, onOpen, projectId,
-}: { tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; projectId?: string }) {
+  tasks, view, onOpen, projectId, implied,
+}: {
+  tasks: Task[]; view: ViewConfig; onOpen: (task: Task) => void; projectId?: string; implied?: Implied;
+}) {
   const t = useT();
   const states = useStates(projectId);
   const labels = useLabels(projectId);
@@ -636,6 +646,7 @@ export function BoardView({
               <TaskCard
                 task={task}
                 onOpen={onOpen}
+                implied={implied}
                 dragging={dragId === task.id}
                 moveTargets={groups.map((target) => ({
                   id: target.id,
@@ -961,6 +972,8 @@ export function TaskViews(props: {
   view: ViewConfig;
   onOpen: (task: Task) => void;
   projectId?: string;
+  /** What this screen has already said — see `Implied` in `task-parts`. */
+  implied?: Implied;
   showProject?: boolean;
   onChange?: (next: ViewConfig) => void;
   selection?: Selection;
