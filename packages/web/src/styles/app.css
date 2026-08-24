@@ -1248,6 +1248,61 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .due-overdue { color: var(--danger); }
 .due-today { color: var(--warn); }
 
+/* a task's review — see components/task-review.tsx */
+.review {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+  padding: 10px 11px;
+}
+.review-summary {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.review-summary svg { flex: 0 0 auto; margin-top: 3px; }
+.review-stale {
+  margin: 7px 0 0;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-style: italic;
+}
+.review-list { list-style: none; margin: 9px 0 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.review-finding { border-top: 1px solid var(--line); padding-top: 9px; }
+.review-problem { margin: 0; font-size: 12.5px; color: var(--fg-soft); line-height: 1.5; }
+/* The proposal reads as the thing that would be written, not as a quote of it. */
+.review-replacement {
+  margin: 6px 0 0;
+  padding: 7px 9px;
+  border-left: 2px solid var(--accent);
+  background: var(--bg-raised);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+.review-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  font-size: 12px;
+  color: var(--fg-soft);
+  cursor: pointer;
+}
+.review-toggle:hover { color: var(--fg); }
+.review-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.review-questions { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 9px; }
+.review-questions ul { margin: 5px 0 8px; padding-left: 18px; font-size: 12.5px; color: var(--fg-soft); line-height: 1.6; }
+.review-by { margin: 9px 0 0; font-size: 11.5px; color: var(--fg-muted); }
+
 /* board */
 
 .board {

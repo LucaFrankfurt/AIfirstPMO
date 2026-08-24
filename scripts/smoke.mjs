@@ -27,6 +27,7 @@ const LABELS = {
     newProject: 'New project', createProject: 'Create project',
     taskLabels: 'Labels',
     taskParent: 'Parent',
+    reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
@@ -39,6 +40,7 @@ const LABELS = {
     newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
     taskLabels: 'Labels',
     taskParent: 'Übergeordnet',
+    reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
@@ -51,6 +53,7 @@ const LABELS = {
     newProject: 'Nouveau projet', createProject: 'Créer le projet',
     taskLabels: 'Étiquettes',
     taskParent: 'Tâche parente',
+    reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
@@ -1479,6 +1482,34 @@ await step('a database from an older build gets the stores it is missing', async
   } finally {
     await aged.close();
   }
+});
+
+/**
+ * A feature that is off leaves no trace.
+ *
+ * CI runs with no model configured, which is the state almost every instance
+ * is in, and that state has one job: look like an app that simply does not
+ * have this. Not a disabled button, not a tooltip explaining what somebody
+ * else would have to configure — nothing on the task at all. The switch in
+ * settings is the one place it is mentioned, and it says who has to act.
+ */
+await step('with no model configured, reviews leave no trace', async () => {
+  await page.goto(`${base}/settings?tab=workspace`, { waitUntil: 'networkidle' });
+  const row = page.locator('.check-row').filter({ hasText: LABELS.reviewFeature });
+  if (!(await row.count())) throw new Error('the workspace settings never mention reviews');
+  const box = row.locator('input[type=checkbox]');
+  if (!(await box.isDisabled())) throw new Error('a switch that would do nothing is offered anyway');
+
+  // And nothing of it reaches a task.
+  await page.goto(`${base}/t/WEB-1`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.sheet', { timeout: 5000 });
+  if (await page.locator('.review').count()) throw new Error('a task shows a review panel with no model configured');
+  const headings = await page.locator('.sheet strong').allInnerTexts();
+  if (headings.some((one) => one.trim() === LABELS.reviewSection)) {
+    throw new Error('a task offers a review with no model configured');
+  }
+  console.log('     settings say who configures it; the task says nothing');
+  await closeSheets(page);
 });
 
 await step('interface is in the chosen language', async () => {

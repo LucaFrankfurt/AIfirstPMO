@@ -1286,4 +1286,130 @@ describe('kolibri api', () => {
     const pull = await api<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
     assert.ok(!pull.changes.project?.some((p: any) => p.id === secret.id), 'sync must not leak private projects');
   });
+
+/* ------------------------------------------------------------- ai review */
+
+/**
+ * The review endpoint, and the three doors in front of it.
+ *
+ * Worth testing here rather than in `ai-review.test.ts` because the gates are
+ * the point: this is the one route in the app where a click spends somebody's
+ * money and sends a workspace's own words to a company. Two switches have to
+ * be on, a guest is refused, and the thing that reaches the provider carries
+ * no more than it needs to.
+ */
+describe('asking a model to review a task', () => {
+  let provider: import('node:http').Server;
+  let sent: any[] = [];
+  let answer: () => { status?: number; json?: unknown } = () => ({ json: {} });
+
+  before(async () => {
+    const { createServer } = await import('node:http');
+    provider = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (chunk) => { raw += chunk; });
+      req.on('end', () => {
+        sent.push(raw ? JSON.parse(raw) : {});
+        const reply = answer();
+        res.writeHead(reply.status ?? 200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify(reply.json ?? {}));
+      });
+    });
+    await new Promise<void>((done) => provider.listen(0, '127.0.0.1', done));
+    // Earlier cases sign in as other people and leave the shared cookie there;
+    // everything below needs the owner, who is the only one who may flip a
+    // workspace switch.
+    cookie = '';
+    await api('/api/auth/login', { body: { email: 'ada@example.com', password: 'correct horse battery' } });
+  });
+
+  after(() => provider?.close());
+
+  /** Turn a model on for the duration of one case, and off again after. */
+  const withModel = async (run: () => Promise<void>) => {
+    const { env } = await import('../src/env.ts');
+    const port = (provider.address() as AddressInfo).port;
+    process.env.KOLIBRI_AI_PROVIDER = 'anthropic';
+    const before = { ...env.ai };
+    Object.assign(env.ai, { key: 'test-key', model: 'test-model', baseUrl: `http://127.0.0.1:${port}` });
+    try {
+      await run();
+    } finally {
+      delete process.env.KOLIBRI_AI_PROVIDER;
+      Object.assign(env.ai, before);
+    }
+  };
+
+  const setFeature = (ai: boolean) =>
+    api(`/api/workspaces/${workspaceId}`, { method: 'PATCH', body: { features: { ai } } });
+
+  it('says so when no model is configured, before it says anything else', async () => {
+    await setFeature(true);
+    await assert.rejects(
+      api(`/api/tasks/${taskId}/review`, { body: {} }),
+      /No model is configured/,
+    );
+    await setFeature(false);
+  });
+
+  it('refuses a workspace that has not switched it on', async () => {
+    await withModel(async () => {
+      await assert.rejects(api(`/api/tasks/${taskId}/review`, { body: {} }), /switched off/);
+    });
+  });
+
+  it('reviews a task, and sends nothing about who or when', async () => {
+    await setFeature(true);
+    await withModel(async () => {
+      sent = [];
+      answer = () => ({
+        json: {
+          content: [{ type: 'text', text: JSON.stringify({
+            verdict: 'needs-work',
+            summary: 'The title names a component.',
+            findings: [{ kind: 'title', problem: 'Not an outcome.', field: 'title', replacement: 'Ship the landing page copy' }],
+            questions: ['Which page?'],
+          }) }],
+        },
+      });
+
+      const review = await api(`/api/tasks/${taskId}/review`, { body: {} });
+      assert.equal(review.verdict, 'needs-work');
+      assert.equal(review.model, 'test-model');
+      assert.equal(review.findings[0].field, 'title');
+      assert.deepEqual(review.questions, ['Which page?']);
+
+      // What actually left the building. Assignees and dates are not in it —
+      // they do not make a task clearer, and they are somebody's information.
+      const prompt = String(sent[0].messages[0].content);
+      assert.match(prompt, /Title:/);
+      assert.ok(!/assignee/i.test(prompt), 'the payload must not carry assignees');
+      assert.ok(!/due/i.test(prompt), 'the payload must not carry dates');
+    });
+  });
+
+  it('passes the provider’s own sentence through, and its verdict on trying again', async () => {
+    await withModel(async () => {
+      answer = () => ({ status: 401, json: { error: 'invalid x-api-key' } });
+      await assert.rejects(api(`/api/tasks/${taskId}/review`, { body: {} }), /400 .*invalid x-api-key/);
+
+      answer = () => ({ status: 503, json: { error: 'overloaded' } });
+      await assert.rejects(api(`/api/tasks/${taskId}/review`, { body: {} }), /502 /);
+    });
+  });
+
+  it('refuses a guest, who could not apply a word of it', async () => {
+    const ada = cookie;
+    const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'guest' } });
+    cookie = '';
+    await api('/api/auth/register', { body: { email: 'reviewguest@example.com', name: 'Guest', password: 'a fine password' } });
+    await api(`/api/invites/${invite.code}/accept`, { body: {} });
+    await withModel(async () => {
+      await assert.rejects(api(`/api/tasks/${taskId}/review`, { body: {} }), /Guests cannot ask for a review/);
+    });
+    cookie = ada;
+    await setFeature(false);
+  });
+});
+
 });

@@ -188,6 +188,10 @@ export function registerAuthRoutes(router: Router): void {
     hasUsers: !!get(`SELECT id FROM users LIMIT 1`),
     maxUploadBytes: env.maxUploadBytes,
     mailEnabled: env.mailEnabled,
+    // Half of what the review button needs: a model exists on this server. The
+    // other half is the workspace's own switch, which travels with the
+    // workspace rather than with the instance.
+    ai: env.aiEnabled ? { provider: env.aiProvider } : null,
     storage: env.storage.kind,
     sso: oidcEnabled() ? { label: env.oidc.label, only: env.oidc.only } : null,
     version: '0.1.0',

@@ -428,8 +428,13 @@ function WorkspaceSettings() {
   const workspace = session?.workspaces.find((w) => w.id === workspaceId);
   const [name, setName] = useState(workspace?.name ?? '');
   const [creating, setCreating] = useState('');
+  /** Whether this server can reach a model at all — see `task-review.tsx`. */
+  const [aiProvider, setAiProvider] = useState<string | null>(null);
 
   useEffect(() => setName(workspace?.name ?? ''), [workspace?.name]);
+  useEffect(() => {
+    api.config().then((config) => setAiProvider(config.ai?.provider ?? null)).catch(() => setAiProvider(null));
+  }, []);
   const canEdit = role === 'owner' || role === 'admin';
 
   return (
@@ -467,6 +472,31 @@ function WorkspaceSettings() {
         <span>
           <span>{t('workspace.featureTime')}</span>
           <span className="text-[12px] text-muted">{t('workspace.featureTimeHint')}</span>
+        </span>
+      </label>
+
+      {/* The workspace half of the two switches a review needs. The other half
+          is a key in the environment, which is not a thing an admin can set
+          from here — so when there is no model the row says who to ask rather
+          than offering a switch that would do nothing. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.ai}
+          disabled={!canEdit || !aiProvider}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { ai: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureAi')}</span>
+          <span className="text-[12px] text-muted">
+            {aiProvider
+              ? t('workspace.featureAiHint', { provider: aiProvider })
+              : t('workspace.featureAiUnset')}
+          </span>
         </span>
       </label>
 

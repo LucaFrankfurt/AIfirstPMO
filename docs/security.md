@@ -62,6 +62,19 @@ beside it, the database on the private network, the metadata service on `169.254
 `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` turns the check off, for the instance that genuinely posts to
 `http://n8n:5678` on its own docker network. Off by default.
 
+**A model, when somebody asks for one.** A task review (`docs/ai.md`) sends the project name, column,
+labels, title and description of one task to whichever provider the operator configured. It is the
+only feature that sends a workspace's own words to a third party, so it is gated twice — a key in
+the environment *and* a switch a workspace admin sets — refused for guests and read-only tokens,
+rate-limited per person, and never triggered by anything but a click. Assignees, dates, estimates,
+comments and attachments are not sent. Nothing about the review is stored; what survives is whatever
+somebody chose to apply, as an ordinary edit under their own name.
+
+The provider URL comes from the environment rather than from a user, which is why it goes out
+through plain `fetch` rather than `lib/outbound.ts`: those checks exist for an address somebody
+typed into the app, and applying them here would refuse a gateway on the instance's own network,
+which is a supported way to run this.
+
 ## What comes back in
 
 **HTML.** `renderMarkdown` escapes everything before generating any markup and emits a fixed set of
