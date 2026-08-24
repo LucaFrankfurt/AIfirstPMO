@@ -1,0 +1,9 @@
+# The build context is this folder, and two things in it must never enter the
+# image: a `node_modules` from the host — which would land on top of the one
+# `npm ci` just produced, with whatever platform's binaries it was built for —
+# and a `dist` from a previous local build, which would be overwritten by the
+# real one but not before being copied.
+**/node_modules
+**/dist
+**/.astro
+**/.DS_Store

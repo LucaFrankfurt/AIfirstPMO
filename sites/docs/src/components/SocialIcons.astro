@@ -1,0 +1,32 @@
+---
+/*
+ * Starlight's social icons, plus a way out to the live demo.
+ *
+ * This overrides `SocialIcons` rather than replacing the header, and renders
+ * the stock component beside the new link — so an upstream change to how those
+ * icons are drawn still lands here.
+ */
+import Default from '@astrojs/starlight/components/SocialIcons.astro';
+import { DEMO_URL } from '../consts';
+---
+
+<a class="kolibri-demo-link" href={DEMO_URL}>
+  <svg
+    aria-hidden="true"
+    class="kolibri-demo-link__icon"
+    viewBox="0 0 16 16"
+    width="14"
+    height="14"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.6"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  >
+    <path d="M6.5 2.5H2.5v11h11v-4" />
+    <path d="M9.5 2.5h4v4" />
+    <path d="M13.5 2.5 7 9" />
+  </svg>
+  Live demo
+</a>
+<Default {...Astro.props}><slot /></Default>

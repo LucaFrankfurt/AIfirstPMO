@@ -1,0 +1,91 @@
+---
+title: Your first hour
+description: From an empty workspace to a board with real work on it — projects, tasks, a cycle, a page and the people who need to see it.
+sidebar:
+  order: 2
+---
+
+import { Steps, Aside } from '@astrojs/starlight/components';
+
+This assumes somebody has handed you a URL and a password, or that you have
+[started an instance](/start/instance/) yourself. If you would rather poke at a workspace that
+already has work in it, [demo.kolibri.day](https://demo.kolibri.day) is exactly that.
+
+## The short version
+
+<Steps>
+
+1. **Sign in.** The first account created on a fresh instance owns it. If you were invited,
+   your link creates the account and drops you into the workspace that invited you.
+
+2. **Take the tour, or dismiss it.** A first-run tour sets a few things up as it goes — your
+   name, a theme, whether you want email. It is skippable and everything in it is in
+   Settings afterwards.
+
+3. **Make a project.** *Projects → New project* in the sidebar. A project needs a name and a
+   **key** — two to five letters that become the prefix of every task in it, so `WEB` gives you
+   `WEB-1`, `WEB-2`. Pick something you will not mind typing; the key shows up in chat, in
+   commit messages and in search.
+
+4. **Put ten real things in it.** Not five perfect ones. Press <kbd>C</kbd> and type — the whole
+   task fits on one line:
+
+   ```text
+   Redraw the empty state !high @ada #WEB *design due:friday
+   ```
+
+   That is a title, a priority, an assignee, a project, a label and a due date. The box shows
+   what it understood as chips underneath before you commit to it. See
+   [making a task](/tasks/).
+
+5. **Move them.** Switch the project to **Board** and drag. The columns are your workflow states,
+   and the **+** at the right-hand end adds one — most teams find they want a *Blocked* or a
+   *Review* within the first week.
+
+6. **Start a cycle.** *Project → Cycles → New cycle*. Give it two weeks and drag in what you
+   actually mean to finish. The point of the cycle is the line it draws around a promise;
+   everything else it does — progress, burn-up, the *Insights* tab — follows from that line
+   existing. See [cycles](/planning/cycles/).
+
+7. **Write one page.** *Pages → New page*. The decision you just argued about for forty minutes
+   is worth six sentences, and a page is where a task's description stops being the right place
+   for it. See [writing pages](/pages/).
+
+8. **Invite the others.** *Settings → Members → Invite*. Roles are owner, admin, member and
+   guest; [members and roles](/people/members/) says what each may do.
+
+</Steps>
+
+<Aside type="tip" title="Turn signup off once everyone is in">
+An instance that lets anybody create an account is an instance that will eventually have
+accounts you did not create. Once your team is invited, `KOLIBRI_ALLOW_SIGNUP=false` closes the
+door and invites still work. Whoever runs the instance sets that.
+</Aside>
+
+## What to skip on the first day
+
+Half of this app is worth meeting only when you feel the need for it. In rough order of when
+that usually happens:
+
+| Leave until | |
+|---|---|
+| Week one | [Saved views](/views/saved/) — the moment you find yourself setting the same three filters twice a day |
+| Week one | [Notification settings](/people/notifications/) — the moment the inbox gets noisy |
+| Week two | [Modules](/planning/modules/), if the work has milestones that outlive a cycle |
+| Week two | [Custom fields](/tasks/custom-fields/), when a label is clearly being used to store an answer rather than a topic |
+| Week three | [Rules](/automation/rules/), when you notice a thing somebody has to remember to do every time |
+| When it hurts | [The timeline](/planning/timeline/), which earns its keep on work with real dependencies and is overhead on work without them |
+
+## What to do on day two
+
+**Check your notification settings before somebody else does.** The defaults are conservative —
+everything lands in the in-app inbox, and email is a batched summary rather than one message per
+event — but *everything* still means everything, and how much of it reaches your phone is a
+per-person setting. [Notifications](/people/notifications/).
+
+**Turn on two-factor authentication.** *Settings → Profile → Two-factor.* It gives you recovery
+codes; put them somewhere that is not the laptop you are sitting at.
+
+**Install it.** Kolibri is a progressive web app — on a phone, *Add to Home Screen*; on a
+desktop browser, the install button in the address bar. That is what makes the offline half
+useful rather than theoretical. [On your phone](/beyond/mobile/).

@@ -1,0 +1,84 @@
+# The two static sites, on Coolify.
+#
+#   docs.kolibri.day   the manual for using Kolibri
+#   demo.kolibri.day   the page in front of the live demo
+#
+# Coolify → Add Resource → Docker Compose → this repository → compose file
+# `docker-compose.sites.coolify.yml`. Then give each service its domain:
+# `docs` → port 8080, `demo` → port 8080.
+#
+# One resource for both, deliberately. They are two directories of pre-rendered
+# HTML built from the same repository by the same Dockerfile; splitting them
+# into two resources would double the deploy, the environment and the number of
+# places a wrong URL can hide, and buy nothing — neither can be down in a way
+# the other survives, because they come from the same commit.
+#
+# The live demo *instance* is a separate file — `docker-compose.demo.yml` —
+# because it is a different kind of thing: it holds a database, it resets
+# itself on a schedule, and it must be able to restart without taking the
+# documentation down with it.
+#
+# Nothing here publishes a port. Coolify's proxy routes to the container port
+# named by the domain you assign, and a `ports:` mapping would publish on the
+# host *outside* that proxy, TLS and all. See docs/deployment.md.
+
+services:
+  docs:
+    build:
+      context: ./sites
+      dockerfile: Dockerfile
+      args:
+        SITE: docs
+        # Where the header's "Live demo" button goes. It is inlined into every
+        # page at build time, so changing it needs a rebuild rather than a
+        # restart — which is the trade for a site that runs no JavaScript on
+        # the server.
+        PUBLIC_DEMO_URL: ${PUBLIC_DEMO_URL:-https://demo.kolibri.day}
+        PUBLIC_REPO_URL: ${PUBLIC_REPO_URL:-https://github.com/LucaFrankfurt/AIfirstPMO}
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      # Asks Coolify for a domain and points its proxy at 8080. The name after
+      # SERVICE_FQDN_ has to match this service's name or you get no route at
+      # all — the same rule the app's compose file documents.
+      - SERVICE_FQDN_DOCS_8080
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+      start_period: 5s
+
+  demo:
+    build:
+      context: ./sites
+      dockerfile: Dockerfile
+      args:
+        SITE: demo
+        # The live instance the "Open the demo" button points at. It is a
+        # separate hostname because Kolibri is a single-page app served from
+        # the root of its origin; there is no base path to mount it under.
+        PUBLIC_APP_URL: ${PUBLIC_APP_URL:-https://app.demo.kolibri.day}
+        PUBLIC_DOCS_URL: ${PUBLIC_DOCS_URL:-https://docs.kolibri.day}
+        PUBLIC_REPO_URL: ${PUBLIC_REPO_URL:-https://github.com/LucaFrankfurt/AIfirstPMO}
+        # The account printed on the page. These are not secrets and must never
+        # be: they are the point of a public demo, on an instance that is wiped
+        # on a schedule and holds nothing real.
+        PUBLIC_DEMO_EMAIL: ${PUBLIC_DEMO_EMAIL:-ada@kolibri.dev}
+        PUBLIC_DEMO_PASSWORD: ${PUBLIC_DEMO_PASSWORD:-kolibri-demo}
+        # Prose, not a cron expression — it is printed in a sentence. Keep it
+        # true: change it here when you change KOLIBRI_DEMO_RESET_SECONDS in
+        # docker-compose.demo.yml.
+        PUBLIC_RESET_EVERY: ${PUBLIC_RESET_EVERY:-every night}
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      - SERVICE_FQDN_DEMO_8080
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+      start_period: 5s

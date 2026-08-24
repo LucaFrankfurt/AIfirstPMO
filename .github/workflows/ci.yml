@@ -120,6 +120,65 @@ jobs:
         if: failure()
         run: cat /tmp/kolibri-server.log || true
 
+  # The two websites. A separate job because they have their own dependency
+  # tree — `sites/*` are not workspaces of the root project, on purpose — and
+  # because nothing in the `test` job would notice them breaking.
+  sites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      # One matrix leg each, so a docs failure and a demo failure are two lines
+      # in the summary rather than one job that stopped at the first.
+      fail-fast: false
+      matrix:
+        site: [docs, demo]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: sites/${{ matrix.site }}/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: sites/${{ matrix.site }}
+      # `astro check` is the typecheck for `.astro` files, which `tsc` alone
+      # does not read — a prop renamed in a component and not at its call site
+      # is otherwise a runtime hole in a page nobody opened.
+      - run: npm run check
+        working-directory: sites/${{ matrix.site }}
+      - run: npm run build
+        working-directory: sites/${{ matrix.site }}
+
+      # The cheap half: no browser needed, so a broken cross-reference fails
+      # before anything is installed to walk it.
+      - name: Every internal link resolves
+        run: node sites/check.mjs sites/${{ matrix.site }}/dist
+
+      - name: A browser to look with
+        timeout-minutes: 8
+        run: |
+          npm install --no-save playwright
+          # Not `--with-deps`: that shells out to apt, which on this runner
+          # retries the Azure mirror until something kills it. The image ships
+          # Google Chrome, which is the same engine.
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "CHROMIUM_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else
+            npx playwright install chromium
+          fi
+
+      - name: Widths and contrast, in a real browser
+        run: |
+          npx --yes serve@14 -l 4300 "sites/${{ matrix.site }}/dist" &
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:4300/ >/dev/null && break; sleep 1; done
+          node sites/check.mjs "sites/${{ matrix.site }}/dist" http://127.0.0.1:4300
+
+      # A policy that blocks something the page needs fails quietly — the one
+      # that shipped hid the search box's shortcut hint and errored only in a
+      # console nobody had open. So it is asserted, on the built output.
+      - name: The Content-Security-Policy blocks nothing the page needs
+        run: node sites/check-csp.mjs "sites/${{ matrix.site }}" http://127.0.0.1:4300
+
   # The deployment itself is the thing under test here: one command has to
   # produce a working instance with storage and mail already wired up.
   deploy:

@@ -1,0 +1,289 @@
+/*
+ * Kolibri's palette, on Starlight.
+ *
+ * Every value below is copied from `packages/web/src/styles/app.css` rather
+ * than picked to look similar, so a screenshot of the app dropped into a page
+ * sits on the same greys it was taken against. That matters more than it
+ * sounds: the app's greys were not chosen by eye — `npm run check:contrast`
+ * re-stepped every one of them to clear 4.5:1 on each surface it lands on, and
+ * a docs site that approximates them throws that away.
+ *
+ * Starlight's scale is dark-first and inverts in light mode: `:root` is the
+ * dark theme, `gray-1` is the *lightest* grey there and the *darkest* one
+ * under `[data-theme='light']`, and `--sl-color-black` is the page background
+ * in both. The two blocks below therefore look like mirror images, because
+ * they are.
+ */
+
+:root {
+  /* Kolibri's own names, kept so the rules further down read like the app's. */
+  --kol-bg: #0e1014;
+  --kol-bg-sunken: #0a0c10;
+  --kol-bg-raised: #15181e;
+  --kol-bg-hover: #1b1f27;
+  --kol-fg: #e8eaef;
+  --kol-fg-soft: #a7adba;
+  --kol-fg-muted: #8a909c;
+  --kol-line: #22262f;
+  --kol-line-strong: #2e333e;
+  --kol-accent: #7c7cf0;
+  --kol-accent-soft: #1d1f3d;
+  --kol-ok: #26a27c;
+  --kol-warn: #d97706;
+  --kol-danger: #e06d6e;
+
+  --sl-color-white: #f4f6fa;
+  --sl-color-gray-1: var(--kol-fg);
+  --sl-color-gray-2: var(--kol-fg);
+  --sl-color-gray-3: var(--kol-fg-soft);
+  --sl-color-gray-4: var(--kol-line-strong);
+  --sl-color-gray-5: var(--kol-line);
+  --sl-color-gray-6: var(--kol-bg-raised);
+  --sl-color-black: var(--kol-bg);
+
+  --sl-color-accent-low: var(--kol-accent-soft);
+  --sl-color-accent: var(--kol-accent);
+  /* Link text on a dark page. The accent itself is 5.4:1 there, which passes,
+     but a link is the one thing on a page that has to be found without being
+     looked for — so it is lifted rather than left at the floor. */
+  --sl-color-accent-high: #bcbcf9;
+
+  /* The app puts its chrome on a *sunken* surface and its content on a raised
+     one. Starlight's default does the opposite — a sidebar lighter than the
+     page — and following the app is what makes the two feel like one product. */
+  --sl-color-bg-nav: var(--kol-bg-sunken);
+  --sl-color-bg-sidebar: var(--kol-bg-sunken);
+  --sl-color-bg-inline-code: var(--kol-bg-hover);
+  --sl-color-hairline: var(--kol-line);
+  --sl-color-hairline-light: var(--kol-line);
+  --sl-color-hairline-shade: var(--kol-line);
+
+  /* Aside and badge hues, re-pointed at the three status colours the app uses,
+     because a reader who has seen "overdue" in the product should not meet a
+     second, unrelated red here. */
+  --sl-color-green: var(--kol-ok);
+  --sl-color-green-high: #7fd8bd;
+  --sl-color-green-low: #10352b;
+  --sl-color-orange: var(--kol-warn);
+  --sl-color-orange-high: #f5c07a;
+  --sl-color-orange-low: #3a2609;
+  --sl-color-red: var(--kol-danger);
+  --sl-color-red-high: #f2a9aa;
+  --sl-color-red-low: #3d1f20;
+  --sl-color-purple: var(--kol-accent);
+  --sl-color-purple-high: #bcbcf9;
+  --sl-color-purple-low: var(--kol-accent-soft);
+  --sl-color-blue: var(--kol-accent);
+  --sl-color-blue-high: #bcbcf9;
+  --sl-color-blue-low: var(--kol-accent-soft);
+
+  --sl-font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --sl-font-mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  /* The app's radii, and its restraint about shadow: almost none, and never as
+     decoration. `--shadow-sm` is the whole vocabulary for a resting surface. */
+  --kol-radius: 10px;
+  --kol-radius-sm: 7px;
+  --kol-radius-lg: 16px;
+  --sl-shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --sl-shadow-md: 0 8px 28px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
+  --sl-shadow-lg: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
+
+  /* Wider than the 45rem default. Several pages here carry a table with five
+     columns and a sentence in each cell; at 45rem those wrap to three lines. */
+  --sl-content-width: 50rem;
+}
+
+:root[data-theme='light'] {
+  --kol-bg: #ffffff;
+  --kol-bg-sunken: #f7f7f9;
+  --kol-bg-raised: #ffffff;
+  --kol-bg-hover: #f2f3f5;
+  --kol-fg: #14161c;
+  --kol-fg-soft: #4a4f5a;
+  --kol-fg-muted: #646872;
+  --kol-line: #e5e6eb;
+  --kol-line-strong: #d3d5dc;
+  --kol-accent: #5b5bd6;
+  --kol-accent-soft: #eeeefc;
+  --kol-ok: #097756;
+  --kol-warn: #9a580d;
+  --kol-danger: #ca2525;
+
+  --sl-color-white: #0b0d12;
+  --sl-color-gray-1: var(--kol-fg);
+  --sl-color-gray-2: var(--kol-fg);
+  --sl-color-gray-3: var(--kol-fg-soft);
+  --sl-color-gray-4: var(--kol-line-strong);
+  --sl-color-gray-5: var(--kol-line);
+  --sl-color-gray-6: var(--kol-bg-hover);
+  --sl-color-gray-7: var(--kol-bg-sunken);
+  --sl-color-black: var(--kol-bg);
+
+  --sl-color-accent-low: var(--kol-accent-soft);
+  --sl-color-accent: var(--kol-accent);
+  --sl-color-accent-high: #3b3ba6;
+
+  --sl-color-bg-nav: var(--kol-bg-sunken);
+  --sl-color-bg-sidebar: var(--kol-bg-sunken);
+  --sl-color-bg-inline-code: var(--kol-bg-hover);
+  --sl-color-hairline: var(--kol-line);
+  --sl-color-hairline-light: var(--kol-line);
+  --sl-color-hairline-shade: var(--kol-line);
+
+  --sl-color-green: var(--kol-ok);
+  --sl-color-green-high: #075c43;
+  --sl-color-green-low: #dff3ec;
+  --sl-color-orange: var(--kol-warn);
+  --sl-color-orange-high: #7a450a;
+  --sl-color-orange-low: #fbeedd;
+  --sl-color-red: var(--kol-danger);
+  --sl-color-red-high: #9d1d1d;
+  --sl-color-red-low: #fbe6e6;
+  --sl-color-purple: var(--kol-accent);
+  --sl-color-purple-high: #3b3ba6;
+  --sl-color-purple-low: var(--kol-accent-soft);
+  --sl-color-blue: var(--kol-accent);
+  --sl-color-blue-high: #3b3ba6;
+  --sl-color-blue-low: var(--kol-accent-soft);
+
+  --sl-shadow-sm: 0 1px 2px rgb(15 18 25 / 6%);
+  --sl-shadow-md: 0 8px 28px -12px rgb(15 18 25 / 22%), 0 1px 2px rgb(15 18 25 / 6%);
+  --sl-shadow-lg: 0 8px 28px -12px rgb(15 18 25 / 22%), 0 1px 2px rgb(15 18 25 / 6%);
+}
+
+/*
+ * Everything below is in `@layer starlight.core` on purpose. Starlight puts
+ * its own rules in cascade layers, and an unlayered rule in a custom
+ * stylesheet beats every one of them regardless of specificity — which is a
+ * fine way to break a component you did not mean to touch. Sitting inside a
+ * layer means the ordinary rules apply and a Starlight fix upstream still
+ * lands.
+ */
+@layer starlight.core {
+  /* The mark is a bird with a black keyline, and black on `#0a0c10` is
+     nothing at all. The app reached the same conclusion first — `.auth-mark
+     img` sets a white tile — so this matches a decision rather than making a
+     second one. */
+  .site-title img {
+    background: #fff;
+    border-radius: var(--kol-radius-sm);
+    padding: 2px;
+  }
+
+  /* One accent colour, hairline borders, almost no shadow. A card that lifts
+     off the page is decoration, and decoration is what the app spends its
+     restraint avoiding. */
+  .card,
+  .sl-link-card {
+    background: var(--kol-bg-raised);
+    border-radius: var(--kol-radius);
+    box-shadow: none;
+  }
+
+  .sl-link-card:hover {
+    background: var(--kol-bg-hover);
+    box-shadow: none;
+  }
+
+  /* Code blocks pick up the same corner radius as everything else. */
+  .expressive-code .frame pre,
+  .expressive-code .frame .header {
+    border-radius: var(--kol-radius-sm);
+  }
+
+  /* A definition-style table is the shape half these pages want, and the
+     stock one puts its header in the same weight as its body. */
+  .sl-markdown-content table {
+    font-size: var(--sl-text-sm);
+  }
+  .sl-markdown-content th {
+    color: var(--sl-color-white);
+    font-weight: 600;
+  }
+
+  /* Keyboard keys are written as `<kbd>` throughout the shortcuts page. */
+  .sl-markdown-content kbd {
+    background: var(--kol-bg-hover);
+    border: 1px solid var(--kol-line-strong);
+    border-bottom-width: 2px;
+    border-radius: var(--kol-radius-sm);
+    padding: 0.1em 0.45em;
+    font-family: var(--sl-font-mono);
+    font-size: 0.85em;
+    line-height: 1.6;
+    white-space: nowrap;
+  }
+
+  /* Screenshots are of a rectangular app on a rectangular page; a border is
+     what stops a white one from bleeding into a white page. */
+  .sl-markdown-content img:not(.no-frame) {
+    border: 1px solid var(--kol-line);
+    border-radius: var(--kol-radius);
+  }
+}
+
+/* The header's demo link. It is a button rather than a text link because it
+   leaves the site, and the one thing a reader may want more than the sentence
+   they are on is a board to try it in. */
+.kolibri-demo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  /* 36px, which is the app's floor for a control that is not inside a dense
+     row. `check:a11y` exists because "big enough" had been wrong here before. */
+  min-height: 36px;
+  padding: 0 0.75rem;
+  border: 1px solid var(--kol-line-strong);
+  border-radius: var(--kol-radius-sm);
+  color: var(--sl-color-white);
+  font-size: var(--sl-text-sm);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.kolibri-demo-link:hover {
+  background: var(--kol-bg-hover);
+  border-color: var(--kol-accent);
+}
+
+/* Below 50em Starlight's header is already carrying the menu button, the
+   title and the search box, and a fourth control pushes the title off the
+   bar. The same link is the first thing in the sidebar there. */
+@media (max-width: 50em) {
+  .kolibri-demo-link {
+    display: none;
+  }
+}
+
+/*
+ * Screenshots that follow the theme.
+ *
+ * Dark is the bare-`:root` default because that is Starlight's: its palette
+ * defines dark on `:root` and light under `[data-theme='light']`, and a
+ * screenshot that disagreed with the page for the one frame before the theme
+ * script runs would be a white rectangle flashing on a dark page.
+ */
+.kolibri-shot {
+  margin: 1.5rem 0;
+}
+
+.kolibri-shot__img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--kol-line);
+  border-radius: var(--kol-radius);
+}
+
+.kolibri-shot__img--light { display: none; }
+:root[data-theme='light'] .kolibri-shot__img--light { display: block; }
+:root[data-theme='light'] .kolibri-shot__img--dark { display: none; }
+
+.kolibri-shot figcaption {
+  margin-top: 0.6rem;
+  font-size: var(--sl-text-sm);
+  color: var(--kol-fg-muted);
+}

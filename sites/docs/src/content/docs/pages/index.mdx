@@ -1,0 +1,72 @@
+---
+title: Writing pages
+description: A nested markdown wiki that lives beside the work — where pages go, what the editor does, and when a page beats a task description.
+sidebar:
+  order: 1
+---
+
+import Shot from '../../../components/Shot.astro';
+
+*Pages* in the sidebar, or the **Pages** tab inside a project. Markdown, nested to any depth.
+
+<Shot
+  name="pages"
+  alt="A wiki page — API design principles — with its author, its project and its last edit above the body, and a discussion thread below it."
+  caption="A page, with the discussion at its foot. Selecting a passage comments on that passage rather than on the page."
+/>
+
+## Where a page lives
+
+**In the workspace** — for things that are not about one project: how the team works, the
+on-call rota, the decision log.
+
+**In a project** — for things that are. The project's Pages tab is the same wiki, scoped.
+
+**Inside another page.** Pages nest to any depth. A page with children shows them at its foot and
+in the sidebar tree, so a section is a page with pages under it rather than a separate kind of
+object.
+
+## The editor
+
+The same editor as comments and the chat composer, so everything here works in all three:
+
+- **Markdown**, with a live preview of what you have typed.
+- **`@mentions`** with autocomplete. Only a newly added handle notifies — see
+  [comments and mentions](/tasks/comments/).
+- **Task and project references.** `WEB-42` becomes a link; `#` offers projects and tasks.
+- **Images**, dragged or pasted. They downscale in your browser before upload.
+- <kbd>Tab</kbd> indents by two spaces.
+- **Mermaid diagrams** in a fenced ` ```mermaid ` block.
+
+It saves as you type. There is no save button and no draft state, which is why the
+[version history](/pages/history/) matters — it is the undo that survives closing the tab.
+
+## Labels and filtering
+
+Pages take labels the way tasks do, and the page list filters on them. On a wiki that has been
+running for a year this is the difference between a tree somebody maintains and a tree nobody
+can find anything in.
+
+## Watching a page
+
+**Watch** puts you on the list of people notified when it changes or is commented on. You are
+watching automatically once you have written or commented on it.
+
+## Page templates
+
+*Settings → Templates & rules* holds page templates as well as task ones. A meeting note, a
+decision record, an incident write-up — anything whose value is that everybody fills in the same
+five headings.
+
+## When a page beats a task description
+
+A task description is for *what this task is*. A page is for anything that outlives the task:
+
+| Put it in | |
+|---|---|
+| The task | Acceptance criteria, the reproduction steps, the link to the design |
+| A page | The decision and why, the runbook, the thing the next person will search for |
+
+The test is whether somebody would look for it after the task is closed. Closed tasks are
+findable but nobody browses them, and a decision buried in `WEB-238` is a decision that gets
+made again in March.

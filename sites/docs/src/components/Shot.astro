@@ -1,0 +1,41 @@
+---
+import { Image } from 'astro:assets';
+
+/*
+ * A screenshot that follows the reader's theme.
+ *
+ * Starlight always writes `data-theme` as `light` or `dark` — its no-FOUC
+ * script resolves "auto" against the OS before the first paint and never
+ * leaves the attribute unset — so the CSS beside this can key on the attribute
+ * alone, with the bare `:root` default matching dark exactly the way
+ * Starlight's own palette does.
+ *
+ * Both files are in the markup because a `<picture>` with a
+ * `prefers-color-scheme` source answers the *operating system*, and a reader
+ * who has pinned light on a dark machine would get a dark screenshot on a
+ * light page. The unused one is lazy and sits inside a `display: none`
+ * element, so it never intersects the viewport and is never fetched.
+ */
+interface Props {
+  name: string;
+  alt: string;
+  caption?: string;
+}
+const { name, alt, caption } = Astro.props;
+
+const files = import.meta.glob<{ default: ImageMetadata }>('../assets/screens/*.webp', {
+  eager: true,
+});
+const pick = (theme: 'light' | 'dark') => {
+  const key = `../assets/screens/${name}-${theme}.webp`;
+  const found = files[key];
+  if (!found) throw new Error(`No screenshot "${key}" — run \`node scripts/screenshots.mjs\``);
+  return found.default;
+};
+---
+
+<figure class="kolibri-shot">
+  <Image class="kolibri-shot__img kolibri-shot__img--light" src={pick('light')} alt={alt} loading="lazy" decoding="async" />
+  <Image class="kolibri-shot__img kolibri-shot__img--dark" src={pick('dark')} alt={alt} loading="lazy" decoding="async" />
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>

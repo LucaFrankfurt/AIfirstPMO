@@ -275,6 +275,115 @@ The same shape works on any PaaS that consumes a compose file. On one that only 
 `KOLIBRI_STORAGE=disk` and a persistent volume at `/data` — that is `docker-compose.lite.yml`
 without the compose part, and it needs no second service.
 
+## The two websites, and the public demo
+
+Three things live beside the app and are deployed the same way. None of them is part of an
+ordinary Kolibri install — skip this section entirely if you are running an instance for your own
+team.
+
+| | What it is | Compose file |
+|---|---|---|
+| `docs.kolibri.day` | The manual for **using** Kolibri, built from `sites/docs` | `docker-compose.sites.coolify.yml` |
+| `demo.kolibri.day` | The page in front of the demo, built from `sites/demo` | the same file |
+| `app.demo.kolibri.day` | A real Kolibri, seeded and wiped on a schedule | `docker-compose.demo.yml` |
+
+Both sites are Astro projects that render to static files and are served by nginx from
+`sites/Dockerfile` — one Dockerfile, one nginx config, `--build-arg SITE=docs` or `SITE=demo`. They
+carry their own `package.json` and lockfile and are **not** npm workspaces of the root project, so
+`npm ci` at the root still installs only what the app needs and CI is not slowed down by a docs
+toolchain.
+
+### The sites
+
+```bash
+cd sites/docs && npm install && npm run build     # → sites/docs/dist
+cd sites/demo && npm install && npm run build     # → sites/demo/dist
+```
+
+On Coolify: *Add Resource → Docker Compose →* this repository, compose file
+`docker-compose.sites.coolify.yml`. Give the `docs` service a domain on port **8080** and the
+`demo` service its own, also on 8080.
+
+Where the buttons point is decided **at build time**, because a static site has no server to ask.
+Each is a build argument in the compose file:
+
+| Argument | Default | Where it shows |
+|---|---|---|
+| `PUBLIC_APP_URL` | `https://app.demo.kolibri.day` | The demo page's "Open the demo" buttons |
+| `PUBLIC_DOCS_URL` | `https://docs.kolibri.day` | The demo page's "Read the manual" |
+| `PUBLIC_DEMO_URL` | `https://demo.kolibri.day` | The docs site's header "Live demo" |
+| `PUBLIC_REPO_URL` | this repository | Both, in the footer and the source links |
+| `PUBLIC_DEMO_EMAIL` / `PUBLIC_DEMO_PASSWORD` | `ada@kolibri.dev` / `kolibri-demo` | Printed on the demo page |
+| `PUBLIC_RESET_EVERY` | `every night` | The sentence promising the reset |
+
+Changing one needs a rebuild, not a restart. None of them may ever hold a secret: `PUBLIC_` is
+Astro's prefix for a value that is **inlined into the output**, and the demo credentials are in
+that list precisely because they are meant to be read.
+
+`PUBLIC_RESET_EVERY` is prose and `KOLIBRI_DEMO_RESET_SECONDS` is the schedule. Nothing keeps them
+in step, so change them together — a page that promises a nightly reset on an instance that never
+resets is worse than one that promises nothing.
+
+### Two checks before you deploy either site
+
+```bash
+node sites/check.mjs sites/docs/dist                              # links only
+node sites/check.mjs sites/docs/dist http://127.0.0.1:4300        # + widths and contrast
+```
+
+It asks the three questions the app's own `check:*` scripts ask, for the same reason: every one of
+them has been wrong here before, and none can be settled by reading the source.
+
+1. **Links.** Every internal href resolves to a file that exists.
+2. **Widths.** 340px to 1600px in 20px steps, looking for a page that scrolls sideways. This
+   caught a `git clone` line holding a column open at 562px inside a 300px phone.
+3. **Contrast.** Every element that renders text, in both themes, against the background it really
+   lands on — walked up through transparency and blended. Floor 4.5:1, or 3:1 for large text.
+
+The browser checks need the built directory served somewhere and Playwright installed.
+
+### The demo instance
+
+*Add Resource → Docker Compose →* `docker-compose.demo.yml`, and a domain for the `app` service on
+port **4000**.
+
+It is a separate hostname from the landing page rather than a path under it, because Kolibri's
+client is a single-page app served from the root of its origin. There is no base path to mount it
+under.
+
+**How the reset works.** `scripts/demo-entrypoint.sh` replaces the image's command and owns the
+process: wipe `/data`, seed, start the server, wait `KOLIBRI_DEMO_RESET_SECONDS`, stop it, repeat.
+The reset owns the process rather than the other way round because `kolibri restore` deliberately
+refuses to run against a live database — putting a snapshot under a running server is how you get
+a half-restored one. A sidecar that restarted its neighbour would need the Docker socket, and
+handing a container the socket to keep a demo tidy is handing it the host.
+
+The cost is a few seconds of downtime per reset, on an instance whose whole purpose is being
+disposable. The health check is set to tolerate it (`retries: 5`); a shorter one restarts a
+container that is doing exactly what it was told to.
+
+After each seed it runs `scripts/demo-extras.mjs`, which writes the one thing the seed cannot: a
+`#general` channel with four people talking in it, and a direct conversation. That runs over the
+public REST API as ordinary signed-in people, so every row it writes is one somebody could have
+written by hand — there is no special case in the server for it. It is idempotent by name, so a
+failure mid-run is fixed by running it again.
+
+**What the demo turns off**, and why each one:
+
+| | |
+|---|---|
+| `KOLIBRI_ALLOW_SIGNUP=false` | Everybody uses the seeded account. Otherwise a public URL is a public sign-up form |
+| `KOLIBRI_SMTP_URL=` | A demo that can send mail can be *used* to send mail, and nobody would notice |
+| `KOLIBRI_PUSH=false`, no Telegram token | Same reasoning, other channels |
+| No `ANTHROPIC_API_KEY` and friends | The task-review button does not appear, so nothing typed into a public instance can leave it for a model |
+| `KOLIBRI_MAX_UPLOAD_MB=5` | A public upload box is a public upload box |
+| `KOLIBRI_SESSION_DAYS=1` | Everyone is the same person; a sixty-day cookie on a shared account is a sixty-day shared cookie |
+
+**One flag that does nothing yet.** There is a `KOLIBRI_DEMO` in `packages/server/src/env.ts`,
+described in `scripts/compose-env.mjs` as "read-only mode for the public demo instance". Nothing
+reads it — it is declared and unused. The demo's protection is the reset and the switches above,
+not a read-only mode, and this file will say otherwise on the day that changes.
+
 ## TLS
 
 Kolibri speaks plain HTTP and expects a reverse proxy for TLS. Caddy is two lines

@@ -1,0 +1,53 @@
+---
+import { Image } from 'astro:assets';
+
+/*
+ * A screenshot that follows the reader's theme.
+ *
+ * Both files are in the markup and CSS chooses; `<picture>` with a
+ * `prefers-color-scheme` source would download only one, but it answers the
+ * *operating system* and this page also has a pinned theme, so somebody who
+ * chose light on a dark machine would get a dark screenshot on a light page.
+ * The cost of getting that right is one extra image, and the browser skips it
+ * for anything below the fold: a lazy image inside a `display: none` element
+ * never intersects the viewport and so is never fetched.
+ *
+ * `eager` is for the one above the fold, where both are wanted immediately —
+ * about 100kB more, spent once, on the picture the page exists to show.
+ */
+interface Props {
+  name: string;
+  alt: string;
+  eager?: boolean;
+  widths?: number[];
+  sizes?: string;
+  class?: string;
+}
+const { name, alt, eager = false, widths, sizes, class: className } = Astro.props;
+
+const files = import.meta.glob<{ default: ImageMetadata }>('../assets/screens/*.webp', {
+  eager: true,
+});
+const pick = (theme: 'light' | 'dark') => {
+  const key = `../assets/screens/${name}-${theme}.webp`;
+  const found = files[key];
+  // A missing screenshot must stop the build. Rendered as a broken image it is
+  // a hole on a page whose whole job is showing the product, and nobody
+  // notices a hole in a section they have stopped scrolling to.
+  if (!found) throw new Error(`No screenshot "${key}" — run \`node scripts/screenshots.mjs\``);
+  return found.default;
+};
+
+const shared = {
+  alt,
+  loading: eager ? ('eager' as const) : ('lazy' as const),
+  decoding: eager ? ('sync' as const) : ('async' as const),
+  ...(widths ? { widths } : {}),
+  ...(sizes ? { sizes } : {}),
+};
+---
+
+<figure class:list={['shot', className]}>
+  <Image class="shot__img shot__img--light" src={pick('light')} {...shared} />
+  <Image class="shot__img shot__img--dark" src={pick('dark')} {...shared} />
+</figure>

@@ -1,0 +1,618 @@
+/*
+ * demo.kolibri.day.
+ *
+ * The palette is copied from `packages/web/src/styles/app.css` rather than
+ * chosen to look like it — the screenshots on this page were taken against
+ * these exact greys, and every one of them was re-stepped by the app's own
+ * contrast check to clear 4.5:1 on the surface it lands on. Approximating them
+ * would throw that away and put a screenshot on a background that is nearly
+ * but not quite its own.
+ *
+ * The app's restraint holds here too: one accent colour, hairline borders,
+ * almost no shadow, and no colour that is not carrying information. A landing
+ * page is allowed more air than a board — that is the only thing that differs.
+ */
+
+:root {
+  color-scheme: light dark;
+
+  --bg: #ffffff;
+  --bg-sunken: #f7f7f9;
+  --bg-raised: #ffffff;
+  --bg-hover: #f2f3f5;
+  --bg-active: #e9eaee;
+
+  --fg: #14161c;
+  --fg-soft: #4a4f5a;
+  --fg-muted: #646872;
+
+  --line: #e5e6eb;
+  --line-strong: #d3d5dc;
+
+  --accent: #5b5bd6;
+  --accent-soft: #eeeefc;
+  --accent-fg: #ffffff;
+  --accent-text: #4747bd;
+
+  --ok: #097756;
+  --warn: #9a580d;
+  --danger: #ca2525;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 16px;
+
+  --shadow-sm: 0 1px 2px rgb(15 18 25 / 6%);
+  --shadow: 0 8px 28px -12px rgb(15 18 25 / 22%), 0 1px 2px rgb(15 18 25 / 6%);
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+
+  --page: 1080px;
+}
+
+/* Dark when the OS asks for it, unless the reader pinned light. The pinned
+   case is the block after this one, and it has to win in both directions —
+   which is why neither is a plain media query. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --bg: #0e1014;
+    --bg-sunken: #0a0c10;
+    --bg-raised: #15181e;
+    --bg-hover: #1b1f27;
+    --bg-active: #232833;
+    --fg: #e8eaef;
+    --fg-soft: #a7adba;
+    --fg-muted: #8a909c;
+    --line: #22262f;
+    --line-strong: #2e333e;
+    --accent: #7c7cf0;
+    --accent-soft: #1d1f3d;
+    --accent-fg: #0b0c10;
+    --accent-text: #bcbcf9;
+    --ok: #26a27c;
+    --warn: #d97706;
+    --danger: #e06d6e;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
+  }
+}
+
+:root[data-theme='light'] { color-scheme: light; }
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #0e1014;
+  --bg-sunken: #0a0c10;
+  --bg-raised: #15181e;
+  --bg-hover: #1b1f27;
+  --bg-active: #232833;
+  --fg: #e8eaef;
+  --fg-soft: #a7adba;
+  --fg-muted: #8a909c;
+  --line: #22262f;
+  --line-strong: #2e333e;
+  --accent: #7c7cf0;
+  --accent-soft: #1d1f3d;
+  --accent-fg: #0b0c10;
+  --accent-text: #bcbcf9;
+  --ok: #26a27c;
+  --warn: #d97706;
+  --danger: #e06d6e;
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow: 0 12px 32px -12px rgb(0 0 0 / 70%), 0 1px 2px rgb(0 0 0 / 40%);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { line-height: 1.15; margin: 0; letter-spacing: -0.02em; }
+p { margin: 0; }
+a { color: var(--accent-text); }
+
+/* One ring, drawn the same way everywhere, and never removed without a
+   replacement. `check:a11y` exists in this repository because "you can see
+   where you are" had been assumed and was wrong. */
+:where(a, button, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.wrap { max-width: var(--page); margin: 0 auto; padding: 0 20px; }
+
+.skip {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: var(--bg-raised);
+  color: var(--fg);
+  padding: 10px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  z-index: 10;
+}
+.skip:focus { left: 12px; top: 12px; }
+
+/* ------------------------------------------------------------------ header */
+
+.top {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.top__in {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 60px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 650;
+  font-size: 17px;
+  color: var(--fg);
+  text-decoration: none;
+  margin-right: auto;
+}
+
+/* The mark is a bird held together by a black keyline, and black on `#0a0c10`
+   is nothing at all. The app reached this conclusion first — `.auth-mark img`
+   sets a white tile — so this matches a decision rather than making a second. */
+.brand img {
+  width: 28px;
+  height: 28px;
+  background: #fff;
+  border-radius: var(--radius-sm);
+  padding: 2px;
+}
+
+.top__link {
+  color: var(--fg-soft);
+  text-decoration: none;
+  font-size: 14.5px;
+  padding: 8px 4px;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.top__link:hover { color: var(--fg); }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  /* 36px is the app's floor for a control that is not inside a dense row. */
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 550;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--bg-hover); }
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.btn--primary:hover { background: var(--accent); filter: brightness(1.08); }
+
+.btn--lg { min-height: 46px; padding: 0 22px; font-size: 16px; }
+
+.btn--icon { width: 36px; padding: 0; }
+
+/* --------------------------------------------------------------------- hero */
+
+.hero { padding: 72px 0 8px; }
+
+/*
+ * Two columns from 940px up: the sentence on the left, the account you sign in
+ * with on the right. One column left the right half of a laptop screen empty,
+ * and an empty half beside a headline reads as a page that has not finished
+ * loading rather than as air.
+ *
+ * The breakpoint is where the headline stops needing four lines at its
+ * clamped size — below it the card goes underneath, where it is still the
+ * thing directly above the fold's bottom edge.
+ */
+.hero__grid {
+  display: grid;
+  gap: 30px;
+  align-items: start;
+}
+
+@media (min-width: 940px) {
+  .hero__grid {
+    grid-template-columns: 1.06fr 0.94fr;
+    gap: 56px;
+    align-items: center;
+  }
+  .hero__grid .creds { margin-top: 0; }
+}
+
+.hero__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 550;
+  color: var(--fg-soft);
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+  margin-bottom: 22px;
+}
+
+.hero__dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+  flex: none;
+}
+
+.hero h1 {
+  font-size: clamp(34px, 6vw, 56px);
+  font-weight: 700;
+  max-width: 17ch;
+}
+
+.hero__sub {
+  margin-top: 18px;
+  font-size: clamp(17px, 2.2vw, 20px);
+  color: var(--fg-soft);
+  max-width: 62ch;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 30px;
+  align-items: center;
+}
+
+/* ------------------------------------------------------------ credentials */
+
+.creds {
+  margin-top: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  padding: 16px 18px;
+  max-width: 640px;
+}
+
+.creds__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 12px;
+}
+
+.creds__rows { display: grid; gap: 8px; }
+
+.creds__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.creds__label {
+  font-size: 14px;
+  color: var(--fg-muted);
+  min-width: 76px;
+}
+
+.creds__value {
+  font-family: var(--mono);
+  font-size: 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 4px 9px;
+  user-select: all;
+}
+
+.creds__note { margin-top: 12px; font-size: 13.5px; color: var(--fg-muted); }
+
+/* What is already in the workspace, so the reader knows there is something to
+   look at before they spend a click finding out. */
+.seeded {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 7px;
+}
+
+.seeded__row {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  font-size: 13.5px;
+  color: var(--fg-soft);
+}
+
+.seeded__n {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--accent-text);
+  min-width: 22px;
+  text-align: right;
+  flex: none;
+}
+
+/* ------------------------------------------------------------------ shots */
+
+.shots { margin-top: 56px; }
+
+.shot {
+  margin: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg-sunken);
+  box-shadow: var(--shadow);
+}
+.shot img { display: block; width: 100%; height: auto; }
+
+/*
+ * The theme swap. Light is the default because `:root` is light here, and each
+ * of the three states below has to name both images: a rule that only hides
+ * one leaves the other showing underneath it.
+ */
+.shot__img--dark { display: none; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .shot__img--light { display: none; }
+  :root:not([data-theme='light']) .shot__img--dark { display: block; }
+}
+
+:root[data-theme='dark'] .shot__img--light { display: none; }
+:root[data-theme='dark'] .shot__img--dark { display: block; }
+:root[data-theme='light'] .shot__img--light { display: block; }
+:root[data-theme='light'] .shot__img--dark { display: none; }
+
+.shots__grid {
+  margin-top: 16px;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  /* Each card is the height of its own picture. Stretched, a row is as tall as
+     its tallest member and the shorter ones sit in a pool of empty card. */
+  align-items: start;
+}
+.shots__grid .shot { box-shadow: var(--shadow-sm); }
+
+.screen { margin-top: 44px; }
+.screen:first-of-type { margin-top: 34px; }
+
+.screen__title { font-size: 17px; font-weight: 620; }
+
+.screen__note {
+  margin: 7px 0 14px;
+  font-size: 14.5px;
+  color: var(--fg-soft);
+  max-width: 76ch;
+}
+
+.shot__caption {
+  margin-top: 10px;
+  font-size: 13.5px;
+  color: var(--fg-muted);
+}
+
+/* -------------------------------------------------------------- sections */
+
+/*
+ * A band is a band: padding and a hairline, and no margin between two of them.
+ * A margin here showed as a strip of page colour between a sunken section and
+ * the next one — a seam rather than a division, and one that only appears
+ * where two bands of different colours meet.
+ */
+.section { padding: 78px 0; border-top: 1px solid var(--line); }
+.section--sunken { background: var(--bg-sunken); }
+
+.section__head { max-width: 66ch; }
+.section h2 { font-size: clamp(24px, 3.4vw, 32px); font-weight: 660; }
+.section__lead { margin-top: 14px; font-size: 17px; color: var(--fg-soft); }
+
+/*
+ * Heading on the left, the substance on the right, from 940px up.
+ *
+ * A prose column is capped at 68 characters because that is where a line stops
+ * being comfortable to read — but a capped column in a 1080px page leaves the
+ * right-hand third empty, and empty space beside a heading reads as a page
+ * that has not finished loading. Splitting it keeps the measure and uses the
+ * width. Below the breakpoint it is one column and the heading is simply
+ * above, which is what it was in the first place.
+ */
+.section__split { display: grid; gap: 26px; }
+
+/*
+ * A grid item's default `min-width: auto` is its *min-content* width, and the
+ * min-content width of a `<pre>` is its longest unbreakable line. Left at the
+ * default, the terminal block below — a `git clone` URL — held the whole
+ * column open at 562px inside a 300px phone, and the page scrolled sideways.
+ * `overflow-x: auto` on the `pre` cannot help while nothing constrains the
+ * track it sits in.
+ */
+.section__split > *,
+.hero__grid > * {
+  min-width: 0;
+}
+
+@media (min-width: 940px) {
+  .section__split {
+    grid-template-columns: 0.82fr 1.18fr;
+    gap: 60px;
+    align-items: start;
+  }
+  .section__split .section__head { max-width: none; }
+  .section__split > :last-child > :first-child { margin-top: 0; }
+}
+
+.grid {
+  display: grid;
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-top: 34px;
+  grid-template-columns: repeat(auto-fit, minmax(268px, 1fr));
+}
+
+.cell { background: var(--bg); padding: 22px; }
+.section--sunken .cell { background: var(--bg-sunken); }
+
+.cell h3 {
+  font-size: 16px;
+  font-weight: 620;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.cell h3 svg { color: var(--accent-text); flex: none; }
+.cell p { margin-top: 9px; font-size: 14.5px; color: var(--fg-soft); }
+
+.cell code, .prose code {
+  font-family: var(--mono);
+  font-size: 0.9em;
+  background: var(--bg-hover);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+
+/* --------------------------------------------------------------- code box */
+
+.code {
+  margin-top: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.section--sunken .code { background: var(--bg); }
+
+.code__bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+  color: var(--fg-muted);
+}
+.code__bar .btn { margin-left: auto; min-height: 32px; font-size: 13px; padding: 0 10px; }
+
+.code pre {
+  margin: 0;
+  padding: 16px;
+  overflow-x: auto;
+  font-family: var(--mono);
+  font-size: 13.5px;
+  line-height: 1.7;
+  color: var(--fg);
+}
+
+/* ------------------------------------------------------------------ prose */
+
+.prose { max-width: 68ch; }
+.prose p + p { margin-top: 14px; }
+.prose ul { margin: 14px 0 0; padding-left: 20px; color: var(--fg-soft); }
+.prose li + li { margin-top: 8px; }
+.prose strong { color: var(--fg); font-weight: 600; }
+
+.note {
+  margin-top: 28px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  padding: 16px 18px;
+  font-size: 14.5px;
+  color: var(--fg-soft);
+  max-width: 68ch;
+}
+.note strong { color: var(--fg); }
+
+/* ----------------------------------------------------------------- footer */
+
+.foot {
+  border-top: 1px solid var(--line);
+  padding: 34px 0 48px;
+  background: var(--bg-sunken);
+}
+.foot__in {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 26px;
+  align-items: center;
+  font-size: 14px;
+  color: var(--fg-muted);
+}
+.foot a { color: var(--fg-soft); text-decoration: none; }
+.foot a:hover { color: var(--fg); text-decoration: underline; }
+.foot__spacer { margin-left: auto; }
+
+/* ------------------------------------------------------------------ phone */
+
+@media (max-width: 720px) {
+  .hero { padding-top: 48px; }
+  .section { padding: 52px 0; margin-top: 52px; }
+  .top__link--hide { display: none; }
+  .hero__actions .btn { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/*
+ * The five rules that used to be `style="…"` attributes.
+ *
+ * A style attribute cannot be hashed: the Content-Security-Policy covering
+ * this page names a hash per inline `<script>` and `<style>`, and the only
+ * things that allow a `style=` attribute are `'unsafe-inline'` and
+ * `'unsafe-hashes'` — both of which allow every *other* one too. Five class
+ * names cost nothing and keep the policy strict.
+ */
+.prose--spaced { margin-top: 30px; }
+.prose__last { margin-top: 18px; }
+
+.centred { text-align: center; }
+.centred__lead { margin: 14px auto 0; max-width: 52ch; }
+.centred__actions { justify-content: center; }

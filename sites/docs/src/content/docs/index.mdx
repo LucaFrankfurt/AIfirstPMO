@@ -1,0 +1,71 @@
+---
+title: Kolibri
+description: How to use Kolibri — tasks, boards, cycles, pages, chat and the sync that keeps working on a train. The manual for the person doing the work.
+template: splash
+editUrl: false
+hero:
+  tagline: Projects, tasks and pages that never wait for the network. This is the manual for using them.
+  image:
+    alt: ''
+    file: ../../assets/kolibri-mark.png
+  actions:
+    - text: Start here
+      link: /start/
+      icon: right-arrow
+    - text: Open the live demo
+      link: https://demo.kolibri.day
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="New here?" icon="rocket">
+    [Your first hour](/start/first-hour/) walks from an empty workspace to a board with
+    work on it. If you would rather see the shape of the thing first,
+    [how it is put together](/start/shape/) is one page.
+  </Card>
+  <Card title="Looking for one thing" icon="magnifier">
+    Press <kbd>/</kbd> or use the search box above. The four
+    [reference pages](/reference/shortcuts/) — shortcuts, the quick-add syntax, the filter
+    language and the glossary — are where the tables live.
+  </Card>
+  <Card title="Just been added to a workspace" icon="approve-check">
+    You want [making a task](/tasks/), [the five layouts](/views/) and
+    [notifications](/people/notifications/), roughly in that order. Everything else can wait
+    until you meet it.
+  </Card>
+  <Card title="Running the instance" icon="setting">
+    This site is about *using* Kolibri. Installing it, backing it up, wiring up mail and
+    reading the threat model live in the repository, under `docs/`.
+    [Getting an instance](/start/instance/) points at each.
+  </Card>
+</CardGrid>
+
+## The parts
+
+<CardGrid>
+  <LinkCard title="Tasks" href="/tasks/" description="One line becomes a task. Sub-tasks, relations, custom fields, comments." />
+  <LinkCard title="Seeing the work" href="/views/" description="List, board, table and calendar over the same tasks — grouped, filtered and saved." />
+  <LinkCard title="Planning" href="/planning/cycles/" description="Cycles, modules, a timeline that moves what it blocks, and four charts." />
+  <LinkCard title="Pages" href="/pages/" description="A nested wiki two people can type in at once, with history you can put back." />
+  <LinkCard title="People" href="/people/chat/" description="Chat, notifications, intake forms, and who is allowed to see what." />
+  <LinkCard title="Off the beaten path" href="/beyond/offline/" description="Offline, phones, calendar feeds, imports, and connecting an assistant." />
+</CardGrid>
+
+## Three things worth knowing before anything else
+
+**Nothing here waits for the network.** Every screen reads from a copy of the workspace on your
+own device. Opening a board, filtering it, typing a comment and dragging a card all happen at the
+speed of the machine in front of you, and they happen the same way with the wifi off. What you
+changed queues up and merges when you are back. [Working offline](/beyond/offline/) explains what
+that means when two people edited the same thing.
+
+**Colour means status, not decoration.** Overdue, blocked, done. If something in the interface is
+coloured, it is telling you something — which is why so little of the rest is.
+
+**An assistant can be a member of the workspace.** Kolibri speaks the Model Context Protocol, so
+a model can read the backlog, file issues and move them through the workflow with exactly the
+permissions you hand it — including a read-only token, which is refused by every tool that writes.
+See [connecting an assistant](/beyond/assistant/).
