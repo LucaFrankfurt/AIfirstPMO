@@ -7,7 +7,7 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
-  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, fieldValueId, orderKey, parseDuration,
+  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, cycleCovers, cycleScope, fieldValueId, orderKey, parseDuration,
   parseQuickAdd, readFieldValue, writeFieldValue,
   type EntityName, type ProjectStatus, type RelationKind, type StateGroup, type Vocabulary,
 } from '@kolibri/shared';
@@ -105,6 +105,116 @@ function findProject(ref: string, workspaceId: string, ctx: McpCtx): Row {
   if (!row) throw new McpError(`Project ${ref} not found`);
   if (!canSeeProject(ctx.auth.userId, row.id)) throw new McpError('That project is private');
   return row;
+}
+
+/**
+ * The projects a report may read, and the workspace they are in.
+ *
+ * Every analysis tool below answers for one project when given one and for the
+ * whole workspace when not — and every one of them has to drop the private
+ * projects this token cannot see. Resolving that once is what stops six tools
+ * disagreeing about it: a report that leaks a single row of a private project
+ * has leaked it, however small the row and however aggregate the number it
+ * was hiding in.
+ */
+function reportScope(
+  args: Record<string, any>,
+  ctx: McpCtx,
+): { workspaceId: string; projectIds: string[]; project: Row | null; keyOf: Record<string, string> } {
+  const workspaceId = workspaceOf(args, ctx);
+  const ref = str(args.project);
+  // `findProject` refuses a project this token cannot see, so the single-project
+  // path needs no second check.
+  const projectIds = ref
+    ? [String(findProject(ref, workspaceId, ctx).id)]
+    : [...visibleProjectIds(ctx.auth.userId, workspaceId)];
+
+  /* The key of every project in scope, resolved here so a workspace-wide
+     answer can say which project each row is in. Reading it off the front of
+     `WEB-42` happens to work today and is not something a caller should have
+     to rely on: an identifier is a label, not a foreign key. */
+  const keyOf = Object.fromEntries(
+    projectIds.length
+      ? all<Row>(`SELECT id, key FROM projects WHERE id IN (${holes(projectIds.length)})`, ...projectIds)
+          .map((r) => [String(r.id), String(r.key)])
+      : [],
+  );
+  return {
+    workspaceId,
+    projectIds,
+    project: ref ? get<Row>(`SELECT * FROM projects WHERE id = ?`, projectIds[0]) ?? null : null,
+    keyOf,
+  };
+}
+
+/**
+ * Count something per project, keyed by the key people type rather than by id.
+ *
+ * Every workspace-wide report carries one. Without it the answer to "which
+ * project is on fire" is a list the caller has to re-aggregate, which is the
+ * work these tools exist to have already done.
+ */
+function perProject<T>(rows: T[], keyOf: Record<string, string>, idOf: (row: T) => string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const row of rows) {
+    const key = keyOf[idOf(row)];
+    if (key) out[key] = (out[key] ?? 0) + 1;
+  }
+  return out;
+}
+
+/** `?, ?, ?` for an `IN` list. Never called with zero — see `reportScope` users. */
+const holes = (n: number): string => Array.from({ length: n }, () => '?').join(', ');
+
+/**
+ * A window in whole days, clamped.
+ *
+ * Unbounded, `days` is a way to ask one SQLite process to walk every activity
+ * a workspace has ever recorded. A year is past the point where anybody is
+ * reading the answer rather than skimming it.
+ */
+function windowDays(raw: unknown, fallback: number): number {
+  const n = typeof raw === 'number' && Number.isFinite(raw) ? Math.floor(raw) : fallback;
+  return Math.min(365, Math.max(1, n));
+}
+
+/**
+ * The compact shape reports return, small enough to put fifty of in one answer.
+ *
+ * `names` is passed in rather than looked up here: a report resolves every
+ * assignee it is about in one query, where doing it per row would be one query
+ * per task. Without it the ids still come back — a report is not worth failing
+ * over a missing name — but an assistant asked to write a standup can only
+ * quote a uuid, which is the same as not knowing who.
+ */
+const brief = (row: Row, names: Record<string, string> = {}, keyOf: Record<string, string> = {}) => {
+  const assignees = safeList(row.assignees);
+  return {
+    identifier: row.identifier,
+    title: row.title,
+    // Named on every row, not only when the report spans projects: a caller
+    // that has to branch on whether the field is there will read it wrong on
+    // one of the two paths.
+    project: keyOf[String(row.project_id ?? '')] ?? null,
+    state: row.state_name ?? get<Row>(`SELECT name FROM states WHERE id = ?`, row.state_id)?.name ?? null,
+    priority: row.priority,
+    assignees,
+    assignee_names: assignees.map((id) => names[id] ?? id),
+    due_date: row.due_date ?? null,
+    estimate: row.estimate ?? null,
+    url: `${env.publicUrl}/t/${row.id}`,
+  };
+};
+
+/** Every assignee across a set of rows, resolved in one query. */
+const assigneeNames = (rows: Row[]): Record<string, string> => namesOf(rows.flatMap((r) => safeList(r.assignees)));
+
+/** Names for a list of user ids, so a report reads as people rather than uuids. */
+function namesOf(ids: string[]): Record<string, string> {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return {};
+  const rows = all<Row>(`SELECT id, name, email FROM users WHERE id IN (${holes(unique.length)})`, ...unique);
+  return Object.fromEntries(rows.map((r) => [String(r.id), String(r.name || r.email || r.id)]));
 }
 
 /**
@@ -282,7 +392,11 @@ const labelView = (row: Row): Record<string, unknown> => ({
 /** One cycle, as `list_cycles` and the writers both report it. */
 const cycleView = (row: Row): Record<string, unknown> => ({
   id: String(row.id),
-  project_id: String(row.project_id),
+  // Not `String(row.project_id)`: a workspace cycle has none, and stringifying
+  // it hands the caller the four characters `null` as if they were an id.
+  project_id: row.project_id ? String(row.project_id) : null,
+  projects: safeList(row.projects),
+  scope: row.project_id ? 'project' : (safeList(row.projects).length ? 'projects' : 'workspace'),
   name: String(row.name),
   description: row.description ?? null,
   start_date: row.start_date ?? null,
@@ -1488,15 +1602,23 @@ const TOOLS: ToolDef[] = [
   {
     name: 'list_cycles',
     title: 'List cycles',
-    description: 'Sprints/cycles of a project with progress counts.',
+    description:
+      "Cycles with progress counts. Given a project: that project's own cycles plus the workspace-wide ones it can use. Without one: every cycle in the workspace.",
     readOnly: true,
     schema: { type: 'object', properties: { project: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
       return all<Row>(
-        `SELECT * FROM cycles WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} AND deleted_at IS NULL ORDER BY start_date DESC`,
-        ...(project ? [workspaceId, project.id] : [workspaceId]),
+        /* Its own, the ones every project runs, and the ones that name it.
+           `cycleCovers` says the same thing in TypeScript for the client; this
+           is the half SQLite has to answer so a big workspace does not send
+           every cycle to be filtered in memory. */
+        `SELECT * FROM cycles WHERE workspace_id = ? AND deleted_at IS NULL ${project ? `AND (
+             (json_array_length(projects) = 0 AND (project_id IS NULL OR project_id = ?))
+             OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value = ?)
+           )` : ''} ORDER BY start_date DESC`,
+        ...(project ? [workspaceId, project.id, project.id] : [workspaceId]),
       ).map((cycle) => ({
         ...cycleView(cycle),
         total: Number(get<Row>(`SELECT count(*) c FROM tasks WHERE cycle_id = ? AND deleted_at IS NULL`, cycle.id)?.c ?? 0),
@@ -1510,12 +1632,19 @@ const TOOLS: ToolDef[] = [
   {
     name: 'create_cycle',
     title: 'Create cycle',
-    description: 'Create a sprint/cycle for a project.',
+    description:
+      'Create a sprint/cycle. `project` scopes it to one; `projects` scopes it to exactly those; neither makes it a cycle every project in the workspace can put work in.',
     schema: {
       type: 'object',
-      required: ['project', 'name'],
+      required: ['name'],
       properties: {
-        project: { type: 'string' }, name: { type: 'string' },
+        project: { type: 'string', description: 'Key or name, for a cycle one project owns.' },
+        projects: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Keys or names, for a cycle exactly those projects run. Omit both for every project.',
+        },
+        name: { type: 'string' },
         start_date: { type: 'string' }, end_date: { type: 'string' },
         description: { type: 'string' }, workspace_id: { type: 'string' },
       },
@@ -1523,12 +1652,15 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const project = findProject(String(args.project), workspaceId, ctx);
+      const scope = resolveCycleScope(args, workspaceId, ctx);
       const { row } = writeEntity('cycle', uid(), {
-        workspace_id: workspaceId, project_id: project.id, name: String(args.name),
+        workspace_id: workspaceId, ...scope, name: String(args.name),
         description: str(args.description) ?? null, start_date: str(args.start_date) ?? null, end_date: str(args.end_date) ?? null,
       }, writeOpts(workspaceId, ctx));
-      return serialize('cycle', row);
+      // `cycleView`, as `list_cycles` and `update_cycle` both return — so the
+      // shape an assistant gets back from creating one is the shape it will
+      // see again, `scope` included. It was `serialize` here alone.
+      return cycleView(row);
     },
   },
   {
@@ -1547,7 +1679,7 @@ const TOOLS: ToolDef[] = [
      */
     name: 'update_cycle',
     title: 'Update cycle',
-    description: "Change a cycle's name, dates, description or status. Note that which cycle is *current* is worked out from the dates rather than the status — the status is recorded but nothing reads it yet.",
+    description: "Change a cycle's name, dates, description, status, or which projects it covers. Note that which cycle is *current* is worked out from the dates rather than the status — the status is recorded but nothing reads it yet.",
     schema: {
       type: 'object',
       required: ['cycle'],
@@ -1558,6 +1690,12 @@ const TOOLS: ToolDef[] = [
         end_date: { type: 'string', description: 'YYYY-MM-DD' },
         description: { type: 'string' },
         status: { type: 'string', enum: [...CYCLE_STATUS] },
+        project: { type: 'string', description: 'Move it to one project. Mutually exclusive with `projects`.' },
+        projects: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'The projects it covers. An empty array makes it every project. Work already in it is never removed — see the note in the result.',
+        },
         workspace_id: { type: 'string' },
       },
     },
@@ -1578,8 +1716,39 @@ const TOOLS: ToolDef[] = [
         }
         patch.status = status;
       }
+      /* Re-scoping. Offered here and not in the interface, where the toggle is
+         create-only: an assistant asked to "add Mobile to the fortnight" has
+         somewhere to do it, and gets told what it did to the work.
+
+         Tasks already in the cycle are **not** touched. Dropping a project
+         could orphan its tasks from a cycle somebody deliberately put them in,
+         and doing that silently as a side effect of an edit is the kind of
+         data loss nobody attributes to the right action. The count comes back
+         instead, so the caller can decide. */
+      let stranded: Row[] = [];
+      if (args.project !== undefined || args.projects !== undefined) {
+        const scope = resolveCycleScope(args, workspaceId, ctx);
+        patch.project_id = scope.project_id;
+        patch.projects = scope.projects;
+        /* Only the ones the caller can see. A private project this token is
+           not in may have work in the cycle, and naming `PRIV-42` here would
+           disclose it as surely as any report would — the projects that can be
+           *named* are already limited to the visible ones by `findProject`, so
+           this is the other half of the same rule. Nothing is moved either
+           way, so the unseen tasks are no worse off for going unmentioned. */
+        const visible = visibleProjectIds(ctx.auth.userId, workspaceId);
+        stranded = all<Row>(
+          `SELECT t.identifier, t.project_id FROM tasks t
+            WHERE t.cycle_id = ? AND t.deleted_at IS NULL`,
+          cycle.id,
+        ).filter((task) => visible.has(String(task.project_id)) && !cycleCovers(
+          { project_id: scope.project_id, projects: scope.projects },
+          String(task.project_id),
+        ));
+      }
+
       if (!Object.keys(patch).length) {
-        throw new McpError('Nothing to change — pass name, start_date, end_date, description or status');
+        throw new McpError('Nothing to change — pass name, start_date, end_date, description, status, project or projects');
       }
 
       // A sprint that ends before it starts is not a sprint, and every date
@@ -1592,7 +1761,17 @@ const TOOLS: ToolDef[] = [
       if (from && to && from > to) throw new McpError(`A cycle cannot end (${to}) before it starts (${from})`);
 
       const { row } = writeEntity('cycle', String(cycle.id), patch, writeOpts(workspaceId, ctx));
-      return cycleView(row);
+      return {
+        ...cycleView(row),
+        ...(stranded.length
+          ? {
+            // Named, not counted: "3 tasks" is a number somebody has to go and
+            // find, and these are the ones they would be looking for.
+            stranded_tasks: stranded.map((t) => String(t.identifier)),
+            note: 'These tasks are still in the cycle but their project is no longer covered by it. Nothing was removed — move them or widen the cycle.',
+          }
+          : {}),
+      };
     },
   },
   {
@@ -2278,7 +2457,649 @@ const TOOLS: ToolDef[] = [
       };
     },
   },
+
+  /* ------------------------------------------------------------- reports --
+   *
+   * Six read-only questions that were answerable before only by pulling the
+   * backlog and doing the arithmetic in the model. Each is one query the
+   * database is better at, and each returns a *reason* rather than a bare
+   * list — "overdue" is a fact anybody can compute, "due Thursday, still in
+   * Backlog, nobody on it" is the sentence somebody acts on.
+   */
+
+  {
+    name: 'changes_since',
+    title: 'What changed',
+    description:
+      'Everything that happened in a window — the last seven days unless told otherwise — grouped by person, by kind of change, and by task. The answer to "what did we get done last week".',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'How far back to look. Default 7, clamped to 1–365.' },
+        project: { type: 'string', description: 'Key or name. Omitted, the whole workspace.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { workspaceId, projectIds, project, keyOf } = reportScope(args, ctx);
+      const days = windowDays(args.days, 7);
+      const since = Date.now() - days * 86_400_000;
+      const empty = {
+        window_days: days,
+        since: new Date(since).toISOString(),
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) {
+        return { ...empty, total: 0, by_person: {}, by_kind: {}, by_project: {}, completed: [], created: [], busiest_tasks: [] };
+      }
+
+      /* Activity with no project is workspace-level — a page outside any
+         project, most often — and belongs in a workspace-wide answer and not
+         in a project's. */
+      const scope = project
+        ? { clause: `a.project_id IN (${holes(projectIds.length)})`, params: projectIds }
+        : { clause: `(a.project_id IN (${holes(projectIds.length)}) OR a.project_id IS NULL)`, params: projectIds };
+
+      const rows = all<Row>(
+        `SELECT a.verb, a.field, a.actor_id, a.task_id, a.created_at
+           FROM activities a
+          WHERE a.workspace_id = ? AND a.created_at >= ? AND ${scope.clause}
+          ORDER BY a.created_at DESC
+          LIMIT 5000`,
+        workspaceId, since, ...scope.params,
+      );
+
+      const tally = (key: (r: Row) => string) => {
+        const out: Record<string, number> = {};
+        for (const row of rows) {
+          const k = key(row);
+          if (k) out[k] = (out[k] ?? 0) + 1;
+        }
+        return out;
+      };
+      const names = namesOf(rows.map((r) => String(r.actor_id ?? '')));
+      const byPerson: Record<string, number> = {};
+      for (const [id, count] of Object.entries(tally((r) => String(r.actor_id ?? '')))) {
+        byPerson[names[id] ?? 'somebody who has since been removed'] = count;
+      }
+
+      // The tasks that moved most — where an assistant should look first.
+      const touches = tally((r) => String(r.task_id ?? ''));
+      const busiest = Object.entries(touches)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([id, count]) => {
+          const task = get<Row>(`SELECT * FROM tasks WHERE id = ? AND deleted_at IS NULL`, id);
+          return task ? { ...brief(task, names, keyOf), changes: count } : null;
+        })
+        .filter(Boolean);
+
+      /* Finished and filed come from the tasks themselves rather than from the
+         activity log: a task completed offline syncs with the timestamp of the
+         moment it was completed, and counting log rows would date it to when
+         the connection came back. */
+      const inScope = `project_id IN (${holes(projectIds.length)})`;
+      const completed = all<Row>(
+        `SELECT * FROM tasks WHERE ${inScope} AND deleted_at IS NULL
+           AND completed_at IS NOT NULL AND completed_at >= ?
+         ORDER BY completed_at DESC LIMIT 50`,
+        ...projectIds, since,
+      );
+      const created = all<Row>(
+        `SELECT * FROM tasks WHERE ${inScope} AND deleted_at IS NULL AND created_at >= ?
+         ORDER BY created_at DESC LIMIT 50`,
+        ...projectIds, since,
+      );
+      const taskNames = assigneeNames([...completed, ...created]);
+      return {
+        ...empty,
+        total: rows.length,
+        truncated: rows.length === 5000,
+        by_person: byPerson,
+        by_kind: tally((r) => (r.field ? `${r.verb}:${r.field}` : String(r.verb))),
+        by_project: {
+          completed: perProject(completed, keyOf, (r) => String(r.project_id)),
+          created: perProject(created, keyOf, (r) => String(r.project_id)),
+        },
+        completed: completed.map((row) => brief(row, taskNames, keyOf)),
+        created: created.map((row) => brief(row, taskNames, keyOf)),
+        busiest_tasks: busiest,
+      };
+    },
+  },
+
+  {
+    name: 'deadlines_at_risk',
+    title: 'Deadlines at risk',
+    description:
+      'Dated work that is unlikely to land, each with the reason: already overdue, waiting on an unfinished blocker, due soon and not started, or due soon with nobody on it. Sorted worst first.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'How far ahead to look. Default 14, clamped to 1–365.' },
+        project: { type: 'string', description: 'Key or name. Omitted, the whole workspace.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
+      const days = windowDays(args.days, 14);
+      const head = {
+        horizon_days: days,
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, counts: {}, by_project: {}, at_risk: [] };
+
+      /* Open, dated, and either already past or inside the horizon. `archived`
+         is excluded because an archived task is one somebody has decided about;
+         its date is a record, not a promise. */
+      const rows = all<Row>(
+        `SELECT t.*, s.name AS state_name, s.group_key
+           FROM tasks t JOIN states s ON s.id = t.state_id
+          WHERE t.project_id IN (${holes(projectIds.length)})
+            AND t.deleted_at IS NULL AND t.archived = 0
+            AND s.group_key NOT IN ('completed', 'cancelled')
+            AND t.due_date IS NOT NULL
+            AND t.due_date <= date('now', '+' || ? || ' days')
+          ORDER BY t.due_date`,
+        ...projectIds, days,
+      );
+      if (!rows.length) return { ...head, counts: {}, by_project: {}, at_risk: [] };
+
+      /* Unfinished blockers, in one query rather than one per task. A `blocks`
+         row is stored in one direction only — `task_id` blocks
+         `related_task_id` — so the waiting task is the *related* one. */
+      const ids = rows.map((r) => String(r.id));
+      const blockers = all<Row>(
+        `SELECT r.related_task_id AS waiting, b.identifier, b.title, s.name AS state_name
+           FROM task_relations r
+           JOIN tasks b ON b.id = r.task_id
+           JOIN states s ON s.id = b.state_id
+          WHERE r.kind = 'blocks' AND r.deleted_at IS NULL
+            AND b.deleted_at IS NULL AND s.group_key NOT IN ('completed', 'cancelled')
+            AND r.related_task_id IN (${holes(ids.length)})`,
+        ...ids,
+      );
+      const blocking = new Map<string, { identifier: string; title: string; state: string }[]>();
+      for (const row of blockers) {
+        const list = blocking.get(String(row.waiting)) ?? [];
+        list.push({ identifier: String(row.identifier), title: String(row.title), state: String(row.state_name) });
+        blocking.set(String(row.waiting), list);
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const dayMs = 86_400_000;
+      const names = assigneeNames(rows);
+      const at_risk = rows.map((row) => {
+        const due = String(row.due_date);
+        const until = Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / dayMs);
+        const assignees = safeList(row.assignees);
+        const blocked = blocking.get(String(row.id)) ?? [];
+
+        /* Reasons, most severe first. A task can carry several — "overdue and
+           blocked" is a different conversation from either alone, so both are
+           reported rather than the first one found. */
+        const reasons: string[] = [];
+        if (until < 0) reasons.push('overdue');
+        if (blocked.length) reasons.push('blocked');
+        if (until >= 0 && (row.group_key === 'backlog' || row.group_key === 'unstarted')) reasons.push('not_started');
+        if (!assignees.length) reasons.push('unassigned');
+
+        return {
+          ...brief(row, names, keyOf),
+          project_id: String(row.project_id),
+          days_until_due: until,
+          reasons,
+          blocked_by: blocked,
+          // A number to sort and threshold on, since "worst" is otherwise a
+          // judgement the caller has to re-derive from the reasons.
+          severity:
+            (until < 0 ? 100 + Math.min(60, -until) : Math.max(0, 40 - until * 2)) +
+            (blocked.length ? 25 : 0) +
+            (reasons.includes('not_started') ? 15 : 0) +
+            (assignees.length ? 0 : 10),
+        };
+      })
+        .filter((t) => t.reasons.length)
+        .sort((a, b) => b.severity - a.severity);
+
+      const counts: Record<string, number> = {};
+      for (const task of at_risk) for (const reason of task.reasons) counts[reason] = (counts[reason] ?? 0) + 1;
+      return {
+        ...head,
+        counts,
+        by_project: perProject(at_risk, keyOf, (t) => t.project_id),
+        // `project_id` was carried only to group by; the key is what a caller
+        // reads, and it is already on every row.
+        at_risk: at_risk.map(({ project_id, ...rest }) => rest),
+      };
+    },
+  },
+
+  {
+    name: 'workload',
+    title: 'Who is carrying what',
+    description:
+      'Open work per person: how many tasks, how many overdue, how much is due this week, and the points they add up to. Unassigned work is counted separately rather than hidden.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Key or name. Omitted, the whole workspace.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { workspaceId, projectIds, project, keyOf } = reportScope(args, ctx);
+      const head = {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, people: [], unassigned: null, by_project: {} };
+
+      const rows = all<Row>(
+        `SELECT t.*, s.name AS state_name FROM tasks t JOIN states s ON s.id = t.state_id
+          WHERE t.project_id IN (${holes(projectIds.length)})
+            AND t.deleted_at IS NULL AND t.archived = 0
+            AND s.group_key NOT IN ('completed', 'cancelled')`,
+        ...projectIds,
+      );
+
+      const today = new Date().toISOString().slice(0, 10);
+      const weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+      const names = assigneeNames(rows);
+      const blank = () => ({
+        open: 0, overdue: 0, due_this_week: 0, unestimated: 0, points: 0,
+        // Which projects this person's open work is spread across. Somebody
+        // with eight tasks in one project and somebody with eight across five
+        // are carrying different weeks, and the count alone says they are not.
+        by_project: {} as Record<string, number>,
+        most_urgent: null as any,
+      });
+      const buckets = new Map<string, ReturnType<typeof blank>>();
+      const unassigned = blank();
+
+      for (const row of rows) {
+        const due = row.due_date ? String(row.due_date) : null;
+        const assignees = safeList(row.assignees);
+        // A task with two people on it counts for both, the way the app's own
+        // per-person chart does. The totals therefore exceed the task count,
+        // which is the honest answer to "how much is on you".
+        for (const target of assignees.length ? assignees.map((id) => {
+          if (!buckets.has(id)) buckets.set(id, blank());
+          return buckets.get(id)!;
+        }) : [unassigned]) {
+          target.open += 1;
+          const key = keyOf[String(row.project_id)];
+          if (key) target.by_project[key] = (target.by_project[key] ?? 0) + 1;
+          if (due && due < today) target.overdue += 1;
+          if (due && due >= today && due <= weekEnd) target.due_this_week += 1;
+          if (row.estimate == null) target.unestimated += 1;
+          else target.points += Number(row.estimate);
+          const current = target.most_urgent;
+          if (due && (!current?.due_date || due < current.due_date)) target.most_urgent = brief(row, names, keyOf);
+        }
+      }
+
+      const people = namesOf([...buckets.keys()]);
+      const members = new Set(
+        all<Row>(`SELECT user_id FROM workspace_members WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+          .map((r) => String(r.user_id)),
+      );
+      return {
+        ...head,
+        by_project: perProject(rows, keyOf, (r) => String(r.project_id)),
+        people: [...buckets.entries()]
+          .map(([id, stats]) => ({
+            user_id: id,
+            name: people[id] ?? id,
+            // Work still assigned to somebody who has left the workspace is
+            // work nobody is doing, and it looks assigned on every board.
+            still_a_member: members.has(id),
+            ...stats,
+          }))
+          .sort((a, b) => b.open - a.open),
+        unassigned,
+      };
+    },
+  },
+
+  {
+    name: 'blocked_tasks',
+    title: 'What is waiting on what',
+    description:
+      'Open work held up by an unfinished blocker, and — separately — links whose blocker is already finished, which are the ones nobody remembers to remove.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Key or name. Omitted, the whole workspace.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
+      const head = {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, by_project: {}, blocked: [], stale_links: [] };
+
+      /* Both sides in one query. `w` is the task that waits — a `blocks` row
+         reads `task_id` blocks `related_task_id` — and the join to the blocker
+         is deliberately not filtered by project: work is routinely held up by
+         a task in another project, and dropping those would report the waiting
+         task as unblocked. */
+      const rows = all<Row>(
+        `SELECT w.id AS waiting_id, w.identifier AS waiting, w.title AS waiting_title,
+                w.due_date, w.priority, w.assignees, w.estimate, w.state_id, w.project_id,
+                ws.name AS waiting_state,
+                b.identifier AS blocker, b.title AS blocker_title, b.due_date AS blocker_due,
+                b.project_id AS blocker_project, bs.name AS blocker_state, bs.group_key AS blocker_group, r.lag
+           FROM task_relations r
+           JOIN tasks w ON w.id = r.related_task_id
+           JOIN tasks b ON b.id = r.task_id
+           JOIN states ws ON ws.id = w.state_id
+           JOIN states bs ON bs.id = b.state_id
+          WHERE r.kind = 'blocks' AND r.deleted_at IS NULL
+            AND w.deleted_at IS NULL AND b.deleted_at IS NULL AND w.archived = 0
+            AND ws.group_key NOT IN ('completed', 'cancelled')
+            AND w.project_id IN (${holes(projectIds.length)})
+          ORDER BY w.due_date IS NULL, w.due_date`,
+        ...projectIds,
+      );
+
+      const names = assigneeNames(rows);
+      const blocked = new Map<string, any>();
+      const stale: any[] = [];
+      for (const row of rows) {
+        const link = {
+          identifier: String(row.blocker),
+          title: String(row.blocker_title),
+          state: String(row.blocker_state),
+          due_date: row.blocker_due ?? null,
+          lag_days: Number(row.lag ?? 0),
+          /* Named even when it is a project this token cannot otherwise read.
+             Work is routinely held up by a task in another project, and a
+             blocker reported as belonging to nothing is a blocker nobody can
+             go and ask about — the identifier is already visible either way,
+             because it is what the waiting task points at. */
+          project: keyOf[String(row.blocker_project ?? '')] ?? null,
+          in_another_project: String(row.blocker_project) !== String(row.project_id),
+        };
+        const done = row.blocker_group === 'completed' || row.blocker_group === 'cancelled';
+        if (done) {
+          stale.push({ waiting: String(row.waiting), blocker: link });
+          continue;
+        }
+        const entry = blocked.get(String(row.waiting_id)) ?? {
+          ...brief(
+            { ...row, id: row.waiting_id, identifier: row.waiting, title: row.waiting_title, state_name: row.waiting_state },
+            names, keyOf,
+          ),
+          project_id: String(row.project_id),
+          blocked_by: [] as typeof link[],
+        };
+        entry.blocked_by.push(link);
+        blocked.set(String(row.waiting_id), entry);
+      }
+
+      const waiting = [...blocked.values()];
+      return {
+        ...head,
+        by_project: perProject(waiting, keyOf, (t) => t.project_id),
+        blocked: waiting.map(({ project_id, ...rest }) => rest),
+        // Not an error, and not something to fix automatically — somebody may
+        // be about to reopen the blocker. It is a list worth reading.
+        stale_links: stale,
+      };
+    },
+  },
+
+  {
+    name: 'stale_tasks',
+    title: 'Work that has stopped moving',
+    description:
+      'Tasks sitting in an in-progress state that nothing has touched for a while. The usual causes are work that finished without being marked and work that quietly stopped.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        days: { type: 'number', description: 'How quiet counts as stale. Default 14, clamped to 1–365.' },
+        project: { type: 'string', description: 'Key or name. Omitted, the whole workspace.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
+      const days = windowDays(args.days, 14);
+      const head = {
+        quiet_for_days: days,
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, by_project: {}, stale: [] };
+
+      const cutoff = Date.now() - days * 86_400_000;
+      const rows = all<Row>(
+        `SELECT t.*, s.name AS state_name FROM tasks t JOIN states s ON s.id = t.state_id
+          WHERE t.project_id IN (${holes(projectIds.length)})
+            AND t.deleted_at IS NULL AND t.archived = 0
+            AND s.group_key = 'started'
+            AND t.updated_at < ?
+          ORDER BY t.updated_at
+          LIMIT 100`,
+        ...projectIds, cutoff,
+      );
+      const now = Date.now();
+      const names = assigneeNames(rows);
+      return {
+        ...head,
+        by_project: perProject(rows, keyOf, (r) => String(r.project_id)),
+        stale: rows.map((row) => ({
+          ...brief(row, names, keyOf),
+          // `updated_at` is when the change was *made*, not when it synced, so
+          // this stays true for work done on a device that was offline.
+          silent_days: Math.floor((now - Number(row.updated_at)) / 86_400_000),
+        })),
+      };
+    },
+  },
+
+  {
+    name: 'cycle_review',
+    title: 'How a cycle went',
+    description:
+      'What a cycle held, what got finished, what did not, and what was added after it started. Given a project it reviews that project\'s cycle; without one it reviews every cycle running across the workspace and totals them. Retro material rather than a progress bar.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Key or name. Omitted, every project with a cycle running.' },
+        cycle: { type: 'string', description: 'Cycle name or id. Default the one running now. A name matches across projects.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { workspaceId, projectIds, project, keyOf } = reportScope(args, ctx);
+      const ref = str(args.cycle);
+      const head = {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, cycles: [], totals: null };
+
+      /* Which cycles a review covers, in the three shapes a cycle comes in:
+         one project's own, one a named set of projects runs together, and one
+         the whole workspace shares. The last two belong in a project's review
+         as much as in the workspace's, because that project's work is in them.
+
+         `cycleCovers` says the same thing in TypeScript for the client. This
+         is the half SQLite has to answer, so a workspace with a long history
+         does not send every cycle it has ever run to be filtered in memory. */
+      const inScope = `(
+        (json_array_length(projects) = 0 AND (project_id IS NULL OR project_id IN (${holes(projectIds.length)})))
+        OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value IN (${holes(projectIds.length)}))
+      )`;
+      const cycles = ref
+        ? all<Row>(
+            `SELECT * FROM cycles WHERE workspace_id = ? AND ${inScope} AND deleted_at IS NULL
+               AND (id = ? OR lower(name) = lower(?))
+             ORDER BY start_date`,
+            workspaceId, ...projectIds, ...projectIds, ref, ref,
+          )
+        : all<Row>(
+            `SELECT * FROM cycles WHERE workspace_id = ? AND ${inScope} AND deleted_at IS NULL
+               AND start_date <= date('now') AND end_date >= date('now')
+             ORDER BY start_date`,
+            workspaceId, ...projectIds, ...projectIds,
+          );
+
+      if (!cycles.length) {
+        /* A project asked for by name that has no cycle is an error, because
+           the caller named something specific and got nothing. A workspace
+           with no cycle running anywhere is an ordinary Tuesday, and answering
+           with an empty list is the truthful reply. */
+        if (project) {
+          throw new McpError(
+            ref ? `No cycle called "${ref}" in ${project.key}` : `No cycle is running in ${project.key} right now`,
+          );
+        }
+        return { ...head, cycles: [], totals: { cycles: 0, tasks: 0, completed: 0, cancelled: 0, carried: 0, points_planned: 0, points_completed: 0, unestimated: 0 } };
+      }
+
+      const today = new Date().toISOString().slice(0, 10);
+      const points = (list: Row[]) => list.reduce((sum, r) => sum + (r.estimate == null ? 0 : Number(r.estimate)), 0);
+
+      /* The keys of the projects a *cycle covers*, which is a wider question
+         than the projects in scope: asked about WEB, "who else is in this
+         fortnight" is worth an answer, and `keyOf` only knows WEB.
+
+         Resolved against everything this token can see, and a covered project
+         it cannot see is left out rather than reported as a bare id — an id is
+         no use to the caller and disclosing one is the same leak the rest of
+         these tools take care not to make. */
+      const coverIds = [...visibleProjectIds(ctx.auth.userId, workspaceId)];
+      const coverKeyOf: Record<string, string> = coverIds.length
+        ? Object.fromEntries(
+            all<Row>(`SELECT id, key FROM projects WHERE id IN (${holes(coverIds.length)})`, ...coverIds)
+              .map((r) => [String(r.id), String(r.key)]),
+          )
+        : {};
+
+      const reviews = cycles.map((cycle) => {
+        /* Narrowed to the projects in scope even for a workspace cycle. Asked
+           about WEB, "how did the shared fortnight go" means WEB's half of it;
+           asked about the workspace it means all of it. The same query answers
+           both because the scope is already resolved. */
+        const rows = all<Row>(
+          `SELECT t.*, s.name AS state_name, s.group_key FROM tasks t JOIN states s ON s.id = t.state_id
+            WHERE t.cycle_id = ? AND t.deleted_at IS NULL
+              AND t.project_id IN (${holes(projectIds.length)})`,
+          cycle.id, ...projectIds,
+        );
+        const done = rows.filter((r) => r.group_key === 'completed');
+        const cancelled = rows.filter((r) => r.group_key === 'cancelled');
+        const open = rows.filter((r) => r.group_key !== 'completed' && r.group_key !== 'cancelled');
+        const names = assigneeNames(rows);
+
+        /* Scope added after the window opened. A cycle that grew mid-flight is
+           the single most useful thing a retro can be handed, and it is
+           invisible on a burn-down — which is why the app draws a burn-*up*. */
+        const startedAt = Date.parse(`${String(cycle.start_date)}T00:00:00Z`);
+        const addedLate = rows.filter((r) => Number(r.created_at) > startedAt);
+
+        const listed = safeList(cycle.projects);
+        return {
+          project: cycle.project_id ? keyOf[String(cycle.project_id)] ?? null : null,
+          cycle_scope: cycle.project_id ? 'project' : (listed.length ? 'projects' : 'workspace'),
+          // The projects it is *for*, which is not the same as the ones that
+          // put work in it — a project can be in a cycle and contribute
+          // nothing, and that is worth being able to see.
+          cycle_projects: listed.map((id) => coverKeyOf[id]).filter(Boolean).sort(),
+          // Which projects actually put work in it. For a workspace cycle this
+          // is the answer to "who is in this fortnight", which its own row
+          // cannot say.
+          projects_involved: [...new Set(rows.map((r) => keyOf[String(r.project_id)]).filter(Boolean))].sort(),
+          cycle: { id: cycle.id, name: cycle.name, start_date: cycle.start_date, end_date: cycle.end_date },
+          finished: cycle.end_date ? String(cycle.end_date) < today : false,
+          totals: {
+            tasks: rows.length,
+            completed: done.length,
+            cancelled: cancelled.length,
+            carried: open.length,
+            points_planned: points(rows),
+            points_completed: points(done),
+            unestimated: rows.filter((r) => r.estimate == null).length,
+          },
+          completed: done.map((row) => brief(row, names, keyOf)),
+          // What has to go somewhere before the cycle closes.
+          carried_over: open.map((row) => brief(row, names, keyOf)),
+          cancelled: cancelled.map((row) => brief(row, names, keyOf)),
+          added_after_start: addedLate.map((row) => ({
+            ...brief(row, names, keyOf),
+            added_on: new Date(Number(row.created_at)).toISOString().slice(0, 10),
+          })),
+        };
+      });
+
+      const sum = (pick: (t: (typeof reviews)[number]['totals']) => number) =>
+        reviews.reduce((total, review) => total + pick(review.totals), 0);
+
+      return {
+        ...head,
+        totals: {
+          cycles: reviews.length,
+          tasks: sum((t) => t.tasks),
+          completed: sum((t) => t.completed),
+          cancelled: sum((t) => t.cancelled),
+          carried: sum((t) => t.carried),
+          points_planned: sum((t) => t.points_planned),
+          points_completed: sum((t) => t.points_completed),
+          unestimated: sum((t) => t.unestimated),
+        },
+        cycles: reviews,
+      };
+    },
+  },
 ];
+
+/**
+ * Turn `project` / `projects` arguments into the pair that gets stored.
+ *
+ * Each name is resolved through `findProject`, so a project this token cannot
+ * see is refused here rather than silently dropped — a cycle that quietly
+ * covers fewer projects than asked for is worse than one that fails to be
+ * made. `cycleScope` then normalises: a list of one collapses to an owner, a
+ * list of several clears the owner, and neither means every project.
+ */
+function resolveCycleScope(
+  args: Record<string, any>,
+  workspaceId: string,
+  ctx: McpCtx,
+): { project_id: string | null; projects: string[] } {
+  // Refused rather than resolved: `cycleScope` would let the list win, and a
+  // caller who passed both meant one of them. Which one is not ours to guess.
+  if (str(args.project) && Array.isArray(args.projects)) {
+    throw new McpError('Pass `project` for a cycle one project owns, or `projects` for the projects that run it — not both');
+  }
+  const listed = Array.isArray(args.projects)
+    ? args.projects.filter((r: unknown) => typeof r === 'string' && r.trim())
+      .map((ref: string) => String(findProject(ref.trim(), workspaceId, ctx).id))
+    : [];
+  const owner = str(args.project) ? String(findProject(String(args.project), workspaceId, ctx).id) : null;
+  return cycleScope({ project: owner, projects: listed });
+}
 
 function resolveCycle(workspaceId: string, ref: string): Row | undefined {
   if (ref === 'current') {

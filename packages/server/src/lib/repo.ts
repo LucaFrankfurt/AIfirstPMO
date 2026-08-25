@@ -45,7 +45,7 @@ export interface WriteResult {
   created: boolean;
 }
 
-const JSON_DEFAULTS: Record<string, string> = { assignees: '[]', labels: '[]', subscribers: '[]', reactions: '{}', filters: '{}' };
+const JSON_DEFAULTS: Record<string, string> = { assignees: '[]', labels: '[]', subscribers: '[]', reactions: '{}', filters: '{}', projects: '[]' };
 
 const isJsonField = (entity: EntityName, field: string): boolean =>
   ((ENTITIES[entity] as { json?: readonly string[] }).json ?? []).includes(field);

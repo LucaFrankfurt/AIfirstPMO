@@ -353,7 +353,15 @@ CREATE INDEX IF NOT EXISTS labels_seq ON labels (workspace_id, seq);
 CREATE TABLE IF NOT EXISTS cycles (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
-  project_id   TEXT NOT NULL,
+  -- Null means this cycle is not one project's. Together with `projects` it
+  -- says which projects run it: an owner and an empty list is that project's
+  -- own cycle; no owner and an empty list is every project; a list is exactly
+  -- those. See `cycleCovers` in `@kolibri/shared`.
+  project_id   TEXT,
+  -- Empty means *every* project, not none — the same rule `channels.members`
+  -- follows, and for the same reason: writing every project into every shared
+  -- cycle would mean keeping that list correct forever, for no gain.
+  projects     TEXT NOT NULL DEFAULT '[]',
   name         TEXT NOT NULL,
   description  TEXT,
   start_date   TEXT,

@@ -242,6 +242,123 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 
+### Reports
+
+Six aggregations that were answerable before only by pulling the backlog and doing the arithmetic
+in the model. All are read-only, so a `scopes: "read"` token may call every one.
+
+**They are workspace tools, and `project` narrows them.** That is the default because the questions
+are: *who is overloaded* is a question about a person, and a person works in several projects;
+*what is going to slip this fortnight* is a question about a fortnight, not about a board. Passing a
+`project` — a key or a name — scopes the answer to it. Every reply says which it gave you:
+
+```json
+{ "scope": "workspace", "project": null, "projects": ["API", "MOB", "WEB"] }
+{ "scope": "project",   "project": "WEB", "projects": ["WEB"] }
+```
+
+Every row names the project it is in, and every workspace-wide answer carries a `by_project` count
+beside the list — so *which project is on fire* is answered rather than left to be re-aggregated.
+Do not read the project off the front of `WEB-42`: an identifier is a label, and the field is there
+on both paths.
+
+Each returns a **reason**, not just a list. That is the whole point of them: *overdue* is a fact
+anybody can compute from a due date, and *"due Thursday, still in Backlog, nobody on it"* is the
+sentence somebody acts on.
+
+| Tool | Answers | Without a `project` |
+|---|---|---|
+| `changes_since` | What happened in a window — `days`, default 7. Grouped by person and by kind of change, with what was finished, what was filed, and the ten tasks that moved most | The whole workspace, plus workspace-level activity that belongs to no project |
+| `deadlines_at_risk` | Dated work unlikely to land inside `days` (default 14), each tagged `overdue`, `blocked`, `not_started` or `unassigned`, with the blockers named and a `severity` to sort on | Every project at once — which is the only way to see a person's real week |
+| `workload` | Open work per person: count, overdue, due this week, unestimated, points, and their most urgent item. Unassigned work is a bucket of its own rather than hidden | Each person's load **split by project**: eight tasks in one project and eight across five are different weeks |
+| `blocked_tasks` | What is waiting on what — and, separately, `stale_links`: relations whose blocker is already finished, which nobody remembers to remove | Cross-project blockers included, each flagged `in_another_project` |
+| `stale_tasks` | Tasks in an in-progress state untouched for `days` (default 14), with how long each has been quiet | Every project |
+| `cycle_review` | A cycle's outcome: planned against completed, what carried over, what was cancelled, and what was **added after the start date** — the thing a burn-down hides and a retro needs | **Every cycle running right now**, one review each and a workspace total. A `cycle` name matches across projects, which is what a team running one shared fortnight wants |
+
+A note on `cycle_review`, because it is the one that differs in kind. It always answers
+`{ cycles: [...], totals: {...} }`, one entry per cycle, whether you named a project or not — a
+workspace review is several reviews and a sum.
+
+A cycle covers **one project, a chosen few, or all of them** — one fortnight several teams share
+rather than a copy of it in each. `create_cycle` says which with two arguments:
+
+| Arguments | Scope |
+|---|---|
+| `project: "WEB"` | WEB's own cycle. The usual one |
+| `projects: ["WEB", "MOB"]` | Exactly those two run it. A list of one is the line above, and stored that way |
+| neither | Every project in the workspace, including ones made later — as `create_label` does |
+
+Passing both is refused rather than resolved — a caller who sent each of them meant one, and
+which one is not the server's to guess.
+
+`update_cycle` takes the same two and will re-scope a running cycle. It never moves the work:
+narrowing a cycle that Mobile has tasks in returns `stranded_tasks` naming them, still in the
+cycle, for you to move or widen rather than discover missing later. That list holds only the work
+your token can see, for the same reason the reports do — a private project's identifiers are not
+in it, and its tasks are not moved either.
+
+Each review says which kind it is:
+
+| Field | Means |
+|---|---|
+| `cycle_scope` | `project`, `projects` or `workspace` |
+| `project` | The owning project's key, or `null` when more than one runs it |
+| `cycle_projects` | The projects it is *for*, when it names some. A project in a cycle that contributed nothing is still in it |
+| `projects_involved` | The projects that actually put work in it — the answer a shared cycle's own row cannot give |
+
+A cycle that several projects run appears in each of their reviews as well as the workspace's,
+**narrowed to the projects in scope**: asked about `WEB`, "how did the shared fortnight go" means WEB's half of it;
+asked about the workspace, all of it. The progress bar in the interface is the other way round and
+deliberately so — a shared cycle shows the shared total on every project's tab, because the same
+cycle showing different numbers depending on where you opened it would be worse than either.
+
+It is also the only one that can refuse. Naming a project with no cycle running is an error,
+because the caller asked for something specific and got nothing; a workspace with no cycle running
+anywhere is an ordinary Tuesday, and the honest reply is an empty list.
+
+Three more details worth knowing before you trust a number:
+
+- **A private project the token cannot see is absent from every one of them**, including from the
+  aggregate counts and from `projects`. A total that moved when a private task changed would say
+  something about that task, so the projects are resolved once, in one place, rather than per tool.
+  Asking for one by name is refused rather than answered emptily.
+- **`changes_since` counts finished and filed work from the tasks, not from the activity log.** A
+  task completed offline syncs carrying the moment it was completed; counting log rows would date
+  it to when the connection came back. It also means the two lists are right on a workspace that
+  was imported or seeded, where there is no activity log to read.
+- **`workload` counts a task with two people on it for both of them**, the way the app's own
+  per-person chart does, so the totals exceed the task count. That is the honest answer to "how
+  much is on you". It also flags anyone still holding work who has left the workspace.
+
+```json
+{ "name": "deadlines_at_risk", "arguments": { "days": 7 } }
+```
+
+```json
+{
+  "horizon_days": 7,
+  "scope": "workspace",
+  "project": null,
+  "projects": ["API", "MOB", "WEB"],
+  "counts": { "overdue": 3, "not_started": 7 },
+  "by_project": { "WEB": 4, "API": 3, "MOB": 3 },
+  "at_risk": [
+    {
+      "identifier": "WEB-3",
+      "title": "Ship dark mode across the marketing site",
+      "project": "WEB",
+      "state": "Todo",
+      "assignee_names": ["Grace Hopper"],
+      "due_date": "2026-08-24",
+      "days_until_due": -1,
+      "reasons": ["overdue"],
+      "blocked_by": [],
+      "severity": 101
+    }
+  ]
+}
+```
+
 ### Writing
 
 | Tool | Notes |
@@ -253,13 +370,13 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
 | `delete_attachment` | detaches a file; soft, and the shared bytes stay put |
 | `create_state` / `update_state` | add a board column, or change its name, colour, group or WIP limit |
-| `update_cycle` / `delete_cycle` | edit a sprint's dates and name; deleting is soft and keeps the tasks |
+| `update_cycle` / `delete_cycle` | edit a sprint's dates, name and which projects run it; deleting is soft and keeps the tasks |
 | `create_label` / `update_label` | a label made on purpose, with a colour — refused if one by that name is already usable in scope |
 | `update_project` | name, icon, description, status, lead, dates, archived — **not** the key |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
-| `create_cycle` | sprint with start/end dates |
+| `create_cycle` | sprint with start/end dates, for one project, several, or all |
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |

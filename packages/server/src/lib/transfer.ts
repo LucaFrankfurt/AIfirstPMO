@@ -105,7 +105,23 @@ export function exportProject(workspaceId: string, projectId: string): ProjectDo
     states: live('states', 'project_id = ?', projectId).map(clean),
     labels: live('labels', 'project_id = ?', projectId).map(clean),
     fields: live('custom_fields', 'project_id = ?', projectId).map(clean),
-    cycles: live('cycles', 'project_id = ?', projectId).map(clean),
+    /* This project's own cycles, plus any shared cycle that covers it or that
+       its tasks are in. Without the second half a shared fortnight is dropped
+       from the file and every task in it arrives at the far end with no cycle
+       — silently, because a missing id maps to null rather than failing. A
+       shared cycle lands as an ordinary cycle of the imported project, which
+       is the truth there: the other projects that shared it are not in this
+       file. `write` clears the list on the way in for the same reason. */
+    cycles: [
+      ...live('cycles', 'project_id = ?', projectId),
+      ...live(
+        'cycles',
+        `project_id IS NULL
+           AND (EXISTS (SELECT 1 FROM json_each(cycles.projects) WHERE json_each.value = ?1)
+                OR id IN (SELECT DISTINCT cycle_id FROM tasks WHERE project_id = ?1 AND cycle_id IS NOT NULL))`,
+        projectId,
+      ),
+    ].map(clean),
     modules: live('modules', 'project_id = ?', projectId).map(clean),
     tasks: tasks.map(clean),
     field_values: live('field_values', 'project_id = ?', projectId).map(clean),
@@ -215,7 +231,10 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
     for (const row of doc.states ?? []) write('state', row, {});
     for (const row of doc.labels ?? []) write('label', row, {});
     for (const row of doc.fields ?? []) write('field', row, {});
-    for (const row of doc.cycles ?? []) write('cycle', row, {});
+    // `projects` is cleared: a cycle arriving into one project is that
+    // project's, and carrying a list of ids from another instance would name
+    // projects that do not exist here.
+    for (const row of doc.cycles ?? []) write('cycle', row, { projects: [] });
     for (const row of doc.modules ?? []) write('module', row, { lead_id: who(row.lead_id) });
 
     if (doc.project.default_state_id) {

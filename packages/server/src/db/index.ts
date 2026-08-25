@@ -26,6 +26,11 @@ db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
  * upgrade stays a restart.
  */
 for (const [table, column, definition] of [
+  // Which projects run this cycle, when it is not one project's own. Added
+  // before the rebuild below rather than after: that rebuild copies whatever
+  // `PRAGMA table_info` reports, so a column added afterwards would be added
+  // to a table that is about to be replaced by one without it.
+  ['cycles', 'projects', `TEXT NOT NULL DEFAULT '[]'`],
   ['users', 'email_prefs', `TEXT NOT NULL DEFAULT 'important'`],
   ['users', 'email_verified_at', 'INTEGER'],
   ['users', 'locale', 'TEXT'],
@@ -133,11 +138,18 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calend
  * the old one, so a restart on an already-migrated database costs one pragma
  * and nothing else.
  *
- * The case is chat. A direct conversation belongs to no workspace, and neither
- * do the messages in it or the notifications about them: two people may share
- * no workspace, or several, and filing their conversation under one of them
- * would make it disappear the moment either switched. See `crossWorkspace` in
- * the entity registry.
+ * The first case is chat. A direct conversation belongs to no workspace, and
+ * neither do the messages in it or the notifications about them: two people may
+ * share no workspace, or several, and filing their conversation under one of
+ * them would make it disappear the moment either switched. See `crossWorkspace`
+ * in the entity registry.
+ *
+ * The second is a cycle. A fortnight that three projects run together was three
+ * cycle rows with the same name and separately drifting dates, and a burn-up
+ * per project of a thing nobody planned per project. Null now means every
+ * project, exactly as it already does on a label — so the rule is one somebody
+ * has met rather than a second one to learn. Existing cycles keep their project
+ * and behave as they always did; nothing is rewritten by this migration.
  */
 let rebuilt = false;
 for (const [table, column] of [
@@ -145,6 +157,7 @@ for (const [table, column] of [
   ['messages', 'workspace_id'],
   ['channel_reads', 'workspace_id'],
   ['notifications', 'workspace_id'],
+  ['cycles', 'project_id'],
 ] as const) {
   const info = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; notnull: number }[];
   if (!info.some((c) => c.name === column && c.notnull)) continue;

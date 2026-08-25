@@ -200,9 +200,16 @@ export const ENTITIES = {
     table: 'task_relations',
     fields: ['workspace_id', 'task_id', 'related_task_id', 'kind', 'lag'],
   },
+  /**
+   * A sprint. `project_id` set is one project's own; `project_id` null with an
+   * empty `projects` is every project in the workspace; `projects` non-empty is
+   * exactly those. See `cycleCovers` in `cycles.ts` — the empty list meaning
+   * *everything* is the same rule `channel.members` follows.
+   */
   cycle: {
     table: 'cycles',
-    fields: ['workspace_id', 'project_id', 'name', 'description', 'start_date', 'end_date', 'status'],
+    fields: ['workspace_id', 'project_id', 'projects', 'name', 'description', 'start_date', 'end_date', 'status'],
+    json: ['projects'],
   },
   module: {
     table: 'modules',
