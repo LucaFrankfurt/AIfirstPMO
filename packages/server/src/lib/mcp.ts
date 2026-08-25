@@ -7,7 +7,7 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
-  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, fieldValueId, orderKey, parseDuration,
+  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, cycleCovers, cycleScope, fieldValueId, orderKey, parseDuration,
   parseQuickAdd, readFieldValue, writeFieldValue,
   type EntityName, type ProjectStatus, type RelationKind, type StateGroup, type Vocabulary,
 } from '@kolibri/shared';
@@ -395,7 +395,8 @@ const cycleView = (row: Row): Record<string, unknown> => ({
   // Not `String(row.project_id)`: a workspace cycle has none, and stringifying
   // it hands the caller the four characters `null` as if they were an id.
   project_id: row.project_id ? String(row.project_id) : null,
-  scope: row.project_id ? 'project' : 'workspace',
+  projects: safeList(row.projects),
+  scope: row.project_id ? 'project' : (safeList(row.projects).length ? 'projects' : 'workspace'),
   name: String(row.name),
   description: row.description ?? null,
   start_date: row.start_date ?? null,
@@ -1609,10 +1610,15 @@ const TOOLS: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
       return all<Row>(
-        // A cycle with no project is one every project runs, exactly as a label
-        // with no project is one every project can wear.
-        `SELECT * FROM cycles WHERE workspace_id = ? ${project ? 'AND (project_id IS NULL OR project_id = ?)' : ''} AND deleted_at IS NULL ORDER BY start_date DESC`,
-        ...(project ? [workspaceId, project.id] : [workspaceId]),
+        /* Its own, the ones every project runs, and the ones that name it.
+           `cycleCovers` says the same thing in TypeScript for the client; this
+           is the half SQLite has to answer so a big workspace does not send
+           every cycle to be filtered in memory. */
+        `SELECT * FROM cycles WHERE workspace_id = ? AND deleted_at IS NULL ${project ? `AND (
+             (json_array_length(projects) = 0 AND (project_id IS NULL OR project_id = ?))
+             OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value = ?)
+           )` : ''} ORDER BY start_date DESC`,
+        ...(project ? [workspaceId, project.id, project.id] : [workspaceId]),
       ).map((cycle) => ({
         ...cycleView(cycle),
         total: Number(get<Row>(`SELECT count(*) c FROM tasks WHERE cycle_id = ? AND deleted_at IS NULL`, cycle.id)?.c ?? 0),
@@ -1627,12 +1633,17 @@ const TOOLS: ToolDef[] = [
     name: 'create_cycle',
     title: 'Create cycle',
     description:
-      'Create a sprint/cycle. With a project it belongs to that project; without one it is a workspace cycle every project can put work in — one fortnight several teams run together, rather than a copy of it in each.',
+      'Create a sprint/cycle. `project` scopes it to one; `projects` scopes it to exactly those; neither makes it a cycle every project in the workspace can put work in.',
     schema: {
       type: 'object',
       required: ['name'],
       properties: {
-        project: { type: 'string', description: 'Key or name. Omit for a cycle every project can use.' },
+        project: { type: 'string', description: 'Key or name, for a cycle one project owns.' },
+        projects: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Keys or names, for a cycle exactly those projects run. Omit both for every project.',
+        },
         name: { type: 'string' },
         start_date: { type: 'string' }, end_date: { type: 'string' },
         description: { type: 'string' }, workspace_id: { type: 'string' },
@@ -1641,12 +1652,9 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const ref = str(args.project);
-      // Omitted rather than nulled: a workspace cycle is asked for by leaving
-      // the project out, which is how a workspace label is asked for too.
-      const project = ref ? findProject(ref, workspaceId, ctx) : null;
+      const scope = resolveCycleScope(args, workspaceId, ctx);
       const { row } = writeEntity('cycle', uid(), {
-        workspace_id: workspaceId, project_id: project?.id ?? null, name: String(args.name),
+        workspace_id: workspaceId, ...scope, name: String(args.name),
         description: str(args.description) ?? null, start_date: str(args.start_date) ?? null, end_date: str(args.end_date) ?? null,
       }, writeOpts(workspaceId, ctx));
       // `cycleView`, as `list_cycles` and `update_cycle` both return — so the
@@ -1671,7 +1679,7 @@ const TOOLS: ToolDef[] = [
      */
     name: 'update_cycle',
     title: 'Update cycle',
-    description: "Change a cycle's name, dates, description or status. Note that which cycle is *current* is worked out from the dates rather than the status — the status is recorded but nothing reads it yet.",
+    description: "Change a cycle's name, dates, description, status, or which projects it covers. Note that which cycle is *current* is worked out from the dates rather than the status — the status is recorded but nothing reads it yet.",
     schema: {
       type: 'object',
       required: ['cycle'],
@@ -1682,6 +1690,12 @@ const TOOLS: ToolDef[] = [
         end_date: { type: 'string', description: 'YYYY-MM-DD' },
         description: { type: 'string' },
         status: { type: 'string', enum: [...CYCLE_STATUS] },
+        project: { type: 'string', description: 'Move it to one project. Mutually exclusive with `projects`.' },
+        projects: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'The projects it covers. An empty array makes it every project. Work already in it is never removed — see the note in the result.',
+        },
         workspace_id: { type: 'string' },
       },
     },
@@ -1702,8 +1716,39 @@ const TOOLS: ToolDef[] = [
         }
         patch.status = status;
       }
+      /* Re-scoping. Offered here and not in the interface, where the toggle is
+         create-only: an assistant asked to "add Mobile to the fortnight" has
+         somewhere to do it, and gets told what it did to the work.
+
+         Tasks already in the cycle are **not** touched. Dropping a project
+         could orphan its tasks from a cycle somebody deliberately put them in,
+         and doing that silently as a side effect of an edit is the kind of
+         data loss nobody attributes to the right action. The count comes back
+         instead, so the caller can decide. */
+      let stranded: Row[] = [];
+      if (args.project !== undefined || args.projects !== undefined) {
+        const scope = resolveCycleScope(args, workspaceId, ctx);
+        patch.project_id = scope.project_id;
+        patch.projects = scope.projects;
+        /* Only the ones the caller can see. A private project this token is
+           not in may have work in the cycle, and naming `PRIV-42` here would
+           disclose it as surely as any report would — the projects that can be
+           *named* are already limited to the visible ones by `findProject`, so
+           this is the other half of the same rule. Nothing is moved either
+           way, so the unseen tasks are no worse off for going unmentioned. */
+        const visible = visibleProjectIds(ctx.auth.userId, workspaceId);
+        stranded = all<Row>(
+          `SELECT t.identifier, t.project_id FROM tasks t
+            WHERE t.cycle_id = ? AND t.deleted_at IS NULL`,
+          cycle.id,
+        ).filter((task) => visible.has(String(task.project_id)) && !cycleCovers(
+          { project_id: scope.project_id, projects: scope.projects },
+          String(task.project_id),
+        ));
+      }
+
       if (!Object.keys(patch).length) {
-        throw new McpError('Nothing to change — pass name, start_date, end_date, description or status');
+        throw new McpError('Nothing to change — pass name, start_date, end_date, description, status, project or projects');
       }
 
       // A sprint that ends before it starts is not a sprint, and every date
@@ -1716,7 +1761,17 @@ const TOOLS: ToolDef[] = [
       if (from && to && from > to) throw new McpError(`A cycle cannot end (${to}) before it starts (${from})`);
 
       const { row } = writeEntity('cycle', String(cycle.id), patch, writeOpts(workspaceId, ctx));
-      return cycleView(row);
+      return {
+        ...cycleView(row),
+        ...(stranded.length
+          ? {
+            // Named, not counted: "3 tasks" is a number somebody has to go and
+            // find, and these are the ones they would be looking for.
+            stranded_tasks: stranded.map((t) => String(t.identifier)),
+            note: 'These tasks are still in the cycle but their project is no longer covered by it. Nothing was removed — move them or widen the cycle.',
+          }
+          : {}),
+      };
     },
   },
   {
@@ -2884,27 +2939,30 @@ const TOOLS: ToolDef[] = [
       };
       if (!projectIds.length) return { ...head, cycles: [], totals: null };
 
-      /* Cycles are per project, so a workspace-wide review is several reviews
-         and a sum — not one cycle spanning projects, which is not a thing this
-         app has. Teams that run a shared fortnight give the cycle the same name
-         in each project, so a `cycle` name matches across all of them; without
-         a name it is whichever cycle each project has running now. */
-      /* `project_id IS NULL` is a workspace cycle — one fortnight several
-         projects run together. It belongs in a project's review as much as in
-         the workspace's, because that project's work is in it. */
-      const inScope = `(project_id IS NULL OR project_id IN (${holes(projectIds.length)}))`;
+      /* Which cycles a review covers, in the three shapes a cycle comes in:
+         one project's own, one a named set of projects runs together, and one
+         the whole workspace shares. The last two belong in a project's review
+         as much as in the workspace's, because that project's work is in them.
+
+         `cycleCovers` says the same thing in TypeScript for the client. This
+         is the half SQLite has to answer, so a workspace with a long history
+         does not send every cycle it has ever run to be filtered in memory. */
+      const inScope = `(
+        (json_array_length(projects) = 0 AND (project_id IS NULL OR project_id IN (${holes(projectIds.length)})))
+        OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value IN (${holes(projectIds.length)}))
+      )`;
       const cycles = ref
         ? all<Row>(
             `SELECT * FROM cycles WHERE workspace_id = ? AND ${inScope} AND deleted_at IS NULL
                AND (id = ? OR lower(name) = lower(?))
              ORDER BY start_date`,
-            workspaceId, ...projectIds, ref, ref,
+            workspaceId, ...projectIds, ...projectIds, ref, ref,
           )
         : all<Row>(
             `SELECT * FROM cycles WHERE workspace_id = ? AND ${inScope} AND deleted_at IS NULL
                AND start_date <= date('now') AND end_date >= date('now')
              ORDER BY start_date`,
-            workspaceId, ...projectIds,
+            workspaceId, ...projectIds, ...projectIds,
           );
 
       if (!cycles.length) {
@@ -2922,6 +2980,22 @@ const TOOLS: ToolDef[] = [
 
       const today = new Date().toISOString().slice(0, 10);
       const points = (list: Row[]) => list.reduce((sum, r) => sum + (r.estimate == null ? 0 : Number(r.estimate)), 0);
+
+      /* The keys of the projects a *cycle covers*, which is a wider question
+         than the projects in scope: asked about WEB, "who else is in this
+         fortnight" is worth an answer, and `keyOf` only knows WEB.
+
+         Resolved against everything this token can see, and a covered project
+         it cannot see is left out rather than reported as a bare id — an id is
+         no use to the caller and disclosing one is the same leak the rest of
+         these tools take care not to make. */
+      const coverIds = [...visibleProjectIds(ctx.auth.userId, workspaceId)];
+      const coverKeyOf: Record<string, string> = coverIds.length
+        ? Object.fromEntries(
+            all<Row>(`SELECT id, key FROM projects WHERE id IN (${holes(coverIds.length)})`, ...coverIds)
+              .map((r) => [String(r.id), String(r.key)]),
+          )
+        : {};
 
       const reviews = cycles.map((cycle) => {
         /* Narrowed to the projects in scope even for a workspace cycle. Asked
@@ -2945,9 +3019,14 @@ const TOOLS: ToolDef[] = [
         const startedAt = Date.parse(`${String(cycle.start_date)}T00:00:00Z`);
         const addedLate = rows.filter((r) => Number(r.created_at) > startedAt);
 
+        const listed = safeList(cycle.projects);
         return {
           project: cycle.project_id ? keyOf[String(cycle.project_id)] ?? null : null,
-          cycle_scope: cycle.project_id ? 'project' : 'workspace',
+          cycle_scope: cycle.project_id ? 'project' : (listed.length ? 'projects' : 'workspace'),
+          // The projects it is *for*, which is not the same as the ones that
+          // put work in it — a project can be in a cycle and contribute
+          // nothing, and that is worth being able to see.
+          cycle_projects: listed.map((id) => coverKeyOf[id]).filter(Boolean).sort(),
           // Which projects actually put work in it. For a workspace cycle this
           // is the answer to "who is in this fortnight", which its own row
           // cannot say.
@@ -2994,6 +3073,33 @@ const TOOLS: ToolDef[] = [
     },
   },
 ];
+
+/**
+ * Turn `project` / `projects` arguments into the pair that gets stored.
+ *
+ * Each name is resolved through `findProject`, so a project this token cannot
+ * see is refused here rather than silently dropped — a cycle that quietly
+ * covers fewer projects than asked for is worse than one that fails to be
+ * made. `cycleScope` then normalises: a list of one collapses to an owner, a
+ * list of several clears the owner, and neither means every project.
+ */
+function resolveCycleScope(
+  args: Record<string, any>,
+  workspaceId: string,
+  ctx: McpCtx,
+): { project_id: string | null; projects: string[] } {
+  // Refused rather than resolved: `cycleScope` would let the list win, and a
+  // caller who passed both meant one of them. Which one is not ours to guess.
+  if (str(args.project) && Array.isArray(args.projects)) {
+    throw new McpError('Pass `project` for a cycle one project owns, or `projects` for the projects that run it — not both');
+  }
+  const listed = Array.isArray(args.projects)
+    ? args.projects.filter((r: unknown) => typeof r === 'string' && r.trim())
+      .map((ref: string) => String(findProject(ref.trim(), workspaceId, ctx).id))
+    : [];
+  const owner = str(args.project) ? String(findProject(String(args.project), workspaceId, ctx).id) : null;
+  return cycleScope({ project: owner, projects: listed });
+}
 
 function resolveCycle(workspaceId: string, ref: string): Row | undefined {
   if (ref === 'current') {

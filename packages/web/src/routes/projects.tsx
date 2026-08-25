@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { DEFAULT_WORKING_DAYS, orderKey, type Task } from '@kolibri/shared';
+import { DEFAULT_WORKING_DAYS, cycleCovers, cycleScope, orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
@@ -444,10 +444,11 @@ export function ProjectPage() {
 function Cycles({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
-  // This project's own, plus the workspace cycles every project runs — the
-  // same rule a workspace label follows, so there is one idea here and not two.
+  // This project's own, plus the ones it shares: a cycle that names it, and a
+  // cycle every project runs. `cycleCovers` is the one place that question is
+  // answered, so this tab and the server's queries cannot drift apart.
   const cycles = useQuery(
-    () => list('cycle', (c) => !c.project_id || c.project_id === projectId)
+    () => list('cycle', (c) => cycleCovers(c, projectId))
       .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '')),
     [projectId],
   );
@@ -473,8 +474,19 @@ function Cycles({ projectId }: { projectId: string }) {
                 <strong className="flex-1 min-w-0 truncate">{cycle.name}</strong>
                 {/* Said on the card rather than only in the editor: deleting a
                     shared cycle takes it out of every project that is in it,
-                    and the menu below offers exactly that. */}
-                {!cycle.project_id && <span className={chipVariants()} title={t('cycle.sharedHint')}>{t('cycle.shared')}</span>}
+                    and the menu below offers exactly that. The chip counts the
+                    projects when it covers some, because "Shared" alone leaves
+                    the reader to guess whether that means two or twelve. */}
+                {!cycle.project_id && (
+                  <span
+                    className={chipVariants()}
+                    title={cycle.projects?.length ? t('cycle.sharedSomeHint') : t('cycle.sharedHint')}
+                  >
+                    {cycle.projects?.length
+                      ? t('cycle.sharedCount', { count: cycle.projects.length })
+                      : t('cycle.shared')}
+                  </span>
+                )}
                 {active && <span className={chipVariants()} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
                   variant="ghost" size="iconSm"
@@ -515,16 +527,38 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     start_date: cycle?.start_date ?? today(),
     end_date: cycle?.end_date ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
   });
-  /* Scope is chosen once, when the cycle is made, and not changed afterwards.
-     Moving a running cycle between scopes would silently drop or adopt other
-     projects' tasks — a data change nobody asked for behind a dropdown that
-     looks like a setting. Delete and remake is the honest way to change it. */
-  const [shared, setShared] = useState(false);
+  /* Scope is chosen once, when the cycle is made, and not changed here.
+     Re-scoping a running cycle can strand work — tasks in a project the cycle
+     no longer covers — and doing that behind a dropdown that looks like a
+     setting is how data goes missing without anybody attributing it to the
+     click. `update_cycle` over MCP will do it and reports what it stranded;
+     this form does not offer it. */
+  const [scope, setScope] = useState<'this' | 'some' | 'all'>('this');
+  const [picked, setPicked] = useState<string[]>([projectId]);
+  /* The same list QuickAdd offers, and scoped the same way: this workspace's
+     (the local store holds the ones from before a switch too), not archived,
+     and no containers — a container holds projects rather than tasks, so it is
+     not somewhere a cycle's work can be. */
+  const { workspaceId } = useSession();
+  const projects = useQuery(
+    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_container)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [workspaceId],
+  );
 
   const save = () => {
     if (!form.name.trim()) return;
-    if (cycleId) update('cycle', cycleId, form);
-    else create('cycle', { ...form, project_id: shared ? null : projectId });
+    if (cycleId) {
+      update('cycle', cycleId, form);
+    } else {
+      // `cycleScope` is what the server would apply anyway; applying it here
+      // too means the row this device writes into its own store is already the
+      // canonical shape, rather than one that changes under it on the next pull.
+      const chosen = scope === 'this' ? { project: projectId }
+        : scope === 'all' ? {}
+          : { projects: picked };
+      create('cycle', { ...form, ...cycleScope(chosen) });
+    }
     onClose();
   };
 
@@ -532,7 +566,15 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     <Sheet
       title={cycleId ? t('cycle.edit') : t('cycle.new')}
       onClose={onClose}
-      footer={<Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>}
+      footer={(
+        <Button
+          variant="primary"
+          onClick={save}
+          disabled={!form.name.trim() || (!cycleId && scope === 'some' && !picked.length)}
+        >
+          {t('action.save')}
+        </Button>
+      )}
     >
       <div className="field">
         <label htmlFor="c-name">{t('cycle.name')}</label>
@@ -553,17 +595,42 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         <Textarea id="c-desc" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
 
-      {/* Offered only when making one. An existing cycle's scope is fixed:
-          changing it would silently drop or adopt other projects' tasks, which
-          is a data change wearing the clothes of a setting. */}
+      {/* Offered only when making one — see the note on `scope` above. */}
       {!cycleId && (
-        <label className="check-row">
-          <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
-          <span>
-            <strong>{t('cycle.shareAcrossProjects')}</strong>
-            <span className="text-[12px] text-muted">{t('cycle.shareAcrossProjectsHint')}</span>
+        <div className="field">
+          <label htmlFor="c-scope">{t('cycle.scope')}</label>
+          <Select id="c-scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
+            <option value="this">{t('cycle.scopeThis')}</option>
+            <option value="some">{t('cycle.scopeSome')}</option>
+            <option value="all">{t('cycle.scopeAll')}</option>
+          </Select>
+          <span className="text-[12px] text-muted mt-1">
+            {scope === 'this' ? t('cycle.scopeThisHint') : scope === 'all' ? t('cycle.scopeAllHint') : t('cycle.scopeSomeHint')}
           </span>
-        </label>
+
+          {scope === 'some' && (
+            <div className="mt-2 grid gap-1">
+              {projects.map((project) => (
+                <label className="check-row" key={project.id}>
+                  <input
+                    type="checkbox"
+                    checked={picked.includes(project.id)}
+                    onChange={(event) => setPicked(
+                      event.target.checked
+                        ? [...picked, project.id]
+                        : picked.filter((id) => id !== project.id),
+                    )}
+                  />
+                  <span>{project.icon} {project.name}</span>
+                </label>
+              ))}
+              {/* One project chosen from the list is the same cycle as "just
+                  this project", and `cycleScope` stores it that way — so the
+                  empty case is the only one worth refusing. */}
+              {!picked.length && <span className="text-[12px] text-danger">{t('cycle.scopePickOne')}</span>}
+            </div>
+          )}
+        </div>
       )}
     </Sheet>
   );
@@ -594,7 +661,12 @@ export function CyclePage() {
   return (
     <>
       <Header title={cycle.name}>
-        <ViewControls view={view} onChange={setView} projectId={cycle.project_id} />
+        {/* `?? undefined` on all three below, and it is the whole shared-cycle
+            answer on this screen: a cycle several projects run has no single
+            project to scope a view to or to file a new task into. QuickAdd
+            already offers a picker when it is not told one, which is exactly
+            the right question to ask here. */}
+        <ViewControls view={view} onChange={setView} projectId={cycle.project_id ?? undefined} />
         <Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -611,9 +683,9 @@ export function CyclePage() {
           <Progress value={burndown.done} total={burndown.total} />
           {cycle.description && <p className="text-muted mt-2 text-[12.5px]">{cycle.description}</p>}
         </div>
-        <TaskViews tasks={visible} view={view} projectId={cycle.project_id} onOpen={openTask} implied={{ cycleId: cycle.id }} />
+        <TaskViews tasks={visible} view={view} projectId={cycle.project_id ?? undefined} onOpen={openTask} implied={{ cycleId: cycle.id }} />
       </div>
-      {adding && <QuickAdd projectId={cycle.project_id} cycleId={id} onClose={() => setAdding(false)} />}
+      {adding && <QuickAdd projectId={cycle.project_id ?? undefined} cycleId={id} onClose={() => setAdding(false)} />}
     </>
   );
 }

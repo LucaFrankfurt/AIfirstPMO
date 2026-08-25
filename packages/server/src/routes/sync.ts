@@ -67,13 +67,26 @@ function filterFor(entity: EntityName): string {
       return `AND ${table}.project_id IN (${VISIBLE_PROJECTS})`;
     case 'project':
       return `AND ${table}.id IN (${VISIBLE_PROJECTS})`;
-    case 'label':
+    /*
+     * A cycle reaches a device when *any* project it covers does.
+     *
+     * Three shapes, and each needs its own half of this: one project's own
+     * cycle follows that project; a cycle with no owner and no list is every
+     * project's and follows the workspace; a cycle with a list follows any
+     * project on it. The last is what `json_each` is for, the same way a
+     * private channel's membership is read below.
+     *
+     * Getting this wrong is quiet in the worst way. Before the workspace case
+     * was added here, a shared cycle existed on the server, was returned by
+     * REST and by MCP, and reached no client at all — every project's Cycles
+     * tab was simply empty of it.
+     */
     case 'cycle':
-      // A cycle with no project is one every project runs, exactly as a label
-      // with no project is one every project can wear — so it has to reach
-      // every device, and the strict rule above never matches a null. Left in
-      // that group it synced to nobody: the row existed on the server, the API
-      // returned it, and no client ever saw it.
+      return `AND ((json_array_length(${table}.projects) = 0
+                    AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS})))
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.projects)
+                               WHERE json_each.value IN (${VISIBLE_PROJECTS})))`;
+    case 'label':
     case 'view':
     case 'webhook':
     case 'share':

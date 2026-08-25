@@ -53,23 +53,30 @@ new tasks instead.
 
 ## One cycle, several projects
 
-A cycle normally belongs to one project. Tick **Share across every project** when you make one and
-it belongs to none of them — which means every project in the workspace can put work in it.
+A cycle normally belongs to one project. **Which projects run it** in the new-cycle form offers
+two other answers:
 
-That is for the case where one fortnight is genuinely shared: three teams, one planning meeting,
-one end date. Done as three separate cycles with the same name, the dates drift apart within a
-month and each project draws a burn-up of a thing nobody planned per project.
+- **Chosen projects** — tick the ones that are in it. Web and Mobile share a fortnight; Platform,
+  on its own schedule, never sees it.
+- **Every project** — the whole workspace, including projects made later.
 
-| | A project cycle | A shared cycle |
-|---|---|---|
-| Appears in | Its project's Cycles tab | Every project's Cycles tab, marked **Shared** |
-| Work in it | That project's | Any project's |
-| Progress shown | Its own | The whole cycle's, on every tab — the same cycle showing different numbers depending on where you opened it would be worse |
-| Deleting it | Affects one project | Takes it out of all of them |
+Either way it is *one* cycle. That is the point: for a fortnight three teams genuinely share — one
+planning meeting, one end date — three separate cycles with the same name drift apart within a
+month, and each project then draws a burn-up of a thing nobody planned per project.
 
-**The scope is fixed when you create it.** There is no switch to move a running cycle between the
-two, because doing so would silently drop or adopt other projects' tasks — a change to your data
-wearing the clothes of a setting. If you need to change it, make the new one and move the work.
+| | Just this project | Chosen projects | Every project |
+|---|---|---|---|
+| Appears in | Its project's Cycles tab | The Cycles tab of each one, chipped **2 projects** | Every project's Cycles tab, marked **Shared** |
+| Work in it | That project's | Any of theirs | Any project's |
+| Progress shown | Its own | The whole cycle's, on every tab — the same cycle showing different numbers depending on where you opened it would be worse | The whole cycle's |
+| Deleting it | Affects one project | Takes it out of all of them | Takes it out of all of them |
+
+**The scope is fixed when you create it**, in the interface. There is no dropdown to re-scope a
+running cycle, because narrowing one silently strands the dropped projects' tasks — a change to
+your data wearing the clothes of a setting. Make the new one and move the work.
+
+An assistant *can* re-scope one over MCP, and it will tell you what it did: `update_cycle` returns
+the tasks left in a cycle that no longer covers their project, by name, having moved none of them.
 
 :::note
 Exporting a project takes a shared cycle with it, and it arrives at the far end as an ordinary

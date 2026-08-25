@@ -12,6 +12,7 @@ export * from './editor.ts';
 export * from './anchor.ts';
 export * from './foreign.ts';
 export * from './chat.ts';
+export * from './cycles.ts';
 export * from './quickadd.ts';
 export * from './query.ts';
 export * from './relocate.ts';

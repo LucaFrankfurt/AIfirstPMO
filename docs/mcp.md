@@ -279,18 +279,35 @@ A note on `cycle_review`, because it is the one that differs in kind. It always 
 `{ cycles: [...], totals: {...} }`, one entry per cycle, whether you named a project or not — a
 workspace review is several reviews and a sum.
 
-A cycle may belong to **one project or to none**, and one with none is a cycle every project runs:
-one fortnight several teams share rather than a copy of it in each. `create_cycle` makes one by
-leaving `project` out, exactly as `create_label` does. Each review says which kind it is:
+A cycle covers **one project, a chosen few, or all of them** — one fortnight several teams share
+rather than a copy of it in each. `create_cycle` says which with two arguments:
+
+| Arguments | Scope |
+|---|---|
+| `project: "WEB"` | WEB's own cycle. The usual one |
+| `projects: ["WEB", "MOB"]` | Exactly those two run it. A list of one is the line above, and stored that way |
+| neither | Every project in the workspace, including ones made later — as `create_label` does |
+
+Passing both is refused rather than resolved — a caller who sent each of them meant one, and
+which one is not the server's to guess.
+
+`update_cycle` takes the same two and will re-scope a running cycle. It never moves the work:
+narrowing a cycle that Mobile has tasks in returns `stranded_tasks` naming them, still in the
+cycle, for you to move or widen rather than discover missing later. That list holds only the work
+your token can see, for the same reason the reports do — a private project's identifiers are not
+in it, and its tasks are not moved either.
+
+Each review says which kind it is:
 
 | Field | Means |
 |---|---|
-| `cycle_scope` | `project` or `workspace` |
-| `project` | The owning project's key, or `null` for a shared cycle |
+| `cycle_scope` | `project`, `projects` or `workspace` |
+| `project` | The owning project's key, or `null` when more than one runs it |
+| `cycle_projects` | The projects it is *for*, when it names some. A project in a cycle that contributed nothing is still in it |
 | `projects_involved` | The projects that actually put work in it — the answer a shared cycle's own row cannot give |
 
-A shared cycle appears in its projects' reviews as well as the workspace's, **narrowed to the
-projects in scope**: asked about `WEB`, "how did the shared fortnight go" means WEB's half of it;
+A cycle that several projects run appears in each of their reviews as well as the workspace's,
+**narrowed to the projects in scope**: asked about `WEB`, "how did the shared fortnight go" means WEB's half of it;
 asked about the workspace, all of it. The progress bar in the interface is the other way round and
 deliberately so — a shared cycle shows the shared total on every project's tab, because the same
 cycle showing different numbers depending on where you opened it would be worse than either.
@@ -353,13 +370,13 @@ Three more details worth knowing before you trust a number:
 | `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
 | `delete_attachment` | detaches a file; soft, and the shared bytes stay put |
 | `create_state` / `update_state` | add a board column, or change its name, colour, group or WIP limit |
-| `update_cycle` / `delete_cycle` | edit a sprint's dates and name; deleting is soft and keeps the tasks |
+| `update_cycle` / `delete_cycle` | edit a sprint's dates, name and which projects run it; deleting is soft and keeps the tasks |
 | `create_label` / `update_label` | a label made on purpose, with a colour — refused if one by that name is already usable in scope |
 | `update_project` | name, icon, description, status, lead, dates, archived — **not** the key |
 | `delete_task` | soft delete, flagged `destructiveHint` for clients that confirm |
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
-| `create_cycle` | sprint with start/end dates |
+| `create_cycle` | sprint with start/end dates, for one project, several, or all |
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |

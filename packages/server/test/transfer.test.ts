@@ -207,3 +207,58 @@ describe('importing it back', () => {
     }
   });
 });
+
+/**
+ * Cycles that belong to more than the project being exported.
+ *
+ * A cycle id that is not in the file maps to null on import rather than
+ * failing, so a dropped cycle is silent: every task in it arrives at the far
+ * end with no cycle and no complaint. That makes this the export's quietest
+ * way to lose data, and the reason both shapes are asserted here — one the
+ * whole workspace runs, and one that names a few projects.
+ */
+describe('a project document and the cycles around it', () => {
+  let shared = '';
+  let named = '';
+  let elsewhere = '';
+
+  it('sets up three cycles and puts the project’s work in one', async () => {
+    const other = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Somewhere else', key: 'ELSE' });
+    // One every project runs, one that names this project, and one that does
+    // not — the third is what proves the query is a filter and not a shrug.
+    shared = (await ok(`/api/workspaces/${workspaceId}/cycles`, { name: 'Workspace fortnight' })).id;
+    named = (await ok(`/api/workspaces/${workspaceId}/cycles`, { name: 'Two-project fortnight', projects: [projectId, other.id] })).id;
+    elsewhere = (await ok(`/api/workspaces/${workspaceId}/cycles`, { name: 'Not ours', projects: [other.id] })).id;
+
+    const tasks = await ok(`/api/workspaces/${workspaceId}/tasks?project_id=${projectId}`);
+    await ok(`/api/tasks/${tasks[0].id}`, { cycle_id: shared }, 'PATCH');
+  });
+
+  it('carries the shared cycle its work is in, and the one that names it', async () => {
+    const doc = await exportDoc();
+    const ids = doc.cycles.map((c: any) => c.id);
+    assert.ok(ids.includes(shared), 'a workspace cycle this project’s work is in was dropped');
+    assert.ok(ids.includes(named), 'a cycle that names this project was dropped');
+    assert.ok(!ids.includes(elsewhere), 'and one that covers only another project came along anyway');
+  });
+
+  it('lands them as ordinary cycles of the imported project', async () => {
+    const doc = await exportDoc();
+    const result = await ok(`/api/workspaces/${workspaceId}/import/json`, { document: doc, name: 'Portable (cycles)' });
+    const cycles = await ok(`/api/workspaces/${workspaceId}/cycles?project_id=${result.project.id}`);
+
+    for (const name of ['Workspace fortnight', 'Two-project fortnight']) {
+      const row = cycles.find((c: any) => c.name === name);
+      assert.ok(row, `${name} did not arrive`);
+      assert.equal(row.project_id, result.project.id, 'it belongs to the copy');
+      // The other projects that shared it are not in the file, so claiming to
+      // cover them would be a reference to rows that do not exist here.
+      assert.deepEqual(row.projects, [], 'and covers nothing else');
+    }
+
+    const tasks = await ok(`/api/workspaces/${workspaceId}/tasks?project_id=${result.project.id}`);
+    const moved = tasks.find((t: any) => t.title === 'Move house');
+    const arrived = cycles.find((c: any) => c.name === 'Workspace fortnight');
+    assert.equal(moved.cycle_id, arrived.id, 'and the task that was in it still is');
+  });
+});

@@ -26,6 +26,11 @@ db.exec(readFileSync(join(here, 'schema.sql'), 'utf8'));
  * upgrade stays a restart.
  */
 for (const [table, column, definition] of [
+  // Which projects run this cycle, when it is not one project's own. Added
+  // before the rebuild below rather than after: that rebuild copies whatever
+  // `PRAGMA table_info` reports, so a column added afterwards would be added
+  // to a table that is about to be replaced by one without it.
+  ['cycles', 'projects', `TEXT NOT NULL DEFAULT '[]'`],
   ['users', 'email_prefs', `TEXT NOT NULL DEFAULT 'important'`],
   ['users', 'email_verified_at', 'INTEGER'],
   ['users', 'locale', 'TEXT'],

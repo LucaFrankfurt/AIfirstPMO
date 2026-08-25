@@ -493,3 +493,244 @@ describe('cycles across projects', () => {
     assert.ok(beta.result.some((c: any) => c.id === shared.id));
   });
 });
+
+/**
+ * A cycle that covers some projects but not all of them.
+ *
+ * The two ends of the range — one project, every project — were already
+ * expressible, and the middle is the one teams actually ask for: a fortnight
+ * that Web and Mobile run together while Platform is on its own schedule.
+ *
+ * The shape follows `channels.members` rather than inventing a fourth rule: a
+ * JSON array where empty means everything. So the assertions worth making are
+ * about the boundaries — that a listed project sees it, an unlisted one does
+ * not, and that the list normalises (one project is an owner, not a list of
+ * one) so the same cycle is not two different rows depending on how it was
+ * made.
+ */
+describe('cycles covering a defined set of projects', () => {
+  let workspaceId = '';
+  let token = '';
+  const project: Record<string, any> = {};
+  const state: Record<string, Record<string, string>> = {};
+  let some: any = null;
+  let betaTask: any = null;
+
+  const openState = async (id: string) => {
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${id}`);
+    return Object.fromEntries(states.map((s: any) => [s.group_key, s.id]));
+  };
+
+  it('sets up three projects', async () => {
+    const session = await api('/api/auth/register', {
+      body: { email: 'mira@example.com', name: 'Mira Bell', password: 'a perfectly fine password' },
+    });
+    workspaceId = session.workspaces[0].id;
+    for (const [key, name] of [['ALP', 'Alpha'], ['BET', 'Beta'], ['GAM', 'Gamma']]) {
+      project[key] = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name, key } });
+      state[key] = await openState(project[key].id);
+    }
+    token = (await api('/api/tokens', { body: { name: 'subset', workspaceId } })).token;
+  });
+
+  it('creates a cycle for exactly two of them', async () => {
+    some = await tool(token, 'create_cycle', {
+      projects: ['ALP', 'BET'], name: 'Two-team fortnight', start_date: isoDay(-1), end_date: isoDay(10),
+    });
+    assert.equal(some.scope, 'projects');
+    assert.equal(some.project_id, null, 'a cycle covering several projects is owned by none of them');
+    assert.deepEqual(
+      [...some.projects].sort(),
+      [project.ALP.id, project.BET.id].sort(),
+      'the projects it covers are stored by id',
+    );
+  });
+
+  it('is offered to the projects it names and to no others', async () => {
+    for (const key of ['ALP', 'BET']) {
+      const listed = await tool(token, 'list_cycles', { project: key });
+      assert.ok(listed.result.some((c: any) => c.id === some.id), `${key} was named but cannot see it`);
+    }
+    const gamma = await tool(token, 'list_cycles', { project: 'GAM' });
+    assert.ok(
+      !gamma.result.some((c: any) => c.id === some.id),
+      'Gamma was not named and must not be offered the cycle',
+    );
+  });
+
+  /**
+   * The same regression the workspace-wide cycle shipped with.
+   *
+   * `pull` scopes every entity by project, and a cycle that belongs to no one
+   * project fails the obvious `project_id IN (visible)` rule. Widening it for
+   * a null owner is not enough on its own — the `projects` array needs its own
+   * `json_each` arm, and nothing but this assertion notices when it is missing,
+   * because REST and MCP both answer from queries that have it.
+   */
+  it('sends a subset cycle down the sync channel', async () => {
+    const pull = await api<any>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
+    const row = (pull.changes.cycle ?? []).find((c: any) => c.id === some.id);
+    assert.ok(row, 'the subset cycle never reached the client');
+    // An array, not a string: `projects` is declared a json field in the
+    // entity registry, so sync hands the client the list rather than the text
+    // of one. Asserting that here is what pins it — a client reading
+    // `cycle.projects.includes(id)` gets `false` from a string, silently.
+    assert.deepEqual(
+      [...row.projects].sort(),
+      [project.ALP.id, project.BET.id].sort(),
+      'it arrives still knowing which projects it covers',
+    );
+  });
+
+  it('collapses a list of one into an ordinary project cycle', async () => {
+    const one = await tool(token, 'create_cycle', {
+      projects: ['GAM'], name: 'Gamma alone', start_date: isoDay(-1), end_date: isoDay(10),
+    });
+    assert.equal(one.scope, 'project', 'a list of one is a project cycle, not a set that happens to hold one');
+    assert.equal(one.project_id, project.GAM.id);
+    assert.deepEqual(one.projects, [], 'and the list is left empty, so there is one way to say this');
+
+    const alpha = await tool(token, 'list_cycles', { project: 'ALP' });
+    assert.ok(!alpha.result.some((c: any) => c.id === one.id));
+  });
+
+  it('refuses a project the caller cannot see, rather than quietly covering fewer', async () => {
+    await assert.rejects(
+      () => tool(token, 'create_cycle', {
+        projects: ['ALP', 'NOPE'], name: 'Half a cycle', start_date: isoDay(-1), end_date: isoDay(10),
+      }),
+      /NOPE/,
+    );
+  });
+
+  it('refuses `project` and `projects` together rather than picking one', async () => {
+    await assert.rejects(
+      () => tool(token, 'create_cycle', {
+        project: 'ALP', projects: ['BET'], name: 'Which is it', start_date: isoDay(-1), end_date: isoDay(10),
+      }),
+      /not both/,
+    );
+  });
+
+  it('takes work from the projects it covers', async () => {
+    await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: {
+        project_id: project.ALP.id, title: 'Alpha half', state_id: state.ALP.completed,
+        cycle_id: some.id, estimate: 2,
+      },
+    });
+    betaTask = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: {
+        project_id: project.BET.id, title: 'Beta half', state_id: state.BET.started,
+        cycle_id: some.id, estimate: 3,
+      },
+    });
+    assert.equal(betaTask.cycle_id, some.id);
+  });
+
+  it('reviews it as a set, naming both the projects it covers and the ones that turned up', async () => {
+    const whole = await tool(token, 'cycle_review', {});
+    const review = whole.cycles.find((c: any) => c.cycle.id === some.id);
+    assert.ok(review, 'a subset cycle is missing from the workspace review');
+    assert.equal(review.cycle_scope, 'projects');
+    assert.equal(review.project, null);
+    assert.deepEqual(review.cycle_projects, ['ALP', 'BET']);
+    assert.deepEqual(review.projects_involved, ['ALP', 'BET']);
+    assert.equal(review.totals.tasks, 2);
+    assert.equal(review.totals.points_planned, 5);
+
+    // Asked about one of its projects, it is that project's half.
+    const beta = await tool(token, 'cycle_review', { project: 'BET' });
+    const half = beta.cycles.find((c: any) => c.cycle.id === some.id);
+    assert.ok(half, 'a covered project reviews the cycle it is running');
+    assert.equal(half.totals.tasks, 1, 'Alpha’s half is not Beta’s business');
+    assert.deepEqual(half.cycle_projects, ['ALP', 'BET'], 'but it can still see who else is in it');
+  });
+
+  it('does not turn up in the review of a project it does not cover', async () => {
+    // Gamma has its own cycle running, so this is not "no cycles at all" —
+    // it is the narrower claim that the two-team fortnight is not Gamma's.
+    const gamma = await tool(token, 'cycle_review', { project: 'GAM' });
+    assert.ok(!gamma.cycles.some((c: any) => c.cycle.id === some.id));
+    assert.ok(gamma.cycles.some((c: any) => c.cycle.name === 'Gamma alone'));
+  });
+
+  /**
+   * Re-scoping never removes work.
+   *
+   * Dropping Beta from the cycle could quietly orphan a task somebody put
+   * there on purpose, and data loss as a side effect of an edit is the kind
+   * nobody attributes to the right action. The task stays; the caller is told.
+   */
+  it('reports stranded work when narrowed, and moves none of it', async () => {
+    const narrowed = await tool(token, 'update_cycle', { cycle: some.id, projects: ['ALP'] });
+    assert.equal(narrowed.scope, 'project');
+    assert.equal(narrowed.project_id, project.ALP.id);
+    assert.deepEqual(narrowed.stranded_tasks, [betaTask.identifier]);
+    assert.match(String(narrowed.note), /Nothing was removed/);
+
+    const still = await api(`/api/tasks/${betaTask.id}`);
+    assert.equal(still.cycle_id, some.id, 'the stranded task is still in the cycle');
+  });
+
+  /**
+   * And it names only the work the caller could have seen anyway.
+   *
+   * A private project this token is not in may have tasks in the cycle, and
+   * `PRIV-42` in a list of stranded work discloses that project as surely as
+   * any report would. The projects that can be *named* in a re-scope are
+   * already limited to the visible ones; this is the other half of that rule.
+   */
+  it('leaves a private project’s work out of the list it names', async () => {
+    const mira = cookie;
+    const secret = await api(`/api/workspaces/${workspaceId}/projects`, {
+      body: { name: 'Acquisition', key: 'SEC', visibility: 'private' },
+    });
+    const secretStates = await openState(secret.id);
+    const shared = await tool(token, 'create_cycle', {
+      name: 'Everything fortnight', start_date: isoDay(-1), end_date: isoDay(10),
+    });
+    const hidden = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: secret.id, title: 'Do not leak me', state_id: secretStates.started, cycle_id: shared.id },
+    });
+    const open = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.GAM.id, title: 'Gamma work', state_id: state.GAM.started, cycle_id: shared.id },
+    });
+
+    // Someone in the workspace but not in that project, with a write token.
+    const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'member' } });
+    cookie = '';
+    await api('/api/auth/register', {
+      body: { email: 'noor@example.com', name: 'Noor Khan', password: 'another good password' },
+    });
+    await api(`/api/invites/${invite.code}/accept`, { body: {} });
+    const noor = (await api('/api/tokens', { body: { name: 'noor', workspaceId } })).token;
+    cookie = mira;
+
+    const narrowed = await tool(noor, 'update_cycle', { cycle: shared.id, projects: ['ALP'] });
+    assert.deepEqual(narrowed.stranded_tasks, [open.identifier], 'the visible one, and only it');
+    assert.ok(!JSON.stringify(narrowed).includes(hidden.identifier), 'the private identifier leaked');
+    assert.ok(!JSON.stringify(narrowed).includes('Do not leak me'));
+
+    // Still not moved — invisible to the caller is not the same as removed.
+    const still = await api(`/api/tasks/${hidden.id}`);
+    assert.equal(still.cycle_id, shared.id);
+  });
+
+  it('widens back to a set, and says nothing about stranding when nothing is stranded', async () => {
+    const widened = await tool(token, 'update_cycle', { cycle: some.id, projects: ['ALP', 'BET', 'GAM'] });
+    assert.equal(widened.scope, 'projects');
+    assert.equal(widened.projects.length, 3);
+    assert.equal(widened.stranded_tasks, undefined);
+
+    const gamma = await tool(token, 'list_cycles', { project: 'GAM' });
+    assert.ok(gamma.result.some((c: any) => c.id === some.id), 'Gamma is in it now');
+  });
+
+  it('an empty list opens it to every project', async () => {
+    const opened = await tool(token, 'update_cycle', { cycle: some.id, projects: [] });
+    assert.equal(opened.scope, 'workspace');
+    assert.equal(opened.project_id, null);
+    assert.deepEqual(opened.projects, []);
+  });
+});
