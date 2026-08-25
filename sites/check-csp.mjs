@@ -16,7 +16,21 @@
  */
 import { readdirSync, statSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { chromium } from 'playwright';
+
+/*
+ * Loaded here rather than as a static import, which would be hoisted and fail
+ * with a bare `ERR_MODULE_NOT_FOUND` stack before this file printed anything.
+ * Unlike `check.mjs` there is no useful half of this check to run without a
+ * browser — the whole question is what a browser refuses — so this exits
+ * rather than degrading. It just says why.
+ */
+let chromium;
+try {
+  ({ chromium } = await import('playwright'));
+} catch {
+  console.error('This check needs Playwright:  npm install --no-save playwright');
+  process.exit(2);
+}
 
 const site = resolve(process.argv[2] ?? '.');
 const origin = (process.argv[3] ?? 'http://127.0.0.1:4300').replace(/\/$/, '');

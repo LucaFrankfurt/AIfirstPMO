@@ -7,8 +7,8 @@
  * can be settled by reading the source. So each is asked of a real browser
  * against the real output.
  *
- *   node sites/check.mjs docs/dist https://…      (or a running URL)
- *   node sites/check.mjs demo/dist
+ *   node sites/check.mjs docs/dist                 links only, no browser needed
+ *   node sites/check.mjs docs/dist http://…        + widths and contrast
  *
  * 1. **Links.** Every internal href resolves to a file that exists. A docs
  *    site whose cross-references 404 is worse than one with fewer pages.
@@ -21,7 +21,6 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { chromium } from 'playwright';
 
 const dist = resolve(process.argv[2] ?? 'dist');
 const origin = process.argv[3] ?? '';
@@ -70,6 +69,26 @@ if (!origin) {
   console.log('\nNo origin given — skipping the browser checks.');
   console.log('  Serve the directory and pass its URL:  node sites/check.mjs dist http://127.0.0.1:4300');
   process.exit(failures ? 1 : 0);
+}
+
+/*
+ * Playwright is loaded here rather than at the top, and that is the whole
+ * reason the link check above can run on its own.
+ *
+ * A static `import` is hoisted and resolved before any of this file executes,
+ * so a top-level one made "links only" a lie: CI runs that mode first,
+ * deliberately, before anything installs a browser — and the step died on a
+ * package it never uses. The failure named `playwright` while the check that
+ * failed had nothing to do with a browser, which is the kind of error message
+ * that costs somebody twenty minutes.
+ */
+let chromium;
+try {
+  ({ chromium } = await import('playwright'));
+} catch {
+  console.error('\nThe browser checks need Playwright:  npm install --no-save playwright');
+  console.error('Or drop the origin argument to run the link check on its own.');
+  process.exit(2);
 }
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
