@@ -50,11 +50,12 @@ services:
     # Coolify documents SERVICE_FQDN_ — has no key to convert to, so it kept the
     # array index and emitted `environment: {0: SERVICE_FQDN_APP_4000}`. Compose
     # refuses that outright: `non-string key in services.app.environment: 0`.
-    # Written as a map there is no index to fall back to.
+    # Written as a map there is no index to fall back to, and a key with nothing
+    # after the colon is null — which is what the bare entry meant.
     environment:
       # Asks Coolify for a domain and points its proxy at 4000. The name after
       # SERVICE_FQDN_ has to match this service's name or there is no route.
-      SERVICE_FQDN_APP_4000: ""
+      SERVICE_FQDN_APP_4000:
       # The whole URL with its scheme — `SERVICE_URL_`, not `SERVICE_FQDN_`,
       # for the reason docker-compose.coolify.yml explains at length.
       KOLIBRI_PUBLIC_URL: "$SERVICE_URL_APP"

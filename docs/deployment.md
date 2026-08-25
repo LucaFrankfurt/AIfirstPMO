@@ -328,10 +328,15 @@ resets is worse than one that promises nothing.
 block has been written as a *list* somewhere. Coolify rewrites the compose file before it builds,
 and its rewriter turns a list of `KEY=value` strings into a map — a bare entry with no `=`, which
 is how Coolify's own documentation spells `SERVICE_FQDN_`, has no key to convert to, so the array
-index survives as one. Compose then refuses the whole file. Both site files and the demo file
-therefore write `environment:` as a mapping with an explicit `""`, which no rewriter can
-index-key. `docker compose config -f <file>` reproduces the error without a daemon and is the
-fastest way to check a change to any of them.
+index survives as one. Compose then refuses the whole file. Every compose file meant for Coolify —
+`docker-compose.coolify.yml`, `docker-compose.sites.coolify.yml` and `docker-compose.demo.yml` —
+therefore writes `environment:` as a mapping, which no rewriter can index-key. A key with nothing
+after the colon is null, which is what the bare entry meant: pass the value through rather than
+set it, so Coolify still fills in the domain it generates.
+
+`docker compose config -f <file>` reproduces the error without a daemon and is the fastest way to
+check a change to any of them — diff its output against the same command on the previous revision
+and a conversion that changed nothing shows an empty diff.
 
 ### Two checks before you deploy either site
 

@@ -47,12 +47,13 @@ services:
     # `environment: {0: SERVICE_FQDN_DOCS_8080}`. Compose then refused the file
     # outright: `non-string key in services.docs.environment: 0`.
     #
-    # Written as a map there is no index to fall back to. The empty value means
-    # the same thing the bare form did — ask Coolify for a domain, with no path
-    # prefix — and the name after SERVICE_FQDN_ still has to match the service
-    # or there is no route at all.
+    # Written as a map there is no index to fall back to. A key with nothing
+    # after the colon is null, which is what the bare list entry meant — pass
+    # the value through rather than set it — so Coolify still fills in the
+    # domain it generates. The name after SERVICE_FQDN_ still has to match the
+    # service or there is no route at all.
     environment:
-      SERVICE_FQDN_DOCS_8080: ""
+      SERVICE_FQDN_DOCS_8080:
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 30s
@@ -86,7 +87,7 @@ services:
       - "8080"
     # A mapping rather than a list, for the reason spelled out on `docs` above.
     environment:
-      SERVICE_FQDN_DEMO_8080: ""
+      SERVICE_FQDN_DEMO_8080:
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
       interval: 30s
