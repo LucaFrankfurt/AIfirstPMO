@@ -62,6 +62,9 @@ around three convictions:
 
 ## Quick start
 
+Or try it first: **[demo.kolibri.day](https://demo.kolibri.day)** is a real instance with a
+workspace already in it, wiped back to its starting state on a schedule.
+
 ```bash
 git clone https://github.com/LucaFrankfurt/AIfirstPMO.git kolibri
 cd kolibri
@@ -206,6 +209,9 @@ so a flaky connection cannot duplicate a task. Details and trade-offs: [`docs/sy
 - **The guide inside the app** (`?` or the sidebar) — what every feature does, how the
   pieces nest, and the shortcuts. It is the manual for using Kolibri; the files here are the
   manual for running and extending it.
+- **[docs.kolibri.day](https://docs.kolibri.day)** — the same manual as a website, written out
+  at length: tasks, views, planning, pages, chat, offline, and four reference pages. Source in
+  [`sites/docs`](sites/docs).
 - [`docs/storage.md`](docs/storage.md) — disk vs. S3/MinIO, pre-signed downloads, migrating
 - [`docs/api.md`](docs/api.md) — REST endpoints, auth, uploads
 - [`docs/mcp.md`](docs/mcp.md) — every tool, prompt and resource with examples
@@ -243,6 +249,14 @@ They are not decoration. `check:contrast` found twenty unreadable places on its 
 `check:responsive` found a layout that came apart between 880 and 940 pixels, and `check:a11y`
 found forty-four problems including the checkbox in front of every task.
 
+The two websites carry the same three questions in one script, because the same claims were wrong
+there too — it found a `git clone` line holding a column open at 562px inside a 300px phone:
+
+```bash
+node sites/check.mjs sites/docs/dist                         # links
+node sites/check.mjs sites/docs/dist http://127.0.0.1:4300   # + widths and contrast
+```
+
 ## Project layout
 
 ```
@@ -251,7 +265,16 @@ packages/
   server/   HTTP API, sync engine, MCP server, SQLite schema — zero runtime dependencies
   web/      React PWA: local store, sync engine, views, editor
   mcp/      stdio ⇄ HTTP bridge for MCP clients that cannot speak HTTP
+sites/
+  docs/     docs.kolibri.day — the manual for using Kolibri (Astro + Starlight)
+  demo/     demo.kolibri.day — the page in front of the live demo (Astro)
 ```
+
+`sites/*` are deliberately **not** npm workspaces of this project. They carry their own
+`package.json` and lockfile, so `npm ci` at the root still installs only what the app needs and
+neither the test job nor a contributor's first clone pays for a documentation toolchain. Both are
+built and served by one `sites/Dockerfile`; see
+[`docs/deployment.md`](docs/deployment.md#the-two-websites-and-the-public-demo).
 
 ## Contributing
 

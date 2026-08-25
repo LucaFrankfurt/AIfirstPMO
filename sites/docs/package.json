@@ -1,0 +1,22 @@
+{
+  "name": "@kolibri/site-docs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "docs.kolibri.day — the manual for using Kolibri",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node ../csp-seal.mjs dist",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.8",
+    "astro": "^7.2.6",
+    "sharp": "^0.35.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.10",
+    "typescript": "^6.0.3"
+  }
+}

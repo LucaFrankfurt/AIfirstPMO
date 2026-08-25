@@ -1,0 +1,112 @@
+# The public demo instance behind demo.kolibri.day.
+#
+#   app.demo.kolibri.day → the real Kolibri, seeded, wiped on a schedule
+#
+# Coolify → Add Resource → Docker Compose → this repository → compose file
+# `docker-compose.demo.yml`, then give the `app` service a domain on port 4000.
+# The landing page in front of it is `docker-compose.sites.coolify.yml`, and it
+# points here through PUBLIC_APP_URL.
+#
+# It is a separate hostname rather than a path under demo.kolibri.day because
+# Kolibri's client is a single-page app served from the root of its origin.
+# There is no base path to mount it under, and inventing one would mean
+# rewriting every route in the app to make a marketing page tidy.
+#
+# This file is deliberately *not* in the DEPLOYABLE list in
+# `scripts/compose-env.mjs`. That check asks whether a general-purpose
+# deployment can reach every setting the server reads; this is a
+# purpose-specific stack that omits mail, object storage and Telegram on
+# purpose, and adding it there would turn each of those omissions into a
+# failing build.
+#
+#   docker compose -f docker-compose.demo.yml up -d --build   # locally, on :4000
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+
+    # tini stays in front, as in the image's own ENTRYPOINT: it reaps the
+    # children this loop creates and forwards the platform's TERM to the shell,
+    # which is what makes a reset stop the server rather than orphan it.
+    entrypoint: ["/sbin/tini", "--", "sh", "/app/scripts/demo-entrypoint.sh"]
+
+    # Two files the image does not carry, because neither belongs in a general
+    # Kolibri image: the reset loop, and the script that writes the demo's
+    # conversation over the public API. Read-only — nothing should be able to
+    # rewrite the thing that wipes the database.
+    volumes:
+      - demo-data:/data
+      - ./scripts/demo-entrypoint.sh:/app/scripts/demo-entrypoint.sh:ro
+      - ./scripts/demo-extras.mjs:/app/scripts/demo-extras.mjs:ro
+
+    expose:
+      - "4000"
+
+    environment:
+      # Asks Coolify for a domain and points its proxy at 4000. The name after
+      # SERVICE_FQDN_ has to match this service's name or there is no route.
+      - SERVICE_FQDN_APP_4000
+      # The whole URL with its scheme — `SERVICE_URL_`, not `SERVICE_FQDN_`,
+      # for the reason docker-compose.coolify.yml explains at length.
+      - KOLIBRI_PUBLIC_URL=$SERVICE_URL_APP
+
+      # How long a generation lasts before the database is wiped and re-seeded.
+      # 86400 is a day. Keep PUBLIC_RESET_EVERY on the landing page saying the
+      # same thing in words — the page promises this out loud.
+      - KOLIBRI_DEMO_RESET_SECONDS=${KOLIBRI_DEMO_RESET_SECONDS:-86400}
+
+      # Everybody uses the seeded account, so nobody needs to create one. This
+      # is the setting that stops a public URL becoming a public sign-up form.
+      - KOLIBRI_ALLOW_SIGNUP=false
+
+      # Small, because a public upload box on an instance anybody can reach is
+      # a public upload box. The reset takes the files with it either way.
+      - KOLIBRI_MAX_UPLOAD_MB=${KOLIBRI_MAX_UPLOAD_MB:-5}
+
+      # Uploads on the volume: no object store, no second container, and
+      # nothing to clean up that the wipe does not already remove.
+      - KOLIBRI_STORAGE=disk
+
+      # Off, all of it. A demo that could send mail is a demo that can be used
+      # to send mail, and one nobody would notice being used that way.
+      - KOLIBRI_SMTP_URL=
+      - KOLIBRI_PUSH=false
+      - KOLIBRI_TELEGRAM_BOT_TOKEN=
+
+      # No key, so the task-review button does not appear and nothing typed
+      # into this instance can leave it for a model. See docs/ai.md.
+      - ANTHROPIC_API_KEY=
+      - GEMINI_API_KEY=
+      - OPENROUTER_API_KEY=
+
+      # Coolify's proxy is the only thing that reaches the container, so the
+      # forwarded address is the real one — and rate limits are per address.
+      - KOLIBRI_TRUST_PROXY=true
+
+      # A short trash window, because the reset is the real cleanup and a
+      # tombstone that outlives its generation is a row nobody can reach.
+      - KOLIBRI_TRASH_DAYS=${KOLIBRI_TRASH_DAYS:-1}
+
+      - KOLIBRI_WORKSPACE_NAME=${KOLIBRI_WORKSPACE_NAME:-Kolibri}
+      - KOLIBRI_DEFAULT_LOCALE=${KOLIBRI_DEFAULT_LOCALE:-en}
+      - KOLIBRI_LOG_LEVEL=${KOLIBRI_LOG_LEVEL:-info}
+      # A short session, because everyone signs in as the same person and a
+      # sixty-day cookie on a shared account is a sixty-day shared cookie.
+      - KOLIBRI_SESSION_DAYS=${KOLIBRI_SESSION_DAYS:-1}
+      # A generation's signing key. Left empty it is generated into the volume;
+      # the wipe does not touch it, so sessions survive a reset.
+      - KOLIBRI_SECRET=${KOLIBRI_SECRET:-}
+
+    # A reset stops the server for a few seconds, so the check has to tolerate
+    # more than one failed probe or the platform restarts a container that is
+    # doing exactly what it was told to.
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+volumes:
+  demo-data:

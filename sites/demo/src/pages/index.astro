@@ -1,0 +1,356 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Icon from '../components/Icon.astro';
+import Shot from '../components/Shot.astro';
+import { APP_URL, DOCS_URL, REPO_URL, DEMO_EMAIL, DEMO_PASSWORD, RESET_EVERY } from '../consts';
+
+/*
+ * Eleven cards, and each one says what the thing *does* rather than that it
+ * exists. "Offline-first" is a claim; "the board still drags with the wifi
+ * off" is something a reader can go and check on the demo two clicks away —
+ * which is the only reason this page is in front of a live instance at all.
+ */
+const TOUR = [
+  {
+    icon: 'offline',
+    title: 'It never waits for the network',
+    body: 'Every screen reads from a copy of the workspace in your browser. Turn the wifi off on the demo and keep working — filtering, dragging, typing. Changes queue and merge field by field when you come back, so two people editing one task both keep their edit.',
+  },
+  {
+    icon: 'board',
+    title: 'Four layouts over one set of tasks',
+    body: 'List, Kanban, table and calendar, sharing your filters and your grouping. Group a board by assignee and the columns are people; group it by a custom field and dropping a card writes the answer.',
+  },
+  {
+    icon: 'search',
+    title: 'A whole task on one line',
+    body: 'Type <code>Redraw the empty state !high @ada #WEB *design due:friday</code>. A token nothing answers to stays in the title rather than vanishing, and an ambiguous <code>@alex</code> matches neither of them.',
+  },
+  {
+    icon: 'timeline',
+    title: 'A timeline that moves what it blocks',
+    body: 'Drag a task later and everything it blocks moves with it — counted in the days the project actually works, with an optional wait on each dependency. Save a baseline to draw the agreed plan behind the real one.',
+  },
+  {
+    icon: 'cycle',
+    title: 'Cycles, modules and four charts',
+    body: 'Sprints with a burn-up that shows scope climbing rather than hiding it, milestones that outlive a cycle, and per-project insights computed on your device — so they work on a train too.',
+  },
+  {
+    icon: 'page',
+    title: 'A wiki two people can type in at once',
+    body: 'A page body is a text CRDT, so both sets of changes survive — including when both people were offline. Version history, a what-changed diff, restore, inline comments that stay anchored as the text moves.',
+  },
+  {
+    icon: 'chat',
+    title: 'Chat made of the same rows',
+    body: 'Channels and direct messages built from ordinary synced rows, so a message sends from a train and arrives when the tunnel ends. No second protocol, and nothing extra to be down.',
+  },
+  {
+    icon: 'bell',
+    title: 'Notifications you can actually turn down',
+    body: 'One inbox as the source of truth, with email, a phone banner and Telegram as optional deliveries of the same events. Nothing is ever delivery-only, so turning a channel off never means missing something.',
+  },
+  {
+    icon: 'robot',
+    title: 'An assistant is a first-class user',
+    body: 'MCP over HTTP and stdio: an AI can read the backlog, file issues, move them through the workflow and write pages. A read-only token is refused by every tool that writes, so a view of the backlog is not a pen.',
+  },
+  {
+    icon: 'clock',
+    title: 'A timer that survives a tunnel',
+    body: 'A running timer is a row with a start and no minutes yet — so it survives a reload, keeps running on your phone, and is fixed by editing an entry rather than by losing the afternoon.',
+  },
+  {
+    icon: 'lock',
+    title: 'Hardening that was measured',
+    body: 'Two-factor with recovery codes, a device list you can revoke from, SSO over OpenID Connect, per-column rules for who may move work where, and an audit log. The contrast, layout and screen-reader checks run in a real browser in CI.',
+  },
+  {
+    icon: 'globe',
+    title: 'English, German and French',
+    body: 'Interface, notifications and emails, each written in the recipient’s own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to.',
+  },
+] as const;
+
+/*
+ * What `npm run seed` actually creates, so the card says there is something in
+ * there before a reader spends a click finding out. The numbers come from
+ * `packages/server/src/lib/demo.ts` — if that file grows a fourth project,
+ * this is the line that goes stale, which is why each is a round description
+ * rather than a count that has to be exact.
+ */
+const SEEDED = [
+  { n: '3', what: 'projects, each with its own workflow and labels' },
+  { n: '2', what: 'teams, and four people to hand work between' },
+  { n: '1', what: 'running cycle, with a burn-up already drawn' },
+  { n: '20+', what: 'tasks spread across backlog, review and done' },
+  { n: '∞', what: 'things you cannot break permanently' },
+] as const;
+
+/** The four screens shown full width, each with the one thing worth noticing. */
+const SCREENS = [
+  {
+    name: 'task',
+    title: 'A task',
+    note: 'State, priority, assignee, label, cycle and module on one row. Sub-tasks are whole tasks with their own identifiers, not checklist items — <code>WEB-2</code> below has its own place on the board.',
+    alt: 'A task open over the board: WEB-6, In Progress, with a markdown description, an acceptance checklist, one sub-task, and empty Relations and Files sections.',
+  },
+  {
+    name: 'timeline',
+    title: 'The timeline',
+    note: 'One of the five layouts rather than a separate screen, so the filter you set on the board still applies. Drag a bar and everything it blocks moves with it, counted in the days the project actually works.',
+    alt: 'The timeline layout: eight tasks as bars across August and September 2026, with a line drawn from one bar to the task it blocks.',
+  },
+  {
+    name: 'chat',
+    title: 'Chat',
+    note: 'What is stored is the token a person typed — <code>WEB-1</code>, not a markdown link — and the renderer is told which project keys exist, so a conversation about <code>UTF-8</code> does not fill up with dead links.',
+    alt: 'The #general channel: four people talking, with WEB-1, WEB-4, WEB-8 and WEB-6 rendered as links to those tasks.',
+  },
+  {
+    name: 'pages',
+    title: 'Pages',
+    note: 'Markdown, nested to any depth, merged character by character so two people typing at once both keep their sentences. Select any passage to comment on that passage rather than on the page.',
+    alt: 'A wiki page — API design principles — with its author and project above it and a discussion thread below.',
+  },
+] as const;
+---
+
+<Layout
+  title="Kolibri — try it live"
+  description="A live demo of Kolibri: open source projects, tasks and pages that keep working offline. Sign in with the demo account and look around."
+>
+  <section class="hero wrap">
+    <div class="hero__grid">
+      <div>
+        <p class="hero__kicker"><span class="hero__dot"></span> Live instance · resets {RESET_EVERY}</p>
+
+        <h1>Work tracking that never waits for the network.</h1>
+
+        <p class="hero__sub">
+          Kolibri is open source projects, tasks and pages — offline-first, self-hosted, and
+          native to the Model Context Protocol. This is a real instance with a workspace already
+          in it. Sign in and break something.
+        </p>
+
+        <div class="hero__actions">
+          <a class="btn btn--primary btn--lg" href={APP_URL}>
+            Open the demo <Icon name="external" size={15} />
+          </a>
+          <a class="btn btn--lg" href={DOCS_URL}>Read the manual</a>
+          <a class="btn btn--lg" href={REPO_URL} rel="noopener">Source</a>
+        </div>
+      </div>
+
+      <div class="creds">
+        <p class="creds__title">Sign in with</p>
+        <div class="creds__rows">
+          <p class="creds__row">
+            <span class="creds__label">Email</span>
+            <code class="creds__value">{DEMO_EMAIL}</code>
+          </p>
+          <p class="creds__row">
+            <span class="creds__label">Password</span>
+            <code class="creds__value">{DEMO_PASSWORD}</code>
+          </p>
+        </div>
+        <p class="creds__note">
+          Grace, Alan and Margaret are seeded in the same workspace with the same password, if you
+          want to see a mention or a hand-over from both ends.
+        </p>
+
+        <div class="seeded">
+          {SEEDED.map((row) => (
+            <p class="seeded__row">
+              <span class="seeded__n">{row.n}</span>
+              <span>{row.what}</span>
+            </p>
+          ))}
+        </div>
+      </div>
+    </div>
+
+    <div class="shots">
+      <Shot
+        name="board"
+        eager
+        alt="A Kanban board for the Website project: Backlog, Todo, In Progress and In Review columns, with cards carrying an identifier, labels, a cycle, a due date, an estimate and an assignee."
+      />
+    </div>
+  </section>
+
+  <section class="section section--sunken" id="what">
+    <div class="wrap section__split">
+      <div class="section__head">
+        <h2>What you are looking at</h2>
+      </div>
+
+      <div class="prose">
+        <p class="section__lead">
+          The demo is an ordinary Kolibri, started with the seed data that ships in the
+          repository — two teams, three projects with their own workflows, a running cycle, a
+          backlog with a realistic spread, wiki pages, comments and logged time. Nothing about it
+          is a mock-up: every screen is the real app reading a real database, and every button
+          does what it does on your own instance.
+        </p>
+
+        <div class="note">
+          <strong>It is public and it resets.</strong> Anybody can sign in with the account
+          above, and the whole database is wiped back to its starting state {RESET_EVERY}. Do not
+          put anything in it you would mind a stranger reading, and do not expect what you wrote
+          yesterday to still be there. Uploads are capped and email is switched off, so nothing
+          here can send you a message.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="tour">
+    <div class="wrap">
+      <div class="section__head">
+        <h2>What is in it</h2>
+        <p class="section__lead">
+          Each of these is two clicks away in the demo. Where a claim below sounds like marketing,
+          it is meant as an instruction: go and check it.
+        </p>
+      </div>
+
+      <div class="grid">
+        {TOUR.map((item) => (
+          <article class="cell">
+            <h3><Icon name={item.icon} /> {item.title}</h3>
+            <p set:html={item.body} />
+          </article>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sunken" id="screens">
+    <div class="wrap">
+      <div class="section__head">
+        <h2>Four more screens</h2>
+        <p class="section__lead">
+          Full width, because a screenshot shrunk into a thumbnail is a texture rather than a
+          picture of anything. Each of these is one click from the board above.
+        </p>
+      </div>
+
+      {SCREENS.map((screen) => (
+        <div class="screen">
+          <h3 class="screen__title">{screen.title}</h3>
+          <p class="screen__note" set:html={screen.note} />
+          <Shot name={screen.name} alt={screen.alt} />
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <section class="section" id="run">
+    <div class="wrap section__split">
+      <div class="section__head">
+        <h2>Run your own in one command</h2>
+        <p class="section__lead">
+          The demo is the same thing you get from this. It brings up the app and an S3-compatible
+          object store, already wired to each other — the bucket is created on first boot and
+          nothing has to be configured afterwards.
+        </p>
+      </div>
+
+      <div>
+      <div class="code">
+        <div class="code__bar">
+          <span>Terminal</span>
+          <button class="btn" type="button" data-copy>Copy</button>
+        </div>
+        <pre><code id="install">git clone https://github.com/LucaFrankfurt/AIfirstPMO.git kolibri
+cd kolibri
+docker compose up -d --build
+open http://localhost:4000</code></pre>
+      </div>
+
+      <div class="prose prose--spaced">
+        <p>
+          That is the whole installation. The server is one Node process and a SQLite file you can
+          copy — no Postgres, no Redis, no worker queue — so it runs on the smallest machine a
+          host sells and a backup is a file. There is a single-container variant that keeps
+          uploads on the volume, and a Coolify compose file for a platform that owns the proxy.
+        </p>
+        <p>
+          Node 22.18 or newer runs it without Docker at all: the server executes TypeScript
+          directly and SQLite is built into Node.
+        </p>
+        <ul>
+          <li><strong>Set an owner in <code>.env</code></strong> and the account exists the moment the stack is up — no browser step to claim the instance.</li>
+          <li><strong><code>KOLIBRI_SEED_DEMO=true</code></strong> fills an empty database with the same workspace this demo runs on.</li>
+          <li><strong>Email is off</strong> until you point <code>KOLIBRI_SMTP_URL</code> at a relay you control. A capture inbox is labelled as one everywhere it appears, so it can never be mistaken for real delivery.</li>
+        </ul>
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section section--sunken" id="honest">
+    <div class="wrap section__split">
+      <div class="section__head">
+        <h2>What it is not</h2>
+        <p class="section__lead">
+          Being clear about this is cheaper for everybody than finding out in month two.
+        </p>
+      </div>
+      <div class="prose">
+        <ul>
+          <li><strong>Not a timesheet system.</strong> Time is recorded and added up; there is no week view, no submit and no approval step.</li>
+          <li><strong>No cost or billing.</strong> Entries carry a <code>billable</code> flag that nothing reads yet. Rates and budgets do not exist.</li>
+          <li><strong>No forecasting.</strong> The burn-up stops at today rather than drawing a line into the future, because a line into the future looks like a promise.</li>
+          <li><strong>Estimates are in points</strong>, and are deliberately never compared with logged time.</li>
+          <li><strong>No email-in.</strong> You cannot file a task by writing to an address. A commit can reach a task; an email cannot.</li>
+          <li><strong>No threads, calls or read receipts in chat.</strong> It is the conversation around the work, sharing the work's plumbing — not a second product.</li>
+        </ul>
+        <p class="prose__last">
+          The repository keeps a running list of what is missing, what is unverified and what was
+          deferred on purpose, plus an honest gap analysis against Jira, Confluence, Plane,
+          Vikunja and OpenProject: <a href={`${REPO_URL}/blob/main/TODO.md`} rel="noopener"
+          >TODO.md</a> and <a href={`${REPO_URL}/blob/main/docs/comparison.md`} rel="noopener"
+          >docs/comparison.md</a>.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap centred">
+      <h2>Go and press things</h2>
+      <p class="section__lead centred__lead">
+        It resets {RESET_EVERY}. There is nothing in there to break that will not be back
+        tomorrow.
+      </p>
+      <div class="hero__actions centred__actions">
+        <a class="btn btn--primary btn--lg" href={APP_URL}>
+          Open the demo <Icon name="external" size={15} />
+        </a>
+        <a class="btn btn--lg" href={DOCS_URL}>Read the manual</a>
+      </div>
+    </div>
+  </section>
+</Layout>
+
+<script>
+  /* The copy button. Progressive: the block is selectable text without it, and
+     `navigator.clipboard` is absent over plain HTTP — so a failure has to leave
+     the button saying something true rather than a permanent "Copied". */
+  const button = document.querySelector<HTMLButtonElement>('[data-copy]');
+  const source = document.getElementById('install');
+
+  button?.addEventListener('click', async () => {
+    if (!source?.textContent) return;
+    try {
+      await navigator.clipboard.writeText(source.textContent);
+      button.textContent = 'Copied';
+    } catch {
+      button.textContent = 'Press ⌘C';
+    }
+    setTimeout(() => { button.textContent = 'Copy'; }, 2000);
+  });
+</script>

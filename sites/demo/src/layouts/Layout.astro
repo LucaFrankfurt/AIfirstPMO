@@ -1,0 +1,87 @@
+---
+import '../styles/site.css';
+import { DOCS_URL, REPO_URL } from '../consts';
+import ThemeToggle from '../components/ThemeToggle.astro';
+import Icon from '../components/Icon.astro';
+
+interface Props {
+  title: string;
+  description: string;
+}
+const { title, description } = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site ?? 'https://demo.kolibri.day');
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical.href} />
+
+    <link rel="icon" href="/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="48x48" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical.href} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0e1014" media="(prefers-color-scheme: dark)" />
+
+    <!--
+      Before the first paint, or the page flashes white on a machine set to
+      dark. It has to be inline and it has to be here: a deferred module runs
+      after layout, and the flash is exactly the thing being avoided. Wrapped
+      because `localStorage` throws rather than returning null in a browser set
+      to block site data.
+    -->
+    <script is:inline>
+      try {
+        var t = localStorage.getItem('kolibri-theme');
+        if (t === 'light' || t === 'dark') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="top">
+      <div class="wrap top__in">
+        <a class="brand" href="/">
+          <img src="/icon.svg" width="28" height="28" alt="" />
+          Kolibri
+        </a>
+        <a class="top__link top__link--hide" href="#tour">What is in it</a>
+        <a class="top__link top__link--hide" href="#run">Run your own</a>
+        <a class="top__link" href={DOCS_URL}>Docs</a>
+        <a class="top__link" href={REPO_URL} rel="noopener">
+          GitHub <Icon name="external" size={13} />
+        </a>
+        <ThemeToggle />
+      </div>
+    </header>
+
+    <main id="main">
+      <slot />
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot__in">
+        <span>Kolibri — MIT licensed, self-hosted.</span>
+        <a href={DOCS_URL}>Documentation</a>
+        <a href={REPO_URL} rel="noopener">Source</a>
+        <a href={`${REPO_URL}/blob/main/TODO.md`} rel="noopener">What is missing</a>
+        <span class="foot__spacer">
+          This page is a demo. Nothing on it is a product you can buy.
+        </span>
+      </div>
+    </footer>
+  </body>
+</html>

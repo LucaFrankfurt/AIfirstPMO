@@ -1,0 +1,110 @@
+---
+title: Chat
+description: Channels and direct messages made of the same synced rows as everything else — so a message sends from a train and arrives when the tunnel ends.
+sidebar:
+  order: 1
+---
+
+import Shot from '../../../components/Shot.astro';
+
+*Chat* in the sidebar. Channels and direct messages, built out of the same rows as tasks and
+pages.
+
+That is not an implementation detail. A message being an ordinary synced row is why it sends from
+a train and arrives when the tunnel ends, why it appears on the other person's screen without a
+socket to reconnect, why it survives a reload, and why it shows up in search and in a backup.
+There is no second protocol here to be down.
+
+<Shot
+  name="chat"
+  alt="The #general channel with four people talking. WEB-1, WEB-4, WEB-8 and WEB-6 are rendered as links to those tasks."
+  caption="What is stored is the token somebody typed — WEB-1 — not a markdown link, so it still says the same thing when the message is quoted somewhere else."
+/>
+
+## The two kinds
+
+| | Channel | Direct |
+|---|---|---|
+| Named | `#design-review`, lowercase and dash-joined | No name of its own |
+| Who is in it | The workspace, or a member list if private | Exactly two people |
+| Who may change that | Per channel: anybody in it, or only its creator and admins | Nobody — its members are its identity |
+| Where it lives | The workspace, or a project | Nowhere |
+| Notifies | When you are named, or if you asked for all of it | Always, unless you say otherwise |
+
+**Three or more people is a private channel with a name**, not a bigger direct message. That is
+a product decision and a technical one at once: a direct conversation is identified by the two
+people in it, which is what lets both of them open it while offline and end up in one room
+rather than two half-rooms.
+
+## Writing
+
+The composer is the same editor as comments and page bodies:
+
+- **Paste or drop a screenshot** straight in. It uploads, downscales and goes in as markdown.
+- **`WEB-42` becomes a link** to that task and `#WEB` to that project; typing `#` offers both.
+  Clicking one opens the task as a sheet over the conversation.
+- **`@somebody`** names them, which is what makes a channel notify them.
+- **React** to any message with an emoji, including somebody else's. That is the one thing you
+  may do to another person's words, and it is not a change to them.
+- **Reply** to a specific line.
+
+## Being told about it
+
+The default is deliberately not *tell everyone about every line*. A channel that pings its whole
+membership on every message is a channel people mute, and a muted channel tells nobody anything.
+
+- A **channel** notifies whoever was named with `@`, plus anybody who asked for all of it.
+- A **direct message** notifies the other person — being written to directly is exactly the case
+  where silence would be wrong.
+- **Muting beats a mention.** Somebody who set a conversation to *nothing* means it.
+
+Per conversation, in the bell menu at the top of it. Where you have got to is private to you;
+there are no read receipts.
+
+Message notifications count as important for the **instant** channels — Telegram and Web Push —
+and deliberately not for email, because email here is batched on purpose and a chat message that
+arrives in a two-hour summary is one answered too late to matter. See
+[notifications](/people/notifications/).
+
+## Unread
+
+Counted on your device from rows it already has: messages newer than your read marker, not
+counting your own. It is right while offline, and the marker only ever moves forwards — a marker
+that went backwards would make a conversation you have just read unread again on your laptop.
+
+## Private channels
+
+A private channel keeps a member list, and **who may change it is set per channel**: anybody in
+the room, or only its creator plus workspace admins. Per channel, because a team channel and a
+channel a client can see want different answers and the same workspace holds both. Changing the
+setting is itself an admin decision, or it protects nothing.
+
+Two rules hold whatever the policy says:
+
+- **Leaving is always yours to do.** A room you cannot leave without permission is not one
+  anybody should be added to.
+- **The last person out cannot leave the room standing empty**, because it would be invisible to
+  everybody and impossible to reopen.
+
+## Archiving and deleting
+
+**Archiving** hides a channel and refuses new messages, keeping everything said in it.
+**Deleting** hides it the same way — it does not destroy the conversation. Both are reversible
+from the trash until an admin empties it.
+
+A chat history is often the record of a decision, so nothing here throws one away on a single
+click.
+
+Deleted **messages** are the one thing not listed in the trash. A message somebody withdrew
+should stay withdrawn, and a list of them would be a way to read exactly that.
+
+## Presence
+
+A green dot says who is here and a line says who is typing. Both are held in memory rather than
+stored, and carried on the connection the app already has — so neither is a row, neither is in a
+backup, and neither works offline, which is correct: presence is a claim about right now.
+
+## What is deliberately not here
+
+No threads, no voice, no video, no calls, no read receipts, no message editing history. Chat here
+is the conversation *around* the work, sharing the work's plumbing — not a second product.
