@@ -242,6 +242,62 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 
+### Reports
+
+Six aggregations that were answerable before only by pulling the backlog and doing the arithmetic
+in the model. Each takes an optional `project` — a key or a name — and answers for the whole
+workspace without one. All are read-only, so a `scopes: "read"` token may call every one.
+
+Each returns a **reason**, not just a list. That is the whole point of them: *overdue* is a fact
+anybody can compute from a due date, and *"due Thursday, still in Backlog, nobody on it"* is the
+sentence somebody acts on.
+
+| Tool | Answers |
+|---|---|
+| `changes_since` | What happened in a window — `days`, default 7. Grouped by person and by kind of change, with what was finished, what was filed, and the ten tasks that moved most |
+| `deadlines_at_risk` | Dated work unlikely to land inside `days` (default 14), each tagged `overdue`, `blocked`, `not_started` or `unassigned`, with the blockers named and a `severity` to sort on |
+| `workload` | Open work per person: count, overdue, due this week, unestimated, points, and their most urgent item. Unassigned work is a bucket of its own rather than hidden |
+| `blocked_tasks` | What is waiting on what — and, separately, `stale_links`: relations whose blocker is already finished, which nobody remembers to remove |
+| `stale_tasks` | Tasks in an in-progress state untouched for `days` (default 14), with how long each has been quiet |
+| `cycle_review` | A cycle's outcome: planned against completed, what carried over, what was cancelled, and what was **added after the start date** — the thing a burn-down hides and a retro needs |
+
+Three details worth knowing before you trust a number:
+
+- **A private project the token cannot see is absent from every one of them**, including from the
+  aggregate counts. A total that moved when a private task changed would say something about that
+  task, so the projects are resolved once, in one place, rather than per tool.
+- **`changes_since` counts finished and filed work from the tasks, not from the activity log.** A
+  task completed offline syncs carrying the moment it was completed; counting log rows would date
+  it to when the connection came back. It also means the two lists are right on a workspace that
+  was imported or seeded, where there is no activity log to read.
+- **`workload` counts a task with two people on it for both of them**, the way the app's own
+  per-person chart does, so the totals exceed the task count. That is the honest answer to "how
+  much is on you". It also flags anyone still holding work who has left the workspace.
+
+```json
+{ "name": "deadlines_at_risk", "arguments": { "project": "WEB", "days": 7 } }
+```
+
+```json
+{
+  "horizon_days": 7,
+  "counts": { "overdue": 1, "not_started": 3 },
+  "at_risk": [
+    {
+      "identifier": "WEB-3",
+      "title": "Ship dark mode across the marketing site",
+      "state": "Todo",
+      "assignee_names": ["Grace Hopper"],
+      "due_date": "2026-08-24",
+      "days_until_due": -1,
+      "reasons": ["overdue"],
+      "blocked_by": [],
+      "severity": 101
+    }
+  ]
+}
+```
+
 ### Writing
 
 | Tool | Notes |

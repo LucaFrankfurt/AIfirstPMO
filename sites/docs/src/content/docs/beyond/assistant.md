@@ -45,11 +45,12 @@ is an ordinary token you can revoke in Settings like any other.
 
 ## What it can do
 
-Thirty-odd tools, covering the same ground as the interface:
+Forty-odd tools, covering the same ground as the interface:
 
 | | |
 |---|---|
 | **Read** | `list_workspaces` `list_projects` `list_tasks` `get_task` `search` `list_pages` `get_page` `list_members` `list_states` `list_labels` `list_cycles` `list_templates` `list_attachments` `list_time` `project_status` `my_work` |
+| **Reports** | `changes_since` `deadlines_at_risk` `workload` `blocked_tasks` `stale_tasks` `cycle_review` |
 | **Write** | `create_task` `create_tasks_batch` `update_task` `delete_task` `comment_task` `create_task_relation` `create_project` `update_project` `create_page` `update_page` `create_cycle` `update_cycle` `delete_cycle` `create_state` `update_state` `create_label` `update_label` `apply_template` `upload_attachment` `delete_attachment` `log_time` |
 
 Plus three prompts — `standup`, `sprint_planning` and `triage` — which are the three questions
@@ -58,10 +59,34 @@ people actually ask, written out so the assistant does not have to invent the sh
 A batch is **one transaction**: `create_tasks_batch` either lands entirely or not at all, so a
 half-imported backlog is not a state you can end up in.
 
+## The reports
+
+The six in the middle row are worth knowing about by name, because they answer the questions
+people actually open a tracker to ask — and each answers with a **reason** rather than a list:
+
+| Ask it | It calls |
+|---|---|
+| *"What did we get done last week?"* | `changes_since` — grouped by person and by kind of change, with what was finished and what was filed |
+| *"What is going to slip?"* | `deadlines_at_risk` — every dated task tagged *overdue*, *blocked*, *not started* or *unassigned*, worst first |
+| *"Who is overloaded?"* | `workload` — open, overdue, due this week and points, per person, with unassigned work counted rather than hidden |
+| *"What is stuck?"* | `blocked_tasks` — what waits on what, plus the links whose blocker is already finished |
+| *"What has gone quiet?"* | `stale_tasks` — in progress and untouched for a fortnight |
+| *"How did the sprint go?"* | `cycle_review` — planned against completed, what carried over, and what was added after it started |
+
+All six are read-only, so a read-only token can call every one of them. And none of them can see a
+private project you are not in — not merely *list* nothing from it, but count nothing from it
+either, because a total that moved when a private task changed would say something about that
+task.
+
+The difference between these and asking a model to work it out from `list_tasks` is not speed. It
+is that *overdue* is a fact anybody can compute from a due date, and *"due Thursday, still in
+Backlog, nobody on it"* is the sentence somebody acts on.
+
 ## What it is good at
 
-- *"What did we not finish last cycle, and what is blocking each one?"* — reading and joining, which
-  is tedious by hand and instant here.
+- *"What did we not finish last cycle, and what is blocking each one?"* — one `cycle_review` and one
+  `blocked_tasks`, where by hand it is two joins and a lot of scrolling.
+- *"Write the standup from what changed since Friday."* — `changes_since` with `days: 3`.
 - *"File these fourteen findings as tasks in API, labelled `security`, blocked by API-30."* —
   writing structure that is boring to type.
 - *"Summarise the decisions in the pages under Architecture and write it as a new page."*
