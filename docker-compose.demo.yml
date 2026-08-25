@@ -43,60 +43,68 @@ services:
     expose:
       - "4000"
 
+    # A mapping, not a list, and that is load-bearing rather than style.
+    #
+    # Coolify rewrites this file before it builds, and its rewriter turns a list
+    # of `KEY=value` strings into a map. A bare entry with no `=` — which is how
+    # Coolify documents SERVICE_FQDN_ — has no key to convert to, so it kept the
+    # array index and emitted `environment: {0: SERVICE_FQDN_APP_4000}`. Compose
+    # refuses that outright: `non-string key in services.app.environment: 0`.
+    # Written as a map there is no index to fall back to.
     environment:
       # Asks Coolify for a domain and points its proxy at 4000. The name after
       # SERVICE_FQDN_ has to match this service's name or there is no route.
-      - SERVICE_FQDN_APP_4000
+      SERVICE_FQDN_APP_4000: ""
       # The whole URL with its scheme — `SERVICE_URL_`, not `SERVICE_FQDN_`,
       # for the reason docker-compose.coolify.yml explains at length.
-      - KOLIBRI_PUBLIC_URL=$SERVICE_URL_APP
+      KOLIBRI_PUBLIC_URL: "$SERVICE_URL_APP"
 
       # How long a generation lasts before the database is wiped and re-seeded.
       # 86400 is a day. Keep PUBLIC_RESET_EVERY on the landing page saying the
       # same thing in words — the page promises this out loud.
-      - KOLIBRI_DEMO_RESET_SECONDS=${KOLIBRI_DEMO_RESET_SECONDS:-86400}
+      KOLIBRI_DEMO_RESET_SECONDS: "${KOLIBRI_DEMO_RESET_SECONDS:-86400}"
 
       # Everybody uses the seeded account, so nobody needs to create one. This
       # is the setting that stops a public URL becoming a public sign-up form.
-      - KOLIBRI_ALLOW_SIGNUP=false
+      KOLIBRI_ALLOW_SIGNUP: "false"
 
       # Small, because a public upload box on an instance anybody can reach is
       # a public upload box. The reset takes the files with it either way.
-      - KOLIBRI_MAX_UPLOAD_MB=${KOLIBRI_MAX_UPLOAD_MB:-5}
+      KOLIBRI_MAX_UPLOAD_MB: "${KOLIBRI_MAX_UPLOAD_MB:-5}"
 
       # Uploads on the volume: no object store, no second container, and
       # nothing to clean up that the wipe does not already remove.
-      - KOLIBRI_STORAGE=disk
+      KOLIBRI_STORAGE: "disk"
 
       # Off, all of it. A demo that could send mail is a demo that can be used
       # to send mail, and one nobody would notice being used that way.
-      - KOLIBRI_SMTP_URL=
-      - KOLIBRI_PUSH=false
-      - KOLIBRI_TELEGRAM_BOT_TOKEN=
+      KOLIBRI_SMTP_URL: ""
+      KOLIBRI_PUSH: "false"
+      KOLIBRI_TELEGRAM_BOT_TOKEN: ""
 
       # No key, so the task-review button does not appear and nothing typed
       # into this instance can leave it for a model. See docs/ai.md.
-      - ANTHROPIC_API_KEY=
-      - GEMINI_API_KEY=
-      - OPENROUTER_API_KEY=
+      ANTHROPIC_API_KEY: ""
+      GEMINI_API_KEY: ""
+      OPENROUTER_API_KEY: ""
 
       # Coolify's proxy is the only thing that reaches the container, so the
       # forwarded address is the real one — and rate limits are per address.
-      - KOLIBRI_TRUST_PROXY=true
+      KOLIBRI_TRUST_PROXY: "true"
 
       # A short trash window, because the reset is the real cleanup and a
       # tombstone that outlives its generation is a row nobody can reach.
-      - KOLIBRI_TRASH_DAYS=${KOLIBRI_TRASH_DAYS:-1}
+      KOLIBRI_TRASH_DAYS: "${KOLIBRI_TRASH_DAYS:-1}"
 
-      - KOLIBRI_WORKSPACE_NAME=${KOLIBRI_WORKSPACE_NAME:-Kolibri}
-      - KOLIBRI_DEFAULT_LOCALE=${KOLIBRI_DEFAULT_LOCALE:-en}
-      - KOLIBRI_LOG_LEVEL=${KOLIBRI_LOG_LEVEL:-info}
+      KOLIBRI_WORKSPACE_NAME: "${KOLIBRI_WORKSPACE_NAME:-Kolibri}"
+      KOLIBRI_DEFAULT_LOCALE: "${KOLIBRI_DEFAULT_LOCALE:-en}"
+      KOLIBRI_LOG_LEVEL: "${KOLIBRI_LOG_LEVEL:-info}"
       # A short session, because everyone signs in as the same person and a
       # sixty-day cookie on a shared account is a sixty-day shared cookie.
-      - KOLIBRI_SESSION_DAYS=${KOLIBRI_SESSION_DAYS:-1}
+      KOLIBRI_SESSION_DAYS: "${KOLIBRI_SESSION_DAYS:-1}"
       # A generation's signing key. Left empty it is generated into the volume;
       # the wipe does not touch it, so sessions survive a reset.
-      - KOLIBRI_SECRET=${KOLIBRI_SECRET:-}
+      KOLIBRI_SECRET: "${KOLIBRI_SECRET:-}"
 
     # A reset stops the server for a few seconds, so the check has to tolerate
     # more than one failed probe or the platform restarts a container that is

@@ -324,6 +324,15 @@ that list precisely because they are meant to be read.
 in step, so change them together — a page that promises a nightly reset on an instance that never
 resets is worse than one that promises nothing.
 
+**If a deploy fails with `non-string key in services.<name>.environment: 0`**, the `environment:`
+block has been written as a *list* somewhere. Coolify rewrites the compose file before it builds,
+and its rewriter turns a list of `KEY=value` strings into a map — a bare entry with no `=`, which
+is how Coolify's own documentation spells `SERVICE_FQDN_`, has no key to convert to, so the array
+index survives as one. Compose then refuses the whole file. Both site files and the demo file
+therefore write `environment:` as a mapping with an explicit `""`, which no rewriter can
+index-key. `docker compose config -f <file>` reproduces the error without a daemon and is the
+fastest way to check a change to any of them.
+
 ### Two checks before you deploy either site
 
 ```bash
