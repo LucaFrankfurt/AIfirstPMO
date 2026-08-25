@@ -245,27 +245,51 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 ### Reports
 
 Six aggregations that were answerable before only by pulling the backlog and doing the arithmetic
-in the model. Each takes an optional `project` — a key or a name — and answers for the whole
-workspace without one. All are read-only, so a `scopes: "read"` token may call every one.
+in the model. All are read-only, so a `scopes: "read"` token may call every one.
+
+**They are workspace tools, and `project` narrows them.** That is the default because the questions
+are: *who is overloaded* is a question about a person, and a person works in several projects;
+*what is going to slip this fortnight* is a question about a fortnight, not about a board. Passing a
+`project` — a key or a name — scopes the answer to it. Every reply says which it gave you:
+
+```json
+{ "scope": "workspace", "project": null, "projects": ["API", "MOB", "WEB"] }
+{ "scope": "project",   "project": "WEB", "projects": ["WEB"] }
+```
+
+Every row names the project it is in, and every workspace-wide answer carries a `by_project` count
+beside the list — so *which project is on fire* is answered rather than left to be re-aggregated.
+Do not read the project off the front of `WEB-42`: an identifier is a label, and the field is there
+on both paths.
 
 Each returns a **reason**, not just a list. That is the whole point of them: *overdue* is a fact
 anybody can compute from a due date, and *"due Thursday, still in Backlog, nobody on it"* is the
 sentence somebody acts on.
 
-| Tool | Answers |
-|---|---|
-| `changes_since` | What happened in a window — `days`, default 7. Grouped by person and by kind of change, with what was finished, what was filed, and the ten tasks that moved most |
-| `deadlines_at_risk` | Dated work unlikely to land inside `days` (default 14), each tagged `overdue`, `blocked`, `not_started` or `unassigned`, with the blockers named and a `severity` to sort on |
-| `workload` | Open work per person: count, overdue, due this week, unestimated, points, and their most urgent item. Unassigned work is a bucket of its own rather than hidden |
-| `blocked_tasks` | What is waiting on what — and, separately, `stale_links`: relations whose blocker is already finished, which nobody remembers to remove |
-| `stale_tasks` | Tasks in an in-progress state untouched for `days` (default 14), with how long each has been quiet |
-| `cycle_review` | A cycle's outcome: planned against completed, what carried over, what was cancelled, and what was **added after the start date** — the thing a burn-down hides and a retro needs |
+| Tool | Answers | Without a `project` |
+|---|---|---|
+| `changes_since` | What happened in a window — `days`, default 7. Grouped by person and by kind of change, with what was finished, what was filed, and the ten tasks that moved most | The whole workspace, plus workspace-level activity that belongs to no project |
+| `deadlines_at_risk` | Dated work unlikely to land inside `days` (default 14), each tagged `overdue`, `blocked`, `not_started` or `unassigned`, with the blockers named and a `severity` to sort on | Every project at once — which is the only way to see a person's real week |
+| `workload` | Open work per person: count, overdue, due this week, unestimated, points, and their most urgent item. Unassigned work is a bucket of its own rather than hidden | Each person's load **split by project**: eight tasks in one project and eight across five are different weeks |
+| `blocked_tasks` | What is waiting on what — and, separately, `stale_links`: relations whose blocker is already finished, which nobody remembers to remove | Cross-project blockers included, each flagged `in_another_project` |
+| `stale_tasks` | Tasks in an in-progress state untouched for `days` (default 14), with how long each has been quiet | Every project |
+| `cycle_review` | A cycle's outcome: planned against completed, what carried over, what was cancelled, and what was **added after the start date** — the thing a burn-down hides and a retro needs | **Every cycle running right now**, one review each and a workspace total. A `cycle` name matches across projects, which is what a team running one shared fortnight wants |
 
-Three details worth knowing before you trust a number:
+A note on `cycle_review`, because it is the one that differs in kind: a cycle belongs to a project,
+so a workspace-wide review is several reviews and a sum rather than one cycle spanning projects —
+which is not a thing this app has. It always answers `{ cycles: [...], totals: {...} }`, one entry
+per cycle, whether you named a project or not.
+
+It is also the only one that can refuse. Naming a project with no cycle running is an error,
+because the caller asked for something specific and got nothing; a workspace with no cycle running
+anywhere is an ordinary Tuesday, and the honest reply is an empty list.
+
+Three more details worth knowing before you trust a number:
 
 - **A private project the token cannot see is absent from every one of them**, including from the
-  aggregate counts. A total that moved when a private task changed would say something about that
-  task, so the projects are resolved once, in one place, rather than per tool.
+  aggregate counts and from `projects`. A total that moved when a private task changed would say
+  something about that task, so the projects are resolved once, in one place, rather than per tool.
+  Asking for one by name is refused rather than answered emptily.
 - **`changes_since` counts finished and filed work from the tasks, not from the activity log.** A
   task completed offline syncs carrying the moment it was completed; counting log rows would date
   it to when the connection came back. It also means the two lists are right on a workspace that
@@ -275,17 +299,22 @@ Three details worth knowing before you trust a number:
   much is on you". It also flags anyone still holding work who has left the workspace.
 
 ```json
-{ "name": "deadlines_at_risk", "arguments": { "project": "WEB", "days": 7 } }
+{ "name": "deadlines_at_risk", "arguments": { "days": 7 } }
 ```
 
 ```json
 {
   "horizon_days": 7,
-  "counts": { "overdue": 1, "not_started": 3 },
+  "scope": "workspace",
+  "project": null,
+  "projects": ["API", "MOB", "WEB"],
+  "counts": { "overdue": 3, "not_started": 7 },
+  "by_project": { "WEB": 4, "API": 3, "MOB": 3 },
   "at_risk": [
     {
       "identifier": "WEB-3",
       "title": "Ship dark mode across the marketing site",
+      "project": "WEB",
       "state": "Todo",
       "assignee_names": ["Grace Hopper"],
       "due_date": "2026-08-24",

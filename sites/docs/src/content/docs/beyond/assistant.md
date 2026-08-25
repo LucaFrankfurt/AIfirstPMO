@@ -73,6 +73,21 @@ people actually open a tracker to ask — and each answers with a **reason** rat
 | *"What has gone quiet?"* | `stale_tasks` — in progress and untouched for a fortnight |
 | *"How did the sprint go?"* | `cycle_review` — planned against completed, what carried over, and what was added after it started |
 
+**They answer for the whole workspace by default**, and that is the right default rather than a
+convenience: *who is overloaded* is a question about a person, and a person works in several
+projects at once; *what is going to slip this fortnight* is a question about a fortnight, not about
+one board. Naming a project narrows any of them, and the reply always says which you got.
+
+That matters most in two places. `workload` splits each person's load **by project** — eight tasks
+in one project and eight across five are different weeks, and a single number says they are the
+same. And `blocked_tasks` includes blockers that live in *another* project, flagged as such,
+because a task held up by something on a board you were not looking at is exactly the one nobody
+notices.
+
+`cycle_review` is the one that differs in kind. A cycle belongs to a project, so asked about the
+whole workspace it reviews **every cycle running right now**, one each, and totals them — which is
+what a team running the same fortnight across three projects actually wants.
+
 All six are read-only, so a read-only token can call every one of them. And none of them can see a
 private project you are not in — not merely *list* nothing from it, but count nothing from it
 either, because a total that moved when a private task changed would say something about that

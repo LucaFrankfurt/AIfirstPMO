@@ -162,9 +162,11 @@ Tools: `list_workspaces`, `list_projects`, `create_project`, `update_project`, `
 `list_pages`, `get_page`, `create_page`, `update_page`, `list_members`, `list_states`,
 `create_state`, `update_state`, `list_labels`, `create_label`, `update_label`, `project_status`,
 `my_work`, `log_time`, `list_time`, and six read-only reports — `changes_since`,
-`deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review` — each of which
-answers with a *reason* rather than a list, because "overdue" is a fact anybody can compute and
-"due Thursday, still in Backlog, nobody on it" is the sentence somebody acts on.
+`deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review` — which answer for
+the **whole workspace** unless narrowed to a project, because who is overloaded is a question about
+a person and a person works in several. Each answers with a *reason* rather than a list: "overdue"
+is a fact anybody can compute, and "due Thursday, still in Backlog, nobody on it" is the sentence
+somebody acts on.
 Prompts: `standup`, `sprint_planning`, `triage`.
 
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant

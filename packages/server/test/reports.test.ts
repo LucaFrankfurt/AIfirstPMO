@@ -224,7 +224,14 @@ describe('mcp reports', () => {
   });
 
   it('cycle_review says which cycle it means, and refuses when there is none', async () => {
+    // Named a project and got nothing: an error, because the caller asked for
+    // something specific.
     await assert.rejects(() => tool(readToken, 'cycle_review', { project: 'WEB' }), /No cycle is running/);
+    // Asked the workspace and got nothing: an ordinary Tuesday, answered.
+    const quiet = await tool(readToken, 'cycle_review', {});
+    assert.equal(quiet.scope, 'workspace');
+    assert.deepEqual(quiet.cycles, []);
+    assert.equal(quiet.totals.cycles, 0);
 
     const cycle = await api(`/api/workspaces/${workspaceId}/cycles`, {
       body: { project_id: projectId, name: 'Sprint 1', start_date: isoDay(-2), end_date: isoDay(5) },
@@ -234,15 +241,82 @@ describe('mcp reports', () => {
     }
 
     const review = await tool(readToken, 'cycle_review', { project: 'WEB' });
-    assert.equal(review.cycle.name, 'Sprint 1');
-    assert.equal(review.totals.tasks, 2);
-    assert.equal(review.totals.completed, 1);
-    assert.equal(review.totals.carried, 1);
-    assert.equal(review.finished, false, 'a cycle ending in five days has not finished');
-    assert.equal(review.carried_over[0].identifier, tasks.overdue.identifier);
+    assert.equal(review.scope, 'project');
+    assert.equal(review.cycles.length, 1);
+    const first = review.cycles[0];
+    assert.equal(first.cycle.name, 'Sprint 1');
+    assert.equal(first.project, 'WEB');
+    assert.equal(first.totals.tasks, 2);
+    assert.equal(first.totals.completed, 1);
+    assert.equal(first.totals.carried, 1);
+    assert.equal(first.finished, false, 'a cycle ending in five days has not finished');
+    assert.equal(first.carried_over[0].identifier, tasks.overdue.identifier);
     // Both were created before the cycle row existed, but *after* its start
     // date, which is what "added after start" means to a burn-up.
-    assert.equal(review.added_after_start.length, 2);
+    assert.equal(first.added_after_start.length, 2);
+
+    // The same cycle found without naming a project, and totalled.
+    const across = await tool(readToken, 'cycle_review', {});
+    assert.equal(across.scope, 'workspace');
+    assert.equal(across.cycles.length, 1);
+    assert.equal(across.totals.cycles, 1);
+    assert.equal(across.totals.tasks, 2);
+    assert.equal(across.totals.completed, 1);
+  });
+
+  /**
+   * The workspace is a first-class scope, not the absence of a project.
+   *
+   * Two projects, work in both, and one call. Every row has to name the
+   * project it is in — reading it off the front of `WEB-42` happens to work
+   * and is not something a caller should have to rely on — and the answer has
+   * to carry a per-project count, or "which project is on fire" is a question
+   * the caller re-aggregates by hand.
+   */
+  it('answers for the whole workspace, and says which project each row is in', async () => {
+    const second = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name: 'Mobile app', key: 'MOB' } });
+    const mobStates = await api(`/api/workspaces/${workspaceId}/states?project_id=${second.id}`);
+    const late = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: {
+        project_id: second.id, title: 'Late in the other project', due_date: isoDay(-4),
+        state_id: mobStates.find((s: any) => s.group_key === 'started').id, assignees: [ada],
+      },
+    });
+
+    const risk = await tool(readToken, 'deadlines_at_risk', {});
+    assert.equal(risk.scope, 'workspace');
+    assert.equal(risk.project, null);
+    // Inclusive rather than exact: registering also seeds a "Getting started"
+    // project, and a test that pins the whole list breaks the day the bootstrap
+    // changes something this report does not care about.
+    for (const key of ['MOB', 'WEB']) assert.ok(risk.projects.includes(key), `${key} is missing from the scope`);
+
+    const ids = risk.at_risk.map((t: any) => t.identifier);
+    assert.ok(ids.includes(late.identifier), 'the other project is in a workspace-wide answer');
+    assert.ok(ids.includes(tasks.overdue.identifier), 'and so is the first one');
+
+    // Every row names its project, and none of them leaks an internal id.
+    for (const task of risk.at_risk) {
+      assert.ok(task.project, `row ${task.identifier} does not name its project`);
+      assert.equal(task.project, task.identifier.split('-')[0], 'the named project disagrees with the identifier');
+      assert.equal(task.project_id, undefined, 'the grouping id is not part of the answer');
+    }
+    assert.equal(risk.by_project.MOB, 1);
+    assert.ok(risk.by_project.WEB >= 1);
+
+    // Narrowing to one project excludes the other, and says so.
+    const narrowed = await tool(readToken, 'deadlines_at_risk', { project: 'MOB' });
+    assert.equal(narrowed.scope, 'project');
+    assert.equal(narrowed.project, 'MOB');
+    assert.deepEqual(narrowed.at_risk.map((t: any) => t.identifier), [late.identifier]);
+
+    // And the person-level report splits a workload across projects, because
+    // eight tasks in one project and eight across five are different weeks.
+    const load = await tool(readToken, 'workload', {});
+    const adaRow = load.people.find((p: any) => p.user_id === ada);
+    assert.equal(adaRow.by_project.MOB, 1);
+    assert.ok(adaRow.by_project.WEB >= 1);
+    assert.ok(load.by_project.MOB >= 1);
   });
 
   /**

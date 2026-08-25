@@ -120,20 +120,47 @@ function findProject(ref: string, workspaceId: string, ctx: McpCtx): Row {
 function reportScope(
   args: Record<string, any>,
   ctx: McpCtx,
-): { workspaceId: string; projectIds: string[]; project: Row | null } {
+): { workspaceId: string; projectIds: string[]; project: Row | null; keyOf: Record<string, string> } {
   const workspaceId = workspaceOf(args, ctx);
   const ref = str(args.project);
   // `findProject` refuses a project this token cannot see, so the single-project
   // path needs no second check.
-  if (ref) {
-    const project = findProject(ref, workspaceId, ctx);
-    return { workspaceId, projectIds: [String(project.id)], project };
-  }
+  const projectIds = ref
+    ? [String(findProject(ref, workspaceId, ctx).id)]
+    : [...visibleProjectIds(ctx.auth.userId, workspaceId)];
+
+  /* The key of every project in scope, resolved here so a workspace-wide
+     answer can say which project each row is in. Reading it off the front of
+     `WEB-42` happens to work today and is not something a caller should have
+     to rely on: an identifier is a label, not a foreign key. */
+  const keyOf = Object.fromEntries(
+    projectIds.length
+      ? all<Row>(`SELECT id, key FROM projects WHERE id IN (${holes(projectIds.length)})`, ...projectIds)
+          .map((r) => [String(r.id), String(r.key)])
+      : [],
+  );
   return {
     workspaceId,
-    projectIds: [...visibleProjectIds(ctx.auth.userId, workspaceId)],
-    project: null,
+    projectIds,
+    project: ref ? get<Row>(`SELECT * FROM projects WHERE id = ?`, projectIds[0]) ?? null : null,
+    keyOf,
   };
+}
+
+/**
+ * Count something per project, keyed by the key people type rather than by id.
+ *
+ * Every workspace-wide report carries one. Without it the answer to "which
+ * project is on fire" is a list the caller has to re-aggregate, which is the
+ * work these tools exist to have already done.
+ */
+function perProject<T>(rows: T[], keyOf: Record<string, string>, idOf: (row: T) => string): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const row of rows) {
+    const key = keyOf[idOf(row)];
+    if (key) out[key] = (out[key] ?? 0) + 1;
+  }
+  return out;
 }
 
 /** `?, ?, ?` for an `IN` list. Never called with zero — see `reportScope` users. */
@@ -160,11 +187,15 @@ function windowDays(raw: unknown, fallback: number): number {
  * over a missing name — but an assistant asked to write a standup can only
  * quote a uuid, which is the same as not knowing who.
  */
-const brief = (row: Row, names: Record<string, string> = {}) => {
+const brief = (row: Row, names: Record<string, string> = {}, keyOf: Record<string, string> = {}) => {
   const assignees = safeList(row.assignees);
   return {
     identifier: row.identifier,
     title: row.title,
+    // Named on every row, not only when the report spans projects: a caller
+    // that has to branch on whether the field is there will read it wrong on
+    // one of the two paths.
+    project: keyOf[String(row.project_id ?? '')] ?? null,
     state: row.state_name ?? get<Row>(`SELECT name FROM states WHERE id = ?`, row.state_id)?.name ?? null,
     priority: row.priority,
     assignees,
@@ -2382,11 +2413,19 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      const { workspaceId, projectIds, project } = reportScope(args, ctx);
+      const { workspaceId, projectIds, project, keyOf } = reportScope(args, ctx);
       const days = windowDays(args.days, 7);
       const since = Date.now() - days * 86_400_000;
-      const empty = { window_days: days, since: new Date(since).toISOString(), project: project?.key ?? null };
-      if (!projectIds.length) return { ...empty, total: 0, by_person: {}, by_kind: {}, completed: [], created: [], busiest_tasks: [] };
+      const empty = {
+        window_days: days,
+        since: new Date(since).toISOString(),
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) {
+        return { ...empty, total: 0, by_person: {}, by_kind: {}, by_project: {}, completed: [], created: [], busiest_tasks: [] };
+      }
 
       /* Activity with no project is workspace-level — a page outside any
          project, most often — and belongs in a workspace-wide answer and not
@@ -2425,7 +2464,7 @@ const TOOLS: ToolDef[] = [
         .slice(0, 10)
         .map(([id, count]) => {
           const task = get<Row>(`SELECT * FROM tasks WHERE id = ? AND deleted_at IS NULL`, id);
-          return task ? { ...brief(task, names), changes: count } : null;
+          return task ? { ...brief(task, names, keyOf), changes: count } : null;
         })
         .filter(Boolean);
 
@@ -2452,8 +2491,12 @@ const TOOLS: ToolDef[] = [
         truncated: rows.length === 5000,
         by_person: byPerson,
         by_kind: tally((r) => (r.field ? `${r.verb}:${r.field}` : String(r.verb))),
-        completed: completed.map((row) => brief(row, taskNames)),
-        created: created.map((row) => brief(row, taskNames)),
+        by_project: {
+          completed: perProject(completed, keyOf, (r) => String(r.project_id)),
+          created: perProject(created, keyOf, (r) => String(r.project_id)),
+        },
+        completed: completed.map((row) => brief(row, taskNames, keyOf)),
+        created: created.map((row) => brief(row, taskNames, keyOf)),
         busiest_tasks: busiest,
       };
     },
@@ -2474,9 +2517,15 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      const { projectIds, project } = reportScope(args, ctx);
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
       const days = windowDays(args.days, 14);
-      if (!projectIds.length) return { horizon_days: days, project: project?.key ?? null, at_risk: [], counts: {} };
+      const head = {
+        horizon_days: days,
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, counts: {}, by_project: {}, at_risk: [] };
 
       /* Open, dated, and either already past or inside the horizon. `archived`
          is excluded because an archived task is one somebody has decided about;
@@ -2492,7 +2541,7 @@ const TOOLS: ToolDef[] = [
           ORDER BY t.due_date`,
         ...projectIds, days,
       );
-      if (!rows.length) return { horizon_days: days, project: project?.key ?? null, at_risk: [], counts: {} };
+      if (!rows.length) return { ...head, counts: {}, by_project: {}, at_risk: [] };
 
       /* Unfinished blockers, in one query rather than one per task. A `blocks`
          row is stored in one direction only — `task_id` blocks
@@ -2534,7 +2583,8 @@ const TOOLS: ToolDef[] = [
         if (!assignees.length) reasons.push('unassigned');
 
         return {
-          ...brief(row, names),
+          ...brief(row, names, keyOf),
+          project_id: String(row.project_id),
           days_until_due: until,
           reasons,
           blocked_by: blocked,
@@ -2552,7 +2602,14 @@ const TOOLS: ToolDef[] = [
 
       const counts: Record<string, number> = {};
       for (const task of at_risk) for (const reason of task.reasons) counts[reason] = (counts[reason] ?? 0) + 1;
-      return { horizon_days: days, project: project?.key ?? null, counts, at_risk };
+      return {
+        ...head,
+        counts,
+        by_project: perProject(at_risk, keyOf, (t) => t.project_id),
+        // `project_id` was carried only to group by; the key is what a caller
+        // reads, and it is already on every row.
+        at_risk: at_risk.map(({ project_id, ...rest }) => rest),
+      };
     },
   },
 
@@ -2570,8 +2627,13 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      const { workspaceId, projectIds, project } = reportScope(args, ctx);
-      if (!projectIds.length) return { project: project?.key ?? null, people: [], unassigned: null };
+      const { workspaceId, projectIds, project, keyOf } = reportScope(args, ctx);
+      const head = {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, people: [], unassigned: null, by_project: {} };
 
       const rows = all<Row>(
         `SELECT t.*, s.name AS state_name FROM tasks t JOIN states s ON s.id = t.state_id
@@ -2584,7 +2646,14 @@ const TOOLS: ToolDef[] = [
       const today = new Date().toISOString().slice(0, 10);
       const weekEnd = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
       const names = assigneeNames(rows);
-      const blank = () => ({ open: 0, overdue: 0, due_this_week: 0, unestimated: 0, points: 0, most_urgent: null as any });
+      const blank = () => ({
+        open: 0, overdue: 0, due_this_week: 0, unestimated: 0, points: 0,
+        // Which projects this person's open work is spread across. Somebody
+        // with eight tasks in one project and somebody with eight across five
+        // are carrying different weeks, and the count alone says they are not.
+        by_project: {} as Record<string, number>,
+        most_urgent: null as any,
+      });
       const buckets = new Map<string, ReturnType<typeof blank>>();
       const unassigned = blank();
 
@@ -2599,12 +2668,14 @@ const TOOLS: ToolDef[] = [
           return buckets.get(id)!;
         }) : [unassigned]) {
           target.open += 1;
+          const key = keyOf[String(row.project_id)];
+          if (key) target.by_project[key] = (target.by_project[key] ?? 0) + 1;
           if (due && due < today) target.overdue += 1;
           if (due && due >= today && due <= weekEnd) target.due_this_week += 1;
           if (row.estimate == null) target.unestimated += 1;
           else target.points += Number(row.estimate);
           const current = target.most_urgent;
-          if (due && (!current?.due_date || due < current.due_date)) target.most_urgent = brief(row, names);
+          if (due && (!current?.due_date || due < current.due_date)) target.most_urgent = brief(row, names, keyOf);
         }
       }
 
@@ -2614,7 +2685,8 @@ const TOOLS: ToolDef[] = [
           .map((r) => String(r.user_id)),
       );
       return {
-        project: project?.key ?? null,
+        ...head,
+        by_project: perProject(rows, keyOf, (r) => String(r.project_id)),
         people: [...buckets.entries()]
           .map(([id, stats]) => ({
             user_id: id,
@@ -2644,8 +2716,13 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      const { projectIds, project } = reportScope(args, ctx);
-      if (!projectIds.length) return { project: project?.key ?? null, blocked: [], stale_links: [] };
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
+      const head = {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, by_project: {}, blocked: [], stale_links: [] };
 
       /* Both sides in one query. `w` is the task that waits — a `blocks` row
          reads `task_id` blocks `related_task_id` — and the join to the blocker
@@ -2654,9 +2731,10 @@ const TOOLS: ToolDef[] = [
          task as unblocked. */
       const rows = all<Row>(
         `SELECT w.id AS waiting_id, w.identifier AS waiting, w.title AS waiting_title,
-                w.due_date, w.priority, w.assignees, w.estimate, w.state_id,
+                w.due_date, w.priority, w.assignees, w.estimate, w.state_id, w.project_id,
+                ws.name AS waiting_state,
                 b.identifier AS blocker, b.title AS blocker_title, b.due_date AS blocker_due,
-                bs.name AS blocker_state, bs.group_key AS blocker_group, r.lag
+                b.project_id AS blocker_project, bs.name AS blocker_state, bs.group_key AS blocker_group, r.lag
            FROM task_relations r
            JOIN tasks w ON w.id = r.related_task_id
            JOIN tasks b ON b.id = r.task_id
@@ -2680,6 +2758,13 @@ const TOOLS: ToolDef[] = [
           state: String(row.blocker_state),
           due_date: row.blocker_due ?? null,
           lag_days: Number(row.lag ?? 0),
+          /* Named even when it is a project this token cannot otherwise read.
+             Work is routinely held up by a task in another project, and a
+             blocker reported as belonging to nothing is a blocker nobody can
+             go and ask about — the identifier is already visible either way,
+             because it is what the waiting task points at. */
+          project: keyOf[String(row.blocker_project ?? '')] ?? null,
+          in_another_project: String(row.blocker_project) !== String(row.project_id),
         };
         const done = row.blocker_group === 'completed' || row.blocker_group === 'cancelled';
         if (done) {
@@ -2687,16 +2772,22 @@ const TOOLS: ToolDef[] = [
           continue;
         }
         const entry = blocked.get(String(row.waiting_id)) ?? {
-          ...brief({ ...row, id: row.waiting_id, identifier: row.waiting, title: row.waiting_title }, names),
+          ...brief(
+            { ...row, id: row.waiting_id, identifier: row.waiting, title: row.waiting_title, state_name: row.waiting_state },
+            names, keyOf,
+          ),
+          project_id: String(row.project_id),
           blocked_by: [] as typeof link[],
         };
         entry.blocked_by.push(link);
         blocked.set(String(row.waiting_id), entry);
       }
 
+      const waiting = [...blocked.values()];
       return {
-        project: project?.key ?? null,
-        blocked: [...blocked.values()],
+        ...head,
+        by_project: perProject(waiting, keyOf, (t) => t.project_id),
+        blocked: waiting.map(({ project_id, ...rest }) => rest),
         // Not an error, and not something to fix automatically — somebody may
         // be about to reopen the blocker. It is a list worth reading.
         stale_links: stale,
@@ -2719,9 +2810,15 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      const { projectIds, project } = reportScope(args, ctx);
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
       const days = windowDays(args.days, 14);
-      if (!projectIds.length) return { quiet_for_days: days, project: project?.key ?? null, stale: [] };
+      const head = {
+        quiet_for_days: days,
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, by_project: {}, stale: [] };
 
       const cutoff = Date.now() - days * 86_400_000;
       const rows = all<Row>(
@@ -2737,10 +2834,10 @@ const TOOLS: ToolDef[] = [
       const now = Date.now();
       const names = assigneeNames(rows);
       return {
-        quiet_for_days: days,
-        project: project?.key ?? null,
+        ...head,
+        by_project: perProject(rows, keyOf, (r) => String(r.project_id)),
         stale: rows.map((row) => ({
-          ...brief(row, names),
+          ...brief(row, names, keyOf),
           // `updated_at` is when the change was *made*, not when it synced, so
           // this stays true for work done on a device that was offline.
           silent_days: Math.floor((now - Number(row.updated_at)) / 86_400_000),
@@ -2753,74 +2850,118 @@ const TOOLS: ToolDef[] = [
     name: 'cycle_review',
     title: 'How a cycle went',
     description:
-      'What a cycle held, what got finished, what did not, and what was added after it started. Defaults to the cycle running now. Retro material rather than a progress bar.',
+      'What a cycle held, what got finished, what did not, and what was added after it started. Given a project it reviews that project\'s cycle; without one it reviews every cycle running across the workspace and totals them. Retro material rather than a progress bar.',
     readOnly: true,
     schema: {
       type: 'object',
-      required: ['project'],
       properties: {
-        project: { type: 'string', description: 'Key or name.' },
-        cycle: { type: 'string', description: 'Cycle name or id. Default the one running now.' },
+        project: { type: 'string', description: 'Key or name. Omitted, every project with a cycle running.' },
+        cycle: { type: 'string', description: 'Cycle name or id. Default the one running now. A name matches across projects.' },
         workspace_id: { type: 'string' },
       },
     },
     run: (args, ctx) => {
-      const workspaceId = workspaceOf(args, ctx);
-      const project = findProject(String(args.project ?? ''), workspaceId, ctx);
-
+      const { projectIds, project, keyOf } = reportScope(args, ctx);
       const ref = str(args.cycle);
-      const cycle = ref
-        ? get<Row>(
-            `SELECT * FROM cycles WHERE project_id = ? AND deleted_at IS NULL AND (id = ? OR lower(name) = lower(?))`,
-            project.id, ref, ref,
+      const head = {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+      };
+      if (!projectIds.length) return { ...head, cycles: [], totals: null };
+
+      /* Cycles are per project, so a workspace-wide review is several reviews
+         and a sum — not one cycle spanning projects, which is not a thing this
+         app has. Teams that run a shared fortnight give the cycle the same name
+         in each project, so a `cycle` name matches across all of them; without
+         a name it is whichever cycle each project has running now. */
+      const cycles = ref
+        ? all<Row>(
+            `SELECT * FROM cycles WHERE project_id IN (${holes(projectIds.length)}) AND deleted_at IS NULL
+               AND (id = ? OR lower(name) = lower(?))
+             ORDER BY start_date`,
+            ...projectIds, ref, ref,
           )
-        : get<Row>(
-            `SELECT * FROM cycles WHERE project_id = ? AND deleted_at IS NULL
-               AND start_date <= date('now') AND end_date >= date('now') LIMIT 1`,
-            project.id,
+        : all<Row>(
+            `SELECT * FROM cycles WHERE project_id IN (${holes(projectIds.length)}) AND deleted_at IS NULL
+               AND start_date <= date('now') AND end_date >= date('now')
+             ORDER BY start_date`,
+            ...projectIds,
           );
-      if (!cycle) {
-        throw new McpError(ref ? `No cycle called "${ref}" in ${project.key}` : `No cycle is running in ${project.key} right now`);
+
+      if (!cycles.length) {
+        /* A project asked for by name that has no cycle is an error, because
+           the caller named something specific and got nothing. A workspace
+           with no cycle running anywhere is an ordinary Tuesday, and answering
+           with an empty list is the truthful reply. */
+        if (project) {
+          throw new McpError(
+            ref ? `No cycle called "${ref}" in ${project.key}` : `No cycle is running in ${project.key} right now`,
+          );
+        }
+        return { ...head, cycles: [], totals: { cycles: 0, tasks: 0, completed: 0, cancelled: 0, carried: 0, points_planned: 0, points_completed: 0, unestimated: 0 } };
       }
 
-      const rows = all<Row>(
-        `SELECT t.*, s.name AS state_name, s.group_key FROM tasks t JOIN states s ON s.id = t.state_id
-          WHERE t.cycle_id = ? AND t.deleted_at IS NULL`,
-        cycle.id,
-      );
-      const done = rows.filter((r) => r.group_key === 'completed');
-      const cancelled = rows.filter((r) => r.group_key === 'cancelled');
-      const open = rows.filter((r) => r.group_key !== 'completed' && r.group_key !== 'cancelled');
+      const today = new Date().toISOString().slice(0, 10);
       const points = (list: Row[]) => list.reduce((sum, r) => sum + (r.estimate == null ? 0 : Number(r.estimate)), 0);
 
-      /* Scope added after the window opened. A cycle that grew mid-flight is
-         the single most useful thing a retro can be handed, and it is invisible
-         on a burn-down — which is why the app draws a burn-*up*. */
-      const startedAt = Date.parse(`${String(cycle.start_date)}T00:00:00Z`);
-      const addedLate = rows.filter((r) => Number(r.created_at) > startedAt);
-      const names = assigneeNames(rows);
+      const reviews = cycles.map((cycle) => {
+        const rows = all<Row>(
+          `SELECT t.*, s.name AS state_name, s.group_key FROM tasks t JOIN states s ON s.id = t.state_id
+            WHERE t.cycle_id = ? AND t.deleted_at IS NULL`,
+          cycle.id,
+        );
+        const done = rows.filter((r) => r.group_key === 'completed');
+        const cancelled = rows.filter((r) => r.group_key === 'cancelled');
+        const open = rows.filter((r) => r.group_key !== 'completed' && r.group_key !== 'cancelled');
+        const names = assigneeNames(rows);
+
+        /* Scope added after the window opened. A cycle that grew mid-flight is
+           the single most useful thing a retro can be handed, and it is
+           invisible on a burn-down — which is why the app draws a burn-*up*. */
+        const startedAt = Date.parse(`${String(cycle.start_date)}T00:00:00Z`);
+        const addedLate = rows.filter((r) => Number(r.created_at) > startedAt);
+
+        return {
+          project: keyOf[String(cycle.project_id)] ?? null,
+          cycle: { id: cycle.id, name: cycle.name, start_date: cycle.start_date, end_date: cycle.end_date },
+          finished: cycle.end_date ? String(cycle.end_date) < today : false,
+          totals: {
+            tasks: rows.length,
+            completed: done.length,
+            cancelled: cancelled.length,
+            carried: open.length,
+            points_planned: points(rows),
+            points_completed: points(done),
+            unestimated: rows.filter((r) => r.estimate == null).length,
+          },
+          completed: done.map((row) => brief(row, names, keyOf)),
+          // What has to go somewhere before the cycle closes.
+          carried_over: open.map((row) => brief(row, names, keyOf)),
+          cancelled: cancelled.map((row) => brief(row, names, keyOf)),
+          added_after_start: addedLate.map((row) => ({
+            ...brief(row, names, keyOf),
+            added_on: new Date(Number(row.created_at)).toISOString().slice(0, 10),
+          })),
+        };
+      });
+
+      const sum = (pick: (t: (typeof reviews)[number]['totals']) => number) =>
+        reviews.reduce((total, review) => total + pick(review.totals), 0);
 
       return {
-        project: project.key,
-        cycle: { id: cycle.id, name: cycle.name, start_date: cycle.start_date, end_date: cycle.end_date },
-        finished: cycle.end_date ? String(cycle.end_date) < new Date().toISOString().slice(0, 10) : false,
+        ...head,
         totals: {
-          tasks: rows.length,
-          completed: done.length,
-          cancelled: cancelled.length,
-          carried: open.length,
-          points_planned: points(rows),
-          points_completed: points(done),
-          unestimated: rows.filter((r) => r.estimate == null).length,
+          cycles: reviews.length,
+          tasks: sum((t) => t.tasks),
+          completed: sum((t) => t.completed),
+          cancelled: sum((t) => t.cancelled),
+          carried: sum((t) => t.carried),
+          points_planned: sum((t) => t.points_planned),
+          points_completed: sum((t) => t.points_completed),
+          unestimated: sum((t) => t.unestimated),
         },
-        completed: done.map((row) => brief(row, names)),
-        // What has to go somewhere before the cycle closes.
-        carried_over: open.map((row) => brief(row, names)),
-        cancelled: cancelled.map((row) => brief(row, names)),
-        added_after_start: addedLate.map((row) => ({
-          ...brief(row, names),
-          added_on: new Date(Number(row.created_at)).toISOString().slice(0, 10),
-        })),
+        cycles: reviews,
       };
     },
   },
