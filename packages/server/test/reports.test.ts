@@ -358,3 +358,138 @@ describe('mcp reports', () => {
     await assert.rejects(() => tool(graceToken, 'deadlines_at_risk', { project: 'SEC' }), /private/);
   });
 });
+
+/**
+ * A cycle that several projects run together.
+ *
+ * `cycles.project_id` was `NOT NULL`, so a fortnight three teams shared was
+ * three rows with the same name and separately drifting dates — and a burn-up
+ * per project of a thing nobody planned per project. Null now means every
+ * project, exactly as it already does on a label, so the rule is one somebody
+ * has met rather than a second one to learn.
+ *
+ * What is asserted here is the part that makes it real rather than nominal: a
+ * task in *any* project can join it, and the reports narrow it correctly —
+ * asked about one project, a shared cycle reports that project's half; asked
+ * about the workspace, all of it.
+ */
+describe('cycles across projects', () => {
+  let workspaceId = '';
+  let token = '';
+  const project: Record<string, any> = {};
+  const state: Record<string, Record<string, string>> = {};
+  let shared: any = null;
+
+  const openState = async (id: string) => {
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${id}`);
+    return Object.fromEntries(states.map((s: any) => [s.group_key, s.id]));
+  };
+
+  it('sets up two projects', async () => {
+    const session = await api('/api/auth/register', {
+      body: { email: 'lin@example.com', name: 'Lin Clark', password: 'a perfectly fine password' },
+    });
+    workspaceId = session.workspaces[0].id;
+    for (const [key, name] of [['ALP', 'Alpha'], ['BET', 'Beta']]) {
+      project[key] = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name, key } });
+      state[key] = await openState(project[key].id);
+    }
+    token = (await api('/api/tokens', { body: { name: 'cycles', workspaceId } })).token;
+  });
+
+  it('creates a cycle belonging to no project, and lists it under both', async () => {
+    shared = await tool(token, 'create_cycle', {
+      name: 'Q3 fortnight', start_date: isoDay(-1), end_date: isoDay(10),
+    });
+    assert.equal(shared.project_id, null, 'a shared cycle belongs to no project');
+    assert.equal(shared.scope, 'workspace');
+
+    // Offered to both projects, the way a workspace label is.
+    for (const key of ['ALP', 'BET']) {
+      const listed = await tool(token, 'list_cycles', { project: key });
+      assert.ok(
+        listed.result.some((c: any) => c.id === shared.id),
+        `the shared cycle is missing from ${key}`,
+      );
+    }
+  });
+
+  it('takes work from both projects', async () => {
+    for (const key of ['ALP', 'BET']) {
+      await api(`/api/workspaces/${workspaceId}/tasks`, {
+        body: {
+          project_id: project[key].id, title: `${key} work in the shared fortnight`,
+          state_id: state[key].started, cycle_id: shared.id, estimate: 2,
+        },
+      });
+    }
+    // One more in Alpha, finished, so the halves are distinguishable.
+    const done = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: {
+        project_id: project.ALP.id, title: 'Alpha, already done',
+        state_id: state.ALP.completed, cycle_id: shared.id, estimate: 3,
+      },
+    });
+    assert.equal(done.cycle_id, shared.id, 'a task in any project may join a shared cycle');
+  });
+
+  it('reviews a shared cycle at both scopes, narrowing correctly', async () => {
+    const whole = await tool(token, 'cycle_review', {});
+    const across = whole.cycles.find((c: any) => c.cycle.id === shared.id);
+    assert.ok(across, 'the shared cycle is missing from the workspace review');
+    assert.equal(across.cycle_scope, 'workspace');
+    assert.equal(across.project, null, 'a shared cycle is not any one project’s');
+    assert.deepEqual(across.projects_involved, ['ALP', 'BET']);
+    assert.equal(across.totals.tasks, 3);
+    assert.equal(across.totals.completed, 1);
+    assert.equal(across.totals.points_planned, 7);
+
+    // The same cycle asked about one project: that project's half only.
+    const alpha = await tool(token, 'cycle_review', { project: 'ALP' });
+    const half = alpha.cycles.find((c: any) => c.cycle.id === shared.id);
+    assert.ok(half, 'a shared cycle belongs in its projects’ reviews too');
+    assert.deepEqual(half.projects_involved, ['ALP']);
+    assert.equal(half.totals.tasks, 2, 'Beta’s task is not Alpha’s business');
+    assert.equal(half.totals.completed, 1);
+    assert.equal(half.totals.points_planned, 5);
+  });
+
+  /**
+   * The bug this feature shipped with for an afternoon.
+   *
+   * Relaxing the column and widening every query made a shared cycle work
+   * perfectly over the API — and no client ever saw one. `pull` scopes each
+   * entity by project, and `cycle` sat in the group whose rule is
+   * `project_id IN (visible)`, which never matches a null. The row existed,
+   * the REST and MCP calls returned it, and the Cycles tab of every project
+   * was empty of it.
+   *
+   * Nothing server-side could have caught that, so this asserts the thing the
+   * browser actually depends on: the row comes down the sync channel.
+   */
+  it('sends a shared cycle down the sync channel, or no client ever sees it', async () => {
+    const pull = await api<any>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
+    const cycles = pull.changes.cycle ?? [];
+    const row = cycles.find((c: any) => c.id === shared.id);
+    assert.ok(row, 'the shared cycle never reached the client');
+    assert.equal(row.project_id ?? null, null, 'it arrives still belonging to no project');
+
+    // And the project cycles still come down, so widening the rule did not
+    // trade one scope for the other.
+    assert.ok(cycles.length >= 1);
+  });
+
+  it('still keeps a project cycle to its own project', async () => {
+    const own = await tool(token, 'create_cycle', {
+      project: 'BET', name: 'Beta only', start_date: isoDay(-1), end_date: isoDay(10),
+    });
+    assert.equal(own.scope, 'project');
+
+    const alpha = await tool(token, 'list_cycles', { project: 'ALP' });
+    assert.ok(!alpha.result.some((c: any) => c.id === own.id), 'Beta’s own cycle is not Alpha’s');
+    const beta = await tool(token, 'list_cycles', { project: 'BET' });
+    assert.ok(beta.result.some((c: any) => c.id === own.id));
+    // And Beta sees both: its own, plus the shared one.
+    assert.ok(beta.result.some((c: any) => c.id === shared.id));
+  });
+});

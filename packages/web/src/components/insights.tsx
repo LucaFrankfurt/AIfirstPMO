@@ -277,7 +277,7 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   const tasks = useQuery(() => list('task', (task) => task.project_id === projectId && !task.archived), [projectId]);
   const labels = useQuery(() => list('label', (row) => !row.project_id || row.project_id === projectId), [projectId]);
   const entries = useQuery(() => list('timeEntry', (entry) => entry.project_id === projectId), [projectId]);
-  const cycles = useQuery(() => list('cycle', (cycle) => cycle.project_id === projectId), [projectId]);
+  const cycles = useQuery(() => list('cycle', (cycle) => !cycle.project_id || cycle.project_id === projectId), [projectId]);
 
   const stats = useMemo(() => {
     const done = tasks.filter(isDone);

@@ -35,7 +35,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
   const states = useStates(soleProject);
   const labels = useLabels(soleProject);
   const cycles = useQuery(
-    () => (soleProject ? list('cycle', (cycle) => cycle.project_id === soleProject) : []),
+    () => (soleProject ? list('cycle', (cycle) => !cycle.project_id || cycle.project_id === soleProject) : []),
     [soleProject],
   );
 

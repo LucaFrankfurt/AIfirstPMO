@@ -275,10 +275,25 @@ sentence somebody acts on.
 | `stale_tasks` | Tasks in an in-progress state untouched for `days` (default 14), with how long each has been quiet | Every project |
 | `cycle_review` | A cycle's outcome: planned against completed, what carried over, what was cancelled, and what was **added after the start date** — the thing a burn-down hides and a retro needs | **Every cycle running right now**, one review each and a workspace total. A `cycle` name matches across projects, which is what a team running one shared fortnight wants |
 
-A note on `cycle_review`, because it is the one that differs in kind: a cycle belongs to a project,
-so a workspace-wide review is several reviews and a sum rather than one cycle spanning projects —
-which is not a thing this app has. It always answers `{ cycles: [...], totals: {...} }`, one entry
-per cycle, whether you named a project or not.
+A note on `cycle_review`, because it is the one that differs in kind. It always answers
+`{ cycles: [...], totals: {...} }`, one entry per cycle, whether you named a project or not — a
+workspace review is several reviews and a sum.
+
+A cycle may belong to **one project or to none**, and one with none is a cycle every project runs:
+one fortnight several teams share rather than a copy of it in each. `create_cycle` makes one by
+leaving `project` out, exactly as `create_label` does. Each review says which kind it is:
+
+| Field | Means |
+|---|---|
+| `cycle_scope` | `project` or `workspace` |
+| `project` | The owning project's key, or `null` for a shared cycle |
+| `projects_involved` | The projects that actually put work in it — the answer a shared cycle's own row cannot give |
+
+A shared cycle appears in its projects' reviews as well as the workspace's, **narrowed to the
+projects in scope**: asked about `WEB`, "how did the shared fortnight go" means WEB's half of it;
+asked about the workspace, all of it. The progress bar in the interface is the other way round and
+deliberately so — a shared cycle shows the shared total on every project's tab, because the same
+cycle showing different numbers depending on where you opened it would be worse than either.
 
 It is also the only one that can refuse. Naming a project with no cycle running is an error,
 because the caller asked for something specific and got nothing; a workspace with no cycle running

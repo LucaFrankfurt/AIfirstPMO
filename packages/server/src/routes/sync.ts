@@ -62,13 +62,18 @@ function filterFor(entity: EntityName): string {
     case 'field':
     case 'fieldValue':
     case 'baseline':
-    case 'cycle':
     case 'module':
     case 'projectMember':
       return `AND ${table}.project_id IN (${VISIBLE_PROJECTS})`;
     case 'project':
       return `AND ${table}.id IN (${VISIBLE_PROJECTS})`;
     case 'label':
+    case 'cycle':
+      // A cycle with no project is one every project runs, exactly as a label
+      // with no project is one every project can wear — so it has to reach
+      // every device, and the strict rule above never matches a null. Left in
+      // that group it synced to nobody: the row existed on the server, the API
+      // returned it, and no client ever saw it.
     case 'view':
     case 'webhook':
     case 'share':

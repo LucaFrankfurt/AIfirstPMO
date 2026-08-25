@@ -51,6 +51,32 @@ trying to work out why it keeps under-delivering, it does — leave them where t
 new tasks instead.
 :::
 
+## One cycle, several projects
+
+A cycle normally belongs to one project. Tick **Share across every project** when you make one and
+it belongs to none of them — which means every project in the workspace can put work in it.
+
+That is for the case where one fortnight is genuinely shared: three teams, one planning meeting,
+one end date. Done as three separate cycles with the same name, the dates drift apart within a
+month and each project draws a burn-up of a thing nobody planned per project.
+
+| | A project cycle | A shared cycle |
+|---|---|---|
+| Appears in | Its project's Cycles tab | Every project's Cycles tab, marked **Shared** |
+| Work in it | That project's | Any project's |
+| Progress shown | Its own | The whole cycle's, on every tab — the same cycle showing different numbers depending on where you opened it would be worse |
+| Deleting it | Affects one project | Takes it out of all of them |
+
+**The scope is fixed when you create it.** There is no switch to move a running cycle between the
+two, because doing so would silently drop or adopt other projects' tasks — a change to your data
+wearing the clothes of a setting. If you need to change it, make the new one and move the work.
+
+:::note
+Exporting a project takes a shared cycle with it, and it arrives at the far end as an ordinary
+cycle of the imported project. That is the truth there: the other projects that shared it are not
+in the file.
+:::
+
 ## Cycles and modules are different questions
 
 A cycle answers *when*. A [module](/planning/modules/) answers *what is this part of*. A task

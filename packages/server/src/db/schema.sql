@@ -353,7 +353,10 @@ CREATE INDEX IF NOT EXISTS labels_seq ON labels (workspace_id, seq);
 CREATE TABLE IF NOT EXISTS cycles (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
-  project_id   TEXT NOT NULL,
+  -- Null means every project, the same way it does on a label: one fortnight
+  -- that several projects run together, rather than a copy of it in each with
+  -- the same name and separately drifting dates.
+  project_id   TEXT,
   name         TEXT NOT NULL,
   description  TEXT,
   start_date   TEXT,

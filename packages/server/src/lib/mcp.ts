@@ -392,7 +392,10 @@ const labelView = (row: Row): Record<string, unknown> => ({
 /** One cycle, as `list_cycles` and the writers both report it. */
 const cycleView = (row: Row): Record<string, unknown> => ({
   id: String(row.id),
-  project_id: String(row.project_id),
+  // Not `String(row.project_id)`: a workspace cycle has none, and stringifying
+  // it hands the caller the four characters `null` as if they were an id.
+  project_id: row.project_id ? String(row.project_id) : null,
+  scope: row.project_id ? 'project' : 'workspace',
   name: String(row.name),
   description: row.description ?? null,
   start_date: row.start_date ?? null,
@@ -1598,14 +1601,17 @@ const TOOLS: ToolDef[] = [
   {
     name: 'list_cycles',
     title: 'List cycles',
-    description: 'Sprints/cycles of a project with progress counts.',
+    description:
+      "Cycles with progress counts. Given a project: that project's own cycles plus the workspace-wide ones it can use. Without one: every cycle in the workspace.",
     readOnly: true,
     schema: { type: 'object', properties: { project: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
       return all<Row>(
-        `SELECT * FROM cycles WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} AND deleted_at IS NULL ORDER BY start_date DESC`,
+        // A cycle with no project is one every project runs, exactly as a label
+        // with no project is one every project can wear.
+        `SELECT * FROM cycles WHERE workspace_id = ? ${project ? 'AND (project_id IS NULL OR project_id = ?)' : ''} AND deleted_at IS NULL ORDER BY start_date DESC`,
         ...(project ? [workspaceId, project.id] : [workspaceId]),
       ).map((cycle) => ({
         ...cycleView(cycle),
@@ -1620,12 +1626,14 @@ const TOOLS: ToolDef[] = [
   {
     name: 'create_cycle',
     title: 'Create cycle',
-    description: 'Create a sprint/cycle for a project.',
+    description:
+      'Create a sprint/cycle. With a project it belongs to that project; without one it is a workspace cycle every project can put work in — one fortnight several teams run together, rather than a copy of it in each.',
     schema: {
       type: 'object',
-      required: ['project', 'name'],
+      required: ['name'],
       properties: {
-        project: { type: 'string' }, name: { type: 'string' },
+        project: { type: 'string', description: 'Key or name. Omit for a cycle every project can use.' },
+        name: { type: 'string' },
         start_date: { type: 'string' }, end_date: { type: 'string' },
         description: { type: 'string' }, workspace_id: { type: 'string' },
       },
@@ -1633,12 +1641,18 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const project = findProject(String(args.project), workspaceId, ctx);
+      const ref = str(args.project);
+      // Omitted rather than nulled: a workspace cycle is asked for by leaving
+      // the project out, which is how a workspace label is asked for too.
+      const project = ref ? findProject(ref, workspaceId, ctx) : null;
       const { row } = writeEntity('cycle', uid(), {
-        workspace_id: workspaceId, project_id: project.id, name: String(args.name),
+        workspace_id: workspaceId, project_id: project?.id ?? null, name: String(args.name),
         description: str(args.description) ?? null, start_date: str(args.start_date) ?? null, end_date: str(args.end_date) ?? null,
       }, writeOpts(workspaceId, ctx));
-      return serialize('cycle', row);
+      // `cycleView`, as `list_cycles` and `update_cycle` both return — so the
+      // shape an assistant gets back from creating one is the shape it will
+      // see again, `scope` included. It was `serialize` here alone.
+      return cycleView(row);
     },
   },
   {
@@ -2861,7 +2875,7 @@ const TOOLS: ToolDef[] = [
       },
     },
     run: (args, ctx) => {
-      const { projectIds, project, keyOf } = reportScope(args, ctx);
+      const { workspaceId, projectIds, project, keyOf } = reportScope(args, ctx);
       const ref = str(args.cycle);
       const head = {
         scope: project ? 'project' : 'workspace',
@@ -2875,18 +2889,22 @@ const TOOLS: ToolDef[] = [
          app has. Teams that run a shared fortnight give the cycle the same name
          in each project, so a `cycle` name matches across all of them; without
          a name it is whichever cycle each project has running now. */
+      /* `project_id IS NULL` is a workspace cycle — one fortnight several
+         projects run together. It belongs in a project's review as much as in
+         the workspace's, because that project's work is in it. */
+      const inScope = `(project_id IS NULL OR project_id IN (${holes(projectIds.length)}))`;
       const cycles = ref
         ? all<Row>(
-            `SELECT * FROM cycles WHERE project_id IN (${holes(projectIds.length)}) AND deleted_at IS NULL
+            `SELECT * FROM cycles WHERE workspace_id = ? AND ${inScope} AND deleted_at IS NULL
                AND (id = ? OR lower(name) = lower(?))
              ORDER BY start_date`,
-            ...projectIds, ref, ref,
+            workspaceId, ...projectIds, ref, ref,
           )
         : all<Row>(
-            `SELECT * FROM cycles WHERE project_id IN (${holes(projectIds.length)}) AND deleted_at IS NULL
+            `SELECT * FROM cycles WHERE workspace_id = ? AND ${inScope} AND deleted_at IS NULL
                AND start_date <= date('now') AND end_date >= date('now')
              ORDER BY start_date`,
-            ...projectIds,
+            workspaceId, ...projectIds,
           );
 
       if (!cycles.length) {
@@ -2906,10 +2924,15 @@ const TOOLS: ToolDef[] = [
       const points = (list: Row[]) => list.reduce((sum, r) => sum + (r.estimate == null ? 0 : Number(r.estimate)), 0);
 
       const reviews = cycles.map((cycle) => {
+        /* Narrowed to the projects in scope even for a workspace cycle. Asked
+           about WEB, "how did the shared fortnight go" means WEB's half of it;
+           asked about the workspace it means all of it. The same query answers
+           both because the scope is already resolved. */
         const rows = all<Row>(
           `SELECT t.*, s.name AS state_name, s.group_key FROM tasks t JOIN states s ON s.id = t.state_id
-            WHERE t.cycle_id = ? AND t.deleted_at IS NULL`,
-          cycle.id,
+            WHERE t.cycle_id = ? AND t.deleted_at IS NULL
+              AND t.project_id IN (${holes(projectIds.length)})`,
+          cycle.id, ...projectIds,
         );
         const done = rows.filter((r) => r.group_key === 'completed');
         const cancelled = rows.filter((r) => r.group_key === 'cancelled');
@@ -2923,7 +2946,12 @@ const TOOLS: ToolDef[] = [
         const addedLate = rows.filter((r) => Number(r.created_at) > startedAt);
 
         return {
-          project: keyOf[String(cycle.project_id)] ?? null,
+          project: cycle.project_id ? keyOf[String(cycle.project_id)] ?? null : null,
+          cycle_scope: cycle.project_id ? 'project' : 'workspace',
+          // Which projects actually put work in it. For a workspace cycle this
+          // is the answer to "who is in this fortnight", which its own row
+          // cannot say.
+          projects_involved: [...new Set(rows.map((r) => keyOf[String(r.project_id)]).filter(Boolean))].sort(),
           cycle: { id: cycle.id, name: cycle.name, start_date: cycle.start_date, end_date: cycle.end_date },
           finished: cycle.end_date ? String(cycle.end_date) < today : false,
           totals: {

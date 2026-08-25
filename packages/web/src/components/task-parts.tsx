@@ -70,7 +70,7 @@ export const useLabels = (projectId?: string | null): Label[] =>
  */
 export const useCycles = (projectId?: string | null): Cycle[] =>
   useQuery(
-    () => list('cycle', (c) => !projectId || c.project_id === projectId)
+    () => list('cycle', (c) => !c.project_id || !projectId || c.project_id === projectId)
       .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '') || a.name.localeCompare(b.name)),
     [projectId],
   );
@@ -253,7 +253,7 @@ export function ParentTrail({ task, onOpen }: { task: Task; onOpen: (task: Task)
 
 export function CyclePicker({ task }: { task: Task }) {
   const t = useT();
-  const cycles = useQuery(() => list('cycle', (c) => c.project_id === task.project_id), [task.project_id]);
+  const cycles = useQuery(() => list('cycle', (c) => !c.project_id || c.project_id === task.project_id), [task.project_id]);
   const current = byId('cycle', task.cycle_id);
   const items: MenuItem[] = [
     { id: 'none', label: t('task.noCycle'), onSelect: () => update('task', task.id, { cycle_id: null }) },

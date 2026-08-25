@@ -444,8 +444,11 @@ export function ProjectPage() {
 function Cycles({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
+  // This project's own, plus the workspace cycles every project runs — the
+  // same rule a workspace label follows, so there is one idea here and not two.
   const cycles = useQuery(
-    () => list('cycle', (c) => c.project_id === projectId).sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '')),
+    () => list('cycle', (c) => !c.project_id || c.project_id === projectId)
+      .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '')),
     [projectId],
   );
   const [editing, setEditing] = useState<string | 'new' | null>(null);
@@ -468,6 +471,10 @@ function Cycles({ projectId }: { projectId: string }) {
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={cycle.id}>
               <div className="flex items-center gap-2 mb-2">
                 <strong className="flex-1 min-w-0 truncate">{cycle.name}</strong>
+                {/* Said on the card rather than only in the editor: deleting a
+                    shared cycle takes it out of every project that is in it,
+                    and the menu below offers exactly that. */}
+                {!cycle.project_id && <span className={chipVariants()} title={t('cycle.sharedHint')}>{t('cycle.shared')}</span>}
                 {active && <span className={chipVariants()} style={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}>{t('cycle.active')}</span>}
                 <MenuButton
                   variant="ghost" size="iconSm"
@@ -508,11 +515,16 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     start_date: cycle?.start_date ?? today(),
     end_date: cycle?.end_date ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
   });
+  /* Scope is chosen once, when the cycle is made, and not changed afterwards.
+     Moving a running cycle between scopes would silently drop or adopt other
+     projects' tasks — a data change nobody asked for behind a dropdown that
+     looks like a setting. Delete and remake is the honest way to change it. */
+  const [shared, setShared] = useState(false);
 
   const save = () => {
     if (!form.name.trim()) return;
     if (cycleId) update('cycle', cycleId, form);
-    else create('cycle', { ...form, project_id: projectId });
+    else create('cycle', { ...form, project_id: shared ? null : projectId });
     onClose();
   };
 
@@ -540,6 +552,19 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         <label htmlFor="c-desc">{t('cycle.goal')}</label>
         <Textarea id="c-desc" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
       </div>
+
+      {/* Offered only when making one. An existing cycle's scope is fixed:
+          changing it would silently drop or adopt other projects' tasks, which
+          is a data change wearing the clothes of a setting. */}
+      {!cycleId && (
+        <label className="check-row">
+          <input type="checkbox" checked={shared} onChange={(event) => setShared(event.target.checked)} />
+          <span>
+            <strong>{t('cycle.shareAcrossProjects')}</strong>
+            <span className="text-[12px] text-muted">{t('cycle.shareAcrossProjectsHint')}</span>
+          </span>
+        </label>
+      )}
     </Sheet>
   );
 }
