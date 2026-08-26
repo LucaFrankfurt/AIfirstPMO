@@ -179,6 +179,7 @@ export default defineConfig({
             { label: 'On your phone', slug: 'beyond/mobile' },
             { label: 'Calendar subscriptions', slug: 'beyond/calendar' },
             { label: 'Bringing a backlog in', slug: 'beyond/import' },
+            { label: 'Taking it with you', slug: 'beyond/export' },
             { label: 'Connecting an assistant', slug: 'beyond/assistant' },
             { label: 'Asking a model to read a task', slug: 'beyond/task-reviews' },
           ],

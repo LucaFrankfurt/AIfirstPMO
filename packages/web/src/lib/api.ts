@@ -88,6 +88,14 @@ export const api = {
     );
   },
 
+  /**
+   * An export archive, up as a raw body — the same shape an upload takes, and
+   * for the same reason: the file is already one blob and multipart would only
+   * wrap it in a second copy of itself.
+   */
+  postArchive: <T>(path: string, archive: ArrayBuffer) =>
+    request<T>(path, { method: 'POST', body: archive, headers: { 'content-type': 'application/zip' } }),
+
   search: (workspaceId: string, query: string, kind?: string) =>
     request<{ results: { kind: string; id: string; title: string; snippet: string; project_id: string | null }[] }>(
       `/api/workspaces/${workspaceId}/search?q=${encodeURIComponent(query)}${kind ? `&kind=${kind}` : ''}`,

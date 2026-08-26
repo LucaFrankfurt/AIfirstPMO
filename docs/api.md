@@ -299,6 +299,69 @@ workspace. Only a safe list of types is served inline; everything else downloads
 The browser client downscales images to 2000px WebP before upload, so a phone photo does not push
 12 MB through a mobile connection.
 
+## Export and import
+
+Everything here is an ordinary authenticated request; nothing mints a link. The formats, what they
+leave out and why, are in [`export.md`](export.md).
+
+| | |
+|---|---|
+| `GET /api/workspaces/:ws/export` | the workspace as one JSON document. `?format=zip` streams the same document with the uploaded files beside it |
+| `GET /api/workspaces/:ws/export/preview` | counts and total file bytes, so a caller can decide before waiting |
+| `GET /api/workspaces/:ws/export/tasks.csv` | `?project_id=` `?cycle_id=` `?state_id=` `?assignee=` `?delimiter=;` `?archived=1` |
+| `GET /api/workspaces/:ws/projects/:id/export` | one project as JSON |
+| `GET /api/workspaces/:ws/projects/:id/export.zip` | one project, with its files |
+| `GET /api/me/export` | everything held about the caller. `?download=1` for a file |
+| `POST /api/import/workspace` | `{ document, name?, match_people? }` → a **new** workspace |
+| `POST /api/import/archive` | a `.zip` as the raw body, `content-type: application/zip`. `?workspace=` is required for a project archive; `?project_id=` merges into that project; `?name=` overrides the name |
+| `POST /api/workspaces/:ws/import/json` | `{ document, name?, key?, project_id?, match_people? }` — a Kolibri project document, or an export from one of the six tools it recognises |
+| `POST /api/workspaces/:ws/import/json/inspect` | what a document is, without writing anything |
+| `POST /api/workspaces/:ws/import` | CSV: `{ csv, project_id, mapping?, delimiter?, dry_run? }`. With no `mapping` the headers are guessed |
+
+The whole-workspace export needs the **admin** role in it, since it includes the private projects.
+Everything else needs membership and the ordinary project visibility rules.
+
+```bash
+curl -sS "$URL/api/workspaces/$WS/export?format=zip" \
+  -H "Authorization: Bearer $TOKEN" -o workspace.zip
+
+curl -X POST "$URL/api/import/archive?workspace=$WS" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H 'content-type: application/zip' \
+  --data-binary @project.zip
+```
+
+An import reports what did *not* land as well as what did: `unmatched` names people with no account
+here, and `missingFiles` names files whose bytes are nowhere on this instance. A merge also reports
+`updated` — how many tasks landed on one the project already had.
+
+### Snapshots
+
+For an **instance** administrator, not an administrator of one workspace: a snapshot covers every
+workspace. See [`deployment.md`](deployment.md#backups).
+
+| | |
+|---|---|
+| `GET /api/admin/backups` | the schedule, the last run and what is on disk |
+| `POST /api/admin/backups` | take one now, check it, apply the retention, copy it offsite |
+| `POST /api/admin/backups/:name/verify` | open it and run an integrity check |
+| `POST /api/admin/backups/:name/offsite` | copy one into the object store |
+| `GET /api/admin/backups/:name/download` | the snapshot as a `.zip`, streamed |
+| `DELETE /api/admin/backups/:name` | remove one |
+| `POST /api/admin/backups/:name/inspect` | what the snapshot holds, and what this instance holds now |
+| `POST /api/admin/backups/:name/restore` | put it back, in place, without stopping the server |
+| `POST /api/admin/restore` | the same from an uploaded `.zip` body, `content-type: application/zip` |
+
+A restore replaces the contents of every table in one transaction rather than swapping the database
+file, which is what lets it run against a live process. It verifies the snapshot first, takes a
+snapshot of what it is about to replace where `KOLIBRI_BACKUP_DIR` is set, and copies rows through
+the columns both databases have in common so an older snapshot still restores. Afterwards every
+session is gone — `sessions` was one of the tables replaced — so the response to this call is the
+last one the caller's cookie is accepted for.
+
+`kolibri restore` is still there for the instance that will not start, and still replaces the file
+itself against a stopped server. See [`deployment.md`](deployment.md#restoring).
+
 ## Search
 
 ```

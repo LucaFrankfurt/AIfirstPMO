@@ -1,5 +1,6 @@
 import {
-  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat, isCrossWorkspace, isGuestWritable,
+  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat, guessMapping, isCrossWorkspace, isGuestWritable,
+  parseCsv,
   type EntityName, type ImportField, type Mapping,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../db/index.ts';
@@ -151,6 +152,14 @@ export function registerEntityRoutes(router: Router): void {
     for (const [column, field] of Object.entries(body.mapping ?? {})) {
       if ((IMPORT_FIELDS as readonly string[]).includes(field)) mapping[column] = field as ImportField;
     }
+    /* With no mapping at all, guess one from the headers — the same guess the
+       screen shows before anybody changes it. Without this, a caller that is
+       not the screen (a script, `curl`, the CSV this server itself wrote)
+       imports a file and is told it created nothing, which is the one failure
+       mode an import must never have. */
+    if (!Object.keys(mapping).length) {
+      Object.assign(mapping, guessMapping(parseCsv(body.csv, body.delimiter).columns));
+    }
 
     return importCsv(body.csv, {
       workspaceId: ctx.params.ws,
@@ -219,7 +228,11 @@ export function registerEntityRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws, 'member');
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    const body = await readJson<{ document?: unknown; name?: string; key?: string; match_people?: boolean }>(ctx, 24 * 1024 * 1024);
+    const body = await readJson<{
+      document?: unknown; name?: string; key?: string; match_people?: boolean;
+      /** Merge into a project that already exists rather than making one. */
+      project_id?: string;
+    }>(ctx, env.maxImportBytes);
 
     let document = body.document;
     let notes: string[] = [];
@@ -235,11 +248,18 @@ export function registerEntityRoutes(router: Router): void {
       name: body.name,
       key: body.key,
       matchPeople: body.match_people !== false,
+      intoProjectId: body.project_id,
     });
     return {
       project: serialize('project', report.project),
       counts: report.counts,
       unmatched: report.unmatched,
+      // How many landed on a task the project already had. Zero on a new
+      // project by construction, and the number somebody checks after a merge.
+      updated: report.updated,
+      // Named rather than counted: "3 files were missing" is a shrug, and
+      // "diagram.png was missing" is something somebody can go and find.
+      missingFiles: report.missingFiles,
       from,
       notes,
     };
@@ -252,13 +272,25 @@ export function registerEntityRoutes(router: Router): void {
   router.post('/api/workspaces/:ws/import/json/inspect', async (ctx: Ctx) => {
     requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws, 'member');
-    const body = await readJson<{ document?: unknown }>(ctx, 24 * 1024 * 1024);
+    const body = await readJson<{ document?: unknown }>(ctx, env.maxImportBytes);
     const doc = body.document as Record<string, unknown> | undefined;
+    if (doc && typeof doc.format === 'string' && doc.format.startsWith('kolibri.workspace/')) {
+      const projects = (doc.projects as { tasks?: unknown[] }[] | undefined) ?? [];
+      return {
+        from: 'kolibri-workspace',
+        name: (doc.workspace as Record<string, unknown>)?.name ?? '',
+        projects: projects.length,
+        tasks: projects.reduce((sum, project) => sum + (project.tasks?.length ?? 0), 0),
+        files: Array.isArray(doc.files) ? doc.files.length : 0,
+        notes: [] as string[],
+      };
+    }
     if (doc && typeof doc.format === 'string' && doc.format.startsWith('kolibri.project/')) {
       return {
         from: 'kolibri',
         name: (doc.project as Record<string, unknown>)?.name ?? '',
         tasks: Array.isArray(doc.tasks) ? doc.tasks.length : 0,
+        files: Array.isArray(doc.files) ? doc.files.length : 0,
         notes: [] as string[],
       };
     }

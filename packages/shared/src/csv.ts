@@ -167,3 +167,58 @@ export function parseCsv(text: string, delimiter?: string): CsvTable {
 
   return { columns, rows, delimiter: chosen };
 }
+
+/* ------------------------------------------------------------------ writing */
+
+/**
+ * Writing a CSV somebody will open in Excel.
+ *
+ * The reading half above is the hard one. This half has exactly three traps,
+ * and all three are the kind that only show up on somebody else's machine:
+ *
+ *   - **A cell that starts with `=`.** Excel and LibreOffice read it as a
+ *     formula, so a task titled `=1+1` becomes `2`, and one titled
+ *     `=HYPERLINK(...)` becomes a link somebody clicks. Exporting a task list
+ *     is exporting text other people typed, which makes this the spreadsheet's
+ *     version of the HTML escaping done everywhere else in this codebase — see
+ *     `neutralise` below for why a leading apostrophe rather than a refusal.
+ *   - **A byte-order mark.** Without one Excel reads UTF-8 as the local code
+ *     page and every umlaut arrives as two characters of nonsense.
+ *   - **The delimiter.** A German Excel splits on `;` and shows a file written
+ *     with `,` as one enormous column — the same failure the reader guesses
+ *     its way around, and here it is the caller's to choose.
+ */
+export interface CsvOptions {
+  delimiter?: string;
+  /** Excel needs one to read UTF-8. Anything else does not care. */
+  bom?: boolean;
+  /** CRLF, which is what the format says and what Excel is happiest with. */
+  newline?: string;
+}
+
+/**
+ * A leading `'` is how a spreadsheet is told "this is text".
+ *
+ * Refusing to export the cell would lose data; escaping the characters would
+ * change the text. The apostrophe is the one answer that shows the value as
+ * typed and never runs it — and it is only added to the four characters that
+ * begin a formula, so an ordinary title is untouched.
+ */
+const neutralise = (value: string): string => (/^[=+\-@\t\r]/.test(value) ? `'${value}` : value);
+
+export function csvCell(value: unknown, delimiter = ','): string {
+  if (value === null || value === undefined) return '';
+  const text = neutralise(typeof value === 'string' ? value : String(value));
+  // Quoting on a leading or trailing space as well: unquoted, some readers
+  // keep it and some do not, and a name that changes on the way through is
+  // the kind of bug nobody thinks to look for.
+  const needsQuotes = text.includes(delimiter) || /["\r\n]/.test(text) || text !== text.trim();
+  return needsQuotes ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+export function writeCsv(headers: string[], rows: unknown[][], options: CsvOptions = {}): string {
+  const delimiter = options.delimiter ?? ',';
+  const newline = options.newline ?? '\r\n';
+  const lines = [headers, ...rows].map((row) => row.map((cell) => csvCell(cell, delimiter)).join(delimiter));
+  return `${options.bom === false ? '' : '﻿'}${lines.join(newline)}${newline}`;
+}

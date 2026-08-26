@@ -905,6 +905,16 @@ function ProjectSettings({ projectId }: { projectId: string }) {
   const [importing, setImporting] = useState(false);
   const [copying, setCopying] = useState(false);
   const [foreign, setForeign] = useState<{ document: unknown; found: Inspection } | null>(null);
+  /**
+   * A Kolibri file, waiting for one question: a new project, or this one?
+   *
+   * Asked rather than assumed, because the two are genuinely different
+   * operations — one cannot damage anything and the other writes into work
+   * people are doing — and because until now the answer was always "a new
+   * one" whether that was wanted or not.
+   */
+  const [landing, setLanding] = useState<{ name: string; document?: unknown; archive?: ArrayBuffer } | null>(null);
+  const [into, setInto] = useState<'new' | 'this'>('new');
 
   /**
    * A project as a document: for moving it to another instance, and for reading
@@ -938,31 +948,77 @@ function ProjectSettings({ projectId }: { projectId: string }) {
    */
   async function importJson(file: File): Promise<void> {
     try {
+      // An archive is not inspected first: its document is inside it, and
+      // unpacking a .zip in the browser to look would be a second reader of a
+      // format the server already reads. The question below is the same one.
+      if (file.name.endsWith('.zip')) {
+        setInto('new');
+        setLanding({ name: file.name, archive: await file.arrayBuffer() });
+        return;
+      }
       const document_ = JSON.parse(await file.text());
       const found = await api.post<Inspection>(`/api/workspaces/${workspaceId}/import/json/inspect`, { document: document_ });
-      if (found.from === 'kolibri') return finishJsonImport(document_);
+      if (found.from === 'kolibri') {
+        setInto('new');
+        setLanding({ name: String(found.name || file.name), document: document_ });
+        return;
+      }
       setForeign({ document: document_, found });
     } catch (problem) {
       toast(problem instanceof Error ? problem.message : t('transfer.failed'));
     }
   }
 
-  async function finishJsonImport(document_: unknown): Promise<void> {
+  type ImportReport = {
+    project: { id: string };
+    counts: Record<string, number>;
+    unmatched: string[];
+    updated?: number;
+    missingFiles?: string[];
+  };
+
+  async function finishJsonImport(document_: unknown, target?: string): Promise<void> {
     setForeign(null);
+    setLanding(null);
     try {
-      const result = await api.post<{ project: { id: string }; counts: Record<string, number>; unmatched: string[] }>(
+      const result = await api.post<ImportReport>(
         `/api/workspaces/${workspaceId}/import/json`,
-        { document: document_ },
+        { document: document_, project_id: target },
       );
-      await pull();
-      const rows = Object.values(result.counts).reduce((sum, count) => sum + count, 0);
-      toast(result.unmatched.length
-        ? t('transfer.importedWithGaps', { count: rows, names: result.unmatched.join(', ') })
-        : t('transfer.imported', { count: rows }));
-      navigate(`/projects/${result.project.id}`);
+      await report(result);
     } catch (problem) {
       toast(problem instanceof Error ? problem.message : t('transfer.failed'));
     }
+  }
+
+  /** The same for a `.zip`, which the server unpacks and reads for itself. */
+  async function finishArchiveImport(archive: ArrayBuffer, target?: string): Promise<void> {
+    setLanding(null);
+    try {
+      const query = new URLSearchParams({ workspace: workspaceId, ...(target ? { project_id: target } : {}) });
+      await report(await api.postArchive<ImportReport>(`/api/import/archive?${query}`, archive));
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    }
+  }
+
+  /**
+   * Say what landed — and, when it is not all of it, what did not.
+   *
+   * A count on its own is a lie by omission the moment anything was left
+   * behind, which is why the missing files are named rather than counted.
+   */
+  async function report(result: ImportReport): Promise<void> {
+    await pull();
+    const rows = Object.values(result.counts).reduce((sum, count) => sum + count, 0);
+    if (result.missingFiles?.length) toast(t('transfer.missingFiles', { names: result.missingFiles.join(', ') }));
+    if (result.updated) toast(t('transfer.merged', { count: result.updated, added: rows }));
+    else {
+      toast(result.unmatched.length
+        ? t('transfer.importedWithGaps', { count: rows, names: result.unmatched.join(', ') })
+        : t('transfer.imported', { count: rows }));
+    }
+    navigate(`/projects/${result.project.id}`);
   }
   // A project cannot be its own parent, and the server refuses a longer loop —
   // this list only keeps the obvious case out of the menu.
@@ -1244,10 +1300,19 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <Button onClick={() => void exportJson()}>
           <Icon name="page" size={14} /> {t('transfer.export')}
         </Button>
+        {/* The archive and the spreadsheet are ordinary downloads rather than
+            a fetch into a blob: a project with its screenshots in it is large,
+            and a same-origin navigation carries the session cookie anyway. */}
+        <Button onClick={() => { window.location.href = `/api/workspaces/${workspaceId}/projects/${projectId}/export.zip`; }}>
+          <Icon name="archive" size={14} /> {t('transfer.exportZip')}
+        </Button>
+        <Button onClick={() => { window.location.href = `/api/workspaces/${workspaceId}/export/tasks.csv?project_id=${projectId}`; }}>
+          <Icon name="table" size={14} /> {t('transfer.exportCsv')}
+        </Button>
         <label className={cn(buttonVariants({  }), 'cursor-pointer')}>
           <Icon name="plus" size={14} /> {t('transfer.import')}
           <input
-            type="file" accept=".json,application/json" style={{ display: 'none' }}
+            type="file" accept=".json,.zip,application/json,application/zip" style={{ display: 'none' }}
             onChange={(event) => {
               const file = event.target.files?.[0];
               event.target.value = '';
@@ -1258,6 +1323,39 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       </div>
       <p className="text-[12px] text-muted mt-1.5">{t('transfer.hint')}</p>
       {importing && <ImportSheet projectId={projectId} onClose={() => setImporting(false)} />}
+      {landing && (
+        <Sheet
+          title={t('transfer.import')}
+          onClose={() => setLanding(null)}
+          footer={
+            <>
+              <Button onClick={() => setLanding(null)}>{t('action.cancel')}</Button>
+              <Button
+                variant="primary"
+                onClick={() => {
+                  const target = into === 'this' ? projectId : undefined;
+                  if (landing.archive) void finishArchiveImport(landing.archive, target);
+                  else void finishJsonImport(landing.document, target);
+                }}
+              >
+                {t('data.importConfirm')}
+              </Button>
+            </>
+          }
+        >
+          <p>{t('data.importAbout', { name: landing.name })}</p>
+          <div className="field">
+            <label htmlFor="import-into">{t('transfer.into')}</label>
+            <Select id="import-into" value={into} onChange={(event) => setInto(event.target.value as 'new' | 'this')}>
+              <option value="new">{t('transfer.intoNew')}</option>
+              <option value="this">{t('transfer.intoThis')}</option>
+            </Select>
+          </div>
+          <p className="text-[13px] text-muted">
+            {into === 'new' ? t('transfer.intoNewHint') : t('transfer.intoThisHint')}
+          </p>
+        </Sheet>
+      )}
       {foreign && (
         <ForeignImportSheet
           found={foreign.found}

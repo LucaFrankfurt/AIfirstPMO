@@ -19,6 +19,7 @@ import { canSeeProject, writeEntity } from './repo.ts';
 import { runAutomationsForDue } from './automation.ts';
 import { applyRetention } from './trash.ts';
 import { expireLinks as expireTelegramLinks, retryPending as retryPendingTelegram } from './telegram.ts';
+import { sweepBackups } from './backups.ts';
 
 const HOUR = 3_600_000;
 let timer: ReturnType<typeof setInterval> | null = null;
@@ -177,6 +178,18 @@ export function startScheduler(): void {
     } catch (error) {
       console.error('[scheduler] sweep failed', error);
     }
+    /* The backup is its own attempt, on purpose: a sweep that threw before
+       reaching it would be a night with no snapshot, and the whole point of
+       this being here rather than in somebody's crontab is that it does not
+       depend on anything else having gone well. It is also the one part of the
+       sweep that waits on a network, so it is not inside the try above. */
+    void sweepBackups().then((result) => {
+      if (!result) return;
+      if (result.problem) console.error(`[backup] ${result.problem}`);
+      else {
+        console.log(`[backup] took ${result.taken}${result.pruned.length ? `, removed ${result.pruned.join(', ')}` : ''}${result.copied ? `, copied ${result.copied} object(s) offsite` : ''}`);
+      }
+    }).catch((error) => console.error('[backup] failed', error));
   };
   timer = setInterval(tick, HOUR);
   timer.unref?.();

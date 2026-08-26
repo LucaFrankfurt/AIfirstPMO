@@ -143,21 +143,26 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
       else result.problems.push({ row: line, column: byField.get('priority'), message: `Cannot read "${priorityText}" as a priority` });
     }
 
-    const assignee = read(row, byField, 'assignee');
-    let assignedName: string | null = null;
-    if (assignee) {
-      if (!personCache.has(assignee)) personCache.set(assignee, resolvePerson(options.workspaceId, assignee));
-      const userId = personCache.get(assignee) ?? null;
+    /* A task can be on more than one person, so the column is split the way
+       the labels one is. Almost every export in the world writes a single
+       name here and that case is unchanged; the reason to read the list is
+       that Kolibri's *own* CSV export writes one, and an export that cannot
+       be read back is not an export. */
+    const assignedNames: string[] = [];
+    for (const name of splitList(read(row, byField, 'assignee'))) {
+      if (!personCache.has(name)) personCache.set(name, resolvePerson(options.workspaceId, name));
+      const userId = personCache.get(name) ?? null;
       if (userId) {
-        values.assignees = [userId];
-        assignedName = get<Row>(`SELECT name FROM users WHERE id = ?`, userId)?.name ?? assignee;
+        values.assignees = [...((values.assignees as string[]) ?? []), userId];
+        assignedNames.push(get<Row>(`SELECT name FROM users WHERE id = ?`, userId)?.name ?? name);
       } else {
         result.problems.push({
           row: line, column: byField.get('assignee'),
-          message: `Nobody in this workspace matches "${assignee}" — left unassigned`,
+          message: `Nobody in this workspace matches "${name}" — left unassigned`,
         });
       }
     }
+    const assignedName = assignedNames.length ? assignedNames.join(', ') : null;
 
     const labelText = read(row, byField, 'labels');
     // An issue type column becomes a label. Every tracker worth importing from
@@ -167,7 +172,7 @@ export function importCsv(text: string, options: ImportOptions): ImportResult {
     // arrives with one label rather than two.
     const typeName = read(row, byField, 'type');
     const labelNames = [...new Set([
-      ...(labelText ? labelText.split(/[,;|]/).map((name) => name.trim()) : []),
+      ...splitList(labelText),
       ...(typeName ? [typeName.trim()] : []),
     ].filter(Boolean))];
 
@@ -295,6 +300,13 @@ const read = (row: Record<string, string>, byField: Map<ImportField, string>, fi
   const column = byField.get(field);
   return column ? (row[column] ?? '').trim() : '';
 };
+
+/**
+ * One cell holding several things. Comma, semicolon or pipe, because every
+ * tool picked a different one and the cell is the same cell either way.
+ */
+const splitList = (value: string): string[] =>
+  value ? value.split(/[,;|]/).map((item) => item.trim()).filter(Boolean) : [];
 
 function resolveLabel(name: string, options: ImportOptions, cache: Map<string, string>): string {
   const key = name.toLowerCase();
