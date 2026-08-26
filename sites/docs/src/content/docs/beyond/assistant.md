@@ -2,7 +2,7 @@
 title: Connecting an assistant
 description: Point an MCP client at your instance and give it a token — what it can then do, and how to make sure it cannot write.
 sidebar:
-  order: 5
+  order: 6
 ---
 
 Kolibri speaks the Model Context Protocol. An AI client can be pointed at your instance and given

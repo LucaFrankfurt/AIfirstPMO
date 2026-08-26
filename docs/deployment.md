@@ -489,6 +489,59 @@ docker compose exec kolibri kolibri verify /data/backups/2026-08-19
 Outside a container the same commands are `npm run kolibri -- <command>` from the repository, with
 `KOLIBRI_DATA_DIR` pointing at the instance.
 
+### Taking them without being asked
+
+The commonest backup failure is not a corrupt snapshot. It is a snapshot that stopped being taken in
+March — a cron entry somebody wrote once, on a host somebody has since rebuilt, running a command
+nobody has verified since.
+
+Name a directory and this instance takes one itself, every night:
+
+```yaml
+environment:
+  KOLIBRI_BACKUP_DIR: /backups        # a volume other than the database's
+  KOLIBRI_BACKUP_HOUR: "3"            # local hour, 0–23
+  KOLIBRI_BACKUP_KEEP: "7"            # how many to keep. 0 keeps every one
+  KOLIBRI_BACKUP_OFFSITE: "false"     # also copy into the object store
+volumes:
+  - /mnt/backups:/backups
+```
+
+Off until that directory is set, because the copy belongs somewhere other than the disk whose
+failure it exists to survive — and choosing where somebody else's backups live is not this
+program's decision to make.
+
+Each snapshot is named for the day it covers, so a restart, a double tick or a clock jump costs
+nothing. It is **verified before the older ones are pruned**: removing the last good snapshot on the
+strength of one that turns out not to open is the specific disaster that ordering avoids. `KEEP` is
+a count rather than a number of days, because a count is what a disk has room for, and an instance
+that was off for a fortnight should still have seven snapshots rather than none.
+
+```bash
+docker compose exec kolibri kolibri backups        # what is there, and when the last one ran
+docker compose exec kolibri kolibri backup         # take one now, into the configured directory
+```
+
+An instance administrator sees the same list in **Settings → Data**, and can take one, check one, or
+download one as a `.zip` from there. Restoring is not there and will not be: SQLite must not have
+the file open while it is replaced, so it stays a command run against a stopped server.
+
+### Off this machine
+
+`KOLIBRI_BACKUP_OFFSITE=1`, with `KOLIBRI_STORAGE=s3`, copies each snapshot into the bucket. The
+database and its manifest go under `backups/<date>/`; the uploads go under a **shared**,
+content-addressed `backups/blobs/` prefix, so a nightly run of a workspace whose files have not
+changed sends the database and nothing else. That is the difference between an offsite copy somebody
+keeps switched on and one they turn off in week three.
+
+Those blobs are **never pruned automatically**. They are shared by every snapshot, so "delete the
+ones this snapshot used" is wrong for any snapshot older than it — and they are the part that cannot
+be regenerated. Deleting them stays something somebody does on purpose.
+
+Nothing here is encrypted. A snapshot is exactly as readable as the database it came from; where
+that matters it is the volume or the bucket that should be encrypted, by somebody who knows where
+the key lives.
+
 ### Restoring
 
 With the server **stopped**, and `KOLIBRI_DATA_DIR` pointing at the instance being restored into:
@@ -529,7 +582,10 @@ log, expired rows nobody swept, and whether every stored file's bytes are still 
 | `doctor --fix` | Rebuilds the search index, removes expired sessions and old replay records, folds away deleted text in page bodies (see [`sync.md`](sync.md)), then compacts the file — and re-checks, so what it prints is the state afterwards |
 | `reindex` | Rebuilds the full-text index alone. This is the supported way back if the index ever drifts |
 | `vacuum` | Checkpoints the write-ahead log and returns free pages to the disk |
-| `backup <dir>` / `verify <dir>` / `restore <dir>` | Above |
+| `backup [dir]` | Above. With no directory it uses the configured one and behaves like the nightly run: named for the day, verified, pruned, copied offsite |
+| `backups` | Lists the snapshots and says when the last one ran. `--json` for monitoring |
+| `verify <dir>` / `restore <dir>` | Above |
+| `export <workspace> [file]` | Writes a workspace out as a `.zip` — see [`export.md`](export.md) |
 | `files move <disk\|s3>` | Moves stored blobs onto the other backend — see [`storage.md`](storage.md) |
 
 `doctor --json` is the one to put on a schedule; a `status` of `fail` is the only thing that should

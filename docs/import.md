@@ -61,6 +61,7 @@ than pulled in:
 | **Dates** | `2026-12-31` and `31.12.2026`. **`01/02/2026` is refused** — that is two different days in two different countries, and guessing wrong moves a deadline five weeks without saying so |
 | **Estimate** | a number, comma or point |
 | **Original ID** | appended to the description as `Imported from PROJ-417`, because that is what somebody searches for later |
+| **Assignee, several** | one cell holding `Ada, Grace` is split on `,` `;` or `\|` and matched a name at a time. Almost every export in the world writes a single name here; the reason the list is read is that Kolibri's own CSV export writes one, and an export that cannot be read back is not an export |
 
 ## What it does with a row it cannot fully read
 
@@ -87,6 +88,10 @@ title is nothing.
   you delete one too many, **Settings → Data** has it.
 - **No Jira XML or JSON**, only CSV. Every one of the three exports CSV — and
   moving between two Kolibri instances has its own format, below.
+
+The other direction exists too: **Project → Settings → Export tasks as CSV**
+writes the same columns this reads, so a round trip through a spreadsheet lands
+where it started. See [`export.md`](export.md).
 
 ## Parents and blockers
 
@@ -115,9 +120,17 @@ Several can be named in one cell, separated by a comma or a semicolon.
 CSV is for leaving another tool. For moving a project from one Kolibri to
 another, **Project → Settings → Export as JSON** writes the whole thing as one
 readable document: structure, tasks, sub-tasks, relations, comments, pages,
-custom fields and their answers, templates and rules. Importing it makes a new
-project with every reference rewritten, so the same file can be imported twice
-and produce two projects rather than one tangle.
+custom fields and their answers, templates, rules, the plan as it was promised,
+and who was on the project. Importing it makes a new project with every
+reference rewritten, so the same file can be imported twice and produce two
+projects rather than one tangle.
+
+**Export as `.zip`** is the same document with the uploaded files beside it —
+attachments, the pictures pasted into descriptions, the images dropped into
+pages. A JSON export carries no bytes, so an attachment whose file this instance
+has never seen is dropped on the way in and **named** in the report rather than
+written as a paperclip that opens onto a 404. See [`export.md`](export.md) for
+the archive's shape, and for exporting a whole workspace rather than one project.
 
 This is deliberately *not* the backup format. A backup has to be exact, which is
 why `kolibri backup` copies the database (see
@@ -129,6 +142,30 @@ same thing on two instances. Anybody with no account on the target is named in
 the report and their work arrives unassigned, rather than being handed to
 somebody who is not there. Who reacted to a comment is not carried across for
 the same reason.
+
+### Into a new project, or into one you already have
+
+The import asks, because the two are genuinely different operations:
+
+**A new project** is a clean rewrite. Nothing that is already here can be
+touched by a bad file, which is what makes it safe to try — and it is what every
+import did before there was a choice.
+
+**This project** merges. A state, label, field, cycle or module whose *name* is
+already in the project is the one the incoming rows land on, with its own colour
+and order left exactly as the team set them: somebody merging a file into a live
+project wants its tasks, not its opinion about what colour "In Progress" is. The
+project's default state is left alone for the same reason — repointing it would
+change where every *future* task lands.
+
+Tasks are matched on the **identifier the document carries** (`WEB-12`), which is
+what makes re-importing an export of this project an update rather than a second
+copy of it. A file from another tool has no such identifier, so everything in it
+is added: importing it twice adds it twice. That is the honest behaviour rather
+than a guess at which two titles are the same task.
+
+A merge reports how many landed on a task that was already there, so the number
+can be checked rather than assumed.
 
 ## Leaving another tool with its own export
 

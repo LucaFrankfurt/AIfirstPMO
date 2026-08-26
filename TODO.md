@@ -428,6 +428,68 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       People are matched by email address, the only identifier that means the same thing on two
       instances; anybody not found is named in the report and their work arrives unassigned, rather
       than being given to somebody who is not there.
+- [x] **The whole way out.** The project round trip above is the right size for one project and the
+      wrong size for a company: half of what a workspace is lives *above* any one project — teams,
+      who is in them, the saved views everybody works from, the pages that belong to nobody's
+      project — and the other half is the wiring *between* projects, which by definition is in
+      neither of their documents. Exporting project by project gave a pile of unrelated projects: a
+      flat list where there was a tree, one fortnight duplicated six times, and every dependency
+      that crossed a project boundary silently gone. So a workspace document carries the projects
+      **as project documents** — the same function, the same rewriting rules, the same tests — and
+      adds the two things they cannot hold. It reads back as a **new** workspace, always: merging
+      two workspaces is a migration with a hundred decisions in it and none of them belong to a
+      file.
+      **The files come too.** An export that described the screenshots but did not carry them was
+      not an export of a project whose pages are full of them, so `.zip` is the same document with
+      the blobs beside it — attachments *and* the pictures pasted into descriptions, dropped into
+      pages, set as covers, which are the larger half and were the half nobody would have noticed
+      missing until three weeks later. Named by their own SHA-256, checked against it on the way
+      back in — the store is content-addressed, so accepting bytes under somebody else's hash would
+      replace *their* file with these. An attachment whose bytes are nowhere is dropped and
+      **named** in the report rather than written as a paperclip that opens onto a 404.
+      The ZIP is written out rather than pulled in, like the CSV parser: one entry at a time so a
+      gigabyte of attachments costs one attachment of memory, deflate unless that makes it bigger,
+      UTF-8 names flagged so a German filename is not mojibake on Windows, and an honest refusal
+      over 4 GB rather than a Zip64 file only some unpackers can read.
+- [x] **CSV out, not only in.** The asymmetry was conspicuous: a tool people are asked to trust
+      with their work should hand it back in the format every office can open. The columns are the
+      ones the importer reads, under the header names it recognises, so a round trip through a
+      spreadsheet lands where it started — which is why the importer now reads a list of assignees
+      as well as a single name, since Kolibri's own export writes one and an export that cannot be
+      read back is not an export. A cell beginning `=`, `+`, `-` or `@` is prefixed with an
+      apostrophe: exporting a task list is exporting text other people typed, and a spreadsheet
+      reads those as formulas. That is the same class of problem as the HTML escaping, in the
+      fourth protocol this app meets user input in.
+- [x] **An import that goes into a project you already have.** Every import made a new project,
+      whether that was wanted or not. Merging reuses rather than overwrites — a state, label, field,
+      cycle or module whose *name* is already there is what the incoming rows land on, keeping its
+      own colour and order, because somebody merging a file into a live project wants its tasks and
+      not its opinion about what colour "In Progress" is. Tasks are matched on the identifier the
+      document carries, which makes re-importing an export of this project an update rather than a
+      second copy of it; a file from another tool has no such identifier and so is added, and says
+      so, rather than guessing which two titles are the same task.
+- [x] **"Download my data."** One person's account, tasks, comments, logged time, messages, saved
+      views and signed-in devices, as a file they can read. Drawn per *table* rather than per
+      feature, because the question is about the database and not about the screens. Their
+      password, tokens, second factor, recovery codes and calendar token are not in it; that each
+      exists, and when, is — knowing you have four devices signed in is the useful half and the
+      half that is not a credential. No `:userId` on the route: an admin who needs somebody else's
+      data has the database.
+- [x] **Backups that take themselves.** `kolibri backup` has worked since the beginning; what was
+      missing is the part that remembers to run it. The commonest backup failure is not a corrupt
+      snapshot, it is a snapshot that stopped being taken in March — a cron entry on a host somebody
+      has since rebuilt. Now the hourly sweep takes one, **verifies it before pruning the older
+      ones** (removing the last good snapshot on the strength of one that turns out not to open is
+      the specific disaster that ordering avoids), keeps a stated count rather than a number of days
+      (a count is what a disk has room for), and can copy each one into the object store — the
+      database under the snapshot's prefix, the blobs under a shared content-addressed one, so a
+      nightly run of a workspace whose files have not changed sends the database and nothing else.
+      Off until a directory is named: the copy belongs on a volume other than the one whose failure
+      it exists to survive, and choosing where somebody else's backups live is not this program's
+      decision. An instance admin sees the list, takes one, checks one and downloads one from
+      Settings → Data. **Restoring is not there and will not be** — SQLite must not have the file
+      open while it is replaced, and a button that could only ever half-work is worse than a
+      sentence naming the command.
 - [x] **Reading the other tools' own exports.** A Jira search response, a Linear query result, a
       Plane issue list and an OpenProject collection are recognised by their *shape* rather than by
       what the browser called the download, and converted into the document above so the ordinary

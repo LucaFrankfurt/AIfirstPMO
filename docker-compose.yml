@@ -60,6 +60,22 @@ services:
       # Days a deleted thing stays recoverable. `0` keeps it until an admin
       # empties the trash themselves.
       KOLIBRI_TRASH_DAYS: "${KOLIBRI_TRASH_DAYS:-0}"
+
+      # --- backups ---------------------------------------------------------
+      # Off until a directory is named, because the copy belongs on a volume
+      # other than the one holding the database it is meant to survive. Mount
+      # one and set this, and a snapshot is taken every night, checked, and
+      # kept to the count below.
+      KOLIBRI_BACKUP_DIR: "${KOLIBRI_BACKUP_DIR:-}"
+      # Local hour to take it, 0–23.
+      KOLIBRI_BACKUP_HOUR: "${KOLIBRI_BACKUP_HOUR:-3}"
+      # How many to keep. `0` keeps every one, and fills the disk in a year.
+      KOLIBRI_BACKUP_KEEP: "${KOLIBRI_BACKUP_KEEP:-7}"
+      # Also copy each snapshot into the object store. Needs KOLIBRI_STORAGE=s3.
+      KOLIBRI_BACKUP_OFFSITE: "${KOLIBRI_BACKUP_OFFSITE:-false}"
+      KOLIBRI_BACKUP_PREFIX: "${KOLIBRI_BACKUP_PREFIX:-backups}"
+      # The largest export this instance will read back in.
+      KOLIBRI_MAX_IMPORT_MB: "${KOLIBRI_MAX_IMPORT_MB:-200}"
       # Let outgoing webhooks reach private addresses (`http://n8n:5678` on this
       # network). Off by default; see docs/deployment.md.
       KOLIBRI_ALLOW_PRIVATE_WEBHOOKS: "${KOLIBRI_ALLOW_PRIVATE_WEBHOOKS:-}"

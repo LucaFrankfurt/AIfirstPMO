@@ -184,6 +184,16 @@ export const env = {
   /** Turn off to lock the instance down to invited users only. */
   allowSignup: bool(process.env.KOLIBRI_ALLOW_SIGNUP, true),
   maxUploadBytes: int(process.env.KOLIBRI_MAX_UPLOAD_MB, 25) * 1024 * 1024,
+  /**
+   * The largest import this will read.
+   *
+   * Bigger than an upload because it is a whole workspace rather than one
+   * file, and finite because an archive is read into memory to be read at all
+   * — a ZIP can only be opened from its end. An export too big for this is a
+   * per-project export, which is the honest answer rather than a server that
+   * falls over at four in the morning.
+   */
+  maxImportBytes: int(process.env.KOLIBRI_MAX_IMPORT_MB, 200) * 1024 * 1024,
   sessionDays: int(process.env.KOLIBRI_SESSION_DAYS, 60),
   logLevel: process.env.KOLIBRI_LOG_LEVEL ?? 'info',
   /** Language for notifications and emails when a recipient has not chosen one. */
@@ -282,6 +292,30 @@ export const env = {
    * has no business choosing for somebody else's data.
    */
   trashDays: Math.max(0, Number(process.env.KOLIBRI_TRASH_DAYS ?? 0) || 0),
+  /**
+   * Backups that take themselves.
+   *
+   * Off until a directory is named, because where somebody else's backups
+   * belong is not this program's decision — and a default of "next to the
+   * database" would put the copy on the disk whose failure it is meant to
+   * survive. `KOLIBRI_BACKUP_DIR=/backups` with that path mounted from
+   * somewhere else is the arrangement this is for.
+   *
+   * `KEEP` is a count and not a number of days: a count is what a disk has
+   * room for, and an instance that was off for a fortnight should still have
+   * seven snapshots rather than none.
+   */
+  backup: {
+    dir: (process.env.KOLIBRI_BACKUP_DIR ?? '').trim(),
+    /** Local hour to take it, 0–23. Three in the morning by default. */
+    hour: Math.min(23, Math.max(0, int(process.env.KOLIBRI_BACKUP_HOUR, 3))),
+    /** How many to keep. `0` keeps every one, and fills the disk in a year. */
+    keep: Math.max(0, int(process.env.KOLIBRI_BACKUP_KEEP, 7)),
+    /** Also copy each snapshot into the object store, when there is one. */
+    offsite: bool(process.env.KOLIBRI_BACKUP_OFFSITE, false),
+    /** Where in the bucket. Content-addressed blobs share `<prefix>/blobs`. */
+    prefix: (process.env.KOLIBRI_BACKUP_PREFIX ?? 'backups').replace(/^\/+|\/+$/g, ''),
+  },
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,

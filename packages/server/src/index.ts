@@ -14,6 +14,7 @@ import { overTls } from './lib/origin.ts';
 import { registerAiRoutes } from './routes/ai.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
+import { registerExportRoutes } from './routes/export.ts';
 import { registerFileRoutes } from './routes/files.ts';
 import { registerMcpRoutes } from './routes/mcp.ts';
 import { registerOAuthRoutes } from './routes/oauth.ts';
@@ -38,6 +39,10 @@ registerSearchRoutes(router);
 // happens to a task, not a collection called `tasks` with a member `review`.
 registerAiRoutes(router);
 registerFileRoutes(router);
+// Before the generic routes too: `/api/workspaces/:ws/export` is not a
+// collection called "export", and `/api/import/archive` is not a row in one
+// called "import".
+registerExportRoutes(router);
 registerOAuthRoutes(router);
 registerMcpRoutes(router);
 registerEntityRoutes(router);

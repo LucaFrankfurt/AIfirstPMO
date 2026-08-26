@@ -8,6 +8,7 @@ import { useSession } from '../session';
 import { AutomationSettings } from './automation';
 import { Trash } from '../components/trash';
 import { AuditLog, Webhooks } from '../components/admin';
+import { Backups, PersonalExport, WorkspaceTransfer } from '../components/data';
 import { Sessions, TwoFactor } from '../components/security';
 import { downscale } from '../components/Markdown';
 import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../lib/i18n';
@@ -868,9 +869,20 @@ function DataSettings() {
         </Button>
       </div>
 
-      <SectionHeading>{t('data.export')}</SectionHeading>
-      <p className="text-muted text-[13.5px]">{t('data.exportHint')}</p>
       {!estimate && <Empty emoji="💾" title={t('data.storageUnavailable')} hint={t('data.storageUnavailableHint')} />}
+
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
+
+      <WorkspaceTransfer />
+
+      <div className="my-2 h-px bg-line" style={{ margin: '22px 0' }} />
+
+      <PersonalExport />
+
+      {/* Renders nothing at all unless this account administers the instance —
+          the panel asks the server rather than guessing from a role held in
+          one workspace. */}
+      <Backups />
     </>
   );
 }

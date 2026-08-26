@@ -2,7 +2,7 @@
 title: Asking a model to read a task
 description: An optional, manual, off-by-default button that suggests clearer wording — what leaves the instance when you press it, and what does not.
 sidebar:
-  order: 6
+  order: 7
 ---
 
 There is a button on a task that asks a model to read it back and suggest better wording: a title
