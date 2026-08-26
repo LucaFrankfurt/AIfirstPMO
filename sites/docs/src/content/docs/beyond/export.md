@@ -1,6 +1,6 @@
 ---
 title: Taking it with you
-description: A workspace as one readable file, tasks as a spreadsheet, your own data on request — and the difference between an export and a backup.
+description: A workspace as one readable file, tasks as a spreadsheet, your own data on request, and moving a whole instance to another machine.
 sidebar:
   order: 5
 ---
@@ -95,13 +95,32 @@ That each of them exists, and when, is — knowing you have four devices signed 
 is the useful half, and it is the half that is not a credential. Handing back
 the other half would make a copy you could never revoke.
 
+## Moving to another machine
+
+This is the case an export is *not* for. An export moves a workspace; moving a
+whole instance — every account, every workspace, the settings, the files — is a
+**snapshot**, because there the point is to be exact.
+
+1. On the old instance: **Settings → Data → Backups → Download**.
+2. Deploy the new one and claim it. The first account to register administers
+   the instance.
+3. **Settings → Data → Restore from a file**, and upload the `.zip`.
+4. Sign in with your password from the old instance.
+
+The account that deployed it is replaced along with everything else, which is
+correct: afterwards the instance *is* the old one. Everybody is signed out —
+that is how each device knows to fetch the restored data rather than merge its
+own copy into it — and passwords carry across untouched.
+
 ## Snapshots
 
 Whoever administers the instance sees the backups in the same place: when the
-last one ran, what is on disk, and buttons to take one, check one, or download
-it. They are taken every night if the instance is set up for it.
+last one ran, what is on disk, and buttons to take one, check one, download it,
+or put it back. They are taken every night if the instance is set up for it.
 
-Restoring is not a button and will not be — the database must not be open while
-its file is replaced, so it stays a command run against a stopped server. The
-[deployment guide](https://github.com/LucaFrankfurt/AIfirstPMO/blob/main/docs/deployment.md#backups)
-has it.
+Restoring asks you to type *restore* first, says what will arrive and what will
+go, and takes a snapshot of the current state before replacing it — so
+restoring the wrong file is something you can undo. The
+[deployment guide](https://github.com/LucaFrankfurt/AIfirstPMO/blob/main/docs/deployment.md#restoring)
+has the mechanics, and the command-line route for an instance that will not
+start.

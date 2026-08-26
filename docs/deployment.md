@@ -544,6 +544,48 @@ the key lives.
 
 ### Restoring
 
+Two ways, and which one you want depends on whether the instance is running.
+
+#### From the app, while it is running
+
+**Settings → Data → Backups → Restore**, on a snapshot already on the server — or **Restore from a
+file**, for a `.zip` downloaded from an instance that no longer exists. This is how a Kolibri
+deployed somewhere new becomes the old one: deploy it, claim it, upload the snapshot, sign in with
+your old password. Accounts, workspaces, projects, pages, files and settings all come across.
+
+It does not swap the database file. It **attaches** the snapshot and replaces the contents of every
+table in one transaction, which is what makes it possible at all while the process holds the file
+open — and which turns out to be better in three ways besides:
+
+- **An older snapshot still restores.** Rows are copied through the columns the two databases have
+  in common, so a column added since takes its default instead of making the file unreadable.
+- **It is all or nothing.** A transaction lands or rolls back; there is no half-copied state.
+- **The uploads follow this instance's storage.** A snapshot taken on a disk instance restores into
+  an S3 one, because the blobs are put through the storage layer rather than copied into a directory.
+
+Two guarantees make it safe enough to be a button:
+
+- **The snapshot is never written to.** It is copied to a temporary file and *that* is attached —
+  attaching read-write is enough to leave a write-ahead log beside somebody's only backup.
+- **What is replaced is snapshotted first**, where `KOLIBRI_BACKUP_DIR` is set. Restoring the wrong
+  file is exactly the moment somebody needs the previous state, and the moment it has just stopped
+  existing. The report names the copy it took.
+
+Afterwards **everybody is signed out**, including whoever pressed the button — `sessions` is one of
+the tables that was replaced. That is the mechanism rather than a side effect: a client that meets a
+401 clears its local copy and downloads again, which is precisely what a device holding a sync
+cursor newer than the restored data has to be made to do. Sign in with the password from the
+restored instance; passwords are self-contained, while sessions and API tokens only survive if this
+instance has the same `KOLIBRI_SECRET` as the one the snapshot came from.
+
+The button is for whoever administers the **instance**, not for an administrator of one workspace in
+it — a snapshot covers every workspace.
+
+#### From the command line, with the server stopped
+
+Still the right answer when the instance will not start, when there is no browser to reach it
+through, or when you want the file itself put back rather than its contents copied in.
+
 With the server **stopped**, and `KOLIBRI_DATA_DIR` pointing at the instance being restored into:
 
 ```bash

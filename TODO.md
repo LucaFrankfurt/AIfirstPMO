@@ -490,6 +490,31 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       Settings → Data. **Restoring is not there and will not be** — SQLite must not have the file
       open while it is replaced, and a button that could only ever half-work is worse than a
       sentence naming the command.
+- [x] **A restore button.** The backup half of this shipped saying restoring would never be a
+      button, on the grounds that SQLite must not have its file open while it is replaced. That
+      reasoning was sound and the conclusion was wrong, because it answered the wrong question:
+      somebody deploying a Kolibri somewhere new has a snapshot and a browser and *no terminal at
+      all* — a hosted container, a PaaS — and "stop the server first" is advice they cannot follow.
+      So this does not replace the file. It attaches the snapshot and replaces the contents of every
+      table in one transaction, which besides not needing a restart is better in three ways: an
+      older snapshot still restores (rows go through the columns both databases have in common, so
+      a column added since takes its default rather than making the file unreadable), it is all or
+      nothing, and the uploads follow *this* instance's storage — a snapshot taken on a disk
+      instance restores into an S3 one without anybody converting anything.
+      Two guarantees are what make it a button rather than a trap. The snapshot is **never written
+      to**: it is copied and the copy is attached, because attaching read-write is enough to leave
+      a write-ahead log beside somebody's only backup. And what is being replaced is **snapshotted
+      first**, since restoring the wrong file is exactly the moment somebody needs the previous
+      state and the moment it has just stopped existing — which is not theory: the first browser
+      run of this restored the wrong snapshot, and the safety copy had the right one in it.
+      Everybody is signed out afterwards, and that is the mechanism rather than a side effect:
+      `sessions` is one of the replaced tables, a client meeting a 401 clears its local copy and
+      downloads again, and that is precisely what a device holding a sync cursor newer than the
+      restored data has to be made to do. `kolibri restore` stays for the instance that will not
+      start, where replacing the file is still the right operation.
+      Found while building it: **a workspace export carried its settings and the import threw them
+      away.** `createWorkspace` takes a name and a slug, because that is all somebody typing into a
+      form has — so a workspace whose team had turned time tracking on arrived with it off.
 - [x] **Reading the other tools' own exports.** A Jira search response, a Linear query result, a
       Plane issue list and an OpenProject collection are recognised by their *shape* rather than by
       what the browser called the download, and converted into the document above so the ordinary

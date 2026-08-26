@@ -348,9 +348,19 @@ workspace. See [`deployment.md`](deployment.md#backups).
 | `POST /api/admin/backups/:name/offsite` | copy one into the object store |
 | `GET /api/admin/backups/:name/download` | the snapshot as a `.zip`, streamed |
 | `DELETE /api/admin/backups/:name` | remove one |
+| `POST /api/admin/backups/:name/inspect` | what the snapshot holds, and what this instance holds now |
+| `POST /api/admin/backups/:name/restore` | put it back, in place, without stopping the server |
+| `POST /api/admin/restore` | the same from an uploaded `.zip` body, `content-type: application/zip` |
 
-There is no restore endpoint. SQLite must not have the file open while it is replaced, so restoring
-is `kolibri restore` against a stopped server.
+A restore replaces the contents of every table in one transaction rather than swapping the database
+file, which is what lets it run against a live process. It verifies the snapshot first, takes a
+snapshot of what it is about to replace where `KOLIBRI_BACKUP_DIR` is set, and copies rows through
+the columns both databases have in common so an older snapshot still restores. Afterwards every
+session is gone — `sessions` was one of the tables replaced — so the response to this call is the
+last one the caller's cookie is accepted for.
+
+`kolibri restore` is still there for the instance that will not start, and still replaces the file
+itself against a stopped server. See [`deployment.md`](deployment.md#restoring).
 
 ## Search
 

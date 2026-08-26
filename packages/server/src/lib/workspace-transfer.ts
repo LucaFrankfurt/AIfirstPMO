@@ -30,7 +30,7 @@
  *   - **Intake reports**, which carry the email addresses of people outside
  *     the workspace who filled in a form.
  */
-import { all, get, tx, type Row } from '../db/index.ts';
+import { all, get, run, tx, type Row } from '../db/index.ts';
 import { badRequest, notFound } from './http.ts';
 import { uid } from './ids.ts';
 import { addMember, createWorkspace, serverClock } from './bootstrap.ts';
@@ -275,6 +275,20 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
     String(doc.workspace.slug ?? ''),
   );
   const workspaceId = String(workspace.id);
+
+  /* The workspace's own settings — its feature switches and its logo.
+     `createWorkspace` takes a name and a slug because that is all somebody
+     typing into a form has; a document has the rest, and a workspace that
+     arrives with time tracking switched back off is not the workspace that
+     was exported. The logo is a `/files/<hash>` URL like any other picture,
+     so it travels with the blobs and is adopted below. */
+  const settings = typeof doc.workspace.settings === 'string'
+    ? doc.workspace.settings
+    : JSON.stringify(doc.workspace.settings ?? {});
+  run(
+    `UPDATE workspaces SET settings = ?, logo_url = ?, updated_at = ? WHERE id = ?`,
+    settings, (doc.workspace.logo_url as string) ?? null, Date.now(), workspaceId,
+  );
   const hlc = () => serverClock.now();
   const opts = () => ({ workspaceId, actorId, hlc: hlc(), system: true });
 

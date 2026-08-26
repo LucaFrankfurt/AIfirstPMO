@@ -11,13 +11,15 @@
  * signed or public URL — a link that carries its own permission is a link that
  * outlives the reason it was made, and an export is the last thing that should.
  */
-import { createReadStream, readdirSync, rmSync, statSync } from 'node:fs';
+import { createReadStream, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { all, get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { requireAuth, requireWorkspace, requireWrite } from '../lib/auth.ts';
 import { readArchive, sendArchive, storeBlobs } from '../lib/archive.ts';
 import * as backups from '../lib/backups.ts';
+import * as rehydrate from '../lib/rehydrate.ts';
 import { badRequest, forbidden, notFound, readBody, readJson, type Ctx, type Router } from '../lib/http.ts';
 import { exportPerson } from '../lib/personal.ts';
 import { canSeeProject, serialize } from '../lib/repo.ts';
@@ -26,7 +28,7 @@ import { exportProject, importProject, type ProjectDoc } from '../lib/transfer.t
 import {
   detectWorkspaceDoc, exportWorkspace, importWorkspace, type WorkspaceDoc,
 } from '../lib/workspace-transfer.ts';
-import { ZipWriter } from '../lib/zip.ts';
+import { unzip, ZipWriter } from '../lib/zip.ts';
 
 /** A filename a browser will accept and a filesystem will keep. */
 const safe = (value: string): string =>
@@ -311,6 +313,68 @@ export function registerExportRoutes(router: Router): void {
   });
 
   /**
+   * What a snapshot holds, before anybody agrees to be replaced by it.
+   *
+   * A restore is the one destructive thing in this file, so the screen in
+   * front of it should be able to say *what* is about to arrive — and, just as
+   * importantly, what is about to go.
+   */
+  router.post('/api/admin/backups/:name/inspect', (ctx: Ctx) => {
+    requireInstanceAdmin(ctx);
+    const path = backups.pathOf(ctx.params.name);
+    if (!path) throw notFound('No such snapshot');
+    return { name: ctx.params.name, ...rehydrate.inspect(path), replacing: here() };
+  });
+
+  /**
+   * Put a snapshot back, into this instance, while it is running.
+   *
+   * The two shapes this takes are the two ways somebody arrives at needing it:
+   * a snapshot that is already on the server (this route), and one they have
+   * on their laptop from an instance that no longer exists (the next).
+   */
+  router.post('/api/admin/backups/:name/restore', async (ctx: Ctx) => {
+    requireInstanceAdmin(ctx);
+    const path = backups.pathOf(ctx.params.name);
+    if (!path) throw notFound('No such snapshot');
+    return restoreFrom(path, ctx.params.name);
+  });
+
+  /**
+   * The same, from a `.zip` — which is the file the panel beside this hands
+   * out, so "download it there, upload it here" is the whole of moving an
+   * instance to another machine.
+   */
+  router.post('/api/admin/restore', async (ctx: Ctx) => {
+    requireInstanceAdmin(ctx);
+    const archive = await readArchiveBody(ctx);
+    const staged = mkdtempSync(join(tmpdir(), 'kolibri-snapshot-'));
+    try {
+      const zip = unzip(archive);
+      const database = zip.read('kolibri.sqlite');
+      if (!database) throw badRequest('That .zip is not a Kolibri snapshot — it has no kolibri.sqlite in it');
+      writeFileSync(join(staged, 'kolibri.sqlite'), database);
+      const manifest = zip.read('manifest.json');
+      if (manifest) writeFileSync(join(staged, 'manifest.json'), manifest);
+
+      // The uploads are written out as they came, keyed by the same
+      // content-addressed path the store uses, so `restoreUploads` finds them
+      // by asking the restored `files` rows rather than by guessing.
+      for (const name of zip.names()) {
+        if (!name.startsWith('uploads/') || name.includes('..')) continue;
+        const body = zip.read(name);
+        if (!body) continue;
+        const target = join(staged, name);
+        mkdirSync(join(target, '..'), { recursive: true });
+        writeFileSync(target, body);
+      }
+      return await restoreFrom(staged, 'the uploaded snapshot');
+    } finally {
+      rmSync(staged, { recursive: true, force: true });
+    }
+  });
+
+  /**
    * A snapshot as one file, so it can be taken off the machine.
    *
    * Zipped as it is read, because a snapshot with the uploads in it is the
@@ -337,6 +401,37 @@ export function registerExportRoutes(router: Router): void {
 }
 
 const withoutPath = ({ path: _drop, ...rest }: backups.Snapshot) => rest;
+
+/** What this instance holds now — the half of a restore nobody thinks about. */
+const here = (): { users: number; workspaces: number; tasks: number; unused: boolean } => ({
+  users: Number(get<Row>(`SELECT count(*) AS n FROM users`)?.n ?? 0),
+  workspaces: Number(get<Row>(`SELECT count(*) AS n FROM workspaces WHERE deleted_at IS NULL`)?.n ?? 0),
+  tasks: Number(get<Row>(`SELECT count(*) AS n FROM tasks WHERE deleted_at IS NULL`)?.n ?? 0),
+  unused: rehydrate.isUnused(),
+});
+
+/**
+ * The tables, then the blobs, then the report.
+ *
+ * In that order because the blobs are found *through* the tables: which file
+ * has which content type is a restored row, not a guess from an extension.
+ */
+async function restoreFrom(dir: string, from: string): Promise<Record<string, unknown>> {
+  const replacing = here();
+  const report = rehydrate.rehydrate(dir);
+  report.files = await rehydrate.restoreUploads(dir);
+  return {
+    ...report,
+    from,
+    replaced: report.replaced,
+    // Said in the response because it is the next thing that happens to
+    // whoever pressed the button: the sessions table was one of the tables
+    // that got replaced, so this reply is the last one their cookie will be
+    // accepted for.
+    signedOut: true,
+    was: replacing,
+  };
+}
 
 /** Every file under a directory, as paths relative to it. */
 function* files(root: string, base = ''): Generator<string> {

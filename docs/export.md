@@ -6,7 +6,7 @@ them matters more than any of them:
 | | What it is | Where |
 |---|---|---|
 | **An export** | A readable document of a workspace or a project. Survives a schema that has moved on. Imports into any Kolibri. | Settings → Data, and Project → Settings |
-| **A snapshot** | The database, copied exactly. Restores this instance to this moment and nothing else. | `kolibri backup`, and Settings → Data for an instance admin |
+| **A snapshot** | The database, copied exactly. Restores this instance to this moment and nothing else — and is how an instance moves to another machine. | `kolibri backup`, and Settings → Data for an instance admin |
 | **Your own data** | Everything this instance holds about one person, as a file they can read. Nothing reads it back. | Settings → Data |
 
 A snapshot is the one to restore from. An export is the one to move with, to
@@ -110,6 +110,32 @@ credential. Handing back the other half would make a copy nobody could revoke.
 There is no `:userId` on that route. An administrator who needs somebody else's
 data has the database.
 
+## Moving an instance to another machine
+
+This is the case the export above is *not* for. An export moves a workspace and
+survives a schema that has moved on; moving a whole instance — every account,
+every workspace, the settings, the files — is a **snapshot**, because the point
+there is to be exact.
+
+1. On the old instance: **Settings → Data → Backups → Download** (or use a
+   snapshot already in `KOLIBRI_BACKUP_DIR`).
+2. Deploy the new one and claim it — the first account to register administers
+   the instance.
+3. **Settings → Data → Restore from a file**, and upload the `.zip`.
+4. Sign in with your password from the old instance.
+
+The account that deployed it is replaced along with everything else, which is
+correct: after the restore, the instance *is* the old one.
+
+Set `KOLIBRI_SECRET` to the old instance's value if you want existing sessions
+and API tokens to keep working. Passwords work either way — a password hash
+carries its own salt and depends on nothing outside the row.
+
+Restoring is transactional, checks the snapshot before replacing anything, and
+takes a snapshot of whatever it is about to replace. See
+[`deployment.md`](deployment.md#restoring) for what it does and why it does not
+need the server stopped.
+
 ## Snapshots
 
 The exact copy. See [`deployment.md`](deployment.md#backups) — how to schedule
@@ -168,5 +194,8 @@ and somebody's download cannot drift apart if they are the same code.
 | `POST /api/import/workspace` | `{ document }` → a new workspace |
 | `POST /api/import/archive` | a `.zip` body. `?workspace=` for a project archive, `?project_id=` to merge |
 | `POST /api/workspaces/:ws/import/json` | `{ document, project_id? }` — see [`import.md`](import.md) |
+| `POST /api/admin/backups/:name/inspect` | what a snapshot holds, and what is here now |
+| `POST /api/admin/backups/:name/restore` | put a snapshot on this server back, in place |
+| `POST /api/admin/restore` | the same from an uploaded `.zip` |
 
 Every download is an ordinary authenticated request. Nothing here mints a link.

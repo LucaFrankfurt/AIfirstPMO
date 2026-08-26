@@ -20,6 +20,7 @@ import { useT } from '../lib/i18n';
 import { useSession } from '../session';
 import { Empty, Icon, Sheet, useConfirm, useToast } from './ui';
 import { Button, buttonVariants } from './ui/button';
+import { Input } from './ui/field';
 
 import { SectionHeading } from './ui/section';
 import { cn } from '../lib/cn';
@@ -247,6 +248,12 @@ interface Snapshot {
   problem?: string;
 }
 
+interface Held {
+  counts: Record<string, number>;
+  uploads: number;
+  replacing: { users: number; workspaces: number; tasks: number; unused: boolean };
+}
+
 interface BackupStatus {
   enabled: boolean;
   dir: string;
@@ -272,6 +279,15 @@ export function Backups() {
   const [status, setStatus] = useState<BackupStatus | null>(null);
   const [allowed, setAllowed] = useState(true);
   const [busy, setBusy] = useState('');
+  /**
+   * A restore, waiting to be agreed to.
+   *
+   * `held` is what the snapshot turns out to contain, which is only knowable
+   * for one already on the server — an uploaded file has not been sent yet.
+   * The confirmation says so rather than showing blanks.
+   */
+  const [restoring, setRestoring] = useState<{ name?: string; file?: File; held?: Held } | null>(null);
+  const [typed, setTyped] = useState('');
 
   const load = async () => {
     try {
@@ -296,6 +312,45 @@ export function Backups() {
       setBusy('');
     }
   };
+
+  /** Open the confirmation, having first asked what the snapshot holds. */
+  async function askAbout(snapshot?: Snapshot, file?: File): Promise<void> {
+    setTyped('');
+    if (!snapshot) { setRestoring({ file }); return; }
+    setBusy(`inspect:${snapshot.name}`);
+    try {
+      setRestoring({ name: snapshot.name, held: await api.post<Held>(`/api/admin/backups/${snapshot.name}/inspect`) });
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    } finally {
+      setBusy('');
+    }
+  }
+
+  /**
+   * The one destructive thing on this screen.
+   *
+   * Afterwards nothing here is signed in — the sessions table was one of the
+   * ones replaced — so there is no state left worth refreshing. Sending the
+   * browser back to the sign-in page is both the honest next step and the
+   * thing that makes every device fetch the restored data rather than merge
+   * its own copy into it.
+   */
+  async function restore(): Promise<void> {
+    if (!restoring) return;
+    setBusy('restore');
+    try {
+      const report = restoring.file
+        ? await api.postArchive<{ replaced?: string }>('/api/admin/restore', await restoring.file.arrayBuffer())
+        : await api.post<{ replaced?: string }>(`/api/admin/backups/${restoring.name}/restore`);
+      setRestoring(null);
+      toast(report.replaced ? t('restore.doneKept', { name: report.replaced }) : t('restore.done'));
+      setTimeout(() => window.location.assign('/login'), 1800);
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+      setBusy('');
+    }
+  }
 
   return (
     <>
@@ -366,6 +421,13 @@ export function Backups() {
                     <Icon name="archive" size={13} /> {t('backup.download')}
                   </Button>
                   <Button
+                    size="sm"
+                    disabled={busy === `inspect:${snapshot.name}`}
+                    onClick={() => void askAbout(snapshot)}
+                  >
+                    <Icon name="refresh" size={13} /> {t('restore.action')}
+                  </Button>
+                  <Button
                     size="sm" variant="danger"
                     onClick={async () => {
                       if (!(await confirm(t('backup.deleteConfirm', { name: snapshot.name })))) return;
@@ -381,6 +443,83 @@ export function Backups() {
 
           <p className="text-[12px] text-muted mt-2">{t('backup.restoreHint')}</p>
         </>
+      )}
+
+      {/* Offered whether or not this instance takes its own backups: an
+          instance deployed somewhere new has none of its own yet, and this is
+          the file it has instead. */}
+      <SectionHeading>{t('restore.upload')}</SectionHeading>
+      <p className="text-muted text-[13.5px]">{t('restore.uploadHint')}</p>
+      <label className={cn(buttonVariants({}), 'cursor-pointer')}>
+        <Icon name="refresh" size={14} /> {t('restore.choose')}
+        <input
+          type="file" accept=".zip,application/zip" style={{ display: 'none' }}
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = '';
+            if (file) void askAbout(undefined, file);
+          }}
+        />
+      </label>
+
+      {restoring && (
+        <Sheet
+          title={t('restore.title')}
+          onClose={() => setRestoring(null)}
+          footer={
+            <>
+              <Button onClick={() => setRestoring(null)}>{t('action.cancel')}</Button>
+              <Button
+                variant="danger"
+                disabled={busy === 'restore' || typed.trim().toLowerCase() !== t('restore.word').toLowerCase()}
+                onClick={() => void restore()}
+              >
+                {busy === 'restore' ? t('restore.working') : t('restore.confirm')}
+              </Button>
+            </>
+          }
+        >
+          <p>{restoring.file ? t('restore.aboutFile', { name: restoring.file.name }) : t('restore.about', { name: restoring.name ?? '' })}</p>
+
+          {restoring.held && (
+            <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 my-2 text-[13.5px]">
+              <div className="flex items-center gap-2">
+                <span className="flex-1 min-w-0">{t('restore.arriving')}</span>
+                <strong>
+                  {Object.entries(restoring.held.counts).map(([table, n]) => `${n} ${table}`).join(', ')}
+                  {restoring.held.uploads ? `, ${restoring.held.uploads} files` : ''}
+                </strong>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="flex-1 min-w-0">{t('restore.going')}</span>
+                <strong>
+                  {t('restore.goingValue', {
+                    users: restoring.held.replacing.users,
+                    workspaces: restoring.held.replacing.workspaces,
+                    tasks: restoring.held.replacing.tasks,
+                  })}
+                </strong>
+              </div>
+            </div>
+          )}
+
+          {/* Said in this order on purpose: the irreversible part, then the
+              thing that makes it survivable, then what happens next. */}
+          <p className="text-[13px] text-danger">
+            {restoring.held?.replacing.unused ? t('restore.emptyInstance') : t('restore.replaces')}
+          </p>
+          <p className="text-[13px] text-muted">{status.enabled ? t('restore.safety') : t('restore.noSafety')}</p>
+          <p className="text-[13px] text-muted">{t('restore.signedOut')}</p>
+          <p className="text-[13px] text-muted">{t('restore.secret')}</p>
+
+          <div className="field">
+            <label htmlFor="restore-confirm">{t('restore.typeToConfirm', { word: t('restore.word') })}</label>
+            <Input
+              id="restore-confirm" value={typed} autoComplete="off"
+              onChange={(event) => setTyped(event.target.value)}
+            />
+          </div>
+        </Sheet>
       )}
       {dialog}
     </>

@@ -44,7 +44,7 @@ export const nameFor = (at: Date): string =>
   `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`;
 
 /** Names we are willing to touch. Everything else in the directory is not ours. */
-const SAFE_NAME = /^[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9]{4})?$/;
+const SAFE_NAME = /^[0-9]{4}-[0-9]{2}-[0-9]{2}(-[0-9]{6})?$/;
 
 export interface Snapshot {
   name: string;
@@ -132,7 +132,11 @@ export function take(dir = env.backup.dir, options: { force?: boolean; now?: Dat
   let name = nameFor(now);
   if (existsSync(join(dir, name))) {
     if (!options.force) return null;
-    name = `${name}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`;
+    // To the second, not the minute. Two forced snapshots a minute apart is a
+    // schedule; two within the same minute is somebody restoring twice in a
+    // hurry, and that is exactly when the first of the two safety copies must
+    // not be the one the second overwrites.
+    name = `${name}-${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
     rmSync(join(dir, name), { recursive: true, force: true });
   }
   mkdirSync(dir, { recursive: true });
