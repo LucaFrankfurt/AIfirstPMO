@@ -15,7 +15,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits, LIMITS, byAddress } = await import('../src/lib/ratelimit.ts');
+const { resetRateLimits, LIMITS, byAddress, enforce, rateLimitInternals } = await import('../src/lib/ratelimit.ts');
 const { buildCsp } = await import('../src/lib/csp.ts');
 
 const DISK = { kind: 'disk', presign: false, publicEndpoint: '', s3: { endpoint: '' } };
@@ -112,6 +112,116 @@ describe('rate limiting', () => {
     }
     assert.ok(lookups.slice(0, 3).every((s) => s === 404), 'a wrong code is simply not found');
     assert.ok(lookups.slice(-2).every((s) => s === 429), 'guessing at codes is limited');
+  });
+
+  /**
+   * The sign-in form is not the only place a password is checked.
+   *
+   * Changing a password and turning two-factor off both re-ask for the current
+   * one, which is the point of them — and both did it without a limit. Whoever
+   * had a borrowed session cookie could work through a list at whatever rate
+   * the machine allowed, and turning two-factor off was the reward.
+   *
+   * It is also the one unbounded way to spend this process's CPU: each of those
+   * checks is scrypt, tens of milliseconds, on the single thread that serves
+   * everybody.
+   */
+  it('limits the password checks behind a session, not only the sign-in form', async () => {
+    resetRateLimits();
+    const session = await fetch(`${base}/api/auth/login`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'ada@example.com', password: 'correct horse battery' }),
+    });
+    assert.equal(session.status, 200);
+    const cookie = (session.headers.get('set-cookie') ?? '').split(';')[0];
+
+    for (const [route, body] of [
+      ['/api/me/password', { current: 'wrong', next: 'a long enough password' }],
+      ['/api/me/2fa/off', { password: 'wrong' }],
+    ] as const) {
+      resetRateLimits();
+      const seen: number[] = [];
+      for (let attempt = 0; attempt < LIMITS.password.burst + 2; attempt++) {
+        seen.push((await call(route, body, { cookie })).status);
+      }
+      assert.equal(seen.filter((s) => s === 401).length, LIMITS.password.burst, `${route} allows the burst`);
+      assert.ok(seen.slice(-2).every((s) => s === 429), `${route} then refuses`);
+    }
+
+    // The limit stands between guesses, not between this person and their own
+    // account. Asserted through `2fa/off` rather than by changing the password,
+    // because the tests after this one still sign in as Ada — and turning off a
+    // second factor that was never on changes nothing.
+    resetRateLimits();
+    const right = await call('/api/me/2fa/off', { password: 'correct horse battery' }, { cookie });
+    assert.equal(right.status, 200, 'the real password still works');
+  });
+});
+
+/**
+ * The limiter's own memory.
+ *
+ * A bucket is created per key and a key contains an address, which is free to
+ * invent — with `KOLIBRI_TRUST_PROXY` on, which is the default, it is a header.
+ * So the map is attacker-sized unless something bounds it, and a limiter that
+ * answers a flood by exhausting the process has picked the wrong loser.
+ *
+ * `MAX_KEYS` was that bound in name only: the sweep behind it deleted buckets
+ * untouched for an hour, which during a flood is none of them.
+ */
+describe('the limiter under a flood', () => {
+  /** A request from an address, without the network in the way. */
+  const from = (ip: string) => ({
+    res: { setHeader() {} },
+    req: { headers: {}, socket: { remoteAddress: ip } },
+  }) as any;
+
+  const flood = (count: number) => {
+    for (let i = 0; i < count; i++) {
+      const ctx = from(`10.${(i >> 16) & 255}.${(i >> 8) & 255}.${i & 255}`);
+      try { enforce(ctx, byAddress(ctx, LIMITS.login, 'login')); } catch { /* the 429 is the point */ }
+    }
+  };
+
+  it('holds a hard ceiling on how many buckets it will keep', () => {
+    resetRateLimits();
+    flood(60_000);
+    assert.ok(
+      rateLimitInternals.buckets.size <= 20_000,
+      `the map grew to ${rateLimitInternals.buckets.size} from 60,000 addresses inside one hour`,
+    );
+  });
+
+  it('drops the buckets closest to full, and never one that is still holding somebody', () => {
+    resetRateLimits();
+    // One address that has spent everything it had. It must survive whatever
+    // the flood does to the map, or the flood is a way out of a limit.
+    const attacker = from('203.0.113.7');
+    for (let i = 0; i < LIMITS.login.burst + 5; i++) {
+      try { enforce(attacker, byAddress(attacker, LIMITS.login, 'login')); } catch { /* expected */ }
+    }
+    assert.throws(() => enforce(attacker, byAddress(attacker, LIMITS.login, 'login')), /Too many/);
+
+    flood(60_000);
+
+    assert.throws(
+      () => enforce(attacker, byAddress(attacker, LIMITS.login, 'login')),
+      /Too many/,
+      'a flood from other addresses evicted the bucket that was doing the work',
+    );
+  });
+
+  it('gives the socket-level bucket the same rules as the one it stands behind', () => {
+    // `oauthClient` says refusals must not deepen — Claude on the web registers
+    // a client per connection, and deepening turned a two-minute wait into
+    // twenty. Behind a proxy the peer bucket is a second bucket, and it was
+    // built from two fields rather than from the limit, so it lost that.
+    const behindProxy = {
+      req: { headers: { 'x-forwarded-for': '203.0.113.9' }, socket: { remoteAddress: '10.1.1.1' } },
+    } as any;
+    for (const check of byAddress(behindProxy, LIMITS.oauthClient, 'oauth-register')) {
+      assert.equal(check.limit.deepens, false, `${check.key} does not carry the limit it was made from`);
+    }
   });
 });
 

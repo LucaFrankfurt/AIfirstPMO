@@ -304,6 +304,29 @@ On Coolify: *Add Resource → Docker Compose →* this repository, compose file
 `docker-compose.sites.coolify.yml`. Give the `docs` service a domain on port **8080** and the
 `demo` service its own, also on 8080.
 
+### The `:8080` in the domain field is not a public port
+
+Coolify writes the domain as `https://docs.kolibri.day:8080`, and that is correct: the port after
+the host names the **container port to route to**, not a port anybody types. The app's entry says
+`:4000` in exactly the same way. Visitors reach both on 443, and adding a `ports:` mapping to
+"expose" 8080 would publish it beside the proxy rather than behind it — no TLS, no domain.
+
+So if a *visitor* ever sees `:8080`, something else put it there. Until it was fixed, that
+something was nginx. Both sites are built with `trailingSlash: 'always'`, so every page is a
+directory; a link that arrives without the slash is answered with a 301, and nginx builds that
+`Location` header from the host it was asked for and **the port it is listening on**. Behind a
+proxy that terminates TLS, the visitor was handed
+`http://docs.kolibri.day:8080/planning/cycles/` — the container's private port, and `http` for a
+site only served over `https`.
+
+`absolute_redirect off` in `sites/nginx.conf` is the fix, and the only one that needs nothing from
+the proxy: the header becomes `Location: /planning/cycles/`, and the browser keeps the scheme, host
+and port it already had — which is the only party that knows them.
+
+The browser checks could not have caught this. They run against `serve`, and what is deployed is
+nginx, so the bug lived entirely in the configuration between them. `node sites/check-redirects.mjs`
+now asserts it: the directive always, and the served behaviour wherever there is an nginx to ask.
+
 Where the buttons point is decided **at build time**, because a static site has no server to ask.
 Each is a build argument in the compose file:
 
@@ -365,8 +388,26 @@ It is a separate hostname from the landing page rather than a path under it, bec
 client is a single-page app served from the root of its origin. There is no base path to mount it
 under.
 
-**How the reset works.** `scripts/demo-entrypoint.sh` replaces the image's command and owns the
-process: wipe `/data`, seed, start the server, wait `KOLIBRI_DEMO_RESET_SECONDS`, stop it, repeat.
+**If this is the one stack that will not deploy**, there are two things it does that the others do
+not, and both bite only here.
+
+*It used to mount files from the checkout.* The reset loop and the script that seeds the
+conversation were bind-mounted in from `./scripts`. A bind mount needs a path on the machine that
+runs the container, and a platform handed a repository URL decides for itself where — or whether —
+that checkout exists when the container starts; where it does not, Docker creates a *directory* at
+the target and the entrypoint dies on it before anything is logged. Both scripts are in the image
+now, root-owned and read-only, which is stricter than the `:ro` mount was. `npm run check:compose`
+refuses a host bind mount in any stack meant to be deployed, so this cannot come back.
+
+*Its hostname is three levels deep.* `app.demo.kolibri.day` is not covered by a wildcard
+certificate for `*.kolibri.day` — a wildcard matches one label, so it covers `demo.kolibri.day` and
+stops there. Per-domain issuance, which is what Coolify does by default, handles it as long as the
+name resolves to the server; a wildcard set up for the other two does not extend to it. If the
+deploy succeeds and the domain is what fails, this is the first thing to check.
+
+**How the reset works.** `scripts/demo-entrypoint.sh` — carried in the image, and inert in every
+other stack because nothing else names it — replaces the image's command and owns the process:
+wipe `/data`, seed, start the server, wait `KOLIBRI_DEMO_RESET_SECONDS`, stop it, repeat.
 The reset owns the process rather than the other way round because `kolibri restore` deliberately
 refuses to run against a live database — putting a snapshot under a running server is how you get
 a half-restored one. A sidecar that restarted its neighbour would need the Docker socket, and

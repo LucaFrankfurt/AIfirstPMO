@@ -30,6 +30,24 @@ export function verifyPassword(password: string, stored: string | null | undefin
 export const hashToken = (value: string): string =>
   createHash('sha256').update(`${value}${env.secret}`).digest('hex');
 
+/**
+ * Compare two secrets without leaking where they first differ.
+ *
+ * `a !== b` returns at the first differing byte, which is a measurable answer
+ * to "how much of this did I get right" and therefore a way to learn a secret
+ * one byte at a time. The window is small over a network and the fix is one
+ * line, so there is no case for the version that only usually works.
+ *
+ * Lives here rather than beside any one caller because there were two of these
+ * already — in `oauth.ts` and in `mail.ts` — and a third route compared with
+ * `!==`, which is exactly what happens to a helper nobody can find.
+ */
+export function secretEquals(a: string, b: string): boolean {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
 /* ---------------------------------------------------------------- sessions */
 
 export function createSession(userId: string, userAgent?: string): string {

@@ -154,6 +154,15 @@ jobs:
       - name: Every internal link resolves
         run: node sites/check.mjs sites/${{ matrix.site }}/dist
 
+      # The one thing the browser checks below cannot see: they run against
+      # `serve`, and what is deployed is nginx. A 301 that names the container's
+      # own port sends every visitor who omits a trailing slash to an address
+      # nothing answers on, and only the real configuration says so. No apt step
+      # — the script asserts the configuration either way and runs the served
+      # half only where there is already an nginx to ask.
+      - name: A redirect behind a proxy keeps the visitor's scheme and port
+        run: node sites/check-redirects.mjs
+
       - name: A browser to look with
         timeout-minutes: 8
         run: |
