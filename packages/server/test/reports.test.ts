@@ -909,3 +909,74 @@ describe('modules across projects', () => {
     assert.equal(still.title, 'Beta piece', 'the task itself is untouched');
   });
 });
+
+/**
+ * What a client can attach from Kolibri, which is not the tool list.
+ *
+ * `resources/list` is the "add from Kolibri" menu, and it took no arguments —
+ * so unlike every tool, which accepts `workspace_id` and can be pointed
+ * somewhere else, whatever it left out was unreachable from that menu. It
+ * listed one workspace's pages: the token's pinned one, or for an unpinned
+ * token whichever membership came back first. Somebody in two workspaces saw
+ * one of them.
+ *
+ * `resources/read` had always allowed any workspace in `memberships`, so those
+ * pages were readable by URI the whole time and only missing from the list.
+ */
+describe('the resources a client is offered', () => {
+  let token = '';
+  let pinned = '';
+  const workspace: Record<string, string> = {};
+
+  const rpc = async (name: string, method: string, params: Record<string, unknown> = {}) => {
+    const response = await api('/mcp', {
+      token: name,
+      body: { jsonrpc: '2.0', id: ++rpcId, method, params },
+    });
+    if (response.error) throw new Error(`${method}: ${response.error.message}`);
+    return response.result;
+  };
+
+  it('sets up two workspaces with a page in each', async () => {
+    resetRateLimits();
+    const session = await api('/api/auth/register', {
+      body: { email: 'iris@kolibri.test', name: 'Iris Wu', password: 'a perfectly fine password' },
+    });
+    workspace.first = session.workspaces[0].id;
+    workspace.second = (await api('/api/workspaces', { body: { name: 'Second' } })).workspace.id;
+
+    for (const [key, title] of [['first', 'Notes from the first'], ['second', 'Notes from the second']]) {
+      await api(`/api/workspaces/${workspace[key]}/pages`, { body: { title, content: `# ${title}` } });
+    }
+    token = (await api('/api/tokens', { body: { name: 'unpinned' } })).token;
+    pinned = (await api('/api/tokens', { body: { name: 'pinned', workspaceId: workspace.second } })).token;
+  });
+
+  it('offers pages from every workspace an unpinned token can reach', async () => {
+    const { resources } = await rpc(token, 'resources/list');
+    const titles = resources.map((r: any) => r.name);
+    assert.ok(titles.includes('Notes from the first'), 'the first workspace’s page is missing');
+    assert.ok(titles.includes('Notes from the second'), 'the second workspace’s page is missing');
+
+    // Named, because two pages called "Notes" in one flat list are the same
+    // row twice as far as the person picking is concerned.
+    const one = resources.find((r: any) => r.name === 'Notes from the second');
+    assert.match(one.title, /Second/, 'with more than one workspace, each says which it is from');
+  });
+
+  it('offers exactly what it lists — the list and the read agree', async () => {
+    const { resources } = await rpc(token, 'resources/list');
+    for (const resource of resources) {
+      const { contents } = await rpc(token, 'resources/read', { uri: resource.uri });
+      assert.match(contents[0].text, /^# /, `${resource.uri} was listed and could not be read`);
+    }
+  });
+
+  it('keeps a pinned token to the workspace it was pinned to', async () => {
+    const { resources } = await rpc(pinned, 'resources/list');
+    const titles = resources.map((r: any) => r.name);
+    assert.deepEqual(titles, ['Notes from the second'], 'a pin is a boundary somebody set on purpose');
+    // And with one workspace in play there is nothing to disambiguate.
+    assert.ok(!resources[0].title.includes('—'), 'so the title is not padded with a name nobody needs');
+  });
+});

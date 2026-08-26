@@ -3459,18 +3459,41 @@ const toolList = () =>
     annotations: { readOnlyHint: !!tool.readOnly, destructiveHint: tool.name === 'delete_task' },
   }));
 
+/**
+ * The pages a client may attach, across every workspace this token can reach.
+ *
+ * Not one workspace. This listed `defaultWorkspace ?? the first membership`,
+ * which for an unpinned token means whichever workspace happened to come back
+ * first — so somebody in two of them saw one's pages in the picker and no way
+ * to ask for the other's. Every tool takes `workspace_id` and can be pointed
+ * somewhere else; a resource list takes no arguments, so what it omits is
+ * simply unreachable from that menu.
+ *
+ * `readResource` already allowed any workspace in `memberships`, so those pages
+ * were readable by URI the whole time and only missing from the list. Listed
+ * and readable disagreeing is the part that made this a bug rather than a
+ * default.
+ *
+ * A token pinned to one workspace still sees only that one — that pin is a
+ * boundary somebody set on purpose, not a default to widen.
+ */
 function resourceList(ctx: McpCtx) {
-  const workspaceId = ctx.defaultWorkspace ?? [...ctx.auth.memberships.keys()][0];
-  if (!workspaceId) return [];
+  const workspaces = ctx.defaultWorkspace ? [ctx.defaultWorkspace] : [...ctx.auth.memberships.keys()];
+  if (!workspaces.length) return [];
   const pages = all<Row>(
-    `SELECT id, title, icon FROM pages WHERE workspace_id = ? AND deleted_at IS NULL AND archived = 0
-       AND (access <> 'private' OR created_by = ?) ORDER BY updated_at DESC LIMIT 100`,
-    workspaceId, ctx.auth.userId,
+    `SELECT p.id, p.title, p.icon, w.name AS workspace FROM pages p JOIN workspaces w ON w.id = p.workspace_id
+      WHERE p.workspace_id IN (${holes(workspaces.length)}) AND p.deleted_at IS NULL AND p.archived = 0
+        AND (p.access <> 'private' OR p.created_by = ?)
+      ORDER BY p.updated_at DESC LIMIT 100`,
+    ...workspaces, ctx.auth.userId,
   );
+  // The workspace named only when there is more than one to confuse: two pages
+  // called "Notes" in a flat list are otherwise the same row twice.
+  const many = workspaces.length > 1;
   return pages.map((page) => ({
     uri: `kolibri://page/${page.id}`,
-    name: page.title,
-    title: `${page.icon ?? '📄'} ${page.title}`,
+    name: String(page.title),
+    title: `${page.icon ?? '📄'} ${page.title}${many ? ` — ${page.workspace}` : ''}`,
     mimeType: 'text/markdown',
   }));
 }

@@ -599,9 +599,20 @@ They deliberately ask for confirmation before writing anything.
 
 ## Resources
 
-`resources/list` returns the workspace's wiki pages as `kolibri://page/<id>` with
-`mimeType: text/markdown`; `resources/read` returns the markdown. Tasks are readable the same way
-via `kolibri://task/<id>`. This lets a client attach a handbook page as context without a tool call.
+`resources/list` returns wiki pages as `kolibri://page/<id>` with `mimeType: text/markdown`;
+`resources/read` returns the markdown. Tasks are readable the same way via `kolibri://task/<id>`.
+This lets a client attach a handbook page as context without a tool call.
+
+**Across every workspace the token can reach**, and each entry says which one it came from when
+there is more than one. Unlike a tool, this call takes no arguments — so whatever it leaves out is
+unreachable from the client's "add from Kolibri" menu, and listing one workspace meant somebody in
+two saw half of what they had. A token pinned to a workspace still sees only that one; that pin is
+a boundary somebody set on purpose.
+
+Note that this is a different list from the tools. Modules, cycles and everything else are **tools**
+and appear wherever your client shows those; resources are pages, and prompts are the three named
+below. A client that shows only prompts and pages under "add from Kolibri" is showing you that
+menu, not the tool list.
 
 ## Permissions
 
