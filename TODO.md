@@ -104,7 +104,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       "was any page exactly full", which was right until a workspace had exactly one page of
       changes. Covered by a test that actually creates 2 025 rows.
 - [x] **Guest role in the UI.** One `useCanWrite()` hook rather than `role !== 'guest'` repeated in
-      fifteen components; the write affordances a guest cannot use are not shown.
+      thirteen components; the write affordances a guest cannot use are not shown.
 - [x] **Client-side tests.** `packages/web/test` runs the *real* store, outbox and sync engine
       under Node against the *real* server, with a shim for the four browser things they touch and a
       network that can be switched off mid-test. It proves what a server test cannot: a change typed
@@ -545,8 +545,8 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 ## Verified, for contrast
 
 So the list above is read in proportion — these are covered by automated tests
-(`npm test`, 470 cases across the server and the client) or by the browser walkthrough
-(`node scripts/smoke.mjs`, seventeen steps, which runs in English, German and French):
+(`npm test`, over 950 cases across the server and the client) or by the browser walkthrough
+(`node scripts/smoke.mjs`, thirty-six steps, which runs in English, German and French):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
@@ -588,7 +588,7 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] Browser: phone viewport, dark mode, and rendering with the network switched off
 - [x] Browser: the same walkthrough through the German interface (`KOLIBRI_LOCALE=de`)
 - [x] Browser: the guide opens from `?`, all four sections render without a raw translation key,
-      every one of the 32 animation steps is narrated, and all 18 hierarchy nodes explain themselves
+      every one of the 41 animation steps is narrated, and all 24 hierarchy nodes explain themselves
 - [x] Browser: the first-run tour greets a new device, offers five steps to an owner and three to a
       member, creates a real project, and stays gone after a reload
 - [x] Browser: the setup checklist reads the seeded workspace correctly, a contextual hint lands on
@@ -682,7 +682,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 23 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 50 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
@@ -730,7 +730,7 @@ Still to do, in the order it is worth doing:
 
 - [ ] **The screens themselves.** Roughly forty files still use the hand-written `.btn`, `.input`,
       `.card` and `.nav-item` classes. They work — the classes are still there — but they are the
-      reason `app.css` is still 1,700 lines. Port them a screen at a time, deleting the class it
+      reason `app.css` is still 2,700 lines. Port them a screen at a time, deleting the class it
       used as the last screen stops needing it, so the stylesheet shrinks as the port advances
       rather than at the end.
 - [ ] **The remaining Radix candidates**, where our version is measurably worse: `Select` (a native

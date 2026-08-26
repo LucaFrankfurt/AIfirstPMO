@@ -103,8 +103,9 @@ See [`storage.md`](storage.md).
 **Elasticsearch → FTS5.** Full-text search is built into SQLite and is maintained transactionally
 with the rows it indexes, so it can never drift out of date the way an async indexer can.
 
-**A mail service → 200 lines of SMTP.** Notifications are delivered by an SMTP client written
-against `node:net`/`node:tls`. Sending mail is a small, stable protocol; a mail library would have
+**A mail service → one file of SMTP.** Notifications are delivered by an SMTP client written
+against `node:net`/`node:tls` — a few hundred lines, and no line count here because that is a
+figure that rots on the next edit. Sending mail is a small, stable protocol; a mail library would have
 been the largest dependency in the server, and the queue in front of it is the part that actually
 matters. Email stays off until a relay is configured — the in-app inbox is always the source of
 truth. See [`notifications.md`](notifications.md).

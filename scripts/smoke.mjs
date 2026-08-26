@@ -13,6 +13,17 @@
  */
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
+/**
+ * The two figures TODO.md quotes about the guide.
+ *
+ * They live here because this is the only place that can count them — both are
+ * what a browser renders rather than what the source lists, and the two
+ * disagree. Change the guide, watch this fail, and change the sentence in
+ * TODO.md that says the same number. `scripts/figures.mjs` does this job for
+ * every figure that can be counted without a browser.
+ */
+const GUIDE = { steps: 41, nodes: 24 };
+
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const locale = process.env.KOLIBRI_LOCALE ?? 'en';
 const shots = process.env.KOLIBRI_SHOT_DIR ?? (locale === 'en' ? '/tmp/shots' : `/tmp/shots-${locale}`);
@@ -1331,6 +1342,11 @@ await step('guide opens, explains itself, and leaks no keys', async () => {
     }
   }
   console.log('     narrated animation steps:', steps);
+  // Asserted and not only counted, because TODO.md quotes this figure and a
+  // logged number nobody reads is how it came to say 32 when it was 41.
+  if (steps !== GUIDE.steps) {
+    throw new Error(`${steps} narrated animation steps, TODO.md says ${GUIDE.steps} — one of the two is wrong`);
+  }
 
   // Every node of the hierarchy has to explain itself.
   await page.locator('.tabs button').nth(1).click();
@@ -1341,7 +1357,11 @@ await step('guide opens, explains itself, and leaks no keys', async () => {
     const detail = await page.locator('.gx-detail').innerText();
     if (detail.length < 90) throw new Error(`hierarchy node ${index} is not explained`);
   }
-  console.log('     hierarchy nodes explained:', await nodes.count());
+  const nodeCount = await nodes.count();
+  console.log('     hierarchy nodes explained:', nodeCount);
+  if (nodeCount !== GUIDE.nodes) {
+    throw new Error(`${nodeCount} hierarchy nodes, TODO.md says ${GUIDE.nodes} — one of the two is wrong`);
+  }
 });
 await page.screenshot({ path: `${shots}/7-guide.png` });
 

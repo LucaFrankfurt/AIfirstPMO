@@ -233,7 +233,9 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
-| `list_pages` / `get_page` | wiki pages, markdown included |
+| `prepare_meeting` | **all six reports as one agenda**, in the order a meeting runs, with a `headline` of the numbers that decide whether it is a short one |
+| `list_page_templates` | the pages marked as templates — meeting notes, a decision record, a runbook |
+| `list_pages` / `get_page` | wiki pages, markdown included. Templates are left out unless `include_templates` asks for them |
 | `list_templates` | pre-written tasks, with the checklist each one carries |
 | `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
 | `list_members` | people with role and open task count |
@@ -317,6 +319,22 @@ asked about the workspace, all of it. The progress bar in the interface is the o
 deliberately so — a shared cycle shows the shared total on every project's tab, because the same
 cycle showing different numbers depending on where you opened it would be worse than either.
 
+### `prepare_meeting`, which is the other five plus an order
+
+A weekly is not six reports, it is what happened, then what is about to go wrong, then what is
+stuck, then who is carrying it. `prepare_meeting` returns exactly that: a `headline` of seven
+numbers, then an `agenda` of six sections, each naming the report it came from and carrying that
+report's own answer.
+
+It **calls those tools rather than repeating their queries**, so there is one source of truth per
+number and the agenda cannot drift from the tool it claims to be showing — asserted directly, by
+comparing each section against the tool called on its own.
+
+The one place it differs from its parts: `cycle_review` refuses a project with no cycle running,
+because there the caller named something specific and got nothing. Nobody named a cycle here — the
+agenda asked for whatever is running — so a quiet week is an empty section with a note, not an
+error that takes the other five sections down with it.
+
 It is also the only one that can refuse. Naming a project with no cycle running is an error,
 because the caller asked for something specific and got nothing; a workspace with no cycle running
 anywhere is an ordinary Tuesday, and the honest reply is an empty list.
@@ -383,6 +401,7 @@ Three more details worth knowing before you trust a number:
 | `create_project` | includes the default workflow states and labels |
 | `create_cycle` | sprint with start/end dates, for one project, several, or all |
 | `create_module` | a milestone with a lead and a target date, for one project, several, or all |
+| `create_page_from_template` | copies a template into a new page — the same thing the interface's button does, and a copy rather than a link |
 | `update_module` / `delete_module` | edit a milestone's dates, lead, status and which projects work on it; deleting is soft and keeps the tasks |
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
@@ -589,19 +608,40 @@ clients that parse), so no client has to guess.
 
 ## Prompts
 
-`prompts/list` exposes three workflows that chain the tools sensibly:
+`prompts/list` exposes five workflows that chain the tools sensibly. This is the list a client
+shows under "add from Kolibri" — it is **not** the tool list, so a client showing only these and
+your wiki pages there is showing you that menu rather than everything the server has.
 
-- **`standup`** *(project)* — what moved, what is in flight, what is overdue, the top risk
-- **`sprint_planning`** *(project, capacity?)* — propose the next cycle's scope from the backlog
-- **`triage`** *(project)* — propose priority, owner and label for untriaged work, table first
+- **`weekly_review`** *(project?, days?)* — the agenda for a weekly, read out from `prepare_meeting`
+- **`meeting_notes`** *(template?, project?)* — start a page from a notes template and fill its own
+  sections in from the agenda, keeping its headings rather than inventing content
+- **`standup`** *(project?)* — what moved, what is in flight, what is overdue, the top risk
+- **`sprint_planning`** *(project?, capacity?)* — propose the next cycle's scope from the backlog
+- **`triage`** *(project?)* — propose priority, owner and label for untriaged work, table first
+
+**`project` is optional on every one.** It used to be required, which meant none of them could
+answer for a workspace — "what do we talk about on Monday" is not a question about one project, and
+somebody in four of them ran the same prompt four times and added it up. That is the same thing the
+report tools were changed for; this is the half that was left behind.
 
 They deliberately ask for confirmation before writing anything.
 
 ## Resources
 
-`resources/list` returns the workspace's wiki pages as `kolibri://page/<id>` with
-`mimeType: text/markdown`; `resources/read` returns the markdown. Tasks are readable the same way
-via `kolibri://task/<id>`. This lets a client attach a handbook page as context without a tool call.
+`resources/list` returns wiki pages as `kolibri://page/<id>` with `mimeType: text/markdown`;
+`resources/read` returns the markdown. Tasks are readable the same way via `kolibri://task/<id>`.
+This lets a client attach a handbook page as context without a tool call.
+
+**Across every workspace the token can reach**, and each entry says which one it came from when
+there is more than one. Unlike a tool, this call takes no arguments — so whatever it leaves out is
+unreachable from the client's "add from Kolibri" menu, and listing one workspace meant somebody in
+two saw half of what they had. A token pinned to a workspace still sees only that one; that pin is
+a boundary somebody set on purpose.
+
+Note that this is a different list from the tools. Modules, cycles and everything else are **tools**
+and appear wherever your client shows those; resources are pages, and prompts are the three named
+below. A client that shows only prompts and pages under "add from Kolibri" is showing you that
+menu, not the tool list.
 
 ## Permissions
 

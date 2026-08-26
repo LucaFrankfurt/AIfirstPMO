@@ -144,7 +144,7 @@ are the manual for running and extending it.
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages — where a private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
-| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 47 tools, 3 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) |
+| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 50 tools, 5 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) |
 | **Task reviews** | Optional, manual and off by default: a button asks a model to read a task back and suggest clearer wording, with the replacement already written and applied only by a click. Anthropic, Gemini or OpenRouter, chosen by an environment variable. [What leaves the instance](docs/ai.md) |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
@@ -169,7 +169,7 @@ it grants is an ordinary token you can revoke in Settings.
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant a
 view of the backlog without handing it a pen.
 
-**47 tools**, in six groups:
+**50 tools**, in six groups:
 
 | | |
 |---|---|
@@ -178,16 +178,20 @@ view of the backlog without handing it a pen.
 | Attachments | `upload_attachment`, `list_attachments`, `delete_attachment` |
 | Planning | `list_cycles`, `create_cycle`, `update_cycle`, `delete_cycle`, `list_modules`, `create_module`, `update_module`, `delete_module`, `log_time`, `list_time`, `list_templates`, `apply_template` |
 | Configuration | `list_states`, `create_state`, `update_state`, `list_labels`, `create_label`, `update_label` |
-| Pages | `list_pages`, `get_page`, `create_page`, `update_page` |
-| Reports *(read-only)* | `project_status`, `changes_since`, `deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review` |
+| Pages | `list_pages`, `get_page`, `create_page`, `update_page`, `list_page_templates`, `create_page_from_template` |
+| Reports *(read-only)* | `project_status`, `changes_since`, `deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review`, `prepare_meeting` |
 
 The six reports answer for the **whole workspace** unless narrowed to a project, because who is
 overloaded is a question about a person and a person works in several. Each answers with a *reason*
 rather than a list: "overdue" is a fact anybody can compute, and "due Thursday, still in Backlog,
 nobody on it" is the sentence somebody acts on.
 
-**3 prompts**: `standup`, `sprint_planning`, `triage`. Every tool, prompt and resource with examples:
-[`docs/mcp.md`](docs/mcp.md).
+`prepare_meeting` is those six as one agenda, in the order a meeting runs — it calls the other
+tools rather than repeating their queries, so a number in the agenda is the number the tool gives.
+
+**5 prompts**: `weekly_review`, `meeting_notes`, `standup`, `sprint_planning`, `triage` — the list a
+client offers under "add from Kolibri", which is not the tool list. Every tool, prompt and resource
+with examples: [`docs/mcp.md`](docs/mcp.md).
 
 ## How offline sync works
 

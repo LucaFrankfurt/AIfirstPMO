@@ -2088,18 +2088,200 @@ const TOOLS: ToolDef[] = [
       return { deleted: String(module.name), id: String(module.id), tasks_released: orphaned };
     },
   },
+  /**
+   * The agenda, assembled rather than asked for six times.
+   *
+   * Every number here already had a tool. What did not exist was the *order* —
+   * a weekly meeting is not six reports, it is what happened, then what is
+   * about to go wrong, then what is stuck, then who is carrying it. Six calls
+   * and a person arranging the answers is the work this saves, and arranging
+   * them the same way every week is most of what makes the meeting short.
+   *
+   * Each section is the tool's own answer, called through `report` below rather
+   * than re-queried, so there is one source of truth per number and this cannot
+   * drift from the tool it claims to be showing.
+   */
   {
-    name: 'list_pages',
-    title: 'List pages',
-    description: 'List wiki pages, optionally scoped to a project.',
+    name: 'prepare_meeting',
+    title: 'Prepare a weekly meeting',
+    description:
+      'One agenda from all six reports, in the order a meeting runs: what shipped, what is at risk, what is blocked, what has stalled, how the cycles are going, and who is carrying what. Workspace-wide unless given a project.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Key or name. Omitted, the whole workspace.' },
+        days: { type: 'number', description: 'How far back "since last time" reaches. Defaults to 7 — a week, because that is the meeting this is for.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const { workspaceId, project, keyOf } = reportScope(args, ctx);
+      const days = windowDays(args.days, 7);
+      const scope = { project: args.project, workspace_id: workspaceId };
+      /* The other tools' own `run`, by name. Calling them rather than repeating
+         their queries is the whole point: a report that changes changes here
+         too, and a number in the agenda is the same number the tool gives. */
+      const report = (name: string, extra: Record<string, unknown> = {}): any =>
+        TOOLS.find((tool) => tool.name === name)!.run({ ...scope, ...extra }, ctx);
+
+      const changed = report('changes_since', { days });
+      const risk = report('deadlines_at_risk');
+      const blocked = report('blocked_tasks');
+      const stalled = report('stale_tasks', { days });
+      const load = report('workload');
+      /* `cycle_review` refuses a project with no cycle running, because there
+         the caller named something specific and got nothing. Here nobody named
+         a cycle — the agenda asked for whatever is running — so no cycle is an
+         ordinary week and an empty section is the honest answer, not an error
+         that takes the other five sections down with it. */
+      let cycles: any = { cycles: [], totals: null };
+      try {
+        cycles = report('cycle_review');
+      } catch {
+        cycles = { cycles: [], totals: null, note: 'No cycle is running in this scope right now.' };
+      }
+
+      return {
+        scope: project ? 'project' : 'workspace',
+        project: project?.key ?? null,
+        projects: Object.values(keyOf).sort(),
+        window_days: days,
+        /* Read first and often read alone. Somebody skimming on the way to the
+           room wants the four numbers that decide whether this is a short
+           meeting, not six objects to count for themselves. */
+        headline: {
+          finished: Number(changed?.completed?.length ?? 0),
+          filed: Number(changed?.created?.length ?? 0),
+          at_risk: Number(risk?.at_risk?.length ?? 0),
+          blocked: Number(blocked?.blocked?.length ?? 0),
+          stalled: Number(stalled?.stale?.length ?? 0),
+          // `workload.unassigned` is a bucket, not a count — `.open` is the
+          // number. `Number()` on the object gave NaN, which JSON writes as
+          // null, so the agenda reported "unassigned: null" and read as none.
+          unassigned: Number(load?.unassigned?.open ?? 0),
+          cycles_running: Number(cycles?.cycles?.length ?? 0),
+        },
+        agenda: [
+          { heading: `What moved in the last ${days} days`, report: 'changes_since', detail: changed },
+          { heading: 'Cycles in flight', report: 'cycle_review', detail: cycles },
+          { heading: 'Deadlines at risk', report: 'deadlines_at_risk', detail: risk },
+          { heading: 'Waiting on something', report: 'blocked_tasks', detail: blocked },
+          { heading: 'Stopped moving', report: 'stale_tasks', detail: stalled },
+          { heading: 'Who is carrying what', report: 'workload', detail: load },
+        ],
+      };
+    },
+  },
+  /* ------------------------------------------------------- page templates
+     Pages could be marked as templates since they were written, and nothing
+     over MCP could see it: `list_pages` returned them mixed in with real pages
+     and did not say which was which, so an assistant asked to "write up the
+     notes from the template" could neither find one nor use it. */
+  {
+    name: 'list_page_templates',
+    title: 'List page templates',
+    description: 'The pages marked as templates — meeting notes, a decision record, a runbook — that `create_page_from_template` can start a new page from.',
     readOnly: true,
     schema: { type: 'object', properties: { project: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
       return all<Row>(
-        `SELECT id, title, icon, project_id, parent_id, updated_at, created_by FROM pages
+        `SELECT id, title, icon, project_id, updated_at FROM pages
+          WHERE workspace_id = ? AND is_template = 1 AND deleted_at IS NULL AND archived = 0
+            AND (access <> 'private' OR created_by = ?)
+            ${project ? 'AND (project_id IS NULL OR project_id = ?)' : ''}
+          ORDER BY title LIMIT 100`,
+        ...(project ? [workspaceId, ctx.auth.userId, project.id] : [workspaceId, ctx.auth.userId]),
+      ).map((row) => ({
+        id: String(row.id),
+        title: String(row.title),
+        icon: row.icon ?? null,
+        // The key people type, not the id — a template is picked by name.
+        project: row.project_id
+          ? (get<Row>(`SELECT key FROM projects WHERE id = ?`, row.project_id)?.key ?? null)
+          : null,
+      }));
+    },
+  },
+  {
+    name: 'create_page_from_template',
+    title: 'New page from a template',
+    description: 'Copy a template into a new page — the same thing the New from template button does. A copy, not a link: editing the new page never edits the template.',
+    schema: {
+      type: 'object',
+      required: ['template'],
+      properties: {
+        template: { type: 'string', description: 'Template id or exact title, from list_page_templates' },
+        title: { type: 'string', description: "The new page's title. Defaults to the template's." },
+        project: { type: 'string', description: "Key or name. Defaults to the template's project, which may be none." },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const template = get<Row>(
+        `SELECT * FROM pages WHERE workspace_id = ? AND is_template = 1 AND deleted_at IS NULL
+           AND (id = ? OR lower(title) = lower(?)) AND (access <> 'private' OR created_by = ?)`,
+        workspaceId, String(args.template), String(args.template), ctx.auth.userId,
+      );
+      if (!template) throw new McpError(`No page template called "${args.template}" — list_page_templates has the ones there are`);
+
+      const project = str(args.project)
+        ? findProject(String(args.project), workspaceId, ctx)
+        : (template.project_id ? findProject(String(template.project_id), workspaceId, ctx) : null);
+
+      const { row } = writeEntity('page', uid(), {
+        workspace_id: workspaceId,
+        project_id: project?.id ?? null,
+        title: str(args.title) ?? String(template.title),
+        // The body is a CRDT elsewhere; a fresh page starts from the text and
+        // grows its own history rather than inheriting the template's.
+        content: String(template.content ?? ''),
+        icon: template.icon ?? null,
+        created_by: ctx.auth.userId,
+        // Never a template itself. Copying one is how somebody ends up with
+        // four almost-identical templates and no idea which is the real one.
+        is_template: 0,
+      }, writeOpts(workspaceId, ctx));
+
+      return {
+        id: String(row.id),
+        title: String(row.title),
+        from_template: String(template.title),
+        project: project?.key ?? null,
+        url: `${env.publicUrl}/pages/${row.id}`,
+      };
+    },
+  },
+  {
+    name: 'list_pages',
+    title: 'List pages',
+    description: 'List wiki pages, optionally scoped to a project. Templates are left out — `list_page_templates` has those.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string' },
+        include_templates: { type: 'boolean', description: 'Include the pages marked as templates, flagged with `is_template`.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      /* Templates out by default, and flagged when asked for. They were mixed
+         in and unmarked: a template is a starting point rather than content, so
+         an assistant summarising "the pages in this project" was summarising a
+         half-written form as though somebody had meant it. The interface has
+         always kept them out of the tree for the same reason. */
+      const templates = args.include_templates === true;
+      return all<Row>(
+        `SELECT id, title, icon, project_id, parent_id, updated_at, created_by, is_template FROM pages
           WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} AND deleted_at IS NULL AND archived = 0
+            ${templates ? '' : 'AND is_template = 0'}
             AND (access <> 'private' OR created_by = ?)
           ORDER BY updated_at DESC LIMIT 200`,
         ...(project ? [workspaceId, project.id, ctx.auth.userId] : [workspaceId, ctx.auth.userId]),
@@ -3418,33 +3600,70 @@ const countTasks = (projectId: string, done: boolean): number =>
 
 /* ---------------------------------------------------------------- prompts */
 
+/**
+ * The prompts, which are the "add from Kolibri" menu in a client rather than
+ * the tool list — a person picks one, it becomes their message, and the model
+ * calls the tools from there.
+ *
+ * `project` is optional on every one of them. It was required, which meant none
+ * of these could answer for a workspace: "what do we talk about on Monday" is
+ * not a question about one project, and somebody in four of them had to run the
+ * same prompt four times and add it up. That is the same thing the report tools
+ * were changed for, and this is the half that was left behind.
+ */
+const inScope = (project?: string) => (project ? `"${project}"` : 'the whole workspace');
+
 const PROMPTS = [
+  {
+    name: 'weekly_review',
+    title: 'Prepare the weekly meeting',
+    description: 'The agenda for a weekly: what shipped, what is at risk, what is stuck, and who is carrying it.',
+    arguments: [
+      { name: 'project', description: 'Project key or name. Leave it out for the whole workspace.', required: false },
+      { name: 'days', description: 'How far back "since last time" reaches. Defaults to 7.', required: false },
+    ],
+    build: (args: Record<string, string>) =>
+      `Call prepare_meeting for ${inScope(args.project)}${args.days ? ` with days=${args.days}` : ''}. Turn the agenda into something a person can read out: lead with the headline numbers in one sentence, then a short section per heading, naming people and task identifiers rather than counts wherever the detail has them. Say plainly if a section is empty — a quiet week is worth hearing. Put anything needing a decision in a closing list, and do not change anything.`,
+  },
   {
     name: 'standup',
     title: 'Daily standup',
     description: 'Summarise what moved yesterday, what is in flight and what is blocked.',
-    arguments: [{ name: 'project', description: 'Project key or name', required: true }],
+    arguments: [{ name: 'project', description: 'Project key or name. Leave it out for the whole workspace.', required: false }],
     build: (args: Record<string, string>) =>
-      `Use project_status for "${args.project}" and list_tasks with state=started. Write a short standup: what completed since yesterday, what is in progress and who owns it, what is overdue or unassigned, and the single most important risk. Keep it under 200 words.`,
+      `Use changes_since with days=1 and blocked_tasks for ${inScope(args.project)}, and list_tasks with state=started. Write a short standup: what completed since yesterday, what is in progress and who owns it, what is overdue or unassigned, and the single most important risk. Keep it under 200 words.`,
   },
   {
     name: 'sprint_planning',
     title: 'Plan the next cycle',
     description: 'Propose a cycle scope from the backlog.',
     arguments: [
-      { name: 'project', description: 'Project key or name', required: true },
+      { name: 'project', description: 'Project key or name. Leave it out for the whole workspace.', required: false },
       { name: 'capacity', description: 'Total estimate points available', required: false },
     ],
     build: (args: Record<string, string>) =>
-      `Read the backlog of "${args.project}" with list_tasks (state=backlog) and the last cycle with list_cycles. Propose a scope for the next cycle that fits ${args.capacity ?? 'the team\'s recent throughput'}, ordered by priority and dependencies. Explain trade-offs, then ask before calling update_task to assign the cycle.`,
+      `Read the backlog of ${inScope(args.project)} with list_tasks (state=backlog) and the last cycle with list_cycles. Propose a scope for the next cycle that fits ${args.capacity ?? 'the team\'s recent throughput'}, ordered by priority and dependencies. A cycle can cover several projects — say so if the scope you are proposing spans more than one. Explain trade-offs, then ask before calling update_task to assign the cycle.`,
+  },
+  {
+    name: 'meeting_notes',
+    title: 'Write up meeting notes',
+    description: 'Start a page from a notes template and fill it in from what actually happened.',
+    arguments: [
+      { name: 'template', description: 'Template title, from list_page_templates. Asked for if left out.', required: false },
+      { name: 'project', description: 'Project key or name. Leave it out for the whole workspace.', required: false },
+    ],
+    build: (args: Record<string, string>) =>
+      `${args.template
+        ? `Make a page from the "${args.template}" template with create_page_from_template.`
+        : 'Show me list_page_templates and ask which one to use, then make a page from it with create_page_from_template.'} Title it for today's meeting. Then fill the template's sections in from prepare_meeting for ${inScope(args.project)} — keep the template's own headings and structure, and put the real numbers and task identifiers under them. Leave any section it has no data for as an empty heading rather than deleting it or inventing content, and file decisions as tasks only after I say so.`,
   },
   {
     name: 'triage',
     title: 'Triage inbox',
     description: 'Clean up untriaged work.',
-    arguments: [{ name: 'project', description: 'Project key or name', required: true }],
+    arguments: [{ name: 'project', description: 'Project key or name. Leave it out for the whole workspace.', required: false }],
     build: (args: Record<string, string>) =>
-      `List tasks in "${args.project}" that are unassigned or have priority "none". For each, suggest a priority, an owner from list_members, and a label. Present a table first and only apply changes with update_task after I confirm.`,
+      `List tasks in ${inScope(args.project)} that are unassigned or have priority "none". For each, suggest a priority, an owner from list_members, and a label. Present a table first and only apply changes with update_task after I confirm.`,
   },
 ];
 
@@ -3459,18 +3678,41 @@ const toolList = () =>
     annotations: { readOnlyHint: !!tool.readOnly, destructiveHint: tool.name === 'delete_task' },
   }));
 
+/**
+ * The pages a client may attach, across every workspace this token can reach.
+ *
+ * Not one workspace. This listed `defaultWorkspace ?? the first membership`,
+ * which for an unpinned token means whichever workspace happened to come back
+ * first — so somebody in two of them saw one's pages in the picker and no way
+ * to ask for the other's. Every tool takes `workspace_id` and can be pointed
+ * somewhere else; a resource list takes no arguments, so what it omits is
+ * simply unreachable from that menu.
+ *
+ * `readResource` already allowed any workspace in `memberships`, so those pages
+ * were readable by URI the whole time and only missing from the list. Listed
+ * and readable disagreeing is the part that made this a bug rather than a
+ * default.
+ *
+ * A token pinned to one workspace still sees only that one — that pin is a
+ * boundary somebody set on purpose, not a default to widen.
+ */
 function resourceList(ctx: McpCtx) {
-  const workspaceId = ctx.defaultWorkspace ?? [...ctx.auth.memberships.keys()][0];
-  if (!workspaceId) return [];
+  const workspaces = ctx.defaultWorkspace ? [ctx.defaultWorkspace] : [...ctx.auth.memberships.keys()];
+  if (!workspaces.length) return [];
   const pages = all<Row>(
-    `SELECT id, title, icon FROM pages WHERE workspace_id = ? AND deleted_at IS NULL AND archived = 0
-       AND (access <> 'private' OR created_by = ?) ORDER BY updated_at DESC LIMIT 100`,
-    workspaceId, ctx.auth.userId,
+    `SELECT p.id, p.title, p.icon, w.name AS workspace FROM pages p JOIN workspaces w ON w.id = p.workspace_id
+      WHERE p.workspace_id IN (${holes(workspaces.length)}) AND p.deleted_at IS NULL AND p.archived = 0
+        AND (p.access <> 'private' OR p.created_by = ?)
+      ORDER BY p.updated_at DESC LIMIT 100`,
+    ...workspaces, ctx.auth.userId,
   );
+  // The workspace named only when there is more than one to confuse: two pages
+  // called "Notes" in a flat list are otherwise the same row twice.
+  const many = workspaces.length > 1;
   return pages.map((page) => ({
     uri: `kolibri://page/${page.id}`,
-    name: page.title,
-    title: `${page.icon ?? '📄'} ${page.title}`,
+    name: String(page.title),
+    title: `${page.icon ?? '📄'} ${page.title}${many ? ` — ${page.workspace}` : ''}`,
     mimeType: 'text/markdown',
   }));
 }

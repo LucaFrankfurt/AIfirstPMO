@@ -185,8 +185,10 @@ Stated plainly, because the sections above could otherwise read as a claim of co
   or a pathological filter are bounded by nothing but the process.
 - **The client's own storage.** The IndexedDB mirror is a full copy of the workspace on the device.
   Signing out clears it; a stolen unlocked laptop is outside this model.
-- **Supply chain.** `npm audit` reports zero vulnerabilities across 148 packages and the server has
+- **Supply chain.** `npm audit` reports zero vulnerabilities across the tree, and the server has
   exactly one dependency (a workspace link), but nothing here pins by hash or verifies provenance.
+  No package count here on purpose: it changes on every `npm install`, so a number would be stale
+  before you read it — `npm audit` is the thing to run rather than a figure to trust.
 - **Multi-tenancy at scale.** The isolation tests cover two workspaces and one attacker. They do not
   cover an instance with a thousand of each.
 
