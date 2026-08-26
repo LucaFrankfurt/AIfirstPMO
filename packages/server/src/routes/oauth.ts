@@ -30,11 +30,11 @@
  * Settings beside the hand-made ones and the same Revoke button stops it, so
  * there is one place to look and one thing to press.
  */
-import { createHash, timingSafeEqual } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { buildCsp } from '../lib/csp.ts';
-import { authenticate, hashToken } from '../lib/auth.ts';
+import { authenticate, hashToken, secretEquals } from '../lib/auth.ts';
 import { token, uid } from '../lib/ids.ts';
 import { badRequest, HttpError, readJson, send, type Ctx, type Router } from '../lib/http.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
@@ -49,12 +49,6 @@ export const resourceUrl = (ctx: Ctx): string => `${origin(ctx)}/mcp`;
 
 const s256 = (verifier: string): string =>
   createHash('sha256').update(verifier).digest('base64url');
-
-const equal = (a: string, b: string): boolean => {
-  const left = Buffer.from(a);
-  const right = Buffer.from(b);
-  return left.length === right.length && timingSafeEqual(left, right);
-};
 
 /**
  * Render a page, and let its form reach where it has to.
@@ -422,7 +416,7 @@ function pruneClients(): void {
     if (!row || Number(row.expires_at) < Date.now()) return void oauthError(ctx, 400, 'invalid_grant', 'That code has expired or was already used');
     if (row.client_id !== (form.get('client_id') ?? '')) return void oauthError(ctx, 400, 'invalid_grant', 'That code belongs to another client');
     if (row.redirect_uri !== (form.get('redirect_uri') ?? '')) return void oauthError(ctx, 400, 'invalid_grant', 'The redirect does not match the one the code was issued for');
-    if (!equal(s256(form.get('code_verifier') ?? ''), String(row.challenge))) {
+    if (!secretEquals(s256(form.get('code_verifier') ?? ''), String(row.challenge))) {
       return void oauthError(ctx, 400, 'invalid_grant', 'The PKCE verifier does not match');
     }
 

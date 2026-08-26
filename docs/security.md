@@ -106,19 +106,42 @@ uploaded SVG downloads from the bucket exactly as it downloads from disk.
 ## Rate limits
 
 On the routes where guessing is the attack: signing in, registering, looking up an invite code,
-opening a share link, posting to an intake form, and dynamic client registration. Token buckets in
-memory; a refusal costs a token too, so hammering after a `429` does not reset the clock.
+opening a share link, posting to an intake form, dynamic client registration, the calendar feed, the
+inbound webhook, the bounce endpoint, and the two places a session is asked to re-confirm its
+password. Token buckets in memory; a refusal costs a token too, so hammering after a `429` does not
+reset the clock.
 
 Signing in is limited **per account as well as per address** — an address-only limit is blind to one
-account being tried from a thousand machines. And because `KOLIBRI_TRUST_PROXY` is on by default,
-the socket address is charged as well against a much wider bucket, so an instance published without
-a proxy cannot have a client invent a fresh allowance per request.
+account being tried from a thousand machines. A code from an authenticator is checked inside that
+same request, so it inherits the same allowance rather than needing one of its own.
+
+Because `KOLIBRI_TRUST_PROXY` is on by default, the socket address is charged as well against a much
+wider bucket, so an instance published without a proxy cannot have a client invent a fresh allowance
+per request. That wider bucket carries every setting of the one it stands behind, including whether
+refusals deepen.
+
+**Changing a password and turning two-factor off** are limited per account. Both re-ask for the
+current password, which is the point of them — and that check is a guessing surface the sign-in
+form's limit does not cover: whoever holds a borrowed session cookie would otherwise work through a
+list at whatever rate the machine allows, with two-factor going off as the reward. It is also the
+one unbounded way to spend the process's CPU, because each check is scrypt on the single thread that
+serves everybody.
+
+The number of buckets is capped. An address is free to invent, so a flood from a new one each time
+would otherwise grow that map until the process died — a limiter that answers a denial-of-service
+attempt by exhausting its own memory has chosen the wrong loser. Buckets that have refilled to full
+are dropped first, since they are indistinguishable from buckets that were never made; only if that
+is not enough does anything still holding somebody back go, closest-to-full first, so an attacker's
+own empty bucket is the last thing evicted rather than the first. Eviction is never a way out.
 
 ## Accounts
 
 Passwords are scrypt with a per-user salt. TOTP is written against RFC 6238's published vectors, so
 it agrees with the phone rather than with itself; recovery codes are stored hashed and are one use
-each. Sessions are listed in Settings and revocable one at a time. OIDC is authorization-code with
+each. Every secret is compared with `secretEquals`, which does not return early at the first
+differing byte — `!==` answers "how much of this did you get right", which is a way to learn a
+secret one byte at a time. Session and API tokens are 24 random bytes stored hashed, so there is
+nothing there to guess at rather than a limit standing in front of the guessing. Sessions are listed in Settings and revocable one at a time. OIDC is authorization-code with
 PKCE and nothing else — no implicit flow, no refresh tokens held here — and an address is taken from
 the provider only when the provider marks it verified.
 
@@ -169,5 +192,7 @@ Stated plainly, because the sections above could otherwise read as a claim of co
 
 ## Reporting something
 
-Open an issue. If it is exploitable, say so in the title and leave the details out of the body — a
-maintainer will ask for them somewhere that is not a public tracker.
+Report it privately through [GitHub's advisory
+form](https://github.com/LucaFrankfurt/AIfirstPMO/security/advisories/new), which is a channel that
+is not a public tracker and does not need one to be invented in the title of an issue. If you would
+rather open an issue, say in the title that it is exploitable and leave the details out of the body.

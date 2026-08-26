@@ -3,10 +3,7 @@ import { all, get, run, tx, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { overTls } from '../lib/origin.ts';
 import { leave } from '../lib/presence.ts';
-import {
-  SESSION_COOKIE, createSession, destroySession, hashPassword, hashToken,
-  loadMemberships, requireAuth, requireWorkspace, verifyPassword,
-} from '../lib/auth.ts';
+import { createSession, destroySession, hashPassword, hashToken, loadMemberships, requireAuth, requireWorkspace, secretEquals, SESSION_COOKIE, verifyPassword } from '../lib/auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../lib/bootstrap.ts';
 import { featuresOf } from '../lib/features.ts';
 import { generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../lib/totp.ts';
@@ -398,6 +395,11 @@ export function registerAuthRoutes(router: Router): void {
   /** Turn it off. The current password is required, not just the session. */
   router.post('/api/me/2fa/off', async (ctx) => {
     const auth = requireAuth(ctx);
+    /* Keyed to the account and not the address: whoever is guessing here is
+       already holding this person's session, so the address tells us nothing
+       and charging it would only catch an office behind one NAT. The account
+       is the thing being attacked, and the thing worth bounding. */
+    enforce(ctx, [byValue(LIMITS.password, 'password-user', auth.userId)]);
     const body = await readJson<{ password?: string }>(ctx);
     const user = get<Row>(`SELECT password_hash FROM users WHERE id = ?`, auth.userId)!;
     if (!verifyPassword(body.password ?? '', user.password_hash)) throw unauthorized('That password is not right');
@@ -466,6 +468,9 @@ export function registerAuthRoutes(router: Router): void {
 
   router.post('/api/me/password', async (ctx) => {
     const auth = requireAuth(ctx);
+    // The same guessing surface as `2fa/off`, and the bigger prize: getting the
+    // current password right here signs every other device out.
+    enforce(ctx, [byValue(LIMITS.password, 'password-user', auth.userId)]);
     const body = await readJson<{ current?: string; next?: string }>(ctx);
     const user = get<Row>(`SELECT * FROM users WHERE id = ?`, auth.userId)!;
     if (!verifyPassword(body.current ?? '', user.password_hash)) throw unauthorized('Current password is incorrect');
@@ -851,8 +856,12 @@ export function registerAuthRoutes(router: Router): void {
    */
   router.post('/api/mail/bounces', async (ctx) => {
     if (!env.bounceToken) throw notFound('Bounce reporting is not configured');
+    // A shared secret in a header, from a relay we do not control the network
+    // to: limited like any other credential, and compared without reporting
+    // how much of it was right. It was `!==`, which does both.
+    enforce(ctx, byAddress(ctx, LIMITS.login, 'bounces'));
     const offered = String(ctx.req.headers.authorization ?? '').replace(/^Bearer /i, '');
-    if (offered !== env.bounceToken) throw unauthorized('Wrong token');
+    if (!secretEquals(offered, env.bounceToken)) throw unauthorized('Wrong token');
 
     const body = await readJson<any>(ctx, 512 * 1024);
     const reports = readBounces(body);
