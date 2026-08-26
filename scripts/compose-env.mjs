@@ -107,8 +107,37 @@ for (const file of DEPLOYABLE) {
   if (!missing.length && !unknown.length) console.log(`${file}: ${passed.size} settings, all of them reachable`);
 }
 
+/* ------------------------------------------ host paths in a deployed stack */
+
+/**
+ * A stack a platform builds from a git URL may not bind-mount a host path.
+ *
+ * `docker-compose.demo.yml` mounted two scripts in from the checkout, and it
+ * was the only file here that could not be deployed on Coolify while every
+ * other one could. A bind mount needs a path on the machine that runs the
+ * container, and a platform handed a repository URL decides for itself where —
+ * or whether — the checkout is there when the container starts. What belongs
+ * in the container belongs in the image.
+ *
+ * Named volumes are the point of the exercise and are not host paths, so the
+ * test is the leading `.` or `/` that makes an entry one.
+ */
+const DEPLOYED = [...DEPLOYABLE, 'docker-compose.demo.yml', 'docker-compose.sites.coolify.yml'];
+for (const file of DEPLOYED) {
+  const text = readFileSync(join(ROOT, file), 'utf8');
+  const mounts = [...text.matchAll(/^\s*-\s*(["']?)([.~/][^:"'\s]*):[^\s"']+/gm)].map((m) => m[2]);
+  if (!mounts.length) continue;
+  bad += mounts.length;
+  console.error(`\n${file} — ${mounts.length} bind mount(s) from the host:`);
+  for (const m of mounts) console.error(`  ${m}`);
+  console.error('  A platform deploying from a git URL may not have that path. Put the file in the image.');
+}
+
 if (bad) {
-  console.error(`\n${bad} problem(s). A setting the server reads and no compose file passes is documented and dead.`);
+  // Deliberately not naming one of the two causes: this counts both, and a
+  // summary that describes the wrong one sends the reader to the wrong file.
+  console.error(`\n${bad} problem(s) above. Either is a stack that does not deploy the way its documentation says.`);
   process.exit(1);
 }
 console.log(`\n${settable.length} settable, ${EXEMPT.size} exempt by name. Nothing documented is unreachable.`);
+console.log(`${DEPLOYED.length} deployable stacks, none of them mounting a host path.`);

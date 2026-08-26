@@ -31,14 +31,14 @@ services:
     # which is what makes a reset stop the server rather than orphan it.
     entrypoint: ["/sbin/tini", "--", "sh", "/app/scripts/demo-entrypoint.sh"]
 
-    # Two files the image does not carry, because neither belongs in a general
-    # Kolibri image: the reset loop, and the script that writes the demo's
-    # conversation over the public API. Read-only — nothing should be able to
-    # rewrite the thing that wipes the database.
+    # One named volume and nothing else. The reset loop and the script that
+    # writes the demo's conversation used to be bind-mounted from the checkout,
+    # which is why this was the one stack here that would not deploy: a bind
+    # mount needs a host path, and a platform building from a git URL decides
+    # for itself where — or whether — that path exists. They are in the image
+    # now, root-owned and read-only. See the note in the Dockerfile.
     volumes:
       - demo-data:/data
-      - ./scripts/demo-entrypoint.sh:/app/scripts/demo-entrypoint.sh:ro
-      - ./scripts/demo-extras.mjs:/app/scripts/demo-extras.mjs:ro
 
     expose:
       - "4000"

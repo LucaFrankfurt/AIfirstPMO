@@ -48,6 +48,23 @@ RUN printf '#!/bin/sh\nexec node --experimental-sqlite --disable-warning=Experim
       > /usr/local/bin/kolibri \
     && chmod +x /usr/local/bin/kolibri
 
+# The two scripts the public demo runs, and nothing else does.
+#
+# In the image rather than bind-mounted from a checkout, because a bind mount
+# is a host path — and a host path is the one thing a platform that deploys
+# from a git URL cannot be relied on to hand you. `docker-compose.demo.yml`
+# mounted these over `/app/scripts`, a directory this image did not have, and
+# was the only stack here that could not be deployed that way.
+#
+# Inert in an ordinary image. The ENTRYPOINT below is tini and the CMD is the
+# server; neither mentions these, and nothing runs them unless a compose file
+# puts the reset loop in front, which only the demo does. Root-owned and
+# read-only, so the `node` user the server runs as cannot rewrite the thing
+# that wipes the database — which is more than the `:ro` mount they replace
+# could promise.
+COPY scripts/demo-entrypoint.sh scripts/demo-extras.mjs ./scripts/
+RUN chmod 555 ./scripts/demo-entrypoint.sh ./scripts/demo-extras.mjs
+
 USER node
 VOLUME ["/data"]
 EXPOSE 4000

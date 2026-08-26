@@ -388,8 +388,26 @@ It is a separate hostname from the landing page rather than a path under it, bec
 client is a single-page app served from the root of its origin. There is no base path to mount it
 under.
 
-**How the reset works.** `scripts/demo-entrypoint.sh` replaces the image's command and owns the
-process: wipe `/data`, seed, start the server, wait `KOLIBRI_DEMO_RESET_SECONDS`, stop it, repeat.
+**If this is the one stack that will not deploy**, there are two things it does that the others do
+not, and both bite only here.
+
+*It used to mount files from the checkout.* The reset loop and the script that seeds the
+conversation were bind-mounted in from `./scripts`. A bind mount needs a path on the machine that
+runs the container, and a platform handed a repository URL decides for itself where — or whether —
+that checkout exists when the container starts; where it does not, Docker creates a *directory* at
+the target and the entrypoint dies on it before anything is logged. Both scripts are in the image
+now, root-owned and read-only, which is stricter than the `:ro` mount was. `npm run check:compose`
+refuses a host bind mount in any stack meant to be deployed, so this cannot come back.
+
+*Its hostname is three levels deep.* `app.demo.kolibri.day` is not covered by a wildcard
+certificate for `*.kolibri.day` — a wildcard matches one label, so it covers `demo.kolibri.day` and
+stops there. Per-domain issuance, which is what Coolify does by default, handles it as long as the
+name resolves to the server; a wildcard set up for the other two does not extend to it. If the
+deploy succeeds and the domain is what fails, this is the first thing to check.
+
+**How the reset works.** `scripts/demo-entrypoint.sh` — carried in the image, and inert in every
+other stack because nothing else names it — replaces the image's command and owns the process:
+wipe `/data`, seed, start the server, wait `KOLIBRI_DEMO_RESET_SECONDS`, stop it, repeat.
 The reset owns the process rather than the other way round because `kolibri restore` deliberately
 refuses to run against a live database — putting a snapshot under a running server is how you get
 a half-restored one. A sidecar that restarted its neighbour would need the Docker socket, and
