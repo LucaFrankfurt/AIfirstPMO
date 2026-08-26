@@ -1178,6 +1178,31 @@ await step('command palette', async () => {
   await page.keyboard.press('Escape');
 });
 
+await step('search: prose finds work, and @ offers the people', async () => {
+  await page.goto(`${base}/search`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('input');
+  const box = page.locator('input').first();
+  await box.click();
+  // The whole point of the box: a character nobody had to be told about opens
+  // a list of real names. If the list is empty the feature is decoration.
+  await box.type('@');
+  await page.waitForSelector('#search-suggestions [role=option]', { timeout: 5000 });
+  const offered = await page.locator('#search-suggestions [role=option]').count();
+  if (offered < 2) throw new Error(`the @ list offered ${offered} people`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(700);
+  const picked = await box.inputValue();
+  if (!/^@\S/.test(picked)) throw new Error(`picking a name left "${picked}" in the box`);
+  console.log('     picked:', picked.trim());
+  // And prose on its own still answers.
+  await box.fill('');
+  await box.type('the');
+  await page.waitForTimeout(1200);
+  const rows = await page.locator('.task-row').count();
+  if (!rows) throw new Error('typing words found nothing at all');
+  console.log('     rows for a plain word:', rows);
+});
+
 await step('mobile layout', async () => {
   const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale });
   const m = await mobile.newPage();

@@ -361,7 +361,7 @@ for (const [label, options] of MODES) {
     return (body.projects ?? body)[0]?.id;
   });
 
-  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/chat', '/pages', '/teams', '/planner',
+  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/guide'];
 
   const found = new Map();

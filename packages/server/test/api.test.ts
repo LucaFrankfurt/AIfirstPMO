@@ -129,6 +129,17 @@ describe('kolibri api', () => {
     assert.ok(results.some((hit: any) => hit.id === taskId), 'search should find the task');
   });
 
+  it('narrows a search to one kind', async () => {
+    // The kind is part of the query rather than a sieve over its answer: asked
+    // the other way round, a page ranked below the limit is never seen at all,
+    // however few pages there are.
+    const tasks = await api(`/api/workspaces/${workspaceId}/search?q=landing&kind=task`);
+    assert.ok(tasks.results.some((hit: any) => hit.id === taskId));
+    assert.deepEqual(tasks.results.filter((hit: any) => hit.kind !== 'task'), []);
+    const pages = await api(`/api/workspaces/${workspaceId}/search?q=landing&kind=page`);
+    assert.deepEqual(pages.results.filter((hit: any) => hit.kind !== 'page'), []);
+  });
+
   it('pulls a full snapshot and then only deltas', async () => {
     const snapshot = await api<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
     assert.ok(snapshot.changes.task?.length === 2);

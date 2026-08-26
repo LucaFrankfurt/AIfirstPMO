@@ -30,12 +30,17 @@ export function toMatchQuery(input: string): string {
 export function searchWorkspace(workspaceId: string, userId: string, query: string, limit = 30, kinds?: string[]): SearchHit[] {
   const match = toMatchQuery(query);
   if (!match) return [];
+  // The kind goes into the query rather than into a filter over its result:
+  // asking for pages and cutting the list afterwards means a page ranked
+  // thirty-first is never seen, however few pages there are.
+  const wanted = kinds?.filter(Boolean) ?? [];
+  const kindClause = wanted.length ? ` AND kind IN (${wanted.map(() => '?').join(', ')})` : '';
   const rows = all<Row>(
     `SELECT kind, ref_id, project_id, title, snippet(search_index, 5, '', '', '…', 12) AS snippet, bm25(search_index) AS rank
        FROM search_index
-      WHERE search_index MATCH ? AND (workspace_id = ? OR workspace_id IS NULL)
+      WHERE search_index MATCH ? AND (workspace_id = ? OR workspace_id IS NULL)${kindClause}
       ORDER BY rank LIMIT ?`,
-    match, workspaceId, Math.min(limit * 3, 200),
+    match, workspaceId, ...wanted, Math.min(limit * 3, 200),
   );
   // The index also holds rows belonging to no workspace: a direct conversation
   // is between two people rather than inside an organisation, and it would be
@@ -50,8 +55,7 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
   const readable = visibleMessages(userId, rows.filter((row) => row.kind === 'message').map((row) => String(row.ref_id)));
 
   return rows
-    .filter((row) => (!kinds?.length || kinds.includes(row.kind))
-      && canSeeProject(userId, row.project_id)
+    .filter((row) => canSeeProject(userId, row.project_id)
       && (row.kind !== 'message' || readable.has(String(row.ref_id))))
     .slice(0, limit)
     .map((row) => ({

@@ -369,7 +369,13 @@ GET /api/workspaces/:ws/search?q=cookie+banner&kind=task,page&limit=20
 ```
 
 SQLite FTS5 over tasks, pages, comments, projects, cycles and modules. Words are turned into prefix
-terms, so `des rev` already finds *Design review*. Results are filtered by project visibility.
+terms, so `des rev` already finds *Design review*. `kind` is part of the query rather than a sieve
+over its answer, so asking for pages returns the twenty best pages rather than whichever pages
+happened to rank inside the best twenty of everything. Results are filtered by project visibility.
+
+The endpoint takes words and nothing else: there is no filter language. The `@`, `#` and `+` the
+search screen offers are read in the browser against the names it already holds, and what reaches
+the server is the prose that was left over.
 
 ## Sync
 

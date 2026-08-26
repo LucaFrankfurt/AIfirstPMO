@@ -647,6 +647,9 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] MCP `initialize` / `tools/list` / `tools/call`, and a write refused on a read-only token
 - [x] Full-text search finds a task by a word in its title, and a message only for somebody in the
       conversation it was said in
+- [x] The search box reads a filter only from a name it was given: `@Anna Schmidt` beats a
+      colleague called Anna, `#bug` is not found inside `#bugfix`, an address is not a person, and
+      a name nobody has stays three words of prose and is searched for as text
 - [x] A direct conversation opened offline by both people is one conversation, not two
 - [x] The four places the chat visibility rule is written all answer alike, alive and deleted
 - [x] A guest may write their own read marker and nothing else, through REST and per-mutation in the
