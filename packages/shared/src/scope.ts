@@ -1,37 +1,39 @@
 /**
- * Which projects a cycle covers.
+ * Which projects a thing covers.
  *
- * A cycle is one of three things, and the difference is worth stating once
- * here rather than inferring it at nine call sites:
+ * Two entities are scoped this way — a cycle and a module — and they are
+ * scoped identically, so this is one pair of functions rather than two. Each
+ * is one of three things, and the difference is worth stating once here rather
+ * than inferring it at fifteen call sites:
  *
  * | `project_id` | `projects` | Means |
  * |---|---|---|
- * | set | `[]` | One project's own cycle. The ordinary case |
+ * | set | `[]` | That one project's own. The ordinary case |
  * | `null` | `[]` | Every project in the workspace |
  * | `null` | `[a, b]` | Exactly those projects |
  *
  * The empty list meaning *everything* rather than *nothing* is the same rule
  * `channels.members` follows, and for the same reason: writing every project
- * into every shared cycle would mean keeping that list correct as projects are
+ * into every shared row would mean keeping that list correct as projects are
  * created and deleted, forever, for no gain.
  *
  * The fourth combination — an owner *and* a list — is never written. The server
- * normalises on the way in (see `cycleScope`), so no reader has to decide which
- * of two fields wins.
+ * normalises on the way in (see `projectScope`), so no reader has to decide
+ * which of two fields wins.
  */
 
 /** The scope fields, as they sit on the row or come off the wire. */
-export interface CycleScope {
+export interface ProjectScope {
   project_id?: string | null;
   projects?: string[] | null;
 }
 
-/** Does this cycle cover that project? The one place that question is answered. */
-export function cycleCovers(cycle: CycleScope, projectId: string | null | undefined): boolean {
+/** Does this cover that project? The one place that question is answered. */
+export function coversProject(scope: ProjectScope, projectId: string | null | undefined): boolean {
   if (!projectId) return false;
-  const listed = cycle.projects ?? [];
+  const listed = scope.projects ?? [];
   if (listed.length) return listed.includes(projectId);
-  if (cycle.project_id) return cycle.project_id === projectId;
+  if (scope.project_id) return scope.project_id === projectId;
   return true;
 }
 
@@ -42,14 +44,14 @@ export function cycleCovers(cycle: CycleScope, projectId: string | null | undefi
  * leaving every reader to resolve it:
  *
  * - **A list of exactly one collapses to an owner.** `projects: ["a"]` and
- *   `project_id: "a"` describe the same cycle, and storing both spellings
+ *   `project_id: "a"` describe the same thing, and storing both spellings
  *   would mean two rows that are equal and do not compare equal.
- * - **A list of two or more clears the owner.** A cycle cannot both belong to
- *   one project and cover three.
+ * - **A list of two or more clears the owner.** Nothing can both belong to one
+ *   project and cover three.
  *
- * Neither field given is the request for a cycle every project runs.
+ * Neither field given is the request for one that every project shares.
  */
-export function cycleScope(
+export function projectScope(
   input: { project?: string | null; projects?: readonly string[] | null },
 ): { project_id: string | null; projects: string[] } {
   const listed = [...new Set((input.projects ?? []).filter(Boolean))];

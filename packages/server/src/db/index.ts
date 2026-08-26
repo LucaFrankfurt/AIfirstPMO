@@ -31,6 +31,7 @@ for (const [table, column, definition] of [
   // `PRAGMA table_info` reports, so a column added afterwards would be added
   // to a table that is about to be replaced by one without it.
   ['cycles', 'projects', `TEXT NOT NULL DEFAULT '[]'`],
+  ['modules', 'projects', `TEXT NOT NULL DEFAULT '[]'`],
   ['users', 'email_prefs', `TEXT NOT NULL DEFAULT 'important'`],
   ['users', 'email_verified_at', 'INTEGER'],
   ['users', 'locale', 'TEXT'],
@@ -150,6 +151,11 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calend
  * project, exactly as it already does on a label — so the rule is one somebody
  * has met rather than a second one to learn. Existing cycles keep their project
  * and behave as they always did; nothing is rewritten by this migration.
+ *
+ * The third is a module, for the same reason and by the same rule. A milestone
+ * that spans projects — one launch the API, the app and the website are all
+ * working towards — was as unsayable as a shared fortnight was, and answering
+ * "how far along is the launch" meant adding up three progress bars by hand.
  */
 let rebuilt = false;
 for (const [table, column] of [
@@ -158,6 +164,7 @@ for (const [table, column] of [
   ['channel_reads', 'workspace_id'],
   ['notifications', 'workspace_id'],
   ['cycles', 'project_id'],
+  ['modules', 'project_id'],
 ] as const) {
   const info = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string; notnull: number }[];
   if (!info.some((c) => c.name === column && c.notnull)) continue;

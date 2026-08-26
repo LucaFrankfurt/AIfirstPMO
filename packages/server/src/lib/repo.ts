@@ -419,10 +419,28 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
       vocabularyOf(destination),
     );
     const effective = (field: string): unknown => (values[field] !== undefined ? values[field] : existing[field]);
-    const belongs = (table: 'states' | 'labels' | 'cycles' | 'modules', value: unknown): boolean =>
+    const belongs = (table: 'states' | 'labels', value: unknown): boolean =>
       typeof value === 'string' && !!get<Row>(
         `SELECT 1 AS found FROM ${table} WHERE id = ? AND project_id = ? AND deleted_at IS NULL`,
         value, destination,
+      );
+
+    /**
+     * The same question for a cycle or a module, which are not one project's.
+     *
+     * Both may cover several projects or all of them, so `project_id = ?` is
+     * the wrong test: a shared fortnight has no owner at all, so a task moved
+     * from Web to Mobile *inside that fortnight* failed the check and was
+     * silently dropped out of it. Nobody would have attributed that to the
+     * move. `coversProject` is the rule in TypeScript; this is it in SQL.
+     */
+    const covers = (table: 'cycles' | 'modules', value: unknown): boolean =>
+      typeof value === 'string' && !!get<Row>(
+        `SELECT 1 AS found FROM ${table}
+          WHERE id = ? AND deleted_at IS NULL
+            AND ((json_array_length(projects) = 0 AND (project_id IS NULL OR project_id = ?))
+                 OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value = ?))`,
+        value, destination, destination,
       );
     const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
 
@@ -430,8 +448,10 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
     if (parseIds(effective('labels')).some((label) => !belongs('labels', label))) {
       settle('labels', JSON.stringify(landing.labels));
     }
-    if (asId(effective('cycle_id')) && !belongs('cycles', effective('cycle_id'))) settle('cycle_id', null);
-    if (asId(effective('module_id')) && !belongs('modules', effective('module_id'))) settle('module_id', null);
+    // Cleared only when the destination really is outside them — a shared one
+    // follows the task across, which is the whole point of it being shared.
+    if (asId(effective('cycle_id')) && !covers('cycles', effective('cycle_id'))) settle('cycle_id', null);
+    if (asId(effective('module_id')) && !covers('modules', effective('module_id'))) settle('module_id', null);
   }
 
   // A project cannot sit under itself, directly or at any remove. Two devices

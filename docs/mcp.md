@@ -228,10 +228,11 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 |---|---|
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
-| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `due_before`, `query` |
+| `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules |
 | `list_cycles` | sprints with `total`/`done` counts |
+| `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
 | `list_pages` / `get_page` | wiki pages, markdown included |
 | `list_templates` | pre-written tasks, with the checklist each one carries |
 | `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
@@ -290,6 +291,10 @@ rather than a copy of it in each. `create_cycle` says which with two arguments:
 
 Passing both is refused rather than resolved — a caller who sent each of them meant one, and
 which one is not the server's to guess.
+
+**A module is scoped the same way**, by the same two arguments on `create_module`, and for the same
+reason: a launch is routinely three projects working towards one date. `list_modules` narrows the
+same way `list_cycles` does — a project's own plus the shared ones it works on.
 
 `update_cycle` takes the same two and will re-scope a running cycle. It never moves the work:
 narrowing a cycle that Mobile has tasks in returns `stranded_tasks` naming them, still in the
@@ -364,7 +369,7 @@ Three more details worth knowing before you trust a number:
 | Tool | Notes |
 |---|---|
 | `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
-| `update_task` | any field, including `state`, `assignees`, `cycle`, `due_date`, `archived` |
+| `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` |
 | `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
 | `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
 | `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
@@ -377,6 +382,8 @@ Three more details worth knowing before you trust a number:
 | `comment_task` | markdown; notifies assignees and subscribers |
 | `create_project` | includes the default workflow states and labels |
 | `create_cycle` | sprint with start/end dates, for one project, several, or all |
+| `create_module` | a milestone with a lead and a target date, for one project, several, or all |
+| `update_module` / `delete_module` | edit a milestone's dates, lead, status and which projects work on it; deleting is soft and keeps the tasks |
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |

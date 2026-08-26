@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { PRIORITIES, cycleCovers, fieldKeys, mayEnter, type Cycle, type Label, type Module, type Priority, type State, type Task } from '@kolibri/shared';
+import { PRIORITIES, coversProject, fieldKeys, mayEnter, type Cycle, type Label, type Module, type Priority, type State, type Task } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { ancestry, descendants } from '../lib/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
@@ -70,14 +70,16 @@ export const useLabels = (projectId?: string | null): Label[] =>
  */
 export const useCycles = (projectId?: string | null): Cycle[] =>
   useQuery(
-    () => list('cycle', (c) => !projectId || cycleCovers(c, projectId))
+    () => list('cycle', (c) => !projectId || coversProject(c, projectId))
       .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '') || a.name.localeCompare(b.name)),
     [projectId],
   );
 
 export const useModules = (projectId?: string | null): Module[] =>
   useQuery(
-    () => list('module', (m) => !projectId || m.project_id === projectId).sort(byOrder),
+    // Without a project, every module in the store; with one, the modules that
+    // project works on — its own and the ones it shares.
+    () => list('module', (m) => !projectId || coversProject(m, projectId)).sort(byOrder),
     [projectId],
   );
 
@@ -253,7 +255,7 @@ export function ParentTrail({ task, onOpen }: { task: Task; onOpen: (task: Task)
 
 export function CyclePicker({ task }: { task: Task }) {
   const t = useT();
-  const cycles = useQuery(() => list('cycle', (c) => cycleCovers(c, task.project_id)), [task.project_id]);
+  const cycles = useQuery(() => list('cycle', (c) => coversProject(c, task.project_id)), [task.project_id]);
   const current = byId('cycle', task.cycle_id);
   const items: MenuItem[] = [
     { id: 'none', label: t('task.noCycle'), onSelect: () => update('task', task.id, { cycle_id: null }) },
@@ -276,7 +278,7 @@ export function CyclePicker({ task }: { task: Task }) {
 
 export function ModulePicker({ task }: { task: Task }) {
   const t = useT();
-  const modules = useQuery(() => list('module', (m) => m.project_id === task.project_id), [task.project_id]);
+  const modules = useQuery(() => list('module', (m) => coversProject(m, task.project_id)), [task.project_id]);
   const current = byId('module', task.module_id);
   const items: MenuItem[] = [
     { id: 'none', label: t('task.noModule'), onSelect: () => update('task', task.id, { module_id: null }) },

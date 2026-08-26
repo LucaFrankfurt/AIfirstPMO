@@ -382,7 +382,7 @@ export interface Relation extends Base {
 
 export interface Cycle extends Base {
   workspace_id: ID;
-  /** The project that owns it, or null when several run it. See `cycleCovers`. */
+  /** The project that owns it, or null when several run it. See `coversProject`. */
   project_id: ID | null;
   /** The projects that run it. Empty means *every* project, not none. */
   projects: ID[];
@@ -395,7 +395,10 @@ export interface Cycle extends Base {
 
 export interface Module extends Base {
   workspace_id: ID;
-  project_id: ID;
+  /** The project that owns it, or null when several share it. See `coversProject`. */
+  project_id: ID | null;
+  /** The projects it covers. Empty means *every* project, not none. */
+  projects: ID[];
   name: string;
   description: string | null;
   lead_id: ID | null;
