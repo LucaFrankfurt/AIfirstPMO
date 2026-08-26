@@ -980,3 +980,166 @@ describe('the resources a client is offered', () => {
     assert.ok(!resources[0].title.includes('—'), 'so the title is not padded with a name nobody needs');
   });
 });
+
+/**
+ * The agenda, the page templates, and the prompts that reach them.
+ *
+ * `prepare_meeting` is the six reports in the order a meeting runs, and it
+ * calls their own `run` rather than repeating their queries — so the assertion
+ * that matters is that each section really is the tool's answer, not a second
+ * implementation that will drift from it.
+ */
+describe('preparing a meeting', () => {
+  let workspaceId = '';
+  let token = '';
+  let read = '';
+  const project: Record<string, any> = {};
+  const state: Record<string, Record<string, string>> = {};
+
+  const openState = async (id: string) => {
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${id}`);
+    return Object.fromEntries(states.map((s: any) => [s.group_key, s.id]));
+  };
+
+  it('sets up a workspace with something to talk about', async () => {
+    resetRateLimits();
+    const session = await api('/api/auth/register', {
+      body: { email: 'omar@kolibri.test', name: 'Omar Diaz', password: 'a perfectly fine password' },
+    });
+    workspaceId = session.workspaces[0].id;
+    for (const [key, name] of [['ONE', 'One'], ['TWO', 'Two']]) {
+      project[key] = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name, key } });
+      state[key] = await openState(project[key].id);
+    }
+    // Something finished, something overdue, something nobody is on.
+    await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.ONE.id, title: 'Shipped it', state_id: state.ONE.completed },
+    });
+    await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.TWO.id, title: 'Late and nobody on it', state_id: state.TWO.started, due_date: isoDay(-2) },
+    });
+    token = (await api('/api/tokens', { body: { name: 'agenda', workspaceId } })).token;
+    read = (await api('/api/tokens', { body: { name: 'read', workspaceId, scopes: 'read' } })).token;
+  });
+
+  it('answers for the whole workspace, in the order a meeting runs', async () => {
+    const agenda = await tool(token, 'prepare_meeting', {});
+    assert.equal(agenda.scope, 'workspace');
+    assert.deepEqual(agenda.projects.includes('ONE') && agenda.projects.includes('TWO'), true);
+    assert.equal(agenda.window_days, 7, 'a week, because that is the meeting this is for');
+    assert.deepEqual(
+      agenda.agenda.map((section: any) => section.report),
+      ['changes_since', 'cycle_review', 'deadlines_at_risk', 'blocked_tasks', 'stale_tasks', 'workload'],
+    );
+    assert.equal(agenda.headline.finished, 1);
+    assert.equal(agenda.headline.at_risk, 1);
+    // Open work only: the finished one is not somebody's load any more.
+    assert.equal(agenda.headline.unassigned, 1, 'the overdue one, which nobody is on');
+  });
+
+  /** Composition, not a second implementation — the point of building it this way. */
+  it('each section is the report tool’s own answer', async () => {
+    const agenda = await tool(token, 'prepare_meeting', {});
+    for (const section of agenda.agenda) {
+      if (section.report === 'cycle_review') continue; // no cycle running; asserted below
+      const direct = await tool(token, section.report, section.report === 'changes_since' || section.report === 'stale_tasks' ? { days: 7 } : {});
+      // `since` is stamped from the clock, so two calls milliseconds apart
+      // disagree about it and about nothing else. Comparing it would assert
+      // that the two ran in the same millisecond, which is not the claim.
+      const { since: _a, ...agendaSection } = section.detail;
+      const { since: _b, ...directCall } = direct;
+      assert.deepEqual(agendaSection, directCall, `${section.report} in the agenda differs from the tool`);
+    }
+  });
+
+  /**
+   * `cycle_review` refuses a project with no cycle running, on purpose. An
+   * agenda that asked for whatever is running must not inherit that refusal and
+   * take the other five sections down with it.
+   */
+  it('survives a week with no cycle running', async () => {
+    await assert.rejects(() => tool(token, 'cycle_review', { project: 'ONE' }), /No cycle/);
+    const agenda = await tool(token, 'prepare_meeting', { project: 'ONE' });
+    assert.equal(agenda.scope, 'project');
+    assert.equal(agenda.headline.cycles_running, 0);
+    assert.equal(agenda.agenda.length, 6, 'and the other five sections are still there');
+    assert.match(String(agenda.agenda[1].detail.note), /No cycle is running/);
+  });
+
+  it('is read-only, so a read token may prepare one', async () => {
+    const agenda = await tool(read, 'prepare_meeting', {});
+    assert.ok(agenda.agenda.length);
+  });
+
+  it('narrows to a project, and the numbers narrow with it', async () => {
+    const one = await tool(token, 'prepare_meeting', { project: 'ONE' });
+    assert.equal(one.project, 'ONE');
+    assert.equal(one.headline.finished, 1, 'One shipped the thing');
+    assert.equal(one.headline.at_risk, 0, 'the overdue one is Two’s');
+  });
+});
+
+describe('page templates over MCP', () => {
+  let workspaceId = '';
+  let token = '';
+  let templateId = '';
+
+  it('sets up a template and an ordinary page', async () => {
+    resetRateLimits();
+    const session = await api('/api/auth/register', {
+      body: { email: 'petra@kolibri.test', name: 'Petra Novak', password: 'a perfectly fine password' },
+    });
+    workspaceId = session.workspaces[0].id;
+    const template = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Weekly notes', content: '## Decisions\n\n## Actions\n', icon: '📋' },
+    });
+    templateId = template.id;
+    await api(`/api/pages/${templateId}`, { method: 'PATCH', body: { is_template: 1 } });
+    await api(`/api/workspaces/${workspaceId}/pages`, { body: { title: 'Actual handbook', content: '# Handbook' } });
+    token = (await api('/api/tokens', { body: { name: 'pages', workspaceId } })).token;
+  });
+
+  it('lists the templates, which list_pages now leaves out', async () => {
+    const templates = await tool(token, 'list_page_templates', {});
+    assert.deepEqual(templates.result.map((t: any) => t.title), ['Weekly notes']);
+
+    // A template is a starting point, not content: summarising "the pages here"
+    // should not summarise a half-written form as though somebody meant it.
+    const pages = await tool(token, 'list_pages', {});
+    assert.deepEqual(pages.result.map((p: any) => p.title), ['Actual handbook']);
+
+    const withThem = await tool(token, 'list_pages', { include_templates: true });
+    assert.equal(withThem.result.length, 2);
+    assert.equal(withThem.result.find((p: any) => p.title === 'Weekly notes').is_template, 1, 'and says which is which');
+  });
+
+  it('copies one into a new page, which is not itself a template', async () => {
+    const made = await tool(token, 'create_page_from_template', {
+      template: 'Weekly notes', title: 'Notes — Monday',
+    });
+    assert.equal(made.title, 'Notes — Monday');
+    assert.equal(made.from_template, 'Weekly notes');
+
+    const page = await api(`/api/pages/${made.id}`);
+    assert.match(page.content, /## Decisions/, 'the body came across');
+    assert.equal(page.is_template, 0, 'copying a template must not make another one');
+    assert.notEqual(page.id, templateId, 'a copy, not a link');
+
+    // And the template is untouched, which is the thing a link would break.
+    const template = await api(`/api/pages/${templateId}`);
+    assert.equal(template.title, 'Weekly notes');
+    assert.equal(template.is_template, 1);
+  });
+
+  it('refuses a template nobody has, and says where to look', async () => {
+    await assert.rejects(
+      () => tool(token, 'create_page_from_template', { template: 'Does not exist' }),
+      /list_page_templates/,
+    );
+    // An ordinary page is not a template, however much it looks like one.
+    await assert.rejects(
+      () => tool(token, 'create_page_from_template', { template: 'Actual handbook' }),
+      /No page template/,
+    );
+  });
+});
