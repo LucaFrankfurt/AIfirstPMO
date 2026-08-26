@@ -132,7 +132,7 @@ are the manual for running and extending it.
 | | |
 |---|---|
 | **Work tracking** | A whole task typed on one line — `Redraw the empty state !high @ada #WEB *design due:friday` — with sub-tasks, relations, priorities, estimates, labels, due dates and custom fields in nine kinds. Archiving, CSV import with a preview before anything is written, readers for Jira, Linear, Plane, OpenProject, Trello and Todoist exports, and a JSON round trip that moves a whole project to another Kolibri. [Syntax](docs/query.md) · [Import](docs/import.md) |
-| **Planning** | Cycles (sprints) for one project, a chosen set of them, or all — one fortnight several teams run together rather than a copy in each. Modules, a timeline where dragging a task moves everything blocked by it — counted in working days, with an optional wait per dependency, and applied on the server too. Baselines, WIP limits, projects that nest (including **containers** that hold only other projects), teams, project templates, time tracking, per-project insights, a portfolio roadmap and a team planner where dragging a task between rows hands it over. [Insights](docs/insights.md) · [Time](docs/time.md) |
+| **Planning** | Cycles (sprints) for one project, a chosen set of them, or all — one fortnight several teams run together rather than a copy in each. Modules (milestones) scoped the same way, a timeline where dragging a task moves everything blocked by it — counted in working days, with an optional wait per dependency, and applied on the server too. Baselines, WIP limits, projects that nest (including **containers** that hold only other projects), teams, project templates, time tracking, per-project insights, a portfolio roadmap and a team planner where dragging a task between rows hands it over. [Insights](docs/insights.md) · [Time](docs/time.md) |
 | **Views** | List, Kanban, sortable table and calendar; group by state, assignee, cycle, project or a custom field, where dropping a card writes the answer. Filter with the menus or **as text** — `assignee = me AND priority in (urgent, high) AND state != Done` — which prints back from whatever the menus did. Select several tasks and change them together. Save, pin and share a view. [Filter language](docs/query.md) |
 | **Pages** | A nested markdown wiki two people can edit at once: bodies are text CRDTs, so both sets of changes survive. Version history with a what-changed diff, templates, labels, watching, per-page visibility, read-only share links, drag & drop images, export as a markdown bundle or PDF, and inline comments that survive the text being edited around them. |
 | **Chat** | Channels and direct messages made of the same synced rows as everything else, so a message sends from a train and arrives when the tunnel ends — no socket to reconnect. Private channels with their own membership rules, pasted screenshots, reactions, replies, per-conversation mention settings, and presence held in memory rather than in a row. [Details](docs/chat.md) |
@@ -144,7 +144,7 @@ are the manual for running and extending it.
 | **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages — where a private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
-| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 43 tools, 3 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) |
+| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 47 tools, 3 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) |
 | **Task reviews** | Optional, manual and off by default: a button asks a model to read a task back and suggest clearer wording, with the replacement already written and applied only by a click. Anthropic, Gemini or OpenRouter, chosen by an environment variable. [What leaves the instance](docs/ai.md) |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
@@ -169,14 +169,14 @@ it grants is an ordinary token you can revoke in Settings.
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant a
 view of the backlog without handing it a pen.
 
-**43 tools**, in six groups:
+**47 tools**, in six groups:
 
 | | |
 |---|---|
 | Workspace | `list_workspaces`, `list_projects`, `create_project`, `update_project`, `list_members`, `search` |
 | Tasks | `list_tasks`, `get_task`, `create_task`, `create_tasks_batch`, `update_task`, `delete_task`, `comment_task`, `create_task_relation`, `my_work` |
 | Attachments | `upload_attachment`, `list_attachments`, `delete_attachment` |
-| Planning | `list_cycles`, `create_cycle`, `update_cycle`, `delete_cycle`, `log_time`, `list_time`, `list_templates`, `apply_template` |
+| Planning | `list_cycles`, `create_cycle`, `update_cycle`, `delete_cycle`, `list_modules`, `create_module`, `update_module`, `delete_module`, `log_time`, `list_time`, `list_templates`, `apply_template` |
 | Configuration | `list_states`, `create_state`, `update_state`, `list_labels`, `create_label`, `update_label` |
 | Pages | `list_pages`, `get_page`, `create_page`, `update_page` |
 | Reports *(read-only)* | `project_status`, `changes_since`, `deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review` |

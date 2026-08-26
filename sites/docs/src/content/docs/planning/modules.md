@@ -32,6 +32,30 @@ milestone, and it will quietly turn into a second, worse backlog.
 | **A filter** | `module = "Payments v2"` anywhere, including in a saved view |
 | **A row on the timeline** | Its tasks drawn together, with its own bar |
 | **A row on the portfolio roadmap** | Which is where a module earns its keep — see [across projects](/planning/portfolio/) |
+| **Tools an assistant can call** | `list_modules`, `create_module`, `update_module`, `delete_module`, and `module` on `list_tasks` and `update_task` — see [connecting an assistant](/beyond/assistant/) |
+
+## One module, several projects
+
+A module normally belongs to one project. **Which projects work on it**, beside the name box, offers
+two other answers:
+
+- **Chosen projects** — tick the ones that are in it. A launch the API, the app and the website are
+  all working towards is one milestone, not three with the same name.
+- **Every project** — the whole workspace, including projects made later.
+
+| | Just this project | Chosen projects | Every project |
+|---|---|---|---|
+| Appears in | Its project's Modules tab | The tab of each one, chipped **2 projects** | Every project's tab, marked **Shared** |
+| Work in it | That project's | Any of theirs | Any project's |
+| Progress | Its own | The whole milestone's, everywhere — one module showing different numbers depending on where you opened it would be worse | The whole milestone's |
+| Deleting it | Affects one project | Takes it out of all of them | Takes it out of all of them |
+
+A task that moves between two projects the module covers **stays in it**. That is the point of a
+shared milestone: the work moved, the thing it is part of did not.
+
+**The scope is fixed when you create it**, in the interface, because narrowing a running milestone
+strands the dropped projects' work inside it. An assistant can re-scope one over MCP with
+`update_module`, and it tells you what it stranded — by name, having moved nothing.
 
 ## A task in both
 

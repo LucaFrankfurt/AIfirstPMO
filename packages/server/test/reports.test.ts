@@ -23,6 +23,10 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
+/* Registration is limited to five per two minutes, on purpose. This file makes
+   a fresh workspace per describe block, so it runs into that limit for reasons
+   that have nothing to do with what any of these tests are asserting. */
+const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
 
 let base = '';
 let cookie = '';
@@ -80,6 +84,7 @@ describe('mcp reports', () => {
   const tasks: Record<string, any> = {};
 
   it('sets up a workspace with work in every interesting condition', async () => {
+    resetRateLimits();
     const session = await api('/api/auth/register', {
       body: { email: 'ada@example.com', name: 'Ada Lovelace', password: 'correct horse battery' },
     });
@@ -98,6 +103,7 @@ describe('mcp reports', () => {
     const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'member' } });
     const adaCookie = cookie;
     cookie = '';
+    resetRateLimits();
     await api('/api/auth/register', {
       body: { email: 'grace@example.com', name: 'Grace Hopper', password: 'another good password' },
     });
@@ -386,6 +392,7 @@ describe('cycles across projects', () => {
   };
 
   it('sets up two projects', async () => {
+    resetRateLimits();
     const session = await api('/api/auth/register', {
       body: { email: 'lin@example.com', name: 'Lin Clark', password: 'a perfectly fine password' },
     });
@@ -522,6 +529,7 @@ describe('cycles covering a defined set of projects', () => {
   };
 
   it('sets up three projects', async () => {
+    resetRateLimits();
     const session = await api('/api/auth/register', {
       body: { email: 'mira@example.com', name: 'Mira Bell', password: 'a perfectly fine password' },
     });
@@ -700,6 +708,7 @@ describe('cycles covering a defined set of projects', () => {
     // Someone in the workspace but not in that project, with a write token.
     const invite = await api(`/api/workspaces/${workspaceId}/invites`, { body: { role: 'member' } });
     cookie = '';
+    resetRateLimits();
     await api('/api/auth/register', {
       body: { email: 'noor@example.com', name: 'Noor Khan', password: 'another good password' },
     });
@@ -732,5 +741,171 @@ describe('cycles covering a defined set of projects', () => {
     assert.equal(opened.scope, 'workspace');
     assert.equal(opened.project_id, null);
     assert.deepEqual(opened.projects, []);
+  });
+});
+
+/**
+ * Modules across projects, and the tools that were missing entirely.
+ *
+ * A module answers *what is this part of*, and a launch is routinely three
+ * projects working towards one date — which was as unsayable as a shared
+ * fortnight was. It is scoped exactly as a cycle is now, by the same
+ * `coversProject`, so the interesting assertions are the boundaries and the one
+ * thing the two features share that neither tested: what happens to a task that
+ * moves between projects while it is in a shared one.
+ */
+describe('modules across projects', () => {
+  let workspaceId = '';
+  let token = '';
+  const project: Record<string, any> = {};
+  const state: Record<string, Record<string, string>> = {};
+  let launch: any = null;
+  let betaTask: any = null;
+
+  const openState = async (id: string) => {
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${id}`);
+    return Object.fromEntries(states.map((s: any) => [s.group_key, s.id]));
+  };
+
+  it('sets up three projects', async () => {
+    resetRateLimits();
+    const session = await api('/api/auth/register', {
+      body: { email: 'grace@kolibri.test', name: 'Grace Chen', password: 'a perfectly fine password' },
+    });
+    workspaceId = session.workspaces[0].id;
+    for (const [key, name] of [['ALP', 'Alpha'], ['BET', 'Beta'], ['GAM', 'Gamma']]) {
+      project[key] = await api(`/api/workspaces/${workspaceId}/projects`, { body: { name, key } });
+      state[key] = await openState(project[key].id);
+    }
+    token = (await api('/api/tokens', { body: { name: 'modules', workspaceId } })).token;
+  });
+
+  it('creates one that two projects work towards', async () => {
+    launch = await tool(token, 'create_module', {
+      projects: ['ALP', 'BET'], name: 'Public launch', target_date: isoDay(30), lead: 'Grace Chen',
+    });
+    assert.equal(launch.scope, 'projects');
+    assert.equal(launch.project_id, null);
+    assert.deepEqual([...launch.projects].sort(), [project.ALP.id, project.BET.id].sort());
+    assert.ok(launch.lead_id, 'the lead was resolved by name');
+  });
+
+  it('refuses a lead nobody matches, rather than filing it with none', async () => {
+    await assert.rejects(
+      () => tool(token, 'create_module', { project: 'ALP', name: 'Nobody home', lead: 'Not A Person' }),
+      /Not A Person/,
+    );
+  });
+
+  it('refuses a milestone due before it starts', async () => {
+    await assert.rejects(
+      () => tool(token, 'create_module', {
+        project: 'ALP', name: 'Backwards', start_date: isoDay(10), target_date: isoDay(2),
+      }),
+      /before it starts/,
+    );
+  });
+
+  it('is listed for the projects it names and no others', async () => {
+    for (const key of ['ALP', 'BET']) {
+      const listed = await tool(token, 'list_modules', { project: key });
+      assert.ok(listed.result.some((m: any) => m.id === launch.id), `${key} was named but cannot see it`);
+    }
+    const gamma = await tool(token, 'list_modules', { project: 'GAM' });
+    assert.ok(!gamma.result.some((m: any) => m.id === launch.id), 'Gamma was not named');
+  });
+
+  /** The regression the cycle feature shipped with. Same column, same risk. */
+  it('sends a shared module down the sync channel', async () => {
+    const pull = await api<any>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
+    const row = (pull.changes.module ?? []).find((m: any) => m.id === launch.id);
+    assert.ok(row, 'the shared module never reached the client');
+    assert.equal(row.project_id ?? null, null);
+    assert.deepEqual([...row.projects].sort(), [project.ALP.id, project.BET.id].sort());
+  });
+
+  it('takes work from every project it covers, and counts all of it', async () => {
+    await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.ALP.id, title: 'Alpha piece', state_id: state.ALP.completed },
+    }).then((task) => tool(token, 'update_task', { task: task.identifier, module: 'Public launch' }));
+    betaTask = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.BET.id, title: 'Beta piece', state_id: state.BET.started },
+    });
+    await tool(token, 'update_task', { task: betaTask.identifier, module: 'Public launch' });
+
+    const listed = await tool(token, 'list_modules', {});
+    const row = listed.result.find((m: any) => m.id === launch.id);
+    assert.equal(row.total, 2, 'both projects’ work is in the one milestone');
+    assert.equal(row.done, 1);
+
+    // And it is filterable, which is the question "what is left before launch".
+    const left = await tool(token, 'list_tasks', { module: 'Public launch' });
+    assert.equal(left.result.length, 2);
+  });
+
+  it('refuses a module nobody recognises instead of answering with everything', async () => {
+    await assert.rejects(() => tool(token, 'list_tasks', { module: 'No Such Milestone' }), /not found/);
+    await assert.rejects(
+      () => tool(token, 'update_task', { task: betaTask.identifier, module: 'No Such Milestone' }),
+      /not found/,
+    );
+  });
+
+  /**
+   * The bug both features shared, found while building the second.
+   *
+   * Moving a task between projects re-checks its cycle and module against the
+   * destination, and that check was `project_id = ?` — which a shared row fails
+   * by construction, because it has no owner. So a task moved from Alpha to
+   * Beta *inside a milestone both projects are working on* was silently taken
+   * out of it. Nobody would have attributed that to the move.
+   */
+  it('keeps a task in a shared module when it moves to another covered project', async () => {
+    const cycle = await tool(token, 'create_cycle', {
+      projects: ['ALP', 'BET'], name: 'Launch fortnight', start_date: isoDay(-1), end_date: isoDay(10),
+    });
+    const moving = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.ALP.id, title: 'Moves house', state_id: state.ALP.started, cycle_id: cycle.id },
+    });
+    await tool(token, 'update_task', { task: moving.identifier, module: 'Public launch' });
+
+    const moved = await api(`/api/tasks/${moving.id}`, { method: 'PATCH', body: { project_id: project.BET.id } });
+    assert.equal(moved.project_id, project.BET.id, 'it moved');
+    assert.equal(moved.module_id, launch.id, 'and stayed in the module both projects work on');
+    assert.equal(moved.cycle_id, cycle.id, 'and in the cycle both projects run');
+  });
+
+  it('still drops one that the destination really is outside', async () => {
+    const own = await tool(token, 'create_module', { project: 'ALP', name: 'Alpha only' });
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, {
+      body: { project_id: project.ALP.id, title: 'Leaves it behind', state_id: state.ALP.started },
+    });
+    await tool(token, 'update_task', { task: task.identifier, module: 'Alpha only' });
+
+    const moved = await api(`/api/tasks/${task.id}`, { method: 'PATCH', body: { project_id: project.GAM.id } });
+    assert.equal(moved.module_id ?? null, null, 'Gamma is not in that module, so the task leaves it');
+    assert.equal(own.scope, 'project');
+  });
+
+  it('reports stranded work when narrowed, and moves none of it', async () => {
+    const narrowed = await tool(token, 'update_module', { module: launch.id, projects: ['ALP'] });
+    assert.equal(narrowed.scope, 'project');
+    assert.ok(narrowed.stranded_tasks.includes(betaTask.identifier), 'Beta’s work is named');
+    assert.match(String(narrowed.note), /Nothing was removed/);
+
+    const still = await api(`/api/tasks/${betaTask.id}`);
+    assert.equal(still.module_id, launch.id, 'and is still in the module');
+
+    // Widened again, so the delete below releases what it should.
+    await tool(token, 'update_module', { module: launch.id, projects: ['ALP', 'BET'] });
+  });
+
+  it('deletes it softly, releasing the tasks rather than taking them along', async () => {
+    const gone = await tool(token, 'delete_module', { module: 'Public launch' });
+    assert.equal(gone.deleted, 'Public launch');
+    assert.ok(gone.tasks_released >= 2, 'it says how much work it let go of');
+
+    const still = await api(`/api/tasks/${betaTask.id}`);
+    assert.equal(still.title, 'Beta piece', 'the task itself is untouched');
   });
 });

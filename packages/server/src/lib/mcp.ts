@@ -7,7 +7,7 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
-  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, cycleCovers, cycleScope, fieldValueId, orderKey, parseDuration,
+  PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, coversProject, projectScope, fieldValueId, orderKey, parseDuration,
   parseQuickAdd, readFieldValue, writeFieldValue,
   type EntityName, type ProjectStatus, type RelationKind, type StateGroup, type Vocabulary,
 } from '@kolibri/shared';
@@ -284,6 +284,10 @@ function fileTask(
     estimate: typeof args.estimate === 'number' ? args.estimate : null,
     parent_id: parent?.id ?? null,
     cycle_id: str(args.cycle) ? resolveCycle(workspaceId, String(args.cycle))?.id ?? null : null,
+    // Refused rather than dropped if it does not exist: a task filed into a
+    // milestone that turns out to be a typo, reported as a success, is how a
+    // release plan ends up missing the thing somebody thought they had added.
+    module_id: str(args.module) ? String(findModule(String(args.module), workspaceId, ctx).id) : null,
     sort_order: sort,
   }, writeOpts(workspaceId, ctx));
   return row;
@@ -378,6 +382,39 @@ function findCycle(ref: string, workspaceId: string, ctx: McpCtx): Row {
   if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
   return row;
 }
+
+/**
+ * A module the caller may see, by id or by name.
+ *
+ * No `"current"` here, unlike a cycle: a cycle is a window and today decides
+ * which one you mean, while a milestone is a thing you name.
+ */
+function findModule(ref: string, workspaceId: string, ctx: McpCtx): Row {
+  const row = get<Row>(
+    `SELECT * FROM modules WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL`,
+    workspaceId, ref, ref,
+  );
+  if (!row) throw new McpError(`Module ${ref} not found`);
+  // A module owned by nobody belongs to more than one project, and
+  // `canSeeProject` of a null is not the question to ask about it — whether any
+  // covered project is visible is, and `list_modules` answers that in SQL.
+  if (row.project_id && !canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  return row;
+}
+
+/** One module, as every tool that returns one reports it. */
+const moduleView = (row: Row): Record<string, unknown> => ({
+  id: String(row.id),
+  project_id: row.project_id ? String(row.project_id) : null,
+  projects: safeList(row.projects),
+  scope: row.project_id ? 'project' : (safeList(row.projects).length ? 'projects' : 'workspace'),
+  name: String(row.name),
+  description: row.description ?? null,
+  lead_id: row.lead_id ? String(row.lead_id) : null,
+  start_date: row.start_date ?? null,
+  target_date: row.target_date ?? null,
+  status: row.status ?? null,
+});
 
 /** One label, the same shape from every tool that returns one. */
 const labelView = (row: Row): Record<string, unknown> => ({
@@ -581,6 +618,25 @@ function resolveUsers(workspaceId: string, refs: unknown): string[] {
   return out;
 }
 
+/**
+ * One person, by id, email or name — and refused if there is no such person.
+ *
+ * `resolveUsers` drops what it cannot match, which is right for a list of
+ * assignees where the caller sees who ended up on the task. It is wrong for a
+ * single field: a misspelt lead would come back as no lead at all, reported as
+ * a success, and the module would look like nobody had claimed it.
+ */
+function findMember(ref: string, workspaceId: string): Row {
+  const user = get<Row>(
+    `SELECT u.id, u.name FROM users u JOIN workspace_members m ON m.user_id = u.id
+      WHERE m.workspace_id = ? AND m.deleted_at IS NULL
+        AND (u.id = ? OR lower(u.email) = lower(?) OR lower(u.name) = lower(?))`,
+    workspaceId, ref, ref, ref,
+  );
+  if (!user) throw new McpError(`Nobody in this workspace matches "${ref}"`);
+  return user;
+}
+
 const writeOpts = (workspaceId: string, ctx: McpCtx) => ({
   workspaceId,
   actorId: ctx.auth.userId,
@@ -747,7 +803,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'list_tasks',
     title: 'List tasks',
-    description: 'Query tasks by project, state, state group, assignee, priority, cycle, label or free text.',
+    description: 'Query tasks by project, state, state group, assignee, priority, cycle, module, label or free text.',
     readOnly: true,
     schema: {
       type: 'object',
@@ -758,6 +814,7 @@ const TOOLS: ToolDef[] = [
         assignee: { type: 'string', description: 'User id, email or name; use "me" for the token owner' },
         priority: { type: 'string', enum: [...PRIORITIES] },
         cycle: { type: 'string', description: 'Cycle id or name, or "current"' },
+        module: { type: 'string', description: 'Module id or name' },
         label: {
           type: 'string',
           description: 'Label id or name — use list_labels to see what exists. Matched across the workspace, so a per-project label of the same name is found too.',
@@ -823,6 +880,13 @@ const TOOLS: ToolDef[] = [
         if (!cycle) throw new McpError(`Cycle ${args.cycle} not found`);
         where.push('t.cycle_id = ?');
         params.push(cycle.id);
+      }
+      if (args.module) {
+        // `findModule` rather than a lookup that can miss: a name nobody
+        // recognises would otherwise filter nothing and answer with the whole
+        // backlog, which reads as "no tasks are in that milestone".
+        where.push('t.module_id = ?');
+        params.push(findModule(String(args.module), workspaceId, ctx).id);
       }
       if (args.query) {
         const hits = searchWorkspace(workspaceId, ctx.auth.userId, String(args.query), 200, ['task']);
@@ -917,6 +981,7 @@ const TOOLS: ToolDef[] = [
         estimate: { type: 'number' },
         parent: { type: 'string', description: 'Parent task id or identifier' },
         cycle: { type: 'string' },
+        module: { type: 'string', description: 'Module id or name' },
         workspace_id: { type: 'string' },
       },
     },
@@ -969,6 +1034,7 @@ const TOOLS: ToolDef[] = [
               estimate: { type: 'number' },
               parent: { type: 'string', description: 'Parent task id or identifier' },
               cycle: { type: 'string' },
+              module: { type: 'string' },
             },
           },
         },
@@ -1013,7 +1079,7 @@ const TOOLS: ToolDef[] = [
   {
     name: 'update_task',
     title: 'Update task',
-    description: 'Change any field of a task: title, description, state, priority, assignees, dates, cycle, parent.',
+    description: 'Change any field of a task: title, description, state, priority, assignees, dates, cycle, module, parent.',
     schema: {
       type: 'object',
       required: ['task'],
@@ -1029,6 +1095,7 @@ const TOOLS: ToolDef[] = [
         start_date: { type: ['string', 'null'] },
         estimate: { type: ['number', 'null'] },
         cycle: { type: ['string', 'null'] },
+        module: { type: ['string', 'null'], description: 'Module id or name, or null to take it out of one' },
         archived: { type: 'boolean' },
         fields: {
           type: 'object',
@@ -1058,6 +1125,9 @@ const TOOLS: ToolDef[] = [
         const state = resolveState(task.project_id, String(args.state));
         if (!state) throw new McpError(`No state matching "${args.state}" in this project`);
         patch.state_id = state.id;
+      }
+      if (args.module !== undefined) {
+        patch.module_id = args.module === null ? null : String(findModule(String(args.module), workspaceId, ctx).id);
       }
       if (args.cycle !== undefined) {
         patch.cycle_id = args.cycle === null ? null : resolveCycle(workspaceId, String(args.cycle))?.id ?? null;
@@ -1611,7 +1681,7 @@ const TOOLS: ToolDef[] = [
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
       return all<Row>(
         /* Its own, the ones every project runs, and the ones that name it.
-           `cycleCovers` says the same thing in TypeScript for the client; this
+           `coversProject` says the same thing in TypeScript for the client; this
            is the half SQLite has to answer so a big workspace does not send
            every cycle to be filtered in memory. */
         `SELECT * FROM cycles WHERE workspace_id = ? AND deleted_at IS NULL ${project ? `AND (
@@ -1652,7 +1722,7 @@ const TOOLS: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const scope = resolveCycleScope(args, workspaceId, ctx);
+      const scope = resolveScope(args, workspaceId, ctx);
       const { row } = writeEntity('cycle', uid(), {
         workspace_id: workspaceId, ...scope, name: String(args.name),
         description: str(args.description) ?? null, start_date: str(args.start_date) ?? null, end_date: str(args.end_date) ?? null,
@@ -1727,7 +1797,7 @@ const TOOLS: ToolDef[] = [
          instead, so the caller can decide. */
       let stranded: Row[] = [];
       if (args.project !== undefined || args.projects !== undefined) {
-        const scope = resolveCycleScope(args, workspaceId, ctx);
+        const scope = resolveScope(args, workspaceId, ctx);
         patch.project_id = scope.project_id;
         patch.projects = scope.projects;
         /* Only the ones the caller can see. A private project this token is
@@ -1741,7 +1811,7 @@ const TOOLS: ToolDef[] = [
           `SELECT t.identifier, t.project_id FROM tasks t
             WHERE t.cycle_id = ? AND t.deleted_at IS NULL`,
           cycle.id,
-        ).filter((task) => visible.has(String(task.project_id)) && !cycleCovers(
+        ).filter((task) => visible.has(String(task.project_id)) && !coversProject(
           { project_id: scope.project_id, projects: scope.projects },
           String(task.project_id),
         ));
@@ -1812,6 +1882,210 @@ const TOOLS: ToolDef[] = [
 
       deleteEntity('cycle', String(cycle.id), writeOpts(workspaceId, ctx));
       return { deleted: String(cycle.name), id: String(cycle.id), tasks_released: orphaned };
+    },
+  },
+  /* ---------------------------------------------------------------- modules
+     A cycle answers *when* and a module answers *what is this part of*. Both
+     are scoped the same way, so these read like the cycle tools above on
+     purpose — one idea, spelled once. */
+  {
+    name: 'list_modules',
+    title: 'List modules',
+    description:
+      "Modules (milestones) with progress counts. Given a project: that project's own modules plus the shared ones it works on. Without one: every module in the workspace.",
+    readOnly: true,
+    schema: { type: 'object', properties: { project: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      const visible = [...visibleProjectIds(ctx.auth.userId, workspaceId)];
+      const scoped = project ? [String(project.id)] : visible;
+      if (!scoped.length) return [];
+      /* Its own, the ones every project shares, and the ones that name it —
+         `coversProject` in SQL. Without a project it is still every *visible*
+         project rather than the whole table: a module belonging only to a
+         private project is not this token's to list. */
+      return all<Row>(
+        `SELECT * FROM modules WHERE workspace_id = ? AND deleted_at IS NULL
+           AND ((json_array_length(projects) = 0
+                 AND (project_id IS NULL OR project_id IN (${holes(scoped.length)})))
+                OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value IN (${holes(scoped.length)})))
+         ORDER BY target_date IS NULL, target_date, sort_order`,
+        workspaceId, ...scoped, ...scoped,
+      ).map((module) => ({
+        ...moduleView(module),
+        total: Number(get<Row>(`SELECT count(*) c FROM tasks WHERE module_id = ? AND deleted_at IS NULL`, module.id)?.c ?? 0),
+        done: Number(get<Row>(
+          `SELECT count(*) c FROM tasks t JOIN states s ON s.id = t.state_id
+            WHERE t.module_id = ? AND t.deleted_at IS NULL AND s.group_key IN ('completed','cancelled')`, module.id,
+        )?.c ?? 0),
+      }));
+    },
+  },
+  {
+    name: 'create_module',
+    title: 'Create module',
+    description:
+      'Create a module (milestone). `project` scopes it to one; `projects` scopes it to exactly those; neither makes it one every project in the workspace works on.',
+    schema: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        project: { type: 'string', description: 'Key or name, for a module one project owns.' },
+        projects: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Keys or names, for a milestone exactly those projects work towards. Omit both for every project.',
+        },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        lead: { type: 'string', description: 'Name or email of the person who owns it' },
+        start_date: { type: 'string', description: 'YYYY-MM-DD' },
+        target_date: { type: 'string', description: 'YYYY-MM-DD' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const scope = resolveScope(args, workspaceId, ctx);
+      const start = args.start_date === undefined ? null : isoDay(args.start_date, 'start_date');
+      const target = args.target_date === undefined ? null : isoDay(args.target_date, 'target_date');
+      if (start && target && start > target) {
+        throw new McpError(`A module cannot be due (${target}) before it starts (${start})`);
+      }
+      const { row } = writeEntity('module', uid(), {
+        workspace_id: workspaceId, ...scope, name: String(args.name),
+        description: str(args.description) ?? null,
+        lead_id: str(args.lead) ? findMember(String(args.lead), workspaceId).id : null,
+        start_date: start, target_date: target,
+        status: 'planned', sort_order: orderKey(null, null),
+      }, writeOpts(workspaceId, ctx));
+      return moduleView(row);
+    },
+  },
+  {
+    /**
+     * Change a module's name, dates, lead, description, status or scope.
+     *
+     * **A note on `status`.** The column exists and this writes it, and nothing
+     * in Kolibri reads it — the progress a module reports is counted from its
+     * tasks, and the date it is judged against is `target_date`. So setting a
+     * status records an intention and changes no behaviour today, exactly as it
+     * does on a cycle. It is written rather than refused because the field is
+     * in the model and an assistant asked to close a milestone should have
+     * somewhere to say so.
+     */
+    name: 'update_module',
+    title: 'Update module',
+    description: "Change a module's name, description, lead, dates, status, or which projects work on it. Note that progress is counted from its tasks and nothing reads the status yet.",
+    schema: {
+      type: 'object',
+      required: ['module'],
+      properties: {
+        module: { type: 'string', description: 'Module id or name' },
+        name: { type: 'string' },
+        description: { type: 'string' },
+        lead: { type: ['string', 'null'], description: 'Name or email, or null to clear' },
+        start_date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+        target_date: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+        status: { type: 'string', enum: [...PROJECT_STATUS] },
+        project: { type: 'string', description: 'Move it to one project. Mutually exclusive with `projects`.' },
+        projects: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'The projects it covers. An empty array makes it every project. Work already in it is never removed — see the note in the result.',
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const module = findModule(String(args.module), workspaceId, ctx);
+
+      const patch: Record<string, unknown> = {};
+      if (str(args.name)) patch.name = str(args.name);
+      if (args.description !== undefined) patch.description = str(args.description) ?? null;
+      if (args.start_date !== undefined) patch.start_date = isoDay(args.start_date, 'start_date');
+      if (args.target_date !== undefined) patch.target_date = isoDay(args.target_date, 'target_date');
+      if (args.lead !== undefined) {
+        patch.lead_id = args.lead === null ? null : findMember(String(args.lead), workspaceId).id;
+      }
+      if (args.status !== undefined) {
+        const status = str(args.status)?.toLowerCase();
+        if (!PROJECT_STATUS.includes(status as (typeof PROJECT_STATUS)[number])) {
+          throw new McpError(`Unknown status "${args.status}". One of: ${PROJECT_STATUS.join(', ')}`);
+        }
+        patch.status = status;
+      }
+
+      /* Re-scoping, offered here and not in the interface for the reason the
+         cycle tool gives: an assistant asked to "add Mobile to the launch" has
+         somewhere to do it, and is told what it did to the work. Tasks already
+         in the module are never moved — dropping a project could orphan work
+         somebody deliberately filed under a milestone, and doing that silently
+         as a side effect of an edit is data loss nobody attributes correctly. */
+      let stranded: Row[] = [];
+      if (args.project !== undefined || args.projects !== undefined) {
+        const scope = resolveScope(args, workspaceId, ctx);
+        patch.project_id = scope.project_id;
+        patch.projects = scope.projects;
+        // Only what this token could see anyway: naming a private project's
+        // identifiers here would disclose it, as it would in any report.
+        const visible = visibleProjectIds(ctx.auth.userId, workspaceId);
+        stranded = all<Row>(
+          `SELECT t.identifier, t.project_id FROM tasks t WHERE t.module_id = ? AND t.deleted_at IS NULL`,
+          module.id,
+        ).filter((task) => visible.has(String(task.project_id)) && !coversProject(
+          { project_id: scope.project_id, projects: scope.projects },
+          String(task.project_id),
+        ));
+      }
+
+      if (!Object.keys(patch).length) {
+        throw new McpError('Nothing to change — pass name, description, lead, start_date, target_date, status, project or projects');
+      }
+
+      // A milestone due before it starts is not a milestone. `in` rather than
+      // `??`, so clearing a date is not confused with leaving it alone.
+      const from = ('start_date' in patch ? patch.start_date : module.start_date) as string | null;
+      const to = ('target_date' in patch ? patch.target_date : module.target_date) as string | null;
+      if (from && to && from > to) throw new McpError(`A module cannot be due (${to}) before it starts (${from})`);
+
+      const { row } = writeEntity('module', String(module.id), patch, writeOpts(workspaceId, ctx));
+      return {
+        ...moduleView(row),
+        ...(stranded.length
+          ? {
+            stranded_tasks: stranded.map((t) => String(t.identifier)),
+            note: 'These tasks are still in the module but their project is no longer covered by it. Nothing was removed — move them or widen the module.',
+          }
+          : {}),
+      };
+    },
+  },
+  {
+    name: 'delete_module',
+    title: 'Delete module',
+    description: 'Delete a module. It goes to the trash and can be restored; tasks in it are kept and simply lose their module.',
+    schema: {
+      type: 'object',
+      required: ['module'],
+      properties: {
+        module: { type: 'string', description: 'Module id or name' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const module = findModule(String(args.module), workspaceId, ctx);
+      const orphaned = Number(get<Row>(
+        `SELECT count(*) c FROM tasks WHERE module_id = ? AND deleted_at IS NULL`, module.id,
+      )?.c ?? 0);
+      deleteEntity('module', String(module.id), writeOpts(workspaceId, ctx));
+      return { deleted: String(module.name), id: String(module.id), tasks_released: orphaned };
     },
   },
   {
@@ -2944,7 +3218,7 @@ const TOOLS: ToolDef[] = [
          the whole workspace shares. The last two belong in a project's review
          as much as in the workspace's, because that project's work is in them.
 
-         `cycleCovers` says the same thing in TypeScript for the client. This
+         `coversProject` says the same thing in TypeScript for the client. This
          is the half SQLite has to answer, so a workspace with a long history
          does not send every cycle it has ever run to be filtered in memory. */
       const inScope = `(
@@ -3077,18 +3351,19 @@ const TOOLS: ToolDef[] = [
 /**
  * Turn `project` / `projects` arguments into the pair that gets stored.
  *
- * Each name is resolved through `findProject`, so a project this token cannot
- * see is refused here rather than silently dropped — a cycle that quietly
- * covers fewer projects than asked for is worse than one that fails to be
- * made. `cycleScope` then normalises: a list of one collapses to an owner, a
- * list of several clears the owner, and neither means every project.
+ * Shared by cycles and modules, which are scoped identically. Each name is
+ * resolved through `findProject`, so a project this token cannot see is refused
+ * here rather than silently dropped — one that quietly covers fewer projects
+ * than asked for is worse than one that fails to be made. `projectScope` then
+ * normalises: a list of one collapses to an owner, a list of several clears the
+ * owner, and neither means every project.
  */
-function resolveCycleScope(
+function resolveScope(
   args: Record<string, any>,
   workspaceId: string,
   ctx: McpCtx,
 ): { project_id: string | null; projects: string[] } {
-  // Refused rather than resolved: `cycleScope` would let the list win, and a
+  // Refused rather than resolved: `projectScope` would let the list win, and a
   // caller who passed both meant one of them. Which one is not ours to guess.
   if (str(args.project) && Array.isArray(args.projects)) {
     throw new McpError('Pass `project` for a cycle one project owns, or `projects` for the projects that run it — not both');
@@ -3098,7 +3373,7 @@ function resolveCycleScope(
       .map((ref: string) => String(findProject(ref.trim(), workspaceId, ctx).id))
     : [];
   const owner = str(args.project) ? String(findProject(String(args.project), workspaceId, ctx).id) : null;
-  return cycleScope({ project: owner, projects: listed });
+  return projectScope({ project: owner, projects: listed });
 }
 
 function resolveCycle(workspaceId: string, ref: string): Row | undefined {

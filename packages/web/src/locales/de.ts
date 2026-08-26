@@ -881,12 +881,25 @@ export const de: Catalogue = {
 
   /* ------------------------------------------------------------- modules */
   'module.title': 'Module',
-  'module.subtitle': 'Längerfristige Arbeitsstränge innerhalb dieses Projekts',
+  'module.subtitle': 'Längerfristige Arbeitsstränge — in diesem Projekt oder über mehrere hinweg',
   'module.placeholder': 'Neues Modul, z. B. Checkout v2',
   'module.emptyTitle': 'Noch keine Module',
-  'module.emptyHint': 'Module eignen sich für Meilensteine, die über mehrere Zyklen laufen.',
+  'module.emptyHint': 'Module eignen sich für Meilensteine über mehrere Zyklen — oder mehrere Projekte.',
   'module.delete': 'Modul löschen',
   'module.notFound': 'Modul nicht gefunden',
+  'module.shared': 'Geteilt',
+  'module.sharedCount_one': '{count} Projekt',
+  'module.sharedCount_other': '{count} Projekte',
+  'module.scope': 'Welche Projekte daran arbeiten',
+  'module.scopeThis': 'Nur dieses Projekt',
+  'module.scopeSome': 'Ausgewählte Projekte',
+  'module.scopeAll': 'Alle Projekte',
+  'module.scopeThisHint': 'Der Normalfall. Nur dieses Projekt kann Aufgaben einordnen.',
+  'module.scopeSomeHint': 'Ein Meilenstein, auf den die gewählten Projekte gemeinsam hinarbeiten, statt einer Kopie in jedem.',
+  'module.scopeAllHint': 'Jedes Projekt im Arbeitsbereich, auch später angelegte.',
+  'module.scopePickOne': 'Mindestens ein Projekt auswählen.',
+  'module.sharedHint': 'Jedes Projekt in diesem Arbeitsbereich arbeitet an diesem Modul. Wird es gelöscht, verschwindet es überall.',
+  'module.sharedSomeHint': 'Die auf diesem Modul genannten Projekte arbeiten gemeinsam daran. Wird es gelöscht, verschwindet es bei allen.',
   'module.danger': 'Achtung',
 
   /* --------------------------------------------------------------- pages */

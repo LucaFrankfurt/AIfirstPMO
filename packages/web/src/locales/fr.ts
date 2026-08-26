@@ -885,12 +885,25 @@ export const fr: Catalogue = {
 
   /* ------------------------------------------------------------- modules */
   'module.title': 'Modules',
-  'module.subtitle': 'Chantiers de plus longue haleine dans ce projet',
+  'module.subtitle': 'Chantiers de plus longue haleine, dans ce projet ou sur plusieurs',
   'module.placeholder': 'Nouveau module, par exemple Paiement v2',
   'module.emptyTitle': 'Aucun module pour l’instant',
-  'module.emptyHint': 'Utilisez les modules pour les jalons qui s’étendent sur plusieurs cycles.',
+  'module.emptyHint': 'Utilisez les modules pour les jalons qui s’étendent sur plusieurs cycles — ou plusieurs projets.',
   'module.delete': 'Supprimer le module',
   'module.notFound': 'Module introuvable',
+  'module.shared': 'Partagé',
+  'module.sharedCount_one': '{count} projet',
+  'module.sharedCount_other': '{count} projets',
+  'module.scope': 'Quels projets y travaillent',
+  'module.scopeThis': 'Ce projet seulement',
+  'module.scopeSome': 'Projets choisis',
+  'module.scopeAll': 'Tous les projets',
+  'module.scopeThisHint': 'Le cas habituel. Seul ce projet peut y placer des tâches.',
+  'module.scopeSomeHint': 'Un jalon vers lequel les projets choisis avancent ensemble, plutôt qu’une copie dans chacun.',
+  'module.scopeAllHint': 'Tous les projets de l’espace, y compris ceux créés plus tard.',
+  'module.scopePickOne': 'Choisissez au moins un projet.',
+  'module.sharedHint': 'Tous les projets de cet espace travaillent sur ce module. Le supprimer le retire de chacun d’eux.',
+  'module.sharedSomeHint': 'Les projets indiqués sur ce module y travaillent ensemble. Le supprimer le retire de chacun d’eux.',
   'module.danger': 'Zone sensible',
 
   /* --------------------------------------------------------------- pages */

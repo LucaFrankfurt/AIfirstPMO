@@ -203,7 +203,7 @@ export const ENTITIES = {
   /**
    * A sprint. `project_id` set is one project's own; `project_id` null with an
    * empty `projects` is every project in the workspace; `projects` non-empty is
-   * exactly those. See `cycleCovers` in `cycles.ts` — the empty list meaning
+   * exactly those. See `coversProject` in `cycles.ts` — the empty list meaning
    * *everything* is the same rule `channel.members` follows.
    */
   cycle: {
@@ -211,12 +211,19 @@ export const ENTITIES = {
     fields: ['workspace_id', 'project_id', 'projects', 'name', 'description', 'start_date', 'end_date', 'status'],
     json: ['projects'],
   },
+  /**
+   * A milestone. Scoped exactly as a cycle is: `project_id` set is one
+   * project's own, `project_id` null with an empty `projects` is every project
+   * in the workspace, and `projects` non-empty is exactly those. See
+   * `coversProject` in `scope.ts`.
+   */
   module: {
     table: 'modules',
     fields: [
-      'workspace_id', 'project_id', 'name', 'description', 'lead_id',
+      'workspace_id', 'project_id', 'projects', 'name', 'description', 'lead_id',
       'start_date', 'target_date', 'status', 'sort_order',
     ],
+    json: ['projects'],
   },
   page: {
     table: 'pages',

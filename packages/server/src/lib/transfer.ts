@@ -122,7 +122,19 @@ export function exportProject(workspaceId: string, projectId: string): ProjectDo
         projectId,
       ),
     ].map(clean),
-    modules: live('modules', 'project_id = ?', projectId).map(clean),
+    /* Its own modules, plus any shared one that covers it or that its tasks
+       are in — the same two halves as the cycles above, and dropped for the
+       same silent reason if the second is missing. */
+    modules: [
+      ...live('modules', 'project_id = ?', projectId),
+      ...live(
+        'modules',
+        `project_id IS NULL
+           AND (EXISTS (SELECT 1 FROM json_each(modules.projects) WHERE json_each.value = ?1)
+                OR id IN (SELECT DISTINCT module_id FROM tasks WHERE project_id = ?1 AND module_id IS NOT NULL))`,
+        projectId,
+      ),
+    ].map(clean),
     tasks: tasks.map(clean),
     field_values: live('field_values', 'project_id = ?', projectId).map(clean),
     relations: live('task_relations', 'task_id IN (SELECT id FROM tasks WHERE project_id = ?)', projectId)
@@ -235,7 +247,10 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
     // project's, and carrying a list of ids from another instance would name
     // projects that do not exist here.
     for (const row of doc.cycles ?? []) write('cycle', row, { projects: [] });
-    for (const row of doc.modules ?? []) write('module', row, { lead_id: who(row.lead_id) });
+    // `projects` cleared for the same reason the cycles' is: the other projects
+    // that shared it are not in this file, so a list naming them would point at
+    // rows that do not exist here.
+    for (const row of doc.modules ?? []) write('module', row, { lead_id: who(row.lead_id), projects: [] });
 
     if (doc.project.default_state_id) {
       writeEntity('project', projectId, { default_state_id: to(doc.project.default_state_id) }, opts());

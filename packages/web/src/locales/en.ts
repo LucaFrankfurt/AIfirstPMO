@@ -880,12 +880,25 @@ export const en = {
 
   /* ------------------------------------------------------------- modules */
   'module.title': 'Modules',
-  'module.subtitle': 'Longer-running workstreams inside this project',
+  'module.subtitle': 'Longer-running workstreams, in this project or across several',
   'module.placeholder': 'New module, e.g. Checkout v2',
   'module.emptyTitle': 'No modules yet',
-  'module.emptyHint': 'Use modules for milestones that span several cycles.',
+  'module.emptyHint': 'Use modules for milestones that span several cycles — or several projects.',
   'module.delete': 'Delete module',
   'module.notFound': 'Module not found',
+  'module.shared': 'Shared',
+  'module.sharedCount_one': '{count} project',
+  'module.sharedCount_other': '{count} projects',
+  'module.scope': 'Which projects work on it',
+  'module.scopeThis': 'Just this project',
+  'module.scopeSome': 'Chosen projects',
+  'module.scopeAll': 'Every project',
+  'module.scopeThisHint': 'The usual case. Only this project can put work in it.',
+  'module.scopeSomeHint': 'One milestone the projects you pick work towards together, rather than a copy of it in each.',
+  'module.scopeAllHint': 'Every project in the workspace, including ones made later.',
+  'module.scopePickOne': 'Pick at least one project.',
+  'module.sharedHint': 'Every project in this workspace works on this module. Deleting it takes it out of all of them.',
+  'module.sharedSomeHint': 'The projects named on this module work on it together. Deleting it takes it out of all of them.',
   'module.danger': 'Danger',
 
   /* --------------------------------------------------------------- pages */

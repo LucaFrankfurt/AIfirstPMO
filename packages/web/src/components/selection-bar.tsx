@@ -6,7 +6,7 @@
  */
 import { useMemo } from 'react';
 import type { Task } from '@kolibri/shared';
-import { PRIORITIES, cycleCovers } from '@kolibri/shared';
+import { PRIORITIES, coversProject } from '@kolibri/shared';
 import { priorityKey, useT } from '../lib/i18n';
 import { remove, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
@@ -35,7 +35,7 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
   const states = useStates(soleProject);
   const labels = useLabels(soleProject);
   const cycles = useQuery(
-    () => (soleProject ? list('cycle', (cycle) => cycleCovers(cycle, soleProject)) : []),
+    () => (soleProject ? list('cycle', (cycle) => coversProject(cycle, soleProject)) : []),
     [soleProject],
   );
 

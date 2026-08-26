@@ -378,7 +378,13 @@ CREATE INDEX IF NOT EXISTS cycles_seq ON cycles (workspace_id, seq);
 CREATE TABLE IF NOT EXISTS modules (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
-  project_id   TEXT NOT NULL,
+  -- Null means this module is not one project's. Together with `projects` it
+  -- says which run it: an owner and an empty list is that project's own; no
+  -- owner and an empty list is every project; a list is exactly those. The
+  -- same three states a cycle has, answered by the same `coversProject`.
+  project_id   TEXT,
+  -- Empty means *every* project, not none. See the note on `cycles.projects`.
+  projects     TEXT NOT NULL DEFAULT '[]',
   name         TEXT NOT NULL,
   description  TEXT,
   lead_id      TEXT,

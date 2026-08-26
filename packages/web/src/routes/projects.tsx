@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { DEFAULT_WORKING_DAYS, cycleCovers, cycleScope, orderKey, type Task } from '@kolibri/shared';
+import { DEFAULT_WORKING_DAYS, coversProject, projectScope, orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
@@ -445,10 +445,10 @@ function Cycles({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
   // This project's own, plus the ones it shares: a cycle that names it, and a
-  // cycle every project runs. `cycleCovers` is the one place that question is
+  // cycle every project runs. `coversProject` is the one place that question is
   // answered, so this tab and the server's queries cannot drift apart.
   const cycles = useQuery(
-    () => list('cycle', (c) => cycleCovers(c, projectId))
+    () => list('cycle', (c) => coversProject(c, projectId))
       .sort((a, b) => (b.start_date ?? '').localeCompare(a.start_date ?? '')),
     [projectId],
   );
@@ -551,13 +551,13 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     if (cycleId) {
       update('cycle', cycleId, form);
     } else {
-      // `cycleScope` is what the server would apply anyway; applying it here
+      // `projectScope` is what the server would apply anyway; applying it here
       // too means the row this device writes into its own store is already the
       // canonical shape, rather than one that changes under it on the next pull.
       const chosen = scope === 'this' ? { project: projectId }
         : scope === 'all' ? {}
           : { projects: picked };
-      create('cycle', { ...form, ...cycleScope(chosen) });
+      create('cycle', { ...form, ...projectScope(chosen) });
     }
     onClose();
   };
@@ -625,7 +625,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
                 </label>
               ))}
               {/* One project chosen from the list is the same cycle as "just
-                  this project", and `cycleScope` stores it that way — so the
+                  this project", and `projectScope` stores it that way — so the
                   empty case is the only one worth refusing. */}
               {!picked.length && <span className="text-[12px] text-danger">{t('cycle.scopePickOne')}</span>}
             </div>
@@ -696,8 +696,23 @@ function Modules({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
   const members = useMembers();
-  const modules = useQuery(() => list('module', (m) => m.project_id === projectId), [projectId]);
+  const { workspaceId } = useSession();
+  // This project's own, plus the ones it shares — the same rule, and the same
+  // function, the Cycles tab beside it follows.
+  const modules = useQuery(() => list('module', (m) => coversProject(m, projectId)), [projectId]);
+  const projects = useQuery(
+    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_container)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [workspaceId],
+  );
   const [name, setName] = useState('');
+  /* Chosen when the module is made and not changed here, as a cycle's is.
+     Narrowing a running milestone strands the dropped projects' work in it, and
+     doing that behind a control that looks like a setting is how data goes
+     missing without anybody attributing it to the click. `update_module` over
+     MCP will do it and reports what it stranded. */
+  const [scope, setScope] = useState<'this' | 'some' | 'all'>('this');
+  const [picked, setPicked] = useState<string[]>([projectId]);
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -707,16 +722,58 @@ function Modules({ projectId }: { projectId: string }) {
       </div>
 
       <form
-        className="flex items-center gap-2 mb-3.5"
+        className="mb-3.5"
         onSubmit={(event) => {
           event.preventDefault();
           if (!name.trim()) return;
-          create('module', { project_id: projectId, name: name.trim(), status: 'planned', sort_order: orderKey(null, null) });
+          if (scope === 'some' && !picked.length) return;
+          const chosen = scope === 'this' ? { project: projectId }
+            : scope === 'all' ? {}
+              : { projects: picked };
+          create('module', {
+            ...projectScope(chosen), name: name.trim(), status: 'planned', sort_order: orderKey(null, null),
+          });
           setName('');
+          setScope('this');
+          setPicked([projectId]);
         }}
       >
-        <Input placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
-        <Button type="submit"><Icon name="plus" size={14} /></Button>
+        <div className="flex items-center gap-2">
+          <Input placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
+          <Select
+            aria-label={t('module.scope')}
+            value={scope}
+            style={{ width: 168 }}
+            onChange={(event) => setScope(event.target.value as typeof scope)}
+          >
+            <option value="this">{t('module.scopeThis')}</option>
+            <option value="some">{t('module.scopeSome')}</option>
+            <option value="all">{t('module.scopeAll')}</option>
+          </Select>
+          <Button type="submit"><Icon name="plus" size={14} /></Button>
+        </div>
+        <span className="text-[12px] text-muted mt-1 block">
+          {scope === 'this' ? t('module.scopeThisHint') : scope === 'all' ? t('module.scopeAllHint') : t('module.scopeSomeHint')}
+        </span>
+        {scope === 'some' && (
+          <div className="mt-2 grid gap-1">
+            {projects.map((project) => (
+              <label className="check-row" key={project.id}>
+                <input
+                  type="checkbox"
+                  checked={picked.includes(project.id)}
+                  onChange={(event) => setPicked(
+                    event.target.checked ? [...picked, project.id] : picked.filter((id) => id !== project.id),
+                  )}
+                />
+                <span>{project.icon} {project.name}</span>
+              </label>
+            ))}
+            {/* One project chosen from the list is the same module as "just
+                this project", and `projectScope` stores it that way. */}
+            {!picked.length && <span className="text-[12px] text-danger">{t('module.scopePickOne')}</span>}
+          </div>
+        )}
       </form>
 
       {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
@@ -730,6 +787,20 @@ function Modules({ projectId }: { projectId: string }) {
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={module.id}>
               <div className="flex items-center gap-2 mb-1.5">
                 <strong className="flex-1 min-w-0 truncate">{module.name}</strong>
+                {/* Said on the card, because deleting a shared module takes it
+                    out of every project in it and the menu beside this offers
+                    exactly that. Counted when it names some: "Shared" alone
+                    leaves the reader to guess whether that is two or twelve. */}
+                {!module.project_id && (
+                  <span
+                    className={chipVariants()}
+                    title={module.projects?.length ? t('module.sharedSomeHint') : t('module.sharedHint')}
+                  >
+                    {module.projects?.length
+                      ? t('module.sharedCount', { count: module.projects.length })
+                      : t('module.shared')}
+                  </span>
+                )}
                 {lead && <Avatar user={lead} size={20} />}
                 <MenuButton
                   variant="ghost" size="iconSm"
@@ -777,11 +848,13 @@ export function ModulePage() {
   return (
     <>
       <Header title={module.name}>
-        <ViewControls view={view} onChange={setView} projectId={module.project_id} />
+        {/* `?? undefined` for the same reason the cycle page does it: a module
+            several projects work on has no single project to scope a view to. */}
+        <ViewControls view={view} onChange={setView} projectId={module.project_id ?? undefined} />
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         {module.description && <Markdown source={module.description} />}
-        <TaskViews tasks={visible} view={view} projectId={module.project_id} onOpen={openTask} implied={{ moduleId: module.id }} />
+        <TaskViews tasks={visible} view={view} projectId={module.project_id ?? undefined} onOpen={openTask} implied={{ moduleId: module.id }} />
       </div>
     </>
   );
