@@ -304,6 +304,29 @@ On Coolify: *Add Resource → Docker Compose →* this repository, compose file
 `docker-compose.sites.coolify.yml`. Give the `docs` service a domain on port **8080** and the
 `demo` service its own, also on 8080.
 
+### The `:8080` in the domain field is not a public port
+
+Coolify writes the domain as `https://docs.kolibri.day:8080`, and that is correct: the port after
+the host names the **container port to route to**, not a port anybody types. The app's entry says
+`:4000` in exactly the same way. Visitors reach both on 443, and adding a `ports:` mapping to
+"expose" 8080 would publish it beside the proxy rather than behind it — no TLS, no domain.
+
+So if a *visitor* ever sees `:8080`, something else put it there. Until it was fixed, that
+something was nginx. Both sites are built with `trailingSlash: 'always'`, so every page is a
+directory; a link that arrives without the slash is answered with a 301, and nginx builds that
+`Location` header from the host it was asked for and **the port it is listening on**. Behind a
+proxy that terminates TLS, the visitor was handed
+`http://docs.kolibri.day:8080/planning/cycles/` — the container's private port, and `http` for a
+site only served over `https`.
+
+`absolute_redirect off` in `sites/nginx.conf` is the fix, and the only one that needs nothing from
+the proxy: the header becomes `Location: /planning/cycles/`, and the browser keeps the scheme, host
+and port it already had — which is the only party that knows them.
+
+The browser checks could not have caught this. They run against `serve`, and what is deployed is
+nginx, so the bug lived entirely in the configuration between them. `node sites/check-redirects.mjs`
+now asserts it: the directive always, and the served behaviour wherever there is an nginx to ask.
+
 Where the buttons point is decided **at build time**, because a static site has no server to ask.
 Each is a build argument in the compose file:
 

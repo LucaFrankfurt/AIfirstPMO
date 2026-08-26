@@ -302,7 +302,12 @@ too — it found a `git clone` line holding a column open at 562px inside a 300p
 ```bash
 node sites/check.mjs sites/docs/dist                         # links
 node sites/check.mjs sites/docs/dist http://127.0.0.1:4300   # + widths and contrast
+node sites/check-redirects.mjs                               # nginx, behind a proxy
 ```
+
+The last one is separate because it is the one thing the others cannot see: they run against
+`serve`, and what is deployed is nginx. A 301 that names the container's own port sends every
+visitor who omits a trailing slash to an address nothing answers on.
 
 Everything above runs in [CI](.github/workflows/ci.yml) on every pull request, along with a job that
 brings up the full Docker stack and checks that it provisions itself.
