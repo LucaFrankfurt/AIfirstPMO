@@ -139,6 +139,7 @@ export const fr: Catalogue = {
   'task.movedToProject': '{task} déplacée vers {project}',
   'task.moveToProject': 'Déplacer vers un projet',
   'task.addSubtask': 'Ajouter une sous-tâche',
+  'task.description': 'Description',
   'task.files': 'Fichiers',
   'task.attach': 'Joindre',
   'task.noFiles': 'Aucun fichier pour l’instant.',

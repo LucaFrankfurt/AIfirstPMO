@@ -132,6 +132,7 @@ export const de: Catalogue = {
   'task.movedToProject': '{task} nach {project} verschoben',
   'task.moveToProject': 'In Projekt verschieben',
   'task.addSubtask': 'Teilaufgabe hinzufügen',
+  'task.description': 'Beschreibung',
   'task.files': 'Dateien',
   'task.attach': 'Anhängen',
   'task.noFiles': 'Noch keine Dateien.',

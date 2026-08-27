@@ -131,6 +131,7 @@ export const en = {
   'task.movedToProject': '{task} moved to {project}',
   'task.moveToProject': 'Move to project',
   'task.addSubtask': 'Add a sub-task',
+  'task.description': 'Description',
   'task.files': 'Files',
   'task.attach': 'Attach',
   'task.noFiles': 'No files yet.',
