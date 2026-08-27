@@ -130,8 +130,12 @@ export default function App() {
           <Route path="*" element={<Empty emoji="🧭" title={t('misc.pageNotFound')} />} />
         </Routes>
       </AppShell>
+      {/* The sheet, in its own switch so it can sit over any screen. The
+          catch-all is the "nothing here, on purpose" — without it every
+          location that is not a task logs a warning about matching nothing. */}
       <Routes>
         <Route path="/t/:id" element={<TaskRoute />} />
+        <Route path="*" element={null} />
       </Routes>
       <WelcomeTour />
     </ToastHost>
