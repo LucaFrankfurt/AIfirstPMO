@@ -633,7 +633,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 So the list above is read in proportion — these are covered by automated tests
 (`npm test`, over 950 cases across the server and the client) or by the browser walkthrough
-(`node scripts/smoke.mjs`, thirty-six steps, which runs in English, German and French):
+(`node scripts/smoke.mjs`, forty steps, which runs in English and in German):
 
 - [x] Registration, login, sessions, API tokens, read-only scopes
 - [x] Task identifiers allocated without gaps or duplicates
