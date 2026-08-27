@@ -106,7 +106,10 @@ export function registerSettingsRoutes(router: Router): void {
         await chosen.ask({
           system: 'You are a connection test. Answer with the single word OK.',
           user: 'Answer with the single word OK.',
-          maxTokens: 16,
+          // Room for a word, and for the thinking a current model does before
+          // it says one. A budget that only fits the answer fails the test on
+          // a working key and sends an operator hunting for the wrong problem.
+          maxTokens: 256,
         });
       } catch (error) {
         throw badRequest(error instanceof AiError ? error.message : (error as Error).message);

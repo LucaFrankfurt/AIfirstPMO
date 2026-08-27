@@ -88,6 +88,21 @@ Defaults per provider:
 **What it costs.** A review is roughly 1.5k tokens in and under 1k out — a few cents on a large
 model, a fraction of a cent on a small one. `KOLIBRI_AI_MODEL` is there so that is your decision.
 
+**Models that think.** Every current model does, and every adapter here asks it to stop: `effort:
+low` on Anthropic, `thinkingLevel: LOW` on Gemini 3 and later. Reviewing a task is not what deep
+reasoning is for, and it is billed by the token.
+
+The one that is not a preference is the budget. A model spends its output ceiling thinking first and
+answering second, so a ceiling sized for the answer alone is spent before the answer starts — and
+what comes back is an empty response, or half a JSON object that reads downstream as a model talking
+nonsense. So the Gemini adapter adds its room to think on top of the room to answer, and all three
+adapters say *ran out of tokens* when that is what happened rather than blaming the model for the
+truncation. Unused room is not billed.
+
+`thinkingLevel` is a Gemini 3 field and sending it to 2.5 is an error, so the major version is read
+out of the model name. A name that is not a recognisable `gemini-N` — your own gateway, named
+however you named it — is sent no thinking config at all.
+
 ## For the person who has an assistant already
 
 Kolibri is MCP-native, so anyone driving it from an agent can already ask their own model to read a

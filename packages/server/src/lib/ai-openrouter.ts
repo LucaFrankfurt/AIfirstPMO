@@ -16,7 +16,7 @@ const DEFAULT_URL = 'https://openrouter.ai/api';
 export const DEFAULT_MODEL = 'anthropic/claude-opus-4.5';
 
 interface Reply {
-  choices?: { message?: { content?: string } }[];
+  choices?: { message?: { content?: string }; finish_reason?: string }[];
   error?: { message?: string };
 }
 
@@ -55,6 +55,12 @@ export async function reviewWithOpenRouter(request: AiRequest): Promise<string> 
   // A 200 carrying an error object. OpenRouter answers this way when the model
   // behind it failed rather than the gateway, and the status says nothing.
   if (reply?.error?.message) throw new AiError(`OpenRouter: ${reply.error.message}`, false);
+  // `length` is OpenAI's word for the token ceiling, and every gateway that
+  // copied the shape copied it too. The answer is truncated JSON, so say so
+  // here rather than letting `parseReview` blame the model for it.
+  if (reply?.choices?.[0]?.finish_reason === 'length') {
+    throw new AiError('OpenRouter ran out of tokens before the answer was finished', true);
+  }
   const text = reply?.choices?.[0]?.message?.content ?? '';
   if (!text.trim()) throw new AiError('OpenRouter answered with nothing', false);
   return text;
