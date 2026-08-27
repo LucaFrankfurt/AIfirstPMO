@@ -20,6 +20,42 @@ const text = (...values: (string | undefined)[]): string | undefined =>
 const bool = (v: string | undefined, fallback: boolean) =>
   v === undefined ? fallback : ['1', 'true', 'yes', 'on'].includes(v.toLowerCase());
 
+/**
+ * Settings an admin typed into the app, which win over the environment.
+ *
+ * A relay, a bot token or a model key is the kind of thing somebody finds out
+ * they need *after* the container is running, and until now the only way to
+ * supply one was to edit a compose file and restart. The same settings are now
+ * writable in Settings → Server, stored in the database, and read here.
+ *
+ * A function rather than a value, and installed rather than imported: the
+ * store lives in the database, the database module reads `env.dbFile` to open
+ * itself, and an import in this direction would be a cycle. `lib/settings.ts`
+ * hands it over once the database is there — before that, and in every test
+ * that only wants the environment, this reads nothing and behaves exactly as
+ * it did.
+ *
+ * Names are the environment's own, because there is no second vocabulary to
+ * learn: what the documentation calls `KOLIBRI_SMTP_HOST` is what the field
+ * writes.
+ */
+let stored: () => Partial<Record<string, string>> = () => ({});
+
+export function useSettingsSource(source: () => Partial<Record<string, string>>): void {
+  stored = source;
+  refreshEnv();
+}
+
+/** What an admin stored for one of these names, if anything. */
+const saved = (...names: string[]): string | undefined => {
+  const overrides = stored();
+  return text(...names.map((name) => overrides[name]));
+};
+
+/** The stored value, then the environment. The general case. */
+const setting = (...names: string[]): string | undefined =>
+  saved(...names) ?? text(...names.map((name) => process.env[name]));
+
 export const DATA_DIR = resolve(process.env.KOLIBRI_DATA_DIR ?? join(ROOT, 'data'));
 mkdirSync(DATA_DIR, { recursive: true });
 
@@ -70,7 +106,10 @@ const storage = {
  * keeps notifications in-app, and every queued message is marked as skipped
  * rather than retried.
  */
-const smtpFromUrl = process.env.KOLIBRI_SMTP_URL ? parseSmtpUrl(process.env.KOLIBRI_SMTP_URL) : null;
+const smtpFromUrl = () => {
+  const url = setting('KOLIBRI_SMTP_URL');
+  return url ? parseSmtpUrl(url) : null;
+};
 
 /**
  * How the SMTP connection is protected — see `SmtpEncryption`.
@@ -86,11 +125,25 @@ const smtpFromUrl = process.env.KOLIBRI_SMTP_URL ? parseSmtpUrl(process.env.KOLI
  * and now means STARTTLS or nothing.
  */
 const smtpEncryption = (): SmtpEncryption => {
-  const asked = text(process.env.KOLIBRI_SMTP_ENCRYPTION)?.trim().toLowerCase();
+  const asked = setting('KOLIBRI_SMTP_ENCRYPTION')?.trim().toLowerCase();
   if (isEncryption(asked)) return asked;
-  if (smtpFromUrl) return smtpFromUrl.encryption;
-  if (bool(process.env.KOLIBRI_SMTP_SECURE, false)) return 'tls';
-  return int(process.env.KOLIBRI_SMTP_PORT, 587) === 465 ? 'tls' : 'starttls';
+  const url = smtpFromUrl();
+  if (url) return url.encryption;
+  if (bool(setting('KOLIBRI_SMTP_SECURE'), false)) return 'tls';
+  return smtpPort() === 465 ? 'tls' : 'starttls';
+};
+
+/**
+ * The port, which the encryption above has to know before the rest is read.
+ *
+ * A stored port wins over the URL for the same reason every other stored value
+ * does: it was typed into this instance, by somebody looking at it, after the
+ * environment was written.
+ */
+const smtpPort = (): number => {
+  const asked = saved('KOLIBRI_SMTP_PORT');
+  if (asked) return int(asked, 587);
+  return smtpFromUrl()?.port ?? int(process.env.KOLIBRI_SMTP_PORT, 587);
 };
 
 /**
@@ -102,33 +155,57 @@ const smtpEncryption = (): SmtpEncryption => {
  * cost of a silent "mail is off" for somebody whose configuration is sitting
  * right there. Kolibri's own names win where both are set.
  */
-const scaleway = {
-  secretKey: text(process.env.KOLIBRI_SCALEWAY_SECRET_KEY, process.env.SCW_SECRET_KEY_EMAIL) ?? '',
-  projectId: text(process.env.KOLIBRI_SCALEWAY_PROJECT_ID, process.env.SCW_PROJECT_ID) ?? '',
+const computeScaleway = () => ({
+  secretKey: setting('KOLIBRI_SCALEWAY_SECRET_KEY', 'SCW_SECRET_KEY_EMAIL') ?? '',
+  projectId: setting('KOLIBRI_SCALEWAY_PROJECT_ID', 'SCW_PROJECT_ID') ?? '',
   // `fr-par` is the only region the service runs in, so the whole URL is the
   // setting rather than a region name with one legal value.
-  url: text(process.env.KOLIBRI_SCALEWAY_EMAIL_URL, process.env.SCW_EMAIL_API_URL)
+  url: setting('KOLIBRI_SCALEWAY_EMAIL_URL', 'SCW_EMAIL_API_URL')
     ?? 'https://api.scaleway.com/transactional-email/v1alpha1/regions/fr-par/emails',
+});
+
+/**
+ * The five fields of a relay, and where each is allowed to come from.
+ *
+ * Stored first, then `KOLIBRI_SMTP_URL`, then the discrete variable — which is
+ * the environment's own order with one rule in front of it: a value somebody
+ * typed into this instance wins over anything the container was started with.
+ * Without that a deployment with a URL in its compose file could never be
+ * corrected from the app, which is the whole point of the screen.
+ */
+const computeMail = () => {
+  const url = smtpFromUrl();
+  return {
+    host: saved('KOLIBRI_SMTP_HOST') ?? url?.host ?? text(process.env.KOLIBRI_SMTP_HOST) ?? '',
+    port: smtpPort(),
+    encryption: smtpEncryption(),
+    user: saved('KOLIBRI_SMTP_USER') ?? url?.user ?? text(process.env.KOLIBRI_SMTP_USER),
+    pass: saved('KOLIBRI_SMTP_PASS') ?? url?.pass ?? text(process.env.KOLIBRI_SMTP_PASS),
+    allowInvalidCerts: saved('KOLIBRI_SMTP_INSECURE') !== undefined
+      ? bool(saved('KOLIBRI_SMTP_INSECURE'), false)
+      : url?.allowInvalidCerts ?? bool(process.env.KOLIBRI_SMTP_INSECURE, false),
+    // `EMAIL_FROM_INFO` / `EMAIL_FROM_NAME` for the same reason as the `SCW_*`
+    // names above: they travel with a Scaleway setup.
+    from: setting('KOLIBRI_MAIL_FROM', 'EMAIL_FROM_INFO') ?? 'kolibri@localhost',
+    fromName: setting('KOLIBRI_MAIL_FROM_NAME', 'EMAIL_FROM_NAME') ?? 'Kolibri',
+    replyTo: setting('KOLIBRI_MAIL_REPLY_TO'),
+    scaleway: computeScaleway(),
+    /** Wait this long before emailing, so a burst of activity becomes one message. */
+    batchSeconds: int(process.env.KOLIBRI_MAIL_BATCH_SECONDS, 120),
+    pollSeconds: int(process.env.KOLIBRI_MAIL_POLL_SECONDS, 20),
+    maxAttempts: int(process.env.KOLIBRI_MAIL_MAX_ATTEMPTS, 6),
+  };
 };
 
-const mail = {
-  host: smtpFromUrl?.host ?? text(process.env.KOLIBRI_SMTP_HOST) ?? '',
-  port: smtpFromUrl?.port ?? int(process.env.KOLIBRI_SMTP_PORT, 587),
-  encryption: smtpEncryption(),
-  user: smtpFromUrl?.user ?? text(process.env.KOLIBRI_SMTP_USER),
-  pass: smtpFromUrl?.pass ?? text(process.env.KOLIBRI_SMTP_PASS),
-  allowInvalidCerts: smtpFromUrl?.allowInvalidCerts ?? bool(process.env.KOLIBRI_SMTP_INSECURE, false),
-  // `EMAIL_FROM_INFO` / `EMAIL_FROM_NAME` for the same reason as the `SCW_*`
-  // names above: they travel with a Scaleway setup.
-  from: text(process.env.KOLIBRI_MAIL_FROM, process.env.EMAIL_FROM_INFO) ?? 'kolibri@localhost',
-  fromName: text(process.env.KOLIBRI_MAIL_FROM_NAME, process.env.EMAIL_FROM_NAME) ?? 'Kolibri',
-  replyTo: text(process.env.KOLIBRI_MAIL_REPLY_TO),
-  scaleway,
-  /** Wait this long before emailing, so a burst of activity becomes one message. */
-  batchSeconds: int(process.env.KOLIBRI_MAIL_BATCH_SECONDS, 120),
-  pollSeconds: int(process.env.KOLIBRI_MAIL_POLL_SECONDS, 20),
-  maxAttempts: int(process.env.KOLIBRI_MAIL_MAX_ATTEMPTS, 6),
-};
+/**
+ * Read once at start-up and then *in place* whenever a setting changes.
+ *
+ * In place, rather than behind a getter that rebuilds them: `env.mail` and
+ * `env.ai` are read in seventy-odd places and handed around as objects, and a
+ * getter that returned a new one each time would break the identity every one
+ * of those already relies on.
+ */
+const mail = computeMail();
 
 /**
  * Optional first-run provisioning, so an automated deployment comes up ready
@@ -145,16 +222,16 @@ const mail = {
  * Every default lives here rather than in the adapters, so `docs/ai.md` and
  * this block are the only two places that have to agree.
  */
-const ai = {
-  key: text(
-    process.env.KOLIBRI_AI_API_KEY,
-    process.env.ANTHROPIC_API_KEY,
-    process.env.GEMINI_API_KEY,
-    process.env.OPENROUTER_API_KEY,
+const computeAi = () => ({
+  key: setting(
+    'KOLIBRI_AI_API_KEY',
+    'ANTHROPIC_API_KEY',
+    'GEMINI_API_KEY',
+    'OPENROUTER_API_KEY',
   ) ?? '',
-  model: text(process.env.KOLIBRI_AI_MODEL) ?? '',
+  model: setting('KOLIBRI_AI_MODEL') ?? '',
   /** For a gateway, a proxy, or a model running on the same docker network. */
-  baseUrl: text(process.env.KOLIBRI_AI_BASE_URL)?.replace(/\/$/, '') ?? '',
+  baseUrl: setting('KOLIBRI_AI_BASE_URL')?.replace(/\/$/, '') ?? '',
   timeoutMs: int(process.env.KOLIBRI_AI_TIMEOUT_MS, 20_000),
   /**
    * How many reviews one person may ask for. A review is the first thing in
@@ -163,7 +240,34 @@ const ai = {
    */
   burst: int(process.env.KOLIBRI_AI_BURST, 10),
   everySeconds: int(process.env.KOLIBRI_AI_EVERY_SECONDS, 20),
-};
+});
+
+const ai = computeAi();
+
+const computeTelegram = () => ({
+  botToken: setting('KOLIBRI_TELEGRAM_BOT_TOKEN') ?? '',
+  /** Overridable so a test can point at a local stand-in. */
+  apiBase: (setting('KOLIBRI_TELEGRAM_API') ?? 'https://api.telegram.org').replace(/\/$/, ''),
+  /** How long one long-poll waits. Telegram allows up to 50. */
+  pollSeconds: Math.min(50, Math.max(1, int(process.env.KOLIBRI_TELEGRAM_POLL_SECONDS, 25))),
+  /** Give up on one notification after this many failed sends. */
+  maxAttempts: int(process.env.KOLIBRI_TELEGRAM_MAX_ATTEMPTS, 5),
+});
+
+const telegram = computeTelegram();
+
+/**
+ * Read the environment and the stored settings again.
+ *
+ * Called when a setting is written, so a relay typed into Settings is the
+ * relay the next message goes through — without a restart, which is the whole
+ * difference between a screen and a compose file.
+ */
+export function refreshEnv(): void {
+  Object.assign(mail, computeMail());
+  Object.assign(ai, computeAi());
+  Object.assign(telegram, computeTelegram());
+}
 
 const admin = {
   email: process.env.KOLIBRI_ADMIN_EMAIL ?? '',
@@ -256,15 +360,7 @@ export const env = {
    * behind NAT has no public URL to give Telegram — and the ones that do have
    * one still should not need to expose an endpoint for this.
    */
-  telegram: {
-    botToken: process.env.KOLIBRI_TELEGRAM_BOT_TOKEN ?? '',
-    /** Overridable so a test can point at a local stand-in. */
-    apiBase: (process.env.KOLIBRI_TELEGRAM_API ?? 'https://api.telegram.org').replace(/\/$/, ''),
-    /** How long one long-poll waits. Telegram allows up to 50. */
-    pollSeconds: Math.min(50, Math.max(1, int(process.env.KOLIBRI_TELEGRAM_POLL_SECONDS, 25))),
-    /** Give up on one notification after this many failed sends. */
-    maxAttempts: int(process.env.KOLIBRI_TELEGRAM_MAX_ATTEMPTS, 5),
-  },
+  telegram,
   /**
    * Where this server is willing to connect when a *feature* names an address:
    * an outgoing webhook's URL, a Web Push endpoint.
@@ -341,7 +437,8 @@ export const env = {
    * usually has the SMTP block left over from the arrangement it replaced.
    */
   get mailTransport(): 'off' | 'smtp' | 'scaleway' {
-    const asked = text(process.env.KOLIBRI_MAIL_TRANSPORT)?.trim().toLowerCase();
+    const asked = setting('KOLIBRI_MAIL_TRANSPORT')?.trim().toLowerCase();
+    const { scaleway } = mail;
     if (asked === 'smtp') return mail.host ? 'smtp' : 'off';
     if (asked === 'scaleway') return scaleway.secretKey && scaleway.projectId ? 'scaleway' : 'off';
     if (scaleway.secretKey && scaleway.projectId) return 'scaleway';
@@ -370,14 +467,14 @@ export const env = {
    * says nothing about whose it is, so that case needs the provider named.
    */
   get aiProvider(): 'off' | 'anthropic' | 'gemini' | 'openrouter' {
-    const asked = text(process.env.KOLIBRI_AI_PROVIDER)?.trim().toLowerCase();
+    const asked = setting('KOLIBRI_AI_PROVIDER')?.trim().toLowerCase();
     if (asked === 'anthropic' || asked === 'gemini' || asked === 'openrouter') {
       return ai.key ? asked : 'off';
     }
     if (asked) return 'off';
-    if (text(process.env.ANTHROPIC_API_KEY)) return 'anthropic';
-    if (text(process.env.GEMINI_API_KEY)) return 'gemini';
-    if (text(process.env.OPENROUTER_API_KEY)) return 'openrouter';
+    if (setting('ANTHROPIC_API_KEY')) return 'anthropic';
+    if (setting('GEMINI_API_KEY')) return 'gemini';
+    if (setting('OPENROUTER_API_KEY')) return 'openrouter';
     return 'off';
   },
   /** A model is reachable. The workspace switch decides whether it is asked. */

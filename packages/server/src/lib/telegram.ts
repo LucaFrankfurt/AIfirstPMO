@@ -426,11 +426,34 @@ export function startTelegram(): void {
       }
     }
     running = false;
+    // A loop that was asked to stop and then un-asked — a token changed while
+    // it was inside a 25-second long poll — starts again here rather than
+    // leaving the instance quietly not polling. See `reloadTelegram`.
+    if (!stopping && env.telegramEnabled) startTelegram();
   })();
 }
 
 export function stopTelegram(): void {
   stopping = true;
+}
+
+/**
+ * Pick up a bot token that changed while the server was running.
+ *
+ * The cached `@name` goes, because it is a property of the token. The loop
+ * itself usually does not have to: every call reads the token afresh, so a
+ * poll already in flight simply uses the new one next time round. What does
+ * have to happen is the two ends — no bot any more, so stop; a bot where there
+ * was none, so start.
+ */
+export function reloadTelegram(): void {
+  forgetBot();
+  if (!env.telegramEnabled) {
+    stopTelegram();
+    return;
+  }
+  stopping = false;
+  if (!running) startTelegram();
 }
 
 export const isRunning = (): boolean => running;

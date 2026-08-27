@@ -6,9 +6,8 @@ import { TaskRow } from '../components/task-parts';
 import { TaskViews, useVisibleTasks, ViewControls, DEFAULT_VIEW, type ViewConfig } from '../components/views';
 import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
-import { Avatar, Empty, Icon, useToast } from '../components/ui';
+import { Avatar, Empty, Icon } from '../components/ui';
 import { Stat } from '../components/insights';
-import { api } from '../lib/api';
 import { isDone, relativeTime, today } from '../lib/format';
 import { firstName, greetingKey, summarise } from '../lib/overview';
 import { useRecentProjects } from '../lib/recents';
@@ -18,19 +17,11 @@ import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
 import { useMe, usePeople, useSession } from '../session';
 import { useUnreadMessages } from './chat';
-import { useT, type TranslationKey } from '../lib/i18n';
+import { useT } from '../lib/i18n';
 import { Button } from '../components/ui/button';
-import { Input } from '../components/ui/field';
 import { navCount, navItem } from '../components/ui/nav';
 import { SetupChecklist } from '../components/tour';
 import { useTabStrip } from '../lib/tab-strip';
-
-const KIND_KEY: Record<string, TranslationKey> = {
-  task: 'search.kindTask', page: 'search.kindPage',
-  project: 'search.kindProject', comment: 'search.kindComment',
-};
-
-
 
 /* --------------------------------------------------------------- my work */
 
@@ -278,97 +269,6 @@ export function Inbox() {
               </button>
             );
           })
-        )}
-      </div>
-    </>
-  );
-}
-
-/* ---------------------------------------------------------------- search */
-
-export function Search() {
-  const t = useT();
-  const { workspaceId } = useSession();
-  const navigate = useNavigate();
-  const openTask = useOpenTask();
-  const [query, setQuery] = useState('');
-  const [serverHits, setServerHits] = useState<any[]>([]);
-  const toast = useToast();
-
-  // Local results appear instantly (and offline); the server adds full-text
-  // matches from descriptions and comments a moment later.
-  const local = useQuery(() => {
-    const needle = query.trim().toLowerCase();
-    if (needle.length < 2) return [];
-    const tasks = list('task', (t) => `${t.identifier} ${t.title}`.toLowerCase().includes(needle)).slice(0, 25);
-    const pages = list('page', (p) => p.title.toLowerCase().includes(needle)).slice(0, 10);
-    return [
-      ...tasks.map((task) => ({ kind: 'task', id: task.id, title: `${task.identifier} ${task.title}`, snippet: '' })),
-      ...pages.map((page) => ({ kind: 'page', id: page.id, title: page.title, snippet: excerpt(page.content, 90) })),
-    ];
-  }, [query]);
-
-  useEffect(() => {
-    if (query.trim().length < 2 || !workspaceId) {
-      setServerHits([]);
-      return;
-    }
-    const handle = setTimeout(() => {
-      api.search(workspaceId, query)
-        .then((response) => setServerHits(response.results))
-        .catch(() => setServerHits([]));
-    }, 220);
-    return () => clearTimeout(handle);
-  }, [query, workspaceId]);
-
-  const results = useMemo(() => {
-    const seen = new Set(local.map((hit) => hit.id));
-    return [...local, ...serverHits.filter((hit) => !seen.has(hit.id))];
-  }, [local, serverHits]);
-
-  const open = (hit: { kind: string; id: string }) => {
-    if (hit.kind === 'task') openTask({ id: hit.id });
-    else if (hit.kind === 'page') navigate(`/pages/${hit.id}`);
-    else if (hit.kind === 'project') navigate(`/projects/${hit.id}`);
-    else if (hit.kind === 'comment') {
-      const comment = byId('comment', hit.id);
-      if (comment?.task_id) openTask({ id: comment.task_id });
-      else toast(t('search.commentGone'));
-    } else if (hit.kind === 'message') {
-      // The conversation, not the message: a stream has no anchor to scroll to
-      // and pretending otherwise would be a link that lands in the wrong place.
-      const message = byId('message', hit.id);
-      if (message?.channel_id) navigate(`/chat/${message.channel_id}`);
-      else toast(t('search.messageGone'));
-    }
-  };
-
-  return (
-    <>
-      <Header title={t('search.title')} />
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <Input
-          autoFocus
-          placeholder={t('search.placeholder')}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          className="mb-3.5 text-base"
-        />
-        {query.trim().length < 2 ? (
-          <Empty emoji="🔎" title={t('search.promptTitle')} hint={t('search.promptHint')} />
-        ) : results.length === 0 ? (
-          <Empty emoji="🫙" title={t('search.noResults', { query })} />
-        ) : (
-          results.map((hit) => (
-            <button key={`${hit.kind}-${hit.id}`} className="task-row text-left" style={{ width: '100%' }} onClick={() => open(hit)}>
-              <Icon name={hit.kind === 'task' ? 'check' : hit.kind === 'page' ? 'page' : 'folder'} size={15} />
-              <span className="flex-1 min-w-0">
-                <div className="truncate">{hit.title}</div>
-                {hit.snippet && <div className="text-muted truncate text-[12.5px]">{hit.snippet}</div>}
-              </span>
-              <span className="text-muted text-[11.5px]">{KIND_KEY[hit.kind] ? t(KIND_KEY[hit.kind]) : hit.kind}</span>
-            </button>
-          ))
         )}
       </div>
     </>

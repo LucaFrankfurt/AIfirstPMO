@@ -1017,3 +1017,23 @@ CREATE TABLE IF NOT EXISTS telegram_cursor (
   offset    INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
 );
+
+-- Settings an admin typed into the app, which win over the environment.
+--
+-- The key is the environment variable's own name — `KOLIBRI_SMTP_HOST` and the
+-- rest — because there is no second vocabulary to learn and the documentation
+-- already names them. A row here is an override; deleting it hands the setting
+-- back to whatever the container was started with.
+--
+-- `secret` marks a value that is stored sealed rather than in the clear: an
+-- SMTP password, a bot token, a model key. The seal is AES-256-GCM under a key
+-- derived from the instance secret, which lives in a file next to this
+-- database rather than inside it — so a stolen database alone is not a stolen
+-- relay. See `lib/settings.ts`.
+CREATE TABLE IF NOT EXISTS instance_settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  secret     INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  updated_by TEXT
+);

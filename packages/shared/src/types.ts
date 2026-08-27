@@ -835,6 +835,12 @@ export interface SessionInfo {
   user: User & { two_factor?: boolean };
   workspaces: (Workspace & { role: WorkspaceRole })[];
   token?: string;
+  /**
+   * Whoever holds the *instance* — the account that claimed the server, not an
+   * owner of a workspace inside it. It is what decides whether Settings shows
+   * the relay, the bot token and the model key at all.
+   */
+  instanceAdmin?: boolean;
 }
 
 /* ------------------------------------------------------------ task review */

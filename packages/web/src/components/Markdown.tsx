@@ -103,9 +103,9 @@ export function Markdown({ source, className = '', onChange }: {
    */
   const click = (event: React.MouseEvent<HTMLDivElement>) => {
     open(event);
-    // A checkbox does not open a lightbox and is not a link, and on a task
-    // description the click behind it opens the editor — so it is answered here
-    // and goes no further.
+    // A checkbox does not open a lightbox and is not a link: it is answered
+    // here, and the default is prevented so the box waits for the state to come
+    // back rather than ticking itself first and being corrected.
     const box = (event.target as HTMLElement).closest?.('input[type=checkbox][data-task]');
     if (box && onChange) {
       event.preventDefault();

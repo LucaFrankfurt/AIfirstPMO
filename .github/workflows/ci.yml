@@ -88,20 +88,21 @@ jobs:
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
-      # The same walk in the other languages: a missing translation shows up as
-      # a selector that no longer matches, which is exactly what should fail the
-      # build.
+      # The same walk in another language: a string a component hard-codes shows
+      # up as a selector that no longer matches, which is exactly what should
+      # fail the build.
+      #
+      # One other language, not both. The property being tested is "the
+      # interface is not English with a catalogue bolted on", and a second
+      # translated walk demonstrates it no more than the first — while key
+      # parity across all three catalogues, placeholders included, is enforced
+      # by `i18n.test.ts` in the fast job, where it costs seconds rather than a
+      # browser. French can still be walked by hand with `KOLIBRI_LOCALE=fr`.
       - name: Browser walkthrough (German)
         run: node scripts/smoke.mjs
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
           KOLIBRI_LOCALE: de
-
-      - name: Browser walkthrough (French)
-        run: node scripts/smoke.mjs
-        env:
-          KOLIBRI_URL: http://127.0.0.1:4400
-          KOLIBRI_LOCALE: fr
 
       # Four questions a walkthrough cannot answer, against the instance it
       # just walked: a class the stylesheet never defined, a control a screen

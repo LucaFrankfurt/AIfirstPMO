@@ -294,7 +294,7 @@ These are the ones that decide whether the thing is usable, and they are checkab
 6. **A destructive action is confirmed and says what it will destroy** — `useConfirm()`, with the
    name of the thing in the sentence.
 7. **Text is translated, always.** Three catalogues with enforced key parity; a string in a
-   component is a bug the walkthrough catches in German and French.
+   component is a bug the walkthrough catches on its German walk.
 8. **What you have to hit is at least 24×24.** The *target*, not the drawing: a 15px checkbox in a
    24px wrapper that carries the click is fine, and padding is how that is done — `.select-box`
    and the guide's step dots both look exactly as they did. `node scripts/a11y.mjs` measures the

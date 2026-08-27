@@ -50,7 +50,8 @@ a digest that swallows those is a digest people turn off.
 
 ## Email
 
-Email is **off** until `KOLIBRI_SMTP_URL` points at a relay you control. That is deliberate: a
+Email is **off** until `KOLIBRI_SMTP_URL` — or the relay fields in *Settings → Server*, which win
+over it — points at a relay you control. That is deliberate: a
 default that accepted every message and quietly dropped it would look identical, from inside the
 app, to one that delivers — same green ticks, same "sent" in the queue, no recipient. Notifications
 are not lost in the meantime; they are in the in-app inbox, which is the source of truth.
@@ -226,6 +227,10 @@ An operator configures **one thing**, a bot token from [@BotFather](https://t.me
 ```
 KOLIBRI_TELEGRAM_BOT_TOKEN=123456:AA...
 ```
+
+Or in *Settings → Server*, which is the same setting without a redeploy — the poller picks up a
+token that changed while the server was running, and the button beside the field asks the Bot API
+`getMe` and tells you which bot answered.
 
 Everything else is per person, in Settings → Notifications → Telegram. **Connect** asks the server
 for a single-use code and opens `https://t.me/<yourbot>?start=<code>`; tapping *Start* there sends

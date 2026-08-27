@@ -50,6 +50,7 @@ const SCREENS = [
   // The last tab of the widest strip: where the active one goes off the end.
   ['project: settings', `/projects/${project}?tab=settings`],
   ['inbox', '/inbox'],
+  ['search', '/search?q=design'],
   ['chat', '/chat'],
   ['pages', '/pages'],
   ['teams', '/teams'],
@@ -59,6 +60,7 @@ const SCREENS = [
   ['settings', '/settings'],
   ['settings: members', '/settings?tab=members'],
   ['settings: data', '/settings?tab=data'],
+  ['settings: server', '/settings?tab=instance'],
   ['guide', '/guide'],
 ];
 

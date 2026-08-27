@@ -63,6 +63,7 @@ function sessionInfo(userId: string): SessionInfo {
     // the recovery codes out of the serialised user, and they stay out.
     user: { ...(publicUser(user) as SessionInfo['user']), two_factor: !!user.totp_confirmed_at },
     workspaces,
+    instanceAdmin: !!user.is_admin,
   };
 }
 

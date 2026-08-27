@@ -143,7 +143,7 @@ are the manual for running and extending it.
 | **Notifications** | In-app inbox; optional email batched into one message per person, with digests, reminders, per-user preferences, signed one-click unsubscribe, retry on failure and automatic suppression of hard bounces; native push sent with no payload; and Telegram, where each person connects their own chat and nothing ever learns a phone number. [Details](docs/notifications.md) |
 | **Collaboration** | Comments with markdown, attachments and reactions on tasks *and* pages; `@mentions` with autocomplete; following; a per-task activity trail; invite links; roles (owner / admin / member / guest); private projects. |
 | **Intake** | A link that is a form, for people who have no account and should not need one — no session, no script, works on any phone. What arrives waits in a queue and becomes a task only when somebody accepts it. |
-| **Search** | Instant local title search plus SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages — where a private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
+| **Search** | One box that takes ordinary words: instant matches from the local copy, then SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages. `@` offers the people, `#` the labels and `+` the projects, so narrowing a search is picked from a list rather than remembered as syntax — and a name nobody has stays prose and is searched for as text. A private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
 | **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 50 tools, 5 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) |
@@ -151,6 +151,7 @@ are the manual for running and extending it.
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
 | **Deployment** | One command brings up app and object store, self-configuring: bucket created on boot, owner account and demo data from the environment, optional automatic HTTPS, and a dev overlay with a mail capture inbox. [TLS, backups, upgrades](docs/deployment.md) |
+| **Configuring it afterwards** | The relay, the Telegram bot token and the model key are settable in *Settings → Server* as well as in the environment — by the account that holds the instance, with a button beside each that actually tries it: a message through the relay, `getMe` against the token, one question to the model. What is typed there wins over what the container was started with, says so on screen, takes effect without a restart, and clearing a field hands the setting back. Secrets are sealed with a key that lives beside the database rather than in it. [Running it](docs/deployment.md) |
 | **Hardening** | Rate limits on sign-in, registration and invite lookup, per account as well as per address. A CSP with no inline script, two-factor authentication with recovery codes, a revocable device list, OpenID Connect SSO with roles mapped from directory groups, per-column rules for who may move work where, and a workspace audit log. [Threat model](docs/security.md) |
 
 ## Connect an assistant (MCP)
@@ -294,7 +295,7 @@ KOLIBRI_LOCALE=de node scripts/smoke.mjs  # the same walk through the German int
 KOLIBRI_LOCALE=fr node scripts/smoke.mjs  # and the French one
 
 npm run check:css         # every class the source uses is actually defined — no build needed
-npm run check:responsive  # 14 screens, 340px to 1600px in 20px steps, looking for overflow
+npm run check:responsive  # 16 screens, 340px to 1600px in 20px steps, looking for overflow
 npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
 npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
 ```

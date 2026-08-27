@@ -6,7 +6,7 @@ import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { createTask, remove, update } from '../lib/mutations';
-import { useFeature, useMe, useMemberMap, useSession } from '../session';
+import { useCanWrite, useFeature, useMe, useMemberMap, useSession } from '../session';
 import { TaskReviewPanel } from './task-review';
 import { Markdown, MarkdownEditor, downscale } from './Markdown';
 import { Comments } from './comments';
@@ -23,6 +23,7 @@ import { Button } from '../components/ui/button';
 
 export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClose: () => void; onOpen: (task: Task) => void }) {
   const time = useFeature('time');
+  const canWrite = useCanWrite();
   const t = useT();
   const task = useRow('task', taskId);
   const me = useMe();
@@ -48,6 +49,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const subtasks = useQuery(() => list('task', (t) => t.parent_id === taskId), [taskId]);
   const project = byId('project', task?.project_id);
   const state = task ? stateOf(task) : undefined;
+  const hasDescription = !!task?.description?.trim();
 
   useEffect(() => {
     setTitle(task?.title ?? '');
@@ -188,6 +190,21 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         {/* description */}
         <section className="mb-[18px]">
+          {/* Reading is what this section is for, so reading is what a click on
+              it does. It used to open the editor — which meant a link in a
+              description both navigated *and* dropped the editor over the
+              screen you had just left, and a checklist could only be read by
+              somebody willing to look at the markdown behind it. Editing is a
+              button now, the way it is on a page. */}
+          <div className="flex items-center gap-2 mb-1.5">
+            <strong className="text-[13.5px]">{t('task.description')}</strong>
+            <span className="flex-1 min-w-0" />
+            {!editingDescription && hasDescription && (
+              <Button variant="ghost" size="sm" hidden={!canWrite} onClick={() => setEditingDescription(true)}>
+                {t('action.edit')}
+              </Button>
+            )}
+          </div>
           {editingDescription ? (
             <>
               <MarkdownEditor value={description} onChange={setDescription} attachTo={{ task_id: task.id }} autoFocus />
@@ -205,24 +222,20 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                 </Button>
               </div>
             </>
+          ) : hasDescription ? (
+            // A checklist in a description is meant to be ticked off without
+            // opening anything, which is what `onChange` is for.
+            <Markdown
+              source={task.description}
+              onChange={(next) => {
+                update('task', task.id, { description: next });
+                setDescription(next);
+              }}
+            />
           ) : (
-            <div onClick={() => setEditingDescription(true)} style={{ cursor: 'text', minHeight: 40 }}>
-              {task.description?.trim()
-                ? (
-                  // A checklist in a description is meant to be ticked off, and
-                  // making somebody open the editor to do it is how a checklist
-                  // goes stale. The click that would open the editor is stopped
-                  // at the checkbox.
-                  <Markdown
-                    source={task.description}
-                    onChange={(next) => {
-                      update('task', task.id, { description: next });
-                      setDescription(next);
-                    }}
-                  />
-                )
-                : <span className="text-muted">{t('task.addDescription')}</span>}
-            </div>
+            <Button size="sm" hidden={!canWrite} onClick={() => setEditingDescription(true)}>
+              {t('task.addDescription')}
+            </Button>
           )}
         </section>
 

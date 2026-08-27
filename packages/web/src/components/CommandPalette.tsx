@@ -89,11 +89,24 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         run: go(`/pages/${page.id}`),
       }));
 
+    // The palette answers from the local cache, which is fast and does not
+    // know what is inside a description or a comment. Rather than end at "no
+    // match", it hands the same words to the search screen, which does.
+    const fullText: Command[] = needle
+      ? [{
+        id: 'search-all',
+        icon: 'search',
+        title: t('search.paletteAll', { query: query.trim() }),
+        run: go(`/search?q=${encodeURIComponent(query.trim())}`),
+      }]
+      : [];
+
     return [
       ...taskCommands,
       ...projectCommands,
       ...pageCommands,
       ...navigation.filter((command) => match(command.title)),
+      ...fullText,
     ];
   }, [query, tasks, projects, pages, navigate, openTask, onClose, t]);
 

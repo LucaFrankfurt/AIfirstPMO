@@ -35,7 +35,7 @@ const LABELS = {
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
     chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
     findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
-    newProject: 'New project', createProject: 'Create project',
+    newProject: 'New project', createProject: 'Create project', save: 'Save',
     taskLabels: 'Labels',
     taskParent: 'Parent',
     reviewSection: 'Review', reviewFeature: 'Task reviews',
@@ -48,7 +48,7 @@ const LABELS = {
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
     chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
     findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
-    newProject: 'Neues Projekt', createProject: 'Projekt anlegen',
+    newProject: 'Neues Projekt', createProject: 'Projekt anlegen', save: 'Speichern',
     taskLabels: 'Labels',
     taskParent: 'Übergeordnet',
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
@@ -61,7 +61,7 @@ const LABELS = {
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
     chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
     findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
-    newProject: 'Nouveau projet', createProject: 'Créer le projet',
+    newProject: 'Nouveau projet', createProject: 'Créer le projet', save: 'Enregistrer',
     taskLabels: 'Étiquettes',
     taskParent: 'Tâche parente',
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
@@ -1176,6 +1176,59 @@ await step('command palette', async () => {
   if (!hits) throw new Error('no palette hits');
   console.log('     palette hits:', hits);
   await page.keyboard.press('Escape');
+});
+
+await step('search: prose finds work, and @ offers the people', async () => {
+  await page.goto(`${base}/search`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('input');
+  const box = page.locator('input').first();
+  await box.click();
+  // The whole point of the box: a character nobody had to be told about opens
+  // a list of real names. If the list is empty the feature is decoration.
+  await box.type('@');
+  await page.waitForSelector('#search-suggestions [role=option]', { timeout: 5000 });
+  const offered = await page.locator('#search-suggestions [role=option]').count();
+  if (offered < 2) throw new Error(`the @ list offered ${offered} people`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(700);
+  const picked = await box.inputValue();
+  if (!/^@\S/.test(picked)) throw new Error(`picking a name left "${picked}" in the box`);
+  console.log('     picked:', picked.trim());
+  // And prose on its own still answers.
+  await box.fill('');
+  await box.type('the');
+  await page.waitForTimeout(1200);
+  const rows = await page.locator('.task-row').count();
+  if (!rows) throw new Error('typing words found nothing at all');
+  console.log('     rows for a plain word:', rows);
+});
+
+await step('the server\'s own settings are editable, and stick', async () => {
+  await page.goto(`${base}/settings?tab=instance`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('label:has-text("KOLIBRI_MAIL_FROM_NAME")');
+  // The variable's own name is on screen beside every field, which is also
+  // what makes this findable in three languages.
+  const named = await page.locator('label:has-text("KOLIBRI_")').count();
+  if (named < 10) throw new Error(`only ${named} settings on the screen`);
+  console.log('     settings on the screen:', named);
+
+  const field = page.locator('label:has-text("KOLIBRI_MAIL_FROM_NAME") input');
+  await field.fill('Smoke test');
+  await page.locator('section:has-text("KOLIBRI_MAIL_FROM_NAME")').getByRole('button', { name: LABELS.save }).click();
+  await page.waitForTimeout(600);
+
+  // Written, and read back by a fresh load rather than by the form it was
+  // typed into: the point of the screen is that the running server changed.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('label:has-text("KOLIBRI_MAIL_FROM_NAME")');
+  const back = page.locator('label:has-text("KOLIBRI_MAIL_FROM_NAME") input');
+  if ((await back.inputValue()) !== 'Smoke test') throw new Error('the setting did not survive a reload');
+
+  // And handed back to the environment again, so the run leaves nothing behind.
+  await page.locator('label:has-text("KOLIBRI_MAIL_FROM_NAME")').getByRole('button').click();
+  await page.locator('section:has-text("KOLIBRI_MAIL_FROM_NAME")').getByRole('button', { name: LABELS.save }).click();
+  await page.waitForTimeout(600);
+  console.log('     saved, read back, and cleared again');
 });
 
 await step('mobile layout', async () => {
