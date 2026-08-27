@@ -647,6 +647,10 @@ So the list above is read in proportion — these are covered by automated tests
 - [x] MCP `initialize` / `tools/list` / `tools/call`, and a write refused on a read-only token
 - [x] Full-text search finds a task by a word in its title, and a message only for somebody in the
       conversation it was said in
+- [x] A relay typed into Settings is the relay the next message goes through — without a restart — and
+      it wins over the environment; clearing it hands the setting back. Secrets never come back out of
+      the API and are not in the database in the clear. Only the account that holds the instance may
+      look, and a workspace owner is refused
 - [x] The search box reads a filter only from a name it was given: `@Anna Schmidt` beats a
       colleague called Anna, `#bug` is not found inside `#bugfix`, an address is not a person, and
       a name nobody has stays three words of prose and is searched for as text

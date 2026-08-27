@@ -55,10 +55,22 @@ const DEPLOYABLE = ['docker-compose.yml', 'docker-compose.lite.yml', 'docker-com
 /** Names a compose file may pass that the server does not read — other services. */
 const FOREIGN = /^(MINIO_|MP_|SERVICE_|TZ$|COMPOSE_)/;
 
-/** Every `process.env.NAME` the server reads. */
+/**
+ * Every environment variable the server reads — in both spellings.
+ *
+ * `process.env.NAME` is the obvious one. The other is `setting('NAME')` and
+ * `saved('NAME')`: a setting an admin can also type into Settings → Server is
+ * read through those, because the database is consulted first. It is still an
+ * environment variable, still documented as one, and still has to reach the
+ * container — so it is still this check's business.
+ */
 function readsOf(file) {
   const src = readFileSync(join(ROOT, file), 'utf8');
-  return new Set([...src.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1]));
+  const names = new Set([...src.matchAll(/process\.env\.([A-Z0-9_]+)/g)].map((m) => m[1]));
+  for (const call of src.matchAll(/\b(?:setting|saved)\(([^)]*)\)/g)) {
+    for (const quoted of call[1].matchAll(/'([A-Z0-9_]+)'/g)) names.add(quoted[1]);
+  }
+  return names;
 }
 
 /**

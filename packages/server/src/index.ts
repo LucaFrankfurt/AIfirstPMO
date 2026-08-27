@@ -8,6 +8,7 @@ import { startMailWorker, stopMailWorker } from './lib/mail.ts';
 import { startScheduler, stopScheduler } from './lib/scheduler.ts';
 import { startTelegram, stopTelegram } from './lib/telegram.ts';
 import { provision } from './lib/provision.ts';
+import { installSettings } from './lib/settings.ts';
 import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { overTls } from './lib/origin.ts';
@@ -19,10 +20,15 @@ import { registerFileRoutes } from './routes/files.ts';
 import { registerMcpRoutes } from './routes/mcp.ts';
 import { registerOAuthRoutes } from './routes/oauth.ts';
 import { registerSearchRoutes } from './routes/search.ts';
+import { registerSettingsRoutes } from './routes/settings.ts';
 import { registerInboundRoutes } from './routes/inbound.ts';
 import { registerCalendarRoutes } from './routes/calendar.ts';
 import { registerShareRoutes } from './routes/share.ts';
 import { registerSyncRoutes } from './routes/sync.ts';
+
+// Before any route reads a setting: what an admin stored in the database wins
+// over the environment, and `env` has been reading nothing until now.
+installSettings();
 
 const router = new Router();
 
@@ -33,6 +39,9 @@ registerAuthRoutes(router);
 // and would otherwise answer `DELETE /api/me/calendar` with "unknown
 // collection me". Specific before generic, the way the auth routes above are.
 registerCalendarRoutes(router);
+// Also before the generic routes, for the same reason: `/api/instance/...` is
+// not a collection called `instance`.
+registerSettingsRoutes(router);
 registerSyncRoutes(router);
 registerSearchRoutes(router);
 // Also before the generic routes: `/api/tasks/:id/review` is a thing that

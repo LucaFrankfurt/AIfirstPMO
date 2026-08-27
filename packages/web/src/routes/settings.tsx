@@ -20,25 +20,36 @@ import { Input, Select, Textarea } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
 import { Chip, chipVariants } from '../components/ui/chip';
 import { TelegramConnection } from '../components/telegram';
+import { InstanceSettings } from '../components/instance';
 import { useTabStrip } from '../lib/tab-strip';
 
-type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data' | 'instance';
 
 const TAB_KEY: Record<Tab, TranslationKey> = {
   profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
   workspace: 'settings.tabWorkspace', members: 'settings.tabMembers',
   automation: 'settings.tabAutomation', api: 'settings.tabApi', data: 'settings.tabData',
+  instance: 'settings.tabInstance',
 };
 
 const ROLES = ['owner', 'admin', 'member', 'guest'] as const;
 
 export function Settings() {
   const t = useT();
+  const { session } = useSession();
   const [params, setParams] = useSearchParams();
   // `?tab=members` so the setup checklist can point at the screen it names.
   const requested = params.get('tab');
   const [tab, setTab] = useState<Tab>(() => (requested && requested in TAB_KEY ? requested as Tab : 'profile'));
   const strip = useTabStrip(tab);
+  /**
+   * The relay, the bot token and the model key belong to the server, so the
+   * tab belongs to whoever holds the server — not to an owner of a workspace
+   * inside it. The API refuses either way; this keeps the screen from offering
+   * something that would only answer 403.
+   */
+  const instanceAdmin = !!session?.instanceAdmin;
+  const tabs = (Object.keys(TAB_KEY) as Tab[]).filter((name) => name !== 'instance' || instanceAdmin);
 
   const choose = (next: Tab) => {
     setTab(next);
@@ -48,7 +59,7 @@ export function Settings() {
     <>
       <Header title={t('settings.title')} />
       <div ref={strip} className="tabs tabs-inset">
-        {(Object.keys(TAB_KEY) as Tab[]).map((name) => (
+        {tabs.map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => choose(name)}>
             {t(TAB_KEY[name])}
           </button>
@@ -62,6 +73,7 @@ export function Settings() {
         {tab === 'automation' && <AutomationSettings />}
         {tab === 'api' && <ApiSettings />}
         {tab === 'data' && <DataSettings />}
+        {tab === 'instance' && instanceAdmin && <InstanceSettings />}
       </div>
     </>
   );

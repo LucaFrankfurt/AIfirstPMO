@@ -40,6 +40,31 @@ For the smallest possible install — one container, uploads on the volume, no m
 
 ## Environment
 
+### Or from inside the app
+
+Everything in the **Email**, **Telegram** and **Model** sections below can also
+be set in *Settings → Server*, by the account that holds the instance — the
+first to sign up, or the one `KOLIBRI_ADMIN_EMAIL` created. Each group has a
+button that tries it: a test message through the relay, `getMe` against the bot
+token, one question to the model.
+
+Two rules, both visible on the screen:
+
+* **What is typed there wins over the environment**, and every field says where
+  its current value came from. Clearing a field hands the setting back to
+  whatever the container was started with.
+* **A change takes effect immediately.** The mail worker and the Telegram poller
+  are restarted with it; nothing waits for a redeploy.
+
+The field names are the variables' own — `KOLIBRI_SMTP_HOST` is printed beside
+the label — so moving a setting from a compose file to the screen, or back, is
+the same name in both places. Secrets typed there are stored encrypted under the
+instance secret, which lives in `.secret` beside the database rather than in it,
+and are never sent back to the browser.
+
+That makes the environment the right place for a deployment you build from a
+file, and the screen the right place for the relay somebody needs on a Sunday.
+
 ### First-run provisioning
 
 | Variable | Default | Meaning |

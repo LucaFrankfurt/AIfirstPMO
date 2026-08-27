@@ -151,7 +151,7 @@ for (const [label, options] of MODES) {
 
   const found = new Map();
   for (const path of ['/', `/projects/${project}`, '/inbox', '/search?q=design', '/chat', '/pages', '/teams', '/planner',
-    '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/guide']) {
+    '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance', '/guide']) {
     await page.goto(base + path, { waitUntil: 'networkidle' });
     await page.keyboard.press('Escape');
     await page.waitForTimeout(350);

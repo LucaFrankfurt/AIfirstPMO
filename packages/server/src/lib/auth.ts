@@ -163,3 +163,18 @@ export function requireWrite(ctx: Ctx): Auth {
   if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
   return auth;
 }
+
+/**
+ * Whoever holds the instance, rather than whoever runs a workspace inside it.
+ *
+ * `is_admin` is the account that claimed the server — the first to sign up, or
+ * the one the provisioning variables named. A workspace owner is not that: on
+ * an instance where anybody may sign up, everybody is an owner of something,
+ * and the relay every workspace sends through is not theirs to point somewhere
+ * else.
+ */
+export function requireInstanceAdmin(ctx: Ctx): Auth {
+  const auth = requireWrite(ctx);
+  if (!auth.isAdmin) throw forbidden('Only an administrator of this instance may change this');
+  return auth;
+}

@@ -60,6 +60,7 @@ const SCREENS = [
   ['settings', '/settings'],
   ['settings: members', '/settings?tab=members'],
   ['settings: data', '/settings?tab=data'],
+  ['settings: server', '/settings?tab=instance'],
   ['guide', '/guide'],
 ];
 
