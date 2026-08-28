@@ -635,6 +635,36 @@ export type HookDirection = (typeof HOOK_DIRECTIONS)[number];
 export const HOOK_FORMATS = ['kolibri', 'slack', 'discord'] as const;
 export type HookFormat = (typeof HOOK_FORMATS)[number];
 
+/**
+ * What a receiver can subscribe to.
+ *
+ * Here rather than on the server because the screen that offers the checkboxes
+ * and the code that fires them have to agree, and they used to agree by having
+ * been typed twice.
+ *
+ * Two rules hold the list together. Every name is `subject.verb`, past tense,
+ * because a receiver reacts to something that already happened. And a name is
+ * only added when a workflow could not be written without it: `task.moved`
+ * exists because "when it reaches In Review" cannot be reconstructed from
+ * `task.updated` without the state it left, and that is the archetypal
+ * automation. Anything a workflow can fetch for itself over the API is not an
+ * event — a hook that fires on everything is a hook somebody switches off.
+ *
+ * A state change fires `task.moved` **in addition to** `task.updated` or
+ * `task.completed`, rather than instead of them: the classification a hook
+ * already subscribed to does not change under it.
+ */
+export const WEBHOOK_EVENTS = [
+  'task.created', 'task.updated', 'task.moved', 'task.completed', 'task.deleted',
+  'comment.created',
+  'page.created', 'page.updated',
+  'cycle.created', 'cycle.updated',
+  'module.created', 'module.updated',
+  'time.logged',
+  'intake.created',
+] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
 export interface Webhook extends Base {
   workspace_id: ID;
   project_id: ID | null;

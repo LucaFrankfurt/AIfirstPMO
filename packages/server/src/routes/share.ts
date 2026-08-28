@@ -14,6 +14,7 @@ import { renderMarkdown } from '@kolibri/shared';
 import { all, get, nextSeq, run, type Row } from '../db/index.ts';
 import { translatorFor } from '../lib/i18n.ts';
 import { createNotification } from '../lib/notify.ts';
+import { dispatch } from '../lib/webhooks.ts';
 import { uid } from '../lib/ids.ts';
 import { notifyDevices } from '../lib/push.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
@@ -424,6 +425,21 @@ export function registerShareRoutes(router: Router): void {
       now, now, nextSeq(),
     );
     tellSomebody(share, title);
+    // The one event that starts outside the app. An intake row is written here
+    // rather than through `writeEntity` — there is no account behind it — so it
+    // is announced here too, or a form submission would be the only thing that
+    // happens in Kolibri without anybody being able to hear it. The reporter's
+    // email address is not in it: a workflow filing a report does not need it,
+    // and it was given to this instance rather than to whoever runs the hook.
+    dispatch(String(share.workspace_id), 'intake.created', {
+      id,
+      project_id: share.project_id,
+      share_id: share.id,
+      title,
+      reporter: String(fields.reporter ?? '').trim().slice(0, 120) || null,
+      actor_id: null,
+      actor: null,
+    });
 
     // Redirect rather than render, so a refresh does not send it twice.
     ctx.res.writeHead(303, { location: `/s/${encodeURIComponent(String(share.token))}?sent=1`, 'cache-control': 'no-store' });
