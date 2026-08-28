@@ -178,7 +178,18 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       format, below.
 - [x] **Outgoing webhooks** — the generic answer, rather than one integration per service. Signed
       with HMAC-SHA256 so a receiver can tell the call came from this instance, fire-and-forget with
-      a five-second timeout, failures recorded on the row and never retried.
+      a five-second timeout so no write ever waits on somebody else's endpoint.
+      Every call out is a row in `webhook_deliveries`: five attempts over about half an hour when
+      the far end has a bad moment, given up on at once when the request itself is the problem, and
+      readable afterwards under the hook with a *Send again* beside each one. Receivers get
+      `x-kolibri-delivery`, stable across the attempts of one delivery, which is what makes
+      retrying safe for them to act on.
+      Fourteen events rather than five, listed once in `@kolibri/shared` and read from there by both
+      the server and the screen. `task.moved` carries the state a task *left* — the archetypal
+      workflow trigger, and the one thing polling cannot reconstruct — and fires alongside
+      `task.updated`/`task.completed` rather than instead of them, so a hook written before it
+      existed does not go quiet. Pages, cycles, modules, logged time and public-form intakes are
+      events too, because those are what a report outside this app is usually about.
 - [x] **Named integrations, both directions.** Outgoing: a hook can send Slack/Mattermost or
       Discord's shape instead of the signed Kolibri envelope — the transport is unchanged and only
       the body differs, which is the whole of what a named integration needs to be. Incoming: a hook
@@ -186,6 +197,10 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `fixes SRV-12` moves it to Done. Reads GitHub and GitLab push payloads, and anything sending
       the same three fields; a payload it does not recognise is accepted and ignored, because
       answering with an error trains people to turn the integration off.
+      Which is also the whole of the n8n story: a webhook out, a token in, and MCP for the reports
+      that would otherwise be a page of list-and-join nodes. Written down in
+      [`docs/n8n.md`](docs/n8n.md). A published `n8n-nodes-kolibri` with a trigger node would save
+      somebody pasting a URL; it is not what was missing.
 - [x] **Analytics.** Project → Insights: open/finished counts, median cycle time, time logged,
       throughput per week, a burn-up over the active cycle, and breakdowns by kind and by person.
       Computed from the local mirror, so it works offline. See [`docs/insights.md`](docs/insights.md).

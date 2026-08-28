@@ -79,6 +79,37 @@ GET /api/webhooks/:id/secret   → { "secret": "…", "url": null }
 
 Verify a delivery with `x-kolibri-signature: sha256=<hex>`, an HMAC-SHA256 of the raw body.
 
+**What you can subscribe to.** The list is `WEBHOOK_EVENTS` in `@kolibri/shared`, which is also what
+the checkboxes in *Settings → Integrations* are built from:
+
+| Event | Fires when | Worth knowing |
+|---|---|---|
+| `task.created` · `task.updated` · `task.completed` | a task is filed, changed, or reaches a Done column | one of the three, on every write |
+| `task.moved` | its state changed | *also* fires, alongside whichever of the three above did. Carries `from` and `to`, each with the state's `id`, `name` and `group` |
+| `task.deleted` | a task is deleted | the only event whose row cannot be read back afterwards |
+| `comment.created` | somebody comments | body trimmed at 500 characters |
+| `page.created` · `page.updated` | a page is written or its text changes | moving a page in the tree is not an update |
+| `cycle.created` · `cycle.updated` · `module.created` · `module.updated` | a sprint or a milestone | `changed` lists which fields did |
+| `time.logged` | a time entry is written | minutes, the day, whether it is billable |
+| `intake.created` | somebody submits a public form | no email address in it |
+
+A task payload carries the state's name beside its group, the project's name, labels by name, the
+dates, the estimate, the cycle and the module — enough to build a report without calling back. Names
+of people are not in it: `assignee_ids` and `actor_id` resolve through
+`GET /api/workspaces/:id/members`.
+
+**Deliveries.** Every call out is a row, retried five times over about half an hour when the far end
+has a bad moment — 429 and 5xx — and given up on immediately when the request itself is the problem.
+Receivers get `x-kolibri-delivery`, which is stable across the attempts of one delivery and is what
+makes retrying safe to act on. Admins can read the log and send one again:
+
+```
+GET  /api/webhooks/:id/deliveries?limit=20
+POST /api/webhooks/:id/deliveries/:delivery/replay
+```
+
+A replay sends the body as it was recorded — the event, not the row as it has since become.
+
 **Incoming.** A hook with `"direction":"in"` gets a URL to be posted *to*. The same endpoint hands
 back the URL, and the token in it is the whole of the authorisation:
 
@@ -92,6 +123,10 @@ Commit messages are read for task identifiers. A mention adds a comment linking 
 first Done column. A hook scoped to a project cannot touch tasks outside it, one push leaves one
 comment per task however many commits mention it, and a payload with no commits in it is answered
 `200` and ignored.
+
+**n8n, Make, and anything else with a webhook node.** Both directions work with no vendor-specific
+code, and the recipes — signature check, the report workflow, the MCP node — are in
+[`n8n.md`](n8n.md).
 
 ### Conversations
 
