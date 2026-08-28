@@ -16,7 +16,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { renderMarkdown } from '@kolibri/shared';
+import { excerpt, renderMarkdown } from '@kolibri/shared';
 
 /** Rendered with no options — a public share link renders exactly this way. */
 const md = (source: string) => renderMarkdown(source);
@@ -137,5 +137,40 @@ describe('the rules a writer will actually trip over', () => {
   it('reads a rule and a heading underline from the same three dashes', () => {
     assert.equal(md('---'), '<hr />');
     assert.equal(md('Title\n---'), '<h2>Title</h2>');
+  });
+});
+
+/**
+ * The other half of the rule: rendered where there is room, stripped where
+ * there is not.
+ *
+ * `excerpt` is what does the stripping, and it is load-bearing in three places
+ * — the card on the pages list, the card on the projects list, and a search
+ * result's snippet. All three are one truncated line, and a heading or a list
+ * dropped into one breaks the row rather than saying anything. It had no test
+ * until descriptions became markdown and it started deciding what people see.
+ */
+describe('the one-line summary a card shows', () => {
+  it('takes the markup out and leaves the sentence', () => {
+    assert.equal(excerpt('## Heading\n\nSome **bold** text'), 'Heading Some bold text');
+    assert.equal(excerpt('- one\n- two'), 'one two');
+    assert.equal(excerpt('> quoted'), 'quoted');
+  });
+
+  it('keeps a link’s words and drops its URL', () => {
+    // The label is what the sentence was about; the address is not readable
+    // prose and would eat the whole line.
+    assert.equal(excerpt('A [link](/pages/x) inside'), 'A link inside');
+  });
+
+  it('drops an image and a fenced block entirely', () => {
+    assert.equal(excerpt('An ![image](/f.png) and text'), 'An and text');
+    assert.equal(excerpt('```js\nconst x = 1;\n```\nAfter the code'), 'After the code');
+  });
+
+  it('truncates with an ellipsis, and says nothing about nothing', () => {
+    assert.equal(excerpt('x'.repeat(50), 10), `${'x'.repeat(10)}\u2026`);
+    assert.equal(excerpt(''), '');
+    assert.equal(excerpt(null as unknown as string), '');
   });
 });

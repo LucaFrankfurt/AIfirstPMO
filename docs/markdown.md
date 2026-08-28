@@ -26,7 +26,9 @@ client and the server so a page looks the same whether the browser drew it or a 
 | **Task description** | `tasks.description` | The only place checkboxes can be ticked where they are rendered |
 | **Comments** | `comments.body` | On tasks and on pages, including a comment anchored to a passage |
 | **Chat messages** | `messages.body` | Same renderer; a message is not a lesser citizen |
-| **Module descriptions** | `modules.description` | Rendered read-only above the module's tasks |
+| **Project descriptions** | `projects.description` | Written in the create form and in project settings |
+| **Cycle goals** | `cycles.description` | Written in the cycle form, rendered above the cycle's tasks |
+| **Module descriptions** | `modules.description` | Edited on the module's own screen, rendered above its tasks |
 | **Automation rule bodies** | template `description` | What a rule writes into the task it files, so it arrives rendered |
 | **Task review suggestions** | — | A model's proposed replacement is rendered before you accept it |
 
@@ -34,10 +36,20 @@ Everything above is stored as **markdown text**, never as HTML. That is the poin
 `<textarea>`: what is in the database is what you typed, so it exports, diffs, greps and outlives
 this application.
 
-Two fields are the exception and are worth knowing about rather than discovering: a **project's**
-description and a **cycle's** are plain text, edited in an ordinary textarea and rendered as one
-line of prose. They are a subtitle rather than a document, and nothing about the storage would have
-to change to make them markdown — only the two components that draw them.
+### Where a description is a line rather than a document
+
+A project's description appears in places that are not the same shape. At the top of the project's
+own screen it is a document, rendered. In the **card** on the projects list, and in a **search
+result's** snippet, it is one truncated line — so it goes through `excerpt()` first, which takes the
+markup out and leaves the sentence. A heading or a bulleted list dropped into a one-line card would
+break the row rather than say anything, and raw `**asterisks**` there would be worse still.
+
+The one place it is not drawn at all is above a **board**, which is sized as the whole rest of the
+window: anything added above it pushes the bottom of every column off the screen. A board is the
+screen it is on. Switch that project to a list, a table or a calendar and the description is there.
+
+That is the general rule wherever this comes up: **rendered where there is room, stripped where
+there is not.** The pages list does the same thing with a page body.
 
 ---
 

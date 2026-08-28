@@ -181,6 +181,17 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       it. `markdown-dialect.test.ts` now pins the claims the document makes that nothing else did:
       the URL allowlist, the escape-first guarantee, and the omissions — a decision nothing fails
       over is a decision that gets undone by accident.
+- [x] **The three descriptions that were not markdown, and the one with no editor.** A project's
+      description and a cycle's goal were plain text in an ordinary textarea while everything else
+      in the app took markdown; a module's description was already *rendered* as markdown and had
+      no editor anywhere, so it could only be set through the API, an import or an assistant. All
+      four now use the same editor and the same renderer. The rule where they disagree is
+      **rendered where there is room, stripped where there is not**: a project's description is a
+      document at the top of its own screen and one `excerpt()`-ed line in the card and in a search
+      snippet, because a heading dropped into a truncated row breaks the row rather than saying
+      anything. It is not drawn above a *board*, which is sized as the whole rest of the window —
+      a board is the screen it is on. `excerpt` had no test in spite of deciding what three lists
+      show; it has one now.
 - [x] **A page's `access` column was enforced everywhere except plain REST.** Sync applies it,
       `list_pages` and `get_page` apply it; `GET /api/pages/:id` applied only the project rule, and
       the version routes applied neither. So a workspace member holding a page id could read a
