@@ -11,16 +11,15 @@
  * write is a webhook that takes the app down when somebody's endpoint dies.
  */
 import { createHmac } from 'node:crypto';
+import type { WebhookEvent } from '@kolibri/shared';
 import { all, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { BlockedAddress, send } from './outbound.ts';
 
-/** What a receiver can subscribe to. Kept short; each one is a promise. */
-export const WEBHOOK_EVENTS = [
-  'task.created', 'task.updated', 'task.completed',
-  'comment.created', 'page.updated',
-] as const;
-export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+// The list itself is in `@kolibri/shared`: the screen that offers the
+// checkboxes and the code that fires them have to agree, and they used to
+// agree by having been typed twice.
+export { WEBHOOK_EVENTS, type WebhookEvent } from '@kolibri/shared';
 
 const TIMEOUT_MS = 5_000;
 
@@ -81,9 +80,18 @@ function bodyFor(hook: Row, event: WebhookEvent, payload: Record<string, unknown
 const LABEL: Partial<Record<WebhookEvent, string>> = {
   'task.created': 'New task',
   'task.updated': 'Task updated',
+  'task.moved': 'Task moved',
   'task.completed': 'Task finished',
+  'task.deleted': 'Task deleted',
   'comment.created': 'New comment',
+  'page.created': 'New page',
   'page.updated': 'Page updated',
+  'cycle.created': 'New cycle',
+  'cycle.updated': 'Cycle updated',
+  'module.created': 'New module',
+  'module.updated': 'Module updated',
+  'time.logged': 'Time logged',
+  'intake.created': 'New report',
 };
 
 async function deliver(hook: Row, event: WebhookEvent, payload: Record<string, unknown>): Promise<void> {

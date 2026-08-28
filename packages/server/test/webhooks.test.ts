@@ -215,6 +215,122 @@ describe('calling out', () => {
     behaviour = 'ok';
   });
 
+  /**
+   * The events a report is built out of.
+   *
+   * A workflow somewhere else can read anything over the API; what it cannot do
+   * is find out that something happened. So the assertions here are about the
+   * two things a receiver cannot reconstruct afterwards — the state a task
+   * left, and a row that has since become a tombstone — and about the payload
+   * being wide enough that the obvious report needs no second call.
+   */
+  it('says what a task left and what it entered', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.moved' }, 'PATCH');
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Walk it across' });
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const started = states.find((state: any) => state.group_key === 'started');
+    received.length = 0;
+
+    await api(`/api/tasks/${task.id}`, { state_id: started.id }, 'PATCH');
+    await settle();
+
+    const moved = received.filter((entry) => entry.event === 'task.moved');
+    assert.equal(moved.length, 1);
+    // The whole reason this event exists: `task.updated` cannot say this.
+    assert.equal(moved[0].body.data.from.group, 'backlog');
+    assert.equal(moved[0].body.data.to.name, started.name);
+    assert.equal(moved[0].body.data.to.group, 'started');
+  });
+
+  it('fires the move alongside the classification, not instead of it', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.updated,task.moved,task.completed' }, 'PATCH');
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Finish and be moved' });
+    const states = await api(`/api/workspaces/${workspaceId}/states?project_id=${projectId}`);
+    const done = states.find((state: any) => state.group_key === 'completed');
+    received.length = 0;
+
+    await api(`/api/tasks/${task.id}`, { state_id: done.id }, 'PATCH');
+    await settle();
+
+    // A hook that was subscribed to `task.completed` before this event existed
+    // has to go on hearing it.
+    assert.equal(received.filter((entry) => entry.event === 'task.completed').length, 1);
+    assert.equal(received.filter((entry) => entry.event === 'task.moved').length, 1);
+  });
+
+  it('carries enough about a task to report on it without asking again', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.created' }, 'PATCH');
+    const label = await api(`/api/workspaces/${workspaceId}/labels`, { name: 'billing', color: '#888' });
+    received.length = 0;
+
+    await api(`/api/workspaces/${workspaceId}/tasks`, {
+      project_id: projectId, title: 'Report on me', labels: [label.id], due_date: '2030-01-31', estimate: 3,
+    });
+    await settle();
+
+    const { data } = received[0].body;
+    assert.equal(data.project, 'Hooked');
+    assert.equal(data.state_name, 'Backlog');
+    // The group is where it always was: a receiver reading `state` goes on working.
+    assert.equal(data.state, 'backlog');
+    assert.deepEqual(data.labels, ['billing'], 'labels by name, because a name is what a filter is written against');
+    assert.equal(data.due_date, '2030-01-31');
+    assert.equal(data.estimate, 3);
+    assert.equal(data.actor, 'Ada');
+    assert.ok(Array.isArray(data.changed) && data.changed.includes('title'));
+  });
+
+  it('announces a page, a cycle, a module and logged time', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, {
+      events: 'page.created,page.updated,cycle.created,module.created,module.updated,time.logged',
+    }, 'PATCH');
+    received.length = 0;
+
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, title: 'Sprint notes' });
+    await api(`/api/pages/${page.id}`, { content: 'What we shipped.' }, 'PATCH');
+    await api(`/api/workspaces/${workspaceId}/cycles`, {
+      project_id: projectId, name: 'Sprint 1', start_date: '2030-01-01', end_date: '2030-01-14',
+    });
+    const module_ = await api(`/api/workspaces/${workspaceId}/modules`, { project_id: projectId, name: 'Billing', status: 'planned' });
+    await api(`/api/modules/${module_.id}`, { target_date: '2030-02-01' }, 'PATCH');
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Something to bill' });
+    await api(`/api/workspaces/${workspaceId}/time-entries`, {
+      project_id: projectId, task_id: task.id, minutes: 90, spent_on: '2030-01-02',
+    });
+    await settle();
+
+    const heard = received.map((entry) => entry.event);
+    for (const event of ['page.created', 'page.updated', 'cycle.created', 'module.created', 'module.updated', 'time.logged']) {
+      assert.ok(heard.includes(event), `${event} was not delivered — heard ${heard.join(', ')}`);
+    }
+    // `changed` is what makes an update filterable without a second call.
+    const moduleUpdate = received.find((entry) => entry.event === 'module.updated');
+    assert.ok(moduleUpdate?.body.data.changed.includes('target_date'));
+    assert.equal(received.find((entry) => entry.event === 'time.logged')?.body.data.minutes, 90);
+  });
+
+  it('says when a task is deleted, because nothing else can', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.deleted' }, 'PATCH');
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Here and then not' });
+    received.length = 0;
+
+    await api(`/api/tasks/${task.id}`, undefined, 'DELETE');
+    await settle();
+
+    const gone = received.filter((entry) => entry.event === 'task.deleted');
+    assert.equal(gone.length, 1);
+    // The identifier is on it: after this, the row a receiver would read back
+    // is a tombstone.
+    assert.equal(gone[0].body.data.identifier, task.identifier);
+  });
+
   it('keeps the signing secret on the server', async () => {
     const listed = await api(`/api/workspaces/${workspaceId}/webhooks`);
     assert.ok(listed.length >= 1);

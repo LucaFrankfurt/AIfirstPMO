@@ -10,12 +10,14 @@ process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-intake-${process.pid}`;
 
 import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
 const { all, get } = await import('../src/db/index.ts');
+const { env } = await import('../src/env.ts');
 const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
 
 let base = '';
@@ -90,6 +92,44 @@ describe('a report', () => {
       all(`SELECT id FROM tasks WHERE project_id = ?`, projectId).length, 0,
       'nothing from outside lands on the board on its own',
     );
+  });
+
+  it('tells a machine too, for the workflows that live outside this app', async () => {
+    // The only event in the system that starts with somebody who has no
+    // account, and the only one written outside `writeEntity` — so it is the
+    // one that would silently not fire.
+    const heard: any[] = [];
+    const receiver = createServer((request, response) => {
+      const chunks: Buffer[] = [];
+      request.on('data', (chunk) => chunks.push(chunk as Buffer));
+      request.on('end', () => {
+        heard.push({ event: request.headers['x-kolibri-event'], body: JSON.parse(Buffer.concat(chunks).toString()) });
+        response.writeHead(204).end();
+      });
+    });
+    await new Promise<void>((done) => receiver.listen(0, '127.0.0.1', done));
+    const wasPrivateAllowed = env.outbound.allowPrivate;
+    env.outbound.allowPrivate = true;
+
+    try {
+      await ok(`/api/workspaces/${workspaceId}/webhooks`, {
+        name: 'Workflow', events: 'intake.created', enabled: 1,
+        url: `http://127.0.0.1:${(receiver.address() as AddressInfo).port}/hook`,
+      });
+      resetRateLimits();
+      await report({ title: 'The search box is crooked', body: 'It leans left.', reporter: 'Grace', email: 'grace@example.com' });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+
+      assert.equal(heard.length, 1);
+      assert.equal(heard[0].event, 'intake.created');
+      assert.equal(heard[0].body.data.title, 'The search box is crooked');
+      assert.equal(heard[0].body.data.reporter, 'Grace');
+      // Given to this instance, not to whoever runs the workflow.
+      assert.equal(heard[0].body.data.email, undefined, 'the reporter’s address stays here');
+    } finally {
+      env.outbound.allowPrivate = wasPrivateAllowed;
+      receiver.close();
+    }
   });
 
   it('tells somebody, because a queue nobody hears about is a queue nobody reads', () => {

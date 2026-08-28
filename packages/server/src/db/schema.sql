@@ -632,7 +632,8 @@ CREATE TABLE IF NOT EXISTS webhooks (
   project_id   TEXT,
   name         TEXT NOT NULL DEFAULT '',
   url          TEXT NOT NULL,
-  -- Comma-separated: task.created, task.updated, comment.created, page.updated.
+  -- Comma-separated. The list of names is `WEBHOOK_EVENTS` in @kolibri/shared,
+  -- which is where the screen offering the checkboxes reads it from too.
   events       TEXT NOT NULL DEFAULT 'task.created,task.updated',
   -- Signs the body so the receiver can tell it came from here.
   secret       TEXT NOT NULL DEFAULT '',

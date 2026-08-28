@@ -3,7 +3,7 @@
  * instance calls out to.
  */
 import { useEffect, useState } from 'react';
-import type { Webhook } from '@kolibri/shared';
+import { WEBHOOK_EVENTS, type Webhook } from '@kolibri/shared';
 import { api } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
@@ -74,7 +74,6 @@ export function AuditLog() {
 
 /* ------------------------------------------------------------- webhooks */
 
-const EVENTS = ['task.created', 'task.updated', 'task.completed', 'comment.created', 'page.updated'] as const;
 
 export function Webhooks() {
   const t = useT();
@@ -212,7 +211,7 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
       )}
 
       <div className="flex items-center flex-wrap gap-1.5" style={{ display: inbound ? 'none' : undefined }}>
-        {EVENTS.map((event) => (
+        {WEBHOOK_EVENTS.map((event) => (
           <label key={event} className={chipVariants({ interactive: true })}>
             <input
               type="checkbox"
