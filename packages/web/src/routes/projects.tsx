@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { DEFAULT_WORKING_DAYS, coversProject, projectScope, orderKey, type Task } from '@kolibri/shared';
+import { DEFAULT_WORKING_DAYS, coversProject, excerpt, projectScope, orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
@@ -26,7 +26,7 @@ import { configOf, useProjectDefaultView } from '../components/saved-views';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
-import { Input, Select, Textarea } from '../components/ui/field';
+import { Input, Select } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
 import { Chip, chipDot, chipVariants } from '../components/ui/chip';
 import { Triage, useNewIntakeCount } from '../components/intake';
@@ -143,7 +143,13 @@ function ProjectCard({ projectId }: { projectId: string }) {
         <strong className="flex-1 min-w-0 truncate">{project.name}</strong>
         <Chip className="font-mono">{project.key}</Chip>
       </div>
-      {project.description && <p className="text-muted truncate text-[12.5px]">{project.description}</p>}
+      {/* Stripped, not rendered: this is one truncated line inside a card, and
+          a heading or a list dropped into it would break the row rather than
+          say anything. `excerpt` is the same function the pages index uses for
+          the same reason — markdown out, the sentence left. */}
+      {project.description && (
+        <p className="text-muted truncate text-[12.5px]">{excerpt(project.description, 140)}</p>
+      )}
       <Progress value={done} total={tasks.length} />
       <div className="flex items-center gap-2 text-muted text-[12.5px] mt-1.5">
         <span>{t('project.doneCount', { done, total: tasks.length })}</span>
@@ -218,9 +224,15 @@ export function ProjectNew() {
             </div>
           </div>
           <div className="field">
-            <label htmlFor="p-desc">{t('project.description')}</label>
-            <Textarea id="p-desc" style={{ minHeight: 80 }} value={form.description}
-              onChange={(event) => setForm({ ...form, description: event.target.value })} />
+            {/* No `htmlFor`: the editor is a toolbar and a textarea rather
+                than one control, so the id would name whichever half happened
+                to carry it. Same as the rule body in `automation.tsx`, which
+                is the other markdown field inside a form. */}
+            <label>{t('project.description')}</label>
+            <MarkdownEditor
+              value={form.description} minHeight={90}
+              onChange={(value) => setForm({ ...form, description: value })}
+            />
           </div>
           <div className="field">
             <label htmlFor="p-parent">{t('project.parent')}</label>
@@ -413,6 +425,23 @@ export function ProjectPage() {
         ))}
       </div>
 
+      {/*
+        The description, where the screen has room for it.
+
+        Not above a board: the board is sized as the whole rest of the window
+        (`100dvh` less the header and the tabs), so anything put above it pushes
+        the bottom of every column off the screen. A board is the screen it is
+        on. Every other layout — and a container, which has no board at all —
+        scrolls, and a project that says what it is for at the top of it is
+        worth more there than the two lines it costs.
+
+        A project with no description gets nothing, which is most of them.
+      */}
+      {tab === 'tasks' && (isContainer || view.layout !== 'board') && project.description && (
+        <div className="mx-auto max-w-[1180px] px-3 pt-4 sm:px-6 sm:pt-5 text-[13px]">
+          <Markdown source={project.description} />
+        </div>
+      )}
       {tab === 'tasks' && isContainer && <ContainerChildren projectId={id} />}
       {tab === 'tasks' && !isContainer && (
         view.layout === 'board'
@@ -591,8 +620,11 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         </div>
       </div>
       <div className="field">
-        <label htmlFor="c-desc">{t('cycle.goal')}</label>
-        <Textarea id="c-desc" value={form.description ?? ''} onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <label>{t('cycle.goal')}</label>
+        <MarkdownEditor
+          value={form.description ?? ''} minHeight={90}
+          onChange={(value) => setForm({ ...form, description: value })}
+        />
       </div>
 
       {/* Offered only when making one — see the note on `scope` above. */}
@@ -681,7 +713,7 @@ export function CyclePage() {
             </div>
           </div>
           <Progress value={burndown.done} total={burndown.total} />
-          {cycle.description && <p className="text-muted mt-2 text-[12.5px]">{cycle.description}</p>}
+          {cycle.description && <div className="mt-2 text-[12.5px]"><Markdown source={cycle.description} /></div>}
         </div>
         <TaskViews tasks={visible} view={view} projectId={cycle.project_id ?? undefined} onOpen={openTask} implied={{ cycleId: cycle.id }} />
       </div>
@@ -842,18 +874,38 @@ export function ModulePage() {
   const navigate = useNavigate();
   const module = useRow('module', id);
   const [view, setView] = useState<ViewConfig>(DEFAULT_VIEW);
+  const [editing, setEditing] = useState(false);
   const tasks = useQuery(() => list('task', (t) => t.module_id === id), [id]);
   const visible = useVisibleTasks(tasks, view);
+  const canWrite = useCanWrite();
   if (!module) return <Empty emoji="🕳️" title={t('module.notFound')} />;
   return (
     <>
       <Header title={module.name}>
+        {/* A module's description has always been rendered as markdown here and
+            has never had an editor anywhere — it could only be set through the
+            API, an import or an assistant. Same Edit/Done as a page, because it
+            is the same job. */}
+        {canWrite && (
+          <Button size="sm" onClick={() => setEditing(!editing)}>
+            {editing ? <><Icon name="check" size={14} /> {t('action.done')}</> : t('action.edit')}
+          </Button>
+        )}
         {/* `?? undefined` for the same reason the cycle page does it: a module
             several projects work on has no single project to scope a view to. */}
         <ViewControls view={view} onChange={setView} projectId={module.project_id ?? undefined} />
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        {module.description && <Markdown source={module.description} />}
+        {editing ? (
+          <div className="mb-3.5">
+            <MarkdownEditor
+              value={module.description ?? ''} minHeight={130} autoFocus
+              onChange={(value) => update('module', module.id, { description: value })}
+            />
+          </div>
+        ) : module.description ? (
+          <div className="mb-3.5"><Markdown source={module.description} /></div>
+        ) : null}
         <TaskViews tasks={visible} view={view} projectId={module.project_id ?? undefined} onOpen={openTask} implied={{ moduleId: module.id }} />
       </div>
     </>
@@ -1055,9 +1107,11 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
       <div className="field">
-        <label htmlFor="s-desc">{t('project.description')}</label>
-        <Textarea id="s-desc" value={project.description ?? ''}
-          onChange={(event) => update('project', projectId, { description: event.target.value })} />
+        <label>{t('project.description')}</label>
+        <MarkdownEditor
+          value={project.description ?? ''} minHeight={110}
+          onChange={(value) => update('project', projectId, { description: value })}
+        />
       </div>
 
       {/*

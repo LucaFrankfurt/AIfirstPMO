@@ -9,8 +9,9 @@ instance does, `docs/api.md` is the reference and this is the tutorial.
 
 ## Kolibri → n8n: the trigger
 
-Add an n8n **Webhook** node, copy its *production* URL, and make an outgoing hook with it. In the
-app that is *Settings → Integrations → Add a webhook*; over the API:
+Add an n8n **Webhook** node, set its **HTTP Method** to `POST` — the default is `GET`, and a hook
+posts — then copy its *production* URL and make an outgoing hook with it. In the app that is
+*Settings → Integrations → Add a webhook*; over the API:
 
 ```bash
 curl -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
@@ -125,6 +126,10 @@ not an event and it does not appear in the delivery log.
 
 Then, in the order these actually go wrong:
 
+- **The Webhook node is set to GET.** That is n8n's default, and every webhook sender posts. n8n
+  says so itself, and the test button shows you its sentence:
+  `404: This webhook is not registered for POST requests. Did you mean to make a GET request?`
+  Open the node, set **HTTP Method** to `POST`, save. Nothing in Kolibri needs changing.
 - **n8n's test URL instead of its production URL.** `/webhook-test/…` only listens while the editor
   is open and you have pressed *Execute workflow*; the moment it is not, it answers 404. The
   production URL is `/webhook/…` and it needs the workflow to be **active**. This is the single most
@@ -143,6 +148,9 @@ Then, in the order these actually go wrong:
 - **It arrived and the workflow did nothing.** Open *Deliveries* under the hook: a `204` next to the
   event means n8n took it, and the problem is inside the workflow. A row that says *gave up* has
   the reason beside it and a *Send again* button.
+
+Once the far end is fixed, the events it missed are still there: *Deliveries* lists them, and *Send
+again* replays each one with the body it had at the time. A failure is kept for two weeks.
 
 ## A sprint report, end to end
 

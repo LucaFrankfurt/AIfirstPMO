@@ -198,8 +198,9 @@ export function reindex(): number {
   db.exec(`DELETE FROM search_index`);
   for (const [entity, table] of searchableTables()) {
     for (const row of all(`SELECT * FROM ${table} WHERE deleted_at IS NULL`)) {
-      indexForSearch(entity, row);
-      indexed++;
+      // Counted only when it went in: an archived row is walked and skipped,
+      // and reporting it as indexed would make the number a row count.
+      if (indexForSearch(entity, row)) indexed++;
     }
   }
   return indexed;

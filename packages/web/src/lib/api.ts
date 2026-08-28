@@ -102,6 +102,8 @@ export const api = {
     ),
 
   activity: (taskId: string) => request<any[]>(`/api/tasks/${taskId}/activity`),
+  /** The same trail for a page: renames, moves, archiving, labels, visibility. */
+  pageActivity: (pageId: string) => request<any[]>(`/api/pages/${pageId}/activity`),
   /**
    * Ask a model to read a task back.
    *

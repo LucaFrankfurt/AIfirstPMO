@@ -377,7 +377,7 @@ export function Search() {
       && matchesTerms(`${project.key} ${project.name}`, words)).slice(0, 8);
     return [
       ...pages.map((page) => ({ kind: 'page', id: page.id, title: page.title, snippet: excerpt(page.content, 90), projectId: page.project_id ?? null })),
-      ...found.map((project) => ({ kind: 'project', id: project.id, title: `${project.icon ?? ''} ${project.name}`.trim(), snippet: project.description ?? '', projectId: project.id })),
+      ...found.map((project) => ({ kind: 'project', id: project.id, title: `${project.icon ?? ''} ${project.name}`.trim(), snippet: excerpt(project.description ?? '', 90), projectId: project.id })),
     ];
   }, [workspaceId, wordKey, facetKey, workOnly]);
 

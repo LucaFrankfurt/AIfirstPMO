@@ -50,6 +50,26 @@ function guardProject(userId: string, entity: EntityName, row: Row): void {
 }
 
 /**
+ * A page also guards through its own `access` column.
+ *
+ * This is what `guardProject` cannot say. A page is the one row that can be
+ * private without its project being private — `access: 'private'` means its
+ * author and nobody else — and every other way in already knew: the sync engine
+ * applies both halves together (`projectFilter` in `sync.ts`), and so do
+ * `list_pages` and `get_page` over MCP. Plain REST did not, so a workspace
+ * member holding a page id could read a colleague's private page — and, worse,
+ * `/api/pages/:id/versions/:versionId`, which hands back the full text of every
+ * revision it ever had.
+ *
+ * Shaped like `guardChat` and called beside it: a rule that lives on one route
+ * is a rule the next route will not have.
+ */
+function guardPage(userId: string, entity: EntityName, row: Row): void {
+  if (entity !== 'page') return;
+  if (row.access === 'private' && row.created_by !== userId) throw forbidden('That page is private');
+}
+
+/**
  * A conversation guards itself, and its messages and read markers guard through
  * it.
  *
@@ -517,6 +537,7 @@ export function registerEntityRoutes(router: Router): void {
     requireWorkspace(ctx, row.workspace_id);
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
+    guardPage(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     return serialize(entity, row);
   });
@@ -530,6 +551,7 @@ export function registerEntityRoutes(router: Router): void {
     if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot edit content');
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
+    guardPage(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     const body = await readJson<Record<string, unknown>>(ctx);
     const { row: updated } = writeEntity(entity, ctx.params.id, body, {
@@ -548,6 +570,7 @@ export function registerEntityRoutes(router: Router): void {
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
+    guardPage(auth.userId, entity, row);
     deleteEntity(entity, ctx.params.id, {
       workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
     });
@@ -630,8 +653,10 @@ export function registerEntityRoutes(router: Router): void {
   /* --------------------------------------------------- page history */
 
   router.get('/api/pages/:id/versions', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id);
+    guardPage(auth.userId, 'page', page);
     return all<Row>(
       `SELECT id, title, author_id, created_at, length(content) AS size FROM page_versions
         WHERE page_id = ? ORDER BY created_at DESC LIMIT 100`,
@@ -640,17 +665,41 @@ export function registerEntityRoutes(router: Router): void {
   });
 
   router.get('/api/pages/:id/versions/:versionId', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id);
+    guardPage(auth.userId, 'page', page);
     const version = get<Row>(`SELECT * FROM page_versions WHERE id = ? AND page_id = ?`, ctx.params.versionId, ctx.params.id);
     if (!version) throw notFound('Version not found');
     return version;
+  });
+
+  /**
+   * What happened to the page that was not the text: renamed, moved, archived,
+   * labelled, made private.
+   *
+   * These rows have been written since pages were added — `recordActivity`
+   * names `page` alongside `task` and `project` — and until now there was no
+   * route to read them, so a page's whole non-textual history was recorded and
+   * invisible. The text half is `/versions`, and the screen shows the two
+   * interleaved: one trail, in the order things happened.
+   */
+  router.get('/api/pages/:id/activity', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    const page = workspaceOf('page', ctx.params.id);
+    requireWorkspace(ctx, page.workspace_id);
+    guardPage(auth.userId, 'page', page);
+    return all<Row>(
+      `SELECT * FROM activities WHERE page_id = ? ORDER BY created_at DESC LIMIT 200`,
+      ctx.params.id,
+    ).map((row) => serialize('activity', row));
   });
 
   router.post('/api/pages/:id/versions', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     const page = workspaceOf('page', ctx.params.id);
     requireWorkspace(ctx, page.workspace_id, 'member');
+    guardPage(auth.userId, 'page', page);
     const body = await readJson<{ restore?: string }>(ctx);
     if (body.restore) {
       const version = get<Row>(`SELECT * FROM page_versions WHERE id = ? AND page_id = ?`, body.restore, ctx.params.id);
