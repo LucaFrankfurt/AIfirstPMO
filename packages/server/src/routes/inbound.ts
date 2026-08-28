@@ -19,11 +19,11 @@ import { all, get, type Row } from '../db/index.ts';
 import { serverClock } from '../lib/bootstrap.ts';
 import { requireWorkspace } from '../lib/auth.ts';
 import { env } from '../env.ts';
-import { notFound, readJson, type Ctx, type Router } from '../lib/http.ts';
+import { badRequest, HttpError, notFound, readJson, type Ctx, type Router } from '../lib/http.ts';
 import { uid } from '../lib/ids.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { writeEntity } from '../lib/repo.ts';
-import { deliveriesOf, replayDelivery } from '../lib/webhooks.ts';
+import { deliveriesOf, replayDelivery, testHook } from '../lib/webhooks.ts';
 
 /** `WEB-12`, `fixes WEB-12`, `Closes web-12.` — anything that names a task. */
 const REFERENCE = /\b([A-Za-z][A-Za-z0-9]{0,9})-(\d{1,7})\b/g;
@@ -177,6 +177,23 @@ export function registerInboundRoutes(router: Router): void {
     );
     if (!row) throw notFound('No such delivery');
     return { delivery: replayDelivery(String(row.id)) };
+  });
+
+  /**
+   * Try it, now, and say what happened.
+   *
+   * The same shape as `/api/instance/test/:group` for the relay, the bot and
+   * the model: a real request, answered with the sentence the far end gave.
+   * A 200 here is the whole of "the URL is right, the address is allowed, and
+   * something is listening" — which until now could only be found out by going
+   * and changing a task.
+   */
+  router.post('/api/webhooks/:id/test', async (ctx: Ctx) => {
+    const hook = hookForAdmin(ctx);
+    if (hook.direction === 'in') throw badRequest('An incoming hook is a URL to be posted to, not one to call');
+    const result = await testHook(hook);
+    if (!result.ok) throw new HttpError(400, result.detail, 'hook_test_failed');
+    return { ok: true, detail: result.detail };
   });
 }
 

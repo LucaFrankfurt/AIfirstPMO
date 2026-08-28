@@ -28,7 +28,7 @@ let projectId = '';
 
 /** A receiver we control, so the assertions are about what actually arrived. */
 const received: { event: string; delivery: string | undefined; signature: string | undefined; body: any }[] = [];
-let behaviour: 'ok' | 'error' | 'gone' | 'hang' = 'ok';
+let behaviour: 'ok' | 'error' | 'gone' | 'hang' | 'redirect' = 'ok';
 let receiver: ReturnType<typeof createServer>;
 let receiverUrl = '';
 
@@ -63,6 +63,14 @@ before(async () => {
         body: raw ? JSON.parse(raw) : null,
       });
       if (behaviour === 'hang') return; // never answers
+      // A proxy that redirects — http to https, or a path that moved. The
+      // second request arrives as a GET, which a webhook receiver answers 404
+      // to, and that is the trap this reproduces.
+      if (behaviour === 'redirect' && (request.url ?? '') !== '/moved') {
+        response.writeHead(302, { location: '/moved' }).end();
+        return;
+      }
+      if (behaviour === 'redirect') { response.writeHead(404).end('no webhook here'); return; }
       response.writeHead(behaviour === 'error' ? 500 : behaviour === 'gone' ? 404 : 204).end();
     });
   });
@@ -456,6 +464,80 @@ describe('calling out', () => {
     } finally {
       cookie = mine;
     }
+  });
+
+  /**
+   * The three things somebody setting one of these up actually does: change
+   * the address, read the secret their receiver has to check, and try it.
+   */
+  it('sends a test to whatever the URL says now', async () => {
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'Under test', url: 'https://example.invalid/nowhere', events: '', enabled: 1,
+    });
+    // The URL is an ordinary field, and changing it is what the screen does.
+    await api(`/api/webhooks/${hook.id}`, { url: receiverUrl }, 'PATCH');
+    received.length = 0;
+
+    const answer = await api(`/api/webhooks/${hook.id}/test`, {});
+    assert.equal(answer.ok, true);
+    assert.match(answer.detail, /204/);
+    assert.equal(received.length, 1);
+    // Not an event: nothing happened in the workspace, and the log is about
+    // things that did.
+    assert.equal(received[0].event, 'ping');
+    assert.equal(received[0].delivery, undefined);
+    assert.equal((await api(`/api/webhooks/${hook.id}/deliveries`)).deliveries.length, 0);
+
+    await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
+  });
+
+  it('hands back the far end’s own sentence when a test fails', async () => {
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'Under test', url: receiverUrl, events: '', enabled: 1,
+    });
+    behaviour = 'gone';
+    try {
+      const response = await fetch(`${base}/api/webhooks/${hook.id}/test`, {
+        method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}',
+      });
+      assert.equal(response.status, 400);
+      assert.match(((await response.json()) as any).message, /404/);
+    } finally {
+      behaviour = 'ok';
+      await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
+    }
+  });
+
+  it('says when a redirect is what turned the call into a 404', async () => {
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'Behind a proxy', url: receiverUrl, events: '', enabled: 1,
+    });
+    behaviour = 'redirect';
+    try {
+      const response = await fetch(`${base}/api/webhooks/${hook.id}/test`, {
+        method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}',
+      });
+      const body = (await response.json()) as any;
+      assert.equal(response.status, 400);
+      // "HTTP 404" alone sends somebody looking at their workflow. The
+      // redirect is the thing they can act on.
+      assert.match(body.message, /redirect/);
+      assert.match(body.message, /\/moved/);
+    } finally {
+      behaviour = 'ok';
+      await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
+    }
+  });
+
+  it('will not test an incoming hook, which is a URL to be called rather than one to call', async () => {
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'GitHub', url: '', events: '', enabled: 1, direction: 'in',
+    });
+    const response = await fetch(`${base}/api/webhooks/${hook.id}/test`, {
+      method: 'POST', headers: { 'content-type': 'application/json', cookie }, body: '{}',
+    });
+    assert.equal(response.status, 400);
+    await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
   });
 
   it('keeps the signing secret on the server', async () => {

@@ -106,6 +106,7 @@ makes retrying safe to act on. Admins can read the log and send one again:
 ```
 GET  /api/webhooks/:id/deliveries?limit=20
 POST /api/webhooks/:id/deliveries/:delivery/replay
+POST /api/webhooks/:id/test                          → { ok, detail } | 400 with the reason
 ```
 
 A replay sends the body as it was recorded — the event, not the row as it has since become.

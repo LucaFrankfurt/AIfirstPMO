@@ -4,7 +4,7 @@
  */
 import { useEffect, useState } from 'react';
 import { WEBHOOK_EVENTS, type Webhook } from '@kolibri/shared';
-import { api } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { relativeTime, shortDate } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { create, remove, update } from '../lib/mutations';
@@ -108,8 +108,8 @@ export function Webhooks() {
           const trimmed = url.trim();
           // Refused rather than stored: a webhook that can never fire is a
           // setting somebody will spend an afternoon on.
-          if (!/^https?:\/\//i.test(trimmed)) {
-            toast(t('hooks.url'));
+          if (!looksLikeUrl(trimmed)) {
+            toast(t('hooks.urlInvalid'));
             return;
           }
           create('webhook', {
@@ -143,12 +143,32 @@ export function Webhooks() {
   );
 }
 
+/** The one rule about a hook URL, in the two places that write one. */
+const looksLikeUrl = (value: string): boolean => /^https?:\/\/\S+$/i.test(value.trim());
+
 function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: string) => void }) {
   const t = useT();
   const toast = useToast();
   const chosen = new Set(String(hook.events ?? '').split(',').map((name) => name.trim()));
   const inbound = hook.direction === 'in';
   const [secret, setSecret] = useState<{ secret: string; url: string | null } | null>(null);
+  const [testing, setTesting] = useState(false);
+  /*
+   * The URL is edited as a draft and written when the field is left, unlike the
+   * name beside it, which is written on every keystroke. A name typed halfway
+   * is a name; a URL typed halfway is an address this server would try to call.
+   */
+  const [draft, setDraft] = useState(String(hook.url ?? ''));
+  const commitUrl = (): void => {
+    const next = draft.trim();
+    if (next === String(hook.url ?? '')) return;
+    if (!looksLikeUrl(next)) {
+      toast(t('hooks.urlInvalid'));
+      setDraft(String(hook.url ?? ''));
+      return;
+    }
+    update('webhook', hook.id, { url: next });
+  };
 
   return (
     <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-2">
@@ -192,7 +212,62 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
           </Button>
         </div>
       ) : (
-        <div className="text-muted truncate text-[12.5px]" style={{ margin: '4px 0 6px' }}>{hook.url}</div>
+        <>
+          {/* Editable, because a URL is the field most likely to be wrong: an
+              n8n test URL that should have been the production one, a host
+              that moved, a typo. It used to be printed here as text, so the
+              only way to change it was to delete the hook — which also threw
+              away the signing secret the receiver had already been given. */}
+          <div className="flex items-center gap-2" style={{ margin: '6px 0' }}>
+            <Input
+              className="flex-1 min-w-0" type="url" value={draft} aria-label={t('hooks.url')}
+              onChange={(event) => setDraft(event.target.value)}
+              onBlur={commitUrl}
+              onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+            />
+            <Button
+              size="sm" disabled={testing}
+              onClick={async () => {
+                setTesting(true);
+                try {
+                  const answer = await api.post<{ detail: string }>(`/api/webhooks/${hook.id}/test`, {});
+                  toast(t('hooks.tested', { detail: answer.detail }));
+                } catch (problem) {
+                  // The far end's own sentence, which is the useful half: a
+                  // refused address, a 404 after a redirect, nothing listening.
+                  toast(problem instanceof ApiError && problem.message ? problem.message : t('hooks.testFailed'));
+                } finally {
+                  setTesting(false);
+                }
+              }}
+            >
+              <Icon name="send" size={13} /> {t('hooks.test')}
+            </Button>
+          </div>
+          {/* The receiver checks the signature with this, so somebody setting a
+              receiver up has to be able to read it. The reveal button was only
+              ever offered for incoming hooks. */}
+          <div className="flex items-center gap-2" style={{ margin: '0 0 6px' }}>
+            <Input
+              className="flex-1 min-w-0" readOnly value={secret?.secret ?? t('hooks.inHidden')}
+              aria-label={t('hooks.secret')} onFocus={(event) => event.currentTarget.select()}
+            />
+            <Button size="sm"
+              onClick={async () => {
+                try {
+                  const found = await api.get<{ secret: string; url: string | null }>(`/api/webhooks/${hook.id}/secret`);
+                  setSecret(found);
+                  void navigator.clipboard?.writeText(found.secret);
+                  toast(t('common.copied'));
+                } catch {
+                  toast(t('hooks.inFailed'));
+                }
+              }}
+            >
+              <Icon name="key" size={13} /> {t('hooks.inReveal')}
+            </Button>
+          </div>
+        </>
       )}
 
       {!inbound && (
