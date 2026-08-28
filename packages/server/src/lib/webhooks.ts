@@ -211,6 +211,11 @@ async function attempt(row: Row, now: number): Promise<boolean> {
       timeoutMs: TIMEOUT_MS,
     });
 
+    // A redirect was followed as a GET with no body, which is the only safe
+    // shape and also a 404 waiting to happen: an n8n webhook node answers POST
+    // and nothing else. Nobody deduces that from "HTTP 404", so the sentence
+    // says where the request ended up.
+    const where = response.redirectedTo ? ` after a redirect to ${response.redirectedTo}` : '';
     const ok = response.status >= 200 && response.status < 300;
     if (ok) {
       run(
@@ -223,7 +228,7 @@ async function attempt(row: Row, now: number): Promise<boolean> {
     // 4xx is this request, and it will be the same request next time: a 404 is
     // an endpoint that moved and a 401 is a secret that does not match. 429 and
     // 5xx are a bad moment on the other end, which is what retrying is for.
-    return giveUpOrRetry(row, hook, attempts, response.status, `HTTP ${response.status}`,
+    return giveUpOrRetry(row, hook, attempts, response.status, `HTTP ${response.status}${where}`,
       response.status !== 429 && response.status < 500);
   } catch (error) {
     // A refused *address* is said plainly and never retried: nothing about the
@@ -267,6 +272,60 @@ const record = (id: unknown, status: number | null, error: string | null): void 
     status, error, Date.now(), id,
   );
 };
+
+/* -------------------------------------------------------------- the test */
+
+/**
+ * Send a hook one message on purpose, and say what came back.
+ *
+ * Every other integration on that settings screen has a button beside it that
+ * actually tries the thing — a message through the relay, `getMe` against the
+ * token, one question to the model. A webhook had none, so the only way to
+ * find out whether a URL was right was to go and change a task.
+ *
+ * `ping` is deliberately not a `WEBHOOK_EVENTS` name and not a delivery row:
+ * nothing happened in the workspace, and a log of real events is more useful
+ * for being only that. It is signed like everything else, so it also proves
+ * the receiver's signature check against the secret it has.
+ */
+export async function testHook(hook: Row): Promise<{ ok: boolean; status: number | null; detail: string }> {
+  const body = JSON.stringify({
+    event: 'ping',
+    at: Date.now(),
+    instance: env.publicUrl || null,
+    data: { hook: hook.id, name: hook.name ?? '' },
+  });
+
+  try {
+    const response = await send(String(hook.url), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'user-agent': 'Kolibri-Webhook/1',
+        'x-kolibri-event': 'ping',
+        ...(hook.secret ? { 'x-kolibri-signature': sign(String(hook.secret), body) } : {}),
+      },
+      body,
+      timeoutMs: TIMEOUT_MS,
+    });
+    const where = response.redirectedTo ? ` after a redirect to ${response.redirectedTo}` : '';
+    const ok = response.status >= 200 && response.status < 300;
+    // The receiver's own words, when it had any: an n8n webhook that is not
+    // listening says so in its body, and that sentence is worth more than the
+    // status code above it.
+    const said = response.body.trim().slice(0, 200);
+    return {
+      ok,
+      status: response.status,
+      detail: `HTTP ${response.status}${where}${!ok && said ? `: ${said}` : ''}`,
+    };
+  } catch (error) {
+    const detail = error instanceof BlockedAddress
+      ? `Refused: ${error.message}`
+      : error instanceof Error ? error.message : 'failed';
+    return { ok: false, status: null, detail };
+  }
+}
 
 /* --------------------------------------------------------------- the log */
 
