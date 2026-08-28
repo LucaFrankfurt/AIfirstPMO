@@ -47,8 +47,9 @@ That is the one setting this integration needs, and it is off by default on purp
 ### Checking the signature
 
 Every call carries `x-kolibri-signature: sha256=<hex>` — an HMAC-SHA256 of the exact bytes, with the
-hook's secret. Read the secret once from *Settings → Integrations* (or
-`GET /api/webhooks/:id/secret`, admin only) and keep it in n8n's credentials or environment.
+hook's secret. Reveal and copy it from *Settings → Integrations* (or `GET /api/webhooks/:id/secret`,
+admin only) and keep it in n8n's credentials or environment. It is minted when the hook is created
+and does not change afterwards, so editing the hook does not invalidate what n8n has.
 
 Turn on **Raw Body** in the Webhook node, then a Code node:
 
@@ -115,6 +116,33 @@ list-and-join work in a workflow. The full set is in [`mcp.md`](mcp.md).
 
 If you *are* building an AI Agent node, point n8n's **MCP Client Tool** node at the same URL with
 the same header and it gets all 50 tools at once.
+
+## When it does not work
+
+**Press *Send a test* first.** Beside the URL of every outgoing hook. It posts a signed `ping` and
+shows you what came back, which settles in one click what the rest of this section is about. It is
+not an event and it does not appear in the delivery log.
+
+Then, in the order these actually go wrong:
+
+- **n8n's test URL instead of its production URL.** `/webhook-test/…` only listens while the editor
+  is open and you have pressed *Execute workflow*; the moment it is not, it answers 404. The
+  production URL is `/webhook/…` and it needs the workflow to be **active**. This is the single most
+  common cause, and the test button reports it as `HTTP 404`.
+- **A redirect.** If your reverse proxy sends `http://` to `https://`, Kolibri follows it — but a
+  redirect is followed as a **GET with no body**, which is the only safe thing to do with one, and a
+  webhook node answers 404 to a GET. The test says `after a redirect to …` when this happens. Fix
+  the URL rather than the proxy: write the address n8n is actually served on.
+- **A private address without the switch.** `http://n8n:5678/…`, `http://localhost`, `10.x`, `192.168.x`
+  are all refused unless `KOLIBRI_ALLOW_PRIVATE_WEBHOOKS=1` is set on the Kolibri container. The
+  test says `Refused: … not a public address`.
+- **The hook is off, or subscribed to nothing.** The *On* switch, and at least one event ticked.
+- **The event you are waiting for is not the one that fires.** Moving a task fires `task.moved`
+  *and* `task.updated`; finishing it fires `task.moved` *and* `task.completed`. Editing a page's
+  title is not `page.updated` — only its text is.
+- **It arrived and the workflow did nothing.** Open *Deliveries* under the hook: a `204` next to the
+  event means n8n took it, and the problem is inside the workflow. A row that says *gave up* has
+  the reason beside it and a *Send again* button.
 
 ## A sprint report, end to end
 

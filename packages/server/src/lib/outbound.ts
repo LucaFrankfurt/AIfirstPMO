@@ -160,6 +160,15 @@ export interface Reply {
   status: number;
   /** At most 8 KiB, and only so a failure can say what came back. */
   body: string;
+  /**
+   * Where the request actually ended up, when that is not where it was sent.
+   *
+   * A redirect is followed as a GET with no body — see `once` — which is the
+   * only safe shape, and also the shape that turns a working webhook URL into
+   * a 404 the moment somebody's proxy starts redirecting http to https. The
+   * caller cannot guess that from a status code, so it is told.
+   */
+  redirectedTo?: string;
 }
 
 export interface Options {
@@ -231,14 +240,15 @@ export async function send(raw: string, options: Options = {}): Promise<Reply> {
   for (let hop = 0; ; hop++) {
     const { url, address, family } = await resolveSafely(target);
     const reply = await once(url, address, family, options, hop > 0);
+    const landed = hop > 0 ? { redirectedTo: url.toString() } : {};
     const location = reply.location;
     if (!location || hop >= MAX_REDIRECTS) {
-      return { status: reply.status, body: reply.body };
+      return { status: reply.status, body: reply.body, ...landed };
     }
     try {
       target = new URL(location, url).toString();
     } catch {
-      return { status: reply.status, body: reply.body };
+      return { status: reply.status, body: reply.body, ...landed };
     }
   }
 }
