@@ -234,6 +234,88 @@ function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: 
           ? `${hook.last_status ?? '—'} ${hook.last_error ? `· ${hook.last_error}` : ''} · ${relativeTime(hook.last_sent_at)}`
           : t('hooks.never')}
       </div>
+      {!inbound && <Deliveries hookId={hook.id} />}
+    </div>
+  );
+}
+
+interface Delivery {
+  id: string;
+  event: string;
+  status: number | null;
+  attempts: number;
+  last_error: string | null;
+  send_after: number;
+  sent_at: number | null;
+  failed_at: number | null;
+  created_at: number;
+}
+
+/**
+ * What this hook has called out, and what became of each one.
+ *
+ * Asked for rather than synced, and only when somebody opens it: this is the
+ * screen for the half-hour after a receiver broke, not something to keep on
+ * every device. A row that gave up is the one worth acting on, so it is the one
+ * that gets the button.
+ */
+function Deliveries({ hookId }: { hookId: string }) {
+  const t = useT();
+  const toast = useToast();
+  const [open, setOpen] = useState(false);
+  const [rows, setRows] = useState<Delivery[] | null>(null);
+
+  const load = async () => {
+    const answer = await api.get<{ deliveries: Delivery[] }>(`/api/webhooks/${hookId}/deliveries?limit=10`);
+    setRows(answer.deliveries);
+  };
+
+  return (
+    <div className="mt-1.5">
+      <Button
+        variant="ghost" size="sm"
+        onClick={async () => {
+          const next = !open;
+          setOpen(next);
+          if (next) await load().catch(() => setRows([]));
+        }}
+      >
+        <Icon name={open ? 'chevron-down' : 'chevron-right'} size={13} /> {t('hooks.deliveries')}
+      </Button>
+      {open && (
+        <ul className="list-none p-0 m-0 mt-1">
+          {rows?.length === 0 && <li className="text-muted text-[11.5px]">{t('hooks.deliveriesEmpty')}</li>}
+          {(rows ?? []).map((row) => (
+            <li key={row.id} className="flex items-center gap-2 text-[11.5px]" style={{ padding: '3px 0' }}>
+              <span className="flex-1 min-w-0 truncate">{row.event}</span>
+              <span className="text-muted whitespace-nowrap">
+                {row.sent_at
+                  ? `${row.status ?? '—'} · ${relativeTime(row.sent_at)}`
+                  : row.failed_at
+                    ? `${t('hooks.deliveriesGaveUp')} · ${t('hooks.attempts', { count: row.attempts })}`
+                    : `${t('hooks.deliveriesWaiting')} · ${t('hooks.attempts', { count: row.attempts })}`}
+              </span>
+              <Button
+                variant="ghost" size="sm"
+                onClick={async () => {
+                  try {
+                    await api.post(`/api/webhooks/${hookId}/deliveries/${row.id}/replay`, {});
+                    toast(t('hooks.replayed'));
+                    // Long enough for the attempt to have happened, so the row
+                    // that comes back says what became of it rather than what
+                    // it looked like a moment before it was tried.
+                    setTimeout(() => { void load().catch(() => undefined); }, 800);
+                  } catch {
+                    toast(t('hooks.replayFailed'));
+                  }
+                }}
+              >
+                {t('hooks.replay')}
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
