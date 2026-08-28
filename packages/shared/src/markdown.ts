@@ -117,12 +117,17 @@ function inline(text: string, refs?: MarkdownOptions): string {
   // backslash is code rather than a request for a line break.
   out = out.replace(/(?: {2,}|\\)\n/g, BREAK);
 
-  out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, alt: string, src: string) => {
+  // The optional title is written `&quot;…&quot;` and not `"…"` because the
+  // whole string was escaped on the way in, several rules above. Spelled with a
+  // literal quote — which is how it read for a long time — the group simply
+  // never matched, and a link or an image carrying a title did not lose its
+  // title: it stopped being a link at all and came out as the source text.
+  out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+&quot;(?:(?!&quot;).)*&quot;)?\)/g, (match, alt: string, src: string) => {
     const url = safeUrl(src);
     return url ? `<img src="${url}" alt="${alt}" loading="lazy" />` : match;
   });
 
-  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (match, label: string, href: string) => {
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+&quot;(?:(?!&quot;).)*&quot;)?\)/g, (match, label: string, href: string) => {
     const url = safeUrl(href);
     if (!url) return match;
     const external = /^https?:/i.test(url);

@@ -253,3 +253,41 @@ describe('a checkbox and the text behind it', () => {
     assert.match(toggleTask(source, 0), /\n- \[x\] real/);
   });
 });
+
+/**
+ * The optional `"title"` every markdown dialect allows after a URL.
+ *
+ * It was accepted by a pattern spelled with a literal quote, and the string it
+ * runs against was HTML-escaped several rules earlier — so the group never
+ * matched and the link did not merely lose its title, it stopped being a link
+ * and came out as its own source text. Nobody had written one, which is why
+ * nothing caught it; `docs/markdown.md` documents the syntax, so it now has to
+ * work.
+ */
+describe('a link or an image with a title', () => {
+  it('is still a link', () => {
+    assert.equal(renderMarkdown('[ok](/pages/x "the title")'), '<p><a href="/pages/x">ok</a></p>');
+  });
+
+  it('is still an image', () => {
+    assert.match(renderMarkdown('![alt](/files/a.png "the title")'), /<img src="\/files\/a\.png" alt="alt"/);
+  });
+
+  it('does not swallow the text between two links', () => {
+    // The title group is bounded, so a lazy match cannot run from the first
+    // link's quote to the second one's and eat the prose in between.
+    const html = renderMarkdown('[a](/x "one") then [b](/y "two")');
+    assert.match(html, /<a href="\/x">a<\/a> then <a href="\/y">b<\/a>/);
+  });
+
+  it('still refuses a URL the renderer will not follow', () => {
+    const html = renderMarkdown('[bad](javascript:alert(1) "looks harmless")');
+    assert.doesNotMatch(html, /<a /);
+    assert.doesNotMatch(html, /javascript:alert\(1\)"/, 'and never as an attribute');
+  });
+
+  it('leaves a quote in the visible text alone', () => {
+    assert.match(renderMarkdown('![a "b"](/files/a.png)'), /alt="a &quot;b&quot;"/);
+    assert.match(renderMarkdown('she said "hello"'), /<p>she said &quot;hello&quot;<\/p>/);
+  });
+});

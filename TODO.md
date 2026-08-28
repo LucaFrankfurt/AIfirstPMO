@@ -168,6 +168,19 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       the text.
       **Covers exist**: `cover_url` was in the schema, the `Page` type, the synced field list and
       the import rewriter, and nothing set it or drew it.
+- [x] **One dialect, written down.** Every box in the app that takes more than a line — page
+      bodies, task descriptions, comments, chat, module descriptions, what a rule writes — goes
+      through one renderer, and what it accepts had never been stated anywhere but the source.
+      `docs/markdown.md` states it: the syntax, the four Kolibri additions (`WEB-42`, `#WEB`, tags,
+      `@handles`), where a checkbox can be ticked in place and where it cannot, what the editor does
+      to the text while you type, and the list of things that are *deliberately* absent with the
+      reason for each. Writing it down found one thing that did not work: the optional `"title"`
+      after a URL was matched with a literal quote against a string that had already been
+      HTML-escaped, so a link or an image carrying one did not lose its title — it stopped being a
+      link and came out as its own source text. Nobody had written one, which is why nothing caught
+      it. `markdown-dialect.test.ts` now pins the claims the document makes that nothing else did:
+      the URL allowlist, the escape-first guarantee, and the omissions — a decision nothing fails
+      over is a decision that gets undone by accident.
 - [x] **A page's `access` column was enforced everywhere except plain REST.** Sync applies it,
       `list_pages` and `get_page` apply it; `GET /api/pages/:id` applied only the project rule, and
       the version routes applied neither. So a workspace member holding a page id could read a
