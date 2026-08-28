@@ -5,17 +5,21 @@
  * Each was already half-built in the schema — `labels`, `watchers`, `access`,
  * `page_versions` — and had no screen. This is the screen.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '@kolibri/shared';
 import { collapse, diffLines, diffSummary, renderMarkdown, type DiffLine } from '@kolibri/shared';
 import { api } from '../lib/api';
-import { shortDate } from '../lib/format';
+import { relativeTime, shortDate } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { byOrder, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
-import { useMe, useMemberMap } from '../session';
+import { moveTargets, plotMove, type DropZone } from '../lib/pagetree';
+import { pull } from '../lib/sync';
+import { useMe, useMemberMap, useSession } from '../session';
 import { chipDot, chipVariants } from './ui/chip';
-import { Icon, Sheet, useToast, type MenuItem } from './ui';
+import { Button } from './ui/button';
+import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuItem } from './ui';
+import { downscale } from './Markdown';
 
 /* -------------------------------------------------------------- labels */
 
@@ -172,6 +176,265 @@ export function VersionDiff({ page, versionId, onClose }: { page: Page; versionI
           )}
         </>
       )}
+    </Sheet>
+  );
+}
+
+/* -------------------------------------------------------------- moving */
+
+/**
+ * Every page a move is worked out against.
+ *
+ * Templates and archived pages are out because the tree does not draw them:
+ * offering a position relative to a row nobody can see is a move that appears
+ * to do nothing.
+ */
+const movable = (workspaceId: string): Page[] =>
+  list('page', (page) => page.workspace_id === workspaceId && !page.archived && !page.is_template) as Page[];
+
+/**
+ * Move a page in the tree, and say whether it went.
+ *
+ * The arithmetic is `plotMove` in `lib/pagetree.ts`; this is the half that
+ * needs the store. `false` means the move was refused — dropping a page into
+ * its own subtree is the only one somebody reaches by accident.
+ */
+export function movePage(pageId: string, targetId: string, zone: DropZone, workspaceId: string): boolean {
+  const patch = plotMove(pageId, targetId, zone, movable(workspaceId));
+  if (!patch) return false;
+  update('page', pageId, patch);
+  return true;
+}
+
+/**
+ * The four moves as menu items: up, down, in, out.
+ *
+ * Which of them are possible is `moveTargets`; what they are called and what
+ * they do when picked is here.
+ */
+export function moveItems(page: Page, workspaceId: string, section: string): MenuItem[] {
+  const targets = moveTargets(page.id, movable(workspaceId));
+  const move = (target: string, zone: DropZone) => () => { movePage(page.id, target, zone, workspaceId); };
+  const items: MenuItem[] = [];
+
+  if (targets.up) {
+    items.push({
+      id: 'move-up', section, label: <MoveLabel k="page.moveUp" />, icon: <Icon name="chevronUp" size={14} />,
+      onSelect: move(targets.up, 'before'),
+    });
+  }
+  if (targets.in) {
+    items.push({
+      id: 'move-in', section, label: <MoveLabel k="page.moveIn" />, icon: <Icon name="chevronRight" size={14} />,
+      onSelect: move(targets.in, 'inside'),
+    });
+  }
+  if (targets.down) {
+    items.push({
+      id: 'move-down', section, label: <MoveLabel k="page.moveDown" />, icon: <Icon name="chevronDown" size={14} />,
+      onSelect: move(targets.down, 'after'),
+    });
+  }
+  if (targets.out) {
+    items.push({
+      id: 'move-out', section, label: <MoveLabel k="page.moveOut" />, icon: <Icon name="chevronLeft" size={14} />,
+      onSelect: move(targets.out, 'after'),
+    });
+  }
+  return items;
+}
+
+/** A menu label is rendered, so it can call the hook a plain string cannot. */
+const MoveLabel = ({ k }: { k: TranslationKey }) => <>{useT()(k)}</>;
+
+/* --------------------------------------------------------------- cover */
+
+/**
+ * The picture across the top of a page.
+ *
+ * `pages.cover_url` has been in the schema, in the `Page` type, in the synced
+ * field list and in the import rewriter since pages were added, and no screen
+ * ever set it or drew it. This is that screen: the same upload path the editor
+ * uses for a dropped image, downscaled the same way, so a cover costs what an
+ * inline picture costs.
+ */
+export function useCover(page: Page): { input: React.ReactNode; items: (section: string) => MenuItem[] } {
+  const t = useT();
+  const toast = useToast();
+  const { workspaceId } = useSession();
+  const field = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  const choose = async (file: File | undefined): Promise<void> => {
+    if (!file || !workspaceId) return;
+    setBusy(true);
+    try {
+      const result = await api.upload(workspaceId, await downscale(file, 2400), file.name, { page_id: page.id });
+      update('page', page.id, { cover_url: result.url });
+    } catch (err) {
+      toast(err instanceof Error ? t('editor.uploadFailedReason', { reason: err.message }) : t('editor.uploadFailed'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return {
+    input: (
+      <input
+        ref={field} type="file" accept="image/*" hidden
+        onChange={(event) => {
+          void choose(event.target.files?.[0]);
+          // Cleared, so choosing the same file twice in a row still fires.
+          event.target.value = '';
+        }}
+      />
+    ),
+    items: (section) => [
+      {
+        id: 'cover-set', section, icon: <Icon name="image" size={14} />,
+        label: <MoveLabel k={busy ? 'editor.uploading' : page.cover_url ? 'page.coverReplace' : 'page.coverAdd'} />,
+        onSelect: () => field.current?.click(),
+      },
+      ...(page.cover_url
+        ? [{
+          id: 'cover-clear', section, icon: <Icon name="close" size={14} />,
+          label: <MoveLabel k="page.coverRemove" />,
+          onSelect: () => update('page', page.id, { cover_url: null }),
+        }]
+        : []),
+    ],
+  };
+}
+
+/** The cover itself. Decorative: the page's title is right underneath it. */
+export function PageCover({ page }: { page: Page }) {
+  if (!page.cover_url) return null;
+  return <img className="page-cover" src={page.cover_url} alt="" />;
+}
+
+/* ------------------------------------------------------------- history */
+
+/** One thing that happened to the page, whichever half of the record it is in. */
+type Entry =
+  | { kind: 'version'; id: string; at: number; who: string | null; title: string; size: number }
+  | { kind: 'change'; id: string; at: number; who: string | null; verb: string; field: string | null; to: string | null };
+
+/** How a field change reads, per field. Anything unlisted is not shown at all. */
+const CHANGE_KEY: Record<string, TranslationKey> = {
+  title: 'page.changeTitle',
+  parent_id: 'page.changeParent',
+  labels: 'page.changeLabels',
+  access: 'page.changeAccess',
+  project_id: 'page.changeProject',
+};
+
+/**
+ * Everything that has happened to a page, in one list.
+ *
+ * The record was in two halves and only one of them had a screen. Body edits
+ * write a `page_versions` row — that is the half this sheet already showed, and
+ * the half you can compare and restore. Renames, moves, archiving, labels and
+ * visibility write an `activities` row, which has been recorded since pages
+ * existed and had no route to read it.
+ *
+ * Interleaved rather than two tabs, because the question people bring here is
+ * "what happened to this page", and an edit and the rename that came with it
+ * are one event to everybody except the database.
+ */
+export function PageHistory({ page, onClose, onCompare }: {
+  page: Page;
+  onClose: () => void;
+  onCompare: (versionId: string) => void;
+}) {
+  const t = useT();
+  const toast = useToast();
+  const members = useMemberMap();
+  const { confirm, dialog } = useConfirm();
+  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    // Both halves at once, and one failure is the whole sheet's failure: a
+    // history missing its renames looks complete and is not.
+    Promise.all([api.pageVersions(page.id), api.pageActivity(page.id)])
+      .then(([versions, activity]) => {
+        if (!live) return;
+        const rows: Entry[] = [
+          ...versions.map((version: any): Entry => ({
+            kind: 'version', id: String(version.id), at: Number(version.created_at),
+            who: version.author_id ? String(version.author_id) : null,
+            title: String(version.title ?? ''), size: Number(version.size ?? 0),
+          })),
+          ...activity.map((row: any): Entry => ({
+            kind: 'change', id: String(row.id), at: Number(row.created_at),
+            who: row.actor_id ? String(row.actor_id) : null,
+            verb: String(row.verb ?? ''), field: row.field ? String(row.field) : null,
+            to: row.new_value == null ? null : String(row.new_value),
+          })),
+        ];
+        setEntries(rows.sort((a, b) => b.at - a.at));
+      })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [page.id]);
+
+  /** What one activity row says, or nothing if it is a field nobody reads about. */
+  const said = (entry: Extract<Entry, { kind: 'change' }>): string | null => {
+    if (entry.verb === 'created') return t('page.changeCreated');
+    if (entry.verb === 'deleted') return t('page.changeDeleted');
+    if (entry.field === 'archived') return entry.to === '1' ? t('page.changeArchived') : t('page.changeRestored');
+    if (entry.field === 'is_template') return entry.to === '1' ? t('page.changeTemplated') : t('page.changeUntemplated');
+    const key = entry.field ? CHANGE_KEY[entry.field] : undefined;
+    return key ? t(key) : null;
+  };
+
+  const shown = (entries ?? []).filter((entry) => entry.kind === 'version' || said(entry) !== null);
+
+  return (
+    <Sheet title={t('page.history')} onClose={onClose}>
+      {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
+      {entries === null && !failed && <p className="text-muted">{t('common.loading')}</p>}
+      {entries !== null && shown.length === 0 && <p className="text-muted">{t('page.noVersions')}</p>}
+
+      {shown.map((entry) => (
+        <div className="flex items-center gap-2" key={entry.id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
+          <Avatar user={entry.who ? members.get(entry.who) : undefined} size={20} />
+          {entry.kind === 'change' ? (
+            <div className="flex-1 min-w-0">
+              <span className="text-[13.5px]">
+                <strong>{(entry.who && members.get(entry.who)?.name) || t('common.someone')}</strong>{' '}
+                {said(entry)}
+              </span>
+              <div className="text-muted text-[12.5px]">{relativeTime(entry.at)}</div>
+            </div>
+          ) : (
+            <>
+              <div className="flex-1 min-w-0">
+                <strong className="text-[13.5px]">{entry.title || t('common.untitled')}</strong>
+                <div className="text-muted text-[12.5px]">
+                  {shortDate(entry.at)} · {(entry.who && members.get(entry.who)?.name) || t('common.someone')}
+                  {' '}· {t('page.versionSize', { count: entry.size })}
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => onCompare(entry.id)}>{t('page.compare')}</Button>
+              <Button
+                size="sm"
+                onClick={async () => {
+                  if (!(await confirm(t('page.restoreConfirm'), t('action.restore')))) return;
+                  await api.restoreVersion(page.id, entry.id);
+                  await pull();
+                  onClose();
+                  toast(t('page.restored'));
+                }}
+              >
+                {t('action.restore')}
+              </Button>
+            </>
+          )}
+        </div>
+      ))}
+      {dialog}
     </Sheet>
   );
 }

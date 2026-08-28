@@ -258,10 +258,18 @@ POST /api/workspaces/:ws/tasks/bulk          { ids, patch }  or  { ids, op: "del
 GET  /api/pages/:id/versions
 GET  /api/pages/:id/versions/:versionId
 POST /api/pages/:id/versions   { "restore": "<versionId>" }
+GET  /api/pages/:id/activity                 renames, moves, archiving, labels, visibility
 ```
 
-A new revision is stored whenever the body changes, collapsing edits by the same author within ten
-minutes so a typing session does not produce hundreds of versions.
+A page's record is in two halves. A new **revision** is stored whenever the body changes, collapsing
+edits by the same author within ten minutes so a typing session does not produce hundreds of
+versions — that is `/versions`, and it is the half you can compare and restore. Everything else that
+happens to a page writes an **activity** row instead: `/activity` returns those, newest first, the
+same shape `/api/tasks/:id/activity` returns. The page's own text is deliberately not among them,
+because a revision already carries it.
+
+All four refuse a page the caller cannot open — a page in a private project, or one whose `access`
+is `private` and whose author is somebody else. So does `GET /api/pages/:id` itself.
 
 ## Workspaces, members, invites
 
@@ -408,6 +416,11 @@ SQLite FTS5 over tasks, pages, comments, projects, cycles and modules. Words are
 terms, so `des rev` already finds *Design review*. `kind` is part of the query rather than a sieve
 over its answer, so asking for pages returns the twenty best pages rather than whichever pages
 happened to rank inside the best twenty of everything. Results are filtered by project visibility.
+
+Archived rows are not in the index. Every list in the interface hides what is archived, the local
+instant search included, so an index that kept them made the same query answer differently depending
+on which half got there first. Unarchiving puts the row straight back — the row never left its
+table, only the index.
 
 The endpoint takes words and nothing else: there is no filter language. The `@`, `#` and `+` the
 search screen offers are read in the browser against the names it already holds, and what reaches

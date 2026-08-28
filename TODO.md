@@ -144,6 +144,37 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
       a version *diff*, page templates, the `access` column exposed, and export as a markdown
       bundle (the page and everything under it). PDF is deliberately not built — see below.
+- [x] **The four things the schema had already paid for.** Each of these was a column, a table or a
+      write path that existed and no screen ever reached, which is the same failure the entry above
+      names and the same fix.
+      **Archiving a page no longer loses it**: every list in the app filters `!archived`, so the one
+      control that could undo it lived on a page you could no longer find — there is an archive view
+      on the index now, and the page itself says it is archived. The server's search index kept
+      archived rows while the local instant search dropped them, so the same query answered
+      differently depending on which half got there first; the index drops them too now, and
+      unarchiving puts the row straight back.
+      **A page can be moved**: `sort_order` was written once at creation and never again, and
+      `parent_id` was only ever set by "add a sub-page", so the tree was in the order things
+      happened to be made and a top-level page could never become a child. Drag a page onto another
+      to nest it or between two to reorder; the same four moves — up, down, in, out — are in the
+      menu, because drag is the one way somebody on a keyboard cannot take. The arithmetic is
+      `lib/pagetree.ts`, apart from the store like `family.ts` and for the same reason: the edge
+      cases are a page dropped on itself and a page dropped inside its own subtree.
+      **A page's history is one list**: `recordActivity` has named `page` alongside `task` since
+      pages existed and there was no route to read the rows, so every rename, move, archive and
+      visibility change was recorded and invisible. Interleaved with the versions rather than put
+      in a second tab — an edit and the rename that came with it are one event to everybody except
+      the database. The body is still deliberately not a tracked field: a revision already carries
+      the text.
+      **Covers exist**: `cover_url` was in the schema, the `Page` type, the synced field list and
+      the import rewriter, and nothing set it or drew it.
+- [x] **A page's `access` column was enforced everywhere except plain REST.** Sync applies it,
+      `list_pages` and `get_page` apply it; `GET /api/pages/:id` applied only the project rule, and
+      the version routes applied neither. So a workspace member holding a page id could read a
+      colleague's private page — and `/versions/:versionId`, which hands back the full text of every
+      revision it ever had, was the better of the two ways in. The guard is shaped like `guardChat`
+      and called beside it on the generic read, patch and delete, so the next route that needs it
+      has it.
 - [x] **Printing, which is how a PDF is made.** Deliberately the browser's own print path rather
       than a renderer on the server: a PDF engine is a large dependency, a font problem and a
       security surface, and every browser already has one that honours the reader's paper size.

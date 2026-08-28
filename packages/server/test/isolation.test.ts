@@ -184,3 +184,64 @@ describe('a stranger holding an id', () => {
     assert.equal(body.result.structuredContent.title, 'Next quarter salaries');
   });
 });
+
+/**
+ * The nearer case, which is not a stranger at all.
+ *
+ * A page is the one row that can be private without its project being private:
+ * `access: 'private'` means its author and nobody else, and the sync engine has
+ * always applied that alongside the project rule. The history routes applied
+ * neither — they checked the workspace and stopped — so a colleague with the
+ * page id could read every revision of a page they cannot open. Version history
+ * carries the text itself, which made it the better way in of the two.
+ */
+describe('a colleague who is not the author', () => {
+  let colleague: { cookie: string };
+  let secret = '';
+
+  before(async () => {
+    const { body: invite } = await call(`/api/workspaces/${ada.workspace}/invites`, {
+      cookie: ada.cookie, body: { role: 'member' },
+    });
+    const joiner = await register('colleague@example.com');
+    await call(`/api/invites/${invite.code}/accept`, { cookie: joiner.cookie, body: {} });
+    colleague = joiner;
+
+    const { body: page } = await call(`/api/workspaces/${ada.workspace}/pages`, {
+      cookie: ada.cookie, body: { title: 'Pay review', content: 'the first draft', access: 'private' },
+    });
+    secret = page.id;
+    // A second write, so there is a revision to ask for by id.
+    await call(`/api/pages/${secret}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { content: 'the second draft' },
+    });
+  });
+
+  it('reads the workspace it was invited to', async () => {
+    const { status } = await call(`/api/workspaces/${ada.workspace}/pages`, { cookie: colleague.cookie });
+    assert.equal(status, 200, 'they are a member — a guard that refuses everybody is not a fix');
+  });
+
+  it('cannot read the private page, its history, or a revision of it', async () => {
+    const { body: versions } = await call(`/api/pages/${secret}/versions`, { cookie: ada.cookie });
+    assert.equal(versions.length, 1, 'the author sees their own history');
+
+    for (const path of [
+      `/api/pages/${secret}`,
+      `/api/pages/${secret}/versions`,
+      `/api/pages/${secret}/versions/${versions[0].id}`,
+      `/api/pages/${secret}/activity`,
+    ]) {
+      const { status } = await call(path, { cookie: colleague.cookie });
+      assert.equal(status, 403, `${path} answered a page that is not theirs`);
+    }
+  });
+
+  it('cannot restore a version of it either', async () => {
+    const { body: versions } = await call(`/api/pages/${secret}/versions`, { cookie: ada.cookie });
+    const { status } = await call(`/api/pages/${secret}/versions`, {
+      cookie: colleague.cookie, body: { restore: versions[0].id },
+    });
+    assert.equal(status, 403, 'a write path is a read path with consequences');
+  });
+});

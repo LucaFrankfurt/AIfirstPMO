@@ -140,6 +140,29 @@ describe('kolibri api', () => {
     assert.deepEqual(pages.results.filter((hit: any) => hit.kind !== 'page'), []);
   });
 
+  /**
+   * Archiving takes a row out of the index, and unarchiving puts it back.
+   *
+   * The two halves of search used to disagree. Every list in the interface
+   * hides what is archived, the local instant search included — and this index
+   * kept archived rows, so the same query returned a page or did not depending
+   * on whether the client or the server got there first. The archive view is
+   * where those pages are found now.
+   */
+  it('takes an archived page out of search, and gives it back on restore', async () => {
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Pantograph notes', content: 'about the pantograph' },
+    });
+    const found = () => api(`/api/workspaces/${workspaceId}/search?q=pantograph`)
+      .then(({ results }) => results.some((hit: any) => hit.id === page.id));
+
+    assert.equal(await found(), true, 'a live page is findable');
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { archived: 1 } });
+    assert.equal(await found(), false, 'an archived page is not');
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { archived: 0 } });
+    assert.equal(await found(), true, 'and it comes straight back — the row never left its table');
+  });
+
   it('pulls a full snapshot and then only deltas', async () => {
     const snapshot = await api<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
     assert.ok(snapshot.changes.task?.length === 2);
@@ -236,6 +259,36 @@ describe('kolibri api', () => {
     assert.equal(versions.length, 1);
     assert.equal(versions[0].title, 'Runbook');
   });
+
+  /**
+   * The other half of a page's history. `recordActivity` has written these rows
+   * since pages existed and there was no route to read them, so a page's whole
+   * non-textual past — renamed, moved, archived, made private — was recorded
+   * and invisible.
+   */
+  it('tells you what happened to a page that was not the text', async () => {
+    const page = await api(`/api/workspaces/${workspaceId}/pages`, { body: { title: 'Handbook' } });
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { title: 'Team handbook' } });
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { access: 'private' } });
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { archived: 1 } });
+
+    const trail = await api(`/api/pages/${page.id}/activity`);
+    const verbs = trail.map((row: any) => `${row.verb}:${row.field ?? ''}`);
+    assert.ok(verbs.includes('created:'), 'the page being written is the first thing that happened');
+    assert.ok(verbs.includes('updated:title'), 'a rename');
+    assert.ok(verbs.includes('updated:access'), 'a visibility change');
+    assert.ok(verbs.includes('updated:archived'), 'archiving');
+
+    // Newest first, the same order the screen shows and the versions route uses.
+    const stamps = trail.map((row: any) => row.created_at);
+    assert.deepEqual(stamps, [...stamps].sort((a: number, b: number) => b - a));
+
+    // The body was never touched, so nothing claims it was. A page's text is
+    // deliberately not a tracked field: every edit already writes a version.
+    assert.deepEqual(trail.filter((row: any) => row.field === 'content'), []);
+    await api(`/api/pages/${page.id}`, { method: 'PATCH', body: { archived: 0 } });
+  });
+
 
   it('stores a saved view with every part of what it shows', async () => {
     // `show_done` was added after the first release. A column missing from the

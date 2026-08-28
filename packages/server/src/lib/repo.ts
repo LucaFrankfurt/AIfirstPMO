@@ -1165,16 +1165,30 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
   message: (row) => ({ title: '', body: row.body ?? '' }),
 };
 
-export function indexForSearch(entity: EntityName, row: Row): void {
+/**
+ * Put a row into the full-text index, or take it out. Answers whether it is in.
+ *
+ * Archived rows are out, and that is a correction rather than a preference.
+ * Every list in the interface hides what is archived, including the local
+ * instant search — so a query answered from the client omitted an archived page
+ * and the same query answered by this index returned it. Which half you got
+ * depended on how fast the server was, and the archive view is where those
+ * pages are meant to be found now.
+ *
+ * The row stays in its table either way. Unarchiving writes it, `afterWrite`
+ * calls this again, and it comes straight back.
+ */
+export function indexForSearch(entity: EntityName, row: Row): boolean {
   const project = SEARCHABLE[entity];
-  if (!project) return;
+  if (!project) return false;
   run(`DELETE FROM search_index WHERE kind = ? AND ref_id = ?`, entity, row.id);
-  if (row.deleted_at) return;
+  if (row.deleted_at || row.archived) return false;
   const { title, body } = project(row);
   run(
     `INSERT INTO search_index (kind, ref_id, workspace_id, project_id, title, body) VALUES (?, ?, ?, ?, ?, ?)`,
     entity, row.id, row.workspace_id, row.project_id ?? null, title, stripMarkdown(body).slice(0, 20_000),
   );
+  return true;
 }
 
 const stripMarkdown = (text: string): string =>
@@ -1184,7 +1198,19 @@ const stripMarkdown = (text: string): string =>
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/[#>*_`~|-]/g, ' ');
 
-const TRACKED_FIELDS = new Set(['title', 'state_id', 'priority', 'assignees', 'due_date', 'cycle_id', 'module_id', 'estimate', 'parent_id', 'archived', 'labels']);
+/**
+ * The fields whose change is worth a line in the activity trail.
+ *
+ * `access`, `project_id` and `is_template` were added when pages got a history
+ * screen. A page's text is deliberately *not* here and never will be: every
+ * body edit already writes a `page_versions` row, which carries the text itself
+ * and can be compared and restored — an "updated content" line beside it would
+ * be the same event said twice, worse.
+ */
+const TRACKED_FIELDS = new Set([
+  'title', 'state_id', 'priority', 'assignees', 'due_date', 'cycle_id', 'module_id', 'estimate',
+  'parent_id', 'archived', 'labels', 'access', 'project_id', 'is_template',
+]);
 
 function recordActivity(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {
   if (entity !== 'task' && entity !== 'page' && entity !== 'project') return;

@@ -4,18 +4,19 @@ import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { Comments } from '../components/comments';
 import {
-  ACCESS_KEY, PageLabelChips, VersionDiff, labelItems, useExport, usePageLabels, usePrint, useWatching,
+  ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems, movePage,
+  useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../components/page-parts';
+import type { DropZone } from '../lib/pagetree';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
-import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../components/ui';
+import { Empty, Icon, MenuButton, useConfirm, useToast } from '../components/ui';
+import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../lib/drag';
 import { ShareSheet } from '../components/share';
 import { useHighlights, useSelectionAnchor } from '../components/annotate';
-import { api } from '../lib/api';
-import { relativeTime, shortDate } from '../lib/format';
+import { relativeTime } from '../lib/format';
 
 import { createPage, remove, update } from '../lib/mutations';
 import { byId, list, useQuery, useRow } from '../lib/store';
-import { pull } from '../lib/sync';
 import { useCollaborativeText } from '../lib/collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../session';
 import { Button } from '../components/ui/button';
@@ -48,13 +49,61 @@ function buildTree(pages: Page[]): TreeNode[] {
   return roots;
 }
 
-function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; activeId?: string }) {
+/**
+ * Which third of a row the pointer is in, and therefore what a drop means.
+ *
+ * The middle half is `inside` rather than a third: dropping *onto* a page to
+ * nest under it is the move people reach for, and the two edges only need to be
+ * wide enough to hit deliberately.
+ */
+function zoneAt(event: React.DragEvent, element: HTMLElement): DropZone {
+  const box = element.getBoundingClientRect();
+  const offset = (event.clientY - box.top) / (box.height || 1);
+  if (offset < 0.25) return 'before';
+  if (offset > 0.75) return 'after';
+  return 'inside';
+}
+
+function TreeItem({ node, depth, activeId, canWrite }: {
+  node: TreeNode; depth: number; activeId?: string; canWrite: boolean;
+}) {
   const t = useT();
   const navigate = useNavigate();
+  const { workspaceId } = useSession();
   const [open, setOpen] = useState(true);
+  const [over, setOver] = useState<DropZone | null>(null);
+
   return (
     <>
-      <div className="flex items-center gap-2" style={{ gap: 0, paddingInlineStart: depth * 12 }}>
+      <div
+        className={`page-row${over ? ` page-drop-${over}` : ''}`}
+        style={{ paddingInlineStart: depth * 12 }}
+        draggable={canWrite}
+        onDragStart={(event) => {
+          event.stopPropagation();
+          startDrag(event, PAGE_DRAG, node.page.id);
+        }}
+        onDragOver={(event) => {
+          if (!canWrite || !isDrag(event, PAGE_DRAG)) return;
+          // Only with `preventDefault` is this a drop target at all; the zone is
+          // read on every move because the answer changes as the pointer travels
+          // down the row.
+          event.preventDefault();
+          event.stopPropagation();
+          setOver(zoneAt(event, event.currentTarget));
+        }}
+        onDragLeave={() => setOver(null)}
+        onDrop={(event) => {
+          if (!canWrite || !isDrag(event, PAGE_DRAG)) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const zone = zoneAt(event, event.currentTarget);
+          setOver(null);
+          // A refusal is silent on purpose — the only one is dropping a page
+          // into its own subtree, and the page visibly not moving says it.
+          if (movePage(idFrom(event, PAGE_DRAG), node.page.id, zone, workspaceId) && zone === 'inside') setOpen(true);
+        }}
+      >
         {node.children.length > 0 ? (
           <Button variant="ghost" size="iconSm" onClick={() => setOpen(!open)} aria-label={t('page.toggleTree')}>
             <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
@@ -70,7 +119,9 @@ function TreeItem({ node, depth, activeId }: { node: TreeNode; depth: number; ac
           <span className="flex-1 min-w-0 truncate">{node.page.title || t('common.untitled')}</span>
         </button>
       </div>
-      {open && node.children.map((child) => <TreeItem key={child.page.id} node={child} depth={depth + 1} activeId={activeId} />)}
+      {open && node.children.map((child) => (
+        <TreeItem key={child.page.id} node={child} depth={depth + 1} activeId={activeId} canWrite={canWrite} />
+      ))}
     </>
   );
 }
@@ -84,6 +135,19 @@ export function PagesIndex() {
   const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
   const [filter, setFilter] = useState<string>('');
   const canWrite = useCanWrite();
+
+  // Archived pages had nowhere to be seen at all. Every list in the app filters
+  // them out, so archiving one removed it from the tree, from the palette and
+  // from search at once, and the only control that could bring it back lived on
+  // the page you could no longer reach. That is deletion wearing another word.
+  const archived = useQuery(
+    () => list('page', (p) => p.workspace_id === workspaceId && !!p.archived).sort((a, b) => b.updated_at - a.updated_at),
+    [workspaceId],
+  );
+  const [showArchived, setShowArchived] = useState(false);
+  // Unarchiving the last one takes the list away with it, so the screen goes
+  // back to the pages rather than to an empty box that was full a moment ago.
+  const viewingArchive = showArchived && archived.length > 0;
 
   // Templates are kept out of the tree: they are starting points, not content,
   // and a handbook with three half-written templates in it reads as a mess.
@@ -102,7 +166,17 @@ export function PagesIndex() {
   return (
     <>
       <Header title={t('page.listTitle')}>
-        {inUse.length > 0 && (
+        {archived.length > 0 && (
+          <Button
+            variant={viewingArchive ? 'primary' : 'secondary'} size="sm"
+            aria-pressed={viewingArchive}
+            onClick={() => setShowArchived(!viewingArchive)}
+          >
+            <Icon name="archive" size={14} />
+            <span className="hide-sm">{t('page.archivedCount', { count: archived.length })}</span>
+          </Button>
+        )}
+        {!viewingArchive && inUse.length > 0 && (
           <MenuButton
             variant="secondary" size="sm"
             items={[
@@ -121,7 +195,7 @@ export function PagesIndex() {
             <span className="hide-sm">{filter ? byId('label', filter)?.name ?? t('page.filterByLabel') : t('page.filterByLabel')}</span>
           </MenuButton>
         )}
-        {templates.length > 0 && (
+        {!viewingArchive && templates.length > 0 && (
           <MenuButton
             variant="secondary" size="sm"
             items={templates.map((template) => ({
@@ -138,14 +212,38 @@ export function PagesIndex() {
             <span className="hide-sm">{t('page.newFromTemplate')}</span>
           </MenuButton>
         )}
-        {canWrite && (
+        {!viewingArchive && canWrite && (
           <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
           </Button>
         )}
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        {!pages.length ? (
+        {viewingArchive ? (
+          <>
+            {/* Flat, not a tree. An archived page's parent is usually still in
+                use, so drawing these as a tree would either duplicate live
+                pages as scaffolding or leave every row hanging off nothing. */}
+            <h2 className="mb-1 text-sm font-semibold">{t('page.archivedTitle')}</h2>
+            <p className="mb-3.5 text-[12.5px] text-muted">{t('page.archivedHint')}</p>
+            {archived.map((page) => (
+              <div className="page-row" key={page.id}>
+                <Link to={`/pages/${page.id}`} className={navItem()}>
+                  <span style={{ width: 16 }}>{page.icon ?? '\ud83d\udcc4'}</span>
+                  <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
+                  <span className="text-[11.5px] text-muted hide-sm">
+                    {t('page.updated', { time: relativeTime(page.updated_at) })}
+                  </span>
+                </Link>
+                {canWrite && (
+                  <Button size="sm" variant="ghost" onClick={() => update('page', page.id, { archived: 0 })}>
+                    {t('action.unarchive')}
+                  </Button>
+                )}
+              </div>
+            ))}
+          </>
+        ) : !pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
             hint={t('page.emptyHint')} guide="pages"
@@ -172,8 +270,11 @@ export function PagesIndex() {
                 </Link>
               ))}
             </div>
-            <h2 className="mb-2 text-sm font-semibold">{t('page.all')}</h2>
-            {tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} />)}
+            <div className="flex items-center gap-2 mb-2">
+              <h2 className="text-sm font-semibold">{t('page.all')}</h2>
+              {canWrite && <span className="text-[12px] text-muted">{t('page.dragHint')}</span>}
+            </div>
+            {tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} canWrite={canWrite} />)}
           </>
         )}
       </div>
@@ -195,12 +296,14 @@ export function PageDetail() {
 
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(page?.title ?? '');
-  const [history, setHistory] = useState<any[] | null>(null);
+  const [history, setHistory] = useState(false);
   const [diffing, setDiffing] = useState<string | null>(null);
 
+  const { workspaceId } = useSession();
   const children = useQuery(() => list('page', (p) => p.parent_id === id && !p.archived), [id]);
   const labels = usePageLabels((page ?? { project_id: null }) as any);
   const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
+  const cover = useCover((page ?? { id, cover_url: null }) as any);
   const exportPage = useExport();
   const printPage = usePrint();
   const [sharing, setSharing] = useState(false);
@@ -257,7 +360,7 @@ export function PageDetail() {
             { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
             { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
-              onSelect: () => api.pageVersions(id).then(setHistory).catch(() => toast(t('page.historyFailed'))) },
+              onSelect: () => setHistory(true) },
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
             { id: 'export', label: t('page.export'), icon: <Icon name="page" size={14} />,
@@ -269,6 +372,8 @@ export function PageDetail() {
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
               icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
               onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
+            ...cover.items(t('page.cover')),
+            ...moveItems(page, workspaceId, t('page.move')),
             ...labelItems(page, labels, t('page.labels')),
             ...(['workspace', 'project', 'private'] as const).map((access) => ({
               id: `access-${access}`,
@@ -311,6 +416,20 @@ export function PageDetail() {
       </Header>
 
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 820 }}>
+        {/* Said on the page, not only in the menu: an archived page still opens
+            from a bookmark, from a link in another page and from a search on the
+            server, and it used to look exactly like a live one. */}
+        {!!page.archived && (
+          <div className="page-archived">
+            <Icon name="archive" size={15} />
+            <span className="flex-1 min-w-0">{t('page.archivedNotice')}</span>
+            {canWrite && (
+              <Button size="sm" onClick={() => update('page', id, { archived: 0 })}>{t('action.unarchive')}</Button>
+            )}
+          </div>
+        )}
+        <PageCover page={page} />
+        {cover.input}
         {editing ? (
           <>
             <div className="flex items-center gap-2 mb-2.5">
@@ -397,31 +516,11 @@ export function PageDetail() {
       )}
 
       {history && (
-        <Sheet title={t('page.history')} onClose={() => setHistory(null)}>
-          {history.length === 0 && <p className="text-muted">{t('page.noVersions')}</p>}
-          {history.map((version) => (
-            <div className="flex items-center gap-2" key={version.id} style={{ padding: '8px 0', borderTop: '1px solid var(--line)' }}>
-              <div className="flex-1 min-w-0">
-                <strong className="text-[13.5px]">{version.title}</strong>
-                <div className="text-muted text-[12.5px]">
-                  {shortDate(version.created_at)} · {members.get(version.author_id)?.name ?? t('common.someone')} · {t('page.versionSize', { count: version.size })}
-                </div>
-              </div>
-              <Button variant="ghost" size="sm" onClick={() => setDiffing(version.id)}>{t('page.compare')}</Button>
-              <Button size="sm"
-                onClick={async () => {
-                  if (!(await confirm(t('page.restoreConfirm'), t('action.restore')))) return;
-                  await api.restoreVersion(id, version.id);
-                  await pull();
-                  setHistory(null);
-                  toast(t('page.restored'));
-                }}
-              >
-                {t('action.restore')}
-              </Button>
-            </div>
-          ))}
-        </Sheet>
+        <PageHistory
+          page={page}
+          onClose={() => setHistory(false)}
+          onCompare={(versionId) => setDiffing(versionId)}
+        />
       )}
       {diffing && <VersionDiff page={page} versionId={diffing} onClose={() => setDiffing(null)} />}
       {dialog}

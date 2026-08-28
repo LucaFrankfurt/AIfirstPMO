@@ -2726,3 +2726,51 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 
 
 }
+
+/* ------------------------------------------------------------------- pages */
+
+/* A row in the wiki tree: the disclosure arrow, the page, and — while a page is
+   being dragged over it — the line or fill that says where a drop would land. */
+.page-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+}
+.page-row[draggable='true'] { cursor: grab; }
+.page-row[draggable='true']:active { cursor: grabbing; }
+
+/* Three answers, drawn three ways rather than three colours: a line above, a
+   line below, or the row itself filled. Which one is showing is the difference
+   between "beside this page" and "inside it", and that has to be readable at a
+   glance while a drag is in flight. */
+.page-drop-before { box-shadow: inset 0 2px 0 0 var(--accent); }
+.page-drop-after { box-shadow: inset 0 -2px 0 0 var(--accent); }
+.page-drop-inside { background: var(--accent-soft); box-shadow: inset 0 0 0 1px var(--accent); }
+
+/* The cover. Decorative — the title is directly underneath — so it is sized
+   like a band rather than an illustration, and it never pushes the writing off
+   a short screen. */
+.page-cover {
+  display: block;
+  width: 100%;
+  height: clamp(120px, 22vw, 200px);
+  object-fit: cover;
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  background: var(--bg-sunken);
+}
+
+/* An archived page, said on the page itself. Warn rather than danger: it is
+   still here and one click brings it back. */
+.page-archived {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--fg-soft);
+  font-size: 13px;
+}

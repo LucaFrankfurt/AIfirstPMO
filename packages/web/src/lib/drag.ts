@@ -16,8 +16,13 @@ export const TASK_DRAG = 'application/x-kolibri-task';
 export const PROJECT_DRAG = 'application/x-kolibri-project';
 /** A board column — a state, dragged by its header to be reordered. */
 export const STATE_DRAG = 'application/x-kolibri-state';
+/**
+ * A page in the wiki tree, dragged to be reordered among its siblings or
+ * dropped onto another page to become its child.
+ */
+export const PAGE_DRAG = 'application/x-kolibri-page';
 
-type Kind = typeof TASK_DRAG | typeof PROJECT_DRAG | typeof STATE_DRAG;
+type Kind = typeof TASK_DRAG | typeof PROJECT_DRAG | typeof STATE_DRAG | typeof PAGE_DRAG;
 
 /**
  * `text/plain` is still written beside it, and on purpose: it is what a drag
