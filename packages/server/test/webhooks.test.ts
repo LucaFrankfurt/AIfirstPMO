@@ -18,6 +18,7 @@ import type { AddressInfo } from 'node:net';
 const { server } = await import('../src/index.ts');
 const { sign } = await import('../src/lib/webhooks.ts');
 const { run, get } = await import('../src/db/index.ts');
+const { flushDeliveries, pruneDeliveries } = await import('../src/lib/webhooks.ts');
 const { env } = await import('../src/env.ts');
 
 let base = '';
@@ -26,8 +27,8 @@ let workspaceId = '';
 let projectId = '';
 
 /** A receiver we control, so the assertions are about what actually arrived. */
-const received: { event: string; signature: string | undefined; body: any }[] = [];
-let behaviour: 'ok' | 'error' | 'hang' = 'ok';
+const received: { event: string; delivery: string | undefined; signature: string | undefined; body: any }[] = [];
+let behaviour: 'ok' | 'error' | 'gone' | 'hang' = 'ok';
 let receiver: ReturnType<typeof createServer>;
 let receiverUrl = '';
 
@@ -57,11 +58,12 @@ before(async () => {
       const raw = Buffer.concat(chunks).toString();
       received.push({
         event: String(request.headers['x-kolibri-event'] ?? ''),
+        delivery: request.headers['x-kolibri-delivery'] as string | undefined,
         signature: request.headers['x-kolibri-signature'] as string | undefined,
         body: raw ? JSON.parse(raw) : null,
       });
       if (behaviour === 'hang') return; // never answers
-      response.writeHead(behaviour === 'error' ? 500 : 204).end();
+      response.writeHead(behaviour === 'error' ? 500 : behaviour === 'gone' ? 404 : 204).end();
     });
   });
   await new Promise<void>((done) => receiver.listen(0, '127.0.0.1', done));
@@ -329,6 +331,131 @@ describe('calling out', () => {
     // The identifier is on it: after this, the row a receiver would read back
     // is a tombstone.
     assert.equal(gone[0].body.data.identifier, task.identifier);
+  });
+
+  /**
+   * The log, and the retries.
+   *
+   * A dropped chat message is a shrug. A dropped event is a workflow that
+   * quietly did not run, and nobody finds out until the month is over — so the
+   * questions here are the two a receiver's owner actually asks: did *that*
+   * event arrive, and if it did not, what is being done about it.
+   */
+  it('writes down every call out and what came back', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.created' }, 'PATCH');
+    run(`DELETE FROM webhook_deliveries`);
+    received.length = 0;
+
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Leave a trace' });
+    await settle();
+
+    const { deliveries } = await api(`/api/webhooks/${hook.id}/deliveries`);
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0].event, 'task.created');
+    assert.equal(deliveries[0].status, 204);
+    assert.equal(deliveries[0].attempts, 1);
+    assert.ok(deliveries[0].sent_at, 'it arrived');
+    assert.equal(deliveries[0].failed_at, null);
+    // The receiver was told which delivery this is, so a retry it has already
+    // seen can be recognised as one rather than acted on twice.
+    assert.equal(received[0].delivery, deliveries[0].id);
+  });
+
+  it('tries again after the other end has a bad moment', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.created' }, 'PATCH');
+    run(`DELETE FROM webhook_deliveries`);
+    behaviour = 'error';
+    received.length = 0;
+
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Try me again' });
+    await settle();
+
+    let [delivery] = (await api(`/api/webhooks/${hook.id}/deliveries`)).deliveries;
+    assert.equal(delivery.attempts, 1);
+    assert.equal(delivery.sent_at, null);
+    assert.equal(delivery.failed_at, null, 'a 500 is a bad moment, not a verdict');
+    assert.ok(delivery.send_after > Date.now(), 'and it is waiting rather than hammering');
+
+    // The receiver comes back. The sweep runs an hour later — driven here
+    // rather than waited for, the way `sweep(now)` is everywhere else.
+    behaviour = 'ok';
+    const firstId = received[0].delivery;
+    received.length = 0;
+    await flushDeliveries(Date.now() + 10 * 60_000);
+    await settle();
+
+    [delivery] = (await api(`/api/webhooks/${hook.id}/deliveries`)).deliveries;
+    assert.equal(delivery.attempts, 2);
+    assert.ok(delivery.sent_at, 'the second attempt arrived');
+    assert.equal(received.length, 1);
+    // Same delivery, second attempt: the id a receiver de-duplicates on holds.
+    assert.equal(received[0].delivery, firstId);
+  });
+
+  it('does not retry a request that will never work', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.created' }, 'PATCH');
+    run(`DELETE FROM webhook_deliveries`);
+    behaviour = 'gone';
+
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Nobody home' });
+    await settle();
+
+    const [delivery] = (await api(`/api/webhooks/${hook.id}/deliveries`)).deliveries;
+    assert.equal(delivery.attempts, 1);
+    assert.ok(delivery.failed_at, 'a 404 is the endpoint, and it will be the same endpoint next time');
+    assert.match(delivery.last_error, /404/);
+    behaviour = 'ok';
+  });
+
+  it('replays the event as it was, not the task as it has become', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.created' }, 'PATCH');
+    run(`DELETE FROM webhook_deliveries`);
+    received.length = 0;
+
+    const task = await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'As it was' });
+    await settle();
+    const [delivery] = (await api(`/api/webhooks/${hook.id}/deliveries`)).deliveries;
+
+    // The task moves on. The replay must not describe this.
+    await api(`/api/tasks/${task.id}`, { title: 'As it is now' }, 'PATCH');
+    received.length = 0;
+
+    await api(`/api/webhooks/${hook.id}/deliveries/${delivery.id}/replay`, {});
+    await settle();
+
+    assert.equal(received.length, 1);
+    assert.equal(received[0].body.data.title, 'As it was');
+    assert.equal(received[0].delivery, delivery.id);
+  });
+
+  it('keeps the log a log rather than an archive', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    run(`DELETE FROM webhook_deliveries`);
+    for (let i = 0; i < 5; i++) {
+      run(
+        `INSERT INTO webhook_deliveries (id, workspace_id, webhook_id, event, body, send_after, created_at, sent_at)
+         VALUES (?, ?, ?, 'task.created', '{}', 0, ?, 1)`,
+        `old-${i}`, workspaceId, hook.id, Date.now() - 30 * 86_400_000 - i,
+      );
+    }
+    assert.equal(pruneDeliveries(Date.now()), 5);
+    assert.equal((await api(`/api/webhooks/${hook.id}/deliveries`)).deliveries.length, 0);
+  });
+
+  it('shows the log to an admin and to nobody else', async () => {
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    const mine = cookie;
+    try {
+      cookie = '';
+      const response = await fetch(`${base}/api/webhooks/${hook.id}/deliveries`);
+      assert.ok(response.status === 401 || response.status === 403, `signed out got ${response.status}`);
+    } finally {
+      cookie = mine;
+    }
   });
 
   it('keeps the signing secret on the server', async () => {

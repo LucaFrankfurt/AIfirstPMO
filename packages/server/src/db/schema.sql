@@ -992,6 +992,34 @@ CREATE TABLE IF NOT EXISTS email_queue (
 );
 CREATE INDEX IF NOT EXISTS email_queue_pending ON email_queue (sent_at, failed_at, send_after);
 
+-- One call out, and what became of it.
+--
+-- The webhook row used to carry one slot — the last status, the last error —
+-- which answers "is this endpoint alive" and nothing else. A workflow that
+-- files an invoice needs the other question answered: did *that* event arrive.
+--
+-- So a delivery is a row, in the shape `email_queue` already proved: due when
+-- `send_after` passes, finished when `sent_at` or `failed_at` is stamped. The
+-- body is stored rather than rebuilt, because a replay has to be the same call
+-- — a body rebuilt an hour later would carry the task as it is now, signed as
+-- though it were what happened then.
+CREATE TABLE IF NOT EXISTS webhook_deliveries (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  webhook_id   TEXT NOT NULL,
+  event        TEXT NOT NULL,
+  body         TEXT NOT NULL,
+  status       INTEGER,
+  attempts     INTEGER NOT NULL DEFAULT 0,
+  last_error   TEXT,
+  send_after   INTEGER NOT NULL,
+  sent_at      INTEGER,
+  failed_at    INTEGER,
+  created_at   INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS webhook_deliveries_pending ON webhook_deliveries (sent_at, failed_at, send_after);
+CREATE INDEX IF NOT EXISTS webhook_deliveries_hook ON webhook_deliveries (webhook_id, created_at);
+
 -- One-time codes that connect a Kolibri account to a Telegram chat.
 --
 -- The account holder starts the conversation from their own Telegram, which is

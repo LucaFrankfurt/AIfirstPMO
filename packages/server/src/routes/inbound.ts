@@ -23,6 +23,7 @@ import { notFound, readJson, type Ctx, type Router } from '../lib/http.ts';
 import { uid } from '../lib/ids.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { writeEntity } from '../lib/repo.ts';
+import { deliveriesOf, replayDelivery } from '../lib/webhooks.ts';
 
 /** `WEB-12`, `fixes WEB-12`, `Closes web-12.` — anything that names a task. */
 const REFERENCE = /\b([A-Za-z][A-Za-z0-9]{0,9})-(\d{1,7})\b/g;
@@ -147,4 +148,42 @@ export function registerInboundRoutes(router: Router): void {
       url: hook.direction === 'in' ? `${env.publicUrl}/api/hooks/${hook.secret}` : null,
     };
   });
+
+  /**
+   * What this hook has called out, and what became of each one.
+   *
+   * Admin, like the secret, and for a milder version of the same reason: a
+   * delivery names tasks, and being able to read the log is being able to read
+   * them without being in the projects they came from.
+   */
+  router.get('/api/webhooks/:id/deliveries', (ctx: Ctx) => {
+    const hook = hookForAdmin(ctx);
+    return { deliveries: deliveriesOf(String(hook.id), Number(ctx.query.get('limit') ?? 20)) };
+  });
+
+  /**
+   * Send one again.
+   *
+   * The case this is for: the receiver was down, the retries ran out, somebody
+   * fixed it, and the event that was lost is the one the month's numbers need.
+   * A replay sends the body as it was recorded — the event, not the row as it
+   * has since become — so it is a redelivery and not a new claim about now.
+   */
+  router.post('/api/webhooks/:id/deliveries/:delivery/replay', (ctx: Ctx) => {
+    const hook = hookForAdmin(ctx);
+    const row = get<Row>(
+      `SELECT id FROM webhook_deliveries WHERE id = ? AND webhook_id = ?`,
+      ctx.params.delivery, hook.id,
+    );
+    if (!row) throw notFound('No such delivery');
+    return { delivery: replayDelivery(String(row.id)) };
+  });
+}
+
+/** Both routes above answer to an admin of the hook's workspace, or to nobody. */
+function hookForAdmin(ctx: Ctx): Row {
+  const hook = get<Row>(`SELECT * FROM webhooks WHERE id = ? AND deleted_at IS NULL`, ctx.params.id);
+  if (!hook) throw notFound('Hook not found');
+  requireWorkspace(ctx, String(hook.workspace_id), 'admin');
+  return hook;
 }

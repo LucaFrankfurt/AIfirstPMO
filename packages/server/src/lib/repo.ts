@@ -1478,7 +1478,14 @@ function fireWebhooks(
   if (entity === 'comment' && !before) {
     dispatch(workspaceId, 'comment.created', {
       id: row.id, task_id: row.task_id, page_id: row.page_id, author_id: row.author_id,
-      body: String(row.body ?? '').slice(0, 500), project_id: null, ...who(opts),
+      body: String(row.body ?? '').slice(0, 500), project_id: null,
+      // Where a person would go to read it, which is the task or the page — not
+      // the comment, which has no screen of its own.
+      url: env.publicUrl
+        ? row.task_id ? `${env.publicUrl}/t/${row.task_id}`
+          : row.page_id ? `${env.publicUrl}/pages/${row.page_id}` : null
+        : null,
+      ...who(opts),
     });
     return;
   }

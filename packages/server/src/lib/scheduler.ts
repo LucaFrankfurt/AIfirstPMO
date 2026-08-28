@@ -19,6 +19,7 @@ import { canSeeProject, writeEntity } from './repo.ts';
 import { runAutomationsForDue } from './automation.ts';
 import { applyRetention } from './trash.ts';
 import { expireLinks as expireTelegramLinks, retryPending as retryPendingTelegram } from './telegram.ts';
+import { flushDeliveries, pruneDeliveries } from './webhooks.ts';
 import { sweepBackups } from './backups.ts';
 
 const HOUR = 3_600_000;
@@ -155,6 +156,12 @@ export function sweep(now = Date.now()): { reminders: number; recurred: number; 
   // the sweep's own result is about the work it did to the database, and an
   // unreachable chat service is not a reason for it to report a failure.
   void retryPendingTelegram(now);
+  // The same arrangement for calls out: a delivery waiting on its backoff is
+  // picked up by an in-process timer, and by this sweep if the process was
+  // restarted in the middle of one. Fire-and-forget for the same reason —
+  // somebody else's endpoint being down is not this sweep failing.
+  void flushDeliveries(now);
+  pruneDeliveries(now);
   return {
     reminders: remindAboutDueTasks(now),
     recurred: rollRecurringTasks(),
