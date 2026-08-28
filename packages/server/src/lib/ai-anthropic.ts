@@ -56,6 +56,13 @@ export async function reviewWithAnthropic(request: AiRequest): Promise<string> {
   if (reply?.stop_reason === 'refusal') {
     throw new AiError('Anthropic declined to answer for this task', true);
   }
+  // Cut off at `max_tokens`. Whatever text came back is half a JSON object,
+  // and handing that to the parser reports a model talking nonsense when the
+  // truth is a ceiling — one that will be there again on the next click, which
+  // is what makes this permanent rather than a bad moment.
+  if (reply?.stop_reason === 'max_tokens') {
+    throw new AiError('Anthropic ran out of tokens before it finished the answer', true);
+  }
   const text = (reply?.content ?? []).find((block) => block.type === 'text')?.text ?? '';
   if (!text.trim()) throw new AiError('Anthropic answered with nothing', false);
   return text;

@@ -121,6 +121,19 @@ describe('the Anthropic adapter', () => {
     });
   });
 
+  it('calls a truncated answer a ceiling rather than a bad review', async () => {
+    const fake = await fakeProvider(() => ({
+      json: { stop_reason: 'max_tokens', content: [{ type: 'text', text: '{"verdict":"needs-' }] },
+    }));
+    await withProvider(fake, {}, async () => {
+      await assert.rejects(reviewWithAnthropic(ask), (error: AiError) => {
+        assert.match(error.message, /ran out of tokens/);
+        assert.equal(error.permanent, true);
+        return true;
+      });
+    });
+  });
+
   it('says a bad key is permanent and a bad moment is not', async () => {
     const refused = await fakeProvider(() => ({ status: 401, text: 'invalid x-api-key' }));
     await withProvider(refused, {}, async () => {
@@ -159,6 +172,104 @@ describe('the Gemini adapter', () => {
       assert.ok(!call.path.includes('k'), 'the key must not be in the URL');
       assert.equal(call.body.systemInstruction.parts[0].text, ask.system);
       assert.equal(call.body.generationConfig.responseMimeType, 'application/json');
+      // 2.5 has no `thinkingLevel`, and sending it there is an error rather
+      // than a field that gets ignored.
+      assert.equal(call.body.generationConfig.thinkingConfig, undefined);
+    });
+  });
+
+  it('asks a Gemini 3 model to think as little as it is allowed to', async () => {
+    const fake = await fakeProvider(() => ({
+      json: { candidates: [{ content: { parts: [{ text: '{"verdict":"clear"}' }] } }] },
+    }));
+    await withProvider(fake, { model: 'gemini-3.6-flash' }, async () => {
+      await reviewWithGemini(ask);
+      assert.equal(fake.seen[0].body.generationConfig.thinkingConfig.thinkingLevel, 'LOW');
+    });
+  });
+
+  it('leaves a name it does not recognise alone', async () => {
+    const fake = await fakeProvider(() => ({
+      json: { candidates: [{ content: { parts: [{ text: '{"verdict":"clear"}' }] } }] },
+    }));
+    // A gateway on the same network, named however its operator named it. A
+    // `thinkingConfig` sent to a model that has no thinking in it is an error.
+    await withProvider(fake, { model: 'house-model-v2' }, async () => {
+      await reviewWithGemini(ask);
+      assert.equal(fake.seen[0].body.generationConfig.thinkingConfig, undefined);
+    });
+  });
+
+  it('leaves room for the thinking on top of the room for the answer', async () => {
+    const fake = await fakeProvider(() => ({
+      json: { candidates: [{ content: { parts: [{ text: '{"verdict":"clear"}' }] } }] },
+    }));
+    await withProvider(fake, { model: 'gemini-3.6-flash' }, async () => {
+      await reviewWithGemini(ask);
+      // The ceiling is one budget spent thinking first and answering second.
+      // Sized for the answer alone, it is the answer that gets cut off.
+      assert.ok(
+        fake.seen[0].body.generationConfig.maxOutputTokens > ask.maxTokens,
+        'the ceiling has to hold more than the answer',
+      );
+    });
+  });
+
+  it('reads past the thinking to the answer', async () => {
+    const fake = await fakeProvider(() => ({
+      json: {
+        candidates: [{
+          content: {
+            parts: [
+              // Prose about the answer, with a brace in it. Joined in, this is
+              // what `parseReview` would try to read as the review.
+              { text: 'Let me draft {something} first.', thought: true },
+              { text: '{"verdict":"clear"}' },
+            ],
+          },
+        }],
+      },
+    }));
+    await withProvider(fake, { model: 'gemini-3.6-flash' }, async () => {
+      assert.equal(await reviewWithGemini(ask), '{"verdict":"clear"}');
+    });
+  });
+
+  it('calls a truncated answer a ceiling rather than a bad review', async () => {
+    const cut = await fakeProvider(() => ({
+      json: { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [{ text: '{"verdict":"needs-' }] } }] },
+    }));
+    await withProvider(cut, { model: 'gemini-3.6-flash' }, async () => {
+      await assert.rejects(reviewWithGemini(ask), (error: AiError) => {
+        assert.match(error.message, /ran out of tokens/);
+        // It will do it again on the next click. Retrying is not the advice.
+        assert.equal(error.permanent, true);
+        return true;
+      });
+    });
+
+    // The same ceiling, reached before a word of the answer: a thinking model
+    // on a budget that only ever fitted the answer.
+    const silent = await fakeProvider(() => ({
+      json: { candidates: [{ finishReason: 'MAX_TOKENS', content: { parts: [] } }] },
+    }));
+    await withProvider(silent, { model: 'gemini-3.6-flash' }, async () => {
+      await assert.rejects(reviewWithGemini(ask), (error: AiError) => {
+        assert.match(error.message, /thinking/);
+        return true;
+      });
+    });
+  });
+
+  it('carries the reason an empty answer was empty', async () => {
+    const fake = await fakeProvider(() => ({
+      json: { candidates: [{ finishReason: 'SAFETY', content: { parts: [] } }] },
+    }));
+    await withProvider(fake, { model: 'gemini-2.5-flash' }, async () => {
+      await assert.rejects(reviewWithGemini(ask), (error: AiError) => {
+        assert.match(error.message, /SAFETY/);
+        return true;
+      });
     });
   });
 });
@@ -177,6 +288,19 @@ describe('the OpenRouter adapter', () => {
       assert.equal(call.headers.authorization, 'Bearer k');
       assert.equal(call.body.messages[0].role, 'system');
       assert.equal(call.body.messages[1].content, ask.user);
+    });
+  });
+
+  it('calls a truncated answer a ceiling rather than a bad review', async () => {
+    const fake = await fakeProvider(() => ({
+      json: { choices: [{ finish_reason: 'length', message: { content: '{"verdict":"needs-' } }] },
+    }));
+    await withProvider(fake, {}, async () => {
+      await assert.rejects(reviewWithOpenRouter(ask), (error: AiError) => {
+        assert.match(error.message, /ran out of tokens/);
+        assert.equal(error.permanent, true);
+        return true;
+      });
     });
   });
 
