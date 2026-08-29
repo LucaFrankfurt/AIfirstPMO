@@ -15,12 +15,14 @@
  */
 import { useMemo, useState } from 'react';
 import type { Task } from '@kolibri/shared';
-import { coversProject, duration } from '@kolibri/shared';
+import { coversProject, duration, totalsOf } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
 import { useFeature, useMemberMap } from '../session';
 import { Empty } from './ui';
+import { asMoney } from './budget';
+import { useSeesMoney } from './rates';
 
 const DAY = 86_400_000;
 const isDone = (task: Task): boolean => {
@@ -278,6 +280,14 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
   const labels = useQuery(() => list('label', (row) => !row.project_id || row.project_id === projectId), [projectId]);
   const entries = useQuery(() => list('timeEntry', (entry) => entry.project_id === projectId), [projectId]);
   const cycles = useQuery(() => list('cycle', (cycle) => coversProject(cycle, projectId)), [projectId]);
+  const seesMoney = useSeesMoney();
+  const rates = useQuery(() => list('rate'), []);
+  /* The same thirty days the tile beside it counts, so the two figures are
+     about the same window rather than nearly the same one. */
+  const cost = useMemo(() => {
+    const since = new Date(Date.now() - 30 * DAY).toISOString().slice(0, 10);
+    return totalsOf(entries.filter((entry) => entry.spent_on >= since), rates);
+  }, [entries, rates]);
 
   const stats = useMemo(() => {
     const done = tasks.filter(isDone);
@@ -400,6 +410,18 @@ export function ProjectInsights({ projectId }: { projectId: string }) {
           hint={t('insights.medianHint')}
         />
         {time && <Stat label={t('insights.timeLogged')} value={duration(stats.minutes)} hint={t('insights.last30')} />}
+        {/* What that time cost, for the people whose device has any rates on
+            it. A member sees the hours and no money column at all, rather than
+            a money column reading zero — see `useSeesMoney`. */}
+        {time && seesMoney && (
+          <Stat
+            label={t('rate.cost')}
+            value={cost.cost.length ? asMoney(cost.cost[0].amount, cost.cost[0].currency, true) : '—'}
+            hint={cost.unratedMinutes
+              ? t('rate.unrated', { hours: duration(cost.unratedMinutes) })
+              : t('insights.last30')}
+          />
+        )}
       </div>
 
       <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">

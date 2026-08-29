@@ -247,6 +247,9 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_budgets` | budgets with approved, planned, actual, forecast, variance and whether each is on track |
 | `budget_status` | one budget in full: plan against actual, forecast, variance, broken down by category, project and month. Optionally under a saved scenario, and optionally as it stood on an earlier date |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
+| `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
+| `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
+| `utilisation` | billable share per person or per project; `target_hours` adds the billable-over-available ratio |
 
 ### Reports
 
@@ -412,9 +415,29 @@ Three more details worth knowing before you trust a number:
 | `create_budget` | an envelope of money over a period, scoped like a cycle: one project's, several, or the workspace |
 | `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
 | `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
+| `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
+
+### Rates, and the two things that are not negotiable
+
+All four rate tools refuse anybody below **admin**, with
+`Rates and cost are visible to owners and admins`. Not a preference: a rate is
+close enough to somebody's pay to keep it with the people who set it, and a
+project total is a rate anybody can divide back out — one person on a project
+and the division is exact. The pull applies the same rule in SQL, so a member's
+device holds no rates at all.
+
+And `set_rate` **adds** rather than edits. There is no `update_rate`, on
+purpose: an hour is costed at whatever was in force on the day it was worked, so
+changing a rate is starting a new one on a day. A tool that overwrote the old
+figure would make every previously exported report disagree with the screen,
+silently.
+
+Hours nothing costed come back as `unrated_hours` rather than being counted at
+zero — the same decision `unallocated` makes in budgets, and worth passing on
+when quoting a total.
 
 ### Budgets, and the figure a model will misread
 

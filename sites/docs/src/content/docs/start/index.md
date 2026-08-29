@@ -75,10 +75,11 @@ Being clear about this is cheaper for everybody than finding out in month two.
 
 - **It is not a timesheet system.** Time is recorded and added up; there is no week view, no
   submit and no approval step. See [time tracking](/planning/time/).
-- **There is no billing.** [Budgets](/planning/budgets/) exist — what was planned against what
-  has actually gone, split across the projects that pay for it — but nothing turns hours into
-  money: entries carry a `billable` flag that nothing reads, there are no hourly rates, and
-  there are no invoices to send.
+- **There is no billing.** [Budgets](/planning/budgets/), hourly rates and cost reports all
+  exist — what was planned against what has gone, and what an hour cost against what it is
+  charged at. What does not exist is an invoice: no numbering, no VAT, no document to send.
+- **The timesheet is not submitted or approved.** Time is recorded, added up and costed. There
+  is no submit button and no sign-off.
 - **There is no forecasting.** The burn-up chart stops at today rather than drawing a line into
   the future, because a line into the future looks like a promise.
 - **Estimates are in points, not hours,** and are deliberately never compared with logged time.

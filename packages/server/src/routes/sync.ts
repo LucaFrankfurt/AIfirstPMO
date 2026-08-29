@@ -24,6 +24,19 @@ const SYNCED: EntityName[] = ENTITY_NAMES.filter((name) => name !== 'activity');
 const PAGE_SIZE = 2000;
 
 /** Projects the caller is allowed to see, as a subquery to keep pulls in SQL. */
+/**
+ * Whether the caller runs this workspace. Used by exactly one entity.
+ *
+ * A rate is close enough to somebody's pay that it does not belong on every
+ * member's device — and once it is on the device, the client computes cost
+ * from it, so this clause is what decides who sees money at all rather than
+ * merely who sees a settings screen.
+ */
+const IS_ADMIN = `
+  EXISTS (SELECT 1 FROM workspace_members wm
+           WHERE wm.workspace_id = ?1 AND wm.user_id = ?2
+             AND wm.role IN ('owner', 'admin') AND wm.deleted_at IS NULL)`;
+
 const VISIBLE_PROJECTS = `
   SELECT p.id FROM projects p
    WHERE p.workspace_id = ?1
@@ -121,6 +134,22 @@ function filterFor(entity: EntityName): string {
                          AND (b.project_id IS NULL OR b.project_id IN (${VISIBLE_PROJECTS})))
                         OR EXISTS (SELECT 1 FROM json_each(b.projects)
                                     WHERE json_each.value IN (${VISIBLE_PROJECTS}))))`;
+    /*
+     * Rates go to owners and admins, and to nobody else.
+     *
+     * The only entity in the registry with a *role* in its filter, and it is
+     * worth being clear about why the softer options were not taken. Sending
+     * rates to everybody and hiding the screen is not a restriction: the rows
+     * are in IndexedDB and the API returns them. Sending only a person their
+     * own rate does not work either — a project total is a rate anybody can
+     * divide back out, and with one person on a project it is exact.
+     *
+     * So the line is drawn here, at the pull, and every figure derived from a
+     * rate follows it for free: a member's device simply has no rates, so its
+     * cost columns are empty rather than wrong.
+     */
+    case 'rate':
+      return `AND ${IS_ADMIN}`;
     case 'label':
     case 'view':
     case 'webhook':

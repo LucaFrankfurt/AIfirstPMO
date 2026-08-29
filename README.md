@@ -147,7 +147,7 @@ are the manual for running and extending it.
 | **Search** | One box that takes ordinary words: instant matches from the local copy, then SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages. `@` offers the people, `#` the labels and `+` the projects, so narrowing a search is picked from a list rather than remembered as syntax — and a name nobody has stays prose and is searched for as text. A private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
-| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 56 tools, 5 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
+| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 60 tools, 5 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
 | **Task reviews** | Optional, manual and off by default: a button asks a model to read a task back and suggest clearer wording, with the replacement already written and applied only by a click. Anthropic, Gemini or OpenRouter, chosen by an environment variable. [What leaves the instance](docs/ai.md) |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
@@ -173,7 +173,7 @@ it grants is an ordinary token you can revoke in Settings.
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant a
 view of the backlog without handing it a pen.
 
-**56 tools**, in seven groups:
+**60 tools**, in eight groups:
 
 | | |
 |---|---|
@@ -184,6 +184,7 @@ view of the backlog without handing it a pen.
 | Configuration | `list_states`, `create_state`, `update_state`, `list_labels`, `create_label`, `update_label` |
 | Pages | `list_pages`, `get_page`, `create_page`, `update_page`, `list_page_templates`, `create_page_from_template` |
 | Budgets | `list_budgets`, `budget_status`, `create_budget`, `add_budget_line`, `record_spend`, `project_costs` |
+| Rates and cost | `list_rates`, `set_rate`, `time_cost`, `utilisation` |
 | Reports *(read-only)* | `project_status`, `changes_since`, `deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review`, `prepare_meeting` |
 
 The six reports answer for the **whole workspace** unless narrowed to a project, because who is
@@ -256,7 +257,7 @@ length. Source in [`sites/docs`](sites/docs).
 | [`markdown.md`](docs/markdown.md) | The one dialect every box that takes writing accepts, what it deliberately leaves out, and why there is no sanitiser |
 | [`automation.md`](docs/automation.md) | Task templates, rules, who gets the task and why one might not fire |
 | [`chat.md`](docs/chat.md) | Channels and direct messages, why a direct conversation has no id of its own, and what is deliberately not in it |
-| [`time.md`](docs/time.md) | Logging time, what a running timer actually is, and what it is not |
+| [`time.md`](docs/time.md) | Logging time, what a running timer actually is, hourly rates and why they are dated, and who can see money |
 | [`budgets.md`](docs/budgets.md) | Planned against actual money, why an amount is an integer, how a cost is split across projects, and the one rule the forecast follows |
 | [`calendar.md`](docs/calendar.md) | The `.ics` feed, what a subscription is worth, and why the URL is a password |
 | [`insights.md`](docs/insights.md) | Throughput, burn-up and cycle time, and the rules the charts follow |

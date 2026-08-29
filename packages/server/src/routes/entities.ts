@@ -111,6 +111,23 @@ function guardBudget(userId: string, entity: EntityName, row: Row): void {
 
 const BUDGET_CHILDREN = new Set<EntityName>(['budgetLine', 'budgetActual', 'budgetScenario']);
 
+/**
+ * A rate is owners' and admins' business, on every route that touches one.
+ *
+ * `requireWorkspace(ctx, ws, 'admin')` is how the rest of this file asks; this
+ * exists because the generic collection routes do not know which entity they
+ * are about until they have resolved it. The pull applies the same rule in SQL
+ * — see `filterFor` in `sync.ts` — and the two have to agree, because a member
+ * who cannot pull a rate but can `GET /api/rates/:id` has no restriction at
+ * all.
+ */
+function guardRate(ctx: Ctx, entity: EntityName, workspaceId: string): void {
+  if (entity !== 'rate') return;
+  if (!hasRole(requireWorkspace(ctx, workspaceId), 'admin')) {
+    throw forbidden('Rates are visible to owners and admins');
+  }
+}
+
 export function registerEntityRoutes(router: Router): void {
   /* ----------------------------------------------------- audit log */
 
@@ -459,6 +476,7 @@ export function registerEntityRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws);
     const entity = resolve(ctx.params.collection);
+    guardRate(ctx, entity, ctx.params.ws);
     const def = ENTITIES[entity];
     // A direct conversation belongs to no workspace, so listing this one has
     // to include the rows that belong to none. The chat clauses further down
@@ -531,6 +549,7 @@ export function registerEntityRoutes(router: Router): void {
     // is not content, it is a note somebody keeps about their own position in
     // one. Everything else is still refused.
     if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot create content');
+    guardRate(ctx, entity, ctx.params.ws);
     const body = await readJson<Record<string, unknown>>(ctx);
 
     if (entity === 'project') {
@@ -565,6 +584,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
+    guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     return serialize(entity, row);
   });
@@ -580,6 +600,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
+    guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     const body = await readJson<Record<string, unknown>>(ctx);
     const { row: updated } = writeEntity(entity, ctx.params.id, body, {
@@ -600,6 +621,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
+    guardRate(ctx, entity, String(row.workspace_id));
     deleteEntity(entity, ctx.params.id, {
       workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
     });

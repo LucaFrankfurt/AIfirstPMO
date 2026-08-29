@@ -106,6 +106,18 @@ export type SpendStage = (typeof SPEND_STAGES)[number];
 export const BUDGET_STATUS = ['draft', 'active', 'closed'] as const;
 export type BudgetStatus = (typeof BUDGET_STATUS)[number];
 
+/**
+ * What an hour is worth, in the two senses a team needs at once.
+ *
+ * `cost` is what the hour costs the organisation; `billable` is what it is
+ * charged at. Both, rather than one, because the interesting figure is the
+ * difference and a single rate cannot produce it — and because a team that
+ * bills nobody still wants to know what a project cost, while an agency needs
+ * both columns on the same screen.
+ */
+export const RATE_KINDS = ['cost', 'billable'] as const;
+export type RateKind = (typeof RATE_KINDS)[number];
+
 /* ------------------------------------------------- templates + automation */
 
 /** What a template is for. Only affects the icon and how it is grouped. */
@@ -806,6 +818,42 @@ export interface ScenarioAdjustment {
   note?: string | null;
 }
 
+/**
+ * What an hour is worth, from a date, for somebody or for everybody.
+ *
+ * **Dated, and that is the whole point.** A rate stored as one current number
+ * means raising it in April silently rewrites what March cost — every report
+ * anybody has ever exported stops matching the screen, and nothing announces
+ * it. So a rate is valid *from* a day and an entry is costed at whatever was
+ * in force on the day the work happened. Changing a rate is writing a new row,
+ * not editing the old one.
+ *
+ * **Most specific wins**, in one fixed order — this person on this project,
+ * then this person anywhere, then anybody on this project, then the
+ * workspace's own — so "Ada is more expensive on the client work" is one row
+ * rather than a rate on every project she is not on. See `resolveRate`.
+ *
+ * A rate is **not** a salary and must not be read as one: it is a planning
+ * figure a workspace agrees on, usually rounded, often a blended team number.
+ * It is nonetheless close enough to pay that it is owner-and-admin-only, along
+ * with everything computed from it.
+ */
+export interface Rate extends Base {
+  workspace_id: ID;
+  /** Whose hour. Null is anybody's — the workspace's own default. */
+  user_id: ID | null;
+  /** Where. Null is everywhere. */
+  project_id: ID | null;
+  kind: RateKind;
+  /** Per hour, in minor units. See `Minor`. */
+  amount: Minor;
+  /** ISO 4217. A workspace mixing two is shown two totals, never a sum. */
+  currency: string;
+  /** Valid from this day. There is no end: the next row's start is the end. */
+  starts_on: ISODate;
+  note: string | null;
+}
+
 export interface View extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -1018,6 +1066,7 @@ export interface EntityMap {
   budgetLine: BudgetLine;
   budgetActual: BudgetActual;
   budgetScenario: BudgetScenario;
+  rate: Rate;
   share: Share;
   task: Task;
   relation: Relation;

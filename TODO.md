@@ -473,11 +473,32 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       computed on demand by one pure function both the server and the browser call, so the
       dashboard works offline and MCP cannot quote a different number from the screen.
       [`docs/budgets.md`](docs/budgets.md)
-- [ ] **What time tracking is still a prerequisite for**: hourly rates, cost per hour, utilisation
-      reports, and a timesheet view across projects and weeks. Blocked on the same thing it always
-      was: `tasks.estimate` is in points, so an estimate has to carry a unit first — which is a
-      decision about how a team plans, not a formatting problem. Budgets went ahead without it by
-      not asking the question; a rate cannot.
+- [x] **Rates, cost, utilisation and a timesheet** — and the blocker they were filed under turned
+      out not to apply to them. "An estimate has to carry a unit first" is true of *spent versus
+      estimated*, which compares a duration with a number of points and cannot be done honestly.
+      It is not true of a rate: cost is `minutes × rate`, and `tasks.estimate` appears nowhere in
+      that. The item had been sitting behind somebody else's blocker for a year.
+
+      A rate is dated, and the most specific one wins: this person on this project, then this
+      person anywhere, then anyone on this project, then the workspace's own. An entry is costed
+      at the rate in force **on the day the work happened**, so raising a rate in April does not
+      silently rewrite March. Two kinds — what an hour costs and what it is charged at — which is
+      what makes revenue and margin answerable rather than invented. Time with no rate is
+      **unrated**, counted and shown as its own figure, never as zero: an hour that costs nothing
+      is a lie, and the same decision `unallocated` makes in budgets.
+
+      Utilisation is the billable share of what was logged. Against a *target* it needs hours a
+      person is available for, which is an HR fact this app does not hold — so the target is set
+      by whoever is looking, the way the team planner's comfortable load already is.
+
+      Rates are **owner and admin only**, and so is every figure derived from them, because a
+      total is a rate anybody can divide back out: one person on a project, and cost ÷ their hours
+      is exactly what they are paid. [`docs/time.md`](docs/time.md)
+- [ ] **Spent versus estimated**, which is the thing that really is blocked. `tasks.estimate` is in
+      points — a guess at size, not at hours — so "3h of 5" compares two different quantities
+      confidently. An estimate has to carry a unit first, which is a decision about how a team
+      plans rather than a formatting problem, and it is the last piece missing before a task can
+      carry a budget of its own.
 - [x] **Gantt with real scheduling, and baselines.** See P2 above. A baseline keeps the dates as
       they stood under a name — the whole plan in one row, because it is something somebody *took*
       and must not drift as tasks are added afterwards — and the timeline draws it as a thin rule
@@ -865,7 +886,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 56 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 60 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

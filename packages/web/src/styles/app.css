@@ -2921,3 +2921,73 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-radius: 5px;
   min-width: 2px;
 }
+
+/* --------------------------------------------------------- rates & time
+ *
+ * A timesheet is a grid people scan down a column of, so the numbers are
+ * tabular and the weekend is tinted rather than hidden — Saturday with work on
+ * it is worth noticing, and a column that is not there cannot be noticed.
+ */
+
+.week-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.timesheet th.num, .timesheet td.num { min-width: 68px; }
+.timesheet .weekend { background: var(--bg-sunken); }
+.timesheet thead th { vertical-align: bottom; }
+.timesheet .day-name { display: block; font-weight: 600; }
+.timesheet .day-date { display: block; font-weight: 400; font-size: 11px; color: var(--fg-muted); }
+.timesheet tfoot th {
+  border-top: 1px solid var(--line-strong);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  padding: 8px 10px;
+}
+.timesheet tfoot th:first-child { text-align: start; }
+/* A timesheet row is not a link. The hover the task table gives every row
+   would promise a screen that is not there. */
+.timesheet tbody tr { cursor: default; }
+
+.target-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--fg-soft);
+}
+
+/* A rate and its history: one heading, then the rows that have applied, newest
+   first, with the one in force marked. */
+.rate-group {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-top: 10px;
+  overflow: hidden;
+}
+.rate-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  background: var(--bg-sunken);
+  font-size: 13px;
+}
+.rate-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  font-size: 13px;
+  border-top: 1px solid var(--line);
+}
+/* Superseded rates are kept and shown, because they are the answer to "why was
+   March costed at eighty" — but they are not the number anybody wants now. */
+.rate-row:not(.current) .rate-amount { color: var(--fg-muted); }
+.rate-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+.rate-from { color: var(--fg-soft); font-size: 12px; }
+.rate-note { color: var(--fg-muted); font-size: 12px; max-width: 40%; }

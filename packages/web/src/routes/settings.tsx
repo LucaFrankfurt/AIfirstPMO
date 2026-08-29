@@ -4,7 +4,7 @@ import { Header, THEME_KEY, useTheme } from '../components/AppShell';
 import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
-import { useSession } from '../session';
+import { useFeature, useSession } from '../session';
 import { AutomationSettings } from './automation';
 import { Trash } from '../components/trash';
 import { AuditLog, Webhooks } from '../components/admin';
@@ -18,16 +18,17 @@ import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input, Select, Textarea } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
+import { RateSettings, useSeesMoney } from '../components/rates';
 import { Chip, chipVariants } from '../components/ui/chip';
 import { TelegramConnection } from '../components/telegram';
 import { InstanceSettings } from '../components/instance';
 import { useTabStrip } from '../lib/tab-strip';
 
-type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'automation' | 'api' | 'data' | 'instance';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'automation' | 'api' | 'data' | 'instance';
 
 const TAB_KEY: Record<Tab, TranslationKey> = {
   profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
-  workspace: 'settings.tabWorkspace', members: 'settings.tabMembers',
+  workspace: 'settings.tabWorkspace', members: 'settings.tabMembers', rates: 'settings.tabRates',
   automation: 'settings.tabAutomation', api: 'settings.tabApi', data: 'settings.tabData',
   instance: 'settings.tabInstance',
 };
@@ -49,7 +50,13 @@ export function Settings() {
    * something that would only answer 403.
    */
   const instanceAdmin = !!session?.instanceAdmin;
-  const tabs = (Object.keys(TAB_KEY) as Tab[]).filter((name) => name !== 'instance' || instanceAdmin);
+  // Rates are owners' and admins' — and a workspace that does not track time
+  // has nothing to apply one to, so the tab is not offered either.
+  const seesMoney = useSeesMoney();
+  const time = useFeature('time');
+  const tabs = (Object.keys(TAB_KEY) as Tab[])
+    .filter((name) => name !== 'instance' || instanceAdmin)
+    .filter((name) => name !== 'rates' || (seesMoney && time));
 
   const choose = (next: Tab) => {
     setTab(next);
@@ -70,6 +77,7 @@ export function Settings() {
         {tab === 'notifications' && <Notifications />}
         {tab === 'workspace' && <WorkspaceSettings />}
         {tab === 'members' && <Members />}
+        {tab === 'rates' && seesMoney && time && <RateSettings />}
         {tab === 'automation' && <AutomationSettings />}
         {tab === 'api' && <ApiSettings />}
         {tab === 'data' && <DataSettings />}

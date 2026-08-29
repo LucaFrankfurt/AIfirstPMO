@@ -698,6 +698,38 @@ CREATE INDEX IF NOT EXISTS time_entries_seq ON time_entries (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS time_entries_task ON time_entries (task_id);
 CREATE INDEX IF NOT EXISTS time_entries_user ON time_entries (user_id, spent_on);
 
+-- What an hour is worth, from a day. Amounts are INTEGER minor units, as
+-- everywhere money is stored here.
+--
+-- Never edited in place: raising a rate is inserting a row with a later
+-- `starts_on`, so what last quarter cost stays what last quarter cost. There is
+-- no end date — the next row's start is the end.
+--
+-- The one table here that does not reach every member. A rate is close enough
+-- to somebody's pay that it goes to owners and admins only, and so does
+-- everything computed from it: a total is a rate anybody can divide back out.
+CREATE TABLE IF NOT EXISTS rates (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  -- Null is anybody's; null project is everywhere. Most specific wins — see
+  -- `resolveRate` in @kolibri/shared.
+  user_id      TEXT,
+  project_id   TEXT,
+  -- cost | billable. What the hour costs, and what it is charged at.
+  kind         TEXT NOT NULL DEFAULT 'cost',
+  amount       INTEGER NOT NULL DEFAULT 0,
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  starts_on    TEXT NOT NULL,
+  note         TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS rates_seq ON rates (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS rates_lookup ON rates (workspace_id, kind, starts_on);
+
 CREATE TABLE IF NOT EXISTS views (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

@@ -100,6 +100,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useRecordVisits(workspaceId);
   const canWrite = useCanWrite();
   const budgets = useFeature('budget');
+  const time = useFeature('time');
   const [palette, setPalette] = useState(false);
   // The same move the card's own menu makes — see `useRefile`.
   const refile = useRefile();
@@ -320,6 +321,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Only when the workspace has switched budgets on. A sidebar entry
             for a feature nobody here uses is the clutter the feature switches
             exist to prevent. */}
+        {/* Only where time is being tracked. A timesheet in a workspace that
+            logs no time is a screen that can only ever say "nothing here". */}
+        {time && (
+          <NavLink to="/timesheet" className={navItem()}>
+            <Icon name="calendar" size={15} />
+            <span className="flex-1 min-w-0 truncate">{t('nav.timesheet')}</span>
+          </NavLink>
+        )}
         {budgets && (
           <NavLink to="/budgets" className={navItem()}>
             <Icon name="wallet" size={15} />

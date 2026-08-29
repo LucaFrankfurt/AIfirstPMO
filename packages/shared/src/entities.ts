@@ -20,6 +20,7 @@ export type EntityName =
   | 'budgetLine'
   | 'budgetActual'
   | 'budgetScenario'
+  | 'rate'
   | 'share'
   | 'label'
   | 'task'
@@ -311,6 +312,20 @@ export const ENTITIES = {
     ],
     json: ['filters'],
   },
+  /**
+   * What an hour is worth, from a date. Never edited in place — a new rate is
+   * a new row, so what last quarter cost stays what last quarter cost.
+   *
+   * The one entity in this registry that does not reach every member: a rate
+   * is close enough to somebody's pay that it goes only to owners and admins,
+   * and so does every figure derived from it. See `filterFor` in `sync.ts`.
+   */
+  rate: {
+    table: 'rates',
+    fields: [
+      'workspace_id', 'user_id', 'project_id', 'kind', 'amount', 'currency', 'starts_on', 'note',
+    ],
+  },
   timeEntry: {
     table: 'time_entries',
     fields: [
@@ -480,6 +495,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   budgetLine: 'budget-lines',
   budgetActual: 'budget-actuals',
   budgetScenario: 'budget-scenarios',
+  rate: 'rates',
   share: 'shares',
   label: 'labels',
   task: 'tasks',
