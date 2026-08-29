@@ -537,6 +537,7 @@ export const en = {
   'budget.archived': 'Archived',
   'budget.month': 'Month',
   'budget.planned': 'Planned',
+  'budget.actualOfPlanned': '{actual} of {planned}',
   'budget.actual': 'Actual',
   'budget.forecast': 'Forecast',
   'budget.variance': 'Variance',

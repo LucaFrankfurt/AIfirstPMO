@@ -532,6 +532,7 @@ export const de: Catalogue = {
   'budget.archived': 'Archiviert',
   'budget.month': 'Monat',
   'budget.planned': 'Geplant',
+  'budget.actualOfPlanned': '{actual} von {planned}',
   'budget.actual': 'Ist',
   'budget.forecast': 'Prognose',
   'budget.variance': 'Abweichung',

@@ -182,7 +182,62 @@ export function BudgetIndex() {
         <Empty emoji="💶" title={t('budget.emptyTitle')} hint={t('budget.emptyHint')} />
       ) : (
         <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-          <SectionHeading tight>{t('budget.portfolioTitle')}</SectionHeading>
+          {/* The list first, then what it adds up to.
+              The other way round is how this page shipped, and it reads fine on
+              a desktop where the tiles are one compact row — on a phone they
+              stack two-by-two and the two charts follow, so the budgets
+              themselves began 665 pixels down an 844-pixel screen. Somebody
+              opening "Budgets" to open a budget met a page of analysis and
+              concluded there were none. A summary is context for a list; it is
+              not what an index is for. */}
+          <div className="table-wrap">
+            <table className="task-table">
+              <thead>
+                <tr>
+                  <th>{t('budget.budget')}</th>
+                  <th>{t('budget.period')}</th>
+                  <th>{t('budget.status')}</th>
+                  <th className="num">{t('budget.approved')}</th>
+                  <th className="num">{t('budget.planned')}</th>
+                  <th className="num">{t('budget.actual')}</th>
+                  <th className="num">{t('budget.forecast')}</th>
+                  <th className="num">{t('budget.variance')}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {rolled.map(({ budget, totals }) => (
+                  <tr key={budget.id} onClick={() => navigate(`/budgets/${budget.id}`)}>
+                    <td className="title">
+                      <Link to={`/budgets/${budget.id}`}>{budget.name}</Link>
+                      {/* The row is nine columns wide and a phone shows two of
+                          them, so the figure somebody came for was behind a
+                          sideways scroll. It goes under the name on a narrow
+                          screen — and only there, since on a wide one it would
+                          repeat the two columns sitting right beside it. */}
+                      <span className="row-sub row-sub-sm">
+                        {t('budget.actualOfPlanned', {
+                          actual: asMoney(totals.actual, totals.currency),
+                          planned: asMoney(totals.planned, totals.currency),
+                        })}
+                      </span>
+                    </td>
+                    <td>{totals.period.from} → {totals.period.to}</td>
+                    <td>{t(`budget.status.${budget.status}` as TranslationKey)}</td>
+                    <td className="num">{budget.approved ? asMoney(budget.approved, totals.currency) : '—'}</td>
+                    <td className="num">{asMoney(totals.planned, totals.currency)}</td>
+                    <td className="num">{asMoney(totals.actual, totals.currency)}</td>
+                    <td className="num">{asMoney(totals.forecast, totals.currency)}</td>
+                    <td className="num"><Variance value={totals.variance} currency={totals.currency} /></td>
+                    <td><Health totals={totals} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* `mt-5` rather than `tight`: this is no longer the top of the page. */}
+          <SectionHeading>{t('budget.portfolioTitle')}</SectionHeading>
           <p className="text-[12px] text-muted">{t('budget.portfolioHint')}</p>
           {perCurrency.map((row) => (
             <div className="kpi-row" key={row.currency}>
@@ -216,41 +271,6 @@ export function BudgetIndex() {
                 <SplitBars rows={byCategory} currency={main} caption={t('budget.byCategoryCaption')} unit={t('budget.category')} />
               </div>
             )}
-          </div>
-
-          <div className="table-wrap">
-            <table className="task-table">
-              <thead>
-                <tr>
-                  <th>{t('budget.budget')}</th>
-                  <th>{t('budget.period')}</th>
-                  <th>{t('budget.status')}</th>
-                  <th className="num">{t('budget.approved')}</th>
-                  <th className="num">{t('budget.planned')}</th>
-                  <th className="num">{t('budget.actual')}</th>
-                  <th className="num">{t('budget.forecast')}</th>
-                  <th className="num">{t('budget.variance')}</th>
-                  <th />
-                </tr>
-              </thead>
-              <tbody>
-                {rolled.map(({ budget, totals }) => (
-                  <tr key={budget.id} onClick={() => navigate(`/budgets/${budget.id}`)}>
-                    <td className="title">
-                      <Link to={`/budgets/${budget.id}`}>{budget.name}</Link>
-                    </td>
-                    <td>{totals.period.from} → {totals.period.to}</td>
-                    <td>{t(`budget.status.${budget.status}` as TranslationKey)}</td>
-                    <td className="num">{budget.approved ? asMoney(budget.approved, totals.currency) : '—'}</td>
-                    <td className="num">{asMoney(totals.planned, totals.currency)}</td>
-                    <td className="num">{asMoney(totals.actual, totals.currency)}</td>
-                    <td className="num">{asMoney(totals.forecast, totals.currency)}</td>
-                    <td className="num"><Variance value={totals.variance} currency={totals.currency} /></td>
-                    <td><Health totals={totals} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </div>
       )}
