@@ -15,6 +15,11 @@
  * (a test that boots the server and also seeds) is not a bug.
  */
 import { installAutomations } from './automation.ts';
+import { onEntity } from './repo.ts';
+import { budgetRules } from './rules/budgets.ts';
+import { kpiRules } from './rules/kpis.ts';
+import { landscapeRules } from './rules/infrastructure.ts';
+import { rateRules } from './rules/rates.ts';
 
 let installed = false;
 
@@ -29,4 +34,7 @@ export function installEffects(): void {
   if (installed) return;
   installed = true;
   installAutomations();
+  // The order within an entity is the order they were branches in. Across
+  // entities it cannot matter — one write is one entity. See `repo.onEntity`.
+  for (const rule of [budgetRules, rateRules, kpiRules, landscapeRules]) onEntity(rule);
 }

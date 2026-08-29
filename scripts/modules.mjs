@@ -203,7 +203,7 @@ const MODULES = [
     flag: 'time',
     what: 'Logged time, the timesheet, dated rates, and what an hour cost.',
     files: [
-      'shared/src/rates.ts',
+      'shared/src/rates.ts', 'server/src/lib/rules/rates.ts',
       'server/src/lib/personal.ts',
       'web/src/routes/timesheet.tsx', 'web/src/components/time.tsx', 'web/src/components/rates.tsx',
     ],
@@ -213,14 +213,20 @@ const MODULES = [
     ring: 'capability',
     flag: 'budget',
     what: 'Planned against actual, split across the projects that pay for it.',
-    files: ['shared/src/budget.ts', 'web/src/routes/budgets.tsx', 'web/src/components/budget.tsx'],
+    files: [
+      'shared/src/budget.ts', 'server/src/lib/rules/budgets.ts',
+      'web/src/routes/budgets.tsx', 'web/src/components/budget.tsx',
+    ],
   },
   {
     name: 'kpis',
     ring: 'capability',
     flag: 'kpi',
     what: 'Numbers somebody has undertaken to watch, and by which milestone.',
-    files: ['shared/src/kpi.ts', 'web/src/routes/kpis.tsx', 'web/src/components/kpi.tsx'],
+    files: [
+      'shared/src/kpi.ts', 'server/src/lib/rules/kpis.ts',
+      'web/src/routes/kpis.tsx', 'web/src/components/kpi.tsx',
+    ],
   },
   {
     name: 'infrastructure',
@@ -228,7 +234,7 @@ const MODULES = [
     flag: 'infrastructure',
     what: 'Vendors, what runs where, and the moves between one landscape and the next.',
     files: [
-      'shared/src/landscape.ts',
+      'shared/src/landscape.ts', 'server/src/lib/rules/infrastructure.ts',
       'web/src/routes/infrastructure.tsx', 'web/src/components/landscape.tsx',
     ],
   },

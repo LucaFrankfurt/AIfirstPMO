@@ -345,39 +345,14 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
     if (!values.key) setForced('key', `P${id.slice(0, 4).toUpperCase()}`);
     if (!values.name) setForced('name', 'Untitled project');
   }
-  if (entity === 'budget') {
-    // Whoever made it owns it until somebody says otherwise. A budget with no
-    // owner is a budget nobody is asked about when it goes red.
-    if (!values.owner_id) setForced('owner_id', opts.actorId);
-    if (!values.name) setForced('name', 'Untitled budget');
-  }
-  if (entity === 'kpi') {
-    // Same reason a budget gets one: a number nobody owns is a number nobody is
-    // asked about when it goes red.
-    if (!values.owner_id) setForced('owner_id', opts.actorId);
-    if (!values.name) setForced('name', 'Untitled KPI');
-  }
   // A measurement with no date is a measurement of nothing. Today rather than a
   // refusal, for the same reason the rest of these are corrections: this
   // arrives in sync batches from devices that have been away.
-  if (entity === 'kpiReading' && !values.measured_on) {
-    setForced('measured_on', new Date().toISOString().slice(0, 10));
-  }
-  if (entity === 'component' && !values.name) setForced('name', 'Untitled component');
-  if (entity === 'vendor' && !values.name) setForced('name', 'Untitled vendor');
-  if (entity === 'move' && !values.name) setForced('name', 'Untitled move');
   // A rate with no start applies from today rather than from the beginning of
   // time: backdating one restates every report that has ever been run, so it is
   // something somebody types on purpose.
-  if (entity === 'rate' && !values.starts_on) {
-    setForced('starts_on', new Date().toISOString().slice(0, 10));
-  }
   // Who filed the invoice. Never the client's to claim: "somebody recorded
   // this" is the one line of an audit trail this table has.
-  if (entity === 'budgetActual') {
-    if (!opts.system || !values.recorded_by) setForced('recorded_by', opts.actorId);
-    if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
-  }
   if (entity === 'webhook') {
     // Outgoing: what the receiver verifies the signature with. Incoming: the
     // unguessable part of the URL. Minted here either way, because a secret a
@@ -420,6 +395,7 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
       setForced('notify', kind === 'direct' ? 'all' : 'mentions');
     }
   }
+  for (const rule of rulesFor(entity)) rule.defaults?.(entity, id, values, opts, setForced);
   return forced;
 }
 
@@ -576,448 +552,7 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
   if (entity === 'message') applyMessageInvariants(values, existing, forced, opts);
   if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
-  if (BUDGET_ENTITIES.has(entity)) applyBudgetInvariants(entity, values, forced);
-  if (entity === 'rate') applyRateInvariants(values, forced);
-  if (KPI_ENTITIES.has(entity)) applyKpiInvariants(entity, values, forced);
-  if (entity === 'vendor' || entity === 'component' || entity === 'move') {
-    applyLandscapeInvariants(entity, values, forced);
-  }
-  /*
-   * A component cannot sit under itself, at any remove.
-   *
-   * The same rule a project and a sub-task already follow, and reachable the
-   * same way: two people can each make a legal move that is a loop together.
-   * Refused through `forced` rather than thrown, because this write may be one
-   * row of a sync batch from a device that has been away.
-   */
-  if (entity === 'component' && values.parent_id !== undefined && existing) {
-    const wanted = values.parent_id as string | null;
-    if (wanted === existing.id || wouldLoop('components', String(existing.id), wanted)) {
-      values.parent_id = existing.parent_id ?? null;
-      forced.parent_id = values.parent_id;
-    }
-  }
-  if (entity === 'budgetLine' || entity === 'budgetActual' || entity === 'budgetScenario') {
-    followBudgetWorkspace(values, existing);
-  }
-  if (entity === 'kpiTarget' || entity === 'kpiReading') followKpiWorkspace(values, existing);
-}
-
-/** The three tables a KPI is made of. */
-const KPI_ENTITIES = new Set<EntityName>(['kpi', 'kpiTarget', 'kpiReading']);
-
-/** The four tables a budget is made of. */
-const BUDGET_ENTITIES = new Set<EntityName>(['budget', 'budgetLine', 'budgetActual', 'budgetScenario']);
-
-/**
- * Money and the shapes it comes in.
- *
- * Everything here is a *correction* rather than a refusal, applied through
- * `forced` so the client learns what was changed. That is deliberate: these
- * writes arrive in sync batches from devices that have been away, and a budget
- * line with a category somebody's old build spelled differently should not
- * take twenty other rows down with it.
- */
-function applyBudgetInvariants(entity: EntityName, values: Record<string, unknown>, forced: Record<string, unknown>): void {
-  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
-  /** Snap to one of a fixed list, or to its default. See the enums in `types.ts`. */
-  const oneOf = <T extends string>(field: string, allowed: readonly T[], fallback: T): void => {
-    if (values[field] === undefined) return;
-    const value = String(values[field] ?? '');
-    if (!(allowed as readonly string[]).includes(value)) settle(field, fallback);
-  };
-  /**
-   * An amount is a whole number of minor units.
-   *
-   * A client that sends `12.5` means twelve and a half cents, which is not a
-   * thing; rounding it is the only reading that keeps the column addable. A
-   * value that is not a number at all becomes zero rather than `NaN`, which
-   * SQLite would store as NULL and every later `SUM` would silently skip.
-   */
-  const whole = (field: string): void => {
-    if (values[field] === undefined) return;
-    const value = Math.round(Number(values[field]));
-    if (!Number.isFinite(value)) settle(field, 0);
-    else if (value !== values[field]) settle(field, value);
-  };
-  /** Shares that add up to the whole, or an empty list. See `normaliseAllocations`. */
-  const splits = (field: string): void => {
-    if (values[field] === undefined) return;
-    let parsed: unknown = values[field];
-    if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch { parsed = []; } }
-    const clean = normaliseAllocations(Array.isArray(parsed) ? parsed as Allocation[] : []);
-    const encoded = JSON.stringify(clean);
-    if (encoded !== values[field]) settle(field, encoded);
-  };
-
-  if (entity === 'budget') {
-    // The fourth combination — an owner *and* a list — is never stored, so no
-    // reader downstream has to decide which of two fields wins.
-    if (values.project_id !== undefined || values.projects !== undefined) {
-      let listed: unknown = values.projects;
-      if (typeof listed === 'string') { try { listed = JSON.parse(listed); } catch { listed = []; } }
-      const scope = projectScope({
-        project: (values.project_id as string | null) ?? null,
-        projects: Array.isArray(listed) ? listed.filter((row): row is string => typeof row === 'string') : [],
-      });
-      if (values.project_id !== scope.project_id) settle('project_id', scope.project_id);
-      const encoded = JSON.stringify(scope.projects);
-      if (values.projects !== encoded) settle('projects', encoded);
-    }
-    oneOf('status', BUDGET_STATUS, 'draft');
-    whole('approved');
-    // ISO 4217 is three letters, upper case. A currency this server has never
-    // heard of is still stored — new ones exist — but `eur` and `EUR` are one
-    // currency and storing both would be storing a split in every total.
-    if (typeof values.currency === 'string') {
-      const code = values.currency.trim().toUpperCase();
-      settle('currency', /^[A-Z]{3}$/.test(code) ? code : 'EUR');
-    }
-  }
-
-  if (entity === 'budgetLine') {
-    oneOf('category', COST_CATEGORIES, 'other');
-    oneOf('kind', COST_KINDS, 'opex');
-    oneOf('recurrence', COST_RECURRENCES, 'once');
-    oneOf('confidence', COST_CONFIDENCE, 'likely');
-    whole('amount');
-    splits('allocations');
-  }
-
-  if (entity === 'budgetActual') {
-    oneOf('category', COST_CATEGORIES, 'other');
-    oneOf('stage', SPEND_STAGES, 'paid');
-    whole('amount');
-    splits('allocations');
-    // A day, or today. A malformed date would sort into the wrong month and
-    // then quietly vanish from every report that filters on the period.
-    if (values.spent_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.spent_on ?? ''))) {
-      settle('spent_on', new Date().toISOString().slice(0, 10));
-    }
-  }
-}
-
-/**
- * A measurement is a number, a scale and a day.
- *
- * Corrections rather than refusals, as the budget invariants are and for the
- * same reason. The one worth naming is `decimals`: it is clamped to 0–4 and
- * only ever whole, because it is the exponent every value on the KPI is scaled
- * by — a fractional or wild one would not make a figure slightly wrong, it
- * would move the decimal point on every reading and target at once.
- */
-function applyKpiInvariants(
-  entity: EntityName,
-  values: Record<string, unknown>,
-  forced: Record<string, unknown>,
-): void {
-  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
-  const oneOf = (field: string, allowed: readonly string[], fallback: string) => {
-    if (values[field] === undefined) return;
-    const given = String(values[field] ?? '');
-    if (!allowed.includes(given)) settle(field, fallback);
-  };
-  /**
-   * A whole number, or zero.
-   *
-   * `null` is coerced rather than skipped, which is the whole point: `value` is
-   * `NOT NULL`, so letting a null through does not store a slightly wrong
-   * figure — it throws inside the write and takes the entire sync batch it
-   * arrived in down with it. The budget's `whole` has always done this; this one
-   * did not, and a client sending `{value: null}` got a 500 instead of a zero.
-   * Nullable columns are handled at their own call site.
-   */
-  const whole = (field: string) => {
-    if (values[field] === undefined) return;
-    const number = Math.round(Number(values[field]));
-    settle(field, Number.isFinite(number) ? number : 0);
-  };
-  const day = (field: string) => {
-    if (values[field] === undefined) return;
-    const given = String(values[field] ?? '');
-    if (given && !/^\d{4}-\d{2}-\d{2}$/.test(given)) settle(field, new Date().toISOString().slice(0, 10));
-  };
-
-  if (entity === 'kpi') {
-    if (values.project_id !== undefined || values.projects !== undefined) {
-      let listed: unknown = values.projects;
-      if (typeof listed === 'string') { try { listed = JSON.parse(listed); } catch { listed = []; } }
-      const scope = projectScope({
-        project: (values.project_id as string | null) ?? null,
-        projects: Array.isArray(listed) ? listed.filter((row): row is string => typeof row === 'string') : [],
-      });
-      if (values.project_id !== scope.project_id) settle('project_id', scope.project_id);
-      const encoded = JSON.stringify(scope.projects);
-      if (values.projects !== encoded) settle('projects', encoded);
-    }
-    oneOf('unit', MEASURE_UNITS, 'number');
-    oneOf('direction', MEASURE_DIRECTIONS, 'up');
-    oneOf('cadence', MEASURE_CADENCES, 'monthly');
-    if (values.decimals !== undefined) {
-      const given = Math.round(Number(values.decimals));
-      settle('decimals', Number.isFinite(given) ? Math.max(0, Math.min(4, given)) : 0);
-    }
-    // The one nullable number here, and null means something: nobody has said
-    // where it started, and progress runs from the first reading instead.
-    if (values.baseline !== undefined && values.baseline !== null) whole('baseline');
-  }
-
-  if (entity === 'kpiTarget') {
-    whole('value');
-    day('due_on');
-  }
-
-  if (entity === 'kpiReading') {
-    whole('value');
-    // Not optional here, unlike a target's: a reading with no day cannot be
-    // placed on the line, and the state that says "we do not know when" is a
-    // reading nobody entered.
-    if (values.measured_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.measured_on ?? ''))) {
-      settle('measured_on', new Date().toISOString().slice(0, 10));
-    }
-  }
-}
-
-/**
- * A rate is money and a day, and both have to be storable.
- *
- * Corrections rather than refusals, as the budget invariants are and for the
- * same reason — these arrive in sync batches from devices that have been away.
- * A negative rate becomes zero rather than being kept: an hour that earns money
- * back is not a thing, and a minus somebody typed by accident would quietly
- * subtract from every project they touched.
- */
-function applyRateInvariants(values: Record<string, unknown>, forced: Record<string, unknown>): void {
-  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
-
-  if (values.kind !== undefined && !(RATE_KINDS as readonly string[]).includes(String(values.kind))) {
-    settle('kind', 'cost');
-  }
-  if (values.amount !== undefined) {
-    const amount = Math.round(Number(values.amount));
-    if (!Number.isFinite(amount) || amount < 0) settle('amount', 0);
-    else if (amount !== values.amount) settle('amount', amount);
-  }
-  if (typeof values.currency === 'string') {
-    const code = values.currency.trim().toUpperCase();
-    settle('currency', /^[A-Z]{3}$/.test(code) ? code : 'EUR');
-  }
-  // A rate that starts on nothing in particular would sort before or after
-  // every other depending on how SQLite felt about the string.
-  if (values.starts_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.starts_on ?? ''))) {
-    settle('starts_on', new Date().toISOString().slice(0, 10));
-  }
-}
-
-/**
- * The register's own shapes: enums that have to be one of a list, money that
- * has to be a whole number, dates that have to sort.
- *
- * Corrections rather than refusals, for the reason the budget and rate
- * invariants give — these arrive in batches from devices that have been away,
- * and one unknown enum should not take twenty good rows down with it.
- */
-function applyLandscapeInvariants(
-  entity: EntityName,
-  values: Record<string, unknown>,
-  forced: Record<string, unknown>,
-): void {
-  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
-  const oneOf = <T extends string>(field: string, allowed: readonly T[], fallback: T): void => {
-    if (values[field] === undefined) return;
-    if (!(allowed as readonly string[]).includes(String(values[field] ?? ''))) settle(field, fallback);
-  };
-  /** A date, or nothing. A malformed one sorts unpredictably and lands in the
-      wrong landscape rather than in none, which is the worse of the two. */
-  const day = (field: string): void => {
-    if (values[field] === undefined || values[field] === null || values[field] === '') return;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(values[field]))) settle(field, null);
-  };
-  /** A list of ids, from whatever arrived. */
-  const ids = (field: string): void => {
-    if (values[field] === undefined) return;
-    let parsed: unknown = values[field];
-    if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch { parsed = []; } }
-    const clean = Array.isArray(parsed)
-      ? [...new Set(parsed.filter((row): row is string => typeof row === 'string' && !!row))]
-      : [];
-    const encoded = JSON.stringify(clean);
-    if (encoded !== values[field]) settle(field, encoded);
-  };
-
-  if (entity === 'vendor') {
-    oneOf('kind', VENDOR_KINDS, 'other');
-    day('contract_start');
-    day('contract_end');
-    if (values.notice_days !== undefined) {
-      const days = Math.round(Number(values.notice_days));
-      // Clamped rather than refused: a negative notice period is a typo, and a
-      // five-year one is a typo that would put the reminder in the past.
-      if (!Number.isFinite(days) || days < 0) settle('notice_days', 0);
-      else if (days > 1095) settle('notice_days', 1095);
-      else if (days !== values.notice_days) settle('notice_days', days);
-    }
-  }
-
-  if (entity === 'component') {
-    oneOf('kind', COMPONENT_KINDS, 'other');
-    oneOf('environment', ENVIRONMENTS, 'production');
-    oneOf('status', LIFECYCLES, 'live');
-    oneOf('recurrence', COST_RECURRENCES, 'monthly');
-    ids('projects');
-    day('live_from');
-    day('live_until');
-    if (values.amount !== undefined) {
-      const amount = Math.round(Number(values.amount));
-      if (!Number.isFinite(amount) || amount < 0) settle('amount', 0);
-      else if (amount !== values.amount) settle('amount', amount);
-    }
-    if (typeof values.currency === 'string') {
-      const code = values.currency.trim().toUpperCase();
-      settle('currency', /^[A-Z]{3}$/.test(code) ? code : 'EUR');
-    }
-    /*
-     * A component that leaves before it arrives is in no landscape at all, on
-     * any day, and nothing on any screen would say why. The end date is dropped
-     * rather than the start: somebody who typed one date correctly typed the
-     * start, because that is the one they knew first.
-     */
-    const from = (values.live_from ?? undefined) as string | undefined;
-    const until = (values.live_until ?? undefined) as string | undefined;
-    if (from && until && until < from) settle('live_until', null);
-  }
-
-  if (entity === 'move') {
-    oneOf('status', MOVE_STATUS, 'proposed');
-    ids('leaving');
-    ids('arriving');
-    day('target_date');
-  }
-}
-
-/**
- * A line, an actual or a scenario belongs to whichever budget it names.
- *
- * Not to the workspace the write arrived in — those are the same thing today,
- * and `guardReferences` already refuses a budget in another workspace, but the
- * child rows are read by joining on `budget_id` and a row whose two answers
- * disagree is a row that appears in one query and not the next.
- */
-/** A target and a reading live where their KPI lives, whatever the client said. */
-function followKpiWorkspace(values: Record<string, unknown>, existing: Row | undefined): void {
-  const kpiId = (values.kpi_id ?? existing?.kpi_id) as string | undefined;
-  if (!kpiId) return;
-  const kpi = get<Row>(`SELECT workspace_id FROM kpis WHERE id = ?`, kpiId);
-  if (kpi) values.workspace_id = kpi.workspace_id;
-}
-
-function followBudgetWorkspace(values: Record<string, unknown>, existing: Row | undefined): void {
-  const budgetId = (values.budget_id ?? existing?.budget_id) as string | undefined;
-  if (!budgetId) return;
-  const budget = get<Row>(`SELECT workspace_id FROM budgets WHERE id = ?`, budgetId);
-  if (budget) values.workspace_id = budget.workspace_id;
-}
-
-function tombstoneKpiChildren(kpi: Row, opts: WriteOpts): void {
-  for (const [entity, table] of [['kpiTarget', 'kpi_targets'], ['kpiReading', 'kpi_readings']] as const) {
-    for (const row of all<Row>(`SELECT id FROM ${table} WHERE kpi_id = ? AND deleted_at IS NULL`, kpi.id)) {
-      writeEntity(entity, String(row.id), {}, { ...opts, op: 'delete', system: true, silent: true });
-    }
-  }
-}
-
-/**
- * A milestone that is gone leaves the targets due by it standing, undated.
- *
- * The same rule the estate follows and the opposite of the cascade above, for a
- * reason worth stating: cancelling a milestone does not cancel the promise. "We
- * want 90% uptime" survives the release it was hung on, and deleting the target
- * with the module would quietly retire a commitment nobody decided to drop. The
- * target keeps whatever date was typed on it and otherwise becomes undated,
- * which every screen already reports as its own state.
- *
- * Note the options: `op: undefined` so this is an edit rather than a delete.
- * Passing `opts` through unchanged once deleted the invoices filed against a
- * budget line, which is how that lesson was learned.
- */
-function detachTargetsOf(module: Row, opts: WriteOpts): void {
-  for (const row of all<Row>(`SELECT id FROM kpi_targets WHERE module_id = ? AND deleted_at IS NULL`, module.id)) {
-    writeEntity('kpiTarget', String(row.id), { module_id: null }, { ...opts, op: undefined, system: true, silent: true });
-  }
-}
-
-/** A vendor that is gone leaves its components running, and unattached. */
-function detachFromVendor(vendor: Row, opts: WriteOpts): void {
-  for (const row of all<Row>(`SELECT id FROM components WHERE vendor_id = ? AND deleted_at IS NULL`, vendor.id)) {
-    writeEntity('component', String(row.id), { vendor_id: null }, { ...opts, op: undefined, system: true, silent: true });
-  }
-}
-
-/**
- * A component that is gone leaves its children at the top of the tree, and its
- * name out of the moves that named it.
- *
- * The second half is the less obvious one. `moveProgress` reads the register
- * rather than the move's own status, and an id it cannot resolve counts as
- * *not done* — so a move naming a deleted component would sit at 90% forever
- * with nothing on the screen able to explain the missing tenth. Taking the id
- * out is the smaller surprise of the two.
- */
-function detachComponent(component: Row, opts: WriteOpts): void {
-  for (const row of all<Row>(`SELECT id FROM components WHERE parent_id = ? AND deleted_at IS NULL`, component.id)) {
-    writeEntity('component', String(row.id), { parent_id: null }, { ...opts, op: undefined, system: true, silent: true });
-  }
-  const id = String(component.id);
-  for (const move of all<Row>(`SELECT * FROM moves WHERE deleted_at IS NULL`)) {
-    const leaving = parseIds(move.leaving);
-    const arriving = parseIds(move.arriving);
-    if (!leaving.includes(id) && !arriving.includes(id)) continue;
-    writeEntity('move', String(move.id), {
-      leaving: JSON.stringify(leaving.filter((row) => row !== id)),
-      arriving: JSON.stringify(arriving.filter((row) => row !== id)),
-    }, { ...opts, op: undefined, system: true, silent: true });
-  }
-}
-
-/**
- * A budget that is gone takes its lines, its actuals and its scenarios with it.
- *
- * Tombstones rather than a `DELETE`, for the reason `tombstoneValuesOf` gives:
- * every other device holds those rows and only a tombstone tells them. Without
- * this, deleting a budget left its lines on every client — invisible, because
- * nothing renders a line whose budget has gone, and permanently, because
- * nothing would ever mention them again.
- */
-function tombstoneBudgetChildren(budget: Row, opts: WriteOpts): void {
-  for (const [entity, table] of [
-    ['budgetLine', 'budget_lines'],
-    ['budgetActual', 'budget_actuals'],
-    ['budgetScenario', 'budget_scenarios'],
-  ] as const) {
-    for (const row of all<Row>(`SELECT id FROM ${table} WHERE budget_id = ? AND deleted_at IS NULL`, budget.id)) {
-      writeEntity(entity, String(row.id), {}, { ...opts, op: 'delete', system: true, silent: true });
-    }
-  }
-}
-
-/**
- * A plan line that is gone leaves its actuals behind, unattached.
- *
- * The opposite of the rule above, on purpose. An invoice does not stop having
- * been paid because somebody tidied up the plan it was filed under, and
- * deleting real money because a forecast row was deleted would be the worst
- * kind of cascade. The actual becomes unplanned spend — which is exactly what
- * it now is, and which the reports already have a column for.
- */
-function detachActualsOf(line: Row, opts: WriteOpts): void {
-  for (const row of all<Row>(`SELECT id FROM budget_actuals WHERE line_id = ? AND deleted_at IS NULL`, line.id)) {
-    // `op: undefined`, and it is the whole of this function working. The
-    // `opts` this is handed are the *line's* delete options, so spreading them
-    // unchanged carries `op: 'delete'` onto every invoice — which deleted the
-    // money along with the plan, quietly, and is exactly what this is here to
-    // prevent.
-    writeEntity('budgetActual', String(row.id), { line_id: null }, { ...opts, op: undefined, system: true, silent: true });
-  }
+  for (const rule of rulesFor(entity)) rule.invariants?.(entity, id, values, existing, forced, opts);
 }
 
 /**
@@ -1372,7 +907,7 @@ function guardTransition(stateId: string, opts: WriteOpts): void {
  * are written by devices that may be offline, so two moves that are each legal
  * can be a loop together, and only the side that sees both can say so.
  */
-function wouldLoop(table: 'projects' | 'tasks' | 'components', id: string, parentId: string | null): boolean {
+export function wouldLoop(table: 'projects' | 'tasks' | 'components', id: string, parentId: string | null): boolean {
   let cursor = parentId;
   for (let hops = 0; cursor && hops < 50; hops++) {
     if (cursor === id) return true;
@@ -1427,8 +962,6 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
   // A budget takes its lines with it; a line leaves its invoices behind. See
   // both functions for why the two cascades go opposite ways.
-  if (entity === 'budget' && row.deleted_at && !before?.deleted_at) tombstoneBudgetChildren(row, opts);
-  if (entity === 'budgetLine' && row.deleted_at && !before?.deleted_at) detachActualsOf(row, opts);
   // Nothing in the register cascades a *deletion*, and that is the point: a
   // vendor going out of the list does not switch off the servers, and deleting
   // a machine's row does not delete the instances on it. What it does is
@@ -1436,11 +969,7 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   // A KPI takes its readings and targets with it: unlike an invoice, a
   // measurement of a metric nobody keeps is not independent evidence of
   // anything — it is a number with no unit, no direction and no owner.
-  if (entity === 'kpi' && row.deleted_at && !before?.deleted_at) tombstoneKpiChildren(row, opts);
   // A milestone that is gone leaves the promises made against it standing.
-  if (entity === 'module' && row.deleted_at && !before?.deleted_at) detachTargetsOf(row, opts);
-  if (entity === 'vendor' && row.deleted_at && !before?.deleted_at) detachFromVendor(row, opts);
-  if (entity === 'component' && row.deleted_at && !before?.deleted_at) detachComponent(row, opts);
   if (entity === 'task' && (changed.start_date !== undefined || changed.due_date !== undefined)) {
     cascadeSchedule(row, opts);
   }
@@ -1458,6 +987,7 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   if (entity === 'channel' && !before && row.kind === 'direct') {
     for (const userId of parseIds(row.members)) resendUser(userId);
   }
+  for (const rule of rulesFor(entity)) rule.effects?.(entity, row, before, changed, opts);
   if (opts.system) return;
   recordActivity(entity, row, before, changed, opts);
   /*
@@ -1486,6 +1016,61 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
     fireWebhooks(entity, row, before, changed, opts);
   }
 }
+
+/* ------------------------------------------------------------ entity rules */
+
+/**
+ * What a module knows about the rows it owns, offered to the write path.
+ *
+ * `writeEntity` has always had three moments where a domain gets a say: filling
+ * in what a create left out, correcting what arrived, and reacting once the row
+ * is written. All three used to be a chain of `if (entity === ...)` inside this
+ * file, which is how a 2 370-line write path ends up holding the budget rules,
+ * the KPI cascades and the landscape detachments — none of which the write path
+ * has any business knowing about.
+ *
+ * A rule names the entities it speaks for and fills in whichever of the three
+ * moments it cares about. Registration happens in `lib/wiring.ts`, beside the
+ * write listeners, and the shape is deliberately the same idea one floor down:
+ * synchronous, in order, inside the transaction.
+ *
+ * **Why appending is not a reordering.** One write is one entity, so two rules
+ * for different entities never both run and their relative order cannot matter.
+ * What has to be preserved is the order *within* an entity, and that is the
+ * order they are registered in — which is the order they were branches in.
+ */
+export interface EntityRule {
+  /** Which entities this rule speaks for. A rule may listen to another module's. */
+  entities: readonly EntityName[];
+  /** Fill in what a create left out. Only called on create. */
+  defaults?(
+    entity: EntityName, id: string, values: Record<string, unknown>, opts: WriteOpts,
+    setForced: (field: string, value: unknown) => void,
+  ): void;
+  /**
+   * Correct what arrived, in place. Anything put in `forced` is sent back so
+   * the client learns what was changed rather than silently disagreeing.
+   */
+  invariants?(
+    entity: EntityName, id: string, values: Record<string, unknown>,
+    existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts,
+  ): void;
+  /** What else has to change now this row has. Inside the same transaction. */
+  effects?(
+    entity: EntityName, row: Row, before: Row | undefined,
+    changed: Record<string, unknown>, opts: WriteOpts,
+  ): void;
+}
+
+const entityRules: EntityRule[] = [];
+
+/** Register a rule. Registering the same one twice is a no-op, as with `onWrite`. */
+export function onEntity(rule: EntityRule): void {
+  if (!entityRules.includes(rule)) entityRules.push(rule);
+}
+
+const rulesFor = (entity: EntityName): EntityRule[] =>
+  entityRules.filter((rule) => rule.entities.includes(entity));
 
 /* --------------------------------------------------------- write listeners */
 
