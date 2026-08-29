@@ -57,7 +57,7 @@ runs the TypeScript sources directly, so there is no build step and no `dist/` t
 | `lib/auth.ts` | scrypt passwords, hashed session and API tokens, role checks |
 | `lib/repo.ts` | **the only write path** — per-field LWW merge, side effects, search index |
 | `lib/bootstrap.ts` | workspace/project creation with default states and labels |
-| `lib/mcp.ts` | MCP tools, prompts, resources; plain JSON-RPC, no SDK |
+| `lib/mcp/` | MCP: the JSON-RPC envelope and prompts in `index.ts`, the shared vocabulary in `kit.ts`, and one file of tools per group under `tools/`. No SDK |
 | `lib/automation.ts` | rules: what fired, who it resolves to, and why it did nothing |
 | `lib/notify.ts` | writing a notification, and every channel that has to hear about it |
 | `lib/telegram.ts` | the bot: long-polled updates, single-use link codes, delivery |

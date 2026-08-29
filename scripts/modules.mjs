@@ -295,7 +295,10 @@ const MODULES = [
     name: 'adapter/mcp',
     ring: 'adapter',
     what: 'The assistant\'s way in: JSON-RPC over HTTP, and a stdio bridge to it.',
-    files: ['server/src/lib/mcp.ts', 'server/src/routes/mcp.ts', 'mcp/src/index.ts'],
+    files: [
+      'server/src/lib/mcp/index.ts', 'server/src/lib/mcp/kit.ts',
+      'server/src/lib/mcp/tools/', 'server/src/routes/mcp.ts', 'mcp/src/index.ts',
+    ],
   },
   {
     name: 'adapter/oauth',

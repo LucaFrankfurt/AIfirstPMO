@@ -1,7 +1,7 @@
 import { get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { authenticate } from '../lib/auth.ts';
-import { handleRpc, PROTOCOL_VERSION, toolNames, type McpCtx } from '../lib/mcp.ts';
+import { handleRpc, PROTOCOL_VERSION, toolNames, type McpCtx } from '../lib/mcp/index.ts';
 import { readJson, send, unauthorized, type Ctx, type Router } from '../lib/http.ts';
 import { resourceUrl } from './oauth.ts';
 

@@ -19,7 +19,7 @@
  * tree — should not be in prose at all, because it is stale before the reader
  * gets to it; say the thing that stays true instead.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -27,12 +27,18 @@ const read = (file) => readFileSync(join(ROOT, file), 'utf8');
 
 /* ------------------------------------------------------------ the sources */
 
-const mcp = read('packages/server/src/lib/mcp.ts');
-/** Prompts and tools are both `name:` at the same indent; the prompt list names itself. */
-const promptNames = [...(mcp.match(/const PROMPTS = \[[\s\S]*?\n\];/) ?? [''])[0]
+/**
+ * Tools and prompts used to share a file and had to be told apart by which
+ * list they sat in. They are separate files now — eleven groups under
+ * `lib/mcp/tools/`, the prompts with the JSON-RPC envelope — so each is
+ * counted where it lives.
+ */
+const toolsDir = 'packages/server/src/lib/mcp/tools';
+const tools = readdirSync(join(ROOT, toolsDir))
+  .filter((name) => name.endsWith('.ts'))
+  .flatMap((name) => [...read(join(toolsDir, name)).matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]));
+const promptNames = [...read('packages/server/src/lib/mcp/index.ts')
   .matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]);
-const everyName = [...mcp.matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]);
-const tools = everyName.filter((name) => !promptNames.includes(name));
 
 /** The text between two markers — enough parsing for a literal list. */
 const between = (text, start, end) => {
