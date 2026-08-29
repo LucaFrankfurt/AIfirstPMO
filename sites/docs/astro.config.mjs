@@ -143,6 +143,7 @@ export default defineConfig({
             { label: 'The timeline', slug: 'planning/timeline' },
             { label: 'Insights', slug: 'planning/insights' },
             { label: 'Time tracking', slug: 'planning/time' },
+            { label: 'Budgets', slug: 'planning/budgets' },
             { label: 'Across projects', slug: 'planning/portfolio' },
           ],
         },

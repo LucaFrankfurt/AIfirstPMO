@@ -57,7 +57,10 @@ Showing "3h of 5" against a five-point task would be comparing two different thi
 confidently.
 
 **Not money.** Every entry carries a `billable` flag, stored and synced, and nothing reads it
-yet. Rates, budgets and cost reports do not exist.
+yet. [Budgets](/planning/budgets/) do exist, but deliberately not through this: a budget line
+carries its own money, so a cost never has to be inferred from an estimate in points. What is
+missing is an hourly **rate** — the piece that would turn a logged hour into a figure — and
+nothing here invents one.
 
 **Not a timesheet.** No week view, no submit, no approval. Time is recorded and added up; who
 signs it off is a workflow Kolibri does not have.

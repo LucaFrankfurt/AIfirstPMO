@@ -52,8 +52,11 @@ you press stop was wrong before you pressed it.
   before spent-versus-estimated can mean anything, and that is a decision about
   how a team plans rather than a formatting problem.
 - **Not money.** There is a `billable` flag on every entry, stored and synced,
-  and nothing reads it yet. Rates, budgets and cost reports are the next thing
-  and none of them exist.
+  and nothing reads it yet. Budgets *do* exist — see [`budgets.md`](budgets.md) —
+  but they are deliberately not derived from this: a budget line carries its own
+  money, precisely so that a cost never has to be inferred from an estimate in
+  points. What is still missing is a **rate**, which is the piece that would turn
+  an hour into a figure. Nothing here invents one.
 - **Not a timesheet.** There is no week view, no submit, no approval. Time is
   recorded and added up; who signs it off is a workflow Kolibri does not have.
 - **Not private.** Anyone who can see the project can see the time logged
