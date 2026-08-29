@@ -3060,3 +3060,50 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   color: var(--warn);
   font-size: 12.5px;
 }
+
+/* ------------------------------------------ taking the plan across
+ *
+ * Sits above the recorded costs and reads as a worklist rather than as data: a
+ * short list of things to press, which empties as they are pressed.
+ */
+.confirm-strip {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  padding: 11px 13px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+.confirm-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+/* On a phone the two controls fill the row on their own, and a heading fighting
+   them for the last 40 pixels wins two letters and an ellipsis. It takes the
+   line above instead. */
+@media (max-width: 700px) {
+  .confirm-head > strong { flex: 1 0 100%; }
+}
+.confirm-empty { display: flex; align-items: center; gap: 6px; margin: 8px 0 0; color: var(--fg-muted); font-size: 12.5px; }
+/* The closed month reads as finished rather than as empty — the two say
+   very different things and land in the same slot. */
+.confirm-empty.done { color: var(--ok); }
+
+.confirm-list { list-style: none; margin: 10px 0 0; padding: 0; }
+.confirm-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+/* Already recorded: still listed, because "this month is complete" is what the
+   list is for — but visibly finished, so the eye goes to the rest. */
+.confirm-list li.done { color: var(--fg-muted); }
+.confirm-done { display: inline-flex; align-items: center; gap: 5px; color: var(--ok); font-size: 12px; }
+
+.confirm-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}

@@ -25,6 +25,21 @@ export function shortDate(value?: string | number | null): string {
 }
 
 /**
+ * A month, named.
+ *
+ * `shortDate` on the first of the month gives "Aug 1", which is the right
+ * label for a point on a cumulative chart and the wrong one for a bucket a
+ * whole month wide: it names a day the money did not necessarily move on.
+ * Anywhere a month is the unit — a heading, a description written into the
+ * ledger — it should read as one.
+ */
+export function monthName(month: string): string {
+  const date = new Date(`${month}-01T00:00:00`);
+  if (Number.isNaN(date.getTime())) return month;
+  return date.toLocaleDateString(currentLocale(), { month: 'long', year: 'numeric' });
+}
+
+/**
  * The whole moment, spelled out.
  *
  * "3 minutes ago" is the right thing to read and the wrong thing to rely on:

@@ -95,6 +95,22 @@ You can record a spend against a planned cost, or against nothing at all. **Spen
 for is the most interesting row on the screen**, so it gets its own figure rather than being
 filed under whichever line was closest.
 
+## Closing a month in two presses
+
+Twelve identical hosting bills a year is why the actuals in a budget stop being filled in around
+April, and a budget nobody records against has a plan and nothing to compare it to. So the
+actuals screen opens with **this month's plan and a button beside each line** — confirm one, or
+confirm all of them at the figure the plan says.
+
+What lands is an ordinary spend: same table, editable, deletable, nothing marking it as
+machine-written. It takes the line's own day of the month (clamped, so a line that falls on the
+31st lands on 28 February) and the amount of **one occurrence**, not the whole period.
+
+A line that already has anything recorded against it that month is not offered again. The test
+is "is there anything at all", not "does it add up" — a part invoice is a real thing, and a line
+matched on totals would offer the rest as a fresh full-price row and book the cost one and a half
+times. Under-recording shows up in the figures; a quiet double-book does not.
+
 ## The forecast
 
 One rule, and it is worth knowing because every figure on the dashboard follows it:
@@ -149,7 +165,7 @@ add them. A portfolio spanning two currencies shows two totals, side by side.
 | **Budgets** in the sidebar | Every budget, totalled per currency, and what each project is charged across all of them |
 | A budget | Dashboard, the plan, what has gone, scenarios, settings |
 | A project → **Budget** | That project's share of every budget that charges it |
-| An assistant | `list_budgets`, `budget_status`, `create_budget`, `add_budget_line`, `record_spend`, `project_costs` — see [the assistant](/beyond/assistant/) |
+| An assistant | `list_budgets`, `budget_status`, `create_budget`, `add_budget_line`, `record_spend`, `confirm_planned`, `project_costs` — see [the assistant](/beyond/assistant/) |
 
 Everything is worked out from rows as the screen draws, so the whole thing — charts included —
 works offline, and an assistant answering a question cannot quote a different number from the

@@ -15,7 +15,8 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   FULL_SHARE, allocate, applyScenario, byConfidence, byKind, formatMoney, healthOf, monthsBetween,
-  normaliseAllocations, parseMoney, plannedTotal, projectShare, rollUp, scheduleOf, shiftDate,
+  actualFromPlan, normaliseAllocations, parseMoney, plannedForMonth, plannedTotal, projectShare,
+  rollUp, scheduleOf, shiftDate,
   type Budget, type BudgetActual, type BudgetLine,
 } from '@kolibri/shared';
 
@@ -393,6 +394,121 @@ describe('adding a budget up', () => {
 
   it('says nothing about a budget with no envelope at all', () => {
     assert.equal(healthOf({ approved: 0, planned: 0, forecast: 0 }), 'unset');
+  });
+});
+
+describe('confirming a month\'s plan', () => {
+  const plan = [
+    line({ id: 'hosting', amount: 4500_00, recurrence: 'monthly', starts_on: '2026-01-15', vendor: 'Scaleway' }),
+    line({ id: 'licences', amount: 890_00, recurrence: 'monthly', starts_on: '2026-01-31' }),
+    line({ id: 'contractors', amount: 1800_00, recurrence: 'quarterly', starts_on: '2026-02-10' }),
+    line({ id: 'audit', amount: 2400_00, recurrence: 'once', starts_on: '2026-09-01' }),
+  ];
+
+  it('offers only what the plan says is due that month', () => {
+    const march = plannedForMonth({ lines: plan, actuals: [], month: '2026-03', period });
+    assert.deepEqual(march.map((row) => row.line.id).sort(), ['hosting', 'licences']);
+
+    // February additionally carries the quarterly line, counted from its own
+    // start rather than from the calendar quarter.
+    const february = plannedForMonth({ lines: plan, actuals: [], month: '2026-02', period });
+    assert.ok(february.some((row) => row.line.id === 'contractors'));
+  });
+
+  it('dates it on the line\'s own day of the month', () => {
+    // A contract billed on the 15th is billed on the 15th. Dating every
+    // confirmation to the 1st would put a month's costs on a day none of them
+    // happened.
+    const march = plannedForMonth({ lines: plan, actuals: [], month: '2026-03', period });
+    assert.equal(march.find((row) => row.line.id === 'hosting')!.on, '2026-03-15');
+  });
+
+  it('clamps a day the month does not have', () => {
+    // The 31st in February is the 28th, not the 1st of March — which would
+    // file the cost under a month this function exists to decide.
+    const february = plannedForMonth({ lines: plan, actuals: [], month: '2026-02', period });
+    assert.equal(february.find((row) => row.line.id === 'licences')!.on, '2026-02-28');
+  });
+
+  it('stops offering a line once anything is recorded against it that month', () => {
+    /*
+     * `confirmed` is "is there anything at all", not "does the total match".
+     * A line paid across two invoices is real, and a check that compared totals
+     * would keep offering to confirm the rest — which is how somebody books a
+     * cost one and a half times.
+     */
+    const partly = plannedForMonth({
+      lines: plan,
+      actuals: [actual({ line_id: 'hosting', amount: 2000_00, spent_on: '2026-03-15' })],
+      month: '2026-03',
+      period,
+    });
+    const hosting = partly.find((row) => row.line.id === 'hosting')!;
+    assert.equal(hosting.confirmed, true);
+    assert.equal(hosting.recorded, 2000_00, 'and what is really there is reported');
+  });
+
+  it('does not count a record from a different month', () => {
+    const march = plannedForMonth({
+      lines: plan,
+      actuals: [actual({ line_id: 'hosting', amount: 4500_00, spent_on: '2026-02-15' })],
+      month: '2026-03',
+      period,
+    });
+    assert.equal(march.find((row) => row.line.id === 'hosting')!.confirmed, false);
+  });
+
+  it('writes a record indistinguishable from a typed one', () => {
+    const march = plannedForMonth({ lines: plan, actuals: [], month: '2026-03', period });
+    const patch = actualFromPlan(march.find((row) => row.line.id === 'hosting')!, {
+      budgetId: 'b1', stage: 'paid',
+    });
+    assert.equal(patch.line_id, 'hosting');
+    assert.equal(patch.amount, 4500_00);
+    assert.equal(patch.spent_on, '2026-03-15');
+    assert.equal(patch.category, 'infrastructure');
+    assert.equal(patch.vendor, 'Scaleway');
+    // Empty rather than a copy of the line's: an empty split *means* "follow
+    // the line", so a confirmed cost keeps following it when the percentages
+    // change. A copy would freeze today's into twelve rows that then disagree.
+    assert.deepEqual(patch.allocations, []);
+  });
+
+  it('offers a one-off in its month and in no other', () => {
+    // A `once` line is the case where getting the month wrong is worst: it is
+    // not a rhythm somebody would notice slipping, it is a single cost that
+    // either lands where it was planned or lands twice.
+    const september = plannedForMonth({ lines: plan, actuals: [], month: '2026-09', period });
+    assert.ok(september.some((row) => row.line.id === 'audit'));
+    for (const month of ['2026-08', '2026-10', '2027-09']) {
+      const other = plannedForMonth({ lines: plan, actuals: [], month, period });
+      assert.ok(!other.some((row) => row.line.id === 'audit'), `audit should not be due in ${month}`);
+    }
+  });
+
+  it('adds up everything already filed against a line that month', () => {
+    const march = plannedForMonth({
+      lines: plan,
+      actuals: [
+        actual({ line_id: 'hosting', amount: 2000_00, spent_on: '2026-03-15' }),
+        actual({ line_id: 'hosting', amount: 2500_00, spent_on: '2026-03-28' }),
+      ],
+      month: '2026-03',
+      period,
+    });
+    assert.equal(march.find((row) => row.line.id === 'hosting')!.recorded, 4500_00);
+  });
+
+  it('lands in the totals as the plan said it would', () => {
+    const confirmed = plannedForMonth({ lines: plan, actuals: [], month: '2026-03', period })
+      .map((row) => ({
+        ...actual({}),
+        ...actualFromPlan(row, { budgetId: 'b1', stage: 'paid' }),
+      })) as unknown as BudgetActual[];
+
+    const totals = rollUp({ budget: budget(), lines: plan, actuals: confirmed, asOf: '2026-04-15' });
+    assert.equal(totals.paid, 4500_00 + 890_00);
+    assert.equal(totals.unplanned, 0, 'a confirmed cost is not unplanned spend');
   });
 });
 

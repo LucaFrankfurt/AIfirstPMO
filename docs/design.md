@@ -51,6 +51,12 @@ So the order is the documented one, and the rules follow from it:
 - **`packages/web/test/forms.test.ts` catches the rest of what a codemod does quietly**: a form
   whose submit button lost `type="submit"`, a `htmlFor` pointing at nothing, and two utilities in
   one string that contradict each other.
+- **`packages/web/test/reachable.test.ts` asks whether a phone can get there.** Every top-level
+  route has to be in `lib/nav.ts` — which the sidebar and the "More" screen both render — in the
+  bottom bar, or named in the test with the way it is reached. This is not hypothetical: chat was
+  desktop-only for a while, and budgets, the timesheet and the register shipped switched on,
+  visible in the sidebar, and unreachable on a phone, because the two navigations were two
+  hand-written lists and only one had been remembered.
 
 ## Width is not the window
 

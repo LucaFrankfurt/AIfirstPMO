@@ -144,6 +144,40 @@ plan line would have people filing it under whichever line was closest — which
 is how a budget report stops describing reality. Unplanned spend has its own
 figure.
 
+## Taking the plan across
+
+The recurring half of a budget is almost all of it — twelve identical hosting
+bills a year, four quarterly ones, a licence renewal — and typing the same four
+fields twelve times is why the actuals in a budget stop being filled in around
+April. A budget nobody records against has a plan and nothing to compare it
+to, which is a worse failure than any the forecast rules guard against.
+
+So the actuals screen opens with the month's plan and a button per line. A
+confirmed row is an ordinary actual in every respect: same shape, same table,
+editable and deletable like any other. Nothing marks it as machine-written,
+because nothing about it is less true — somebody looked at the plan and said
+yes.
+
+Three decisions worth naming:
+
+- **The amount is one occurrence, not the period.** A monthly line confirmed
+  in August records August's figure, not the year's.
+- **The date is the line's own day of month**, carried across and clamped to
+  the month's length — a line starting 31 January lands on 28 February.
+- **A line with anything already recorded that month is not offered again.**
+  The test is "is there anything at all", not "does the total match": a part
+  invoice is a real thing, and a line matched on totals would offer the
+  remainder as a fresh full-price row and book the cost one and a half times.
+  Under-recording shows up in the figures; a silent double-book does not.
+
+The allocations are left empty on purpose, which means *follow the line* — so
+a plan line resplit between projects in November also resplits everything
+confirmed against it, instead of leaving each month frozen at the split that
+was current when somebody pressed the button.
+
+`confirm_planned` does the same thing over MCP, and takes `dry_run` so a model
+can show the list before writing it.
+
 ## The forecast
 
 One rule, applied everywhere:
