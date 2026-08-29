@@ -504,7 +504,7 @@ Three things this deliberately does **not** do:
 
 ## Getting there
 
-Ordered by ratio of value to risk. Each step ships on its own, keeps 1 303 tests green, and is
+Ordered by ratio of value to risk. Each step ships on its own, keeps the tests green, and is
 useful even if the next one never happens. Steps 1 to 6 are done, and 7 is half done — the
 mechanism is in and the four switchable capabilities are through it.
 
