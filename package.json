@@ -28,6 +28,8 @@
     "test:server": "node --test packages/server/test/*.test.ts",
     "test:web": "node --import ./packages/web/test/loader.mjs --test packages/web/test/*.test.ts",
     "check:compose": "node scripts/compose-env.mjs",
+    "check:modules": "node scripts/modules.mjs",
+    "modules": "node scripts/modules.mjs --report",
     "check:figures": "node scripts/figures.mjs",
     "check:css": "node scripts/unstyled.mjs",
     "check:responsive": "node scripts/responsive.mjs",

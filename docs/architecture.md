@@ -1,5 +1,9 @@
 # Architecture
 
+This is the horizontal view: the layers, and what each is allowed to know. For the vertical one —
+where a single capability lives, what it would cost to switch one off or take one out, and the rings
+the code is checked against — see [`modules.md`](modules.md).
+
 Kolibri is four packages in one repository. The rule that shapes all of them: **the client owns a
 full copy of the workspace, the server owns the truth, and one registry describes both.**
 

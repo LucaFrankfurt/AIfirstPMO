@@ -32,6 +32,10 @@ jobs:
       # A setting the server reads that no compose file passes is documented and
       # dead. This is static, so it belongs in the fast job.
       - run: npm run check:compose
+      # The module map in docs/modules.md is a claim about every file in the
+      # repository. A file nothing claims, a package boundary crossed, a new
+      # import knot — all of them are cheap to check and impossible to notice.
+      - run: npm run check:modules
       # Numbers in prose have no compiler behind them. "MCP exposes 23 tools"
       # was true once and nothing noticed for twenty-seven of them.
       - run: npm run check:figures
