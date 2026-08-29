@@ -455,10 +455,29 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       compare to anything. The data and the API are unchanged by the switch — it hides a feature, it
       does not throw anything away — and MCP refuses `log_time` while it is off rather than
       recording a row no screen will show.
-- [ ] **What time tracking is a prerequisite for**: hourly rates, budgets, cost and utilisation
-      reports, and a timesheet view across projects and weeks. Still blocked on the same thing:
-      `tasks.estimate` is in points, so an estimate has to carry a unit first — which is a decision
-      about how a team plans, not a formatting problem.
+- [x] **Budgets — done, and *not* by deriving them from time.** What things cost, planned against
+      what has actually gone: infrastructure, investments, licences, people, each planned once (a
+      monthly bill is one line with a recurrence, not twelve rows) and **split across the projects
+      that pay for it**, so a shared cluster charges 60% to one team and 40% to another and both
+      figures are right and add up to the whole. Committed spend counts as gone, because a purchase
+      order is money you no longer have and a report counting only paid invoices says a budget is
+      healthy right until they land. A forecast under one rule — closed months as they happened,
+      open ones at whichever is larger of plan and actual — with a run-rate second opinion beside
+      it, and scenarios that never touch the plan.
+
+      The reason this was listed as blocked, and the reason it no longer is: the blocker was
+      deriving cost from `tasks.estimate`, which is in points. So it does not. A budget line
+      carries its own money, as a whole number of **minor units** — `0.1 + 0.2` is not `0.3` and a
+      budget is a column that gets added up two different ways and compared — and one currency per
+      budget with no conversion anywhere, because a rate is a fact about a day. Everything is
+      computed on demand by one pure function both the server and the browser call, so the
+      dashboard works offline and MCP cannot quote a different number from the screen.
+      [`docs/budgets.md`](docs/budgets.md)
+- [ ] **What time tracking is still a prerequisite for**: hourly rates, cost per hour, utilisation
+      reports, and a timesheet view across projects and weeks. Blocked on the same thing it always
+      was: `tasks.estimate` is in points, so an estimate has to carry a unit first — which is a
+      decision about how a team plans, not a formatting problem. Budgets went ahead without it by
+      not asking the question; a rate cannot.
 - [x] **Gantt with real scheduling, and baselines.** See P2 above. A baseline keeps the dates as
       they stood under a name — the whole plan in one row, because it is something somebody *took*
       and must not drift as tasks are added afterwards — and the timeline draws it as a thin rule
@@ -846,7 +865,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 50 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 56 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

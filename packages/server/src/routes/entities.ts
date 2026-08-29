@@ -12,7 +12,7 @@ import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
 import { importCsv } from '../lib/import.ts';
 import { copyProject, type CopyOptions } from '../lib/copy.ts';
 import { exportProject, importProject, type ProjectDoc } from '../lib/transfer.ts';
-import { canSeeChannel, canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
+import { canSeeBudget, canSeeChannel, canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 import { emptyTrash, purgeable } from '../lib/trash.ts';
 import { env } from '../env.ts';
 
@@ -89,6 +89,27 @@ function guardChat(userId: string, entity: EntityName, row: Row): void {
     throw forbidden('That read marker is somebody else\'s');
   }
 }
+
+/**
+ * A budget guards itself, and its lines, invoices and scenarios guard through
+ * it.
+ *
+ * Shaped like `guardChat`, and for the same reason: a child row names its
+ * parent and carries no project of its own, so `guardProject` above has nothing
+ * to test and would wave it through. Without this, any member of the workspace
+ * holding a line id could read the plan for a private project's budget — and
+ * the plan is where the money is.
+ */
+function guardBudget(userId: string, entity: EntityName, row: Row): void {
+  if (entity === 'budget' && !canSeeBudget(userId, String(row.id))) {
+    throw forbidden('That budget is not yours to see');
+  }
+  if (BUDGET_CHILDREN.has(entity) && !canSeeBudget(userId, String(row.budget_id))) {
+    throw forbidden('That budget is not yours to see');
+  }
+}
+
+const BUDGET_CHILDREN = new Set<EntityName>(['budgetLine', 'budgetActual', 'budgetScenario']);
 
 export function registerEntityRoutes(router: Router): void {
   /* ----------------------------------------------------- audit log */
@@ -492,6 +513,11 @@ export function registerEntityRoutes(router: Router): void {
       // channel's. Asked here rather than folded into the SQL above because it
       // is the same question `canSeeChannel` already answers for every write.
       .filter((row) => entity !== 'message' || canSeeChannel(auth.userId, row.channel_id))
+      // The same for a budget and its children, for the same reason: neither a
+      // budget scoped to two projects nor a line hanging off one carries a
+      // `project_id` the filter above could have tested.
+      .filter((row) => entity !== 'budget' || canSeeBudget(auth.userId, String(row.id)))
+      .filter((row) => !BUDGET_CHILDREN.has(entity) || canSeeBudget(auth.userId, String(row.budget_id)))
       .map((row) => serialize(entity, row));
   });
 
@@ -538,6 +564,7 @@ export function registerEntityRoutes(router: Router): void {
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
+    guardBudget(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     return serialize(entity, row);
   });
@@ -552,6 +579,7 @@ export function registerEntityRoutes(router: Router): void {
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
+    guardBudget(auth.userId, entity, row);
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     const body = await readJson<Record<string, unknown>>(ctx);
     const { row: updated } = writeEntity(entity, ctx.params.id, body, {
@@ -571,6 +599,7 @@ export function registerEntityRoutes(router: Router): void {
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
+    guardBudget(auth.userId, entity, row);
     deleteEntity(entity, ctx.params.id, {
       workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
     });

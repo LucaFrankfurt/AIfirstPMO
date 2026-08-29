@@ -2774,3 +2774,150 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   color: var(--fg-soft);
   font-size: 13px;
 }
+
+/* ------------------------------------------------------------------ budgets
+ *
+ * Money is read in columns, so almost everything here is about alignment:
+ * `tabular-nums` on every figure, and `text-align: end` on every cell that
+ * holds one. A column of amounts whose digits do not line up cannot be
+ * compared by eye, which is the only thing anybody does with it.
+ */
+
+.task-table th.num, .task-table td.num {
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A second line under a row's title: a supplier under a cost, an invoice
+   number under a description. Muted and smaller, so the row still reads as one
+   thing rather than two. */
+.row-sub {
+  display: block;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  font-weight: 400;
+}
+
+/* The three ways a variance can read. The word beside the figure carries the
+   meaning — see `Variance` — so these colours are reinforcement rather than
+   the only channel. */
+.money-over { color: var(--danger); font-variant-numeric: tabular-nums; }
+.money-under { color: var(--ok); font-variant-numeric: tabular-nums; }
+.money-flat { color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+
+.money-input { font-variant-numeric: tabular-nums; text-align: end; }
+
+/* How a budget is doing, as one chip. `unset` deliberately gets no colour: a
+   budget nobody has approved a number for is not a state to be alarmed about. */
+.health-over { border-color: color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); }
+.health-tight { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+.health-healthy { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+
+/* Where a real cost has got to. Committed is the one worth noticing — money
+   gone that no invoice has arrived for yet. */
+.stage-committed { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+.stage-paid { border-color: color-mix(in srgb, var(--ok) 40%, transparent); color: var(--ok); }
+
+/* ---------------------------------------------------------- allocations */
+
+.alloc { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.alloc-row { display: flex; align-items: center; gap: 6px; width: 100%; }
+.alloc-project { flex: 1; min-width: 0; }
+.alloc-share { width: 76px; flex: none; text-align: end; font-variant-numeric: tabular-nums; }
+.alloc-unit { color: var(--fg-muted); font-size: 12px; }
+.alloc-total { font-size: 12px; color: var(--fg-muted); margin: 0; }
+/* A split that does not add up is the quiet failure this feature is most
+   likely to produce, so it is said in the colour that means "look at me". */
+.alloc-total.off { color: var(--warn); }
+.alloc-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+
+/* Inherits the app's own control styling; the select here is a bare element
+   rather than the styled one, because it sits inside a row that sizes it. */
+.alloc-project {
+  height: 32px;
+  padding: 0 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  background: var(--bg-raised);
+  color: var(--fg);
+  font: inherit;
+  font-size: 13px;
+}
+
+.scope-picker {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px 10px;
+}
+
+/* ------------------------------------------------------------ scenarios */
+
+.scenario-list { display: flex; flex-direction: column; gap: 8px; }
+
+.scenario-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: 13px;
+}
+/* The plan itself, sitting at the top of the list of things that are not it. */
+.scenario-card.baseline { background: var(--bg-sunken); }
+.scenario-card.showing { border-color: var(--accent); background: var(--accent-soft); }
+
+/* The strip that says the dashboard is showing a what-if rather than the plan.
+   Persistent and unmissable on purpose: every figure below it is hypothetical,
+   and somebody who forgets that will quote one in a meeting. */
+.scenario-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+}
+
+.adjustment {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 12px 2px;
+  margin-bottom: 8px;
+}
+
+/* ---------------------------------------------------------------- charts */
+
+/* Two bars in one month's slot: planned beside actual. A 2px gap rather than
+   none, so two bars of similar height read as two. */
+.col-pair {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 100%;
+  max-width: 34px;
+}
+.col-pair .col-bar { flex: 1; max-width: 14px; }
+
+/* A track carrying two figures: the plan behind, what has gone in front. The
+   overlay is inset rather than full height so both are visible even when the
+   actual has passed the plan. */
+.bar-track.split { position: relative; height: 14px; border-radius: 7px; }
+.bar-track.split .bar-fill { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 7px; opacity: .45; }
+.bar-over {
+  position: absolute;
+  inset-block: 3px;
+  inset-inline-start: 0;
+  display: block;
+  border-radius: 5px;
+  min-width: 2px;
+}

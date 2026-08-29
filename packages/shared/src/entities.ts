@@ -16,6 +16,10 @@ export type EntityName =
   | 'field'
   | 'fieldValue'
   | 'baseline'
+  | 'budget'
+  | 'budgetLine'
+  | 'budgetActual'
+  | 'budgetScenario'
   | 'share'
   | 'label'
   | 'task'
@@ -180,6 +184,52 @@ export const ENTITIES = {
     table: 'baselines',
     fields: ['workspace_id', 'project_id', 'name', 'taken_at', 'entries'],
     json: ['entries'],
+  },
+  /**
+   * An envelope of money over a period, scoped exactly as a cycle is:
+   * `project_id` set is one project's own, `project_id` null with an empty
+   * `projects` is the whole workspace, and `projects` non-empty is exactly
+   * those. See `coversProject` in `scope.ts`.
+   */
+  budget: {
+    table: 'budgets',
+    fields: [
+      'workspace_id', 'project_id', 'projects', 'name', 'description', 'currency',
+      'approved', 'period_start', 'period_end', 'status', 'owner_id', 'archived', 'sort_order',
+    ],
+    json: ['projects'],
+  },
+  /**
+   * One planned cost. Its own row rather than an array on the budget, so two
+   * people editing two lines from two devices merge instead of one of them
+   * winning the whole plan — the same reason `fieldValue` is a row.
+   */
+  budgetLine: {
+    table: 'budget_lines',
+    fields: [
+      'workspace_id', 'budget_id', 'name', 'category', 'kind', 'amount', 'recurrence',
+      'starts_on', 'ends_on', 'vendor', 'confidence', 'allocations', 'note', 'sort_order',
+    ],
+    json: ['allocations'],
+  },
+  /** Money that actually moved. `line_id` null is a cost nobody planned for. */
+  budgetActual: {
+    table: 'budget_actuals',
+    fields: [
+      'workspace_id', 'budget_id', 'line_id', 'description', 'category', 'amount',
+      'spent_on', 'stage', 'vendor', 'reference', 'allocations', 'note',
+    ],
+    /** Who filed it. Not the client's to claim — see `applyCreateDefaults`. */
+    serverOnly: ['recorded_by'],
+    json: ['allocations'],
+  },
+  /** A what-if over the plan. Never edits a line; see `applyScenario`. */
+  budgetScenario: {
+    table: 'budget_scenarios',
+    fields: [
+      'workspace_id', 'budget_id', 'name', 'description', 'adjustments', 'weights', 'sort_order',
+    ],
+    json: ['adjustments', 'weights'],
   },
   /**
    * A link that lets somebody outside the workspace read one thing.
@@ -426,6 +476,10 @@ export const COLLECTIONS: Record<EntityName, string> = {
   field: 'fields',
   fieldValue: 'field-values',
   baseline: 'baselines',
+  budget: 'budgets',
+  budgetLine: 'budget-lines',
+  budgetActual: 'budget-actuals',
+  budgetScenario: 'budget-scenarios',
   share: 'shares',
   label: 'labels',
   task: 'tasks',

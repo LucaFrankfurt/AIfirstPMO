@@ -1,5 +1,11 @@
 import {
+  BUDGET_STATUS,
+  COST_CATEGORIES,
+  COST_CONFIDENCE,
+  COST_KINDS,
+  COST_RECURRENCES,
   ENTITIES,
+  SPEND_STAGES,
   canManageMembers,
   crdt,
   directMembers,
@@ -7,9 +13,12 @@ import {
   excerpt,
   findMentions as mentionsIn,
   hlcGreater,
+  normaliseAllocations,
   normaliseChannelName,
+  projectScope,
   relocate,
   reschedule,
+  type Allocation,
   type CrdtState,
   type EntityName,
   type ProjectVocabulary,
@@ -223,6 +232,8 @@ const SCOPED_REFERENCES: Record<string, string> = {
   default_view_id: 'views',
   automation_id: 'automations',
   share_id: 'shares',
+  budget_id: 'budgets',
+  line_id: 'budget_lines',
 };
 
 function guardReferences(entity: EntityName, values: Record<string, unknown>, opts: WriteOpts): void {
@@ -322,6 +333,18 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
   if (entity === 'project') {
     if (!values.key) setForced('key', `P${id.slice(0, 4).toUpperCase()}`);
     if (!values.name) setForced('name', 'Untitled project');
+  }
+  if (entity === 'budget') {
+    // Whoever made it owns it until somebody says otherwise. A budget with no
+    // owner is a budget nobody is asked about when it goes red.
+    if (!values.owner_id) setForced('owner_id', opts.actorId);
+    if (!values.name) setForced('name', 'Untitled budget');
+  }
+  // Who filed the invoice. Never the client's to claim: "somebody recorded
+  // this" is the one line of an audit trail this table has.
+  if (entity === 'budgetActual') {
+    if (!opts.system || !values.recorded_by) setForced('recorded_by', opts.actorId);
+    if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
   }
   if (entity === 'webhook') {
     // Outgoing: what the receiver verifies the signature with. Incoming: the
@@ -521,6 +544,157 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
   if (entity === 'message') applyMessageInvariants(values, existing, forced, opts);
   if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
+  if (BUDGET_ENTITIES.has(entity)) applyBudgetInvariants(entity, values, forced);
+  if (entity === 'budgetLine' || entity === 'budgetActual' || entity === 'budgetScenario') {
+    followBudgetWorkspace(values, existing);
+  }
+}
+
+/** The four tables a budget is made of. */
+const BUDGET_ENTITIES = new Set<EntityName>(['budget', 'budgetLine', 'budgetActual', 'budgetScenario']);
+
+/**
+ * Money and the shapes it comes in.
+ *
+ * Everything here is a *correction* rather than a refusal, applied through
+ * `forced` so the client learns what was changed. That is deliberate: these
+ * writes arrive in sync batches from devices that have been away, and a budget
+ * line with a category somebody's old build spelled differently should not
+ * take twenty other rows down with it.
+ */
+function applyBudgetInvariants(entity: EntityName, values: Record<string, unknown>, forced: Record<string, unknown>): void {
+  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
+  /** Snap to one of a fixed list, or to its default. See the enums in `types.ts`. */
+  const oneOf = <T extends string>(field: string, allowed: readonly T[], fallback: T): void => {
+    if (values[field] === undefined) return;
+    const value = String(values[field] ?? '');
+    if (!(allowed as readonly string[]).includes(value)) settle(field, fallback);
+  };
+  /**
+   * An amount is a whole number of minor units.
+   *
+   * A client that sends `12.5` means twelve and a half cents, which is not a
+   * thing; rounding it is the only reading that keeps the column addable. A
+   * value that is not a number at all becomes zero rather than `NaN`, which
+   * SQLite would store as NULL and every later `SUM` would silently skip.
+   */
+  const whole = (field: string): void => {
+    if (values[field] === undefined) return;
+    const value = Math.round(Number(values[field]));
+    if (!Number.isFinite(value)) settle(field, 0);
+    else if (value !== values[field]) settle(field, value);
+  };
+  /** Shares that add up to the whole, or an empty list. See `normaliseAllocations`. */
+  const splits = (field: string): void => {
+    if (values[field] === undefined) return;
+    let parsed: unknown = values[field];
+    if (typeof parsed === 'string') { try { parsed = JSON.parse(parsed); } catch { parsed = []; } }
+    const clean = normaliseAllocations(Array.isArray(parsed) ? parsed as Allocation[] : []);
+    const encoded = JSON.stringify(clean);
+    if (encoded !== values[field]) settle(field, encoded);
+  };
+
+  if (entity === 'budget') {
+    // The fourth combination — an owner *and* a list — is never stored, so no
+    // reader downstream has to decide which of two fields wins.
+    if (values.project_id !== undefined || values.projects !== undefined) {
+      let listed: unknown = values.projects;
+      if (typeof listed === 'string') { try { listed = JSON.parse(listed); } catch { listed = []; } }
+      const scope = projectScope({
+        project: (values.project_id as string | null) ?? null,
+        projects: Array.isArray(listed) ? listed.filter((row): row is string => typeof row === 'string') : [],
+      });
+      if (values.project_id !== scope.project_id) settle('project_id', scope.project_id);
+      const encoded = JSON.stringify(scope.projects);
+      if (values.projects !== encoded) settle('projects', encoded);
+    }
+    oneOf('status', BUDGET_STATUS, 'draft');
+    whole('approved');
+    // ISO 4217 is three letters, upper case. A currency this server has never
+    // heard of is still stored — new ones exist — but `eur` and `EUR` are one
+    // currency and storing both would be storing a split in every total.
+    if (typeof values.currency === 'string') {
+      const code = values.currency.trim().toUpperCase();
+      settle('currency', /^[A-Z]{3}$/.test(code) ? code : 'EUR');
+    }
+  }
+
+  if (entity === 'budgetLine') {
+    oneOf('category', COST_CATEGORIES, 'other');
+    oneOf('kind', COST_KINDS, 'opex');
+    oneOf('recurrence', COST_RECURRENCES, 'once');
+    oneOf('confidence', COST_CONFIDENCE, 'likely');
+    whole('amount');
+    splits('allocations');
+  }
+
+  if (entity === 'budgetActual') {
+    oneOf('category', COST_CATEGORIES, 'other');
+    oneOf('stage', SPEND_STAGES, 'paid');
+    whole('amount');
+    splits('allocations');
+    // A day, or today. A malformed date would sort into the wrong month and
+    // then quietly vanish from every report that filters on the period.
+    if (values.spent_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.spent_on ?? ''))) {
+      settle('spent_on', new Date().toISOString().slice(0, 10));
+    }
+  }
+}
+
+/**
+ * A line, an actual or a scenario belongs to whichever budget it names.
+ *
+ * Not to the workspace the write arrived in — those are the same thing today,
+ * and `guardReferences` already refuses a budget in another workspace, but the
+ * child rows are read by joining on `budget_id` and a row whose two answers
+ * disagree is a row that appears in one query and not the next.
+ */
+function followBudgetWorkspace(values: Record<string, unknown>, existing: Row | undefined): void {
+  const budgetId = (values.budget_id ?? existing?.budget_id) as string | undefined;
+  if (!budgetId) return;
+  const budget = get<Row>(`SELECT workspace_id FROM budgets WHERE id = ?`, budgetId);
+  if (budget) values.workspace_id = budget.workspace_id;
+}
+
+/**
+ * A budget that is gone takes its lines, its actuals and its scenarios with it.
+ *
+ * Tombstones rather than a `DELETE`, for the reason `tombstoneValuesOf` gives:
+ * every other device holds those rows and only a tombstone tells them. Without
+ * this, deleting a budget left its lines on every client — invisible, because
+ * nothing renders a line whose budget has gone, and permanently, because
+ * nothing would ever mention them again.
+ */
+function tombstoneBudgetChildren(budget: Row, opts: WriteOpts): void {
+  for (const [entity, table] of [
+    ['budgetLine', 'budget_lines'],
+    ['budgetActual', 'budget_actuals'],
+    ['budgetScenario', 'budget_scenarios'],
+  ] as const) {
+    for (const row of all<Row>(`SELECT id FROM ${table} WHERE budget_id = ? AND deleted_at IS NULL`, budget.id)) {
+      writeEntity(entity, String(row.id), {}, { ...opts, op: 'delete', system: true, silent: true });
+    }
+  }
+}
+
+/**
+ * A plan line that is gone leaves its actuals behind, unattached.
+ *
+ * The opposite of the rule above, on purpose. An invoice does not stop having
+ * been paid because somebody tidied up the plan it was filed under, and
+ * deleting real money because a forecast row was deleted would be the worst
+ * kind of cascade. The actual becomes unplanned spend — which is exactly what
+ * it now is, and which the reports already have a column for.
+ */
+function detachActualsOf(line: Row, opts: WriteOpts): void {
+  for (const row of all<Row>(`SELECT id FROM budget_actuals WHERE line_id = ? AND deleted_at IS NULL`, line.id)) {
+    // `op: undefined`, and it is the whole of this function working. The
+    // `opts` this is handed are the *line's* delete options, so spreading them
+    // unchanged carries `op: 'delete'` onto every invoice — which deleted the
+    // money along with the plan, quietly, and is exactly what this is here to
+    // prevent.
+    writeEntity('budgetActual', String(row.id), { line_id: null }, { ...opts, op: undefined, system: true, silent: true });
+  }
 }
 
 /**
@@ -928,6 +1102,10 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   indexForSearch(entity, row);
   if (entity === 'page' && before && changed.content !== undefined) snapshotPage(before, opts.actorId);
   if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
+  // A budget takes its lines with it; a line leaves its invoices behind. See
+  // both functions for why the two cascades go opposite ways.
+  if (entity === 'budget' && row.deleted_at && !before?.deleted_at) tombstoneBudgetChildren(row, opts);
+  if (entity === 'budgetLine' && row.deleted_at && !before?.deleted_at) detachActualsOf(row, opts);
   if (entity === 'task' && (changed.start_date !== undefined || changed.due_date !== undefined)) {
     cascadeSchedule(row, opts);
   }
@@ -1163,6 +1341,17 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
   // a conversation, so `searchWorkspace` checks each message hit against its
   // channel before returning it. See `search.ts`.
   message: (row) => ({ title: '', body: row.body ?? '' }),
+  /*
+   * A budget, on the same terms as a message and for the same reason.
+   *
+   * The index carries one `project_id`, and a budget covering three projects
+   * carries none — so the index's own filter would read that as "belongs to no
+   * project", which it treats as visible to the whole workspace. That is right
+   * for a workspace-wide budget and wrong for one scoped to two private
+   * projects, and the two are indistinguishable by the time a row reaches the
+   * index. `searchWorkspace` asks `canSeeBudget` about each hit instead.
+   */
+  budget: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),
 };
 
 /**
@@ -1554,6 +1743,44 @@ function fireWebhooks(
     return;
   }
 
+  if (entity === 'budget') {
+    dispatch(workspaceId, before ? 'budget.updated' : 'budget.created', {
+      id: row.id,
+      name: row.name,
+      project_id: row.project_id,
+      currency: row.currency,
+      approved: Number(row.approved ?? 0),
+      status: row.status ?? null,
+      period_start: row.period_start ?? null,
+      period_end: row.period_end ?? null,
+      changed: Object.keys(changed),
+      ...who(opts),
+    });
+    return;
+  }
+
+  // Every write, not only the first: an invoice that moves from committed to
+  // paid is the event a ledger is waiting for, and correcting an amount is the
+  // event an approval workflow is.
+  if (entity === 'budgetActual' && !row.deleted_at) {
+    dispatch(workspaceId, 'budget.spent', {
+      id: row.id,
+      budget_id: row.budget_id,
+      line_id: row.line_id ?? null,
+      description: row.description ?? '',
+      category: row.category,
+      amount: Number(row.amount ?? 0),
+      currency: get<Row>(`SELECT currency FROM budgets WHERE id = ?`, row.budget_id)?.currency ?? null,
+      spent_on: row.spent_on,
+      stage: row.stage,
+      vendor: row.vendor ?? null,
+      reference: row.reference ?? null,
+      changed: Object.keys(changed),
+      ...who(opts),
+    });
+    return;
+  }
+
   if (entity === 'timeEntry' && !before) {
     dispatch(workspaceId, 'time.logged', {
       id: row.id, task_id: row.task_id, project_id: row.project_id, user_id: row.user_id,
@@ -1697,6 +1924,38 @@ export function visibleProjectIds(userId: string, workspaceId: string): Set<stri
 export function resendUser(userId: string): void {
   run(`UPDATE users SET seq = ? WHERE id = ?`, nextSeq(), userId);
 }
+
+/**
+ * Can this person see this budget, and therefore its lines and its invoices?
+ *
+ * A budget is scoped the way a cycle is — one project's own, the whole
+ * workspace's, or exactly some projects — so the question is "can they see any
+ * project it covers", with a workspace-wide budget answering yes to every
+ * member.
+ *
+ * It exists as a function because three places have to agree on the answer:
+ * the pull filter in `sync.ts`, the REST guard in `routes/entities.ts`, and
+ * every budget tool over MCP. `guardReferences` will not do the job on its own
+ * — a line names its budget and nothing else, so without this a workspace
+ * member holding a budget id could read the plan for a project they are not on.
+ */
+export function canSeeBudget(userId: string, budgetId: string | null | undefined): boolean {
+  if (!budgetId) return false;
+  const budget = get<Row>(`SELECT * FROM budgets WHERE id = ? AND deleted_at IS NULL`, budgetId);
+  if (!budget) return false;
+  const member = get(
+    `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    budget.workspace_id, userId,
+  );
+  if (!member) return false;
+  const listed = parseIds(budget.projects);
+  if (listed.length) return listed.some((projectId) => canSeeProject(userId, projectId));
+  // No list and no owner is the whole workspace, and membership was the test.
+  return budget.project_id ? canSeeProject(userId, String(budget.project_id)) : true;
+}
+
+/** The budget a line, an actual or a scenario hangs off. */
+export const budgetOf = (row: Row): string | null => (row.budget_id as string | null) ?? null;
 
 export function canSeeChannel(userId: string, channelId: string | null | undefined): boolean {
   if (!channelId) return false;

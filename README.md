@@ -135,6 +135,7 @@ are the manual for running and extending it.
 | **Getting it back out** | A whole workspace as one readable document — every project, the teams, the pages, the saved views, and the wiring between projects a per-project export cannot hold — or as a `.zip` with the uploaded files beside it. Tasks as CSV in the columns the importer reads back. "Download my data" for one person, with none of their secrets in it. And an import that goes into a new project or merges into one you already have. [Export](docs/export.md) |
 | **Moving house** | Snapshots taken nightly, verified before the older ones are pruned, optionally copied to the object store — and put back **from the app**, while it is running: deploy a Kolibri somewhere new, upload the snapshot, sign in with your old password, and it *is* the old instance. Accounts, workspaces, files and settings included. It replaces the tables in one transaction rather than swapping the file, so an older snapshot still restores and what it replaces is snapshotted first. [Backups](docs/deployment.md#backups) |
 | **Planning** | Cycles (sprints) for one project, a chosen set of them, or all — one fortnight several teams run together rather than a copy in each. Modules (milestones) scoped the same way, a timeline where dragging a task moves everything blocked by it — counted in working days, with an optional wait per dependency, and applied on the server too. Baselines, WIP limits, projects that nest (including **containers** that hold only other projects), teams, project templates, time tracking, per-project insights, a portfolio roadmap and a team planner where dragging a task between rows hands it over. [Insights](docs/insights.md) · [Time](docs/time.md) |
+| **Budgets** | What things cost, planned against what has actually gone. Infrastructure, investments, licences, people and the rest, each planned once — a monthly hosting bill is one line, not twelve — and **split across the projects that pay for it**, so a shared cluster charges 60% to one team and 40% to another and both figures are right. Committed spend counts as gone, because a purchase order is money you no longer have. A forecast that takes closed months as they happened and the plan for the rest, a run-rate second opinion beside it, and scenarios that never touch the plan: slip an investment a quarter, cut a category by a third, or carry only the money somebody has signed for. Money is stored in whole minor units and one currency per budget — nothing here invents an exchange rate. Off by default; switched on per workspace. [Budgets](docs/budgets.md) |
 | **Views** | List, Kanban, sortable table and calendar; group by state, assignee, cycle, project or a custom field, where dropping a card writes the answer. Filter with the menus or **as text** — `assignee = me AND priority in (urgent, high) AND state != Done` — which prints back from whatever the menus did. Select several tasks and change them together. Save, pin and share a view. [Filter language](docs/query.md) |
 | **Pages** | A nested markdown wiki two people can edit at once: bodies are text CRDTs, so both sets of changes survive. Drag a page onto another to nest it or between two to reorder — or move it up, down, in and out from the keyboard. History is one list: the text revisions you can compare and restore, interleaved with the renames, moves and visibility changes around them. Cover images, templates, labels, watching, per-page visibility, read-only share links, drag & drop images, export as a markdown bundle or PDF, and inline comments that survive the text being edited around them. Archiving a page puts it in an archive you can open and restore from, rather than losing it. |
 | **Chat** | Channels and direct messages made of the same synced rows as everything else, so a message sends from a train and arrives when the tunnel ends — no socket to reconnect. Private channels with their own membership rules, pasted screenshots, reactions, replies, per-conversation mention settings, and presence held in memory rather than in a row. [Details](docs/chat.md) |
@@ -146,7 +147,7 @@ are the manual for running and extending it.
 | **Search** | One box that takes ordinary words: instant matches from the local copy, then SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages. `@` offers the people, `#` the labels and `+` the projects, so narrowing a search is picked from a list rather than remembered as syntax — and a name nobody has stays prose and is searched for as text. A private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
-| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 50 tools, 5 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
+| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 56 tools, 5 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
 | **Task reviews** | Optional, manual and off by default: a button asks a model to read a task back and suggest clearer wording, with the replacement already written and applied only by a click. Anthropic, Gemini or OpenRouter, chosen by an environment variable. [What leaves the instance](docs/ai.md) |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
@@ -172,7 +173,7 @@ it grants is an ordinary token you can revoke in Settings.
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant a
 view of the backlog without handing it a pen.
 
-**50 tools**, in six groups:
+**56 tools**, in seven groups:
 
 | | |
 |---|---|
@@ -182,6 +183,7 @@ view of the backlog without handing it a pen.
 | Planning | `list_cycles`, `create_cycle`, `update_cycle`, `delete_cycle`, `list_modules`, `create_module`, `update_module`, `delete_module`, `log_time`, `list_time`, `list_templates`, `apply_template` |
 | Configuration | `list_states`, `create_state`, `update_state`, `list_labels`, `create_label`, `update_label` |
 | Pages | `list_pages`, `get_page`, `create_page`, `update_page`, `list_page_templates`, `create_page_from_template` |
+| Budgets | `list_budgets`, `budget_status`, `create_budget`, `add_budget_line`, `record_spend`, `project_costs` |
 | Reports *(read-only)* | `project_status`, `changes_since`, `deadlines_at_risk`, `workload`, `blocked_tasks`, `stale_tasks`, `cycle_review`, `prepare_meeting` |
 
 The six reports answer for the **whole workspace** unless narrowed to a project, because who is
@@ -191,6 +193,12 @@ nobody on it" is the sentence somebody acts on.
 
 `prepare_meeting` is those six as one agenda, in the order a meeting runs — it calls the other
 tools rather than repeating their queries, so a number in the agenda is the number the tool gives.
+
+Every budget figure a tool returns comes out of the same `rollUp` the dashboard draws with, and
+comes back twice — `variance` in minor units to compute with, `variance_text` already formatted to
+quote — because a model asked for a figure will otherwise pick whichever it sees first, and one of
+the two readings is out by a factor of a hundred. `project_costs` runs the other way: not what a
+budget totals, but what lands on one project out of every budget that charges it.
 
 **5 prompts**: `weekly_review`, `meeting_notes`, `standup`, `sprint_planning`, `triage` — the list a
 client offers under "add from Kolibri", which is not the tool list. Every tool, prompt and resource
@@ -249,6 +257,7 @@ length. Source in [`sites/docs`](sites/docs).
 | [`automation.md`](docs/automation.md) | Task templates, rules, who gets the task and why one might not fire |
 | [`chat.md`](docs/chat.md) | Channels and direct messages, why a direct conversation has no id of its own, and what is deliberately not in it |
 | [`time.md`](docs/time.md) | Logging time, what a running timer actually is, and what it is not |
+| [`budgets.md`](docs/budgets.md) | Planned against actual money, why an amount is an integer, how a cost is split across projects, and the one rule the forecast follows |
 | [`calendar.md`](docs/calendar.md) | The `.ics` feed, what a subscription is worth, and why the URL is a password |
 | [`insights.md`](docs/insights.md) | Throughput, burn-up and cycle time, and the rules the charts follow |
 | [`design.md`](docs/design.md) | The tokens, the type scale, the ten rules that are not about looks, and the order to port a screen in |

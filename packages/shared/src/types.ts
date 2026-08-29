@@ -38,6 +38,74 @@ export type ProjectStatus = (typeof PROJECT_STATUS)[number];
 export const FIELD_KINDS = ['text', 'long_text', 'number', 'select', 'multi_select', 'date', 'checkbox', 'url', 'person'] as const;
 export type FieldKind = (typeof FIELD_KINDS)[number];
 
+/* ----------------------------------------------------------------- budgets */
+
+/**
+ * What a planned cost *is*, in the words a finance report uses.
+ *
+ * Deliberately a fixed list rather than free text: the whole point of a
+ * category is that two people writing down the same cost pick the same word,
+ * and a text box guarantees they will not — "AWS", "aws", "Cloud" and
+ * "Infrastruktur" are four rows in every chart that groups by it.
+ *
+ * `contingency` is here because a budget without one is a budget that will be
+ * wrong, and a PMO that hides its buffer inside the other lines cannot answer
+ * how much of it is left.
+ */
+export const COST_CATEGORIES = [
+  'infrastructure', 'investment', 'people', 'licences', 'services',
+  'travel', 'training', 'contingency', 'other',
+] as const;
+export type CostCategory = (typeof COST_CATEGORIES)[number];
+
+/**
+ * Money spent to run, or money spent to build.
+ *
+ * The one accounting distinction that changes who has to approve a line and
+ * which report it lands in, so it is a field rather than something inferred
+ * from the category — a server is infrastructure whether it is rented by the
+ * month or bought outright, and only the team knows which they did.
+ */
+export const COST_KINDS = ['opex', 'capex'] as const;
+export type CostKind = (typeof COST_KINDS)[number];
+
+/**
+ * How often a planned cost repeats inside its window.
+ *
+ * `once` is an amount; everything else is an amount *per period*, expanded
+ * across the line's window when the plan is added up. This is what makes a
+ * monthly hosting bill one row instead of twelve, and it is why the forecast
+ * can say what is still to come rather than only what a spreadsheet totalled.
+ */
+export const COST_RECURRENCES = ['once', 'monthly', 'quarterly', 'yearly'] as const;
+export type CostRecurrence = (typeof COST_RECURRENCES)[number];
+
+/**
+ * How sure the plan is that this money will be spent.
+ *
+ * A forecast that treats a signed contract and somebody's guess as the same
+ * number is not a forecast. Committed is contracted; likely is expected and
+ * unsigned; possible is on the list because leaving it off would be worse.
+ * Nothing here is weighted automatically — a scenario decides what to do with
+ * the three, because how much of a maybe to carry is a judgement, not a fact.
+ */
+export const COST_CONFIDENCE = ['committed', 'likely', 'possible'] as const;
+export type CostConfidence = (typeof COST_CONFIDENCE)[number];
+
+/**
+ * How far real money has got.
+ *
+ * `committed` is the one people forget and the one that ruins a month: a
+ * purchase order raised against next quarter's budget is money that is already
+ * gone, and a report that counts only paid invoices says a budget is healthy
+ * right up until the invoices arrive.
+ */
+export const SPEND_STAGES = ['committed', 'invoiced', 'paid'] as const;
+export type SpendStage = (typeof SPEND_STAGES)[number];
+
+export const BUDGET_STATUS = ['draft', 'active', 'closed'] as const;
+export type BudgetStatus = (typeof BUDGET_STATUS)[number];
+
 /* ------------------------------------------------- templates + automation */
 
 /** What a template is for. Only affects the icon and how it is grouped. */
@@ -137,6 +205,17 @@ export interface WorkspaceFeatures {
    * on here. Either one off means no button and no request.
    */
   ai?: boolean;
+  /**
+   * Budgets: what things cost, what was planned, and what has actually gone.
+   *
+   * Off by default like the rest, and for a reason of its own: money is the
+   * one thing in here that everybody in a workspace can see the moment it
+   * exists, and a team that has not decided to track it should not find a
+   * half-filled budget screen in their sidebar. Switching it off hides the
+   * screens and makes MCP refuse to write; the rows are untouched, so a
+   * workspace that turns it back on finds its figures where it left them.
+   */
+  budget?: boolean;
 }
 
 export interface Workspace {
@@ -539,6 +618,194 @@ export interface TimeEntry extends Base {
   billable: number;
 }
 
+/* ----------------------------------------------------------------- budgets */
+
+/**
+ * Money is stored in **minor units as an integer**, everywhere, without
+ * exception: 1250 in a budget whose currency is EUR is €12.50.
+ *
+ * Not a style preference. `0.1 + 0.2` is not `0.3` in any language with IEEE
+ * doubles, and a budget is a column of numbers that get added up thousands of
+ * times and then compared to another column that was added up differently. A
+ * cent of drift is a report somebody has to reconcile by hand, and SQLite
+ * would happily store the drift forever. Integers cannot drift.
+ *
+ * The conversion lives at the two edges — `parseMoney` reads what somebody
+ * typed, `formatMoney` writes what they read — and nothing in between ever
+ * sees a decimal point. See `budget.ts`.
+ */
+export type Minor = number;
+
+/**
+ * How much of a cost lands on which project.
+ *
+ * This is the difference between a budget tracker and a spreadsheet with a
+ * project column. A Kubernetes cluster is not "for" one project; it is 60% the
+ * platform rebuild and 40% everything else, and both of those numbers have to
+ * appear in both projects' figures without the money being counted twice.
+ *
+ * `share` is in **basis points** — 10000 is the whole cost — for the same
+ * reason the amount is in cents: three projects splitting a cost equally is
+ * 3333 + 3333 + 3334, which is exact, whereas 1/3 three times is not. Shares
+ * on one line must add up to 10000; the server normalises them if they do not,
+ * because a cost that is 90% allocated is a cost 10% of which has silently
+ * left the report.
+ *
+ * An empty list is not "nobody". It is *unallocated* — a real and common
+ * state, and one worth showing rather than forcing somebody to invent an owner
+ * for the office coffee machine on the day they enter it.
+ */
+export interface Allocation {
+  project_id: ID;
+  /** Basis points of the cost. The list sums to 10000. */
+  share: number;
+}
+
+/**
+ * An envelope of money over a period.
+ *
+ * Scoped exactly the way a cycle and a module are — `project_id` set is one
+ * project's own, `project_id` null with an empty `projects` is the whole
+ * workspace, `projects` non-empty is exactly those — so `coversProject` in
+ * `scope.ts` answers for this too. That scope is about *who sees it*; the
+ * per-line `allocations` are about whose figures it lands in, and the two are
+ * deliberately different questions: a central infrastructure budget is
+ * workspace-wide and still charges 40% of itself to one project.
+ */
+export interface Budget extends Base {
+  workspace_id: ID;
+  /** The project that owns it, or null when it is shared. See `coversProject`. */
+  project_id: ID | null;
+  /** The projects it covers. Empty means *every* project, not none. */
+  projects: ID[];
+  name: string;
+  description: string | null;
+  /**
+   * ISO 4217, upper case. One currency per budget and no conversion anywhere:
+   * a rate is a fact about a day, and a report that silently picks today's to
+   * add up last year's is worse than one that declines to add them at all. Two
+   * currencies in a portfolio are shown as two totals.
+   */
+  currency: string;
+  /**
+   * What was signed off, if anything. `0` means nobody has approved a number
+   * and the plan is the only figure there is — which is honest, and different
+   * from an approved budget of nothing.
+   */
+  approved: Minor;
+  period_start: ISODate | null;
+  period_end: ISODate | null;
+  status: BudgetStatus;
+  owner_id: ID | null;
+  archived: number;
+  sort_order: string;
+}
+
+/**
+ * One planned cost. The plan is the sum of these; nothing stores a total.
+ *
+ * A stored total is a number that goes stale the moment somebody edits a line
+ * offline, and two devices that each edited a different line would then have
+ * two totals and no way to merge them. Adding up nine rows costs nothing.
+ */
+export interface BudgetLine extends Base {
+  workspace_id: ID;
+  budget_id: ID;
+  name: string;
+  category: CostCategory;
+  kind: CostKind;
+  /** Per occurrence, not for the whole window. See `recurrence`. */
+  amount: Minor;
+  recurrence: CostRecurrence;
+  /** The line's own window. Null falls back to the budget's period. */
+  starts_on: ISODate | null;
+  ends_on: ISODate | null;
+  vendor: string | null;
+  confidence: CostConfidence;
+  /** Whose figures this lands in. Empty is unallocated — see `Allocation`. */
+  allocations: Allocation[];
+  note: string | null;
+  sort_order: string;
+}
+
+/**
+ * Money that actually moved, or is about to.
+ *
+ * `line_id` is nullable on purpose. An invoice nobody planned for is the most
+ * interesting row in the whole system, and a model that forces every actual to
+ * name a plan line would have people filing it under "other" — which is how a
+ * budget report stops describing reality.
+ */
+export interface BudgetActual extends Base {
+  workspace_id: ID;
+  budget_id: ID;
+  /** The plan line this pays for, or null when nothing planned it. */
+  line_id: ID | null;
+  description: string;
+  category: CostCategory;
+  amount: Minor;
+  /** The day the money moved, which is not the day somebody typed it in. */
+  spent_on: ISODate;
+  stage: SpendStage;
+  vendor: string | null;
+  /** Invoice or purchase-order number — what an auditor asks for. */
+  reference: string | null;
+  /** Empty inherits the line's split; see `allocationsFor` in `budget.ts`. */
+  allocations: Allocation[];
+  note: string | null;
+  recorded_by: ID | null;
+}
+
+/**
+ * A what-if, kept beside the plan rather than instead of it.
+ *
+ * A scenario never edits a line. It is a list of adjustments applied on the
+ * way to a total, so "what if the migration slips a quarter and we drop the
+ * training" is a thing somebody can show a steering committee on Tuesday and
+ * throw away on Wednesday — and the plan the team is working to is untouched
+ * either way.
+ */
+export interface BudgetScenario extends Base {
+  workspace_id: ID;
+  budget_id: ID;
+  name: string;
+  description: string | null;
+  /**
+   * What to do differently. Applied in order; a line named twice takes both.
+   * See `applyScenario` in `budget.ts`.
+   */
+  adjustments: ScenarioAdjustment[];
+  /**
+   * How much of an unsigned cost this scenario carries, in basis points, per
+   * confidence level. Absent means "all of it" — the plan as written.
+   */
+  weights: Partial<Record<CostConfidence, number>> | null;
+  sort_order: string;
+}
+
+/**
+ * One move in a scenario.
+ *
+ * `line_id` empty means every line the filters match, which is what makes
+ * "cut all travel by a third" one adjustment rather than eleven.
+ */
+export interface ScenarioAdjustment {
+  /** One line, or empty for every line matching `category` / `kind`. */
+  line_id?: ID | null;
+  category?: CostCategory | null;
+  kind?: CostKind | null;
+  /** Basis points of the original amount. 12000 is "20% more". */
+  factor?: number | null;
+  /** Added after the factor, in minor units. Negative takes money out. */
+  delta?: Minor | null;
+  /** Move the line's window by whole months. Negative pulls it earlier. */
+  shift_months?: number | null;
+  /** Take the line out of this scenario entirely. */
+  drop?: boolean;
+  /** Why. Shown beside the number, because a number alone is not an argument. */
+  note?: string | null;
+}
+
 export interface View extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -662,6 +929,14 @@ export const WEBHOOK_EVENTS = [
   'module.created', 'module.updated',
   'time.logged',
   'intake.created',
+  /*
+   * Money. `budget.spent` fires when an invoice or a commitment is recorded,
+   * because that is the moment a finance system has something to reconcile
+   * against — and it is the one event here that a workflow cannot reconstruct
+   * by polling, since an actual recorded and then corrected looks identical to
+   * one that was always right.
+   */
+  'budget.created', 'budget.updated', 'budget.spent',
 ] as const;
 export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
 
@@ -739,6 +1014,10 @@ export interface EntityMap {
   field: Field;
   fieldValue: FieldValue;
   baseline: Baseline;
+  budget: Budget;
+  budgetLine: BudgetLine;
+  budgetActual: BudgetActual;
+  budgetScenario: BudgetScenario;
   share: Share;
   task: Task;
   relation: Relation;

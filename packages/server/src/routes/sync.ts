@@ -87,6 +87,40 @@ function filterFor(entity: EntityName): string {
                     AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS})))
                    OR EXISTS (SELECT 1 FROM json_each(${table}.projects)
                                WHERE json_each.value IN (${VISIBLE_PROJECTS})))`;
+    /*
+     * A budget is scoped exactly as those two are, so it gets the same clause —
+     * one project's own follows that project, one with no owner and no list is
+     * the workspace's, one with a list follows any project on it.
+     *
+     * Note that this is *not* the same question as which projects a budget's
+     * money is charged to. A central infrastructure budget is workspace-wide,
+     * so everybody sees it, and still allocates 40% of itself to one team's
+     * project. Visibility is the scope; `allocations` is the arithmetic. Making
+     * them one field would mean either hiding a shared budget from the people
+     * paying for it or showing every project's figures to everybody.
+     */
+    case 'budget':
+      return `AND ((json_array_length(${table}.projects) = 0
+                    AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS})))
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.projects)
+                               WHERE json_each.value IN (${VISIBLE_PROJECTS})))`;
+    /*
+     * Lines, invoices and scenarios inherit their budget's answer, exactly —
+     * `deleted_at` included, the way a message inherits its channel's. Leaving
+     * that out is the bug that shipped for chat: a deleted budget went on
+     * sending its lines to devices that no longer had anything to put them in.
+     */
+    case 'budgetLine':
+    case 'budgetActual':
+    case 'budgetScenario':
+      return `AND EXISTS (
+                SELECT 1 FROM budgets b
+                 WHERE b.id = ${table}.budget_id
+                   AND b.deleted_at IS NULL
+                   AND ((json_array_length(b.projects) = 0
+                         AND (b.project_id IS NULL OR b.project_id IN (${VISIBLE_PROJECTS})))
+                        OR EXISTS (SELECT 1 FROM json_each(b.projects)
+                                    WHERE json_each.value IN (${VISIBLE_PROJECTS}))))`;
     case 'label':
     case 'view':
     case 'webhook':

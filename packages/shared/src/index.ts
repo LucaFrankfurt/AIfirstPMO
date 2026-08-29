@@ -6,6 +6,7 @@ export * from './csv.ts';
 export * from './import.ts';
 export * from './diff.ts';
 export * from './fields.ts';
+export * from './budget.ts';
 export * from './schedule.ts';
 export * from './markdown.ts';
 export * from './editor.ts';

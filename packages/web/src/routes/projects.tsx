@@ -9,6 +9,7 @@ import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
 import { ProjectInsights } from '../components/insights';
+import { ProjectBudget } from '../components/budget';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -18,7 +19,7 @@ import { byOrder, create, createPage, remove, update } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery, useRow } from '../lib/store';
 import { pull } from '../lib/sync';
-import { useCanWrite, useMe, useMembers, useSession } from '../session';
+import { useCanWrite, useFeature, useMe, useMembers, useSession } from '../session';
 import { groupKey, roleKey, useT, type TranslationKey } from '../lib/i18n';
 import { ProjectFields } from '../components/fields';
 import { CopyProjectSheet } from '../components/copy-project';
@@ -35,7 +36,8 @@ const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
 const TAB_KEY: Record<string, TranslationKey> = {
   tasks: 'project.tabTasks', cycles: 'project.tabCycles', modules: 'project.tabModules',
-  pages: 'project.tabPages', intake: 'intake.tab', insights: 'insights.tab', settings: 'project.tabSettings',
+  pages: 'project.tabPages', intake: 'intake.tab', insights: 'insights.tab', budget: 'budget.tab',
+  settings: 'project.tabSettings',
 };
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
@@ -340,7 +342,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
 
 /* ---------------------------------------------------------------- project */
 
-const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'settings'] as const;
+const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'budget', 'settings'] as const;
 
 /**
  * What a container shows instead.
@@ -363,6 +365,7 @@ export function ProjectPage() {
   const selection = useSelection();
   const canWrite = useCanWrite();
   const isContainer = !!project?.is_container;
+  const budgets = useFeature('budget');
   // `?tab=` so a link can point at one — a notification about a report has to
   // land on the reports, not on the task list beside them.
   const [search, setSearch] = useSearchParams();
@@ -405,7 +408,12 @@ export function ProjectPage() {
         {/* Reports is always here, even for a project that will never use it.
             Hiding it until an intake link exists would make the one screen that
             explains how to get one the screen nobody can find. */}
-        {(isContainer ? CONTAINER_TABS : TABS).map((name) => (
+        {(isContainer ? CONTAINER_TABS : TABS)
+          // Budgets only when the workspace runs them. A tab that always says
+          // "nothing charges this project" is a tab that teaches people to stop
+          // reading the strip.
+          .filter((name) => name !== 'budget' || budgets)
+          .map((name) => (
           <button
             key={name}
             className={tab === name ? 'active' : ''}
@@ -461,6 +469,7 @@ export function ProjectPage() {
       {tab === 'pages' && <ProjectPages projectId={id} />}
       {tab === 'intake' && <Triage projectId={id} />}
       {tab === 'insights' && <ProjectInsights projectId={id} />}
+      {tab === 'budget' && budgets && <ProjectBudget projectId={id} />}
       {tab === 'settings' && <ProjectSettings projectId={id} />}
 
       {adding && <QuickAdd projectId={id} onClose={() => setAdding(false)} />}

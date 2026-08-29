@@ -7,8 +7,11 @@
  * `handleRpc`, so tools only exist in one place.
  */
 import {
+  BUDGET_STATUS, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, SPEND_STAGES,
   PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, coversProject, projectScope, fieldValueId, orderKey, parseDuration,
   parseQuickAdd, readFieldValue, writeFieldValue,
+  formatMoney, healthOf, normaliseAllocations, parseMoney, plannedTotal, projectShare, rollUp,
+  type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario,
   type EntityName, type ProjectStatus, type RelationKind, type StateGroup, type Vocabulary,
 } from '@kolibri/shared';
 import { all, get, tx, type Row } from '../db/index.ts';
@@ -17,7 +20,7 @@ import type { Auth } from './auth.ts';
 import { createProject, serverClock } from './bootstrap.ts';
 import { instantiateTemplate } from './automation.ts';
 import { hasFeature } from './features.ts';
-import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, withEffectsHeld, writeEntity } from './repo.ts';
+import { canSeeBudget, canSeeProject, deleteEntity, read, serialize, visibleProjectIds, withEffectsHeld, writeEntity } from './repo.ts';
 import { storeFile } from '../routes/files.ts';
 import { searchWorkspace } from '../routes/search.ts';
 import { uid } from './ids.ts';
@@ -670,9 +673,10 @@ function requireWrite(ctx: McpCtx, workspaceId: string): void {
  * done something worse than refuse: the row exists, the person who asked
  * believes it was recorded, and no screen will ever show it.
  */
-function requireFeature(workspaceId: string, name: 'time'): void {
+function requireFeature(workspaceId: string, name: 'time' | 'budget'): void {
   if (!hasFeature(workspaceId, name)) {
-    throw new McpError('Time tracking is switched off in this workspace (Settings → Workspace)', -32000);
+    const what = name === 'time' ? 'Time tracking' : 'Budgets';
+    throw new McpError(`${what} is switched off in this workspace (Settings → Workspace)`, -32000);
   }
 }
 
@@ -730,6 +734,118 @@ function writeCustomFields(task: Row, answers: Record<string, unknown>, workspac
     );
   }
 }
+
+/* ------------------------------------------------------------------ budgets */
+
+/** The scope pair a budget carries, in the shape `coversProject` reads. */
+const scopeOf = (row: Row): { project_id: string | null; projects: string[] } =>
+  ({ project_id: (row.project_id as string | null) ?? null, projects: safeList(row.projects) });
+
+/**
+ * Every budget this caller may see, already filtered.
+ *
+ * `canSeeBudget` is the one function that knows the scoping rule — a budget
+ * covering three projects has no `project_id` for the usual filter to test —
+ * and asking it here means no budget tool can forget to.
+ */
+const visibleBudgets = (workspaceId: string, ctx: McpCtx): Row[] =>
+  all<Row>(`SELECT * FROM budgets WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`, workspaceId)
+    .filter((row) => canSeeBudget(ctx.auth.userId, String(row.id)));
+
+function findBudget(ref: string, workspaceId: string, ctx: McpCtx): Row {
+  const wanted = ref.trim().toLowerCase();
+  const found = visibleBudgets(workspaceId, ctx)
+    .find((row) => row.id === ref || String(row.name).toLowerCase() === wanted);
+  if (!found) throw new McpError(`No budget "${ref}" in this workspace`);
+  return found;
+}
+
+/** The live rows of one table belonging to any of these budgets. */
+function budgetChildren(table: 'budget_lines' | 'budget_actuals' | 'budget_scenarios', budgets: Row[]): Row[] {
+  if (!budgets.length) return [];
+  return all<Row>(
+    `SELECT * FROM ${table} WHERE budget_id IN (${holes(budgets.length)}) AND deleted_at IS NULL`,
+    ...budgets.map((row) => String(row.id)),
+  );
+}
+
+/**
+ * One budget, added up — through the same `rollUp` the dashboard calls.
+ *
+ * The rows go through `serialize` first, which is what turns the JSON columns
+ * back into arrays. Skipping that step gives `rollUp` an allocation list that
+ * is still a string, which does not throw: it reads as unallocated, and every
+ * per-project figure silently comes out zero.
+ */
+function rollUpBudget(budget: Row, options: { scenario?: Row | null; asOf?: string } = {}): BudgetRollUp {
+  return rollUp({
+    budget: serialize('budget', budget) as unknown as Budget,
+    lines: budgetChildren('budget_lines', [budget]).map((row) => serialize('budgetLine', row) as unknown as BudgetLine),
+    actuals: budgetChildren('budget_actuals', [budget]).map((row) => serialize('budgetActual', row) as unknown as BudgetActual),
+    scenario: options.scenario
+      ? (serialize('budgetScenario', options.scenario) as unknown as BudgetScenario)
+      : null,
+    asOf: options.asOf,
+  });
+}
+
+/**
+ * An amount, both ways.
+ *
+ * Every money figure a budget tool returns goes through here, so each appears
+ * as `x` in minor units and `x_text` already formatted. A model asked for "the
+ * variance" will quote whichever it sees first, and one of the two readings is
+ * out by a factor of a hundred — so both are present and the units are in the
+ * name.
+ */
+function money(currency: string, figures: Record<string, number>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(figures)) {
+    out[key] = value;
+    out[`${key}_text`] = formatMoney(value, currency, 'en');
+  }
+  return out;
+}
+
+/** An amount a caller typed, or a complaint naming the field. */
+function requireMoney(raw: unknown, field: string): number {
+  const parsed = parseMoney(String(raw ?? ''));
+  if (parsed === null) throw new McpError(`Cannot read "${raw}" as an amount for ${field}`);
+  return parsed;
+}
+
+/**
+ * `{"WEB": 60, "OPS": 40}` as the stored split.
+ *
+ * Percentages in, basis points out, projects resolved by the key or name an
+ * assistant was told rather than by an id it would have to look up first. An
+ * unknown project is an error: a split that quietly drops one of its halves
+ * charges the whole cost to the other, which is a wrong number nobody would
+ * think to question.
+ */
+function allocationsFromArgs(raw: unknown, workspaceId: string, ctx: McpCtx): string {
+  if (!raw || typeof raw !== 'object') return '[]';
+  const out: { project_id: string; share: number }[] = [];
+  for (const [ref, percent] of Object.entries(raw as Record<string, unknown>)) {
+    const value = Number(percent);
+    if (!Number.isFinite(value) || value <= 0) continue;
+    out.push({ project_id: String(findProject(ref, workspaceId, ctx).id), share: Math.round(value * 100) });
+  }
+  return JSON.stringify(normaliseAllocations(out));
+}
+
+/** The bottom of a budget's plan, so a new line lands under the last one. */
+const lastLineOrder = (budgetId: string): string | null =>
+  (get<Row>(
+    `SELECT sort_order FROM budget_lines WHERE budget_id = ? AND deleted_at IS NULL
+      ORDER BY sort_order DESC LIMIT 1`, budgetId,
+  )?.sort_order as string | undefined) ?? null;
+
+/** Project ids to names, for an answer that has to say which project a row is in. */
+const projectNames = (workspaceId: string): Record<string, string> => Object.fromEntries(
+  all<Row>(`SELECT id, name FROM projects WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+    .map((row) => [String(row.id), String(row.name)]),
+);
 
 /* -------------------------------------------------------------------- tools */
 
@@ -2914,6 +3030,387 @@ const TOOLS: ToolDef[] = [
     },
   },
 
+  /* ------------------------------------------------------------- budgets --
+   *
+   * Six tools over the money: read what a budget is doing, plan a cost, record
+   * one that has happened, and ask what a project costs. Every figure comes
+   * out of `rollUp` in `@kolibri/shared` — the same function the dashboard
+   * draws — so an assistant and a person looking at the screen cannot be told
+   * two different numbers.
+   *
+   * Amounts are accepted as text (`"12.500,00"`, `"€12,500"`, `"12500"`) and
+   * returned both ways: `amount` in minor units for arithmetic, and
+   * `amount_text` already formatted, because a model that has to divide by a
+   * hundred to quote a figure will eventually forget to.
+   */
+  {
+    name: 'list_budgets',
+    title: 'List budgets',
+    description:
+      'Budgets in the workspace with their headline figures: what was approved, what is planned, '
+      + 'what has actually gone, the forecast, and whether it is on track. Optionally narrowed to '
+      + 'the budgets covering one project.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        project: { type: 'string', description: 'Project key or name; budgets covering it' },
+        status: { type: 'string', enum: [...BUDGET_STATUS] },
+        include_archived: { type: 'boolean' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireFeature(workspaceId, 'budget');
+      const projectId = args.project ? String(findProject(String(args.project), workspaceId, ctx).id) : null;
+      const budgets = visibleBudgets(workspaceId, ctx)
+        .filter((row) => (args.include_archived ? true : !Number(row.archived)))
+        .filter((row) => (args.status ? row.status === args.status : true))
+        .filter((row) => (projectId ? coversProject(scopeOf(row), projectId) : true));
+
+      return {
+        budgets: budgets.map((row) => {
+          const rolled = rollUpBudget(row);
+          return {
+            id: row.id,
+            name: row.name,
+            currency: rolled.currency,
+            status: row.status,
+            period: `${row.period_start ?? '…'} → ${row.period_end ?? '…'}`,
+            ...money(rolled.currency, {
+              approved: rolled.approved,
+              planned: rolled.planned,
+              actual: rolled.actual,
+              forecast: rolled.forecast,
+              variance: rolled.variance,
+            }),
+            health: healthOf(rolled),
+            url: `${env.publicUrl}/budgets/${row.id}`,
+          };
+        }),
+        total: budgets.length,
+      };
+    },
+  },
+  {
+    name: 'budget_status',
+    title: 'Budget status',
+    description:
+      'One budget in full: plan against actual, the forecast and the variance, broken down by '
+      + 'category, by project and by month. Optionally under a saved scenario, and optionally as '
+      + 'it stood on an earlier date.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      required: ['budget'],
+      properties: {
+        budget: { type: 'string', description: 'Budget id or name' },
+        scenario: { type: 'string', description: 'Scenario name or id to apply instead of the plan' },
+        as_of: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireFeature(workspaceId, 'budget');
+      const budget = findBudget(String(args.budget), workspaceId, ctx);
+      const asOf = isoDay(args.as_of, 'as_of') ?? undefined;
+
+      let scenario: Row | null = null;
+      if (args.scenario) {
+        const wanted = String(args.scenario).toLowerCase();
+        scenario = all<Row>(
+          `SELECT * FROM budget_scenarios WHERE budget_id = ? AND deleted_at IS NULL`, budget.id,
+        ).find((row) => row.id === args.scenario || String(row.name).toLowerCase() === wanted) ?? null;
+        if (!scenario) throw new McpError(`No scenario called "${args.scenario}" on that budget`);
+      }
+
+      const rolled = rollUpBudget(budget, { scenario, asOf });
+      const names = projectNames(workspaceId);
+      const fmt = (value: number) => formatMoney(value, rolled.currency, 'en');
+
+      return {
+        budget: { id: budget.id, name: budget.name, currency: rolled.currency, status: budget.status },
+        scenario: scenario ? { id: scenario.id, name: scenario.name } : null,
+        period: rolled.period,
+        as_of: asOf ?? new Date().toISOString().slice(0, 10),
+        ...money(rolled.currency, {
+          approved: rolled.approved,
+          planned: rolled.planned,
+          committed: rolled.committed,
+          invoiced: rolled.invoiced,
+          paid: rolled.paid,
+          actual: rolled.actual,
+          remaining: rolled.remaining,
+          forecast: rolled.forecast,
+          variance: rolled.variance,
+          unplanned: rolled.unplanned,
+        }),
+        health: healthOf(rolled),
+        /* Two ratios rather than one: a budget 80% spent is fine in November
+           and alarming in February, and the pair is the whole of that
+           sentence. */
+        used_share: rolled.used === null ? null : Math.round(rolled.used * 100) / 100,
+        elapsed_share: Math.round(rolled.elapsed * 100) / 100,
+        run_rate_forecast: rolled.runRate === null ? null : fmt(rolled.runRate),
+        by_category: rolled.byCategory.map((row) => ({
+          category: row.key, planned: fmt(row.planned), actual: fmt(row.actual),
+          variance: fmt(row.planned - row.actual),
+        })),
+        by_project: rolled.byProject.map((row) => ({
+          project: row.project_id ? names[row.project_id] ?? row.project_id : 'unallocated',
+          planned: fmt(row.planned), actual: fmt(row.actual),
+        })),
+        by_month: rolled.byMonth.map((row) => ({
+          month: row.month, planned: fmt(row.planned), actual: fmt(row.actual),
+        })),
+      };
+    },
+  },
+  {
+    name: 'create_budget',
+    title: 'Create a budget',
+    description:
+      'Open an envelope of money over a period. Scoped like a cycle: give `project` for one '
+      + 'project\'s own budget, `projects` for several, or neither for a workspace-wide one.',
+    schema: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string' },
+        description: { type: 'string' },
+        currency: { type: 'string', description: 'ISO 4217, e.g. EUR. Defaults to EUR' },
+        approved: { type: 'string', description: 'The signed-off total, e.g. "250000"' },
+        period_start: { type: 'string', description: 'YYYY-MM-DD' },
+        period_end: { type: 'string', description: 'YYYY-MM-DD' },
+        status: { type: 'string', enum: [...BUDGET_STATUS] },
+        project: { type: 'string', description: 'Project key or name — one project\'s own budget' },
+        projects: { type: 'array', items: { type: 'string' }, description: 'Several projects' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'budget');
+      const scope = resolveScope(args, workspaceId, ctx);
+      const currency = String(args.currency ?? 'EUR').trim().toUpperCase();
+
+      const { row } = writeEntity('budget', uid(), {
+        workspace_id: workspaceId,
+        ...scope,
+        name: String(args.name).trim(),
+        description: str(args.description) ?? null,
+        currency,
+        approved: args.approved === undefined ? 0 : requireMoney(args.approved, 'approved'),
+        period_start: isoDay(args.period_start, 'period_start'),
+        period_end: isoDay(args.period_end, 'period_end'),
+        status: (BUDGET_STATUS as readonly string[]).includes(String(args.status)) ? args.status : 'draft',
+        archived: 0,
+      }, writeOpts(workspaceId, ctx));
+
+      return { id: row.id, name: row.name, currency: row.currency, url: `${env.publicUrl}/budgets/${row.id}` };
+    },
+  },
+  {
+    name: 'add_budget_line',
+    title: 'Plan a cost',
+    description:
+      'Add a planned cost to a budget. `amount` is per occurrence, so twelve months of hosting is '
+      + 'one line with `recurrence: "monthly"` rather than twelve rows. `allocations` splits the '
+      + 'cost between projects in percent; leave it out and the cost is unallocated.',
+    schema: {
+      type: 'object',
+      required: ['budget', 'name', 'amount'],
+      properties: {
+        budget: { type: 'string', description: 'Budget id or name' },
+        name: { type: 'string' },
+        amount: { type: 'string', description: 'Per occurrence, e.g. "4500" or "4.500,00"' },
+        category: { type: 'string', enum: [...COST_CATEGORIES] },
+        kind: { type: 'string', enum: [...COST_KINDS], description: 'opex to run, capex to build' },
+        recurrence: { type: 'string', enum: [...COST_RECURRENCES] },
+        starts_on: { type: 'string', description: 'YYYY-MM-DD; defaults to the budget period' },
+        ends_on: { type: 'string', description: 'YYYY-MM-DD' },
+        vendor: { type: 'string' },
+        confidence: { type: 'string', enum: [...COST_CONFIDENCE] },
+        allocations: {
+          type: 'object',
+          description: 'Project key or name → percent, e.g. {"WEB": 60, "OPS": 40}. Rescaled to 100.',
+          additionalProperties: { type: 'number' },
+        },
+        note: { type: 'string' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'budget');
+      const budget = findBudget(String(args.budget), workspaceId, ctx);
+
+      const { row } = writeEntity('budgetLine', uid(), {
+        workspace_id: workspaceId,
+        budget_id: budget.id,
+        name: String(args.name).trim(),
+        amount: requireMoney(args.amount, 'amount'),
+        category: args.category ?? 'other',
+        kind: args.kind ?? 'opex',
+        recurrence: args.recurrence ?? 'once',
+        starts_on: isoDay(args.starts_on, 'starts_on'),
+        ends_on: isoDay(args.ends_on, 'ends_on'),
+        vendor: str(args.vendor) ?? null,
+        confidence: args.confidence ?? 'likely',
+        allocations: allocationsFromArgs(args.allocations, workspaceId, ctx),
+        note: str(args.note) ?? null,
+        sort_order: orderKey(lastLineOrder(budget.id), null),
+      }, writeOpts(workspaceId, ctx));
+
+      const rolled = rollUpBudget(budget);
+      return {
+        id: row.id,
+        name: row.name,
+        // What the line is worth over the whole period, which is the number the
+        // caller meant and not the one they typed for a recurring cost.
+        planned_total: formatMoney(
+          plannedTotal(serialize('budgetLine', row) as any, rolled.period), rolled.currency, 'en',
+        ),
+        budget: budget.name,
+      };
+    },
+  },
+  {
+    name: 'record_spend',
+    title: 'Record money spent',
+    description:
+      'Record money that has actually gone, or is committed and will. `stage` matters: '
+      + '"committed" is a purchase order nobody has invoiced yet, and leaving it out of a report '
+      + 'is how a budget looks healthy until the invoices land. Attach it to a plan line with '
+      + '`line`, or leave that out — unplanned spend is a real thing and the reports count it.',
+    schema: {
+      type: 'object',
+      required: ['budget', 'description', 'amount'],
+      properties: {
+        budget: { type: 'string', description: 'Budget id or name' },
+        description: { type: 'string' },
+        amount: { type: 'string', description: 'e.g. "1250.40"' },
+        line: { type: 'string', description: 'Plan line id or name this pays for' },
+        category: { type: 'string', enum: [...COST_CATEGORIES] },
+        spent_on: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        stage: { type: 'string', enum: [...SPEND_STAGES], description: 'Defaults to paid' },
+        vendor: { type: 'string' },
+        reference: { type: 'string', description: 'Invoice or purchase-order number' },
+        note: { type: 'string' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'budget');
+      const budget = findBudget(String(args.budget), workspaceId, ctx);
+
+      let line: Row | null = null;
+      if (args.line) {
+        const wanted = String(args.line).toLowerCase();
+        line = all<Row>(`SELECT * FROM budget_lines WHERE budget_id = ? AND deleted_at IS NULL`, budget.id)
+          .find((row) => row.id === args.line || String(row.name).toLowerCase() === wanted) ?? null;
+        if (!line) throw new McpError(`No plan line called "${args.line}" on that budget`);
+      }
+
+      const { row } = writeEntity('budgetActual', uid(), {
+        workspace_id: workspaceId,
+        budget_id: budget.id,
+        line_id: line?.id ?? null,
+        description: String(args.description).trim(),
+        amount: requireMoney(args.amount, 'amount'),
+        // The line's category unless told otherwise: an invoice against the
+        // hosting line is a hosting cost, and asking again invites a mismatch
+        // that shows up only as two categories that should have been one.
+        category: args.category ?? line?.category ?? 'other',
+        spent_on: isoDay(args.spent_on, 'spent_on') ?? new Date().toISOString().slice(0, 10),
+        stage: args.stage ?? 'paid',
+        vendor: str(args.vendor) ?? line?.vendor ?? null,
+        reference: str(args.reference) ?? null,
+        allocations: '[]',
+        note: str(args.note) ?? null,
+      }, writeOpts(workspaceId, ctx));
+
+      const rolled = rollUpBudget(budget);
+      return {
+        id: row.id,
+        amount: formatMoney(Number(row.amount), rolled.currency, 'en'),
+        stage: row.stage,
+        spent_on: row.spent_on,
+        line: line?.name ?? null,
+        budget: budget.name,
+        ...money(rolled.currency, { actual_now: rolled.actual, forecast_now: rolled.forecast, variance_now: rolled.variance }),
+        health: healthOf(rolled),
+      };
+    },
+  },
+  {
+    name: 'project_costs',
+    title: 'What a project costs',
+    description:
+      'One project\'s share of every budget that charges it, planned against actual. This is the '
+      + 'other direction from `budget_status`: a project lead does not care what the central '
+      + 'infrastructure budget totals, they care what lands on them. Budgets in different '
+      + 'currencies are reported separately rather than added.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      required: ['project'],
+      properties: {
+        project: { type: 'string', description: 'Project key or name' },
+        as_of: { type: 'string', description: 'YYYY-MM-DD; defaults to today' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireFeature(workspaceId, 'budget');
+      const project = findProject(String(args.project), workspaceId, ctx);
+      const asOf = isoDay(args.as_of, 'as_of') ?? undefined;
+      const budgets = visibleBudgets(workspaceId, ctx).filter((row) => !Number(row.archived));
+
+      const charged: Record<string, unknown>[] = [];
+      for (const budget of budgets) {
+        const rolled = rollUpBudget(budget, { asOf });
+        const share = rolled.byProject.find((row) => row.project_id === project.id);
+        if (!share || (!share.planned && !share.actual)) continue;
+        charged.push({
+          budget: budget.name,
+          budget_id: budget.id,
+          currency: rolled.currency,
+          planned: formatMoney(share.planned, rolled.currency, 'en'),
+          actual: formatMoney(share.actual, rolled.currency, 'en'),
+          variance: formatMoney(share.planned - share.actual, rolled.currency, 'en'),
+        });
+      }
+
+      const totals = projectShare({
+        projectId: project.id,
+        budgets: budgets.map((row) => serialize('budget', row) as any),
+        lines: budgetChildren('budget_lines', budgets).map((row) => serialize('budgetLine', row) as any),
+        actuals: budgetChildren('budget_actuals', budgets).map((row) => serialize('budgetActual', row) as any),
+        asOf,
+      });
+
+      return {
+        project: { id: project.id, key: project.key, name: project.name },
+        totals: totals.map((row) => ({
+          currency: row.currency,
+          budgets: row.budgets,
+          planned: formatMoney(row.planned, row.currency, 'en'),
+          actual: formatMoney(row.actual, row.currency, 'en'),
+          variance: formatMoney(row.planned - row.actual, row.currency, 'en'),
+        })),
+        budgets: charged,
+      };
+    },
+  },
+
   /* ------------------------------------------------------------- reports --
    *
    * Six read-only questions that were answerable before only by pulling the
@@ -3533,7 +4030,7 @@ const TOOLS: ToolDef[] = [
 /**
  * Turn `project` / `projects` arguments into the pair that gets stored.
  *
- * Shared by cycles and modules, which are scoped identically. Each name is
+ * Shared by cycles, modules and budgets, which are scoped identically. Each name is
  * resolved through `findProject`, so a project this token cannot see is refused
  * here rather than silently dropped — one that quietly covers fewer projects
  * than asked for is worse than one that fails to be made. `projectScope` then
@@ -3548,7 +4045,7 @@ function resolveScope(
   // Refused rather than resolved: `projectScope` would let the list win, and a
   // caller who passed both meant one of them. Which one is not ours to guess.
   if (str(args.project) && Array.isArray(args.projects)) {
-    throw new McpError('Pass `project` for a cycle one project owns, or `projects` for the projects that run it — not both');
+    throw new McpError('Pass `project` for one project\'s own, or `projects` for the projects it covers — not both');
   }
   const listed = Array.isArray(args.projects)
     ? args.projects.filter((r: unknown) => typeof r === 'string' && r.trim())

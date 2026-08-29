@@ -488,6 +488,26 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* Off by default like the rest, and for a reason of its own: money is
+          the one thing here that everybody in a workspace can see the moment
+          it exists. Turning it off hides the screens; the figures stay. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.budget}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { budget: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureBudget')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureBudgetHint')}</span>
+        </span>
+      </label>
+
       {/* The workspace half of the two switches a review needs. The other half
           is a key in the environment, which is not a thing an admin can set
           from here — so when there is no model the row says who to ask rather

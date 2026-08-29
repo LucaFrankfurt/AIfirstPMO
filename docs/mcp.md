@@ -244,6 +244,9 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_attachments` | files on a task or a page, with the URL to fetch each |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
+| `list_budgets` | budgets with approved, planned, actual, forecast, variance and whether each is on track |
+| `budget_status` | one budget in full: plan against actual, forecast, variance, broken down by category, project and month. Optionally under a saved scenario, and optionally as it stood on an earlier date |
+| `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 
 ### Reports
 
@@ -406,9 +409,42 @@ Three more details worth knowing before you trust a number:
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |
+| `create_budget` | an envelope of money over a period, scoped like a cycle: one project's, several, or the workspace |
+| `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
+| `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
+
+### Budgets, and the figure a model will misread
+
+Every budget tool is refused with `Budgets is switched off in this workspace` until an admin turns
+them on, for the reason `log_time` is: a tool that records money into a workspace where no screen
+will ever show it has done something worse than refusing.
+
+Amounts go **in** as text and are read the way a person writes them — `4500`, `4.500,00`,
+`4,500.00`, `€4 500` are one amount. They come **out** twice:
+
+```json
+{ "variance": 11584950, "variance_text": "€115,849.50" }
+```
+
+Minor units to compute with, formatted to quote. Both, because a model asked for "the variance"
+quotes whichever it sees first and one of the two readings is out by a factor of a hundred, in a
+sentence that will sound equally confident either way.
+
+`allocations` is `{"WEB": 60, "OPS": 40}` — project keys or names, percentages. A key that names no
+project is an **error**, not a dropped entry: a split that quietly loses one of its halves charges
+the whole cost to the other, which is a wrong number nobody would think to question.
+
+`budget_status` takes `scenario` by name. An unknown one is refused rather than silently answered
+from the plan — "what does it look like if the migration slips" answered with the plan is the worst
+possible failure of that question.
+
+Every figure comes from the same function the dashboard draws with, so a number quoted here is the
+number on somebody's screen. The rules behind them — what `committed` means, why the forecast takes
+closed months as they happened, how a cost splits without losing a cent —
+are in [`budgets.md`](budgets.md).
 
 ### Labels, and the trap in them
 
