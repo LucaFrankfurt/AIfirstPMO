@@ -15,7 +15,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   FULL_SHARE, allocate, applyScenario, byConfidence, byKind, formatMoney, healthOf, monthsBetween,
-  actualFromPlan, normaliseAllocations, parseMoney, plannedForMonth, plannedTotal, projectShare,
+  actualFromPlan, normaliseAllocations, parseMoney, periodOf, plannedForMonth, plannedTotal, projectShare,
   rollUp, scheduleOf, shiftDate,
   type Budget, type BudgetActual, type BudgetLine,
 } from '@kolibri/shared';
@@ -394,6 +394,68 @@ describe('adding a budget up', () => {
 
   it('says nothing about a budget with no envelope at all', () => {
     assert.equal(healthOf({ approved: 0, planned: 0, forecast: 0 }), 'unset');
+  });
+});
+
+describe('the period a budget covers', () => {
+  /*
+   * The bug this describes was reported as "I cannot take the plan across for
+   * other months", and it was not about confirming at all: a budget with a
+   * start and no end used to cover exactly one month, so a monthly line was
+   * planned once and every other month was outside the period. The form leaves
+   * the end date empty by default, so this was the *ordinary* way to make a
+   * budget — and nothing said so. The plan total simply came out an order of
+   * magnitude small.
+   */
+  it('gives an open-ended budget a year rather than a month', () => {
+    const open = periodOf({ period_start: '2026-06-01', period_end: null }, '2026-08-29');
+    assert.deepEqual(open, { from: '2026-06', to: '2027-05' });
+  });
+
+  it('plans a monthly line every month of that year', () => {
+    const budget = { period_start: '2026-06-01', period_end: null };
+    const period = periodOf(budget, '2026-08-29');
+    assert.equal(plannedTotal(line({ amount: 549, recurrence: 'monthly' }), period), 549 * 12);
+  });
+
+  it('offers a monthly line in a month after the one it started in', () => {
+    // The symptom, stated as the person saw it.
+    const budget = { period_start: '2026-06-01', period_end: null };
+    const period = periodOf(budget, '2026-08-29');
+    const august = plannedForMonth({
+      lines: [line({ id: 'caddy', amount: 549, recurrence: 'monthly', starts_on: '2026-06-01' })],
+      actuals: [],
+      month: '2026-08',
+      period,
+    });
+    assert.equal(august.length, 1);
+    assert.equal(august[0].amount, 549);
+  });
+
+  it('reads an end with no start as the year up to it', () => {
+    assert.deepEqual(
+      periodOf({ period_start: null, period_end: '2026-12-31' }, '2026-08-29'),
+      { from: '2026-01', to: '2026-12' },
+    );
+  });
+
+  it('gives a budget with no dates at all a year from this month', () => {
+    assert.deepEqual(
+      periodOf({ period_start: null, period_end: null }, '2026-08-29'),
+      { from: '2026-08', to: '2027-07' },
+    );
+  });
+
+  it('keeps both dates when both are given, even backwards', () => {
+    assert.deepEqual(
+      periodOf({ period_start: '2026-01-01', period_end: '2026-03-31' }, '2026-08-29'),
+      { from: '2026-01', to: '2026-03' },
+    );
+    assert.deepEqual(
+      periodOf({ period_start: '2026-03-31', period_end: '2026-01-01' }, '2026-08-29'),
+      { from: '2026-01', to: '2026-03' },
+      'a period typed backwards is the same period',
+    );
   });
 });
 

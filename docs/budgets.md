@@ -66,6 +66,30 @@ Months outside the budget's period are dropped. A line running past the end of
 the budget is planning next year's money, and adding it to this year's total is
 how a budget looks overspent from the day it is written.
 
+**So the period decides how much of a recurring line is planned**, and a budget
+that has not been given one still has one:
+
+| Dates given | Period |
+|---|---|
+| Start and end | Exactly those, swapped if they were typed backwards |
+| Start only | **Twelve months from the start** |
+| End only | The twelve months up to it |
+| Neither | Twelve months from this one |
+
+An open end means a year rather than the month it starts in, and that is worth
+stating because the other answer shipped first. A budget with a start and no
+end — which is what the form produces unless the second date is filled in —
+covered one single month, so twelve monthly hosting lines were planned one
+month's worth each and every month but one fell outside the period. Nothing
+said so: no error, no warning, just a plan total an order of magnitude under
+the real one. It was reported as *"I cannot take the plan across for other
+months"*, which is exactly what it looks like from the outside.
+
+A year, rather than "up to today", because a budget is an annual instrument
+almost everywhere and because the total should not change merely because a
+month went by — these figures get quoted. Costs that run longer are said with
+an end date, and the form now says that is what the empty field means.
+
 ## Categories, and the two words that are not the same
 
 `category` is a fixed list — infrastructure, investment, people, licences,

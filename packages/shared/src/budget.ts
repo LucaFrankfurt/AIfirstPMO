@@ -261,11 +261,37 @@ const MONTHS_PER: Record<string, number> = { once: 0, monthly: 1, quarterly: 3, 
 
 /* -------------------------------------------------------------------- plan */
 
-/** A budget's period, with sensible answers when it has not been given one. */
+/**
+ * A budget's period, with sensible answers when it has not been given one.
+ *
+ * The interesting case is a start with no end — which is what the form produces
+ * unless somebody fills the second date in, and which this used to answer with
+ * a period exactly one month long. That is quietly, badly wrong for the budget
+ * people actually write: twelve monthly hosting lines planned one month's worth
+ * each, a plan total an order of magnitude under the real one, every month but
+ * one outside the period, and nothing anywhere saying so. It was reported as
+ * "I cannot take the plan across for other months", which is what it looks like
+ * from the outside.
+ *
+ * So **an open end means a year**. A budget is an annual instrument almost
+ * everywhere, twelve months is what somebody writing one means, and it is
+ * *stable* — the total does not change because a month went by, which matters
+ * for a figure that gets quoted in a meeting. Costs that run longer are said
+ * with an end date, and the form now says that is what the empty field means.
+ *
+ * An end with no start is the mirror: the twelve months up to it. Neither date
+ * is a year from this month, for the same reason.
+ */
+const OPEN_PERIOD_MONTHS = 12;
+
 export function periodOf(budget: Pick<Budget, 'period_start' | 'period_end'>, today: ISODate): { from: Month; to: Month } {
-  const from = monthOf(budget.period_start || budget.period_end || today);
-  const to = monthOf(budget.period_end || budget.period_start || today);
-  return monthDistance(from, to) < 0 ? { from: to, to: from } : { from, to };
+  const start = budget.period_start ? monthOf(budget.period_start) : null;
+  const end = budget.period_end ? monthOf(budget.period_end) : null;
+  if (start && end) return monthDistance(start, end) < 0 ? { from: end, to: start } : { from: start, to: end };
+  if (start) return { from: start, to: addMonths(start, OPEN_PERIOD_MONTHS - 1) };
+  if (end) return { from: addMonths(end, -(OPEN_PERIOD_MONTHS - 1)), to: end };
+  const now = monthOf(today);
+  return { from: now, to: addMonths(now, OPEN_PERIOD_MONTHS - 1) };
 }
 
 /** A line's own window, falling back to its budget's period. */
