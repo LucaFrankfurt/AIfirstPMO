@@ -43,6 +43,22 @@ Each cost also carries:
 - a **confidence** — committed, likely or possible. Nothing is weighted automatically; how much
   of a maybe to carry is a judgement, and scenarios are where you make it.
 
+### The period, when you do not give one
+
+A recurring cost is planned once and repeated across the budget's period, so **the period decides
+how much of it is planned**. A budget you have not given both dates still has one:
+
+| Dates you gave | Period |
+|---|---|
+| Start and end | Exactly those |
+| Start only | **Twelve months from the start** |
+| End only | The twelve months up to it |
+| Neither | Twelve months from this one |
+
+If your costs run longer than a year, give the budget an end date. Leaving the end empty is not
+open-ended — it is a year, and the actuals screen says so plainly when you page to a month past it
+rather than claiming nothing is planned.
+
 ## Who pays for it
 
 This is the part that makes budgets worth having rather than a spreadsheet with a project

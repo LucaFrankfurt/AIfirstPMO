@@ -16,7 +16,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   BUDGET_STATUS, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, FULL_SHARE,
   compareOrder,
-  SPEND_STAGES, actualFromPlan, byConfidence, byKind, coversProject, monthOf, orderKey,
+  SPEND_STAGES, actualFromPlan, byConfidence, byKind, coversProject, monthDistance, monthOf, orderKey,
+  periodOf,
   plannedForMonth, plannedTotal,
   projectScope, rollUp,
   type Allocation, type Budget, type BudgetActual, type BudgetLine, type BudgetScenario,
@@ -932,14 +933,15 @@ function ConfirmPlanned({ budget, lines, actuals }: {
   const t = useT();
   const toast = useToast();
   const totals = useRollUp(budget);
-  /* The month somebody is closing. Today's, unless the budget's period ended
-     first — a closed budget opens on its last month rather than on one that
-     was never in it and can therefore never have anything to confirm. */
+  /* The month somebody is closing: today's, clamped into the budget's period so
+     a closed budget opens on its last month and one that has not started yet on
+     its first — neither can have anything to confirm. Clamped against `periodOf`
+     rather than against `period_end`, because a budget with an open end has a
+     period all the same and reading the raw column would miss it. */
   const [month, setMonth] = useState(() => {
+    const { from, to } = periodOf(budget, today());
     const now = monthOf(today());
-    if (!budget.period_end) return now;
-    const last = monthOf(budget.period_end);
-    return now > last ? last : now;
+    return now < from ? from : now > to ? to : now;
   });
   /**
    * What stage a confirmation records.
@@ -976,6 +978,17 @@ function ConfirmPlanned({ budget, lines, actuals }: {
    */
   const nothingPlanned = !planned.length;
   const settled = !nothingPlanned && !open.length;
+  /**
+   * Outside the budget's own period, which is a different sentence.
+   *
+   * "Nothing is planned for August" is true and useless when the budget runs to
+   * June: it reads as *there is no plan* rather than as *you are looking past
+   * the end of this budget*, and somebody reasonably concludes the feature is
+   * broken. This is the one place that difference is visible, so it says which
+   * it is and what the period actually is.
+   */
+  const outside = !!totals && (monthDistance(totals.period.from, month) < 0
+    || monthDistance(month, totals.period.to) < 0);
 
   return (
     <div className="confirm-strip">
@@ -1002,7 +1015,15 @@ function ConfirmPlanned({ budget, lines, actuals }: {
         )}
       </div>
 
-      {nothingPlanned ? (
+      {outside ? (
+        <p className="confirm-empty">
+          {t('budget.confirmOutside', {
+            month: monthName(month),
+            from: monthName(totals!.period.from),
+            to: monthName(totals!.period.to),
+          })}
+        </p>
+      ) : nothingPlanned ? (
         <p className="confirm-empty">{t('budget.confirmNothing', { month: monthName(month) })}</p>
       ) : settled ? (
         <p className="confirm-empty done">
@@ -1540,6 +1561,10 @@ function BudgetFields({ budget, onChange, disabled }: {
             value={budget.period_end ?? ''}
             onChange={(event) => onChange({ period_end: event.target.value || null })}
           />
+          {/* What an empty field does, said out loud. It used to mean a period
+              one month long, which nobody would have guessed and nothing said
+              — the budget simply came out an order of magnitude small. */}
+          <span className="text-[12px] text-muted">{t('budget.periodEndHint')}</span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="b-status">{t('budget.status')}</label>
