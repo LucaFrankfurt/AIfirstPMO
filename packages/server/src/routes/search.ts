@@ -1,6 +1,6 @@
 import { all, type Row } from '../db/index.ts';
 import { requireAuth, requireWorkspace } from '../lib/auth.ts';
-import { canSeeProject } from '../lib/repo.ts';
+import { canSeeBudget, canSeeProject } from '../lib/repo.ts';
 import type { Ctx, Router } from '../lib/http.ts';
 
 export interface SearchHit {
@@ -56,7 +56,11 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
 
   return rows
     .filter((row) => canSeeProject(userId, row.project_id)
-      && (row.kind !== 'message' || readable.has(String(row.ref_id))))
+      && (row.kind !== 'message' || readable.has(String(row.ref_id)))
+      // A budget covering several projects has no single `project_id`, so the
+      // clause above reads it as workspace-wide and lets it through. Asked of
+      // the one function that knows the scoping rule — see `canSeeBudget`.
+      && (row.kind !== 'budget' || canSeeBudget(userId, String(row.ref_id))))
     .slice(0, limit)
     .map((row) => ({
       kind: row.kind,

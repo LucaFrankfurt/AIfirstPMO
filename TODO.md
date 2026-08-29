@@ -455,10 +455,82 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       compare to anything. The data and the API are unchanged by the switch — it hides a feature, it
       does not throw anything away — and MCP refuses `log_time` while it is off rather than
       recording a row no screen will show.
-- [ ] **What time tracking is a prerequisite for**: hourly rates, budgets, cost and utilisation
-      reports, and a timesheet view across projects and weeks. Still blocked on the same thing:
-      `tasks.estimate` is in points, so an estimate has to carry a unit first — which is a decision
-      about how a team plans, not a formatting problem.
+- [x] **Budgets — done, and *not* by deriving them from time.** What things cost, planned against
+      what has actually gone: infrastructure, investments, licences, people, each planned once (a
+      monthly bill is one line with a recurrence, not twelve rows) and **split across the projects
+      that pay for it**, so a shared cluster charges 60% to one team and 40% to another and both
+      figures are right and add up to the whole. Committed spend counts as gone, because a purchase
+      order is money you no longer have and a report counting only paid invoices says a budget is
+      healthy right until they land. A forecast under one rule — closed months as they happened,
+      open ones at whichever is larger of plan and actual — with a run-rate second opinion beside
+      it, and scenarios that never touch the plan.
+
+      The reason this was listed as blocked, and the reason it no longer is: the blocker was
+      deriving cost from `tasks.estimate`, which is in points. So it does not. A budget line
+      carries its own money, as a whole number of **minor units** — `0.1 + 0.2` is not `0.3` and a
+      budget is a column that gets added up two different ways and compared — and one currency per
+      budget with no conversion anywhere, because a rate is a fact about a day. Everything is
+      computed on demand by one pure function both the server and the browser call, so the
+      dashboard works offline and MCP cannot quote a different number from the screen.
+      [`docs/budgets.md`](docs/budgets.md)
+- [x] **Rates, cost, utilisation and a timesheet** — and the blocker they were filed under turned
+      out not to apply to them. "An estimate has to carry a unit first" is true of *spent versus
+      estimated*, which compares a duration with a number of points and cannot be done honestly.
+      It is not true of a rate: cost is `minutes × rate`, and `tasks.estimate` appears nowhere in
+      that. The item had been sitting behind somebody else's blocker for a year.
+
+      A rate is dated, and the most specific one wins: this person on this project, then this
+      person anywhere, then anyone on this project, then the workspace's own. An entry is costed
+      at the rate in force **on the day the work happened**, so raising a rate in April does not
+      silently rewrite March. Two kinds — what an hour costs and what it is charged at — which is
+      what makes revenue and margin answerable rather than invented. Time with no rate is
+      **unrated**, counted and shown as its own figure, never as zero: an hour that costs nothing
+      is a lie, and the same decision `unallocated` makes in budgets.
+
+      Utilisation is the billable share of what was logged. Against a *target* it needs hours a
+      person is available for, which is an HR fact this app does not hold — so the target is set
+      by whoever is looking, the way the team planner's comfortable load already is.
+
+      Rates are **owner and admin only**, and so is every figure derived from them, because a
+      total is a rate anybody can divide back out: one person on a project, and cost ÷ their hours
+      is exactly what they are paid. [`docs/time.md`](docs/time.md)
+- [x] **An infrastructure register — and a landscape that is a date rather than a document.**
+      Vendors, servers, the instances on them, SaaS subscriptions, and the documented steps from
+      one shape of the estate to the next.
+
+      The design decision worth recording is the one that was *not* taken. The obvious model is a
+      "current" set of components and a "target" set beside it, and it comes apart about a month
+      in: the two have to be kept in step by hand, the target goes stale the moment somebody
+      decommissions something for real, and there is nowhere to put "and in June we will have
+      both". So there is no landscape table at all. Every component carries `live_from` and
+      `live_until`, the estate on any day falls out of that, and current-versus-future is one
+      function called twice. Nobody moves anything between lists when the day arrives.
+
+      What that model cannot answer is reported rather than hidden: a component planned with no
+      start date is in **no** landscape, present or future, and it comes back in its own list on
+      the screen, in the MCP answer and on the form while somebody is filling it in.
+
+      A move names what it retires and what it brings in as two lists of components rather than
+      as prose — which is what lets the register check it. Progress is read from the estate, not
+      from the status, so a move claimed done with a server still running is flagged. A plan
+      nobody executed reads exactly like one that was, until something compares them.
+
+      Costs use the budget's own vocabulary — an amount per occurrence, a recurrence, a window —
+      so a component charged to a plan line can be put beside it without a conversion in between.
+      Neither figure wins: one is a plan and the other an inventory, and the useful output is the
+      difference. The annual figure is the primitive because dividing a yearly contract into
+      twelve does not come back to itself. [`docs/infrastructure.md`](docs/infrastructure.md)
+- [ ] **Discovery for the register.** Every row in it is one somebody typed, which is the reason
+      it can be wrong. Reading an actual cloud account — a Scaleway or AWS inventory, a Kubernetes
+      API — would let the register be *checked* rather than only written, and "what is running
+      that nobody wrote down" is the question an estate document can never answer about itself.
+      Deliberately not started: it is a credential this instance would have to hold and a
+      per-provider integration each, which is a different kind of feature from everything above.
+- [ ] **Spent versus estimated**, which is the thing that really is blocked. `tasks.estimate` is in
+      points — a guess at size, not at hours — so "3h of 5" compares two different quantities
+      confidently. An estimate has to carry a unit first, which is a decision about how a team
+      plans rather than a formatting problem, and it is the last piece missing before a task can
+      carry a budget of its own.
 - [x] **Gantt with real scheduling, and baselines.** See P2 above. A baseline keeps the dates as
       they stood under a name — the whole plan in one row, because it is something somebody *took*
       and must not drift as tasks are added afterwards — and the timeline draws it as a thin rule
@@ -846,7 +918,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 50 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 66 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

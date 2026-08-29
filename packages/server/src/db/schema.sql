@@ -307,6 +307,132 @@ CREATE TABLE IF NOT EXISTS baselines (
 CREATE INDEX IF NOT EXISTS baselines_seq ON baselines (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS baselines_project ON baselines (project_id);
 
+-- ---------------------------------------------------------------- budgets --
+--
+-- Every amount below is an INTEGER of minor units — 1250 is €12.50 — and never
+-- a REAL. SQLite would store a float happily and the error would not show up
+-- until a column of them was added two different ways and came out a cent
+-- apart, months later, in front of somebody's finance team. See `Minor` in
+-- `@kolibri/shared`.
+
+-- An envelope of money over a period. Scoped exactly as a cycle is: an owner
+-- and an empty list is that project's own; no owner and an empty list is the
+-- whole workspace; a list is exactly those projects. See `coversProject`.
+CREATE TABLE IF NOT EXISTS budgets (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT,
+  projects     TEXT NOT NULL DEFAULT '[]',
+  name         TEXT NOT NULL,
+  description  TEXT,
+  -- ISO 4217. One per budget, and nothing anywhere converts between two: a
+  -- rate is a fact about a day, and a report that quietly picks today's to add
+  -- up last year's is worse than one that shows two totals.
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  -- What was signed off. 0 means nobody has, which is different from an
+  -- approved budget of nothing.
+  approved     INTEGER NOT NULL DEFAULT 0,
+  period_start TEXT,
+  period_end   TEXT,
+  status       TEXT NOT NULL DEFAULT 'draft',
+  owner_id     TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS budgets_seq ON budgets (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS budgets_project ON budgets (project_id);
+
+-- One planned cost. The plan is the sum of these; no total is stored anywhere,
+-- because a stored total is stale the moment somebody edits a line offline.
+CREATE TABLE IF NOT EXISTS budget_lines (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  budget_id    TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  category     TEXT NOT NULL DEFAULT 'other',
+  kind         TEXT NOT NULL DEFAULT 'opex',
+  -- Per occurrence, not for the window. Twelve months of hosting is one row
+  -- with `recurrence = 'monthly'`, not twelve rows somebody has to keep aligned.
+  amount       INTEGER NOT NULL DEFAULT 0,
+  recurrence   TEXT NOT NULL DEFAULT 'once',
+  starts_on    TEXT,
+  ends_on      TEXT,
+  vendor       TEXT,
+  confidence   TEXT NOT NULL DEFAULT 'likely',
+  -- `[{project_id, share}]`, shares in basis points summing to 10000. Empty is
+  -- unallocated, which is a real state and not a mistake.
+  allocations  TEXT NOT NULL DEFAULT '[]',
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS budget_lines_seq ON budget_lines (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS budget_lines_budget ON budget_lines (budget_id);
+
+-- Money that actually moved. `line_id` is nullable on purpose: an invoice
+-- nobody planned for is the most interesting row in the system, and a model
+-- that forced every actual to name a plan line would have people filing it
+-- under whichever line was closest.
+CREATE TABLE IF NOT EXISTS budget_actuals (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  budget_id    TEXT NOT NULL,
+  line_id      TEXT,
+  description  TEXT NOT NULL DEFAULT '',
+  category     TEXT NOT NULL DEFAULT 'other',
+  amount       INTEGER NOT NULL DEFAULT 0,
+  spent_on     TEXT NOT NULL,
+  -- committed | invoiced | paid. Committed is the one that ruins a month: a
+  -- purchase order is money already gone, and a report counting only paid
+  -- invoices says a budget is healthy right up until they arrive.
+  stage        TEXT NOT NULL DEFAULT 'paid',
+  vendor       TEXT,
+  reference    TEXT,
+  -- Empty inherits the line's split. See `allocationsFor`.
+  allocations  TEXT NOT NULL DEFAULT '[]',
+  note         TEXT,
+  recorded_by  TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS budget_actuals_seq ON budget_actuals (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS budget_actuals_budget ON budget_actuals (budget_id, spent_on);
+CREATE INDEX IF NOT EXISTS budget_actuals_line ON budget_actuals (line_id);
+
+-- A what-if. Never edits a line: it is a list of adjustments applied on the way
+-- to a total, so the plan the team is working to survives the meeting.
+CREATE TABLE IF NOT EXISTS budget_scenarios (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  budget_id    TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  adjustments  TEXT NOT NULL DEFAULT '[]',
+  -- How much of an unsigned cost this scenario carries, per confidence level,
+  -- in basis points. Null is "all of it" — the plan as written.
+  weights      TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS budget_scenarios_seq ON budget_scenarios (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS budget_scenarios_budget ON budget_scenarios (budget_id);
+
 -- Read-only links to one page or one filtered task list. The token is the whole
 -- of the authorisation, so it is generated here and never taken from a client.
 CREATE TABLE IF NOT EXISTS shares (
@@ -571,6 +697,135 @@ CREATE TABLE IF NOT EXISTS time_entries (
 CREATE INDEX IF NOT EXISTS time_entries_seq ON time_entries (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS time_entries_task ON time_entries (task_id);
 CREATE INDEX IF NOT EXISTS time_entries_user ON time_entries (user_id, spent_on);
+
+-- What an hour is worth, from a day. Amounts are INTEGER minor units, as
+-- everywhere money is stored here.
+--
+-- Never edited in place: raising a rate is inserting a row with a later
+-- `starts_on`, so what last quarter cost stays what last quarter cost. There is
+-- no end date — the next row's start is the end.
+--
+-- The one table here that does not reach every member. A rate is close enough
+-- to somebody's pay that it goes to owners and admins only, and so does
+-- everything computed from it: a total is a rate anybody can divide back out.
+CREATE TABLE IF NOT EXISTS rates (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  -- Null is anybody's; null project is everywhere. Most specific wins — see
+  -- `resolveRate` in @kolibri/shared.
+  user_id      TEXT,
+  project_id   TEXT,
+  -- cost | billable. What the hour costs, and what it is charged at.
+  kind         TEXT NOT NULL DEFAULT 'cost',
+  amount       INTEGER NOT NULL DEFAULT 0,
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  starts_on    TEXT NOT NULL,
+  note         TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS rates_seq ON rates (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS rates_lookup ON rates (workspace_id, kind, starts_on);
+
+-- ------------------------------------------------------------ landscape --
+--
+-- The estate: who you buy from, what runs where, and the documented steps from
+-- one shape of it to the next.
+--
+-- There is deliberately no "landscape" table. Which components make up the
+-- estate on a given day falls out of `live_from` and `live_until`, so current
+-- and future are the same query with two dates rather than two sets of rows
+-- somebody has to keep in step by hand. See `landscape.ts`.
+
+CREATE TABLE IF NOT EXISTS vendors (
+  id             TEXT PRIMARY KEY,
+  workspace_id   TEXT NOT NULL,
+  name           TEXT NOT NULL,
+  kind           TEXT NOT NULL DEFAULT 'other',
+  website        TEXT,
+  contact        TEXT,
+  contract_start TEXT,
+  contract_end   TEXT,
+  -- Days of notice before `contract_end`. Its own column because it is the one
+  -- thing about a contract with a deadline attached — the day you stop being
+  -- able to leave — and nothing can compute that from a note.
+  notice_days    INTEGER NOT NULL DEFAULT 0,
+  note           TEXT,
+  archived       INTEGER NOT NULL DEFAULT 0,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  deleted_at     INTEGER,
+  seq            INTEGER NOT NULL DEFAULT 0,
+  clocks         TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS vendors_seq ON vendors (workspace_id, seq);
+
+-- One thing in the estate. `parent_id` nests it: a machine holds its instances,
+-- an account holds its seats. Amounts are INTEGER minor units, as everywhere.
+CREATE TABLE IF NOT EXISTS components (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  vendor_id    TEXT,
+  parent_id    TEXT,
+  name         TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'server',
+  environment  TEXT NOT NULL DEFAULT 'production',
+  -- A label. The dates below are what actually decide whether this is in the
+  -- landscape on a day; this answers only where a date is missing.
+  status       TEXT NOT NULL DEFAULT 'live',
+  live_from    TEXT,
+  live_until   TEXT,
+  location     TEXT,
+  reference    TEXT,
+  -- Per occurrence, speaking the same vocabulary a budget line does, so the two
+  -- figures can be compared without one of them being converted first.
+  amount       INTEGER NOT NULL DEFAULT 0,
+  recurrence   TEXT NOT NULL DEFAULT 'monthly',
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  -- The plan line this is charged to. Null is a cost nobody has budgeted.
+  line_id      TEXT,
+  owner_id     TEXT,
+  -- Projects that depend on this. A dependency, not a cost split — the split
+  -- lives on the budget line.
+  projects     TEXT NOT NULL DEFAULT '[]',
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS components_seq ON components (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS components_vendor ON components (vendor_id);
+CREATE INDEX IF NOT EXISTS components_parent ON components (parent_id);
+CREATE INDEX IF NOT EXISTS components_line ON components (line_id);
+
+-- A documented step from one landscape to the next: what goes, what arrives.
+-- Two lists rather than prose, so the same thing that makes it readable makes
+-- it checkable against the register — see `moveProgress`.
+CREATE TABLE IF NOT EXISTS moves (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  status       TEXT NOT NULL DEFAULT 'proposed',
+  leaving      TEXT NOT NULL DEFAULT '[]',
+  arriving     TEXT NOT NULL DEFAULT '[]',
+  target_date  TEXT,
+  owner_id     TEXT,
+  project_id   TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS moves_seq ON moves (workspace_id, seq);
 
 CREATE TABLE IF NOT EXISTS views (
   id           TEXT PRIMARY KEY,

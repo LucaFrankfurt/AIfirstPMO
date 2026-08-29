@@ -119,8 +119,8 @@ money in it.
 
 | Missing | Weight | Note |
 |---|---|---|
-| **Cost tracking**, hourly rates, budgets | High | Time itself is tracked and `billable` is stored; nothing reads it. This is where OpenProject is genuinely ahead |
-| **Reports** — cost and utilisation | High | Progress across projects is built (the portfolio); money is not |
+| **Invoicing** | Low | Cost, hourly rates and budgets are all built now; turning them into a document with a number and VAT on it is not, and is not planned |
+| **Reports** — cost and utilisation | — | Built: cost, revenue, margin and billable share per project and per person, and a week grid across both |
 | **Meetings** — agenda, minutes, attendees, follow-ups | Medium | Nothing at all. Pages plus a template covers the artefact but not the workflow |
 | **Capacity in hours** | Medium | A team planner is built — a row per person, load counted in tasks running at once. Hours would need estimates to carry a unit, which is a decision about how a team plans |
 | **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
@@ -154,7 +154,7 @@ two importers. What is left:
 | # | What | Why it is next | Effort |
 |---|---|---|---|
 | 1 | **A table of contents, and a cross-page task list** | The only Confluence macros anybody actually misses. The renderer already produces the headings and already parses task items | small |
-| 2 | **Cost on top of time** — rates, budgets, a cost report | Time is tracked and `billable` is stored; nothing reads it. Where OpenProject is genuinely ahead, and parked rather than rejected | medium |
+| 2 | **Estimates that carry a unit** | The last piece of "spent versus estimated", and the only one of these still waiting on a decision rather than on work: an estimate in points cannot be compared with an hour. Cost, rates and budgets went ahead without it | medium |
 | 3 | **Composable dashboards** — arrange the charts that exist, per person, across projects | Insights and the portfolio already compute everything; what is missing is letting somebody choose the arrangement | medium |
 | 4 | **Transition validators** — required fields, a resolution on close | The per-column *who* rule is built; the *what* rule is not. Small in the schema, fiddly in the interface | medium |
 | 5 | **CalDAV write-back** | The read-only feed covers most of the value. Writing back is a protocol — `PROPFIND`, `REPORT`, ETags, conflicts — not an endpoint | medium–large |

@@ -11,6 +11,9 @@ import { Inbox, More, MyWork } from './routes/personal';
 import { Search } from './routes/search';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
+import { BudgetDetail, BudgetIndex } from './routes/budgets';
+import { TimesheetPage } from './routes/timesheet';
+import { Infrastructure } from './routes/infrastructure';
 import { Chat } from './routes/chat';
 import { Help } from './routes/help';
 import { Settings } from './routes/settings';
@@ -121,6 +124,10 @@ export default function App() {
           <Route path="/modules/:id" element={<ModulePage />} />
           <Route path="/chat" element={<Chat />} />
           <Route path="/chat/:id" element={<Chat />} />
+          <Route path="/timesheet" element={<TimesheetPage />} />
+          <Route path="/infrastructure" element={<Infrastructure />} />
+          <Route path="/budgets" element={<BudgetIndex />} />
+          <Route path="/budgets/:id" element={<BudgetDetail />} />
           <Route path="/pages" element={<PagesIndex />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />

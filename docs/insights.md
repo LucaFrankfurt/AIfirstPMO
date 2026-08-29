@@ -49,8 +49,14 @@ The rules they follow are not a matter of taste:
   different question.
 - **No forecasting.** The burn-up stops at today rather than drawing a flat line
   into the future, because a flat line into the future looks like a prediction and
-  this is a record of what happened.
-- **No cost.** Time is tracked and `billable` is stored; rates and budgets are not
-  built — see [`time.md`](time.md).
+  this is a record of what happened. The one screen that *does* draw a forecast is
+  the budget burn chart, and it is allowed to because a plan is a number somebody
+  wrote down in advance — there is no equivalent for "tasks that will be finished".
+- **Money only as a figure, never as a chart.** The tiles carry what the last
+  thirty days cost — for owners and admins, who are the only people whose device
+  holds a rate — and that is where it stops. A chart carrying tasks finished
+  *and* euros spent would share an axis between two quantities that have no
+  ratio. The money screens are [`budgets.md`](budgets.md) and the timesheet's
+  cost tab; see [`time.md`](time.md) for how an hour becomes a figure.
 - **No export.** The table view is copyable, and every underlying row is available
   over the REST API.

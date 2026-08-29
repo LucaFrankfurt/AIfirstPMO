@@ -244,6 +244,16 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_attachments` | files on a task or a page, with the URL to fetch each |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
+| `list_budgets` | budgets with approved, planned, actual, forecast, variance and whether each is on track |
+| `budget_status` | one budget in full: plan against actual, forecast, variance, broken down by category, project and month. Optionally under a saved scenario, and optionally as it stood on an earlier date |
+| `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
+| `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
+| `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
+| `utilisation` | billable share per person or per project; `target_hours` adds the billable-over-available ratio |
+| `list_components` | the estate — servers, instances, subscriptions — optionally only what is running on a given day |
+| `landscape` | one day against another: what is gone by then, what has arrived, what the difference costs a year |
+| `list_moves` | the documented steps between landscapes, with how far the register says each really got |
+| `list_vendors` | suppliers, what each costs a year, and the day notice has to be given |
 
 ### Reports
 
@@ -406,9 +416,88 @@ Three more details worth knowing before you trust a number:
 | `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |
+| `create_budget` | an envelope of money over a period, scoped like a cycle: one project's, several, or the workspace |
+| `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
+| `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
+| `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
+| `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
+| `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
+
+### The landscape, and the question it will not answer
+
+`landscape` takes two dates because a landscape here **is** a date. There is no
+"current" document and no "target" document to fetch: every component carries
+`live_from` and `live_until`, and both answers are computed from those. Ask for
+today against today to describe the estate now; ask for today against next March
+to get what is gone, what has arrived, and what the difference costs a year.
+
+What it will not do is guess. A component planned with **no start date** is in
+neither answer, and rather than being dropped it comes back in `undated`. Quote
+that list: a caller summarising "the future landscape" without it is describing
+a plan that is missing the parts nobody has scheduled.
+
+`list_moves` returns `disagrees_with_the_register` on every move, not only the
+broken ones. Progress there is read from the components rather than from the
+move's own status, so a move marked done while something it named is still
+running comes back flagged — and a caller can say "and all of them agree"
+rather than inferring it from an absence.
+
+A vendor named on `record_component` that does not exist yet is **created**
+rather than refused. It is the one place in this file that makes a row nobody
+asked for by name, and it is deliberate: an assistant writing down an estate
+should not have to create eleven suppliers first.
+
+### Rates, and the two things that are not negotiable
+
+All four rate tools refuse anybody below **admin**, with
+`Rates and cost are visible to owners and admins`. Not a preference: a rate is
+close enough to somebody's pay to keep it with the people who set it, and a
+project total is a rate anybody can divide back out — one person on a project
+and the division is exact. The pull applies the same rule in SQL, so a member's
+device holds no rates at all.
+
+And `set_rate` **adds** rather than edits. There is no `update_rate`, on
+purpose: an hour is costed at whatever was in force on the day it was worked, so
+changing a rate is starting a new one on a day. A tool that overwrote the old
+figure would make every previously exported report disagree with the screen,
+silently.
+
+Hours nothing costed come back as `unrated_hours` rather than being counted at
+zero — the same decision `unallocated` makes in budgets, and worth passing on
+when quoting a total.
+
+### Budgets, and the figure a model will misread
+
+Every budget tool is refused with `Budgets is switched off in this workspace` until an admin turns
+them on, for the reason `log_time` is: a tool that records money into a workspace where no screen
+will ever show it has done something worse than refusing.
+
+Amounts go **in** as text and are read the way a person writes them — `4500`, `4.500,00`,
+`4,500.00`, `€4 500` are one amount. They come **out** twice:
+
+```json
+{ "variance": 11584950, "variance_text": "€115,849.50" }
+```
+
+Minor units to compute with, formatted to quote. Both, because a model asked for "the variance"
+quotes whichever it sees first and one of the two readings is out by a factor of a hundred, in a
+sentence that will sound equally confident either way.
+
+`allocations` is `{"WEB": 60, "OPS": 40}` — project keys or names, percentages. A key that names no
+project is an **error**, not a dropped entry: a split that quietly loses one of its halves charges
+the whole cost to the other, which is a wrong number nobody would think to question.
+
+`budget_status` takes `scenario` by name. An unknown one is refused rather than silently answered
+from the plan — "what does it look like if the migration slips" answered with the plan is the worst
+possible failure of that question.
+
+Every figure comes from the same function the dashboard draws with, so a number quoted here is the
+number on somebody's screen. The rules behind them — what `committed` means, why the forecast takes
+closed months as they happened, how a cost splits without losing a cent —
+are in [`budgets.md`](budgets.md).
 
 ### Labels, and the trap in them
 

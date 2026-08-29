@@ -24,6 +24,19 @@ const SYNCED: EntityName[] = ENTITY_NAMES.filter((name) => name !== 'activity');
 const PAGE_SIZE = 2000;
 
 /** Projects the caller is allowed to see, as a subquery to keep pulls in SQL. */
+/**
+ * Whether the caller runs this workspace. Used by exactly one entity.
+ *
+ * A rate is close enough to somebody's pay that it does not belong on every
+ * member's device — and once it is on the device, the client computes cost
+ * from it, so this clause is what decides who sees money at all rather than
+ * merely who sees a settings screen.
+ */
+const IS_ADMIN = `
+  EXISTS (SELECT 1 FROM workspace_members wm
+           WHERE wm.workspace_id = ?1 AND wm.user_id = ?2
+             AND wm.role IN ('owner', 'admin') AND wm.deleted_at IS NULL)`;
+
 const VISIBLE_PROJECTS = `
   SELECT p.id FROM projects p
    WHERE p.workspace_id = ?1
@@ -87,6 +100,69 @@ function filterFor(entity: EntityName): string {
                     AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS})))
                    OR EXISTS (SELECT 1 FROM json_each(${table}.projects)
                                WHERE json_each.value IN (${VISIBLE_PROJECTS})))`;
+    /*
+     * A budget is scoped exactly as those two are, so it gets the same clause —
+     * one project's own follows that project, one with no owner and no list is
+     * the workspace's, one with a list follows any project on it.
+     *
+     * Note that this is *not* the same question as which projects a budget's
+     * money is charged to. A central infrastructure budget is workspace-wide,
+     * so everybody sees it, and still allocates 40% of itself to one team's
+     * project. Visibility is the scope; `allocations` is the arithmetic. Making
+     * them one field would mean either hiding a shared budget from the people
+     * paying for it or showing every project's figures to everybody.
+     */
+    case 'budget':
+      return `AND ((json_array_length(${table}.projects) = 0
+                    AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS})))
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.projects)
+                               WHERE json_each.value IN (${VISIBLE_PROJECTS})))`;
+    /*
+     * Lines, invoices and scenarios inherit their budget's answer, exactly —
+     * `deleted_at` included, the way a message inherits its channel's. Leaving
+     * that out is the bug that shipped for chat: a deleted budget went on
+     * sending its lines to devices that no longer had anything to put them in.
+     */
+    case 'budgetLine':
+    case 'budgetActual':
+    case 'budgetScenario':
+      return `AND EXISTS (
+                SELECT 1 FROM budgets b
+                 WHERE b.id = ${table}.budget_id
+                   AND b.deleted_at IS NULL
+                   AND ((json_array_length(b.projects) = 0
+                         AND (b.project_id IS NULL OR b.project_id IN (${VISIBLE_PROJECTS})))
+                        OR EXISTS (SELECT 1 FROM json_each(b.projects)
+                                    WHERE json_each.value IN (${VISIBLE_PROJECTS}))))`;
+    /*
+     * Rates go to owners and admins, and to nobody else.
+     *
+     * The only entity in the registry with a *role* in its filter, and it is
+     * worth being clear about why the softer options were not taken. Sending
+     * rates to everybody and hiding the screen is not a restriction: the rows
+     * are in IndexedDB and the API returns them. Sending only a person their
+     * own rate does not work either — a project total is a rate anybody can
+     * divide back out, and with one person on a project it is exact.
+     *
+     * So the line is drawn here, at the pull, and every figure derived from a
+     * rate follows it for free: a member's device simply has no rates, so its
+     * cost columns are empty rather than wrong.
+     */
+    case 'rate':
+      return `AND ${IS_ADMIN}`;
+    /*
+     * A move tied to a project follows that project, the way everything else
+     * tied to one does. Written here as well as in the REST list because the
+     * two have to agree: a row a member cannot list but can receive in a pull
+     * is on their device either way.
+     *
+     * Vendors and components carry no project of their own and reach the whole
+     * workspace. Their cost is a supplier's price rather than somebody's pay,
+     * so it follows the budget rule — visible to members — rather than the rate
+     * rule.
+     */
+    case 'move':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
     case 'label':
     case 'view':
     case 'webhook':

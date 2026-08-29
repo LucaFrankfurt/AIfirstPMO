@@ -60,6 +60,8 @@ every tool that writes, so handing an assistant a view of the backlog does not h
 | [Tasks](/tasks/) | Sub-tasks, blocking relations, priorities, estimates, labels, due dates, assignees, custom fields, attachments, comments |
 | [Views](/views/) | List, board, table and calendar over the same work, grouped and filtered however you like, saved under a name and shared |
 | [Planning](/planning/cycles/) | Cycles, modules, a timeline where dragging a task moves what it blocks, baselines, work-in-progress limits, four charts per project |
+| [Infrastructure](/planning/infrastructure/) | Servers, instances, SaaS and vendors — what runs today, what runs next March, and the documented steps between |
+| [Budgets](/planning/budgets/) | What things cost, planned against what has gone, split across the projects that pay for it, with a forecast and what-if scenarios |
 | [Pages](/pages/) | A nested markdown wiki two people can edit at once, with version history, comments and read-only share links |
 | [Automation](/automation/templates/) | Templates, repeating tasks, and rules that file work when something happens |
 | [People](/people/chat/) | Chat, an in-app inbox with optional email, push and Telegram, intake forms for people with no account |
@@ -74,8 +76,11 @@ Being clear about this is cheaper for everybody than finding out in month two.
 
 - **It is not a timesheet system.** Time is recorded and added up; there is no week view, no
   submit and no approval step. See [time tracking](/planning/time/).
-- **There is no cost or billing.** Entries carry a `billable` flag that nothing reads yet.
-  Rates, budgets and cost reports do not exist.
+- **There is no billing.** [Budgets](/planning/budgets/), hourly rates and cost reports all
+  exist — what was planned against what has gone, and what an hour cost against what it is
+  charged at. What does not exist is an invoice: no numbering, no VAT, no document to send.
+- **The timesheet is not submitted or approved.** Time is recorded, added up and costed. There
+  is no submit button and no sign-off.
 - **There is no forecasting.** The burn-up chart stops at today rather than drawing a line into
   the future, because a line into the future looks like a promise.
 - **Estimates are in points, not hours,** and are deliberately never compared with logged time.

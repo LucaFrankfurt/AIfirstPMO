@@ -56,11 +56,13 @@ was wrong before you pressed it.
 Showing "3h of 5" against a five-point task would be comparing two different things
 confidently.
 
-**Not money.** Every entry carries a `billable` flag, stored and synced, and nothing reads it
-yet. Rates, budgets and cost reports do not exist.
+**Not a submitted timesheet.** There is a [week view](/planning/timesheet/) and time is costed
+against hourly rates — but there is no submit button, no approval step and no lock. Time is
+recorded, added up and costed; who signs it off is a workflow Kolibri does not have.
 
-**Not a timesheet.** No week view, no submit, no approval. Time is recorded and added up; who
-signs it off is a workflow Kolibri does not have.
+**Not billing.** Rates answer what an hour cost and what it is charged at, so cost, revenue and
+margin are all there. Turning that into an invoice — a number, VAT, a document to send — is not,
+and is not planned.
 
 **Not private.** Anybody who can see the project can see the time logged against it — a lead has
 to be able to add up a project. Entries with no project attached are the writer's own loose
