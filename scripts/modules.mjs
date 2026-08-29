@@ -410,8 +410,10 @@ const KNOWN_LAYERING = [
  * can all reach each other — sorted, so it reads the same every time.
  *
  * The first is the real one: the write path calls the rules engine and the
- * rules engine writes rows. `docs/modules.md` says how it comes apart — `repo`
- * publishes what happened, `automation` subscribes.
+ * rules engine writes rows. `docs/modules.md` says how it comes apart, and it is
+ * not by making the call asynchronous — that would move a rule's writes outside
+ * the transaction. `repo` offers `onWrite`, `automation` registers for it, and
+ * the call stays exactly where it is.
  *
  * The second is the one worth staring at, because it is three *different*
  * capabilities holding each other up: budgets borrows a table from planning,

@@ -215,13 +215,23 @@ everyone else's inside one function.
 `repo.ts`. Three files that can all reach each other, so none of them can be understood, tested or
 replaced alone.
 
-The relationship is real — the write path calls the rules engine and the rules engine writes rows —
-but the *direction* is an accident. `afterWrite` calls `runAutomations` synchronously; nothing needs
-it to.
+The relationship is real — the write path calls the rules engine and the rules engine writes rows.
+What is accidental is only the *import*, and it is worth being precise about which part, because the
+obvious fix is wrong.
 
-> **Fix.** `repo` publishes what happened on `lib/bus.ts`, which already exists and already feeds
-> SSE. `automation` subscribes. The dependency becomes one-way, `withEffectsHeld` gets simpler, and
-> the seam is the same one `architecture.md` names for a second replica.
+`afterWrite` says so itself: *"`runAutomations` stays inline on purpose: what it writes must land
+inside the transaction, and what those writes notify comes back through here and queues itself."*
+Publishing on `lib/bus.ts` and having `automation` subscribe would make that call asynchronous, which
+moves a rule's writes outside the transaction and breaks `create_tasks_batch`'s "every task or none"
+for exactly the rows a rule generated — the failure `withEffectsHeld` was written to prevent, let
+back in through the other door.
+
+> **Fix.** Dependency inversion, not asynchrony. `repo` exposes `onWrite(handler)`; `automation`
+> registers itself from the composition point at startup. The call stays synchronous and stays
+> inside the transaction, so nothing about the semantics moves — only the import direction. That is
+> also the general case of the `effects` hook in the module contract below, so this is not a special
+> arrangement for one module: it is the first user of the one every module gets. `withEffectsHeld`
+> is untouched, and so is the external-effects queue.
 
 ### 4. Three capabilities on the client hold each other up
 
@@ -413,7 +423,7 @@ useful even if the next one never happens.
 | 1 | Land `scripts/modules.mjs` and this document | new files | none | The map exists and cannot rot. **Done — this commit.** |
 | 2 | Lazy-load capability routes and locale catalogues | `App.tsx`, `lib/i18n.ts` | low | Keeps 11 786 lines out of the first load of a default workspace; no feature code changes |
 | 3 | Move the money widget and `useSeesMoney` into `components/ui/` | 3 files | low | Kills the three-capability knot |
-| 4 | `repo` publishes on the bus; `automation` subscribes | 2 files | low | Kills the server knot; the same seam a second replica needs |
+| 4 | `repo.onWrite()`; `automation` registers at startup | 3 files | low | Kills the server knot with no change to transaction semantics |
 | 5 | Move `storeFile` and `searchWorkspace` down out of `routes/` | 4 files | low | Zero layering exceptions |
 | 6 | Split `lib/mcp.ts` into eleven `tools.ts` files | 1 file → 12 | medium | A capability's tools live with the capability; a switched-off feature ships no tools |
 | 7 | Hook points in `writeEntity`; move the invariants out | `repo.ts` → 8 modules | medium | `repo.ts` becomes the ~400-line dispatcher it is described as |
@@ -435,9 +445,10 @@ Honest limits, so nothing here is oversold:
 - **`repo.ts` will not get small.** After step 7 it is the merge, the transaction, the tombstones and
   the dispatcher. That is a few hundred lines that genuinely belong together, and no amount of
   modularity removes them.
-- **The kernel stays a single node.** Modules do not change `nextSeq()` or the in-process bus. The
-  trade-offs `architecture.md` accepts are still accepted; step 4 makes one of the seams it names
-  slightly more real.
+- **The kernel stays a single node.** Modules do not change `nextSeq()` or the in-process bus, and
+  step 4 deliberately does not either: inverting an import is not the same as making a call
+  asynchronous, and only the second one buys a second replica. Every trade-off
+  `architecture.md` accepts is still accepted.
 - **`i18n` stays the largest kernel module.** 7 532 lines is three catalogues of 2 249 keys. Step 2
   stops shipping the two nobody asked for; it does not make the catalogues smaller, and it should
   not — the compile error on a missing key is worth more than the file size.
