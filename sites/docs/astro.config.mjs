@@ -144,6 +144,7 @@ export default defineConfig({
             { label: 'Insights', slug: 'planning/insights' },
             { label: 'Time tracking', slug: 'planning/time' },
             { label: 'Timesheet and cost', slug: 'planning/timesheet' },
+            { label: 'Infrastructure', slug: 'planning/infrastructure' },
             { label: 'Budgets', slug: 'planning/budgets' },
             { label: 'Across projects', slug: 'planning/portfolio' },
           ],

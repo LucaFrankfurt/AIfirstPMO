@@ -2991,3 +2991,72 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .rate-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
 .rate-from { color: var(--fg-soft); font-size: 12px; }
 .rate-note { color: var(--fg-muted); font-size: 12px; max-width: 40%; }
+
+/* ------------------------------------------------------------- the estate
+ *
+ * A register is read as a tree and a landscape as two columns, so most of what
+ * is here is about making nesting visible without a second column for it.
+ */
+
+/* The elbow before a nested component. Purely decorative — the indent already
+   carries the structure, and this is what makes one row of it readable. */
+.tree-branch { color: var(--fg-muted); }
+
+/* The bar that says something needs attention without being an error: planned
+   components nobody dated, contracts whose notice date is close. */
+.notice-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--fg-soft);
+  font-size: 12.5px;
+}
+.notice-strip.warn {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  color: var(--warn);
+}
+
+/* What goes and what arrives, side by side. A tinted left edge rather than a
+   coloured row: the colour is the answer to "which list am I in", which the
+   heading already gave, so it stays at the margin. */
+.landscape-list { list-style: none; margin: 8px 0 0; padding: 0; font-size: 13px; }
+.landscape-list li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-inline-start: 3px solid var(--line-strong);
+  border-bottom: 1px solid var(--line);
+}
+.landscape-list li:last-child { border-bottom: none; }
+.landscape-list.leaving li { border-inline-start-color: var(--danger); }
+.landscape-list.arriving li { border-inline-start-color: var(--ok); }
+
+.move-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  padding: 11px 13px;
+  font-size: 13px;
+}
+.move-head { display: flex; align-items: center; gap: 8px; }
+.move-desc { margin: 6px 0 0; color: var(--fg-soft); font-size: 12.5px; }
+.move-lists { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 7px; font-size: 12.5px; color: var(--fg-soft); }
+.move-side b { font-weight: 600; color: var(--fg); margin-inline-end: 4px; }
+.move-progress { display: flex; align-items: center; gap: 10px; margin-top: 9px; }
+.move-progress .bar-track { flex: 1; }
+/* The register disagreeing with the status. Warn rather than danger: it is a
+   thing to look at, not a thing that has broken. */
+.move-warning {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 0;
+  color: var(--warn);
+  font-size: 12.5px;
+}

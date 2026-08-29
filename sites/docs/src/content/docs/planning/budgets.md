@@ -2,7 +2,7 @@
 title: Budgets
 description: What things cost, planned against what has actually gone — split across the projects that pay for it, with a forecast and what-if scenarios.
 sidebar:
-  order: 7
+  order: 8
 ---
 
 A budget is an envelope of money over a period: what you expect to spend, what has actually

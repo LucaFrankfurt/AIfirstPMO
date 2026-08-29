@@ -250,6 +250,10 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
 | `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
 | `utilisation` | billable share per person or per project; `target_hours` adds the billable-over-available ratio |
+| `list_components` | the estate — servers, instances, subscriptions — optionally only what is running on a given day |
+| `landscape` | one day against another: what is gone by then, what has arrived, what the difference costs a year |
+| `list_moves` | the documented steps between landscapes, with how far the register says each really got |
+| `list_vendors` | suppliers, what each costs a year, and the day notice has to be given |
 
 ### Reports
 
@@ -416,9 +420,35 @@ Three more details worth knowing before you trust a number:
 | `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
 | `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
+| `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
+| `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
+
+### The landscape, and the question it will not answer
+
+`landscape` takes two dates because a landscape here **is** a date. There is no
+"current" document and no "target" document to fetch: every component carries
+`live_from` and `live_until`, and both answers are computed from those. Ask for
+today against today to describe the estate now; ask for today against next March
+to get what is gone, what has arrived, and what the difference costs a year.
+
+What it will not do is guess. A component planned with **no start date** is in
+neither answer, and rather than being dropped it comes back in `undated`. Quote
+that list: a caller summarising "the future landscape" without it is describing
+a plan that is missing the parts nobody has scheduled.
+
+`list_moves` returns `disagrees_with_the_register` on every move, not only the
+broken ones. Progress there is read from the components rather than from the
+move's own status, so a move marked done while something it named is still
+running comes back flagged — and a caller can say "and all of them agree"
+rather than inferring it from an absence.
+
+A vendor named on `record_component` that does not exist yet is **created**
+rather than refused. It is the one place in this file that makes a row nobody
+asked for by name, and it is deliberate: an assistant writing down an estate
+should not have to create eleven suppliers first.
 
 ### Rates, and the two things that are not negotiable
 

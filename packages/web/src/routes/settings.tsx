@@ -496,6 +496,26 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* The estate. Independent of budgets on purpose: what runs where is
+          worth writing down whether or not anybody is costing it, and the two
+          only meet when both are on. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.infrastructure}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { infrastructure: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureEstate')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureEstateHint')}</span>
+        </span>
+      </label>
+
       {/* Off by default like the rest, and for a reason of its own: money is
           the one thing here that everybody in a workspace can see the moment
           it exists. Turning it off hides the screens; the figures stay. */}

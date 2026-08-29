@@ -150,6 +150,19 @@ function filterFor(entity: EntityName): string {
      */
     case 'rate':
       return `AND ${IS_ADMIN}`;
+    /*
+     * A move tied to a project follows that project, the way everything else
+     * tied to one does. Written here as well as in the REST list because the
+     * two have to agree: a row a member cannot list but can receive in a pull
+     * is on their device either way.
+     *
+     * Vendors and components carry no project of their own and reach the whole
+     * workspace. Their cost is a supplier's price rather than somebody's pay,
+     * so it follows the budget rule — visible to members — rather than the rate
+     * rule.
+     */
+    case 'move':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
     case 'label':
     case 'view':
     case 'webhook':

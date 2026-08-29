@@ -101,6 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const canWrite = useCanWrite();
   const budgets = useFeature('budget');
   const time = useFeature('time');
+  const estate = useFeature('infrastructure');
   const [palette, setPalette] = useState(false);
   // The same move the card's own menu makes — see `useRefile`.
   const refile = useRefile();
@@ -327,6 +328,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <NavLink to="/timesheet" className={navItem()}>
             <Icon name="calendar" size={15} />
             <span className="flex-1 min-w-0 truncate">{t('nav.timesheet')}</span>
+          </NavLink>
+        )}
+        {estate && (
+          <NavLink to="/infrastructure" className={navItem()}>
+            <Icon name="stack" size={15} />
+            <span className="flex-1 min-w-0 truncate">{t('nav.infrastructure')}</span>
           </NavLink>
         )}
         {budgets && (

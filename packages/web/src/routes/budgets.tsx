@@ -494,10 +494,48 @@ function Plan({ budget }: { budget: Budget }) {
   const canWrite = useCanWrite();
   const { confirm, dialog } = useConfirm();
   const names = useProjectNames();
+  const estate = useFeature('infrastructure');
   const [editing, setEditing] = useState<BudgetLine | 'new' | null>(null);
   const lines = useQuery(() => list('budgetLine', (row) => row.budget_id === budget.id), [budget.id]);
+  const components = useQuery(() => list('component'), []);
   const totals = useRollUp(budget);
   const sorted = useMemo(() => [...lines].sort(byOrder), [lines]);
+
+  /**
+   * What the register says a line's components come to, over the same period
+   * the line is planned over.
+   *
+   * The reconciliation this whole link exists for: "we budgeted €4,500 a month
+   * for hosting, and the register says the machines charged to that line cost
+   * €5,200". Neither figure is authoritative — one is a plan and the other is
+   * an inventory — and the useful thing is being told they disagree rather
+   * than being handed one of them.
+   *
+   * A component is read through the same `plannedTotal` a budget line is,
+   * because both carry an amount, a recurrence and a window. That is not a
+   * coincidence: the component's cost fields were given the budget's
+   * vocabulary so this comparison would need no conversion in between, and a
+   * conversion is where two figures start quietly meaning different things.
+   */
+  const fromRegister = useMemo(() => {
+    const out = new Map<string, Minor>();
+    if (!estate || !totals) return out;
+    for (const component of components) {
+      if (!component.line_id) continue;
+      const amount = plannedTotal(
+        {
+          amount: component.amount,
+          recurrence: component.recurrence,
+          starts_on: component.live_from,
+          ends_on: component.live_until,
+        },
+        totals.period,
+      );
+      if (amount) out.set(component.line_id, (out.get(component.line_id) ?? 0) + amount);
+    }
+    return out;
+  }, [estate, components, totals]);
+  const anyRegistered = fromRegister.size > 0;
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -521,6 +559,7 @@ function Plan({ budget }: { budget: Budget }) {
                 <th>{t('budget.recurrence')}</th>
                 <th className="num">{t('budget.amountEach')}</th>
                 <th className="num">{t('budget.total')}</th>
+                {anyRegistered && <th className="num">{t('estate.fromRegister')}</th>}
                 <th>{t('budget.charges')}</th>
                 <th>{t('budget.confidence')}</th>
                 <th />
@@ -539,6 +578,26 @@ function Plan({ budget }: { budget: Budget }) {
                   <td className="num">
                     {totals ? asMoney(plannedTotal(line, totals.period), budget.currency) : '—'}
                   </td>
+                  {anyRegistered && (
+                    <td className="num">
+                      {fromRegister.has(line.id) ? (
+                        <>
+                          {asMoney(fromRegister.get(line.id)!, budget.currency)}
+                          {/* Only shown when they disagree. A column of "and
+                              they match" is a column nobody reads, and the
+                              whole point is the row where they do not. */}
+                          {totals && fromRegister.get(line.id) !== plannedTotal(line, totals.period) && (
+                            <span className="row-sub">
+                              <Variance
+                                value={plannedTotal(line, totals.period) - fromRegister.get(line.id)!}
+                                currency={budget.currency}
+                              />
+                            </span>
+                          )}
+                        </>
+                      ) : <span className="text-muted">—</span>}
+                    </td>
+                  )}
                   <td><AllocationChips allocations={line.allocations} names={names} /></td>
                   <td><Chip>{t(confidenceKey(line.confidence))}</Chip></td>
                   <td>
@@ -562,6 +621,8 @@ function Plan({ budget }: { budget: Budget }) {
           </table>
         </div>
       )}
+
+      {anyRegistered && <p className="mt-2 text-[12px] text-muted">{t('estate.fromRegisterHint')}</p>}
 
       {editing && (
         <LineForm

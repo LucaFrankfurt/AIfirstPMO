@@ -118,6 +118,44 @@ export type BudgetStatus = (typeof BUDGET_STATUS)[number];
 export const RATE_KINDS = ['cost', 'billable'] as const;
 export type RateKind = (typeof RATE_KINDS)[number];
 
+/* ------------------------------------------------------------- landscape */
+
+/** What sort of thing you buy from somebody. Only affects grouping and an icon. */
+export const VENDOR_KINDS = ['cloud', 'saas', 'hosting', 'licence', 'service', 'other'] as const;
+export type VendorKind = (typeof VENDOR_KINDS)[number];
+
+/**
+ * What a component *is*.
+ *
+ * `server` and `instance` are both here and both needed: a machine is a thing
+ * you pay for and a thing that holds other things, and an instance running on
+ * it is a thing you can move somewhere else without touching the machine. The
+ * nesting is `parent_id`, so a cluster holding nodes holding databases is the
+ * same shape as a project holding projects.
+ */
+export const COMPONENT_KINDS = [
+  'server', 'instance', 'database', 'saas', 'service', 'storage', 'network', 'endpoint', 'other',
+] as const;
+export type ComponentKind = (typeof COMPONENT_KINDS)[number];
+
+export const ENVIRONMENTS = ['production', 'staging', 'development', 'shared'] as const;
+export type Environment = (typeof ENVIRONMENTS)[number];
+
+/**
+ * Where a component is in its life.
+ *
+ * A label rather than the mechanism: which components make up the landscape on
+ * a given day is decided by `live_from` and `live_until`, not by this. See
+ * `livenessOn` — the two agree for anything with dates on it, and this is what
+ * answers when the dates are missing.
+ */
+export const LIFECYCLES = ['planned', 'live', 'retiring', 'retired'] as const;
+export type Lifecycle = (typeof LIFECYCLES)[number];
+
+/** How far a documented step between two landscapes has got. */
+export const MOVE_STATUS = ['proposed', 'agreed', 'in_progress', 'done', 'abandoned'] as const;
+export type MoveStatus = (typeof MOVE_STATUS)[number];
+
 /* ------------------------------------------------- templates + automation */
 
 /** What a template is for. Only affects the icon and how it is grouped. */
@@ -228,6 +266,16 @@ export interface WorkspaceFeatures {
    * workspace that turns it back on finds its figures where it left them.
    */
   budget?: boolean;
+  /**
+   * The estate: vendors, what runs where, and the moves between one shape of it
+   * and the next.
+   *
+   * Off by default like the rest. Independent of `budget` on purpose — an
+   * estate is worth writing down whether or not anybody is costing it — and
+   * the two only meet when both are on, where a component names the plan line
+   * it is charged to.
+   */
+  infrastructure?: boolean;
 }
 
 export interface Workspace {
@@ -854,6 +902,102 @@ export interface Rate extends Base {
   note: string | null;
 }
 
+/* ------------------------------------------------------------- landscape */
+
+/** Somebody you buy from. A component names one; the register groups by it. */
+export interface Vendor extends Base {
+  workspace_id: ID;
+  name: string;
+  kind: VendorKind;
+  website: string | null;
+  contact: string | null;
+  /** When the contract runs to. The date a renewal is a surprise without. */
+  contract_start: ISODate | null;
+  contract_end: ISODate | null;
+  /**
+   * How many days before `contract_end` you have to give notice.
+   *
+   * Its own field rather than a line in the note, because it is the one thing
+   * about a contract that has a *deadline* attached: the day you stop being
+   * able to leave is `contract_end` minus this, and nothing can compute that
+   * from prose.
+   */
+  notice_days: number;
+  note: string | null;
+  archived: number;
+}
+
+/**
+ * One thing in the estate: a server, an instance on it, a SaaS subscription.
+ *
+ * Nested through `parent_id`, so a machine holds its instances and an account
+ * holds its seats — the same shape a project or a page already uses, and the
+ * server refuses a loop rather than trusting the interface.
+ *
+ * The cost fields deliberately speak the same vocabulary a budget line does —
+ * an amount per occurrence plus a recurrence — so a component can be turned
+ * into a plan line without a translation step, and so the two figures can be
+ * compared without one of them having been converted first.
+ */
+export interface Component extends Base {
+  workspace_id: ID;
+  vendor_id: ID | null;
+  /** The server this runs on, or the account this seat belongs to. */
+  parent_id: ID | null;
+  name: string;
+  kind: ComponentKind;
+  environment: Environment;
+  status: Lifecycle;
+  /**
+   * When it joined the estate and when it leaves. These, not `status`, are what
+   * decide whether it is in the landscape on a given day — see `livenessOn`.
+   */
+  live_from: ISODate | null;
+  live_until: ISODate | null;
+  /** Where it physically is: a region, a data centre, a rack. */
+  location: string | null;
+  /** What it is called where it lives — a hostname, an account, an ARN. */
+  reference: string | null;
+  /** Per occurrence, like a budget line's. `0` means nobody has priced it. */
+  amount: Minor;
+  recurrence: CostRecurrence;
+  currency: string;
+  /** The plan line this is charged to, so the two can be reconciled. */
+  line_id: ID | null;
+  owner_id: ID | null;
+  /**
+   * Projects that depend on this. A dependency, not a cost split — the split
+   * lives on the budget line, and this answers "who breaks if it goes".
+   */
+  projects: ID[];
+  note: string | null;
+  sort_order: string;
+}
+
+/**
+ * A documented step from one landscape to the next.
+ *
+ * The "how do we get there" half. It names what goes and what arrives rather
+ * than describing it in prose, so the same two lists that make it readable also
+ * make it checkable: a move is finished when everything in `leaving` has a
+ * `live_until` in the past and everything in `arriving` is live.
+ */
+export interface Move extends Base {
+  workspace_id: ID;
+  name: string;
+  description: string | null;
+  status: MoveStatus;
+  /** Components this retires. */
+  leaving: ID[];
+  /** Components this brings in. */
+  arriving: ID[];
+  target_date: ISODate | null;
+  owner_id: ID | null;
+  /** The project doing the work, when somebody has made one. */
+  project_id: ID | null;
+  sort_order: string;
+}
+
 export interface View extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -1067,6 +1211,9 @@ export interface EntityMap {
   budgetActual: BudgetActual;
   budgetScenario: BudgetScenario;
   rate: Rate;
+  vendor: Vendor;
+  component: Component;
+  move: Move;
   share: Share;
   task: Task;
   relation: Relation;

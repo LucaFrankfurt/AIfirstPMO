@@ -21,6 +21,9 @@ export type EntityName =
   | 'budgetActual'
   | 'budgetScenario'
   | 'rate'
+  | 'vendor'
+  | 'component'
+  | 'move'
   | 'share'
   | 'label'
   | 'task'
@@ -326,6 +329,37 @@ export const ENTITIES = {
       'workspace_id', 'user_id', 'project_id', 'kind', 'amount', 'currency', 'starts_on', 'note',
     ],
   },
+  /** Somebody you buy from. A component names one; the register groups by it. */
+  vendor: {
+    table: 'vendors',
+    fields: [
+      'workspace_id', 'name', 'kind', 'website', 'contact',
+      'contract_start', 'contract_end', 'notice_days', 'note', 'archived',
+    ],
+  },
+  /**
+   * One thing in the estate, nested through `parent_id` so a server holds its
+   * instances. Which components make up the landscape on a day is not stored —
+   * it falls out of `live_from` and `live_until`. See `landscape.ts`.
+   */
+  component: {
+    table: 'components',
+    fields: [
+      'workspace_id', 'vendor_id', 'parent_id', 'name', 'kind', 'environment', 'status',
+      'live_from', 'live_until', 'location', 'reference', 'amount', 'recurrence', 'currency',
+      'line_id', 'owner_id', 'projects', 'note', 'sort_order',
+    ],
+    json: ['projects'],
+  },
+  /** A documented step between two landscapes: what goes, what arrives. */
+  move: {
+    table: 'moves',
+    fields: [
+      'workspace_id', 'name', 'description', 'status', 'leaving', 'arriving',
+      'target_date', 'owner_id', 'project_id', 'sort_order',
+    ],
+    json: ['leaving', 'arriving'],
+  },
   timeEntry: {
     table: 'time_entries',
     fields: [
@@ -496,6 +530,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   budgetActual: 'budget-actuals',
   budgetScenario: 'budget-scenarios',
   rate: 'rates',
+  vendor: 'vendors',
+  component: 'components',
+  move: 'moves',
   share: 'shares',
   label: 'labels',
   task: 'tasks',

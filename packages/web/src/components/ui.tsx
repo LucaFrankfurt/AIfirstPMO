@@ -94,6 +94,10 @@ const PATHS = {
   // not a coin or a currency symbol — one is unreadable at 15px and the other
   // would name a currency the workspace may not use.
   wallet: 'M4 7h13a3 3 0 0 1 3 3v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h11M16 13h.01',
+  // Three slabs stacked: machines in a rack, and the same drawing whether what
+  // is stacked is hardware or a subscription. Not a cloud — half this register
+  // is not in one.
+  stack: 'M4 6.5 12 3l8 3.5-8 3.5zM4 12l8 3.5 8-3.5M4 17.5 12 21l8-3.5',
 } satisfies Record<string, string>;
 
 /**

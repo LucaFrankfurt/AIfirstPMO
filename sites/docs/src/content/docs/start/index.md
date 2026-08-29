@@ -60,6 +60,7 @@ every tool that writes, so handing an assistant a view of the backlog does not h
 | [Tasks](/tasks/) | Sub-tasks, blocking relations, priorities, estimates, labels, due dates, assignees, custom fields, attachments, comments |
 | [Views](/views/) | List, board, table and calendar over the same work, grouped and filtered however you like, saved under a name and shared |
 | [Planning](/planning/cycles/) | Cycles, modules, a timeline where dragging a task moves what it blocks, baselines, work-in-progress limits, four charts per project |
+| [Infrastructure](/planning/infrastructure/) | Servers, instances, SaaS and vendors — what runs today, what runs next March, and the documented steps between |
 | [Budgets](/planning/budgets/) | What things cost, planned against what has gone, split across the projects that pay for it, with a forecast and what-if scenarios |
 | [Pages](/pages/) | A nested markdown wiki two people can edit at once, with version history, comments and read-only share links |
 | [Automation](/automation/templates/) | Templates, repeating tasks, and rules that file work when something happens |

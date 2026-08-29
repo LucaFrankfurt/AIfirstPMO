@@ -229,6 +229,12 @@ which is a wrong number nobody would think to question.
 
 ## What it is not
 
+- **Not the same as the infrastructure register.** A budget line is what you
+  *plan* to spend; a component in [the register](infrastructure.md) is a thing
+  that exists and costs money. A component can name the line it is charged to,
+  and the Plan tab then shows the two figures beside each other — but neither
+  overwrites the other, because a plan and an inventory disagreeing is
+  information rather than an error.
 - **Not derived from time tracking.** `tasks.estimate` is in points and a time
   entry has no rate, so a cost computed from either would be invented. A budget
   line carries its own money. Rates and cost-per-hour are still the open

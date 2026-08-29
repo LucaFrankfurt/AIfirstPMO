@@ -730,6 +730,103 @@ CREATE TABLE IF NOT EXISTS rates (
 CREATE INDEX IF NOT EXISTS rates_seq ON rates (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS rates_lookup ON rates (workspace_id, kind, starts_on);
 
+-- ------------------------------------------------------------ landscape --
+--
+-- The estate: who you buy from, what runs where, and the documented steps from
+-- one shape of it to the next.
+--
+-- There is deliberately no "landscape" table. Which components make up the
+-- estate on a given day falls out of `live_from` and `live_until`, so current
+-- and future are the same query with two dates rather than two sets of rows
+-- somebody has to keep in step by hand. See `landscape.ts`.
+
+CREATE TABLE IF NOT EXISTS vendors (
+  id             TEXT PRIMARY KEY,
+  workspace_id   TEXT NOT NULL,
+  name           TEXT NOT NULL,
+  kind           TEXT NOT NULL DEFAULT 'other',
+  website        TEXT,
+  contact        TEXT,
+  contract_start TEXT,
+  contract_end   TEXT,
+  -- Days of notice before `contract_end`. Its own column because it is the one
+  -- thing about a contract with a deadline attached — the day you stop being
+  -- able to leave — and nothing can compute that from a note.
+  notice_days    INTEGER NOT NULL DEFAULT 0,
+  note           TEXT,
+  archived       INTEGER NOT NULL DEFAULT 0,
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  deleted_at     INTEGER,
+  seq            INTEGER NOT NULL DEFAULT 0,
+  clocks         TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS vendors_seq ON vendors (workspace_id, seq);
+
+-- One thing in the estate. `parent_id` nests it: a machine holds its instances,
+-- an account holds its seats. Amounts are INTEGER minor units, as everywhere.
+CREATE TABLE IF NOT EXISTS components (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  vendor_id    TEXT,
+  parent_id    TEXT,
+  name         TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'server',
+  environment  TEXT NOT NULL DEFAULT 'production',
+  -- A label. The dates below are what actually decide whether this is in the
+  -- landscape on a day; this answers only where a date is missing.
+  status       TEXT NOT NULL DEFAULT 'live',
+  live_from    TEXT,
+  live_until   TEXT,
+  location     TEXT,
+  reference    TEXT,
+  -- Per occurrence, speaking the same vocabulary a budget line does, so the two
+  -- figures can be compared without one of them being converted first.
+  amount       INTEGER NOT NULL DEFAULT 0,
+  recurrence   TEXT NOT NULL DEFAULT 'monthly',
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  -- The plan line this is charged to. Null is a cost nobody has budgeted.
+  line_id      TEXT,
+  owner_id     TEXT,
+  -- Projects that depend on this. A dependency, not a cost split — the split
+  -- lives on the budget line.
+  projects     TEXT NOT NULL DEFAULT '[]',
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS components_seq ON components (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS components_vendor ON components (vendor_id);
+CREATE INDEX IF NOT EXISTS components_parent ON components (parent_id);
+CREATE INDEX IF NOT EXISTS components_line ON components (line_id);
+
+-- A documented step from one landscape to the next: what goes, what arrives.
+-- Two lists rather than prose, so the same thing that makes it readable makes
+-- it checkable against the register — see `moveProgress`.
+CREATE TABLE IF NOT EXISTS moves (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  status       TEXT NOT NULL DEFAULT 'proposed',
+  leaving      TEXT NOT NULL DEFAULT '[]',
+  arriving     TEXT NOT NULL DEFAULT '[]',
+  target_date  TEXT,
+  owner_id     TEXT,
+  project_id   TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS moves_seq ON moves (workspace_id, seq);
+
 CREATE TABLE IF NOT EXISTS views (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

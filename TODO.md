@@ -494,6 +494,38 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       Rates are **owner and admin only**, and so is every figure derived from them, because a
       total is a rate anybody can divide back out: one person on a project, and cost ÷ their hours
       is exactly what they are paid. [`docs/time.md`](docs/time.md)
+- [x] **An infrastructure register — and a landscape that is a date rather than a document.**
+      Vendors, servers, the instances on them, SaaS subscriptions, and the documented steps from
+      one shape of the estate to the next.
+
+      The design decision worth recording is the one that was *not* taken. The obvious model is a
+      "current" set of components and a "target" set beside it, and it comes apart about a month
+      in: the two have to be kept in step by hand, the target goes stale the moment somebody
+      decommissions something for real, and there is nowhere to put "and in June we will have
+      both". So there is no landscape table at all. Every component carries `live_from` and
+      `live_until`, the estate on any day falls out of that, and current-versus-future is one
+      function called twice. Nobody moves anything between lists when the day arrives.
+
+      What that model cannot answer is reported rather than hidden: a component planned with no
+      start date is in **no** landscape, present or future, and it comes back in its own list on
+      the screen, in the MCP answer and on the form while somebody is filling it in.
+
+      A move names what it retires and what it brings in as two lists of components rather than
+      as prose — which is what lets the register check it. Progress is read from the estate, not
+      from the status, so a move claimed done with a server still running is flagged. A plan
+      nobody executed reads exactly like one that was, until something compares them.
+
+      Costs use the budget's own vocabulary — an amount per occurrence, a recurrence, a window —
+      so a component charged to a plan line can be put beside it without a conversion in between.
+      Neither figure wins: one is a plan and the other an inventory, and the useful output is the
+      difference. The annual figure is the primitive because dividing a yearly contract into
+      twelve does not come back to itself. [`docs/infrastructure.md`](docs/infrastructure.md)
+- [ ] **Discovery for the register.** Every row in it is one somebody typed, which is the reason
+      it can be wrong. Reading an actual cloud account — a Scaleway or AWS inventory, a Kubernetes
+      API — would let the register be *checked* rather than only written, and "what is running
+      that nobody wrote down" is the question an estate document can never answer about itself.
+      Deliberately not started: it is a credential this instance would have to hold and a
+      per-provider integration each, which is a different kind of feature from everything above.
 - [ ] **Spent versus estimated**, which is the thing that really is blocked. `tasks.estimate` is in
       points — a guess at size, not at hours — so "3h of 5" compares two different quantities
       confidently. An estimate has to carry a unit first, which is a decision about how a team
@@ -886,7 +918,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 60 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 66 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
