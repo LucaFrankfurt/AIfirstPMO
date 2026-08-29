@@ -108,7 +108,7 @@ const MODULES = [
     what: 'Content-addressed uploads, and the two backends behind one interface.',
     files: [
       'server/src/lib/storage.ts', 'server/src/lib/mime.ts', 'server/src/lib/imagesize.ts',
-      'server/src/routes/files.ts',
+      'server/src/lib/uploads.ts', 'server/src/routes/files.ts',
     ],
   },
   {
@@ -116,7 +116,7 @@ const MODULES = [
     ring: 'kernel',
     what: 'FTS5 across everything, maintained in the same transaction as the row.',
     files: [
-      'server/src/routes/search.ts',
+      'server/src/lib/search.ts', 'server/src/routes/search.ts',
       'web/src/routes/search.tsx', 'web/src/lib/search-query.ts', 'web/src/lib/recents.ts',
     ],
   },
@@ -388,17 +388,20 @@ const MODULES = [
 /* ---------------------------------------------------------------- the rules */
 
 /**
- * Layering violations that exist today, each one named.
+ * Layering violations, each one named. There are none.
  *
  * `lib/` is below `routes/`: a route composes what the libraries do, and a
- * library that reaches back up has made the route impossible to replace. Both
- * of these are `mcp.ts` wanting a function that happens to live in a route file
- * — the fix is to move the function down, not to keep the import.
+ * library that reaches back up has made the route impossible to replace. There
+ * were two, both `mcp.ts` wanting a function that happened to live in a route
+ * file, and both were fixed the right way round — `storeFile` and
+ * `searchWorkspace` moved down into `lib/uploads.ts` and `lib/search.ts`, where
+ * the route and the MCP tool are equal callers of one implementation.
+ *
+ * An empty list is worth more than a short one: there is no grandfathering
+ * left, so the next import from `lib/` into `routes/` fails the build with
+ * nothing to point at as precedent.
  */
-const KNOWN_LAYERING = [
-  'server/src/lib/mcp.ts -> server/src/routes/files.ts',
-  'server/src/lib/mcp.ts -> server/src/routes/search.ts',
-];
+const KNOWN_LAYERING = [];
 
 /**
  * Knots of files that import each other, each one named.
@@ -409,24 +412,20 @@ const KNOWN_LAYERING = [
  * exception list nobody can trust. What is listed here is the set of files that
  * can all reach each other — sorted, so it reads the same every time.
  *
- * The first is the real one: the write path calls the rules engine and the
- * rules engine writes rows. `docs/modules.md` says how it comes apart, and it is
- * not by making the call asynchronous — that would move a rule's writes outside
- * the transaction. `repo` offers `onWrite`, `automation` registers for it, and
- * the call stays exactly where it is.
+ * Two of the three that used to be here were ordinary accidents of one
+ * capability reaching into another for a helper, and both came apart by moving
+ * the helper down rather than by rearranging the callers: a money widget and a
+ * table into `components/ui/`, `useSeesMoney` into `session.tsx`, and a view's
+ * shape into `task-parts.tsx`, which both files that needed it already read.
  *
- * The second is the one worth staring at, because it is three *different*
- * capabilities holding each other up: budgets borrows a table from planning,
- * planning borrows "may this person see money" from time, and time borrows a
- * money input back from budgets. None of the three is wrong on its own and all
- * three are in the wrong place — a shared money widget and one visibility hook
- * belong under the kernel's design system, where all three may reach them
- * without reaching each other.
+ * The one that is left is the real one: the write path calls the rules engine
+ * and the rules engine writes rows. `docs/modules.md` says how it comes apart,
+ * and it is not by making the call asynchronous — that would move a rule's
+ * writes outside the transaction. `repo` offers `onWrite`, `automation`
+ * registers for it, and the call stays exactly where it is.
  */
 const KNOWN_KNOTS = [
   'server/src/lib/automation.ts + server/src/lib/bootstrap.ts + server/src/lib/repo.ts',
-  'web/src/components/budget.tsx + web/src/components/insights.tsx + web/src/components/rates.tsx',
-  'web/src/components/saved-views.tsx + web/src/components/views.tsx',
 ];
 
 /* -------------------------------------------------------------- the reading */

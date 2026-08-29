@@ -2372,6 +2372,9 @@ export const en = {
   'misc.pageNotFound': 'Page not found',
   'misc.noWorkspaceTitle': 'No workspace yet',
   'misc.noWorkspaceHint': 'Create one in settings to get started.',
+  'misc.screenUnavailableTitle': 'This screen did not arrive',
+  'misc.screenUnavailableHint': 'It is fetched separately, and the network or a new version got in the way. Reloading usually settles it.',
+  'misc.reload': 'Reload',
 } as const;
 
 /**

@@ -1,16 +1,36 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { DEFAULT_WORKING_DAYS, coversProject, excerpt, projectScope, orderKey, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
-import { CycleProgress, DEFAULT_VIEW, TaskViews, useVisibleTasks, ViewControls, type ViewConfig } from '../components/views';
+import { CycleProgress, TaskViews, useVisibleTasks, ViewControls } from '../components/views';
+import { DEFAULT_VIEW, type ViewConfig } from '../components/task-parts';
 import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
 import { ProjectInsights } from '../components/insights';
-import { MilestoneKpis, ProjectKpis } from './kpis';
-import { ProjectBudget } from '../components/budget';
+/**
+ * The KPI panels a project page and a milestone page host.
+ *
+ * Fetched rather than imported, because a static import here is what put the
+ * whole KPI screen — 1 676 lines a workspace with the switch off never renders
+ * — back into the first load, defeating the split in `App.tsx`. Both are behind
+ * `useFeature('kpi')` at the call sites below, so nothing is fetched until a
+ * workspace that has KPIs on opens a page that shows them.
+ *
+ * That a planning screen reaches into the KPI capability at all is finding 4 in
+ * `docs/modules.md`. This makes the reach visible and cheap; it does not
+ * pretend to remove it — the module contract's slots are what does that.
+ */
+const ProjectKpis = lazy(() => import('./kpis').then((m) => ({ default: m.ProjectKpis })));
+const MilestoneKpis = lazy(() => import('./kpis').then((m) => ({ default: m.MilestoneKpis })));
+/**
+ * The budget panel a project page hosts. Fetched for the same reason the KPI
+ * panels above are: a static import pulls every money component into the first
+ * load of a workspace that has budgets switched off.
+ */
+const ProjectBudget = lazy(() => import('../components/budget').then((m) => ({ default: m.ProjectBudget })));
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
 import { api } from '../lib/api';
@@ -472,8 +492,8 @@ export function ProjectPage() {
       {tab === 'pages' && <ProjectPages projectId={id} />}
       {tab === 'intake' && <Triage projectId={id} />}
       {tab === 'insights' && <ProjectInsights projectId={id} />}
-      {tab === 'budget' && budgets && <ProjectBudget projectId={id} />}
-      {tab === 'kpis' && kpis && <ProjectKpis projectId={id} />}
+      {tab === 'budget' && budgets && <Suspense fallback={null}><ProjectBudget projectId={id} /></Suspense>}
+      {tab === 'kpis' && kpis && <Suspense fallback={null}><ProjectKpis projectId={id} /></Suspense>}
       {tab === 'settings' && <ProjectSettings projectId={id} />}
 
       {adding && <QuickAdd projectId={id} onClose={() => setAdding(false)} />}
@@ -891,6 +911,7 @@ export function ModulePage() {
   const tasks = useQuery(() => list('task', (t) => t.module_id === id), [id]);
   const visible = useVisibleTasks(tasks, view);
   const canWrite = useCanWrite();
+  const kpis = useFeature('kpi');
   if (!module) return <Empty emoji="🕳️" title={t('module.notFound')} />;
   return (
     <>
@@ -923,7 +944,7 @@ export function ModulePage() {
         {/* A milestone is described by what gets built; this is what has to be
             *true* by the time it lands. Renders nothing when nothing has been
             promised against it, rather than an empty frame. */}
-        <MilestoneKpis moduleId={module.id} />
+        {kpis && <Suspense fallback={null}><MilestoneKpis moduleId={module.id} /></Suspense>}
       </div>
     </>
   );

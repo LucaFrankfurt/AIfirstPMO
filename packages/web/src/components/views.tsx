@@ -12,8 +12,9 @@ import { HORIZON_DAYS, plusDays } from '../lib/overview';
 import { idFrom, isDrag, startDrag, STATE_DRAG, TASK_DRAG } from '../lib/drag';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
-  fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
-  useCycles, useLabels, useModules, useStates, type BaseGroupBy, type GroupBy, type Implied,
+  DEFAULT_VIEW, fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
+  useCycles, useLabels, useModules, useStates,
+  type BaseGroupBy, type GroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
@@ -26,22 +27,6 @@ import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { navCount } from './ui/nav';
 import { GanttView } from './gantt';
-
-export interface ViewConfig {
-  layout: Layout;
-  groupBy: GroupBy;
-  orderBy: 'manual' | 'priority' | 'due_date' | 'created_at' | 'updated_at' | 'title';
-  filters: Filters;
-  showDone: boolean;
-}
-
-export const DEFAULT_VIEW: ViewConfig = {
-  layout: 'list',
-  groupBy: 'state',
-  orderBy: 'manual',
-  filters: {},
-  showDone: true,
-};
 
 const PRIORITY_RANK = Object.fromEntries(PRIORITIES.map((p, i) => [p, i]));
 

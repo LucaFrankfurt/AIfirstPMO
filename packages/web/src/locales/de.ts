@@ -2367,4 +2367,7 @@ export const de: Catalogue = {
   'misc.pageNotFound': 'Seite nicht gefunden',
   'misc.noWorkspaceTitle': 'Noch kein Workspace',
   'misc.noWorkspaceHint': 'Leg in den Einstellungen einen an, dann geht es los.',
+  'misc.screenUnavailableTitle': 'Diese Ansicht ist nicht angekommen',
+  'misc.screenUnavailableHint': 'Sie wird separat geladen, und das Netz oder eine neue Version kam dazwischen. Ein Neuladen behebt das meistens.',
+  'misc.reload': 'Neu laden',
 };

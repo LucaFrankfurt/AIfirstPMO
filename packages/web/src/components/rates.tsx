@@ -18,21 +18,15 @@ import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { today } from '../lib/format';
 import { create, remove } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
-import { useMembers, useSession } from '../session';
+import { useMembers, useSeesMoney, useSession } from '../session';
 import { Empty, Icon, Sheet, useConfirm } from './ui';
 import { Button } from './ui/button';
 import { Chip } from './ui/chip';
 import { Input, Select } from './ui/field';
 import { SectionHeading } from './ui/section';
-import { MoneyInput, asMoney } from './budget';
+import { MoneyInput, asMoney } from './ui/money';
 
 export const rateKindKey = (kind: string): TranslationKey => `rate.kind.${kind}` as TranslationKey;
-
-/** Whether this person may see money at all. See the note at the top. */
-export function useSeesMoney(): boolean {
-  const { role } = useSession();
-  return role === 'owner' || role === 'admin';
-}
 
 /**
  * A list of amounts in different currencies, as one string.

@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { PRIORITIES, coversProject, fieldKeys, mayEnter, type Cycle, type Label, type Module, type Priority, type State, type Task } from '@kolibri/shared';
+import { PRIORITIES, coversProject, fieldKeys, mayEnter, type Cycle, type Filters, type Label, type Layout, type Module, type Priority, type State, type Task } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { ancestry, descendants } from '../lib/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
@@ -500,6 +500,31 @@ export type BaseGroupBy = 'state' | 'priority' | 'assignee' | 'label' | 'cycle' 
  * instead of crashing the screen that reads it back.
  */
 export type GroupBy = BaseGroupBy | `field:${string}`;
+
+/**
+ * What a list of tasks is currently showing.
+ *
+ * Here rather than in `views.tsx`, where it started, because `saved-views.tsx`
+ * needs it too — and `views.tsx` renders the saved-view menu, so the two spent
+ * a while importing each other. A type and its default are not a component;
+ * both files already read `GroupBy` from this one. See `docs/modules.md`.
+ */
+export interface ViewConfig {
+  layout: Layout;
+  groupBy: GroupBy;
+  orderBy: 'manual' | 'priority' | 'due_date' | 'created_at' | 'updated_at' | 'title';
+  filters: Filters;
+  showDone: boolean;
+}
+
+export const DEFAULT_VIEW: ViewConfig = {
+  layout: 'list',
+  groupBy: 'state',
+  orderBy: 'manual',
+  filters: {},
+  showDone: true,
+};
+
 
 export const fieldGroupId = (fieldId: string): GroupBy => `field:${fieldId}`;
 export const groupedField = (groupBy: GroupBy): string | null =>

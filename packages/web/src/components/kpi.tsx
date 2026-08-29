@@ -12,7 +12,7 @@ import { useState } from 'react';
 import {
   formatMeasure, parseMeasure, type Kpi, type KpiProgress, type MeasureHealth, type SeriesPoint,
 } from '@kolibri/shared';
-import { Table } from './insights';
+import { Table } from './ui/table';
 import { Icon } from './ui';
 import { Chip } from './ui/chip';
 import { Input } from './ui/field';

@@ -21,13 +21,12 @@ import { byOrder, create, remove, update } from '../lib/mutations';
 import { byId, list, useQuery } from '../lib/store';
 import { useCanWrite, useMe, useSession } from '../session';
 import { Icon, MenuButton, Sheet, useConfirm, useToast, type IconName, type MenuItem } from './ui';
-import type { GroupBy } from './task-parts';
+import { DEFAULT_VIEW, type GroupBy, type ViewConfig } from './task-parts';
 import { ShareSheet, type ShareTarget } from './share';
 import { Button } from '../components/ui/button';
 import { buttonVariants } from '../components/ui/button';
 import { cn } from '../lib/cn';
 import { Input } from './ui/field';
-import { DEFAULT_VIEW, type ViewConfig } from './views';
 
 /** The stored row, read back as the shape the screens work in. */
 export function configOf(row: View): ViewConfig {

@@ -13,24 +13,21 @@
  */
 import { useMemo, useState } from 'react';
 import {
-  COST_CATEGORIES, FULL_SHARE, formatMoney, healthOf, normaliseAllocations, parseMoney,
+  COST_CATEGORIES, FULL_SHARE, healthOf, normaliseAllocations,
   projectShare, rollUp,
   type Allocation, type Budget, type BudgetActual, type BudgetHealth, type BudgetLine, type BudgetRollUp,
   type BudgetScenario, type CostCategory, type Minor,
 } from '@kolibri/shared';
-import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
+import { useT, type TranslationKey } from '../lib/i18n';
 import { list, useQuery } from '../lib/store';
 import { Icon } from './ui';
 import { Chip } from './ui/chip';
 import { Button } from './ui/button';
 import { Input } from './ui/field';
-import { Table } from './insights';
+import { Table } from './ui/table';
+import { MoneyInput, asMoney } from './ui/money';
 
 /* ------------------------------------------------------------------ money */
-
-/** A figure, in the reader's language. Cents only where cents are the point. */
-export const asMoney = (minor: Minor, currency: string, compact = false): string =>
-  formatMoney(minor, currency, currentLocale(), { compact });
 
 /**
  * A signed figure, with the sign spelled out.
@@ -79,40 +76,6 @@ export function Health({ totals }: { totals: BudgetRollUp }) {
   const t = useT();
   const health = healthOf(totals);
   return <Chip className={HEALTH_CLASS[health]}>{t(healthKey(health))}</Chip>;
-}
-
-/**
- * An amount, typed.
- *
- * Kept as text while somebody is in it and parsed when they leave, so a
- * half-typed `12.` is not repeatedly reformatted under the cursor — which is
- * what every currency input that formats on each keystroke does, and why they
- * are so unpleasant to use. `parseMoney` reads whichever separators they used.
- */
-export function MoneyInput({ value, currency, onChange, ...rest }: {
-  value: Minor;
-  currency: string;
-  onChange: (minor: Minor) => void;
-  id?: string;
-  placeholder?: string;
-  'aria-label'?: string;
-}) {
-  const [draft, setDraft] = useState<string | null>(null);
-  const shown = draft ?? (value ? (value / 100).toFixed(2) : '');
-  return (
-    <Input
-      {...rest}
-      inputMode="decimal"
-      className="money-input"
-      value={shown}
-      onChange={(event) => setDraft(event.target.value)}
-      onBlur={() => {
-        if (draft !== null) onChange(parseMoney(draft) ?? 0);
-        setDraft(null);
-      }}
-      title={currency}
-    />
-  );
 }
 
 /* ------------------------------------------------------------ allocations */

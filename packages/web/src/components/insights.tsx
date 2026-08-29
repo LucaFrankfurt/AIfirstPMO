@@ -19,10 +19,11 @@ import { coversProject, duration, totalsOf } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
 import { useT } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
-import { useFeature, useMemberMap } from '../session';
+import { useFeature, useMemberMap, useSeesMoney } from '../session';
 import { Empty } from './ui';
-import { asMoney } from './budget';
-import { useSeesMoney } from './rates';
+import { asMoney } from './ui/money';
+import { Table } from './ui/table';
+
 
 const DAY = 86_400_000;
 const isDone = (task: Task): boolean => {
@@ -248,25 +249,6 @@ export function Bars({ data, caption }: { data: Column[]; caption: string }) {
       <Table caption={t('insights.tableView')} head={[caption, t('insights.tasks')]}
         rows={data.map((row) => [row.label, String(row.value)])} />
     </figure>
-  );
-}
-
-/** The same numbers as text. Required, not a nicety: colour is never the only channel. */
-export function Table({ caption, head, rows }: { caption: string; head: string[]; rows: string[][] }) {
-  return (
-    <details className="chart-table">
-      <summary>{caption}</summary>
-      <div className="table-wrap">
-        <table className="task-table">
-          <thead><tr>{head.map((cell) => <th key={cell}>{cell}</th>)}</tr></thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>{row.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </details>
   );
 }
 

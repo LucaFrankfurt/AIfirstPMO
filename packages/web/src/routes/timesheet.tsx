@@ -12,11 +12,11 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Header } from '../components/AppShell';
-import { CostReport, Timesheet, useSeesMoney } from '../components/rates';
+import { CostReport, Timesheet } from '../components/rates';
 import { Empty } from '../components/ui';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { useTabStrip } from '../lib/tab-strip';
-import { useFeature } from '../session';
+import { useFeature, useSeesMoney } from '../session';
 
 const TABS = ['week', 'cost'] as const;
 type Tab = (typeof TABS)[number];

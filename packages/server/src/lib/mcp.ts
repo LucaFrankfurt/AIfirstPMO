@@ -30,8 +30,8 @@ import { createProject, serverClock } from './bootstrap.ts';
 import { instantiateTemplate } from './automation.ts';
 import { hasFeature } from './features.ts';
 import { canSeeBudget, canSeeKpi, canSeeProject, deleteEntity, read, serialize, visibleProjectIds, withEffectsHeld, writeEntity } from './repo.ts';
-import { storeFile } from '../routes/files.ts';
-import { searchWorkspace } from '../routes/search.ts';
+import { storeFile } from './uploads.ts';
+import { searchWorkspace } from './search.ts';
 import { uid } from './ids.ts';
 
 export const PROTOCOL_VERSION = '2025-06-18';

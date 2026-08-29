@@ -2,7 +2,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import { I18nProvider } from './lib/i18n';
+import { I18nProvider, detectLocale, loadLocale } from './lib/i18n';
 import { SessionProvider } from './session';
 import { TooltipProvider } from './components/ui/tooltip';
 import './styles/app.css';
@@ -10,6 +10,13 @@ import './styles/app.css';
 // Apply the stored theme before first paint to avoid a flash of the wrong one.
 const theme = localStorage.getItem('kolibri.theme');
 if (theme && theme !== 'system') document.documentElement.setAttribute('data-theme', theme);
+
+// And the catalogue for the same reason. Only English ships in the bundle, so a
+// German reader would otherwise get one frame of English before their words
+// arrive — the language equivalent of the theme flash above. This waits for a
+// file that is already being fetched alongside the app, and if it never arrives
+// the app still renders, in English.
+await loadLocale(detectLocale());
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -15,7 +15,8 @@ import { shortDate, today } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
 import { useFeature, useSession } from '../session';
-import { Bars, Stat, Table } from './insights';
+import { Bars, Stat } from './insights';
+import { Table } from './ui/table';
 import { Empty, Icon } from './ui';
 
 const DAY = 86_400_000;

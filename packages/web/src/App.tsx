@@ -1,8 +1,9 @@
-import { useEffect } from 'react';
+import { Component, Suspense, lazy, useEffect, type ReactNode } from 'react';
 import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './components/AppShell';
 import { TaskDetail } from './components/TaskDetail';
 import { Empty, ToastHost } from './components/ui';
+import { Button } from './components/ui/button';
 import { WelcomeTour } from './components/tour';
 import { AcceptInvite, Login } from './routes/Login';
 import { Portfolio } from './components/portfolio';
@@ -11,16 +12,32 @@ import { Inbox, More, MyWork } from './routes/personal';
 import { Search } from './routes/search';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
-import { BudgetDetail, BudgetIndex } from './routes/budgets';
-import { KpiIndex, KpiDetail } from './routes/kpis';
-import { TimesheetPage } from './routes/timesheet';
-import { Infrastructure } from './routes/infrastructure';
 import { Chat } from './routes/chat';
-import { Help } from './routes/help';
-import { Settings } from './routes/settings';
 import { Teams } from './routes/teams';
+
+/**
+ * The screens that are not in the first load.
+ *
+ * Two kinds, and the line between them is deliberate. Four are behind a
+ * workspace switch — a workspace with budgets off has no link to budgets on
+ * either navigation, and used to download all 2 234 lines of them anyway. The
+ * other two are simply never open when the app starts: nobody boots into the
+ * manual or into settings, and between them they are another 2 568 lines.
+ *
+ * Everything else stays eager on purpose. A screen somebody reaches several
+ * times an hour — the board, chat, a page, the search box — must not spend a
+ * frame on a spinner to save bytes on a file they were always going to need.
+ */
+const TimesheetPage = lazy(() => import('./routes/timesheet').then((m) => ({ default: m.TimesheetPage })));
+const Infrastructure = lazy(() => import('./routes/infrastructure').then((m) => ({ default: m.Infrastructure })));
+const KpiIndex = lazy(() => import('./routes/kpis').then((m) => ({ default: m.KpiIndex })));
+const KpiDetail = lazy(() => import('./routes/kpis').then((m) => ({ default: m.KpiDetail })));
+const BudgetIndex = lazy(() => import('./routes/budgets').then((m) => ({ default: m.BudgetIndex })));
+const BudgetDetail = lazy(() => import('./routes/budgets').then((m) => ({ default: m.BudgetDetail })));
+const Help = lazy(() => import('./routes/help').then((m) => ({ default: m.Help })));
+const Settings = lazy(() => import('./routes/settings').then((m) => ({ default: m.Settings })));
 import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './lib/navigation';
-import { useSession } from './session';
+import { useFeatures, useSession } from './session';
 import { useI18n, type Locale } from './lib/i18n';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
@@ -52,9 +69,43 @@ function Boot() {
   );
 }
 
+/**
+ * What a screen that could not be fetched looks like.
+ *
+ * Splitting the optional screens out of the bundle bought a smaller first load
+ * and one new way to fail: a chunk can be missing. Two ways, really — the
+ * network went away before the idle warm-up reached it, or a deploy replaced
+ * the file whose fingerprinted name this tab still remembers. The second is the
+ * common one and reloading genuinely fixes it, which is why the button says so
+ * rather than apologising.
+ *
+ * A class because that is the only thing React lets catch a render error, and
+ * `Empty` does the actual talking so it looks like every other empty screen.
+ */
+class ScreenBoundary extends Component<{ children: ReactNode; label: string; hint: string; retry: string }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return (
+      <Empty
+        emoji="📡"
+        title={this.props.label}
+        hint={this.props.hint}
+        action={<Button onClick={() => window.location.reload()}>{this.props.retry}</Button>}
+      />
+    );
+  }
+}
+
 export default function App() {
   const { t, adoptLocale } = useI18n();
   const { ready, session, workspaceId } = useSession();
+  const has = useFeatures();
   const location = useLocation();
   const background = backgroundOf(location);
 
@@ -63,6 +114,41 @@ export default function App() {
       navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }
   }, []);
+
+  /**
+   * Fetch the screens that were kept out of the first load, once there is
+   * nothing better for the browser to do.
+   *
+   * Without this, splitting them would have quietly cost the thing this app is
+   * built around: the service worker caches `/assets/` on first request, so a
+   * chunk nobody has opened yet is a chunk that is not on the device — and
+   * opening Settings on a train would have found nothing to load. Warming them
+   * in the idle callback keeps both halves: they are off the critical path, and
+   * they are on disk a second or two later.
+   *
+   * Narrowed by the same switches the navigation uses, because a workspace with
+   * budgets off has no way to reach that screen and no reason to hold it.
+   */
+  useEffect(() => {
+    if (!session || !workspaceId) return undefined;
+    const warm = () => {
+      const fetchQuietly = (load: () => Promise<unknown>) => void load().catch(() => undefined);
+      fetchQuietly(() => import('./routes/help'));
+      fetchQuietly(() => import('./routes/settings'));
+      if (has('time')) fetchQuietly(() => import('./routes/timesheet'));
+      if (has('infrastructure')) fetchQuietly(() => import('./routes/infrastructure'));
+      if (has('kpi')) fetchQuietly(() => import('./routes/kpis'));
+      if (has('budget')) fetchQuietly(() => import('./routes/budgets'));
+    };
+    const idle = window.requestIdleCallback;
+    if (idle) {
+      const handle = idle(warm, { timeout: 5000 });
+      return () => window.cancelIdleCallback?.(handle);
+    }
+    const timer = window.setTimeout(warm, 2000);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `has` is a fresh closure each render
+  }, [session, workspaceId]);
 
   // A device that has never been told otherwise follows the account's language,
   // so signing in on a new phone does not land in the wrong one.
@@ -111,6 +197,12 @@ export default function App() {
       <AppShell>
         {/* The sheet renders over the screen recorded in the router state, so
             the page behind it never flickers or falls back to a 404. */}
+        <ScreenBoundary
+          label={t('misc.screenUnavailableTitle')}
+          hint={t('misc.screenUnavailableHint')}
+          retry={t('misc.reload')}
+        >
+        <Suspense fallback={<Boot />}>
         <Routes location={background ?? location}>
           <Route path="/" element={<MyWork />} />
           <Route path="/inbox" element={<Inbox />} />
@@ -139,6 +231,8 @@ export default function App() {
           <Route path="/t/:id" element={<MyWork />} />
           <Route path="*" element={<Empty emoji="🧭" title={t('misc.pageNotFound')} />} />
         </Routes>
+        </Suspense>
+        </ScreenBoundary>
       </AppShell>
       {/* The sheet, in its own switch so it can sit over any screen. The
           catch-all is the "nothing here, on purpose" — without it every

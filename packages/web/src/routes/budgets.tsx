@@ -25,11 +25,12 @@ import {
 } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import {
-  AllocationChips, AllocationEditor, BurnChart, Health, MoneyInput, PlanVsActual, SplitBars,
-  Variance, asMoney, categoryKey, confidenceKey, healthKey, recurrenceKey, stageKey,
+  AllocationChips, AllocationEditor, BurnChart, Health, PlanVsActual, SplitBars,
+  Variance, categoryKey, confidenceKey, healthKey, recurrenceKey, stageKey,
   useProjectNames, useRollUp,
 } from '../components/budget';
 import { Stat } from '../components/insights';
+import { MoneyInput, asMoney } from '../components/ui/money';
 import { Empty, Icon, Sheet, useConfirm, useToast } from '../components/ui';
 import { Button } from '../components/ui/button';
 import { Chip } from '../components/ui/chip';

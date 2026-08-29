@@ -22,7 +22,7 @@ import { Icon, Sheet } from './ui';
 import { Button } from './ui/button';
 import { Chip } from './ui/chip';
 import { Input, Select, Textarea } from './ui/field';
-import { MoneyInput } from './budget';
+import { MoneyInput } from './ui/money';
 
 export const kindKey = (kind: string): TranslationKey => `estate.kind.${kind}` as TranslationKey;
 export const envKey = (env: string): TranslationKey => `estate.env.${env}` as TranslationKey;

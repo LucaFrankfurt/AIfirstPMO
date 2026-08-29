@@ -2364,4 +2364,7 @@ export const fr: Catalogue = {
   'misc.pageNotFound': 'Page introuvable',
   'misc.noWorkspaceTitle': 'Aucun espace de travail',
   'misc.noWorkspaceHint': 'Créez-en un dans les réglages pour commencer.',
+  'misc.screenUnavailableTitle': 'Cet écran n’est pas arrivé',
+  'misc.screenUnavailableHint': 'Il est chargé séparément, et le réseau ou une nouvelle version s’est interposé. Recharger règle généralement la question.',
+  'misc.reload': 'Recharger',
 };

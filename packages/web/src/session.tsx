@@ -184,3 +184,17 @@ export function useMemberMap(): Map<string, User> {
   const members = useMembers();
   return useMemo(() => new Map(members.map((user) => [user.id, user])), [members]);
 }
+
+/**
+ * Whether this person may see money at all.
+ *
+ * Owners and admins; everybody else is not merely hidden from the figures, a
+ * member's device never receives a rate row in the first place. Asked here
+ * rather than from the rate screens, because the same question is asked by the
+ * timesheet, by project insights and by settings — three different areas that
+ * should not have to import one another to find out. See `docs/modules.md`.
+ */
+export function useSeesMoney(): boolean {
+  const { role } = useSession();
+  return role === 'owner' || role === 'admin';
+}
