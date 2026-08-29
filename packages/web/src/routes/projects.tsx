@@ -9,6 +9,7 @@ import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
 import { ProjectInsights } from '../components/insights';
+import { MilestoneKpis } from './kpis';
 import { ProjectBudget } from '../components/budget';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
@@ -916,6 +917,10 @@ export function ModulePage() {
           <div className="mb-3.5"><Markdown source={module.description} /></div>
         ) : null}
         <TaskViews tasks={visible} view={view} projectId={module.project_id ?? undefined} onOpen={openTask} implied={{ moduleId: module.id }} />
+        {/* A milestone is described by what gets built; this is what has to be
+            *true* by the time it lands. Renders nothing when nothing has been
+            promised against it, rather than an empty frame. */}
+        <MilestoneKpis moduleId={module.id} />
       </div>
     </>
   );

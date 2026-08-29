@@ -526,6 +526,95 @@ CREATE TABLE IF NOT EXISTS modules (
 );
 CREATE INDEX IF NOT EXISTS modules_seq ON modules (workspace_id, seq);
 
+-- A number somebody has undertaken to watch.
+--
+-- Not a query over the rows in this database: the figures a PMO reports on —
+-- uptime, churn, NPS, lead time out of a system that is not this one — are
+-- typed in or posted over MCP, and a KPI feature that could only measure what
+-- happened to be stored here would cover almost none of them. So this is the
+-- definition, and the measurements and targets are rows against it.
+CREATE TABLE IF NOT EXISTS kpis (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  -- Scoped exactly as a cycle, a module and a budget are. See `coversProject`.
+  project_id   TEXT,
+  projects     TEXT NOT NULL DEFAULT '[]',
+  name         TEXT NOT NULL,
+  description  TEXT,
+  -- How to render it, not what it means. There is no `currency` member: money
+  -- already has a system in here, and a second half-built one whose totals
+  -- cannot be added to the first is worse than a link to a budget.
+  unit         TEXT NOT NULL DEFAULT 'number',
+  unit_label   TEXT,
+  -- Where the decimal point goes. Values are integers scaled by 10^decimals,
+  -- for the reason money is minor units: 99.95 as a float, averaged over twelve
+  -- readings, is not 99.95, and this figure gets compared against a target.
+  decimals     INTEGER NOT NULL DEFAULT 0,
+  -- 'up' or 'down'. A band needs a second bound on every target and is written
+  -- down as a limit rather than half-built; see docs/kpi.md.
+  direction    TEXT NOT NULL DEFAULT 'up',
+  -- Where it stood before anybody started, if that is known. NULL is honest and
+  -- common: most KPIs are defined halfway through, and progress then runs from
+  -- the first reading instead.
+  baseline     INTEGER,
+  -- How often somebody has undertaken to measure it. This is what makes
+  -- staleness answerable, which is the one thing a KPI cannot say for itself.
+  cadence      TEXT NOT NULL DEFAULT 'monthly',
+  owner_id     TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS kpis_seq ON kpis (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS kpis_project ON kpis (project_id);
+
+-- What it has to reach, and by when. Its own row because a target is rarely one
+-- number: "85% by June, 90% by December" is the ordinary case.
+CREATE TABLE IF NOT EXISTS kpi_targets (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  kpi_id       TEXT NOT NULL,
+  -- The milestone it is due by. A link rather than a copied date on purpose:
+  -- the sentence was "90% by the time we ship", so a milestone that slips drags
+  -- its targets with it. Copying the date would turn every slip into a miss.
+  module_id    TEXT,
+  due_on       TEXT,
+  value        INTEGER NOT NULL DEFAULT 0,
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS kpi_targets_seq ON kpi_targets (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS kpi_targets_kpi ON kpi_targets (kpi_id);
+CREATE INDEX IF NOT EXISTS kpi_targets_module ON kpi_targets (module_id);
+
+-- One measurement. `source` is where the number came from, and saying so is
+-- most of what makes a KPI worth arguing with.
+CREATE TABLE IF NOT EXISTS kpi_readings (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  kpi_id       TEXT NOT NULL,
+  measured_on  TEXT NOT NULL,
+  value        INTEGER NOT NULL DEFAULT 0,
+  source       TEXT,
+  note         TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS kpi_readings_seq ON kpi_readings (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS kpi_readings_kpi ON kpi_readings (kpi_id, measured_on);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

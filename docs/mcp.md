@@ -246,6 +246,8 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 | `list_budgets` | budgets with approved, planned, actual, forecast, variance and whether each is on track |
 | `budget_status` | one budget in full: plan against actual, forecast, variance, broken down by category, project and month. Optionally under a saved scenario, and optionally as it stood on an earlier date |
+| `list_kpis` | every KPI with where it stands, worst first. The three states that are not judgements — nothing measured, nothing promised, a reading too old to stand for today — are counted as themselves rather than as green |
+| `kpi_status` | one KPI in full: readings, targets, and both `achieved_pct` and `expected_pct`, so the judgement can be quoted rather than asserted |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
 | `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
@@ -420,6 +422,9 @@ Three more details worth knowing before you trust a number:
 | `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
 | `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
 | `confirm_planned` | closes a month: records that month's planned costs as actuals at the amounts the plan says. A line with anything already recorded that month is skipped and reported, not booked twice. `dry_run` shows the list without writing it |
+| `create_kpi` | define a number to watch. `decimals` fixes the scale for every value on it; `cadence` is what lets a reading be reported as stale rather than quoted as current |
+| `record_measurement` | what a KPI reads today, or on a given day. `source` is where the number came from, and a measurement nobody can trace is one nobody can defend |
+| `set_kpi_target` | what it has to reach. Give `milestone` instead of `due_on` and the deadline moves when that milestone moves |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
 | `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |

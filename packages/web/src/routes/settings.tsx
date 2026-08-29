@@ -536,6 +536,26 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* Independent of the other three. A team measuring lead time is not
+          thereby costing servers; the only thing KPIs borrow from elsewhere is
+          the milestone, which every workspace already has. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.kpi}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { kpi: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureKpi')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureKpiHint')}</span>
+        </span>
+      </label>
+
       {/* The workspace half of the two switches a review needs. The other half
           is a key in the environment, which is not a thing an admin can set
           from here — so when there is no model the row says who to ask rather

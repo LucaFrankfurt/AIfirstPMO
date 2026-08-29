@@ -3117,3 +3117,62 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   padding-top: 10px;
   border-top: 1px solid var(--line);
 }
+
+/* ------------------------------------------------------------------- KPIs */
+
+/*
+ * Six states, three treatments. `no_data` and `no_target` share the muted one
+ * because both mean "nobody has said", which is not a judgement and must not be
+ * dressed as one — a dashboard that paints an unmeasured KPI green is the thing
+ * this feature exists to prevent, and painting it red would be the same mistake
+ * pointing the other way.
+ */
+.kpi-quiet { border-color: var(--line); color: var(--fg-muted); }
+.kpi-stale { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+.kpi-on { border-color: color-mix(in srgb, var(--ok) 45%, transparent); color: var(--ok); }
+.kpi-risk { border-color: color-mix(in srgb, var(--warn) 45%, transparent); color: var(--warn); }
+.kpi-off { border-color: color-mix(in srgb, var(--danger) 45%, transparent); color: var(--danger); }
+
+/* The arrow says which way it moved; the colour says whether that was good.
+   For half the KPIs in a workspace those are opposite. */
+.kpi-trend { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+.kpi-better { color: var(--ok); }
+.kpi-worse { color: var(--danger); }
+
+.kpi-linked { display: inline-flex; align-items: center; gap: 5px; }
+
+/*
+ * How far against how far it should be.
+ *
+ * The mark is the whole point of the control: a bar on its own answers "how
+ * far", and the question in November is "how far compared with how far we said
+ * we would be". It is drawn over the fill rather than beside it so the two are
+ * read against the same scale, and it is 2px so it reads as a line on the
+ * track rather than as a second bar.
+ */
+.pace { min-width: 90px; }
+.pace-track {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+.pace-fill { height: 100%; border-radius: 999px; background: var(--accent); }
+.pace-mark {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--fg);
+  opacity: 0.55;
+}
+
+/* A sentence the screen needs to say out loud rather than imply with a chip. */
+.notice-warn {
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--warn) 8%, transparent);
+  color: var(--warn);
+  padding: 9px 11px;
+  font-size: 12.5px;
+}

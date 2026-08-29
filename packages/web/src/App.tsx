@@ -12,6 +12,7 @@ import { Search } from './routes/search';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './routes/projects';
 import { PageDetail, PagesIndex } from './routes/pages';
 import { BudgetDetail, BudgetIndex } from './routes/budgets';
+import { KpiIndex, KpiDetail } from './routes/kpis';
 import { TimesheetPage } from './routes/timesheet';
 import { Infrastructure } from './routes/infrastructure';
 import { Chat } from './routes/chat';
@@ -126,6 +127,8 @@ export default function App() {
           <Route path="/chat/:id" element={<Chat />} />
           <Route path="/timesheet" element={<TimesheetPage />} />
           <Route path="/infrastructure" element={<Infrastructure />} />
+          <Route path="/kpis" element={<KpiIndex />} />
+          <Route path="/kpis/:id" element={<KpiDetail />} />
           <Route path="/budgets" element={<BudgetIndex />} />
           <Route path="/budgets/:id" element={<BudgetDetail />} />
           <Route path="/pages" element={<PagesIndex />} />

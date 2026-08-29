@@ -106,6 +106,138 @@ export type SpendStage = (typeof SPEND_STAGES)[number];
 export const BUDGET_STATUS = ['draft', 'active', 'closed'] as const;
 export type BudgetStatus = (typeof BUDGET_STATUS)[number];
 
+/* --------------------------------------------------------------------- KPI */
+
+/**
+ * How a measurement is rendered, and nothing else.
+ *
+ * Deliberately about *shape* rather than about meaning: `percent` puts a sign
+ * after it, `duration` reads minutes as hours and minutes, `number` takes
+ * whatever word the KPI supplies in `unit_label`. There is no `currency`
+ * member, because money already has a system in here — an amount, a code, and
+ * one currency per container — and a second half-built one whose totals cannot
+ * be added to the first is worse than sending somebody to a budget.
+ */
+export const MEASURE_UNITS = ['number', 'percent', 'duration', 'score'] as const;
+export type MeasureUnit = (typeof MEASURE_UNITS)[number];
+
+/**
+ * Which way is better.
+ *
+ * Two members and not three. A KPI that has to land inside a band — a stock
+ * level, a response time with a floor as well as a ceiling — needs a second
+ * bound on every target, and every screen would then carry a second figure for
+ * the sake of a case that is rare here. `range` is written down as a limit
+ * rather than half-built; see `docs/kpi.md`.
+ */
+export const MEASURE_DIRECTIONS = ['up', 'down'] as const;
+export type MeasureDirection = (typeof MEASURE_DIRECTIONS)[number];
+
+/**
+ * How often somebody has undertaken to measure it.
+ *
+ * This exists to make staleness answerable. A KPI is the one kind of figure
+ * that looks equally confident whether it was taken this morning or in March,
+ * and "we are at 94%" from a reading nobody has refreshed in two quarters is
+ * not a fact about today. Without a stated cadence there is no honest way to
+ * say so, so every KPI carries one.
+ */
+export const MEASURE_CADENCES = ['daily', 'weekly', 'monthly', 'quarterly'] as const;
+export type MeasureCadence = (typeof MEASURE_CADENCES)[number];
+
+/**
+ * Where a KPI stands, under one rule used everywhere.
+ *
+ * Listed worst first, which is also the order the index sorts by and the order
+ * a summary row reads in. The three that are not judgements sit in the middle
+ * rather than at either end: `no_data`, `no_target` and `stale` are the states
+ * a dashboard usually paints green by omission, and none of them is a crisis or
+ * a success — nobody has measured it, nobody has said what it should be, or the
+ * last measurement is too old to stand for today.
+ */
+export const MEASURE_HEALTH = ['off_track', 'at_risk', 'stale', 'no_target', 'no_data', 'on_track'] as const;
+export type MeasureHealth = (typeof MEASURE_HEALTH)[number];
+
+/**
+ * A number somebody has undertaken to watch.
+ *
+ * Scoped exactly as a budget, a cycle and a module are, so `coversProject`
+ * answers for this too. What it is *not* is a query over Kolibri's own rows:
+ * the numbers a PMO actually reports on — uptime, churn, NPS, headcount, lead
+ * time out of a system that is not this one — are typed in or posted over MCP,
+ * and a KPI feature that could only measure what happened to be in this
+ * database would cover almost none of them. So a KPI is a definition, and the
+ * measurements are rows against it: the same shape as a budget, where the plan
+ * and what actually happened are two lists that get compared.
+ */
+export interface Kpi extends Base {
+  workspace_id: ID;
+  /** The project that owns it, or null when it is shared. See `coversProject`. */
+  project_id: ID | null;
+  /** The projects it covers. Empty means *every* project, not none. */
+  projects: ID[];
+  name: string;
+  description: string | null;
+  unit: MeasureUnit;
+  /** The word after the figure when `unit` is `number`. "Tickets", "customers". */
+  unit_label: string | null;
+  /**
+   * Where the decimal point goes, for every value on this KPI and its targets.
+   *
+   * Values are integers scaled by `10 ** decimals`, for the reason money is:
+   * 99.95 stored as a float and summed twice is not 99.95, and these figures
+   * get averaged and compared against a target. `parseMeasure` and
+   * `formatMeasure` are the only two places a decimal point exists.
+   */
+  decimals: number;
+  direction: MeasureDirection;
+  /**
+   * Where it stood before anybody started, if that is known.
+   *
+   * Null is honest and common — most KPIs are defined halfway through. Progress
+   * then runs from the first reading instead, and the screens say which.
+   */
+  baseline: number | null;
+  cadence: MeasureCadence;
+  owner_id: ID | null;
+  archived: number;
+  sort_order: string;
+}
+
+/**
+ * What it has to reach, and by when.
+ *
+ * Its own row rather than a field on the KPI because a target is rarely one
+ * number: "85% by June, 90% by December" is the ordinary case, and a single
+ * column would make the June figure unrecoverable the moment somebody typed
+ * the December one.
+ *
+ * `module_id` is the milestone link, and it is a link rather than a copied
+ * date on purpose: a target tied to a milestone *moves with it*. A milestone
+ * that slips a month drags its targets along, because the sentence was never
+ * "90% by 30 June" — it was "90% by the time we ship".
+ */
+export interface KpiTarget extends Base {
+  workspace_id: ID;
+  kpi_id: ID;
+  /** The milestone this is due by. When set, its date wins over `due_on`. */
+  module_id: ID | null;
+  due_on: ISODate | null;
+  value: number;
+  note: string | null;
+  sort_order: string;
+}
+
+/** One measurement. `source` is where the number came from, and saying so is the point. */
+export interface KpiReading extends Base {
+  workspace_id: ID;
+  kpi_id: ID;
+  measured_on: ISODate;
+  value: number;
+  source: string | null;
+  note: string | null;
+}
+
 /**
  * What an hour is worth, in the two senses a team needs at once.
  *
@@ -276,6 +408,15 @@ export interface WorkspaceFeatures {
    * it is charged to.
    */
   infrastructure?: boolean;
+  /**
+   * KPIs: numbers somebody has undertaken to watch, and what they have to reach.
+   *
+   * Off by default like the rest. Independent of `budget` and `infrastructure`
+   * — a team measuring lead time is not thereby costing servers — and the only
+   * thing it borrows from elsewhere is the milestone: a target can be due by a
+   * module, which every workspace already has.
+   */
+  kpi?: boolean;
 }
 
 export interface Workspace {
@@ -1219,6 +1360,9 @@ export interface EntityMap {
   relation: Relation;
   cycle: Cycle;
   module: Module;
+  kpi: Kpi;
+  kpiTarget: KpiTarget;
+  kpiReading: KpiReading;
   page: Page;
   comment: Comment;
   attachment: Attachment;

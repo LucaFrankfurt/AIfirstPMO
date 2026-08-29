@@ -30,6 +30,9 @@ export type EntityName =
   | 'relation'
   | 'cycle'
   | 'module'
+  | 'kpi'
+  | 'kpiTarget'
+  | 'kpiReading'
   | 'page'
   | 'comment'
   | 'attachment'
@@ -271,6 +274,29 @@ export const ENTITIES = {
    * in the workspace, and `projects` non-empty is exactly those. See
    * `coversProject` in `scope.ts`.
    */
+  /**
+   * A number somebody watches. The definition only — the measurements and the
+   * targets are rows of their own, for the reason `budgetLine` is a row: two
+   * people recording two readings from two devices should merge, not overwrite.
+   */
+  kpi: {
+    table: 'kpis',
+    fields: [
+      'workspace_id', 'project_id', 'projects', 'name', 'description', 'unit', 'unit_label',
+      'decimals', 'direction', 'baseline', 'cadence', 'owner_id', 'archived', 'sort_order',
+    ],
+    json: ['projects'],
+  },
+  /** What it has to reach, and by when. `module_id` set means "by that milestone". */
+  kpiTarget: {
+    table: 'kpi_targets',
+    fields: ['workspace_id', 'kpi_id', 'module_id', 'due_on', 'value', 'note', 'sort_order'],
+  },
+  /** One measurement. */
+  kpiReading: {
+    table: 'kpi_readings',
+    fields: ['workspace_id', 'kpi_id', 'measured_on', 'value', 'source', 'note'],
+  },
   module: {
     table: 'modules',
     fields: [
@@ -538,6 +564,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   task: 'tasks',
   relation: 'relations',
   cycle: 'cycles',
+  kpi: 'kpis',
+  kpiTarget: 'kpi-targets',
+  kpiReading: 'kpi-readings',
   module: 'modules',
   page: 'pages',
   comment: 'comments',
