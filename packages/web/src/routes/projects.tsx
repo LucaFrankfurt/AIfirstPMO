@@ -9,7 +9,7 @@ import { SelectionBar } from '../components/selection-bar';
 import { ProjectTime } from '../components/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../components/import';
 import { ProjectInsights } from '../components/insights';
-import { MilestoneKpis } from './kpis';
+import { MilestoneKpis, ProjectKpis } from './kpis';
 import { ProjectBudget } from '../components/budget';
 import { Markdown, MarkdownEditor } from '../components/Markdown';
 import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../components/ui';
@@ -38,7 +38,7 @@ const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 const TAB_KEY: Record<string, TranslationKey> = {
   tasks: 'project.tabTasks', cycles: 'project.tabCycles', modules: 'project.tabModules',
   pages: 'project.tabPages', intake: 'intake.tab', insights: 'insights.tab', budget: 'budget.tab',
-  settings: 'project.tabSettings',
+  kpis: 'kpi.title', settings: 'project.tabSettings',
 };
 
 const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
@@ -343,7 +343,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
 
 /* ---------------------------------------------------------------- project */
 
-const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'budget', 'settings'] as const;
+const TABS = ['tasks', 'cycles', 'modules', 'pages', 'intake', 'insights', 'budget', 'kpis', 'settings'] as const;
 
 /**
  * What a container shows instead.
@@ -367,6 +367,7 @@ export function ProjectPage() {
   const canWrite = useCanWrite();
   const isContainer = !!project?.is_container;
   const budgets = useFeature('budget');
+  const kpis = useFeature('kpi');
   // `?tab=` so a link can point at one — a notification about a report has to
   // land on the reports, not on the task list beside them.
   const [search, setSearch] = useSearchParams();
@@ -414,6 +415,7 @@ export function ProjectPage() {
           // "nothing charges this project" is a tab that teaches people to stop
           // reading the strip.
           .filter((name) => name !== 'budget' || budgets)
+          .filter((name) => name !== 'kpis' || kpis)
           .map((name) => (
           <button
             key={name}
@@ -471,6 +473,7 @@ export function ProjectPage() {
       {tab === 'intake' && <Triage projectId={id} />}
       {tab === 'insights' && <ProjectInsights projectId={id} />}
       {tab === 'budget' && budgets && <ProjectBudget projectId={id} />}
+      {tab === 'kpis' && kpis && <ProjectKpis projectId={id} />}
       {tab === 'settings' && <ProjectSettings projectId={id} />}
 
       {adding && <QuickAdd projectId={id} onClose={() => setAdding(false)} />}

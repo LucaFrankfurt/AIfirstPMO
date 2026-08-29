@@ -158,6 +158,87 @@ describe('the scale the server settles', () => {
   });
 });
 
+describe('what a client may point at', () => {
+  let me: Person;
+  let mine = '';
+  let stranger: Person;
+  let theirs = '';
+  let theirKpi = '';
+
+  before(async () => {
+    const made = await register('kpi-scope-a@example.com');
+    me = made.person;
+    mine = made.workspace;
+    await ok(`/api/workspaces/${mine}`, { cookie: me.cookie, method: 'PATCH', body: { features: { kpi: true } } });
+
+    const other = await register('kpi-scope-b@example.com');
+    stranger = other.person;
+    theirs = other.workspace;
+    await ok(`/api/workspaces/${theirs}`, { cookie: stranger.cookie, method: 'PATCH', body: { features: { kpi: true } } });
+    const kpi = await ok(`/api/workspaces/${theirs}/kpis`, { cookie: stranger.cookie, body: { name: 'Theirs' } });
+    theirKpi = kpi.id;
+  });
+
+  it('refuses a reading pointed at a KPI in another workspace', async () => {
+    /*
+     * `kpi_id` was missing from `SCOPED_REFERENCES`, so nothing checked it —
+     * and `followKpiWorkspace` then *relocated* the row into the workspace it
+     * pointed at. The result was a member of one workspace writing a row into
+     * another, attached to a KPI they cannot read. The equivalent budget
+     * request has always been refused; this is that check.
+     */
+    const result = await call(`/api/workspaces/${mine}/kpi-readings`, {
+      cookie: me.cookie, body: { kpi_id: theirKpi, measured_on: '2026-06-01', value: 1 },
+    });
+    assert.ok(result.status >= 400, `expected a refusal, got ${result.status}`);
+    const landed = all(`SELECT id FROM kpi_readings WHERE kpi_id = ?`, theirKpi);
+    assert.equal(landed.length, 0, 'and nothing was written into the other workspace');
+  });
+
+  it('refuses a target pointed at a KPI in another workspace', async () => {
+    const result = await call(`/api/workspaces/${mine}/kpi-targets`, {
+      cookie: me.cookie, body: { kpi_id: theirKpi, value: 1, due_on: '2026-12-31' },
+    });
+    assert.ok(result.status >= 400, `expected a refusal, got ${result.status}`);
+  });
+
+  it('refuses a target pointed at a milestone in another workspace', async () => {
+    const projects = await ok(`/api/workspaces/${theirs}/projects`, { cookie: stranger.cookie });
+    const module = await ok(`/api/workspaces/${theirs}/modules`, {
+      cookie: stranger.cookie, body: { project_id: projects[0].id, name: 'Theirs too' },
+    });
+    const kpi = await ok(`/api/workspaces/${mine}/kpis`, { cookie: me.cookie, body: { name: 'Mine' } });
+    const result = await call(`/api/workspaces/${mine}/kpi-targets`, {
+      cookie: me.cookie, body: { kpi_id: kpi.id, value: 1, module_id: module.id },
+    });
+    assert.ok(result.status >= 400, `expected a refusal, got ${result.status}`);
+  });
+
+  it('takes a null value as zero rather than throwing the batch away', async () => {
+    /*
+     * `value` is NOT NULL, so a null did not store a slightly wrong figure — it
+     * threw inside the write and took down the whole sync push it arrived in.
+     * A correction, like every other invariant here.
+     */
+    const kpi = await ok(`/api/workspaces/${mine}/kpis`, { cookie: me.cookie, body: { name: 'Nullable' } });
+    const reading = await ok(`/api/workspaces/${mine}/kpi-readings`, {
+      cookie: me.cookie, body: { kpi_id: kpi.id, measured_on: '2026-06-01', value: null },
+    });
+    assert.equal(reading.value, 0);
+    const target = await ok(`/api/workspaces/${mine}/kpi-targets`, {
+      cookie: me.cookie, body: { kpi_id: kpi.id, value: null },
+    });
+    assert.equal(target.value, 0);
+  });
+
+  it('keeps a baseline nullable, because null means something there', async () => {
+    const kpi = await ok(`/api/workspaces/${mine}/kpis`, {
+      cookie: me.cookie, body: { name: 'No baseline', baseline: null },
+    });
+    assert.equal(kpi.baseline, null, 'nobody has said where it started');
+  });
+});
+
 describe('the two cascades', () => {
   let me: Person;
   let workspace = '';

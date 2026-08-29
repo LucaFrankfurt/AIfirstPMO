@@ -10,7 +10,7 @@
  */
 import { useState } from 'react';
 import {
-  formatMeasure, type Kpi, type KpiProgress, type MeasureHealth, type SeriesPoint,
+  formatMeasure, parseMeasure, type Kpi, type KpiProgress, type MeasureHealth, type SeriesPoint,
 } from '@kolibri/shared';
 import { Table } from './insights';
 import { Icon } from './ui';
@@ -248,7 +248,22 @@ export function MeasureInput({ value, kpi, onChange, ...rest }: {
   onChange: (value: number | null) => void;
 } & Omit<React.ComponentProps<typeof Input>, 'value' | 'onChange'>) {
   const decimals = Math.max(0, Math.min(4, Math.round(kpi.decimals) || 0));
-  const [text, setText] = useState(() => (value === null ? '' : (value / 10 ** decimals).toFixed(decimals)));
+  const [text, setText] = useState(() => atScale(value, decimals));
+  /*
+   * Reseed when the scale changes under it.
+   *
+   * The text is held locally so typing is not fought, which means it does not
+   * follow `decimals` — and `decimals` is editable two fields up on the same
+   * form. Changing it left the baseline field showing a figure at the old scale
+   * while every other screen had already moved the point. Keyed on the scale
+   * rather than on the value, so somebody's half-typed "99." survives a
+   * re-render and does not survive a rescale.
+   */
+  const [scale, setScale] = useState(decimals);
+  if (scale !== decimals) {
+    setScale(decimals);
+    setText(atScale(value, decimals));
+  }
   return (
     <Input
       inputMode="decimal"
@@ -257,10 +272,17 @@ export function MeasureInput({ value, kpi, onChange, ...rest }: {
         setText(event.target.value);
         const raw = event.target.value.trim();
         if (!raw) { onChange(null); return; }
-        const parsed = parseFloat(raw.replace(',', '.'));
-        onChange(Number.isFinite(parsed) ? Math.round(parsed * 10 ** decimals) : null);
+        /* `parseMeasure`, not `parseFloat`. The comment above has always said
+           this reads at the KPI's own scale; a bare `parseFloat` after swapping
+           one comma read "1,200" as 1 and "1.234,56" as 123, so the browser and
+           MCP stored the same typed string as different numbers. */
+        onChange(parseMeasure(raw, decimals));
       }}
       {...rest}
     />
   );
 }
+
+/** A stored integer as the text somebody would have typed to get it. */
+const atScale = (value: number | null, decimals: number): string =>
+  (value === null || value === undefined ? '' : (value / 10 ** decimals).toFixed(decimals));

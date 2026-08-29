@@ -580,6 +580,8 @@ export const fr: Catalogue = {
   'kpi.editReading': 'Modifier la mesure',
   'kpi.recorded': 'Saisi',
   'kpi.deleteReading': 'Supprimer la mesure de {value} ?',
+  'kpi.noneHere': 'Aucun indicateur ne couvre ce projet',
+  'kpi.noneHereHint': 'Un indicateur portant sur ce projet, ou sur tout l’espace de travail, apparaît ici.',
   'kpi.noReadings': 'Rien de mesuré',
   'kpi.noReadingsHint': 'Un indicateur sans mesure est une intention, pas un indicateur. Saisissez ce qu’il vaut aujourd’hui.',
   'kpi.addTarget': 'Ajouter une cible',

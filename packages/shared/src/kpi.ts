@@ -254,10 +254,18 @@ export function progressOf(input: {
   if (span !== 0) {
     out.achieved = Math.round(((reading.value - (baseline ?? reading.value)) / span) * 10_000);
   } else {
-    // Baseline and target are the same number: holding a level rather than
-    // moving one. Reaching it is the whole of the job, so it is all-or-nothing
-    // rather than a division by zero.
-    out.achieved = reading.value === target ? 10_000 : 0;
+    /*
+     * Baseline and target are the same number: holding a level rather than
+     * moving one. There is no distance to divide by, so it is all or nothing —
+     * and *nothing* here is negative, not zero.
+     *
+     * That distinction is the whole of the boundary. With a distance to travel,
+     * `0` means "has not moved yet", which is behind the line but not the wrong
+     * side of it. With no distance, the baseline *is* the target: if the reading
+     * is not on it, it has moved off it, and calling that "no progress" would
+     * report a level that has been dropped as merely late.
+     */
+    out.achieved = reading.value === target ? 10_000 : -10_000;
   }
 
   const from = first ? first.measured_on : reading.measured_on;
@@ -272,8 +280,13 @@ export function progressOf(input: {
   }
 
   if (out.health === 'stale') return out;
+  /* `>= 0`, not `> 0`. The rule above says off track is "on the wrong side of
+     the baseline", and a KPI sitting exactly on its baseline is not on the
+     wrong side of it — it has not moved. Calling that off track made the
+     function contradict its own documented rule on the one value where the two
+     readings differ. */
   out.health = out.achieved >= out.expected ? 'on_track'
-    : out.achieved > 0 ? 'at_risk'
+    : out.achieved >= 0 ? 'at_risk'
       : 'off_track';
   return out;
 }

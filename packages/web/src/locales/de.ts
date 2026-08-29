@@ -574,6 +574,8 @@ export const de: Catalogue = {
   'kpi.editReading': 'Messung bearbeiten',
   'kpi.recorded': 'Erfasst',
   'kpi.deleteReading': 'Die Messung {value} löschen?',
+  'kpi.noneHere': 'Keine Kennzahl deckt dieses Projekt ab',
+  'kpi.noneHereHint': 'Eine Kennzahl für dieses Projekt — oder für den ganzen Workspace — erscheint hier.',
   'kpi.noReadings': 'Noch nichts gemessen',
   'kpi.noReadingsHint': 'Eine Kennzahl ohne Messungen ist ein Vorsatz, keine Kennzahl. Erfasse, was sie heute sagt.',
   'kpi.addTarget': 'Ziel setzen',

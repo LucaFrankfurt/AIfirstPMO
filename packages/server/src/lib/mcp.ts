@@ -933,16 +933,42 @@ const asKpi = (row: Row): Kpi => serialize('kpi', row) as unknown as Kpi;
  * budget tools do it: a model asked for a figure picks whichever it sees first,
  * and here the two readings differ by a factor of ten to the `decimals`.
  */
-function kpiReport(row: Row, workspaceId: string, asOf?: string) {
-  const kpi = asKpi(row);
-  const readings = kpiChildren('kpi_readings', [row])
-    .map((entry) => serialize('kpiReading', entry) as unknown as KpiReading);
-  const targets = kpiChildren('kpi_targets', [row])
-    .map((entry) => serialize('kpiTarget', entry) as unknown as KpiTarget);
+/**
+ * The rows every KPI report needs, fetched once for a whole list.
+ *
+ * `kpiReport` used to gather its own, which is correct for one KPI and five
+ * queries too many for sixty: three per KPI, one of them the entire modules
+ * table re-read each time. `kpiChildren` already took a batch and was only ever
+ * handed one row.
+ */
+function kpiContext(rows: Row[], workspaceId: string) {
+  const readings = new Map<string, KpiReading[]>();
+  for (const entry of kpiChildren('kpi_readings', rows)) {
+    const reading = serialize('kpiReading', entry) as unknown as KpiReading;
+    const list = readings.get(reading.kpi_id);
+    if (list) list.push(reading); else readings.set(reading.kpi_id, [reading]);
+  }
+  const targets = new Map<string, KpiTarget[]>();
+  for (const entry of kpiChildren('kpi_targets', rows)) {
+    const target = serialize('kpiTarget', entry) as unknown as KpiTarget;
+    const list = targets.get(target.kpi_id);
+    if (list) list.push(target); else targets.set(target.kpi_id, [target]);
+  }
   const modules = all<Row>(
     `SELECT id, target_date FROM modules WHERE workspace_id = ? AND deleted_at IS NULL`,
     workspaceId,
   ).map((entry) => ({ id: String(entry.id), target_date: (entry.target_date as string | null) ?? null }));
+  return { readings, targets, modules };
+}
+
+type KpiContext = ReturnType<typeof kpiContext>;
+
+function kpiReport(row: Row, workspaceId: string, asOf?: string, context?: KpiContext) {
+  const kpi = asKpi(row);
+  const shared = context ?? kpiContext([row], workspaceId);
+  const readings = shared.readings.get(String(row.id)) ?? [];
+  const targets = shared.targets.get(String(row.id)) ?? [];
+  const modules = shared.modules;
 
   const progress = progressOf({ kpi, readings, targets, modules, asOf });
   const trend = trendOf(kpi, readings, asOf);
@@ -4926,7 +4952,8 @@ const TOOLS: ToolDef[] = [
         const project = findProject(String(args.project), workspaceId, ctx);
         rows = rows.filter((row) => coversProject(scopeOf(row), String(project.id)));
       }
-      const reports = rows.map((row) => kpiReport(row, workspaceId, asOf).summary);
+      const context = kpiContext(rows, workspaceId);
+      const reports = rows.map((row) => kpiReport(row, workspaceId, asOf, context).summary);
       const wanted = args.health ? String(args.health) : null;
       const filtered = wanted ? reports.filter((row) => row.health === wanted) : reports;
 

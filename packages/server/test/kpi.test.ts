@@ -158,6 +158,24 @@ describe('on track means past the line, not near the target', () => {
     assert.ok(out.achieved !== null && out.achieved < 0);
   });
 
+  it('does not call a KPI sitting exactly on its baseline off track', () => {
+    /*
+     * The boundary the rule and the code disagreed on. "Off track" is stated as
+     * *on the wrong side of the baseline*, and a KPI that has not moved is not
+     * on the wrong side of anything — it is behind the line, which is at risk.
+     */
+    const out = progressOf({
+      kpi: kpi({ baseline: 9000 }),
+      readings: [
+        reading({ measured_on: '2026-01-01', value: 9000 }),
+        reading({ measured_on: '2026-06-30', value: 9000 }),
+      ],
+      targets, asOf: '2026-06-30',
+    });
+    assert.equal(out.achieved, 0);
+    assert.equal(out.health, 'at_risk');
+  });
+
   it('measures distance travelled, so falling is progress when down is better', () => {
     /*
      * Churn at 5%, aiming for 2%, now at 3%: two thirds of the way there. The
@@ -182,8 +200,11 @@ describe('on track means past the line, not near the target', () => {
     const met = progressOf({ ...holding, readings: [reading({ measured_on: '2026-06-30', value: 9900 })] });
     assert.equal(met.achieved, 10_000);
     assert.equal(met.health, 'on_track');
+    /* Negative, not zero: with no distance to travel the baseline *is* the
+       target, so a reading that is not on it has moved off it. Zero would have
+       reported a dropped level as merely late — see the note in `progressOf`. */
     const missed = progressOf({ ...holding, readings: [reading({ measured_on: '2026-06-30', value: 9800 })] });
-    assert.equal(missed.achieved, 0);
+    assert.equal(missed.achieved, -10_000);
     assert.equal(missed.health, 'off_track');
   });
 

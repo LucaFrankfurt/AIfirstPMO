@@ -245,6 +245,7 @@ const SCOPED_REFERENCES: Record<string, string> = {
   line_id: 'budget_lines',
   vendor_id: 'vendors',
   component_id: 'components',
+  kpi_id: 'kpis',
 };
 
 function guardReferences(entity: EntityName, values: Record<string, unknown>, opts: WriteOpts): void {
@@ -717,8 +718,18 @@ function applyKpiInvariants(
     const given = String(values[field] ?? '');
     if (!allowed.includes(given)) settle(field, fallback);
   };
+  /**
+   * A whole number, or zero.
+   *
+   * `null` is coerced rather than skipped, which is the whole point: `value` is
+   * `NOT NULL`, so letting a null through does not store a slightly wrong
+   * figure — it throws inside the write and takes the entire sync batch it
+   * arrived in down with it. The budget's `whole` has always done this; this one
+   * did not, and a client sending `{value: null}` got a 500 instead of a zero.
+   * Nullable columns are handled at their own call site.
+   */
   const whole = (field: string) => {
-    if (values[field] === undefined || values[field] === null) return;
+    if (values[field] === undefined) return;
     const number = Math.round(Number(values[field]));
     settle(field, Number.isFinite(number) ? number : 0);
   };
@@ -747,6 +758,8 @@ function applyKpiInvariants(
       const given = Math.round(Number(values.decimals));
       settle('decimals', Number.isFinite(given) ? Math.max(0, Math.min(4, given)) : 0);
     }
+    // The one nullable number here, and null means something: nobody has said
+    // where it started, and progress runs from the first reading instead.
     if (values.baseline !== undefined && values.baseline !== null) whole('baseline');
   }
 

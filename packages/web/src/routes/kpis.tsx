@@ -240,7 +240,11 @@ function Overview({ kpi, readings, targets, modules }: {
           label={t('kpi.trend')}
           value={trend.change === null
             ? '—'
-            : `${trend.change > 0 ? '↑' : '↓'} ${measure(Math.abs(trend.change), kpi)}`}
+            : trend.change === 0
+              /* The index says "No change" for this; a tile reading "↓ 0" would
+                 be the same fact drawn as a fall. */
+              ? t('kpi.unchanged')
+              : `${trend.change > 0 ? '↑' : '↓'} ${measure(Math.abs(trend.change), kpi)}`}
           hint={t(`kpi.trendHint.${kpi.cadence}` as TranslationKey)}
         />
       </div>
@@ -876,7 +880,15 @@ export function MilestoneKpis({ moduleId }: { moduleId: string }) {
   );
 }
 
-/** Every KPI that covers one project, for the project's own screen. */
+/**
+ * Every KPI that covers one project, as that project's own tab.
+ *
+ * A tab rather than a strip appended to Insights, matching the budget: both
+ * answer "how is this project doing" in a currency the tasks list cannot, and
+ * both are worth a heading of their own. It shows the empty state rather than
+ * nothing, because a tab that renders blank is worse than one that says there
+ * is nothing here yet.
+ */
 export function ProjectKpis({ projectId }: { projectId: string }) {
   const t = useT();
   const enabled = useFeature('kpi');
@@ -889,11 +901,12 @@ export function ProjectKpis({ projectId }: { projectId: string }) {
       modules,
     })
     : []), [enabled, kpis, readings, targets, modules, projectId]);
-  if (!rows.length) return null;
+  if (!rows.length) {
+    return <Empty emoji="🎯" title={t('kpi.noneHere')} hint={t('kpi.noneHereHint')} />;
+  }
 
   return (
-    <div className="mt-4">
-      <SectionHeading>{t('kpi.title')}</SectionHeading>
+    <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="table-wrap">
         <table className="task-table">
           <thead>

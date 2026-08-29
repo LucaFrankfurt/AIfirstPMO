@@ -579,6 +579,8 @@ export const en = {
   'kpi.editReading': 'Edit reading',
   'kpi.recorded': 'Recorded',
   'kpi.deleteReading': 'Delete the reading of {value}?',
+  'kpi.noneHere': 'No KPI covers this project',
+  'kpi.noneHereHint': 'A KPI scoped to this project, or to the whole workspace, shows up here.',
   'kpi.noReadings': 'Nothing measured yet',
   'kpi.noReadingsHint': 'A KPI with no readings is a promise, not a measure. Record what it reads today.',
   'kpi.addTarget': 'Add a target',
