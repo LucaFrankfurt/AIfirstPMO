@@ -36,7 +36,6 @@ import { all, get, nextSeq, run, tx, type Row } from '../db/index.ts';
 import { badRequest, forbidden, notFound } from './http.ts';
 import { shareToken, token, uid } from './ids.ts';
 import { publish } from './bus.ts';
-import { runAutomations } from './automation.ts';
 import { createNotification } from './notify.ts';
 import { translatorFor } from './i18n.ts';
 import { env } from '../env.ts';
@@ -1466,22 +1465,74 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
    * webhooks reach other people's servers — honour the deferral window below.
    * Everything above them is a database write, which a rollback takes back;
    * these two cannot be taken back, so inside a wrapped transaction they wait
-   * for the commit. `runAutomations` stays inline on purpose: what it *writes*
-   * must land inside the transaction, and what those writes notify comes back
-   * through here and queues itself.
+   * for the commit. The listeners stay inline on purpose — the rules engine is
+   * one, and what it *writes* must land inside the transaction, while what
+   * those writes notify comes back through here and queues itself. See
+   * `onWrite` below for why this is a list of functions rather than the bus.
    */
   const external = (): void => {
     notify(entity, row, before, changed, opts);
     fireWebhooks(entity, row, before, changed, opts);
   };
+  const heard = (): void => {
+    for (const listener of listeners) listener(entity, row, before, changed, opts);
+  };
   if (pendingEffects) {
     pendingEffects.push(external);
-    runAutomations(entity, row, before, changed, opts);
+    heard();
   } else {
     notify(entity, row, before, changed, opts);
-    runAutomations(entity, row, before, changed, opts);
+    heard();
     fireWebhooks(entity, row, before, changed, opts);
   }
+}
+
+/* --------------------------------------------------------- write listeners */
+
+/**
+ * Something that wants to know a row changed, and may write in response.
+ *
+ * The arguments are `afterWrite`'s own, and they are handed over unchanged: the
+ * entity, the row as it now stands, what it was, which fields moved, and who
+ * moved them.
+ */
+export type WriteListener = (
+  entity: EntityName,
+  row: Row,
+  before: Row | undefined,
+  changed: Record<string, unknown>,
+  opts: WriteOpts,
+) => void;
+
+const listeners: WriteListener[] = [];
+
+/**
+ * Ask to hear about every write, from inside the transaction that made it.
+ *
+ * This exists so the write path does not have to know what a rule engine is.
+ * It used to `import { runAutomations }` directly, and `automation.ts` imports
+ * `writeEntity` right back — three files that could all reach each other, so
+ * none of them could be read, tested or replaced alone.
+ *
+ * What it is emphatically **not** is a message bus. `lib/bus.ts` is next door
+ * and would have been the obvious thing to reach for, and it is the wrong
+ * answer: publishing there would make the call asynchronous, and a rule's
+ * writes have to land inside the transaction that triggered them or
+ * `create_tasks_batch`'s "every task or none" stops holding for exactly the
+ * rows a rule generated. So this is an ordinary array of functions, called in
+ * order, synchronously, where `runAutomations` used to be. Only the direction
+ * of the import changed.
+ *
+ * Registering twice is a no-op, because more than one entry point wires this
+ * up and a test may import them both.
+ */
+export function onWrite(listener: WriteListener): void {
+  if (!listeners.includes(listener)) listeners.push(listener);
+}
+
+/** For a test that needs the write path with nothing hanging off it. */
+export function clearWriteListeners(): void {
+  listeners.length = 0;
 }
 
 /* ------------------------------------------------------- deferred effects */

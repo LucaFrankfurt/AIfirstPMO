@@ -17,13 +17,14 @@
  *   2. **Packages point one way.** `shared` imports neither of the others;
  *      `web` never imports `server`; `server` never imports `web`.
  *   3. **Layers point one way.** Inside the server, `lib/` is below `routes/`
- *      and may not import from it. Two violations exist and are named below;
- *      the list may shrink and may not grow.
- *   4. **No import knots.** Also with a named list, for the same reason.
+ *      and may not import from it.
+ *   4. **No import knots.** No file may be reachable from a file it imports.
  *
  * Rules 3 and 4 carry an allowlist rather than a threshold, because a count is
  * a budget somebody will spend. A named exception has to be deleted from a file
  * by the person who fixes it, and cannot be paid for by fixing a different one.
+ * Both lists are empty as of this writing, which is worth more than short: a
+ * new violation has no precedent to point at.
  *
  *   node scripts/modules.mjs            # check (exit 1 on a violation)
  *   node scripts/modules.mjs --report   # the inventory, as tables on the terminal
@@ -379,6 +380,7 @@ const MODULES = [
     what: 'Composition only: what starts, in what order, wired to what.',
     files: [
       'server/src/index.ts', 'server/src/cli.ts', 'server/src/seed.ts',
+      'server/src/lib/wiring.ts',
       'web/vite.config.ts',
       'web/src/App.tsx', 'web/src/main.tsx',
     ],
@@ -404,29 +406,27 @@ const MODULES = [
 const KNOWN_LAYERING = [];
 
 /**
- * Knots of files that import each other, each one named.
+ * Knots of files that import each other, each one named. There are none.
  *
  * Reported as the whole knot rather than as one lap around it, because a cycle
  * printed as a path depends on which file the search happened to enter from,
  * and an exception list that reshuffles when an unrelated file is renamed is an
- * exception list nobody can trust. What is listed here is the set of files that
- * can all reach each other — sorted, so it reads the same every time.
+ * exception list nobody can trust.
  *
- * Two of the three that used to be here were ordinary accidents of one
- * capability reaching into another for a helper, and both came apart by moving
- * the helper down rather than by rearranging the callers: a money widget and a
- * table into `components/ui/`, `useSeesMoney` into `session.tsx`, and a view's
- * shape into `task-parts.tsx`, which both files that needed it already read.
+ * All three that used to be here came apart the same way, and none of them by
+ * rearranging the callers: the shared thing moved to where everyone could reach
+ * it. A money widget and a table into `components/ui/`, `useSeesMoney` into
+ * `session.tsx`, a view's shape into `task-parts.tsx` — and the last one, the
+ * write path calling the rules engine, by `repo` offering `onWrite` and
+ * `automation` registering for it. That one is worth remembering as the shape
+ * it is *not*: publishing on `lib/bus.ts` would have made the call
+ * asynchronous and moved a rule's writes outside the transaction. Inverting an
+ * import is not the same as deferring a call.
  *
- * The one that is left is the real one: the write path calls the rules engine
- * and the rules engine writes rows. `docs/modules.md` says how it comes apart,
- * and it is not by making the call asynchronous — that would move a rule's
- * writes outside the transaction. `repo` offers `onWrite`, `automation`
- * registers for it, and the call stays exactly where it is.
+ * Empty, like `KNOWN_LAYERING`, and for the same reason: there is nothing left
+ * to cite as precedent.
  */
-const KNOWN_KNOTS = [
-  'server/src/lib/automation.ts + server/src/lib/bootstrap.ts + server/src/lib/repo.ts',
-];
+const KNOWN_KNOTS = [];
 
 /* -------------------------------------------------------------- the reading */
 

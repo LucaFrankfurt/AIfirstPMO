@@ -28,7 +28,7 @@ import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { serverClock } from './bootstrap.ts';
 import { uid } from './ids.ts';
-import { canSeeProject, writeEntity, type WriteOpts } from './repo.ts';
+import { canSeeProject, onWrite, writeEntity, type WriteOpts } from './repo.ts';
 
 /** Why a run produced nothing. Empty string means it produced a task. */
 type SkipReason = 'no-fields' | 'no-recipients' | 'already-run' | 'generated-task' | 'no-template' | '';
@@ -227,6 +227,18 @@ let depth = 0;
 const MAX_DEPTH = 3;
 
 /** Called from the write path for every non-system task write. */
+/**
+ * Hear about every write, so the rules can be asked whether they care.
+ *
+ * The write path used to call `runAutomations` by name, which meant `repo.ts`
+ * imported this file and this file imports `writeEntity` back. Registering
+ * instead leaves the call in exactly the same place — synchronous, inside the
+ * transaction — and points the import one way. See `repo.onWrite`.
+ */
+export function installAutomations(): void {
+  onWrite(runAutomations);
+}
+
 export function runAutomations(
   entity: EntityName,
   row: Row,

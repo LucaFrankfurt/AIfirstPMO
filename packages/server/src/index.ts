@@ -9,6 +9,7 @@ import { startScheduler, stopScheduler } from './lib/scheduler.ts';
 import { startTelegram, stopTelegram } from './lib/telegram.ts';
 import { provision } from './lib/provision.ts';
 import { installSettings } from './lib/settings.ts';
+import { installEffects } from './lib/wiring.ts';
 import { buildCsp } from './lib/csp.ts';
 import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { overTls } from './lib/origin.ts';
@@ -29,6 +30,10 @@ import { registerSyncRoutes } from './routes/sync.ts';
 // Before any route reads a setting: what an admin stored in the database wins
 // over the environment, and `env` has been reading nothing until now.
 installSettings();
+
+// And before any route can write one: `repo` offers a hook rather than calling
+// the rules engine by name, so somebody has to take it up. See `lib/wiring.ts`.
+installEffects();
 
 const router = new Router();
 
