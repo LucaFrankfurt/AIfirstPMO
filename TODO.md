@@ -463,7 +463,12 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       order is money you no longer have and a report counting only paid invoices says a budget is
       healthy right until they land. A forecast under one rule — closed months as they happened,
       open ones at whichever is larger of plan and actual — with a run-rate second opinion beside
-      it, and scenarios that never touch the plan.
+      it, and scenarios that never touch the plan. Closing a month is one press per line, because
+      a budget nobody records against has a plan and nothing to compare it to: the actuals screen
+      offers what the plan says is due, at the line's own day of the month, and a line with
+      anything already recorded that month is not offered again — the test is "is there anything
+      at all", not "does the total match", since a part invoice is real and a line matched on
+      totals would book the cost one and a half times.
 
       The reason this was listed as blocked, and the reason it no longer is: the blocker was
       deriving cost from `tasks.estimate`, which is in points. So it does not. A budget line
@@ -918,7 +923,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 66 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 67 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

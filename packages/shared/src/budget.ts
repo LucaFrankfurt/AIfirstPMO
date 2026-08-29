@@ -326,6 +326,116 @@ export function plannedTotal(
   return total;
 }
 
+/* ------------------------------------------------- confirming a plan line */
+
+/**
+ * One month's occurrence of a planned cost, and whether it has been recorded.
+ *
+ * The shape behind "confirm this line for March". A recurring cost that lands
+ * at exactly the planned amount is the overwhelming majority of what a budget
+ * records — twelve identical hosting bills a year — and typing the same four
+ * fields twelve times is both tedious and the reason the actuals in a budget
+ * stop being filled in around April.
+ */
+export interface PlannedForMonth {
+  line: BudgetLine;
+  month: Month;
+  /** What the plan says this month costs. One occurrence, not the period. */
+  amount: Minor;
+  /** The day to date it: the line's own day of the month, clamped. */
+  on: ISODate;
+  /** What is already recorded against this line in this month. */
+  recorded: Minor;
+  /** Whether anything at all is. See below for why this is not a comparison. */
+  confirmed: boolean;
+}
+
+/**
+ * What a month's plan expects, and what has already been recorded against it.
+ *
+ * `confirmed` is "is there anything at all", not "does the total match". A line
+ * paid across two invoices is a real thing, and a check that compared totals
+ * would keep offering to confirm the rest of it — which is how somebody ends up
+ * booking a cost one and a half times. Once a month has *any* record against a
+ * line, the offer to confirm it goes away and the ordinary Record-spend path
+ * takes over. Under-recording is visible in the figures; a silent double-book
+ * is not.
+ */
+export function plannedForMonth(input: {
+  lines: readonly BudgetLine[];
+  actuals: readonly BudgetActual[];
+  month: Month;
+  period: { from: Month; to: Month };
+}): PlannedForMonth[] {
+  const recorded = new Map<ID, Minor>();
+  for (const entry of input.actuals) {
+    if (!entry.line_id || monthOf(entry.spent_on || '') !== input.month) continue;
+    recorded.set(entry.line_id, (recorded.get(entry.line_id) ?? 0) + (Math.round(Number(entry.amount)) || 0));
+  }
+
+  const out: PlannedForMonth[] = [];
+  for (const line of input.lines) {
+    const amount = scheduleOf(line, input.period).get(input.month);
+    if (!amount) continue;
+    out.push({
+      line,
+      month: input.month,
+      amount,
+      on: dayInMonth(line, input.month),
+      recorded: recorded.get(line.id) ?? 0,
+      confirmed: recorded.has(line.id),
+    });
+  }
+  return out.sort((a, b) => b.amount - a.amount || a.line.name.localeCompare(b.line.name));
+}
+
+/**
+ * Which day of the month a confirmed cost is dated.
+ *
+ * The line's own day, carried across: a contract billed on the 15th is billed
+ * on the 15th, and dating every confirmation to the 1st would put a month's
+ * costs on a day none of them happened. `shiftDate` clamps, so a line starting
+ * on the 31st lands on the last day of a short month rather than sliding into
+ * the next one — which would file it under the wrong month entirely, and this
+ * function exists to decide a month.
+ */
+function dayInMonth(line: Pick<BudgetLine, 'starts_on'>, month: Month): ISODate {
+  if (!line.starts_on) return monthStart(month);
+  return shiftDate(line.starts_on, monthDistance(monthOf(line.starts_on), month));
+}
+
+/**
+ * The record a confirmation writes.
+ *
+ * Deliberately the same shape somebody typing it by hand would produce, so a
+ * confirmed row is an ordinary actual in every respect — editable, deletable,
+ * counted the same way, and indistinguishable in the totals. There is no
+ * "confirmed" flag on the row and nothing downstream knows the difference.
+ *
+ * `allocations` is left empty on purpose. An empty split *means* "follow the
+ * line", so a confirmed cost keeps following its line when the percentages
+ * change later — copying today's split would freeze it into twelve rows that
+ * then quietly disagree with the plan they came from.
+ */
+export function actualFromPlan(
+  planned: PlannedForMonth,
+  options: { budgetId: ID; stage: SpendStage; describe?: (planned: PlannedForMonth) => string },
+): Record<string, unknown> {
+  return {
+    budget_id: options.budgetId,
+    line_id: planned.line.id,
+    description: options.describe?.(planned) ?? planned.line.name,
+    category: planned.line.category,
+    amount: planned.amount,
+    spent_on: planned.on,
+    stage: options.stage,
+    vendor: planned.line.vendor ?? null,
+    reference: null,
+    allocations: [],
+    note: null,
+  };
+}
+
 /* --------------------------------------------------------------- scenarios */
 
 /** Does this adjustment speak about this line? */

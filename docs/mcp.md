@@ -419,6 +419,7 @@ Three more details worth knowing before you trust a number:
 | `create_budget` | an envelope of money over a period, scoped like a cycle: one project's, several, or the workspace |
 | `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
 | `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
+| `confirm_planned` | closes a month: records that month's planned costs as actuals at the amounts the plan says. A line with anything already recorded that month is skipped and reported, not booked twice. `dry_run` shows the list without writing it |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
 | `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |

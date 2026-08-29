@@ -465,6 +465,56 @@ describe('planning and recording over MCP', () => {
     );
   });
 
+  it('takes a month\'s plan across as ordinary records', async () => {
+    // The recurring half of a budget is almost all of it, and this is the
+    // difference between actuals that get filled in and actuals that stop in
+    // April. What it writes has to be indistinguishable from typing it.
+    const dry = await tool(me.token, 'confirm_planned', {
+      budget: 'Platform 2026', month: '2026-06', dry_run: true,
+    });
+    assert.equal(dry.dry_run, true);
+    assert.ok(dry.recorded.some((row: any) => row.line === 'Kubernetes cluster'));
+    // The cluster bills on the 1st because the line carries no day of its own.
+    assert.match(dry.recorded[0].spent_on, /^2026-06-\d{2}$/);
+
+    const before = await tool(me.token, 'budget_status', { budget: 'Platform 2026', as_of: '2026-07-01' });
+    const done = await tool(me.token, 'confirm_planned', { budget: 'Platform 2026', month: '2026-06' });
+    assert.equal(done.recorded.length, dry.recorded.length);
+
+    const after = await tool(me.token, 'budget_status', { budget: 'Platform 2026', as_of: '2026-07-01' });
+    // The cluster is €4,500 a month — 450,000 minor units, not 45,000.
+    assert.equal(after.paid - before.paid, 4500_00, 'the month landed at the planned amount');
+    // And it is filed against the line, so it is not unplanned spend.
+    assert.equal(after.unplanned, before.unplanned);
+  });
+
+  it('leaves a line alone once anything is recorded against it that month', async () => {
+    // Under-recording shows up in the figures; a silent double-book does not.
+    const again = await tool(me.token, 'confirm_planned', { budget: 'Platform 2026', month: '2026-06' });
+    assert.equal(again.recorded.length, 0);
+    assert.ok(again.skipped.some((row: any) => row.line === 'Kubernetes cluster'));
+  });
+
+  it('records the stage it was told to, and defaults to paid', async () => {
+    const committed = await tool(me.token, 'confirm_planned', {
+      budget: 'Platform 2026', month: '2026-07', stage: 'committed',
+    });
+    assert.equal(committed.stage, 'committed');
+    const status = await tool(me.token, 'budget_status', { budget: 'Platform 2026', as_of: '2026-08-01' });
+    assert.ok(status.committed >= 4500_00);
+  });
+
+  it('refuses a month it cannot read, and a line that is not due', async () => {
+    await assert.rejects(
+      () => tool(me.token, 'confirm_planned', { budget: 'Platform 2026', month: 'June' }),
+      /YYYY-MM/,
+    );
+    await assert.rejects(
+      () => tool(me.token, 'confirm_planned', { budget: 'Platform 2026', month: '2026-08', line: 'Imaginary' }),
+      /No plan line/,
+    );
+  });
+
   it('refuses to write with a read-only token', async () => {
     const readOnly = (await ok('/api/tokens', {
       cookie: me.cookie, body: { name: 'ro', workspaceId: workspace, scopes: 'read' },

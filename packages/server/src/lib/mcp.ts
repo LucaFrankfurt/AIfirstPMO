@@ -11,11 +11,13 @@ import {
   PRIORITIES, PROJECT_STATUS, RELATION_KINDS, STATE_GROUPS, coversProject, projectScope, fieldValueId, orderKey, parseDuration,
   parseQuickAdd, readFieldValue, writeFieldValue,
   COMPONENT_KINDS, ENVIRONMENTS, LIFECYCLES, MOVE_STATUS, RATE_KINDS, VENDOR_KINDS,
-  annualCost, compareLandscapes, costOfLandscape, formatMoney, healthOf, landscapeOn, livenessOn,
+  actualFromPlan, annualCost, compareLandscapes, costOfLandscape, formatMoney, healthOf,
+  landscapeOn, livenessOn, plannedForMonth,
   moveProgress, noticeBy, noticeDue, normaliseAllocations, oneOffCost, parseMoney, plannedTotal,
   projectShare, rollUp, totalsOf, utilisation,
   type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario,
-  type Component, type LandscapeCost, type Move, type Rate, type TimeEntry, type Vendor,
+  type Component, type LandscapeCost, type Move, type PlannedForMonth, type Rate, type SpendStage,
+  type TimeEntry, type Vendor,
   type EntityName, type ProjectStatus, type RelationKind, type StateGroup, type Vocabulary,
 } from '@kolibri/shared';
 import { all, get, tx, type Row } from '../db/index.ts';
@@ -3709,6 +3711,91 @@ const TOOLS: ToolDef[] = [
         budget: budget.name,
         ...money(rolled.currency, { actual_now: rolled.actual, forecast_now: rolled.forecast, variance_now: rolled.variance }),
         health: healthOf(rolled),
+      };
+    },
+  },
+  {
+    name: 'confirm_planned',
+    title: 'Take a month\'s plan across',
+    description:
+      'Record the planned costs for one month as actuals, at the amounts the plan says. This is '
+      + 'closing a month: the recurring half of a budget is almost all of it, and typing twelve '
+      + 'identical hosting bills a year is why the actuals stop being filled in. A line that '
+      + 'already has anything recorded against it that month is left alone and reported as '
+      + 'skipped — under-recording is visible in the figures, a silent double-book is not. '
+      + 'Call with `dry_run` first to see what would be written.',
+    schema: {
+      type: 'object',
+      required: ['budget', 'month'],
+      properties: {
+        budget: { type: 'string', description: 'Budget id or name' },
+        month: { type: 'string', description: 'YYYY-MM' },
+        stage: { type: 'string', enum: [...SPEND_STAGES], description: 'Defaults to paid' },
+        line: { type: 'string', description: 'Only this plan line, by id or name' },
+        dry_run: { type: 'boolean', description: 'Report what would be written, and write nothing' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'budget');
+      const budget = findBudget(String(args.budget), workspaceId, ctx);
+      const month = String(args.month ?? '');
+      if (!/^\d{4}-\d{2}$/.test(month)) throw new McpError('month must be YYYY-MM');
+
+      const rolled = rollUpBudget(budget);
+      const lines = budgetChildren('budget_lines', [budget])
+        .map((row) => serialize('budgetLine', row) as unknown as BudgetLine);
+      const actuals = budgetChildren('budget_actuals', [budget])
+        .map((row) => serialize('budgetActual', row) as unknown as BudgetActual);
+
+      let planned = plannedForMonth({ lines, actuals, month, period: rolled.period });
+      if (args.line) {
+        const wanted = String(args.line).toLowerCase();
+        planned = planned.filter((row) => row.line.id === args.line || row.line.name.toLowerCase() === wanted);
+        if (!planned.length) throw new McpError(`No plan line called "${args.line}" is due in ${month}`);
+      }
+
+      const stage = (SPEND_STAGES as readonly string[]).includes(String(args.stage))
+        ? String(args.stage) as SpendStage
+        : 'paid';
+      const open = planned.filter((row) => !row.confirmed);
+      const money = (amount: number) => formatMoney(amount, rolled.currency, 'en');
+      /* The same shape the web writes, so a ledger filled in by both hands
+         reads as one ledger. English, for the same reason the money above is
+         English: there is no person here whose language to use. */
+      const monthText = new Date(`${month}-01T00:00:00Z`)
+        .toLocaleDateString('en', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      const describe = (row: PlannedForMonth) => `${row.line.name} · ${monthText}`;
+
+      const wrote = args.dry_run ? [] : open.map((row) => {
+        const { row: stored } = writeEntity('budgetActual', uid(), {
+          workspace_id: workspaceId,
+          ...actualFromPlan(row, { budgetId: String(budget.id), stage, describe }),
+          allocations: '[]',
+        }, writeOpts(workspaceId, ctx));
+        return { id: stored.id, line: row.line.name, amount_text: money(row.amount), spent_on: stored.spent_on };
+      });
+
+      return {
+        budget: budget.name,
+        month,
+        stage,
+        dry_run: !!args.dry_run,
+        /* What would be, or was, written — and separately what was left alone.
+           A caller reporting "the month is closed" needs both halves: the
+           skipped list is not an error, it is the part somebody had already
+           done by hand. */
+        recorded: args.dry_run
+          ? open.map((row) => ({ line: row.line.name, amount_text: money(row.amount), spent_on: row.on }))
+          : wrote,
+        total_text: money(open.reduce((sum, row) => sum + row.amount, 0)),
+        skipped: planned.filter((row) => row.confirmed).map((row) => ({
+          line: row.line.name,
+          planned_text: money(row.amount),
+          already_recorded_text: money(row.recorded),
+        })),
       };
     },
   },

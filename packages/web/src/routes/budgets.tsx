@@ -16,10 +16,11 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   BUDGET_STATUS, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, FULL_SHARE,
   compareOrder,
-  SPEND_STAGES, byConfidence, byKind, coversProject, monthOf, orderKey, plannedTotal,
+  SPEND_STAGES, actualFromPlan, byConfidence, byKind, coversProject, monthOf, orderKey,
+  plannedForMonth, plannedTotal,
   projectScope, rollUp,
   type Allocation, type Budget, type BudgetActual, type BudgetLine, type BudgetScenario,
-  type CostCategory, type Minor, type ScenarioAdjustment, type SpendStage,
+  type CostCategory, type Minor, type PlannedForMonth, type ScenarioAdjustment, type SpendStage,
 } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import {
@@ -33,13 +34,15 @@ import { Button } from '../components/ui/button';
 import { Chip } from '../components/ui/chip';
 import { Input, Select, Textarea } from '../components/ui/field';
 import { SectionHeading } from '../components/ui/section';
-import { shortDate, today } from '../lib/format';
+import { monthName, shortDate, today } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { create, remove, update } from '../lib/mutations';
 import { list, useQuery, useRow } from '../lib/store';
 import { useTabStrip } from '../lib/tab-strip';
 import { useCanWrite, useFeature } from '../session';
 
+/* A tick on a cumulative axis: the point in time the running total is read
+   at, so a day is the honest label. Prose wants `monthName` instead. */
 const monthLabel = (month: string): string => shortDate(`${month}-01`);
 
 /**
@@ -806,6 +809,8 @@ function Actuals({ budget }: { budget: Budget }) {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+      {canWrite && <ConfirmPlanned budget={budget} lines={lines} actuals={actuals} />}
+
       {canWrite && (
         <div className="mb-3 flex justify-end">
           <Button variant="primary" size="sm" onClick={() => setEditing('new')}>
@@ -880,6 +885,141 @@ function Actuals({ budget }: { budget: Budget }) {
         />
       )}
       {dialog}
+    </div>
+  );
+}
+
+/**
+ * Taking a month's planned costs across, one press each.
+ *
+ * The recurring half of a budget is almost all of it — twelve identical hosting
+ * bills a year, four quarterly ones, a licence renewal — and typing the same
+ * four fields twelve times is why the actuals in a budget stop being filled in
+ * around April. A budget nobody records against is a budget with a plan and no
+ * reality to compare it to, which is a worse failure than any of the ones the
+ * forecast rules guard against.
+ *
+ * A confirmed row is an ordinary actual in every respect: same shape, same
+ * table, editable and deletable like any other, and nothing downstream knows it
+ * was not typed. See `actualFromPlan` — there is deliberately no flag on the
+ * row saying where it came from.
+ */
+function ConfirmPlanned({ budget, lines, actuals }: {
+  budget: Budget;
+  lines: BudgetLine[];
+  actuals: BudgetActual[];
+}) {
+  const t = useT();
+  const toast = useToast();
+  const totals = useRollUp(budget);
+  /* The month somebody is closing. Today's, unless the budget's period ended
+     first — a closed budget opens on its last month rather than on one that
+     was never in it and can therefore never have anything to confirm. */
+  const [month, setMonth] = useState(() => {
+    const now = monthOf(today());
+    if (!budget.period_end) return now;
+    const last = monthOf(budget.period_end);
+    return now > last ? last : now;
+  });
+  /**
+   * What stage a confirmation records.
+   *
+   * A choice rather than a constant, because the same press means different
+   * things depending on when in the month it happens: at the start it is a
+   * commitment nobody has invoiced, at the end it is a bill that was paid.
+   * Defaulted to paid, which is what somebody closing a month means.
+   */
+  const [stage, setStage] = useState<SpendStage>('paid');
+
+  const planned = useMemo(
+    () => (totals ? plannedForMonth({ lines, actuals, month, period: totals.period }) : []),
+    [lines, actuals, month, totals],
+  );
+  const open = planned.filter((row) => !row.confirmed);
+  const outstanding = open.reduce((sum, row) => sum + row.amount, 0);
+
+  const describe = (row: PlannedForMonth) => `${row.line.name} · ${monthName(row.month)}`;
+  const take = (rows: PlannedForMonth[]) => {
+    for (const row of rows) create('budgetActual', actualFromPlan(row, { budgetId: budget.id, stage, describe }));
+    toast(t('budget.confirmed', { count: rows.length }));
+  };
+
+  /**
+   * Two ways for the strip to have nothing to offer, and both collapse it.
+   *
+   * Nothing planned is the empty month: the picker stays so somebody can look
+   * at another one, but a heading over an empty box helps nobody. Settled is
+   * the closed month, and it collapses for a different reason — every row it
+   * would list is already a row in the table directly below, so leaving the
+   * list up prints the same two figures twice on one screen and turns a
+   * checklist into wallpaper. One sentence says the useful part.
+   */
+  const nothingPlanned = !planned.length;
+  const settled = !nothingPlanned && !open.length;
+
+  return (
+    <div className="confirm-strip">
+      <div className="confirm-head">
+        <strong className="flex-1 min-w-0">{t('budget.confirmTitle')}</strong>
+        <Input
+          type="month"
+          className="w-auto"
+          aria-label={t('budget.month')}
+          value={month}
+          onChange={(event) => setMonth(event.target.value || monthOf(today()))}
+        />
+        {/* The stage only describes something about to be written, so it is
+            not offered on a month with nothing left to write. */}
+        {!!open.length && (
+          <Select
+            className="w-auto"
+            aria-label={t('budget.stage')}
+            value={stage}
+            onChange={(event) => setStage(event.target.value as SpendStage)}
+          >
+            {SPEND_STAGES.map((name) => <option key={name} value={name}>{t(stageKey(name))}</option>)}
+          </Select>
+        )}
+      </div>
+
+      {nothingPlanned ? (
+        <p className="confirm-empty">{t('budget.confirmNothing', { month: monthName(month) })}</p>
+      ) : settled ? (
+        <p className="confirm-empty done">
+          <Icon name="check" size={13} /> {t('budget.confirmSettled', { month: monthName(month) })}
+        </p>
+      ) : (
+        <>
+          <ul className="confirm-list">
+            {planned.map((row) => (
+              <li key={row.line.id} className={row.confirmed ? 'done' : ''}>
+                <span className="flex-1 min-w-0 truncate">{row.line.name}</span>
+                <span className="text-[12px] text-muted">{shortDate(row.on)}</span>
+                <span className="tabular-nums">{asMoney(row.amount, budget.currency)}</span>
+                {row.confirmed ? (
+                  /* Already recorded, so no button — and the figure that is
+                     really there, which is the useful thing when it is not the
+                     one that was planned. */
+                  <span className="confirm-done">
+                    <Icon name="check" size={13} />
+                    {t('budget.confirmAlready', { amount: asMoney(row.recorded, budget.currency) })}
+                  </span>
+                ) : (
+                  <Button size="sm" onClick={() => take([row])}>{t('budget.confirmOne')}</Button>
+                )}
+              </li>
+            ))}
+          </ul>
+          {open.length > 1 && (
+            <div className="confirm-foot">
+              <Button variant="primary" size="sm" onClick={() => take(open)}>
+                {t('budget.confirmAll', { count: open.length, amount: asMoney(outstanding, budget.currency) })}
+              </Button>
+              <span className="text-[12px] text-muted">{t('budget.confirmHint')}</span>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
