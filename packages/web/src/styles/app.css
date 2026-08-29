@@ -2798,6 +2798,16 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-weight: 400;
 }
 
+/*
+ * A sub-line worth the space only while the columns it summarises are scrolled
+ * off to the right. Same container query as `hide-sm` and its siblings, and
+ * subject to the same requirement — it has to be inside `.main` — but block
+ * rather than their `inline-flex`, because this is a line under a title and
+ * not a control that has a compact form.
+ */
+.row-sub-sm { display: block; }
+@container screen (min-width: 764px) { .row-sub-sm { display: none; } }
+
 /* The three ways a variance can read. The word beside the figure carries the
    meaning — see `Variance` — so these colours are reinforcement rather than
    the only channel. */

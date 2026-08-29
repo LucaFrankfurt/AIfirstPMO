@@ -228,6 +228,19 @@ Spacing is Tailwind's 4px scale. The sidebar is `--sidebar-width` (248px) and th
 **Touch targets are 36px or more**, which is what the `default` button size is. `iconSm` (32px) is
 for a control inside a dense row where the whole row is also clickable.
 
+**An index leads with the list, not with the summary.** A page called Budgets exists to open a
+budget, and the roll-up above it is context. On a desktop the ordering barely shows — a row of
+tiles is 120px and the list is still on screen. On a phone the same tiles stack two-by-two, two
+chart cards follow, and the first budget starts 665 pixels down an 844-pixel screen: somebody who
+opened the page to open a budget met analysis, scrolled once, met more analysis, and concluded
+there were none. So the list comes first at both widths — one reading order, not two.
+
+The corollary is about the rows themselves. A wide table scrolls sideways inside `.table-wrap`,
+which is fine for a column somebody goes looking for and not fine for the one figure the row is
+about. Where the useful number is off to the right on a phone, it goes under the title as a
+`row-sub row-sub-sm` — the second class being the same container query as `hide-sm`, so the line
+appears only where the columns it summarises are not already visible.
+
 ## Two controls must not be the same drawing
 
 The icon set had `list` and `menu` as the same three horizontal strokes. That was invisible on a
