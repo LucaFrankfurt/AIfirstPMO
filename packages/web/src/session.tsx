@@ -136,6 +136,19 @@ export function useFeature(name: keyof WorkspaceFeatures): boolean {
   return !!session?.workspaces.find((workspace) => workspace.id === workspaceId)?.features?.[name];
 }
 
+/**
+ * The same question, asked of several features at once.
+ *
+ * A screen that renders a list of feature-gated things cannot call `useFeature`
+ * per row — hooks do not go in loops — so it gets the predicate instead. Same
+ * lookup, once.
+ */
+export function useFeatures(): (name: keyof WorkspaceFeatures) => boolean {
+  const { session, workspaceId } = useSession();
+  const features = session?.workspaces.find((workspace) => workspace.id === workspaceId)?.features;
+  return (name) => !!features?.[name];
+}
+
 /** The signed-in user's id — used constantly, so it gets its own hook. */
 export function useMe(): string {
   return useSession().user?.id ?? '';

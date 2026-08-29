@@ -15,9 +15,10 @@ import { useRecentProjects } from '../lib/recents';
 import { markAllRead, markNotificationRead } from '../lib/mutations';
 import { useOpenTask } from '../lib/navigation';
 import { byId, list, useQuery } from '../lib/store';
-import { useMe, usePeople, useSession } from '../session';
+import { useFeatures, useMe, usePeople, useSession } from '../session';
 import { useUnreadMessages } from './chat';
 import { useT } from '../lib/i18n';
+import { DESTINATIONS, enabled } from '../lib/nav';
 import { Button } from '../components/ui/button';
 import { navCount, navItem } from '../components/ui/nav';
 import { SetupChecklist } from '../components/tour';
@@ -282,6 +283,7 @@ export function More() {
   const navigate = useNavigate();
   const { session, workspaceId, setWorkspace, signOut, user } = useSession();
   const me = useMe();
+  const has = useFeatures();
   const unreadMessages = useUnreadMessages(me);
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
 
@@ -300,21 +302,26 @@ export function More() {
         {/* Everything the sidebar has and the bottom bar does not. A phone has
             room for five things at the bottom, so this screen is the rest of
             the app — and anything missing here is unreachable on a phone
-            rather than merely inconvenient. Chat was, for a while. */}
+            rather than merely inconvenient. Chat was, for a while; budgets,
+            the timesheet and the register were, from the day they shipped.
+            Hence `lib/nav.ts`: the sidebar renders the same list, so a new
+            destination arrives on both at once. */}
         {/* Links rather than buttons that navigate: a long-press to open in a
             new tab is a thing people do, and it also means "can a phone reach
             this?" is a question about hrefs that a test can ask. */}
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5" style={{ padding: 6 }}>
-          <Link className={navItem()} to="/chat">
-            <Icon name="chat" size={16} /> <span className="flex-1 min-w-0">{t('nav.chat')}</span>
-            {unreadMessages > 0 && <span className={navCount}>{unreadMessages}</span>}
-          </Link>
-          <Link className={navItem()} to="/pages"><Icon name="page" size={16} /> {t('nav.pages')}</Link>
-          <Link className={navItem()} to="/teams"><Icon name="users" size={16} /> {t('nav.teams')}</Link>
-          <Link className={navItem()} to="/planner"><Icon name="users" size={16} /> {t('nav.planner')}</Link>
+          {enabled(DESTINATIONS, has).map((item) => (
+            <Link key={item.to} className={navItem()} to={item.to}>
+              <Icon name={item.icon} size={16} />
+              <span className="flex-1 min-w-0">{t(item.label)}</span>
+              {item.to === '/chat' && unreadMessages > 0 && <span className={navCount}>{unreadMessages}</span>}
+            </Link>
+          ))}
+          {/* Not destinations in the shared sense: one opens a form and the
+              other is the account, and neither belongs in a sidebar that
+              already has them elsewhere. */}
           <Link className={navItem()} to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
           <Link className={navItem()} to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
-          <Link className={navItem()} to="/guide"><Icon name="help" size={16} /> {t('nav.guide')}</Link>
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>

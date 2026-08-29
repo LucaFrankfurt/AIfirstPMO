@@ -3,8 +3,9 @@ import { NavLink, useNavigate, type NavLinkProps } from 'react-router-dom';
 import { byId as byIdStore, list, useQuery } from '../lib/store';
 import { update } from '../lib/mutations';
 import { pull, subscribeSync, type SyncStatus } from '../lib/sync';
-import { useCanWrite, useFeature, useMe, useSession } from '../session';
+import { useCanWrite, useFeatures, useMe, useSession } from '../session';
 import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
+import { enabled, PLANNING_DESTINATIONS, WORKSPACE_DESTINATIONS } from '../lib/nav';
 import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
 import { QuickAdd } from './QuickAdd';
 import { useActiveProject } from '../lib/active-project';
@@ -99,9 +100,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // them — including a project reached by a link inside a task sheet.
   useRecordVisits(workspaceId);
   const canWrite = useCanWrite();
-  const budgets = useFeature('budget');
-  const time = useFeature('time');
-  const estate = useFeature('infrastructure');
+  /* One predicate the nav list is filtered through, rather than a `const` per
+     switch that has to be threaded to each place that renders one. */
+  const has = useFeatures();
   const [palette, setPalette] = useState(false);
   // The same move the card's own menu makes — see `useRefile`.
   const refile = useRefile();
@@ -258,10 +259,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <Item to="/" icon="home" count={myOpen}>{t('nav.myWork')}</Item>
         <Item to="/inbox" icon="inbox" count={unread}>{t('nav.inbox')}</Item>
         <Item to="/search" icon="search">{t('nav.search')}</Item>
-        <Item to="/chat" icon="chat" count={unreadMessages}>{t('nav.chat')}</Item>
-        <Item to="/pages" icon="page">{t('nav.pages')}</Item>
-        <Item to="/teams" icon="users">{t('nav.teams')}</Item>
-        <Item to="/guide" icon="help">{t('nav.guide')}</Item>
+        {/* From `lib/nav.ts`, which the More screen renders too — see the note
+            there about the screens a phone could not reach. */}
+        {enabled(WORKSPACE_DESTINATIONS, has).map((item) => (
+          <Item key={item.to} to={item.to} icon={item.icon} count={item.to === '/chat' ? unreadMessages : undefined}>
+            {t(item.label)}
+          </Item>
+        ))}
 
         <div className="nav-section">
           {t('nav.projects')}
@@ -315,33 +319,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
           </NavLink>
         )}
-        <NavLink to="/planner" className={navItem()}>
-          <Icon name="users" size={15} />
-          <span className="flex-1 min-w-0 truncate">{t('nav.planner')}</span>
-        </NavLink>
-        {/* Only when the workspace has switched budgets on. A sidebar entry
-            for a feature nobody here uses is the clutter the feature switches
-            exist to prevent. */}
-        {/* Only where time is being tracked. A timesheet in a workspace that
-            logs no time is a screen that can only ever say "nothing here". */}
-        {time && (
-          <NavLink to="/timesheet" className={navItem()}>
-            <Icon name="calendar" size={15} />
-            <span className="flex-1 min-w-0 truncate">{t('nav.timesheet')}</span>
+        {enabled(PLANNING_DESTINATIONS, has).map((item) => (
+          <NavLink key={item.to} to={item.to} className={navItem()}>
+            <Icon name={item.icon} size={15} />
+            <span className="flex-1 min-w-0 truncate">{t(item.label)}</span>
           </NavLink>
-        )}
-        {estate && (
-          <NavLink to="/infrastructure" className={navItem()}>
-            <Icon name="stack" size={15} />
-            <span className="flex-1 min-w-0 truncate">{t('nav.infrastructure')}</span>
-          </NavLink>
-        )}
-        {budgets && (
-          <NavLink to="/budgets" className={navItem()}>
-            <Icon name="wallet" size={15} />
-            <span className="flex-1 min-w-0 truncate">{t('nav.budgets')}</span>
-          </NavLink>
-        )}
+        ))}
         {!projects.length && (
           <button className={navItem()} onClick={() => navigate('/projects/new')}>
             <Icon name="plus" size={15} /> {t('nav.firstProject')}
