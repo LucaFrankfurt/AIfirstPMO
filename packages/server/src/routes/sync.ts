@@ -135,6 +135,29 @@ function filterFor(entity: EntityName): string {
                         OR EXISTS (SELECT 1 FROM json_each(b.projects)
                                     WHERE json_each.value IN (${VISIBLE_PROJECTS}))))`;
     /*
+     * A KPI is scoped exactly as a budget, a cycle and a module are, so it gets
+     * the same clause. Unlike a rate this is not restricted by role: a number
+     * the team has undertaken to move is a number the team should be able to
+     * see, and a KPI everybody is working toward and nobody may read is a
+     * target in name only.
+     */
+    case 'kpi':
+      return `AND ((json_array_length(${table}.projects) = 0
+                    AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS})))
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.projects)
+                               WHERE json_each.value IN (${VISIBLE_PROJECTS})))`;
+    /* Targets and readings inherit their KPI's answer, `deleted_at` included. */
+    case 'kpiTarget':
+    case 'kpiReading':
+      return `AND EXISTS (
+                SELECT 1 FROM kpis k
+                 WHERE k.id = ${table}.kpi_id
+                   AND k.deleted_at IS NULL
+                   AND ((json_array_length(k.projects) = 0
+                         AND (k.project_id IS NULL OR k.project_id IN (${VISIBLE_PROJECTS})))
+                        OR EXISTS (SELECT 1 FROM json_each(k.projects)
+                                    WHERE json_each.value IN (${VISIBLE_PROJECTS}))))`;
+    /*
      * Rates go to owners and admins, and to nobody else.
      *
      * The only entity in the registry with a *role* in its filter, and it is

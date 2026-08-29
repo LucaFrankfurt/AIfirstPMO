@@ -12,7 +12,7 @@ import { automationRuns, instantiateTemplate } from '../lib/automation.ts';
 import { importCsv } from '../lib/import.ts';
 import { copyProject, type CopyOptions } from '../lib/copy.ts';
 import { exportProject, importProject, type ProjectDoc } from '../lib/transfer.ts';
-import { canSeeBudget, canSeeChannel, canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
+import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, serialize, writeEntity } from '../lib/repo.ts';
 import { emptyTrash, purgeable } from '../lib/trash.ts';
 import { env } from '../env.ts';
 
@@ -107,9 +107,18 @@ function guardBudget(userId: string, entity: EntityName, row: Row): void {
   if (BUDGET_CHILDREN.has(entity) && !canSeeBudget(userId, String(row.budget_id))) {
     throw forbidden('That budget is not yours to see');
   }
+  // A KPI is scoped the same way and has the same hole: a target hanging off
+  // one carries no `project_id` of its own for `guardProject` to test.
+  if (entity === 'kpi' && !canSeeKpi(userId, String(row.id))) {
+    throw forbidden('That KPI is not yours to see');
+  }
+  if (KPI_CHILDREN.has(entity) && !canSeeKpi(userId, String(row.kpi_id))) {
+    throw forbidden('That KPI is not yours to see');
+  }
 }
 
 const BUDGET_CHILDREN = new Set<EntityName>(['budgetLine', 'budgetActual', 'budgetScenario']);
+const KPI_CHILDREN = new Set<EntityName>(['kpiTarget', 'kpiReading']);
 
 /**
  * A rate is owners' and admins' business, on every route that touches one.
@@ -536,6 +545,8 @@ export function registerEntityRoutes(router: Router): void {
       // `project_id` the filter above could have tested.
       .filter((row) => entity !== 'budget' || canSeeBudget(auth.userId, String(row.id)))
       .filter((row) => !BUDGET_CHILDREN.has(entity) || canSeeBudget(auth.userId, String(row.budget_id)))
+      .filter((row) => entity !== 'kpi' || canSeeKpi(auth.userId, String(row.id)))
+      .filter((row) => !KPI_CHILDREN.has(entity) || canSeeKpi(auth.userId, String(row.kpi_id)))
       .map((row) => serialize(entity, row));
   });
 

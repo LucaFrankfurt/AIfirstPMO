@@ -19,6 +19,9 @@ import {
   excerpt,
   findMentions as mentionsIn,
   hlcGreater,
+  MEASURE_CADENCES,
+  MEASURE_DIRECTIONS,
+  MEASURE_UNITS,
   normaliseAllocations,
   normaliseChannelName,
   projectScope,
@@ -242,6 +245,7 @@ const SCOPED_REFERENCES: Record<string, string> = {
   line_id: 'budget_lines',
   vendor_id: 'vendors',
   component_id: 'components',
+  kpi_id: 'kpis',
 };
 
 function guardReferences(entity: EntityName, values: Record<string, unknown>, opts: WriteOpts): void {
@@ -347,6 +351,18 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
     // owner is a budget nobody is asked about when it goes red.
     if (!values.owner_id) setForced('owner_id', opts.actorId);
     if (!values.name) setForced('name', 'Untitled budget');
+  }
+  if (entity === 'kpi') {
+    // Same reason a budget gets one: a number nobody owns is a number nobody is
+    // asked about when it goes red.
+    if (!values.owner_id) setForced('owner_id', opts.actorId);
+    if (!values.name) setForced('name', 'Untitled KPI');
+  }
+  // A measurement with no date is a measurement of nothing. Today rather than a
+  // refusal, for the same reason the rest of these are corrections: this
+  // arrives in sync batches from devices that have been away.
+  if (entity === 'kpiReading' && !values.measured_on) {
+    setForced('measured_on', new Date().toISOString().slice(0, 10));
   }
   if (entity === 'component' && !values.name) setForced('name', 'Untitled component');
   if (entity === 'vendor' && !values.name) setForced('name', 'Untitled vendor');
@@ -563,6 +579,7 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
   if (BUDGET_ENTITIES.has(entity)) applyBudgetInvariants(entity, values, forced);
   if (entity === 'rate') applyRateInvariants(values, forced);
+  if (KPI_ENTITIES.has(entity)) applyKpiInvariants(entity, values, forced);
   if (entity === 'vendor' || entity === 'component' || entity === 'move') {
     applyLandscapeInvariants(entity, values, forced);
   }
@@ -584,7 +601,11 @@ function applyInvariants(entity: EntityName, id: string, values: Record<string, 
   if (entity === 'budgetLine' || entity === 'budgetActual' || entity === 'budgetScenario') {
     followBudgetWorkspace(values, existing);
   }
+  if (entity === 'kpiTarget' || entity === 'kpiReading') followKpiWorkspace(values, existing);
 }
+
+/** The three tables a KPI is made of. */
+const KPI_ENTITIES = new Set<EntityName>(['kpi', 'kpiTarget', 'kpiReading']);
 
 /** The four tables a budget is made of. */
 const BUDGET_ENTITIES = new Set<EntityName>(['budget', 'budgetLine', 'budgetActual', 'budgetScenario']);
@@ -673,6 +694,87 @@ function applyBudgetInvariants(entity: EntityName, values: Record<string, unknow
     // then quietly vanish from every report that filters on the period.
     if (values.spent_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.spent_on ?? ''))) {
       settle('spent_on', new Date().toISOString().slice(0, 10));
+    }
+  }
+}
+
+/**
+ * A measurement is a number, a scale and a day.
+ *
+ * Corrections rather than refusals, as the budget invariants are and for the
+ * same reason. The one worth naming is `decimals`: it is clamped to 0–4 and
+ * only ever whole, because it is the exponent every value on the KPI is scaled
+ * by — a fractional or wild one would not make a figure slightly wrong, it
+ * would move the decimal point on every reading and target at once.
+ */
+function applyKpiInvariants(
+  entity: EntityName,
+  values: Record<string, unknown>,
+  forced: Record<string, unknown>,
+): void {
+  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
+  const oneOf = (field: string, allowed: readonly string[], fallback: string) => {
+    if (values[field] === undefined) return;
+    const given = String(values[field] ?? '');
+    if (!allowed.includes(given)) settle(field, fallback);
+  };
+  /**
+   * A whole number, or zero.
+   *
+   * `null` is coerced rather than skipped, which is the whole point: `value` is
+   * `NOT NULL`, so letting a null through does not store a slightly wrong
+   * figure — it throws inside the write and takes the entire sync batch it
+   * arrived in down with it. The budget's `whole` has always done this; this one
+   * did not, and a client sending `{value: null}` got a 500 instead of a zero.
+   * Nullable columns are handled at their own call site.
+   */
+  const whole = (field: string) => {
+    if (values[field] === undefined) return;
+    const number = Math.round(Number(values[field]));
+    settle(field, Number.isFinite(number) ? number : 0);
+  };
+  const day = (field: string) => {
+    if (values[field] === undefined) return;
+    const given = String(values[field] ?? '');
+    if (given && !/^\d{4}-\d{2}-\d{2}$/.test(given)) settle(field, new Date().toISOString().slice(0, 10));
+  };
+
+  if (entity === 'kpi') {
+    if (values.project_id !== undefined || values.projects !== undefined) {
+      let listed: unknown = values.projects;
+      if (typeof listed === 'string') { try { listed = JSON.parse(listed); } catch { listed = []; } }
+      const scope = projectScope({
+        project: (values.project_id as string | null) ?? null,
+        projects: Array.isArray(listed) ? listed.filter((row): row is string => typeof row === 'string') : [],
+      });
+      if (values.project_id !== scope.project_id) settle('project_id', scope.project_id);
+      const encoded = JSON.stringify(scope.projects);
+      if (values.projects !== encoded) settle('projects', encoded);
+    }
+    oneOf('unit', MEASURE_UNITS, 'number');
+    oneOf('direction', MEASURE_DIRECTIONS, 'up');
+    oneOf('cadence', MEASURE_CADENCES, 'monthly');
+    if (values.decimals !== undefined) {
+      const given = Math.round(Number(values.decimals));
+      settle('decimals', Number.isFinite(given) ? Math.max(0, Math.min(4, given)) : 0);
+    }
+    // The one nullable number here, and null means something: nobody has said
+    // where it started, and progress runs from the first reading instead.
+    if (values.baseline !== undefined && values.baseline !== null) whole('baseline');
+  }
+
+  if (entity === 'kpiTarget') {
+    whole('value');
+    day('due_on');
+  }
+
+  if (entity === 'kpiReading') {
+    whole('value');
+    // Not optional here, unlike a target's: a reading with no day cannot be
+    // placed on the line, and the state that says "we do not know when" is a
+    // reading nobody entered.
+    if (values.measured_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(values.measured_on ?? ''))) {
+      settle('measured_on', new Date().toISOString().slice(0, 10));
     }
   }
 }
@@ -802,11 +904,47 @@ function applyLandscapeInvariants(
  * child rows are read by joining on `budget_id` and a row whose two answers
  * disagree is a row that appears in one query and not the next.
  */
+/** A target and a reading live where their KPI lives, whatever the client said. */
+function followKpiWorkspace(values: Record<string, unknown>, existing: Row | undefined): void {
+  const kpiId = (values.kpi_id ?? existing?.kpi_id) as string | undefined;
+  if (!kpiId) return;
+  const kpi = get<Row>(`SELECT workspace_id FROM kpis WHERE id = ?`, kpiId);
+  if (kpi) values.workspace_id = kpi.workspace_id;
+}
+
 function followBudgetWorkspace(values: Record<string, unknown>, existing: Row | undefined): void {
   const budgetId = (values.budget_id ?? existing?.budget_id) as string | undefined;
   if (!budgetId) return;
   const budget = get<Row>(`SELECT workspace_id FROM budgets WHERE id = ?`, budgetId);
   if (budget) values.workspace_id = budget.workspace_id;
+}
+
+function tombstoneKpiChildren(kpi: Row, opts: WriteOpts): void {
+  for (const [entity, table] of [['kpiTarget', 'kpi_targets'], ['kpiReading', 'kpi_readings']] as const) {
+    for (const row of all<Row>(`SELECT id FROM ${table} WHERE kpi_id = ? AND deleted_at IS NULL`, kpi.id)) {
+      writeEntity(entity, String(row.id), {}, { ...opts, op: 'delete', system: true, silent: true });
+    }
+  }
+}
+
+/**
+ * A milestone that is gone leaves the targets due by it standing, undated.
+ *
+ * The same rule the estate follows and the opposite of the cascade above, for a
+ * reason worth stating: cancelling a milestone does not cancel the promise. "We
+ * want 90% uptime" survives the release it was hung on, and deleting the target
+ * with the module would quietly retire a commitment nobody decided to drop. The
+ * target keeps whatever date was typed on it and otherwise becomes undated,
+ * which every screen already reports as its own state.
+ *
+ * Note the options: `op: undefined` so this is an edit rather than a delete.
+ * Passing `opts` through unchanged once deleted the invoices filed against a
+ * budget line, which is how that lesson was learned.
+ */
+function detachTargetsOf(module: Row, opts: WriteOpts): void {
+  for (const row of all<Row>(`SELECT id FROM kpi_targets WHERE module_id = ? AND deleted_at IS NULL`, module.id)) {
+    writeEntity('kpiTarget', String(row.id), { module_id: null }, { ...opts, op: undefined, system: true, silent: true });
+  }
 }
 
 /** A vendor that is gone leaves its components running, and unattached. */
@@ -1296,6 +1434,12 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
   // vendor going out of the list does not switch off the servers, and deleting
   // a machine's row does not delete the instances on it. What it does is
   // detach, so no row is left pointing at something that is not there.
+  // A KPI takes its readings and targets with it: unlike an invoice, a
+  // measurement of a metric nobody keeps is not independent evidence of
+  // anything — it is a number with no unit, no direction and no owner.
+  if (entity === 'kpi' && row.deleted_at && !before?.deleted_at) tombstoneKpiChildren(row, opts);
+  // A milestone that is gone leaves the promises made against it standing.
+  if (entity === 'module' && row.deleted_at && !before?.deleted_at) detachTargetsOf(row, opts);
   if (entity === 'vendor' && row.deleted_at && !before?.deleted_at) detachFromVendor(row, opts);
   if (entity === 'component' && row.deleted_at && !before?.deleted_at) detachComponent(row, opts);
   if (entity === 'task' && (changed.start_date !== undefined || changed.due_date !== undefined)) {
@@ -2144,6 +2288,27 @@ export function canSeeBudget(userId: string, budgetId: string | null | undefined
   if (listed.length) return listed.some((projectId) => canSeeProject(userId, projectId));
   // No list and no owner is the whole workspace, and membership was the test.
   return budget.project_id ? canSeeProject(userId, String(budget.project_id)) : true;
+}
+
+/**
+ * Whether somebody may see a KPI. The same three-state scope as a budget.
+ *
+ * Not restricted by role, unlike a rate. A number the team has undertaken to
+ * move is a number the team should be able to see: a target everybody is
+ * working toward and nobody may read is a target in name only.
+ */
+export function canSeeKpi(userId: string, kpiId: string | null | undefined): boolean {
+  if (!kpiId) return false;
+  const kpi = get<Row>(`SELECT * FROM kpis WHERE id = ? AND deleted_at IS NULL`, kpiId);
+  if (!kpi) return false;
+  const member = get(
+    `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    kpi.workspace_id, userId,
+  );
+  if (!member) return false;
+  const listed = parseIds(kpi.projects);
+  if (listed.length) return listed.some((projectId) => canSeeProject(userId, projectId));
+  return kpi.project_id ? canSeeProject(userId, String(kpi.project_id)) : true;
 }
 
 /** The budget a line, an actual or a scenario hangs off. */

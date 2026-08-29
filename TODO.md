@@ -455,6 +455,25 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       compare to anything. The data and the API are unchanged by the switch — it hides a feature, it
       does not throw anything away — and MCP refuses `log_time` while it is off rather than
       recording a row no screen will show.
+- [x] **KPIs — define, measure, and hang a target on a milestone.** Numbers somebody has undertaken
+      to watch: uptime, churn, lead time, NPS. A definition, readings against it, and targets — the
+      same shape as a budget, and one pure function that compares them, because "on track" is a
+      judgement and two implementations of a judgement are two judgements.
+
+      *Not* a query over the rows already in here. The figures a PMO reports on come from systems
+      that are not this one, and a KPI feature that could only measure what happened to be stored
+      here would cover almost none of them — and the half it covered would quietly become the half
+      that gets reported. So readings are typed in or posted over MCP, which costs honesty about
+      staleness and is exactly why `cadence` exists: a reading older than twice it is reported as
+      **stale** rather than quoted as current, and that outranks being on track.
+
+      Three states are not judgements — nothing measured, nothing promised, and a reading too old to
+      stand for today — and each is counted as itself rather than painted green by omission. "On
+      track" means past a straight line from the baseline to the target, with both figures shown so
+      the reasoning can be quoted. Values are whole numbers at the KPI's own scale, for the reason
+      money is minor units. A target given a milestone takes that milestone's date *live*, so a slip
+      moves the deadline instead of turning it into a miss; deleting the milestone leaves the promise
+      standing, and deleting the KPI takes its readings with it. [`docs/kpi.md`](docs/kpi.md)
 - [x] **Budgets — done, and *not* by deriving them from time.** What things cost, planned against
       what has actually gone: infrastructure, investments, licences, people, each planned once (a
       monthly bill is one line with a recurrence, not twelve rows) and **split across the projects
@@ -923,7 +942,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 67 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 72 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

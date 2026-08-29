@@ -9,6 +9,7 @@ export * from './fields.ts';
 export * from './budget.ts';
 export * from './rates.ts';
 export * from './landscape.ts';
+export * from './kpi.ts';
 export * from './schedule.ts';
 export * from './markdown.ts';
 export * from './editor.ts';
