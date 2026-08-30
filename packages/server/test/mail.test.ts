@@ -150,9 +150,9 @@ process.env.KOLIBRI_MAIL_FROM = 'kolibri@localhost';
 process.env.KOLIBRI_PUBLIC_URL = 'https://kolibri.example.com';
 process.env.KOLIBRI_MAIL_BATCH_SECONDS = '0';
 
-const db = await import('../src/db/index.ts');
-const mail = await import('../src/lib/mail.ts');
-const { env } = await import('../src/env.ts');
+const db = await import('../src/kernel/platform/db/index.ts');
+const mail = await import('../src/adapters/mail/mail.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
 
 const decodeBody = (raw: string): string => {
   const parts = raw.split(/\r?\n\r?\n/);

@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { routeSubject } from '../src/lib/active-project.ts';
+import { routeSubject } from '../src/kernel/design-system/active-project.ts';
 
 describe('what a route is about', () => {
   it('names the project on a board', () => {

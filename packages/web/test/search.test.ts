@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
   applySuggestion, matchesTerms, parseQuery, removeFacet, suggest, terms, type FacetOption,
-} from '../src/lib/search-query.ts';
+} from '../src/kernel/search/search-query.ts';
 
 const options: FacetOption[] = [
   { kind: 'person', ids: ['u1'], name: 'Anna Schmidt', hint: 'anna@example.com' },

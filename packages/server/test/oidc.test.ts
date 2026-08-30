@@ -100,7 +100,7 @@ const provider = createServer((request: IncomingMessage, response: ServerRespons
 
 let base = '';
 let server: any;
-let oidc: typeof import('../src/lib/oidc.ts');
+let oidc: typeof import('../src/adapters/oauth/oidc.ts');
 
 before(async () => {
   await new Promise<void>((done) => provider.listen(0, '127.0.0.1', done));
@@ -112,7 +112,7 @@ before(async () => {
   process.env.KOLIBRI_OIDC_CLIENT_SECRET = 'shh';
 
   ({ server } = await import('../src/index.ts'));
-  oidc = await import('../src/lib/oidc.ts');
+  oidc = await import('../src/adapters/oauth/oidc.ts');
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   process.env.KOLIBRI_PUBLIC_URL = base;
@@ -253,7 +253,7 @@ describe('the state parameter', () => {
 
 describe('an instance that is single sign-on only', () => {
   it('closes the password door for good', async () => {
-    const { env } = await import('../src/env.ts');
+    const { env } = await import('../src/kernel/platform/env.ts');
     env.oidc.only = true;
     try {
       const config: any = await (await fetch(`${base}/api/config`)).json();
@@ -311,19 +311,19 @@ describe('groups from the token', () => {
 
 describe('a role the directory decides', () => {
   before(async () => {
-    const { env } = await import('../src/env.ts');
+    const { env } = await import('../src/kernel/platform/env.ts');
     env.oidc.roleMap = 'kolibri-admins=admin, kolibri-users=member';
     env.oidc.groupsClaim = 'groups';
   });
 
   after(async () => {
-    const { env } = await import('../src/env.ts');
+    const { env } = await import('../src/kernel/platform/env.ts');
     env.oidc.roleMap = '';
     identity = { sub: 'user-1', email: 'ada@example.com', email_verified: true, name: 'Ada Lovelace' };
   });
 
   const roleOf = async (email: string) => {
-    const { get } = await import('../src/db/index.ts');
+    const { get } = await import('../src/kernel/platform/db/index.ts');
     return get<any>(
       `SELECT m.role FROM workspace_members m JOIN users u ON u.id = m.user_id
         WHERE u.email = ? AND m.deleted_at IS NULL LIMIT 1`,
@@ -342,7 +342,7 @@ describe('a role the directory decides', () => {
   });
 
   it('joins the workspace that is already here instead of starting a private one', async () => {
-    const { all, get } = await import('../src/db/index.ts');
+    const { all, get } = await import('../src/kernel/platform/db/index.ts');
     const workspaces = all<any>(`SELECT id FROM workspaces WHERE deleted_at IS NULL`);
     assert.equal(workspaces.length, 1, 'one instance, one workspace — which is the case this handles');
 
@@ -370,7 +370,7 @@ describe('a role the directory decides', () => {
   });
 
   it('refuses somebody in no mapped group when the default is none', async () => {
-    const { env } = await import('../src/env.ts');
+    const { env } = await import('../src/kernel/platform/env.ts');
     env.oidc.defaultRole = 'none';
     try {
       identity = { sub: 'mallory', email: 'mallory@example.com', email_verified: true, name: 'Mallory', groups: ['some-other-app'] };

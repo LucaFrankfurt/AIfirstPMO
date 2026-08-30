@@ -2,9 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
-import { I18nProvider, detectLocale, loadLocale } from './lib/i18n';
-import { SessionProvider } from './session';
-import { TooltipProvider } from './components/ui/tooltip';
+import { I18nProvider, detectLocale, loadLocale } from './kernel/i18n/i18n';
+import { SessionProvider } from './kernel/identity/session';
+import { TooltipProvider } from './kernel/design-system/ui/tooltip';
 import './styles/app.css';
 
 // Apply the stored theme before first paint to avoid a flash of the wrong one.

@@ -19,7 +19,7 @@ packages/server   HTTP · sync · MCP · SQLite     packages/web   React PWA · 
 
 ## The entity registry
 
-`packages/shared/src/entities.ts` lists every syncable entity, its table, its mutable fields and
+`packages/shared/src/kernel/registry/entities.ts` lists every syncable entity, its table, its mutable fields and
 which of them only the server may write. Everything else is derived from it:
 
 - the server's generic write path, REST routes and sync queries,
@@ -155,7 +155,7 @@ Everything written here — a description, a comment, a page, a chat message —
 `<textarea>`. A rich-text surface would mean the document and what is on screen were two different
 things, with a conversion between them that is wrong in some corner for ever.
 
-The cost of that choice is that conveniences have to be written by hand, and `shared/src/editor.ts`
+The cost of that choice is that conveniences have to be written by hand, and `shared/src/modules/pages/editor.ts`
 is where they live: Enter continues the list you are in (another bullet, the next number, another
 empty checkbox, the same indent) and ends it on an item you left empty; Tab and Shift-Tab nest and
 unnest inside a list and stay a plain indent everywhere else; Cmd/Ctrl-B, -I and -K wrap the

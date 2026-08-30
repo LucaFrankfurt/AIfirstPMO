@@ -59,10 +59,10 @@ process.env.KOLIBRI_TELEGRAM_BOT_TOKEN = 'test-token';
 process.env.KOLIBRI_PUBLIC_URL = 'https://kolibri.example';
 
 const { server } = await import('../src/index.ts');
-const { env } = await import('../src/env.ts');
-const telegram = await import('../src/lib/telegram.ts');
-const { createNotification } = await import('../src/lib/notify.ts');
-const { all, get, run } = await import('../src/db/index.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
+const telegram = await import('../src/adapters/telegram/telegram.ts');
+const { createNotification } = await import('../src/modules/notifications/notify.ts');
+const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
 
 /* -------------------------------------------------------------------- setup */
 

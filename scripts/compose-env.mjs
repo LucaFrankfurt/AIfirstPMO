@@ -96,7 +96,7 @@ function passedBy(file) {
   return names;
 }
 
-const reads = readsOf('packages/server/src/env.ts');
+const reads = readsOf('packages/server/src/kernel/platform/env.ts');
 const settable = [...reads].filter((n) => !EXEMPT.has(n)).sort();
 
 let bad = 0;

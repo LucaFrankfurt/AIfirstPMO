@@ -129,9 +129,9 @@ process.env.KOLIBRI_S3_ACCESS_KEY = ACCESS_KEY;
 process.env.KOLIBRI_S3_SECRET_KEY = SECRET_KEY;
 process.env.KOLIBRI_S3_PATH_STYLE = 'true';
 
-const storage = await import('../src/lib/storage.ts');
-const s3 = await import('../src/lib/s3.ts');
-const { env } = await import('../src/env.ts');
+const storage = await import('../src/kernel/files/storage.ts');
+const s3 = await import('../src/adapters/s3/s3.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
 
 after(() => {
   s3Server.close();

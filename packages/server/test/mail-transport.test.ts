@@ -17,9 +17,9 @@ import { rmSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
-import { DeliveryError, isPermanentFailure } from '../src/lib/delivery.ts';
-import { parseSmtpUrl, sendMail } from '../src/lib/smtp.ts';
-import { sendViaScaleway } from '../src/lib/scaleway.ts';
+import { DeliveryError, isPermanentFailure } from '../src/adapters/mail/delivery.ts';
+import { parseSmtpUrl, sendMail } from '../src/adapters/mail/smtp.ts';
+import { sendViaScaleway } from '../src/adapters/mail/scaleway.ts';
 
 const letter = {
   from: 'kolibri@localhost',

@@ -28,9 +28,9 @@ import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
 const { directChannelId } = await import('@kolibri/shared');
-const { run } = await import('../src/db/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
-const presence = await import('../src/lib/presence.ts');
+const { run } = await import('../src/kernel/platform/db/index.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const presence = await import('../src/modules/chat/presence.ts');
 
 let base = '';
 let workspaceId = '';

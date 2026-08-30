@@ -14,7 +14,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 
@@ -136,7 +136,7 @@ describe('the signed URL an object store hands out', () => {
   const config = { endpoint: 'https://s3.example.com', region: 'auto', bucket: 'b', accessKeyId: 'k', secretAccessKey: 's', forcePathStyle: true };
 
   it('does not offer to render a document inline', async () => {
-    const { presignGet } = await import('../src/lib/s3.ts');
+    const { presignGet } = await import('../src/adapters/s3/s3.ts');
     const signed = presignGet(config, 'ab/cd/abcd.svg', 300, new Date(), 'x.svg', 'image/svg+xml');
     const params = new URL(signed).searchParams;
     assert.match(params.get('response-content-disposition') ?? '', /^attachment/);
@@ -144,14 +144,14 @@ describe('the signed URL an object store hands out', () => {
   });
 
   it('still renders a picture inline', async () => {
-    const { presignGet } = await import('../src/lib/s3.ts');
+    const { presignGet } = await import('../src/adapters/s3/s3.ts');
     const params = new URL(presignGet(config, 'ab/cd/abcd.png', 300, new Date(), 'x.png', 'image/png')).searchParams;
     assert.match(params.get('response-content-disposition') ?? '', /^inline/);
     assert.equal(params.get('response-content-type'), 'image/png');
   });
 
   it('signs whatever it ends up saying', async () => {
-    const { presignGet } = await import('../src/lib/s3.ts');
+    const { presignGet } = await import('../src/adapters/s3/s3.ts');
     const url = new URL(presignGet(config, 'ab/cd/abcd.svg', 300, new Date(), 'x.svg', 'image/svg+xml'));
     const signed = (url.searchParams.get('X-Amz-SignedHeaders') ?? '');
     assert.equal(signed, 'host');

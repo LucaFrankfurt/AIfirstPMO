@@ -26,11 +26,11 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 
-const { installEffects } = await import('../src/lib/wiring.ts');
-const { writeEntity } = await import('../src/lib/repo.ts');
-const { createWorkspace } = await import('../src/lib/bootstrap.ts');
-const { get, run } = await import('../src/db/index.ts');
-const { uid } = await import('../src/lib/ids.ts');
+const { installEffects } = await import('../src/wiring.ts');
+const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
+const { createWorkspace } = await import('../src/kernel/write-path/bootstrap.ts');
+const { get, run } = await import('../src/kernel/platform/db/index.ts');
+const { uid } = await import('../src/kernel/platform/ids.ts');
 
 let mine = '';
 let theirs = '';

@@ -19,9 +19,9 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 
-const db = await import('../src/db/index.ts');
-const { bootstrapAdmin, initStorage } = await import('../src/lib/provision.ts');
-const { verifyPassword } = await import('../src/lib/auth.ts');
+const db = await import('../src/kernel/platform/db/index.ts');
+const { bootstrapAdmin, initStorage } = await import('../src/modules/operations/provision.ts');
+const { verifyPassword } = await import('../src/kernel/identity/auth.ts');
 
 const messages: string[] = [];
 const log = (level: string, message: string) => {

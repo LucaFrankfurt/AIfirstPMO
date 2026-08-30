@@ -1,6 +1,6 @@
 /** CLI entry point: `npm run seed`. */
-import { seedDemoData } from './lib/demo.ts';
-import { installEffects } from './lib/wiring.ts';
+import { seedDemoData } from './modules/operations/demo.ts';
+import { installEffects } from './wiring.ts';
 
 // Seeding writes through the same path the server does, so it gets the same
 // things hanging off it. Nothing fires today — the demo data creates its rules

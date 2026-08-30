@@ -24,9 +24,9 @@ installBrowser();
 const { server } = await import('../../server/src/index.ts');
 const { directChannelId, findMentions, messageOrder, readStateId, unreadCount, channelTitle, normaliseChannelName } =
   await import('@kolibri/shared');
-const store = await import('../src/lib/store');
-const sync = await import('../src/lib/sync');
-const mutations = await import('../src/lib/mutations');
+const store = await import('../src/kernel/sync/store');
+const sync = await import('../src/kernel/sync/sync');
+const mutations = await import('../src/kernel/sync/mutations');
 
 let workspaceId = '';
 let ada = '';
@@ -48,15 +48,15 @@ before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   net.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-  const api = (await import('../src/lib/api')).api;
+  const api = (await import('../src/kernel/sync/api')).api;
   const session = await api.register({ email: 'ada@example.com', name: 'Ada', password: 'correct horse battery' });
   ada = session.user.id;
   workspaceId = session.workspaces[0].id;
 
   // A second member, added straight to the database: registering through the
   // API would replace this client's session with theirs.
-  const { run } = await import('../../server/src/db/index.ts');
-  const { hashPassword } = await import('../../server/src/lib/auth.ts');
+  const { run } = await import('../../server/src/kernel/platform/db/index.ts');
+  const { hashPassword } = await import('../../server/src/kernel/identity/auth.ts');
   lin = 'lin-user-id';
   run(
     `INSERT INTO users (id, email, name, password_hash, created_at, updated_at, seq, clocks)

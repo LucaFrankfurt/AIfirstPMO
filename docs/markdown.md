@@ -1,7 +1,7 @@
 # Writing: the markdown Kolibri accepts
 
 Every box in Kolibri you can write more than a line into takes the same markdown, rendered by the
-same function in [`packages/shared/src/markdown.ts`](../packages/shared/src/markdown.ts). There is
+same function in [`packages/shared/src/modules/pages/markdown.ts`](../packages/shared/src/modules/pages/markdown.ts). There is
 one dialect, not one per screen, and this is it.
 
 It is **not CommonMark** and does not try to be. What it is instead: small enough to read in one

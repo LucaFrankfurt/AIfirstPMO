@@ -18,14 +18,14 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { describe, it } from 'node:test';
 import { join } from 'node:path';
-import { cn } from '../src/lib/cn.ts';
-import { dueClass, today } from '../src/lib/format.ts';
+import { cn } from '../src/kernel/design-system/cn.ts';
+import { dueClass, today } from '../src/kernel/design-system/format.ts';
 
 const SRC = join(import.meta.dirname, '..', 'src');
 
 /** The classes a plain `<Chip>` carries — the ones a due colour has to beat. */
 function chipDefaultTone(): string {
-  const source = readFileSync(join(SRC, 'components/ui/chip.tsx'), 'utf8');
+  const source = readFileSync(join(SRC, 'kernel/design-system/ui/chip.tsx'), 'utf8');
   const match = source.match(/default:\s*'([^']+)'/);
   assert.ok(match, 'chip.tsx no longer has a default tone — this test is looking at the wrong thing');
   return match[1];

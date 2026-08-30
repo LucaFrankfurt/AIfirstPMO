@@ -21,10 +21,10 @@ import { directFetch, installBrowser, net, settle } from './browser.ts';
 installBrowser();
 
 const { server } = await import('../../server/src/index.ts');
-const store = await import('../src/lib/store');
-const sync = await import('../src/lib/sync');
-const mutations = await import('../src/lib/mutations');
-const idb = await import('../src/lib/idb');
+const store = await import('../src/kernel/sync/store');
+const sync = await import('../src/kernel/sync/sync');
+const mutations = await import('../src/kernel/sync/mutations');
+const idb = await import('../src/kernel/sync/idb');
 
 let workspaceId = '';
 let projectId = '';
@@ -46,7 +46,7 @@ before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   net.base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
-  const session = await (await import('../src/lib/api')).api.register({
+  const session = await (await import('../src/kernel/sync/api')).api.register({
     email: 'ada@example.com', name: 'Ada', password: 'correct horse battery',
   });
   userId = session.user.id;
@@ -170,7 +170,7 @@ describe('coming back after a reload', () => {
     // The specifier is built rather than written out so it stays a runtime
     // value: a literal would be resolved at compile time and the query — the
     // whole point — would look like a module that does not exist.
-    const fresh = `${'../src/lib/sync.ts'}?reload=1`;
+    const fresh = `${'../src/kernel/sync/sync.ts'}?reload=1`;
     const reloaded = (await import(fresh)) as typeof sync;
     await reloaded.start(workspaceId);
     await settle(30);

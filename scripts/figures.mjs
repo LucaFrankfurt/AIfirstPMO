@@ -33,11 +33,11 @@ const read = (file) => readFileSync(join(ROOT, file), 'utf8');
  * `lib/mcp/tools/`, the prompts with the JSON-RPC envelope — so each is
  * counted where it lives.
  */
-const toolsDir = 'packages/server/src/lib/mcp/tools';
+const toolsDir = 'packages/server/src/adapters/mcp/tools';
 const tools = readdirSync(join(ROOT, toolsDir))
   .filter((name) => name.endsWith('.ts'))
   .flatMap((name) => [...read(join(toolsDir, name)).matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]));
-const promptNames = [...read('packages/server/src/lib/mcp/index.ts')
+const promptNames = [...read('packages/server/src/adapters/mcp/index.ts')
   .matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]);
 
 /** The text between two markers — enough parsing for a literal list. */
@@ -67,7 +67,7 @@ const FIGURES = [
   },
   {
     what: 'custom field kinds',
-    actual: between(read('packages/shared/src/types.ts'), 'FIELD_KINDS = [', ']').split(',').length,
+    actual: between(read('packages/shared/src/kernel/registry/types.ts'), 'FIELD_KINDS = [', ']').split(',').length,
     claims: [{ file: 'README.md', pattern: /custom fields in (nine|\d+) kinds/, words: true }],
   },
   {

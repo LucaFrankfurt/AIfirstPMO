@@ -23,12 +23,12 @@ import { rmSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
-import { AiError, permanentStatus } from '../src/lib/ai.ts';
-import { reviewWithAnthropic } from '../src/lib/ai-anthropic.ts';
-import { reviewWithGemini } from '../src/lib/ai-gemini.ts';
-import { reviewWithOpenRouter } from '../src/lib/ai-openrouter.ts';
-import { parseReview } from '../src/lib/review.ts';
-import type { Row } from '../src/db/index.ts';
+import { AiError, permanentStatus } from '../src/adapters/ai/ai.ts';
+import { reviewWithAnthropic } from '../src/adapters/ai/ai-anthropic.ts';
+import { reviewWithGemini } from '../src/adapters/ai/ai-gemini.ts';
+import { reviewWithOpenRouter } from '../src/adapters/ai/ai-openrouter.ts';
+import { parseReview } from '../src/modules/ai-review/review.ts';
+import type { Row } from '../src/kernel/platform/db/index.ts';
 
 /** A task to review, and the thing a replacement is compared against. */
 const task = {
@@ -70,7 +70,7 @@ const urlOf = (fake: Fake): string => `http://127.0.0.1:${(fake.server.address()
 
 /** The adapters read `env` at call time, so a test sets it and puts it back. */
 async function withProvider(fake: Fake, config: Record<string, string>, run: () => Promise<void>): Promise<void> {
-  const { env } = await import('../src/env.ts');
+  const { env } = await import('../src/kernel/platform/env.ts');
   const before = { ...env.ai };
   Object.assign(env.ai, { key: 'k', model: '', baseUrl: urlOf(fake), timeoutMs: 4000, ...config });
   try {

@@ -18,7 +18,7 @@ import { installBrowser } from './browser.ts';
 
 installBrowser();
 
-const { applyChanges, byId, list, listAll, patchLocal, query, reset, tables } = await import('../src/lib/store');
+const { applyChanges, byId, list, listAll, patchLocal, query, reset, tables } = await import('../src/kernel/sync/store');
 
 /** A selector with a call counter on it, so "did it run again" is a number. */
 function counted<T>(select: () => T): (() => T) & { runs: number } {

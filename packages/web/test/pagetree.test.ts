@@ -15,7 +15,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { compareOrder } from '@kolibri/shared';
-import { childrenOf, moveTargets, plotMove, type PageNode } from '../src/lib/pagetree.ts';
+import { childrenOf, moveTargets, plotMove, type PageNode } from '../src/modules/pages/pagetree.ts';
 
 /**
  * A handbook three levels deep.

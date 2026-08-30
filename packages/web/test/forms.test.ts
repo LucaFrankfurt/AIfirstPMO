@@ -269,7 +269,7 @@ describe('fields side by side', () => {
  * beside it, not in silence.
  */
 describe('a project made and a project changed', () => {
-  const source = readFileSync(join(SRC, 'routes/projects.tsx'), 'utf8');
+  const source = readFileSync(join(SRC, 'modules/planning/routes/projects.tsx'), 'utf8');
 
   /** The fields the create form starts with — its own `useState` object. */
   const created = (() => {

@@ -17,7 +17,7 @@
  */
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { describe, it } from 'node:test';
 
 const root = new URL('../src', import.meta.url).pathname;
@@ -27,27 +27,44 @@ const read = (file: string): string => readFileSync(join(root, file), 'utf8');
 const code = (file: string): string =>
   read(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
-const routeFiles = readdirSync(join(root, 'routes')).filter((name) => name.endsWith('.ts')).sort();
+/**
+ * Every `routes/` file, wherever it is.
+ *
+ * There is no one `src/routes` any more: a module keeps its endpoints in its
+ * own `routes/`, which is also how the layering rule is expressed now. So this
+ * looks for the directory by name rather than by path, and a module that grows
+ * one is covered without anybody remembering to come here.
+ */
+function routeSources(dir = ''): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(join(root, dir), { withFileTypes: true })) {
+    const here = dir ? `${dir}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) out.push(...routeSources(here));
+    else if (entry.name.endsWith('.ts') && relative(root, join(root, dir)).split('/').includes('routes')) out.push(here);
+  }
+  return out;
+}
+const routeFiles = routeSources().sort();
 const index = code('index.ts');
 
 describe('every route file is registered', () => {
   it('finds a register function in each one', () => {
     for (const file of routeFiles) {
       assert.match(
-        code(join('routes', file)),
+        code(file),
         /^export function register\w*Routes\(/m,
-        `routes/${file} exports no register…Routes function — is it a route file at all?`,
+        `${file} exports no register…Routes function — is it a route file at all?`,
       );
     }
   });
 
   it('and index.ts calls every one of them', () => {
     for (const file of routeFiles) {
-      const name = code(join('routes', file)).match(/^export function (register\w*Routes)\(/m)![1];
+      const name = code(file).match(/^export function (register\w*Routes)\(/m)![1];
       assert.match(
         index,
         new RegExp(`^${name}\\(router\\);`, 'm'),
-        `routes/${file} exports ${name} but index.ts never calls it, so none of its endpoints exist`,
+        `${file} exports ${name} but index.ts never calls it, so none of its endpoints exist`,
       );
     }
   });
@@ -55,10 +72,10 @@ describe('every route file is registered', () => {
   it('and every endpoint in them is reachable at one path', () => {
     const seen = new Map<string, string>();
     for (const file of routeFiles) {
-      for (const m of code(join('routes', file)).matchAll(/router\.(get|post|put|patch|delete)\('([^']+)'/g)) {
+      for (const m of code(file).matchAll(/router\.(get|post|put|patch|delete)\('([^']+)'/g)) {
         const key = `${m[1].toUpperCase()} ${m[2]}`;
         const first = seen.get(key);
-        assert.equal(first, undefined, `${key} is registered in both routes/${first} and routes/${file}`);
+        assert.equal(first, undefined, `${key} is registered in both ${first} and ${file}`);
         seen.set(key, file);
       }
     }

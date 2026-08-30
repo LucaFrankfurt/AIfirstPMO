@@ -16,7 +16,7 @@ import type { AddressInfo } from 'node:net';
 import type { PullResponse } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
-const { run, nextSeq } = await import('../src/db/index.ts');
+const { run, nextSeq } = await import('../src/kernel/platform/db/index.ts');
 
 const PAGE_SIZE = 2000;
 let base = '';

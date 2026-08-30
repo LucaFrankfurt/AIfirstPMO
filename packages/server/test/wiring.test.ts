@@ -35,7 +35,7 @@ const read = (file: string): string => readFileSync(join(root, file), 'utf8');
 const code = (file: string): string =>
   read(file).replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
-const { entryPoints } = await import('../src/lib/wiring.ts');
+const { entryPoints } = await import('../src/wiring.ts');
 
 /**
  * `cli.ts` is exempt and it is worth saying why rather than leaving it off the
@@ -76,8 +76,8 @@ describe('write listeners are wired up', () => {
   });
 
   it('installing is idempotent, so two entry points in one process is not a bug', async () => {
-    const { installEffects } = await import('../src/lib/wiring.ts');
-    const { onWrite } = await import('../src/lib/repo.ts');
+    const { installEffects } = await import('../src/wiring.ts');
+    const { onWrite } = await import('../src/kernel/write-path/repo.ts');
     let calls = 0;
     const counting = () => { calls += 1; };
 
@@ -87,7 +87,7 @@ describe('write listeners are wired up', () => {
     onWrite(counting);
     onWrite(counting);
 
-    const { writeEntity } = await import('../src/lib/repo.ts');
+    const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
     assert.equal(typeof writeEntity, 'function');
     assert.equal(calls, 0, 'nothing was written, so nothing should have been heard');
   });

@@ -21,7 +21,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { get, all } = await import('../src/db/index.ts');
+const { get, all } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let cookie = '';

@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { firstName, greetingKey, plusDays, summarise, type Countable } from '../src/lib/overview.ts';
+import { firstName, greetingKey, plusDays, summarise, type Countable } from '../src/modules/work/overview.ts';
 
 const open = (due: string | null): Countable => ({ due_date: due, completed_at: null, done: false });
 const done = (at: number): Countable => ({ due_date: null, completed_at: at, done: true });

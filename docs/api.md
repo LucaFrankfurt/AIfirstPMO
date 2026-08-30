@@ -25,7 +25,7 @@ returned exactly once — only its hash is stored. A `read` token is rejected on
 ## Entities
 
 Every entity in the registry gets the same five routes, and the list is derived from `COLLECTIONS`
-in `packages/shared/src/entities.ts` rather than written out there — a new entity is one line in one
+in `packages/shared/src/kernel/registry/entities.ts` rather than written out there — a new entity is one line in one
 file and it appears here:
 
 `teams`, `team-members`, `projects`, `project-members`, `states`, `fields`,

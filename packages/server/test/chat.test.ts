@@ -25,10 +25,10 @@ import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
 const { directChannelId, readStateId } = await import('@kolibri/shared');
-const { canSeeChannel } = await import('../src/lib/repo.ts');
-const { searchWorkspace } = await import('../src/lib/search.ts');
-const { all, get, run } = await import('../src/db/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { canSeeChannel } = await import('../src/kernel/write-path/repo.ts');
+const { searchWorkspace } = await import('../src/kernel/search/search.ts');
+const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 let workspaceId = '';

@@ -40,8 +40,14 @@ const PACKAGES = join(ROOT, 'packages');
 /* --------------------------------------------------------------- the map */
 
 /**
- * Which module owns which files, in the three rings `docs/modules.md`
- * describes.
+ * Which module owns which files — read off the directory, not written down.
+ *
+ * It used to be a list here, and a list is a second source of truth: a file
+ * could be moved without moving what claimed it, and the only thing keeping
+ * the two together was somebody remembering. Since step 10 the path *is* the
+ * claim — `packages/<pkg>/src/<ring>/<module>/…` — so a file cannot belong to
+ * two modules, cannot belong to none without failing the build, and cannot
+ * drift from what this says about it.
  *
  * - `kernel`     — always present. Nothing works without it, nothing switches
  *                  it off, and every capability is allowed to depend on it.
@@ -51,372 +57,86 @@ const PACKAGES = join(ROOT, 'packages');
  *                  provider, a file format. Replaceable by definition.
  * - `shell`      — composition: the entry points that wire the other three
  *                  together and own no domain of their own.
- *
- * First match wins, so order matters where a prefix would otherwise swallow a
- * file that belongs elsewhere.
  */
-const MODULES = [
-  /* ------------------------------------------------------------- kernel */
-  {
-    name: 'platform',
-    ring: 'kernel',
-    what: 'The floor: process configuration, the database handle, the router, ids, the in-process bus.',
-    files: [
-      'server/src/env.ts', 'server/src/db/index.ts',
-      'server/src/lib/http.ts', 'server/src/lib/ids.ts', 'server/src/lib/bus.ts',
-      'server/src/lib/origin.ts', 'server/src/lib/csp.ts', 'server/src/lib/features.ts',
-      'server/src/lib/settings.ts', 'server/src/routes/settings.ts',
-    ],
-  },
-  {
-    name: 'registry',
-    ring: 'kernel',
-    what: 'The entity registry and the vocabulary every other module is written in.',
-    files: [
-      'shared/src/entities.ts', 'shared/src/types.ts', 'shared/src/index.ts',
-      'shared/src/hlc.ts', 'shared/src/order.ts', 'shared/src/scope.ts',
-    ],
-  },
-  {
-    name: 'write-path',
-    ring: 'kernel',
-    what: 'The one way a row changes: merge, invariants, side effects, search index, visibility.',
-    files: ['server/src/lib/repo.ts', 'server/src/lib/bootstrap.ts', 'server/src/routes/entities.ts'],
-  },
-  {
-    name: 'sync',
-    ring: 'kernel',
-    what: 'Delta pull, push, the change stream, and the client mirror they feed.',
-    files: [
-      'server/src/routes/sync.ts',
-      'web/src/lib/sync.ts', 'web/src/lib/idb.ts', 'web/src/lib/store.ts', 'web/src/lib/mutations.ts',
-      'web/src/lib/api.ts',
-    ],
-  },
-  {
-    name: 'identity',
-    ring: 'kernel',
-    what: 'Who is asking: accounts, sessions, tokens, roles, rate limits, second factors.',
-    files: [
-      'server/src/lib/auth.ts', 'server/src/lib/totp.ts', 'server/src/lib/ratelimit.ts',
-      'server/src/routes/auth.ts', 'server/src/routes/workspaces.ts',
-      'web/src/routes/Login.tsx', 'web/src/components/AuthLayout.tsx',
-      'web/src/components/security.tsx', 'web/src/session.tsx',
-    ],
-  },
-  {
-    name: 'files',
-    ring: 'kernel',
-    what: 'Content-addressed uploads, and the two backends behind one interface.',
-    files: [
-      'server/src/lib/storage.ts', 'server/src/lib/mime.ts', 'server/src/lib/imagesize.ts',
-      'server/src/lib/uploads.ts', 'server/src/routes/files.ts',
-    ],
-  },
-  {
-    name: 'search',
-    ring: 'kernel',
-    what: 'FTS5 across everything, maintained in the same transaction as the row.',
-    files: [
-      'server/src/lib/search.ts', 'server/src/routes/search.ts',
-      'web/src/routes/search.tsx', 'web/src/lib/search-query.ts', 'web/src/lib/recents.ts',
-    ],
-  },
-  {
-    name: 'i18n',
-    ring: 'kernel',
-    what: 'One catalogue per language, on both sides, each recipient in their own.',
-    files: [
-      'server/src/lib/i18n.ts',
-      'web/src/lib/i18n.ts', 'web/src/locales/en.ts', 'web/src/locales/de.ts', 'web/src/locales/fr.ts',
-    ],
-  },
-  {
-    name: 'design-system',
-    ring: 'kernel',
-    what: 'The primitives every screen is built from, and the furniture around them.',
-    files: [
-      'web/src/components/ui.tsx', 'web/src/components/ui/',
-      'web/src/components/AppShell.tsx', 'web/src/components/CommandPalette.tsx',
-      'web/src/lib/cn.ts', 'web/src/lib/format.ts', 'web/src/lib/text.ts', 'web/src/lib/drag.ts',
-      'web/src/lib/nav.ts', 'web/src/lib/navigation.ts', 'web/src/lib/tab-strip.ts',
-      'web/src/lib/task-stack.ts', 'web/src/lib/active-project.ts', 'web/src/lib/family.ts',
-    ],
-  },
+const RING_OF_DIR = { kernel: 'kernel', modules: 'capability', adapters: 'adapter' };
 
-  /* --------------------------------------------------------- capabilities */
-  {
-    name: 'work',
-    ring: 'capability',
-    what: 'Projects, tasks, states, labels, relations, custom fields, saved views.',
-    files: [
-      'shared/src/quickadd.ts', 'shared/src/query.ts', 'shared/src/fields.ts',
-      'shared/src/duration.ts', 'shared/src/relocate.ts', 'shared/src/risk.ts',
-      'server/src/lib/viewquery.ts', 'server/src/lib/tasks-csv.ts',
-      'server/src/lib/rules/work.ts',
-      'web/src/components/views.tsx', 'web/src/components/task-parts.tsx',
-      'web/src/components/TaskDetail.tsx', 'web/src/components/QuickAdd.tsx',
-      'web/src/components/query-box.tsx', 'web/src/components/fields.tsx',
-      'web/src/components/Relations.tsx', 'web/src/components/selection.tsx',
-      'web/src/components/selection-bar.tsx', 'web/src/components/saved-views.tsx',
-      'web/src/components/comments.tsx', 'web/src/components/reactions.tsx',
-      'web/src/lib/reactions.ts', 'web/src/lib/overview.ts',
-      'web/src/routes/personal.tsx', 'web/src/routes/teams.tsx',
-    ],
-  },
-  {
-    name: 'planning',
-    ring: 'capability',
-    what: 'Cycles, modules, baselines, the timeline, the portfolio, the planner, templates.',
-    files: [
-      'shared/src/schedule.ts',
-      'server/src/lib/copy.ts', 'server/src/lib/archive.ts',
-      'server/src/lib/rules/planning.ts',
-      'web/src/routes/projects.tsx',
-      'web/src/components/gantt.tsx', 'web/src/components/planner.tsx',
-      'web/src/components/portfolio.tsx', 'web/src/components/insights.tsx',
-      'web/src/components/copy-project.tsx', 'web/src/components/hierarchy.tsx',
-    ],
-  },
-  {
-    name: 'pages',
-    ring: 'capability',
-    what: 'The nested wiki: markdown, the text CRDT, revisions, anchored comments.',
-    files: [
-      'server/src/lib/rules/pages.ts',
-      'shared/src/markdown.ts', 'shared/src/editor.ts', 'shared/src/anchor.ts',
-      'shared/src/text-crdt.ts', 'shared/src/diff.ts',
-      'web/src/routes/pages.tsx', 'web/src/components/page-parts.tsx',
-      'web/src/components/Markdown.tsx', 'web/src/components/annotate.tsx',
-      'web/src/lib/pagetree.ts', 'web/src/lib/collab.ts', 'web/src/lib/mermaid.ts',
-    ],
-  },
-  {
-    name: 'chat',
-    ring: 'capability',
-    what: 'Channels and direct messages made of the same synced rows as everything else.',
-    files: [
-      'shared/src/chat.ts',
-      'server/src/lib/presence.ts', 'server/src/lib/rules/chat.ts',
-      'web/src/routes/chat.tsx', 'web/src/lib/presence.ts',
-    ],
-  },
-  {
-    name: 'time',
-    ring: 'capability',
-    flag: 'time',
-    what: 'Logged time, the timesheet, dated rates, and what an hour cost.',
-    files: [
-      'shared/src/rates.ts', 'server/src/lib/rules/rates.ts',
-      'server/src/lib/personal.ts',
-      'web/src/routes/timesheet.tsx', 'web/src/components/time.tsx', 'web/src/components/rates.tsx',
-    ],
-  },
-  {
-    name: 'budgets',
-    ring: 'capability',
-    flag: 'budget',
-    what: 'Planned against actual, split across the projects that pay for it.',
-    files: [
-      'shared/src/budget.ts', 'server/src/lib/rules/budgets.ts',
-      'web/src/routes/budgets.tsx', 'web/src/components/budget.tsx',
-    ],
-  },
-  {
-    name: 'kpis',
-    ring: 'capability',
-    flag: 'kpi',
-    what: 'Numbers somebody has undertaken to watch, and by which milestone.',
-    files: [
-      'shared/src/kpi.ts', 'server/src/lib/rules/kpis.ts',
-      'web/src/routes/kpis.tsx', 'web/src/components/kpi.tsx',
-    ],
-  },
-  {
-    name: 'infrastructure',
-    ring: 'capability',
-    flag: 'infrastructure',
-    what: 'Vendors, what runs where, and the moves between one landscape and the next.',
-    files: [
-      'shared/src/landscape.ts', 'server/src/lib/rules/infrastructure.ts',
-      'web/src/routes/infrastructure.tsx', 'web/src/components/landscape.tsx',
-    ],
-  },
-  {
-    name: 'automation',
-    ring: 'capability',
-    what: 'Templates, repeats, and rules that file work when something happens.',
-    files: [
-      'server/src/lib/automation.ts', 'server/src/lib/scheduler.ts',
-      'web/src/routes/automation.tsx',
-    ],
-  },
-  {
-    name: 'notifications',
-    ring: 'capability',
-    what: 'Writing a notification, and every channel that has to hear about it.',
-    files: ['server/src/lib/notify.ts'],
-  },
-  {
-    name: 'ai-review',
-    ring: 'capability',
-    flag: 'ai',
-    what: 'Asking a model to read a task back. Manual, off by default.',
-    files: [
-      'server/src/lib/review.ts', 'server/src/routes/ai.ts',
-      'web/src/components/task-review.tsx',
-    ],
-  },
-  {
-    name: 'intake',
-    ring: 'capability',
-    what: 'A link that is a form, for people who have no account and should not need one.',
-    files: ['web/src/components/intake.tsx'],
-  },
-  {
-    name: 'trash',
-    ring: 'capability',
-    what: 'Tombstones, what may be restored from them, and when they are purged.',
-    files: ['server/src/lib/trash.ts', 'web/src/components/trash.tsx'],
-  },
-  {
-    name: 'guide',
-    ring: 'capability',
-    what: 'The manual, built as the app rather than filmed: stages, scenes, the tour.',
-    files: [
-      'web/src/routes/help.tsx', 'web/src/components/explain.tsx',
-      'web/src/components/diagrams.tsx', 'web/src/components/tour.tsx', 'web/src/lib/guide.ts',
-    ],
-  },
-  {
-    name: 'operations',
-    ring: 'capability',
-    what: 'Snapshots, restore, rehydration, maintenance, provisioning, the demo workspace.',
-    files: [
-      'server/src/lib/backups.ts', 'server/src/lib/restore.ts', 'server/src/lib/rehydrate.ts',
-      'server/src/lib/maintenance.ts', 'server/src/lib/provision.ts', 'server/src/lib/demo.ts',
-      'web/src/components/admin.tsx', 'web/src/components/instance.tsx',
-      'web/src/routes/settings.tsx',
-    ],
-  },
+/**
+ * What a module is for, and the workspace switch it answers to.
+ *
+ * The two things a directory cannot say. Everything else about a module — which
+ * files, how many lines, which package it spans — comes from the tree.
+ */
+const ABOUT = {
+  'i18n': ['Catalogues, plurals, and the locale a person reads in.'],
+  'design-system': ['The shell, the palette, and the parts every screen is built from.'],
+  'registry': ['The 42 entities: fields, merge rules, visibility, and what the client mirrors.'],
+  'write-path': ['One way in for every write: defaults, invariants, guards, effects, tombstones.'],
+  'identity': ['Accounts, sessions, two-factor, workspaces, members and invites.'],
+  'platform': ['Configuration, the database handle, the router, ids, the bus.'],
+  'sync': ['The cursor, the outbox, the mirror, and what happens with no network.'],
+  'search': ['One index over everything, and the query language in front of it.'],
+  'files': ['Uploads, thumbnails, and where the bytes actually live.'],
+  'work': ['Projects, tasks, states, labels, relations, custom fields, saved views.'],
+  'planning': ['Cycles, modules, baselines, the timeline, the portfolio, the planner, templates.'],
+  'pages': ['Documents with a CRDT under them, their tree, and what a comment anchors to.'],
+  'budgets': ['Plan, spend, variance and who is allowed to see money.', 'budget'],
+  'operations': ['Backups, restore, maintenance, provisioning and the instance screens.'],
+  'chat': ['Channels, messages, presence, reactions and unread.'],
+  'kpis': ['Measures, targets, cadence and the direction that counts as good.', 'kpi'],
+  'infrastructure': ['Components, vendors, environments, lifecycles and moves.', 'infrastructure'],
+  'guide': ['The tour, the diagrams and the help screens.'],
+  'time': ['Timesheets, rates, utilisation and what an hour costs.', 'time'],
+  'automation': ['Rules that fire on a write, and the schedule behind them.'],
+  'ai-review': ['Asking a model to read a task back. Manual, off by default.', 'ai'],
+  'trash': ['Tombstones, restore and the purge.'],
+  'intake': ['A form that becomes a task, and the queue in front of it.'],
+  'notifications': ['What is worth telling somebody about, once.'],
+  'mcp': ['The tool surface an assistant talks to: 72 tools and 5 prompts.'],
+  'transfer': ['Import and export, per project and per workspace.'],
+  'webhooks': ['Signed outgoing calls with a delivery log, and incoming ones that name a task.'],
+  'mail': ['Batching, the queue, SMTP by hand, and knowing an address from a bounce.'],
+  'oauth': ['Single sign-on in, and an authorisation server out.'],
+  'telegram': ['The bot: long-polled updates, single-use link codes, delivery.'],
+  'share': ['A read-only link to one page or board.'],
+  'push': ['Web push, sent with no payload.'],
+  'ai': ['Three providers behind one call.'],
+  'calendar': ['An iCal feed of what is due.'],
+  's3': ['Object storage, signed by hand.'],
+  'shell': ['Composition only: the entry points that wire the rest together.'],
+};
 
-  /* -------------------------------------------------------------- adapters */
-  {
-    name: 'adapter/mcp',
-    ring: 'adapter',
-    what: 'The assistant\'s way in: JSON-RPC over HTTP, and a stdio bridge to it.',
-    files: [
-      'server/src/lib/mcp/index.ts', 'server/src/lib/mcp/kit.ts',
-      'server/src/lib/mcp/tools/', 'server/src/routes/mcp.ts', 'mcp/src/index.ts',
-    ],
-  },
-  {
-    name: 'adapter/oauth',
-    ring: 'adapter',
-    what: 'The instance as an authorization server, and as a client of a directory.',
-    files: ['server/src/lib/oidc.ts', 'server/src/routes/oauth.ts'],
-  },
-  {
-    name: 'adapter/mail',
-    ring: 'adapter',
-    what: 'Batching, the queue, SMTP by hand, and knowing an address from a bounce.',
-    files: [
-      'server/src/lib/mail.ts', 'server/src/lib/smtp.ts', 'server/src/lib/address.ts',
-      'server/src/lib/delivery.ts', 'server/src/lib/scaleway.ts', 'server/src/routes/mail.ts',
-    ],
-  },
-  {
-    name: 'adapter/push',
-    ring: 'adapter',
-    what: 'Web push, sent with no payload.',
-    files: ['server/src/lib/push.ts', 'server/src/routes/push.ts', 'web/src/components/push.tsx'],
-  },
-  {
-    name: 'adapter/telegram',
-    ring: 'adapter',
-    what: 'The bot: long-polled updates, single-use link codes, delivery.',
-    files: ['server/src/lib/telegram.ts', 'server/src/routes/telegram.ts', 'web/src/components/telegram.tsx'],
-  },
-  {
-    name: 'adapter/webhooks',
-    ring: 'adapter',
-    what: 'Signed outgoing calls with a delivery log, and incoming ones that name a task.',
-    files: [
-      'server/src/lib/webhooks.ts', 'server/src/lib/outbound.ts', 'server/src/routes/inbound.ts',
-      'shared/src/foreign.ts',
-    ],
-  },
-  {
-    name: 'adapter/calendar',
-    ring: 'adapter',
-    what: 'A subscribable .ics per person or per saved view.',
-    files: ['server/src/lib/ical.ts', 'server/src/routes/calendar.ts'],
-  },
-  {
-    name: 'adapter/share',
-    ring: 'adapter',
-    what: 'Read-only links to a page or a view, for somebody with no account.',
-    files: ['server/src/routes/share.ts', 'web/src/components/share.tsx'],
-  },
-  {
-    name: 'adapter/transfer',
-    ring: 'adapter',
-    what: 'Getting it in and out: CSV, the foreign readers, JSON round trips, zip.',
-    files: [
-      'shared/src/csv.ts', 'shared/src/import.ts',
-      'server/src/lib/import.ts', 'server/src/lib/transfer.ts',
-      'server/src/lib/workspace-transfer.ts', 'server/src/lib/zip.ts',
-      'server/src/routes/export.ts',
-      'web/src/components/import.tsx', 'web/src/components/data.tsx',
-    ],
-  },
-  {
-    name: 'adapter/s3',
-    ring: 'adapter',
-    what: 'SigV4 signed by hand, so an object store needs no SDK.',
-    files: ['server/src/lib/s3.ts'],
-  },
-  {
-    name: 'adapter/ai',
-    ring: 'adapter',
-    what: 'Three companies answering the same question three ways.',
-    files: [
-      'server/src/lib/ai.ts', 'server/src/lib/ai-anthropic.ts',
-      'server/src/lib/ai-gemini.ts', 'server/src/lib/ai-openrouter.ts',
-    ],
-  },
-
-  /* ----------------------------------------------------------------- shell */
-  {
-    name: 'shell',
-    ring: 'shell',
-    what: 'Composition only: what starts, in what order, wired to what.',
-    files: [
-      'server/src/index.ts', 'server/src/cli.ts', 'server/src/seed.ts',
-      'server/src/lib/wiring.ts',
-      'web/vite.config.ts',
-      'web/src/App.tsx', 'web/src/main.tsx',
-    ],
-  },
-];
+/** `packages/server/src/kernel/identity/auth.ts` -> `{ ring, name }`. */
+function placeOf(file) {
+  const m = file.match(/^([a-z]+)\/src\/(kernel|modules|adapters)\/([^/]+)\//);
+  return m ? { ring: RING_OF_DIR[m[2]], name: m[3] } : { ring: 'shell', name: 'shell' };
+}
 
 /* ---------------------------------------------------------------- the rules */
 
 /**
- * Layering violations, each one named. There are none.
+ * Layering violations, each one named.
  *
- * `lib/` is below `routes/`: a route composes what the libraries do, and a
- * library that reaches back up has made the route impossible to replace. There
- * were two, both `mcp.ts` wanting a function that happened to live in a route
- * file, and both were fixed the right way round — `storeFile` and
- * `searchWorkspace` moved down into `lib/uploads.ts` and `lib/search.ts`, where
- * the route and the MCP tool are equal callers of one implementation.
+ * A `routes/` file is the top of its module: it composes what the module does,
+ * and only the shell — which composes everything — may reach into one. Anything
+ * else importing a route has made that route impossible to replace.
  *
- * An empty list is worth more than a short one: there is no grandfathering
- * left, so the next import from `lib/` into `routes/` fails the build with
- * nothing to point at as precedent.
+ * The rule used to read `server/src/lib` may not import `server/src/routes`,
+ * which was the same idea expressed in the only two directories that then
+ * existed. Since step 10 every module keeps its own `routes/`, so the rule is
+ * about the directory rather than the path, and it covers the client for the
+ * first time — where it immediately found one.
+ *
+ * The four below are not new: they were there before step 10 and the old rule
+ * could not see them, because `lib` importing `routes` was the only shape it
+ * knew and three of these are a screen importing another screen. They are named
+ * here so the move stays a move, and emptied in the commit after it.
  */
-const KNOWN_LAYERING = [];
+const KNOWN_LAYERING = [
+  'server/src/adapters/mcp/routes/mcp.ts -> server/src/adapters/oauth/routes/oauth.ts',
+  'web/src/kernel/design-system/AppShell.tsx -> web/src/modules/chat/routes/chat.tsx',
+  'web/src/modules/operations/routes/settings.tsx -> web/src/modules/automation/routes/automation.tsx',
+  'web/src/modules/work/routes/personal.tsx -> web/src/modules/chat/routes/chat.tsx',
+];
 
 /**
  * Knots of files that import each other, each one named. There are none.
@@ -458,11 +178,16 @@ sources.sort();
 
 const lines = (file) => readFileSync(join(PACKAGES, file), 'utf8').split('\n').length;
 
-/** Which module claims a file, or undefined. A trailing `/` claims a directory. */
-const owner = (file) =>
-  MODULES.find((module) =>
-    module.files.some((claim) => (claim.endsWith('/') ? file.startsWith(claim) : claim === file)),
-  );
+/** Every module the tree actually contains, with what `ABOUT` says of it. */
+const MODULES = [...new Map(sources.map((file) => {
+  const { ring, name } = placeOf(file);
+  return [`${ring}/${name}`, { ring, name, what: ABOUT[name]?.[0], flag: ABOUT[name]?.[1] ?? '' }];
+})).values()];
+
+const owner = (file) => {
+  const { ring, name } = placeOf(file);
+  return MODULES.find((m) => m.ring === ring && m.name === name);
+};
 
 /** Relative imports, resolved to a path under `packages/`. Bare specifiers are edges out. */
 function importsOf(file) {
@@ -495,23 +220,36 @@ const pkg = (file) => file.split('/')[0];
 
 const problems = [];
 
-/* 1. Every file belongs to exactly one module. */
-const unclaimed = sources.filter((file) => !owner(file));
-for (const file of unclaimed) {
-  problems.push(`unclaimed: ${file} belongs to no module. Add it to MODULES in scripts/modules.mjs.`);
+/*
+ * 1. Every file belongs to exactly one module.
+ *
+ * The path is the claim, so belonging to two is now impossible and belonging to
+ * none means sitting outside `<ring>/<module>/`. That leaves only the shell,
+ * which is composition and is named here rather than inferred — an entry point
+ * that quietly grows a domain should have to argue for itself.
+ */
+const SHELL = new Set([
+  'shared/src/index.ts',
+  'server/src/index.ts', 'server/src/seed.ts', 'server/src/cli.ts', 'server/src/wiring.ts',
+  'web/src/main.tsx', 'web/src/App.tsx', 'web/vite.config.ts',
+  'mcp/src/index.ts',
+]);
+for (const file of sources) {
+  if (placeOf(file).ring !== 'shell') continue;
+  if (SHELL.has(file)) continue;
+  problems.push(`unplaced: ${file} is not under <ring>/<module>/ and is not named as shell.`);
+}
+for (const file of SHELL) {
+  if (!sources.includes(file)) problems.push(`stale shell entry: ${file} no longer exists.`);
 }
 for (const module of MODULES) {
-  for (const claim of module.files) {
-    const matched = claim.endsWith('/')
-      ? sources.some((file) => file.startsWith(claim))
-      : sources.includes(claim);
-    if (!matched) problems.push(`stale claim: ${module.name} claims ${claim}, which no longer exists.`);
+  if (module.ring !== 'shell' && !module.what) {
+    problems.push(`undescribed: the ${module.name} directory exists but ABOUT says nothing about it.`);
   }
 }
-const claimedTwice = sources.filter(
-  (file) => MODULES.filter((m) => m.files.some((c) => (c.endsWith('/') ? file.startsWith(c) : c === file))).length > 1,
-);
-for (const file of claimedTwice) problems.push(`claimed twice: ${file} is in more than one module.`);
+for (const name of Object.keys(ABOUT)) {
+  if (!MODULES.some((m) => m.name === name)) problems.push(`stale description: ABOUT still describes ${name}.`);
+}
 
 /* 2. Packages point one way. */
 const FORBIDDEN_PACKAGE = { shared: ['server', 'web', 'mcp'], web: ['server'], server: ['web'] };
@@ -533,15 +271,17 @@ for (const [file, deps] of graph) {
 }
 
 /* 3. Layers point one way: lib/ is below routes/. */
+const inRoutes = (file) => file.split('/').includes('routes');
+const sameModule = (a, b) => placeOf(a).name === placeOf(b).name && placeOf(a).ring === placeOf(b).ring;
 const layering = [];
 for (const [file, deps] of graph) {
-  if (!file.startsWith('server/src/lib/')) continue;
+  if (placeOf(file).ring === 'shell') continue;      // composition is the exception
   for (const dep of deps) {
-    if (dep.file?.startsWith('server/src/routes/')) layering.push(`${file} -> ${dep.file}`);
+    if (dep.file && inRoutes(dep.file) && !sameModule(file, dep.file)) layering.push(`${file} -> ${dep.file}`);
   }
 }
 for (const edge of layering) {
-  if (!KNOWN_LAYERING.includes(edge)) problems.push(`layering: ${edge} (lib may not import routes)`);
+  if (!KNOWN_LAYERING.includes(edge)) problems.push(`layering: ${edge} (only the shell may import a routes/ file)`);
 }
 for (const edge of KNOWN_LAYERING) {
   if (!layering.includes(edge)) problems.push(`fixed: "${edge}" no longer happens — delete it from KNOWN_LAYERING.`);
@@ -596,7 +336,10 @@ for (const knot of KNOWN_KNOTS) {
 /** Every module with its size, biggest file and ring, largest first within a ring. */
 const RING_ORDER = { kernel: 0, capability: 1, adapter: 2, shell: 3 };
 const rows = MODULES.map((module) => {
-  const own = sources.filter((file) => owner(file) === module);
+  const own = sources.filter((file) => {
+    const at = placeOf(file);
+    return at.ring === module.ring && at.name === module.name;
+  });
   return {
     ring: module.ring,
     name: module.name,

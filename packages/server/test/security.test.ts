@@ -15,8 +15,8 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits, LIMITS, byAddress, enforce, rateLimitInternals } = await import('../src/lib/ratelimit.ts');
-const { buildCsp } = await import('../src/lib/csp.ts');
+const { resetRateLimits, LIMITS, byAddress, enforce, rateLimitInternals } = await import('../src/kernel/identity/ratelimit.ts');
+const { buildCsp } = await import('../src/kernel/platform/csp.ts');
 
 const DISK = { kind: 'disk', presign: false, publicEndpoint: '', s3: { endpoint: '' } };
 const MINIO = { kind: 's3', presign: true, publicEndpoint: '', s3: { endpoint: 'http://minio:9000' } };
