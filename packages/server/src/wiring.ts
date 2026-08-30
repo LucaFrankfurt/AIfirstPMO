@@ -3,11 +3,15 @@
  *
  * `repo.ts` offers `onWrite` and knows nothing about who takes it up; this is
  * the other half — the single place that says which parts of the product react
- * to a row changing. Today that is the rules engine and only the rules engine.
- * Under the module contract in `docs/modules.md` it is where each capability's
- * `effects` would register, which is why it is a file of its own rather than
- * three lines in `index.ts`: the list is going to grow, and a list that grows
- * inside an entry point is a list nobody reads.
+ * to a row changing: the rules engine, the eight domains' entity rules, and the
+ * two effects that leave the process.
+ *
+ * The last two are the reason `repo.ts` has a second hook. `onWrite` runs
+ * inline because what a rule writes must land in the same transaction;
+ * `onCommitted` runs after the commit because a notification has reached a
+ * phone and a webhook has reached somebody else's server, and a rollback calls
+ * back neither. Both used to be called from `afterWrite` by name, which is how
+ * a write path came to hold notification copy and webhook payloads.
  *
  * Every entry point that can write calls this. There are two — the server and
  * the seed script — and they are named in `entryPoints` below so a third one
@@ -15,6 +19,8 @@
  * (a test that boots the server and also seeds) is not a bug.
  */
 import { installAutomations } from './modules/automation/automation.ts';
+import { installNotifications } from './modules/notifications/effects.ts';
+import { installWebhookEvents } from './adapters/webhooks/effects.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
@@ -38,6 +44,8 @@ export function installEffects(): void {
   if (installed) return;
   installed = true;
   installAutomations();
+  installNotifications();
+  installWebhookEvents();
   // The order within an entity is the order they were branches in. Across
   // entities it cannot matter — one write is one entity. See `repo.onEntity`.
   for (const rule of [

@@ -2,7 +2,6 @@ import {
   ENTITIES,
   crdt,
   entityDef,
-  excerpt,
   findMentions as mentionsIn,
   hlcGreater,
   type CrdtState,
@@ -12,12 +11,7 @@ import { all, get, nextSeq, run, tx, type Row } from '../platform/db/index.ts';
 import { badRequest, notFound } from '../platform/http.ts';
 import { shareToken, token, uid } from '../platform/ids.ts';
 import { publish } from '../platform/bus.ts';
-import { createNotification } from '../../modules/notifications/notify.ts';
-import { translatorFor } from '../i18n/i18n.ts';
-import { env } from '../platform/env.ts';
-import { dispatch } from '../../adapters/webhooks/webhooks.ts';
 
-type Translator = ReturnType<typeof translatorFor>;
 
 export interface WriteOpts {
   workspaceId: string;
@@ -280,7 +274,6 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
     forced[field] = value;
   };
 
-
   // Time is logged by whoever is logging it. Filing it under somebody else is
   // a timesheet-approval feature, not a field a client gets to set casually.
   // A measurement with no date is a measurement of nothing. Today rather than a
@@ -310,19 +303,6 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
   return forced;
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 /**
  * Whether making `parentId` the parent of `id` closes a circle.
  *
@@ -339,9 +319,6 @@ export function wouldLoop(table: 'projects' | 'tasks' | 'components', id: string
   // A chain longer than fifty is a loop somebody already made; refuse to add to it.
   return !!cursor;
 }
-
-
-
 
 /* -------------------------------------------------------------- side effects */
 
@@ -371,20 +348,11 @@ function afterWrite(entity: EntityName, row: Row, before: Row | undefined, chang
    * `onWrite` below for why this is a list of functions rather than the bus.
    */
   const external = (): void => {
-    notify(entity, row, before, changed, opts);
-    fireWebhooks(entity, row, before, changed, opts);
+    for (const listener of committed) listener(entity, row, before, changed, opts);
   };
-  const heard = (): void => {
-    for (const listener of listeners) listener(entity, row, before, changed, opts);
-  };
-  if (pendingEffects) {
-    pendingEffects.push(external);
-    heard();
-  } else {
-    notify(entity, row, before, changed, opts);
-    heard();
-    fireWebhooks(entity, row, before, changed, opts);
-  }
+  for (const listener of listeners) listener(entity, row, before, changed, opts);
+  if (pendingEffects) pendingEffects.push(external);
+  else external();
 }
 
 /* ------------------------------------------------------------ entity rules */
@@ -499,9 +467,32 @@ export function onWrite(listener: WriteListener): void {
   if (!listeners.includes(listener)) listeners.push(listener);
 }
 
+/**
+ * Ask to hear about every write, but only once it cannot be taken back.
+ *
+ * The counterpart of `onWrite`, and the distinction is the whole reason there
+ * are two. An `onWrite` listener runs inline, because what it *writes* has to
+ * land in the same transaction. These run after the commit instead, because
+ * what they do leaves the process: a notification reaches a phone, a webhook
+ * reaches somebody else's server, and a rollback calls neither of them back.
+ * Inside a wrapped transaction they wait; outside one there is nothing to wait
+ * for and they run at the end of the write.
+ *
+ * `notify` and `fireWebhooks` used to be called from `afterWrite` by name,
+ * which is how the write path came to hold the notification copy and the
+ * webhook payload shapes. They register here now and the write path knows
+ * neither of them.
+ */
+const committed: WriteListener[] = [];
+
+export function onCommitted(listener: WriteListener): void {
+  if (!committed.includes(listener)) committed.push(listener);
+}
+
 /** For a test that needs the write path with nothing hanging off it. */
 export function clearWriteListeners(): void {
   listeners.length = 0;
+  committed.length = 0;
 }
 
 /* ------------------------------------------------------- deferred effects */
@@ -572,11 +563,6 @@ function mergeCrdt(stored: unknown, incoming: unknown): string | null {
   if (!next) return before ? JSON.stringify(before) : null;
   return JSON.stringify(crdt.merge(before, next));
 }
-
-
-
-
-
 
 export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body: string }>> = {
   task: (row) => ({ title: `${row.identifier ?? ''} ${row.title ?? ''}`.trim(), body: row.description ?? '' }),
@@ -683,420 +669,8 @@ function recordActivity(entity: EntityName, row: Row, before: Row | undefined, c
   }
 }
 
-/**
- * Notification titles are written in the recipient's language, not the actor's:
- * a row belongs to exactly one person, so it can be rendered once, at the
- * moment it is created, and never needs translating again.
- */
-function notify(entity: EntityName, row: Row, before: Row | undefined, changed: Record<string, unknown>, opts: WriteOpts): void {
-  const targets = new Map<string, { kind: string; title: (t: Translator) => string; body: string | null; channelId?: string }>();
-
-  if (entity === 'task' && changed.assignees !== undefined) {
-    const now = parseIds(row.assignees);
-    const previous = new Set(parseIds(before?.assignees));
-    for (const userId of now) {
-      if (previous.has(userId) || userId === opts.actorId) continue;
-      targets.set(userId, {
-        kind: 'assigned',
-        title: (t) => t('notify.assigned', { identifier: row.identifier, title: row.title }),
-        body: null,
-      });
-    }
-  }
-
-  // Where a mention can be written: a comment, a task's description, a page's
-  // body. Anything else is a field nobody writes prose into.
-  const mentionField = entity === 'comment' ? 'body' : entity === 'task' ? 'description' : entity === 'page' ? 'content' : null;
-  const mentionSource = mentionField ? changed[mentionField] : undefined;
-  if (mentionField && mentionSource !== undefined) {
-    const context = entity === 'comment' ? commentContext(row) : row;
-    // Only handles that were not there before. A page autosaves while you type,
-    // so notifying on every write would ping the same person once a second for
-    // a name they were already told about.
-    const already = new Set(before ? findMentions(opts.workspaceId, String(before[mentionField] ?? '')) : []);
-    for (const userId of findMentions(opts.workspaceId, String(mentionSource ?? ''))) {
-      if (userId === opts.actorId || already.has(userId)) continue;
-      targets.set(userId, {
-        kind: 'mention',
-        title: (t) => t('notify.mentionedIn', { context: context?.identifier ?? context?.title ?? 'Kolibri' }),
-        body: String(mentionSource ?? '').slice(0, 280),
-      });
-    }
-  }
-
-  if (entity === 'comment' && !before && row.task_id) {
-    const task = get<Row>(`SELECT * FROM tasks WHERE id = ?`, row.task_id);
-    if (task) {
-      const audience = new Set([...parseIds(task.assignees), ...parseIds(task.subscribers), task.created_by]);
-      for (const userId of audience) {
-        if (!userId || userId === opts.actorId) continue;
-        if (targets.get(userId)?.kind === 'mention') continue; // a mention is the stronger signal
-        targets.set(userId, {
-          kind: 'comment',
-          title: (t) => t('notify.newComment', { identifier: task.identifier }),
-          body: String(row.body ?? '').slice(0, 280),
-        });
-      }
-    }
-  }
-
-  // Somebody watching a page hears about a change to its body. Not about every
-  // field: renaming a page or moving it between projects is bookkeeping, and a
-  // notification for it teaches people to ignore the bell.
-  if (entity === 'page' && before && changed.content !== undefined && String(before.content ?? '') !== String(row.content ?? '')) {
-    for (const userId of parseIds(row.watchers)) {
-      if (!userId || userId === opts.actorId) continue;
-      if (targets.has(userId)) continue; // a mention in the same edit is the stronger signal
-      targets.set(userId, {
-        kind: 'page_changed',
-        title: (t) => t('notify.pageChanged', { title: row.title }),
-        body: null,
-      });
-    }
-  }
-
-  // A page has no assignees to fall back on, so its audience is the people who
-  // have shown up: whoever wrote it, and whoever has said something on it.
-  // Everybody who *can* see a page is the whole workspace, and notifying them
-  // would teach people to ignore the bell.
-  if (entity === 'comment' && !before && row.page_id) {
-    const page = get<Row>(`SELECT id, title, created_by FROM pages WHERE id = ?`, row.page_id);
-    if (page) {
-      const talkers = all<Row>(
-        `SELECT DISTINCT author_id FROM comments WHERE page_id = ? AND deleted_at IS NULL`,
-        row.page_id,
-      ).map((entry) => entry.author_id);
-      for (const userId of new Set([page.created_by, ...talkers, ...parseIds(page.watchers)])) {
-        if (!userId || userId === opts.actorId) continue;
-        if (targets.get(userId)?.kind === 'mention') continue;
-        targets.set(userId, {
-          kind: 'comment',
-          title: (t) => t('notify.newPageComment', { title: page.title }),
-          body: String(row.body ?? '').slice(0, 280),
-        });
-      }
-    }
-  }
-
-  // A message. The default is deliberately not "tell everyone about every
-  // line": a channel that pings its whole membership on every message is a
-  // channel people mute, and a muted channel tells nobody anything. So a
-  // channel notifies whoever was *named*, plus whoever asked for all of it;
-  // a direct message notifies the other person, because being written to
-  // directly is exactly the case where silence would be wrong.
-  if (entity === 'message' && !before && !row.deleted_at) {
-    const channel = get<Row>(`SELECT * FROM channels WHERE id = ?`, row.channel_id);
-    if (channel && !channel.deleted_at) {
-      const direct = String(channel.kind) === 'direct';
-      const named = new Set(findMentions(opts.workspaceId, String(row.body ?? '')));
-      const audience = direct
-        ? parseIds(channel.members)
-        : [...new Set([...named, ...subscribersOf(String(channel.id))])];
-
-      for (const userId of audience) {
-        if (!userId || userId === opts.actorId) continue;
-        if (notifyLevel(String(channel.id), userId, direct) === 'none') continue;
-        if (!direct && !named.has(userId) && notifyLevel(String(channel.id), userId, direct) !== 'all') continue;
-        targets.set(userId, {
-          kind: 'message',
-          title: (t) => (direct
-            ? t('notify.directMessage', { name: displayName(opts.actorId) })
-            : t('notify.message', { name: displayName(opts.actorId), channel: `#${channel.name}` })),
-          // Through `excerpt` rather than sliced raw: a push notification
-          // renders no markdown, and a phone buzzing with `**` and `](` reads
-          // as a bug in exactly the moment the message was urgent enough to
-          // buzz for.
-          body: excerpt(String(row.body ?? ''), 280),
-          // Without this the notification says something happened and then has
-          // nowhere to take you, which is worse than not sending it.
-          channelId: String(channel.id),
-        });
-      }
-    }
-  }
-
-  if (entity === 'task' && !before && parseIds(row.assignees).length) {
-    for (const userId of parseIds(row.assignees)) {
-      if (userId === opts.actorId) continue;
-      targets.set(userId, {
-        kind: 'assigned',
-        title: (t) => t('notify.assigned', { identifier: row.identifier, title: row.title }),
-        body: null,
-      });
-    }
-  }
-
-  for (const [userId, payload] of targets) {
-    createNotification({
-      // A notification about a direct message has to reach somebody who may
-      // not be in this workspace, so it belongs outside one exactly as the
-      // conversation does. Everything else belongs where it happened.
-      // `??` would be wrong here: null is the *answer* for a direct message,
-      // not a missing value, and coalescing it would file the notification in
-      // the sender's workspace where the other person cannot reach it.
-      workspaceId: (row.workspace_id === undefined ? opts.workspaceId : row.workspace_id) as string | null,
-      userId,
-      kind: payload.kind,
-      title: payload.title(translatorFor(userId)),
-      body: payload.body,
-      taskId: entity === 'task' ? row.id : row.task_id ?? null,
-      pageId: entity === 'page' ? row.id : row.page_id ?? null,
-      channelId: payload.channelId ?? null,
-      actorId: opts.actorId,
-    });
-  }
-}
-
-/** People who asked to hear about everything in this channel. */
-const subscribersOf = (channelId: string): string[] =>
-  all<Row>(
-    `SELECT user_id FROM channel_reads WHERE channel_id = ? AND notify = 'all' AND deleted_at IS NULL`,
-    channelId,
-  ).map((row) => String(row.user_id));
-
-/**
- * What one person wants from one conversation.
- *
- * No row means they have never opened it, which is not the same as having
- * opted out — so the answer is the default for that kind rather than silence.
- */
-function notifyLevel(channelId: string, userId: string, direct: boolean): string {
-  const row = get<Row>(
-    `SELECT notify FROM channel_reads WHERE channel_id = ? AND user_id = ? AND deleted_at IS NULL`,
-    channelId, userId,
-  );
-  return String(row?.notify ?? (direct ? 'all' : 'mentions'));
-}
-
-const displayName = (userId: string | undefined): string =>
+export const displayName = (userId: string | undefined): string =>
   String(get<Row>(`SELECT name FROM users WHERE id = ?`, userId ?? '')?.name ?? 'Somebody');
-
-/** What a comment is about — a task or a page — for a notification title. */
-function commentContext(row: Row): Row | undefined {
-  if (row.task_id) return get<Row>(`SELECT identifier, title FROM tasks WHERE id = ?`, row.task_id);
-  if (row.page_id) return get<Row>(`SELECT title FROM pages WHERE id = ?`, row.page_id);
-  return undefined;
-}
-
-/**
- * Tell anybody who asked that something happened.
- *
- * After the write, never before: a slow receiver must not slow down the person
- * who pressed the button, and a webhook that can fail a write is a webhook that
- * takes the app down when somebody else's endpoint dies.
- */
-function fireWebhooks(
-  entity: EntityName,
-  row: Row,
-  before: Row | undefined,
-  changed: Record<string, unknown>,
-  opts: WriteOpts,
-): void {
-  const workspaceId = String(row.workspace_id ?? opts.workspaceId);
-
-  // Said before the early return that keeps every other event about rows which
-  // still exist. A deletion is the one thing a receiver cannot find out later:
-  // what it would go back and read is a tombstone.
-  if (opts.op === 'delete' || row.deleted_at) {
-    if (entity === 'task' && !before?.deleted_at) {
-      dispatch(workspaceId, 'task.deleted', {
-        id: row.id,
-        identifier: row.identifier,
-        title: row.title,
-        project_id: row.project_id,
-        ...who(opts),
-      });
-    }
-    return;
-  }
-
-  if (entity === 'task') {
-    const state = row.state_id ? get<Row>(`SELECT name, group_key FROM states WHERE id = ?`, row.state_id) : undefined;
-    const wasState = before?.state_id
-      ? get<Row>(`SELECT name, group_key FROM states WHERE id = ?`, before.state_id)
-      : undefined;
-    const finished = state?.group_key === 'completed';
-    const wasFinished = wasState?.group_key === 'completed';
-    const payload = taskPayload(row, state, changed, opts);
-
-    if (!before) dispatch(workspaceId, 'task.created', payload);
-    else if (finished && !wasFinished) dispatch(workspaceId, 'task.completed', payload);
-    else dispatch(workspaceId, 'task.updated', payload);
-
-    // In *addition* to whichever of those three fired, never instead of one.
-    // "When it reaches In Review" is the archetypal workflow and cannot be
-    // written against `task.updated`, which does not say what it left — but a
-    // hook already subscribed to `task.updated` must not go quiet because this
-    // event was added underneath it.
-    if (before && before.state_id !== row.state_id) {
-      dispatch(workspaceId, 'task.moved', {
-        ...payload,
-        from: wasState ? { id: before.state_id, name: wasState.name, group: wasState.group_key } : null,
-        to: state ? { id: row.state_id, name: state.name, group: state.group_key } : null,
-      });
-    }
-    return;
-  }
-
-  if (entity === 'comment' && !before) {
-    dispatch(workspaceId, 'comment.created', {
-      id: row.id, task_id: row.task_id, page_id: row.page_id, author_id: row.author_id,
-      body: String(row.body ?? '').slice(0, 500), project_id: null,
-      // Where a person would go to read it, which is the task or the page — not
-      // the comment, which has no screen of its own.
-      url: env.publicUrl
-        ? row.task_id ? `${env.publicUrl}/t/${row.task_id}`
-          : row.page_id ? `${env.publicUrl}/pages/${row.page_id}` : null
-        : null,
-      ...who(opts),
-    });
-    return;
-  }
-
-  if (entity === 'page') {
-    // A page fires on creation, and on an edit only when the *text* changed —
-    // moving one in the tree is not news to a receiver. The body itself is not
-    // sent: it is a document, and a receiver that wants it can read it.
-    if (!before) {
-      dispatch(workspaceId, 'page.created', {
-        id: row.id, title: row.title, project_id: row.project_id, parent_id: row.parent_id ?? null,
-        url: env.publicUrl ? `${env.publicUrl}/pages/${row.id}` : null,
-        ...who(opts),
-      });
-    } else if (changed.content !== undefined) {
-      dispatch(workspaceId, 'page.updated', {
-        id: row.id, title: row.title, project_id: row.project_id,
-        url: env.publicUrl ? `${env.publicUrl}/pages/${row.id}` : null,
-        changed: Object.keys(changed),
-        ...who(opts),
-      });
-    }
-    return;
-  }
-
-  // A cycle and a module are what a report is usually *about*: the sprint that
-  // ended, the milestone whose date moved. `changed` carries which fields did,
-  // so a workflow can watch the one it cares about without a second call.
-  if (entity === 'cycle' || entity === 'module') {
-    dispatch(workspaceId, before ? `${entity}.updated` : `${entity}.created`, {
-      id: row.id,
-      name: row.name,
-      project_id: row.project_id,
-      status: row.status ?? null,
-      start_date: row.start_date ?? null,
-      end_date: row.end_date ?? row.target_date ?? null,
-      changed: Object.keys(changed),
-      ...who(opts),
-    });
-    return;
-  }
-
-  if (entity === 'budget') {
-    dispatch(workspaceId, before ? 'budget.updated' : 'budget.created', {
-      id: row.id,
-      name: row.name,
-      project_id: row.project_id,
-      currency: row.currency,
-      approved: Number(row.approved ?? 0),
-      status: row.status ?? null,
-      period_start: row.period_start ?? null,
-      period_end: row.period_end ?? null,
-      changed: Object.keys(changed),
-      ...who(opts),
-    });
-    return;
-  }
-
-  // Every write, not only the first: an invoice that moves from committed to
-  // paid is the event a ledger is waiting for, and correcting an amount is the
-  // event an approval workflow is.
-  if (entity === 'budgetActual' && !row.deleted_at) {
-    dispatch(workspaceId, 'budget.spent', {
-      id: row.id,
-      budget_id: row.budget_id,
-      line_id: row.line_id ?? null,
-      description: row.description ?? '',
-      category: row.category,
-      amount: Number(row.amount ?? 0),
-      currency: get<Row>(`SELECT currency FROM budgets WHERE id = ?`, row.budget_id)?.currency ?? null,
-      spent_on: row.spent_on,
-      stage: row.stage,
-      vendor: row.vendor ?? null,
-      reference: row.reference ?? null,
-      changed: Object.keys(changed),
-      ...who(opts),
-    });
-    return;
-  }
-
-  if (entity === 'timeEntry' && !before) {
-    dispatch(workspaceId, 'time.logged', {
-      id: row.id, task_id: row.task_id, project_id: row.project_id, user_id: row.user_id,
-      minutes: row.minutes, spent_on: row.spent_on, billable: row.billable ?? 0,
-      note: String(row.note ?? '').slice(0, 200) || null,
-      ...who(opts),
-    });
-  }
-}
-
-/** Who did it: the id for a workflow, the name for a chat window. */
-const who = (opts: WriteOpts): { actor_id: string; actor: string } =>
-  ({ actor_id: opts.actorId, actor: displayName(opts.actorId) });
-
-/**
- * A task as a receiver sees it.
- *
- * Wide enough that a workflow building a report does not have to call back for
- * the name of the state or the project, and no wider. The description is left
- * out because it is somebody's writing and can be six thousand characters; the
- * assignees are ids rather than names because a receiver that needs the names
- * reads them once from `/api/workspaces/:id/members` instead of being handed
- * everybody's, on every event, forever.
- *
- * `state` stays the *group* it has always been. The name arrived later and got
- * its own field rather than taking that one over, because a receiver reading
- * `state === 'completed'` today has to go on working.
- */
-function taskPayload(
-  row: Row,
-  state: Row | undefined,
-  changed: Record<string, unknown>,
-  opts: WriteOpts,
-): Record<string, unknown> {
-  const labels = parseIds(row.labels);
-  return {
-    id: row.id,
-    identifier: row.identifier,
-    title: row.title,
-    project_id: row.project_id,
-    project: get<Row>(`SELECT name FROM projects WHERE id = ?`, row.project_id)?.name ?? null,
-    state: state?.group_key ?? null,
-    state_id: row.state_id ?? null,
-    state_name: state?.name ?? null,
-    priority: row.priority,
-    assignee_ids: parseIds(row.assignees),
-    labels: labelNames(labels),
-    cycle_id: row.cycle_id ?? null,
-    module_id: row.module_id ?? null,
-    parent_id: row.parent_id ?? null,
-    estimate: row.estimate ?? null,
-    start_date: row.start_date ?? null,
-    due_date: row.due_date ?? null,
-    completed_at: row.completed_at ?? null,
-    changed: Object.keys(changed),
-    url: env.publicUrl ? `${env.publicUrl}/t/${row.id}` : null,
-    ...who(opts),
-  };
-}
-
-/** Labels by name, because a name is what a workflow filters on. */
-function labelNames(ids: string[]): string[] {
-  if (!ids.length) return [];
-  return all<Row>(
-    `SELECT name FROM labels WHERE id IN (${ids.map(() => '?').join(',')}) AND deleted_at IS NULL`,
-    ...ids,
-  ).map((row) => String(row.name));
-}
 
 /**
  * Resolve `@handles` in a body to workspace members. People type what they see:
