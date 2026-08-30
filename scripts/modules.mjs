@@ -152,6 +152,7 @@ const MODULES = [
       'shared/src/quickadd.ts', 'shared/src/query.ts', 'shared/src/fields.ts',
       'shared/src/duration.ts', 'shared/src/relocate.ts',
       'server/src/lib/viewquery.ts', 'server/src/lib/tasks-csv.ts',
+      'server/src/lib/rules/work.ts',
       'web/src/components/views.tsx', 'web/src/components/task-parts.tsx',
       'web/src/components/TaskDetail.tsx', 'web/src/components/QuickAdd.tsx',
       'web/src/components/query-box.tsx', 'web/src/components/fields.tsx',
@@ -169,6 +170,7 @@ const MODULES = [
     files: [
       'shared/src/schedule.ts',
       'server/src/lib/copy.ts', 'server/src/lib/archive.ts',
+      'server/src/lib/rules/planning.ts',
       'web/src/routes/projects.tsx',
       'web/src/components/gantt.tsx', 'web/src/components/planner.tsx',
       'web/src/components/portfolio.tsx', 'web/src/components/insights.tsx',
@@ -180,6 +182,7 @@ const MODULES = [
     ring: 'capability',
     what: 'The nested wiki: markdown, the text CRDT, revisions, anchored comments.',
     files: [
+      'server/src/lib/rules/pages.ts',
       'shared/src/markdown.ts', 'shared/src/editor.ts', 'shared/src/anchor.ts',
       'shared/src/text-crdt.ts', 'shared/src/diff.ts',
       'web/src/routes/pages.tsx', 'web/src/components/page-parts.tsx',
@@ -193,7 +196,7 @@ const MODULES = [
     what: 'Channels and direct messages made of the same synced rows as everything else.',
     files: [
       'shared/src/chat.ts',
-      'server/src/lib/presence.ts',
+      'server/src/lib/presence.ts', 'server/src/lib/rules/chat.ts',
       'web/src/routes/chat.tsx', 'web/src/lib/presence.ts',
     ],
   },

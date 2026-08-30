@@ -20,6 +20,10 @@ import { budgetRules } from './rules/budgets.ts';
 import { kpiRules } from './rules/kpis.ts';
 import { landscapeRules } from './rules/infrastructure.ts';
 import { rateRules } from './rules/rates.ts';
+import { workRules } from './rules/work.ts';
+import { pageRules } from './rules/pages.ts';
+import { chatRules } from './rules/chat.ts';
+import { planningRules } from './rules/planning.ts';
 
 let installed = false;
 
@@ -36,5 +40,8 @@ export function installEffects(): void {
   installAutomations();
   // The order within an entity is the order they were branches in. Across
   // entities it cannot matter — one write is one entity. See `repo.onEntity`.
-  for (const rule of [budgetRules, rateRules, kpiRules, landscapeRules]) onEntity(rule);
+  for (const rule of [
+    workRules, pageRules, chatRules, planningRules,
+    budgetRules, rateRules, kpiRules, landscapeRules,
+  ]) onEntity(rule);
 }
