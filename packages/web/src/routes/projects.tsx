@@ -1,6 +1,9 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { DEFAULT_WORKING_DAYS, coversProject, excerpt, projectScope, orderKey, type Task } from '@kolibri/shared';
+import {
+  DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, projectScope, orderKey,
+  STATE_GROUPS, type Task,
+} from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
 import { CycleProgress, TaskViews, useVisibleTasks, ViewControls } from '../components/views';
@@ -60,8 +63,6 @@ const TAB_KEY: Record<string, TranslationKey> = {
   pages: 'project.tabPages', intake: 'intake.tab', insights: 'insights.tab', budget: 'budget.tab',
   kpis: 'kpi.title', settings: 'project.tabSettings',
 };
-
-const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
 
 /** Monday first, because a working week starts on one. `day` is getUTCDay. */
 const WEEKDAYS: { day: number; key: TranslationKey }[] = [
@@ -156,7 +157,7 @@ function ProjectCard({ projectId }: { projectId: string }) {
   const navigate = useNavigate();
   const project = useRow('project', projectId);
   const tasks = useQuery(() => list('task', (t) => t.project_id === projectId && !t.archived), [projectId]);
-  const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
+  const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
   if (!project) return null;
 
   return (
@@ -328,8 +329,8 @@ function ContainerChildren({ projectId }: { projectId: string }) {
         {children.map((child) => {
           const mine = tasks.filter((task) => task.project_id === child.id);
           const done = mine.filter((task) => byId('state', task.state_id)?.group_key === 'completed').length;
-          const late = mine.filter((task) => task.due_date && task.due_date < today
-            && !['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
+          const late = mine.filter((task) =>
+            dueTone(task.due_date, byId('state', task.state_id)?.group_key, today) === 'overdue').length;
           return (
             <button
               key={child.id}
@@ -713,10 +714,10 @@ export function CyclePage() {
   const visible = useVisibleTasks(tasks, view);
 
   const burndown = useMemo(() => {
-    const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
+    const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
     const points = tasks.reduce((sum, task) => sum + (task.estimate ?? 0), 0);
     const donePoints = tasks
-      .filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? ''))
+      .filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key))
       .reduce((sum, task) => sum + (task.estimate ?? 0), 0);
     return { done, total: tasks.length, points, donePoints };
   }, [tasks]);
@@ -846,7 +847,7 @@ function Modules({ projectId }: { projectId: string }) {
       <div className="grid gap-3 sm:grid-cols-2">
         {modules.map((module) => {
           const tasks = list('task', (task) => task.module_id === module.id);
-          const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
+          const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
           const lead = members.find((member) => member.id === module.lead_id);
           return (
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={module.id}>

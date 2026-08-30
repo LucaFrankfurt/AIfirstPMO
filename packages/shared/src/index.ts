@@ -11,6 +11,7 @@ export * from './rates.ts';
 export * from './landscape.ts';
 export * from './kpi.ts';
 export * from './schedule.ts';
+export * from './risk.ts';
 export * from './markdown.ts';
 export * from './editor.ts';
 export * from './anchor.ts';

@@ -150,7 +150,7 @@ const MODULES = [
     what: 'Projects, tasks, states, labels, relations, custom fields, saved views.',
     files: [
       'shared/src/quickadd.ts', 'shared/src/query.ts', 'shared/src/fields.ts',
-      'shared/src/duration.ts', 'shared/src/relocate.ts',
+      'shared/src/duration.ts', 'shared/src/relocate.ts', 'shared/src/risk.ts',
       'server/src/lib/viewquery.ts', 'server/src/lib/tasks-csv.ts',
       'server/src/lib/rules/work.ts',
       'web/src/components/views.tsx', 'web/src/components/task-parts.tsx',

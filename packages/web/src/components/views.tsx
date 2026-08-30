@@ -2,7 +2,7 @@ import { Fragment, useMemo, useState } from 'react';
 import type { Field, Filters, Layout, Task } from '@kolibri/shared';
 import {
   FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId,
-  formatFieldValue, isGroupable, orderKey, PRIORITIES, readFieldValue,
+  formatFieldValue, isDoneGroup, isGroupable, orderKey, PRIORITIES, readFieldValue,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { byOrder, create, update } from '../lib/mutations';
@@ -71,7 +71,7 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
     const filtered = tasks.filter((task) => {
       if (task.archived) return false;
       const state = byId('state', task.state_id);
-      if (!view.showDone && (state?.group_key === 'completed' || state?.group_key === 'cancelled')) return false;
+      if (!view.showDone && isDoneGroup(state?.group_key)) return false;
       if (filters.state?.length && !filters.state.includes(task.state_id)) return false;
       if (filters.group?.length && !filters.group.includes(state?.group_key as any)) return false;
       if (filters.priority?.length && !filters.priority.includes(task.priority)) return false;
@@ -908,7 +908,7 @@ export function TableView({
             )}
             {group.tasks.map((task) => {
               const state = byId('state', task.state_id);
-              const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
+              const done = isDoneGroup(state?.group_key);
               const people = (task.assignees ?? []).map((id) => memberMap.get(id)).filter(Boolean) as any[];
               return (
                 <tr
@@ -978,10 +978,7 @@ export function TaskViews(props: {
 export function CycleProgress({ cycleId }: { cycleId: string }) {
   const t = useT();
   const tasks = useQuery(() => list('task', (t) => t.cycle_id === cycleId), [cycleId]);
-  const done = tasks.filter((task) => {
-    const group = byId('state', task.state_id)?.group_key;
-    return group === 'completed' || group === 'cancelled';
-  }).length;
+  const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
   const cycle = byId('cycle', cycleId);
   return (
     <div className="flex flex-col gap-1.5">

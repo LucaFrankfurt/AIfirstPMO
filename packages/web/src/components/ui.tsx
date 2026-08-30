@@ -15,6 +15,7 @@ import { createPortal } from 'react-dom';
 import type { VariantProps } from 'class-variance-authority';
 import { Link } from 'react-router-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
+import { isDoneGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from '../lib/format';
 import { priorityKey, useT } from '../lib/i18n';
 import { guideHref, type GuideTarget } from '../lib/guide';
@@ -170,7 +171,7 @@ export function AvatarStack({ users, size = 22, max = 3 }: { users: any[]; size?
 /* -------------------------------------------------------- state & priority */
 
 export function StateDot({ group, color, size = 12 }: { group?: StateGroup | string; color?: string; size?: number }) {
-  const cls = group === 'completed' || group === 'cancelled' ? 'filled' : group === 'started' ? 'half' : '';
+  const cls = isDoneGroup(group) ? 'filled' : group === 'started' ? 'half' : '';
   return <span className={`state-dot ${cls}`} style={{ color: color ?? 'var(--fg-muted)', width: size, height: size }} />;
 }
 

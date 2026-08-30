@@ -23,7 +23,7 @@
  * against a real export from a real instance. The recognisers are deliberately
  * narrow and the failure is a refusal rather than a half-read project.
  */
-import type { Priority, StateGroup } from './types.ts';
+import { STATE_GROUPS, type Priority, type StateGroup } from './types.ts';
 
 export type ForeignFormat = 'jira' | 'linear' | 'plane' | 'openproject' | 'trello' | 'todoist';
 
@@ -469,8 +469,8 @@ function fromPlane(doc: Record<string, unknown>): Converted {
   for (const state of asArray(doc.states)) {
     stateNames.set(String(state.id ?? ''), {
       name: String(state.name ?? ''),
-      group: (['backlog', 'unstarted', 'started', 'completed', 'cancelled'].includes(String(state.group))
-        ? String(state.group) : 'unstarted') as StateGroup,
+      group: (STATE_GROUPS as readonly string[]).includes(String(state.group))
+        ? (String(state.group) as StateGroup) : 'unstarted',
     });
   }
   const labelNames = new Map(asArray(doc.labels).map((label) => [String(label.id ?? ''), String(label.name ?? '')]));

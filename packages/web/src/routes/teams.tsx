@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { isDoneGroup } from '@kolibri/shared';
 import { keyFromName } from '../lib/text';
 import { Header } from '../components/AppShell';
 import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../components/ui';
@@ -60,7 +61,7 @@ export function Teams() {
               .filter(Boolean) as any[];
             const teamProjects = projects.filter((project) => project.team_id === team.id);
             const tasks = list('task', (task) => teamProjects.some((project) => project.id === task.project_id) && !task.archived);
-            const done = tasks.filter((task) => ['completed', 'cancelled'].includes(byId('state', task.state_id)?.group_key ?? '')).length;
+            const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
 
             return (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5" key={team.id}>

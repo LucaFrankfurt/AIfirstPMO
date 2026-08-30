@@ -1,4 +1,4 @@
-import type { Priority } from '@kolibri/shared';
+import { dueTone, type Priority } from '@kolibri/shared';
 import { currentLocale } from './i18n';
 
 export const PRIORITY_COLOR: Record<Priority, string> = {
@@ -8,8 +8,6 @@ export const PRIORITY_COLOR: Record<Priority, string> = {
   low: '#3b82f6',
   none: 'var(--fg-muted)',
 };
-
-export const isDone = (group?: string): boolean => group === 'completed' || group === 'cancelled';
 
 /* -------------------------------------------------------------------- dates */
 
@@ -100,12 +98,24 @@ export function relativeTime(timestamp?: number | null): string {
   return formatter.format(0, 'second');
 }
 
-export function dueClass(due?: string | null): string {
-  if (!due) return '';
-  const day = today();
-  if (due < day) return 'due-overdue';
-  if (due === day) return 'due-today';
-  return '';
+/**
+ * What to colour a due date, or nothing.
+ *
+ * The rule is `dueTone` in `@kolibri/shared`, so this and the assistant's
+ * at-risk report agree about what late means — including that finished work is
+ * not late, which is the disagreement they used to have: a task shipped in
+ * January was painted red for ever, because a bare date was all this looked at.
+ * The state group is therefore no longer optional.
+ *
+ * The classes are Tailwind utilities rather than hand-written rules on purpose.
+ * They were `.due-overdue` and `.due-today`, and they had no effect at all: the
+ * chip these land on already carries `text-soft` from `chipVariants`, and a
+ * utility beats a plain rule. `cn` merges through `twMerge`, which drops the
+ * loser — which is the whole reason `cn` exists.
+ */
+export function dueClass(due: string | null | undefined, group: string | null | undefined): string {
+  const tone = dueTone(due, group, today());
+  return tone === 'overdue' ? 'text-danger' : tone === 'today' ? 'text-warn' : '';
 }
 
 /* ------------------------------------------------------------------ people */

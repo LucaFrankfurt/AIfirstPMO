@@ -10,7 +10,7 @@
  * The token in the URL is the whole of the authorisation, so this file is
  * deliberately narrow: it reads one row, renders it, and offers nothing else.
  */
-import { renderMarkdown } from '@kolibri/shared';
+import { isDoneGroup, renderMarkdown } from '@kolibri/shared';
 import { all, get, nextSeq, run, type Row } from '../db/index.ts';
 import { translatorFor } from '../lib/i18n.ts';
 import { createNotification } from '../lib/notify.ts';
@@ -204,7 +204,7 @@ function tasksBody(share: Row): string {
   );
 
   const rows = tasks.map((task) => {
-    const done = task.group_key === 'completed' || task.group_key === 'cancelled';
+    const done = isDoneGroup(String(task.group_key ?? ''));
     const assignees = safeList(task.assignees).map((id) => people.get(id) ?? '').filter(Boolean).join(', ');
     return `<tr${done ? ' class="done"' : ''}>
       <td>${escape(task.title)}</td>

@@ -1,7 +1,7 @@
 /**
  * The six questions a lead asks on a Monday, each answered with a reason rather than a list.
  */
-import { coversProject } from '@kolibri/shared';
+import { coversProject, isDoneGroup, riskOf } from '@kolibri/shared';
 import { all, get, type Row } from '../../../db/index.ts';
 import { read, visibleProjectIds } from '../../repo.ts';
 import { assigneeNames, brief, findProject, holes, McpError, namesOf, perProject, reportScope, safeList, str, taskView, type ToolDef, windowDays, workspaceOf } from '../kit.ts';
@@ -221,36 +221,29 @@ export const reportTools: ToolDef[] = [
       }
 
       const today = new Date().toISOString().slice(0, 10);
-      const dayMs = 86_400_000;
       const names = assigneeNames(rows);
+      /* The reasons and the weighting are `riskOf` in `@kolibri/shared`, so the
+         answer here and the one the interface paints on a due date come from
+         one rule. The query above has already excluded finished and archived
+         work; `riskOf` excludes it again, because a predicate that trusts its
+         caller to have filtered is a predicate with two definitions. */
       const at_risk = rows.map((row) => {
-        const due = String(row.due_date);
-        const until = Math.round((Date.parse(`${due}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / dayMs);
-        const assignees = safeList(row.assignees);
         const blocked = blocking.get(String(row.id)) ?? [];
-
-        /* Reasons, most severe first. A task can carry several — "overdue and
-           blocked" is a different conversation from either alone, so both are
-           reported rather than the first one found. */
-        const reasons: string[] = [];
-        if (until < 0) reasons.push('overdue');
-        if (blocked.length) reasons.push('blocked');
-        if (until >= 0 && (row.group_key === 'backlog' || row.group_key === 'unstarted')) reasons.push('not_started');
-        if (!assignees.length) reasons.push('unassigned');
+        const risk = riskOf({
+          due_date: String(row.due_date),
+          group_key: String(row.group_key),
+          assignees: safeList(row.assignees),
+          blockedBy: blocked.length,
+          archived: !!Number(row.archived ?? 0),
+        }, today);
 
         return {
           ...brief(row, names, keyOf),
           project_id: String(row.project_id),
-          days_until_due: until,
-          reasons,
+          days_until_due: risk.daysUntilDue,
+          reasons: risk.reasons,
           blocked_by: blocked,
-          // A number to sort and threshold on, since "worst" is otherwise a
-          // judgement the caller has to re-derive from the reasons.
-          severity:
-            (until < 0 ? 100 + Math.min(60, -until) : Math.max(0, 40 - until * 2)) +
-            (blocked.length ? 25 : 0) +
-            (reasons.includes('not_started') ? 15 : 0) +
-            (assignees.length ? 0 : 10),
+          severity: risk.severity,
         };
       })
         .filter((t) => t.reasons.length)
@@ -422,7 +415,7 @@ export const reportTools: ToolDef[] = [
           project: keyOf[String(row.blocker_project ?? '')] ?? null,
           in_another_project: String(row.blocker_project) !== String(row.project_id),
         };
-        const done = row.blocker_group === 'completed' || row.blocker_group === 'cancelled';
+        const done = isDoneGroup(String(row.blocker_group ?? ''));
         if (done) {
           stale.push({ waiting: String(row.waiting), blocker: link });
           continue;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { excerpt, type Task } from '@kolibri/shared';
+import { excerpt, isDoneGroup, type Task } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { TaskRow } from '../components/task-parts';
 import { TaskViews, useVisibleTasks, ViewControls } from '../components/views';
@@ -9,7 +9,7 @@ import { useSelection } from '../components/selection';
 import { SelectionBar } from '../components/selection-bar';
 import { Avatar, Empty, Icon } from '../components/ui';
 import { Stat } from '../components/insights';
-import { isDone, relativeTime, today } from '../lib/format';
+import { relativeTime, today } from '../lib/format';
 import { firstName, greetingKey, summarise } from '../lib/overview';
 import { useRecentProjects } from '../lib/recents';
 
@@ -66,7 +66,7 @@ export function MyWork() {
       mine.map((task) => ({
         due_date: task.due_date,
         completed_at: task.completed_at,
-        done: isDone(byId('state', task.state_id)?.group_key),
+        done: isDoneGroup(byId('state', task.state_id)?.group_key),
       })),
       day,
       Date.now(),
@@ -158,7 +158,7 @@ export function MyWork() {
             {buckets.overdue.length > 0 && (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
                 <div className="flex items-center gap-2 mb-2">
-                  <strong className="due-overdue">{t('myWork.overdue')}</strong>
+                  <strong className="text-danger">{t('myWork.overdue')}</strong>
                   <span className="text-muted">{buckets.overdue.length}</span>
                 </div>
                 {buckets.overdue.slice(0, 5).map((task) => (
@@ -169,7 +169,7 @@ export function MyWork() {
             {buckets.today.length > 0 && (
               <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
                 <div className="flex items-center gap-2 mb-2">
-                  <strong className="due-today">{t('myWork.dueToday')}</strong>
+                  <strong className="text-warn">{t('myWork.dueToday')}</strong>
                   <span className="text-muted">{buckets.today.length}</span>
                 </div>
                 {buckets.today.map((task) => (

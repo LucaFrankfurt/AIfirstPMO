@@ -1,5 +1,8 @@
 import { Fragment } from 'react';
-import { PRIORITIES, coversProject, fieldKeys, mayEnter, type Cycle, type Filters, type Label, type Layout, type Module, type Priority, type State, type Task } from '@kolibri/shared';
+import {
+  PRIORITIES, coversProject, fieldKeys, isDoneGroup, mayEnter,
+  type Cycle, type Filters, type Label, type Layout, type Module, type Priority, type State, type Task,
+} from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { ancestry, descendants } from '../lib/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../lib/mutations';
@@ -354,7 +357,7 @@ export function TaskRow({
   const state = stateOf(task);
   const members = useMemberMap();
   const project = byId('project', task.project_id);
-  const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
+  const done = isDoneGroup(state?.group_key);
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
   const subtasks = useQuery(() => list('task', (t) => t.parent_id === task.id), [task.id]);
   const picked = !!selection?.has(task.id);
@@ -379,7 +382,7 @@ export function TaskRow({
       <span className="meta">
         <LabelChips ids={task.labels ?? []} projectId={task.project_id} />
         {!!subtasks.length && <span className={chipVariants()} title={t('task.subtasks')}>⑂ {subtasks.length}</span>}
-        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date))}>{shortDate(task.due_date)}</span>}
+        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date, state?.group_key))}>{shortDate(task.due_date)}</span>}
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
         <AvatarStack users={people} size={20} />
       </span>
@@ -417,6 +420,8 @@ export function TaskCard({
   // the board that says these names, so a rename has to reach it.
   const module = useQuery(() => byId('module', task.module_id), [task.module_id]);
   const cycle = useQuery(() => byId('cycle', task.cycle_id), [task.cycle_id]);
+  // And the state, because a due date is only late while the work is still open.
+  const state = useQuery(() => byId('state', task.state_id), [task.state_id]);
   // A cycle's own board is every task in that cycle, and a module's is every
   // task in that module. Repeating it on all forty cards is a column of the
   // same word, so the chip stands down when the header has already said it.
@@ -479,7 +484,7 @@ export function TaskCard({
             <span className="truncate">{module.name}</span>
           </span>
         )}
-        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date))}>{shortDate(task.due_date)}</span>}
+        {task.due_date && <span className={cn(chipVariants(), dueClass(task.due_date, state?.group_key))}>{shortDate(task.due_date)}</span>}
         {task.estimate != null && <Chip>{task.estimate}p</Chip>}
         <span className="flex-1 min-w-0" />
         <AvatarStack users={people} size={20} />

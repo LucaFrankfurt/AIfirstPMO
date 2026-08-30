@@ -12,7 +12,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  DAY, addDays, dayOf, daysBetween, isWorkingDay, isoDay, moveTask as planMove, span,
+  DAY, addDays, dayOf, daysBetween, isDoneGroup, isWorkingDay, isoDay, moveTask as planMove, span,
   type Dependency, type Task,
 } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
@@ -367,7 +367,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
               const left = x(bounds.start);
               const barWidth = Math.max(dayWidth, (daysBetween(bounds.start, bounds.end) + 1) * dayWidth);
               const state = byId('state', task.state_id);
-              const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
+              const done = isDoneGroup(state?.group_key);
               const late = !done && bounds.end < today();
               return (
                 <div

@@ -11,6 +11,7 @@
  */
 import { useMemo, useState } from 'react';
 import type { Project, Task } from '@kolibri/shared';
+import { isDoneGroup } from '@kolibri/shared';
 import { shortDate, today } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { byId, list, useQuery } from '../lib/store';
@@ -24,10 +25,7 @@ const DAY = 86_400_000;
 export const projectStatusKey = (status: string): TranslationKey => `projectStatus.${status}` as TranslationKey;
 const at = (date: string): number => new Date(`${date}T00:00:00Z`).getTime();
 
-const isDone = (task: Task): boolean => {
-  const group = byId('state', task.state_id)?.group_key;
-  return group === 'completed' || group === 'cancelled';
-};
+const isDone = (task: Task): boolean => isDoneGroup(byId('state', task.state_id)?.group_key);
 
 interface Bar {
   project: Project;

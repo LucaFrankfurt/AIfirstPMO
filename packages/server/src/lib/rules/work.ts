@@ -6,7 +6,7 @@
  * permission check and is skipped for the server's own writes.
  */
 
-import { type ProjectVocabulary, relocate } from '@kolibri/shared';
+import { isDoneGroup, type ProjectVocabulary, relocate } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../db/index.ts';
 import { badRequest, forbidden } from '../http.ts';
 import { type EntityRule, parseIds, wouldLoop, writeEntity, type WriteOpts } from '../repo.ts';
@@ -52,7 +52,7 @@ function applyTaskInvariants(values: Record<string, unknown>, existing: Row | un
   const stateId = (values.state_id ?? existing?.state_id) as string | undefined;
   if (values.state_id !== undefined && stateId) {
     const state = get<{ group_key: string }>(`SELECT group_key FROM states WHERE id = ?`, stateId);
-    const done = state?.group_key === 'completed' || state?.group_key === 'cancelled';
+    const done = isDoneGroup(state?.group_key);
     const wasDone = existing?.completed_at != null;
     if (done && !wasDone) {
       values.completed_at = Date.now();
