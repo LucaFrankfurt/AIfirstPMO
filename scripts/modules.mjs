@@ -51,8 +51,10 @@ const PACKAGES = join(ROOT, 'packages');
  *
  * - `kernel`     — always present. Nothing works without it, nothing switches
  *                  it off, and every capability is allowed to depend on it.
- * - `capability` — a thing the product does. Some carry a workspace switch
- *                  already (`flag`); the rest could.
+ * - `capability` — a thing the product does, and whatever leans on it. Some
+ *                  carry a workspace switch already (`flag`); the rest could.
+ *                  They are a sparse partial order rather than a set of peers —
+ *                  the generated table in the document says which way round.
  * - `adapter`    — an edge facing something outside the process: a protocol, a
  *                  provider, a file format. Replaceable by definition.
  * - `shell`      — composition: the entry points that wire the other three
@@ -410,6 +412,36 @@ function tarjan(nodes, edgesOf) {
   return found.sort((a, b) => (a[0] < b[0] ? -1 : 1));
 }
 
+/**
+ * Which capability leans on which — the one walk three things below share.
+ *
+ * A capability leans on another when one of its files imports one of theirs for
+ * a *value*. The two exclusions are the ring rules' own: a `routes/` file
+ * composes rather than depends, and an `import type` is gone by the time
+ * anything runs. Rule 6 checks this graph for cycles, the report prints it as a
+ * table, and `--capabilities` hands its shape to `figures.mjs` — from here, so
+ * that the three cannot come to disagree.
+ */
+function capabilityUses() {
+  const names = [...new Set(MODULES.filter((m) => m.ring === 'capability').map((m) => m.name))].sort();
+  const uses = new Map(names.map((n) => [n, new Map()]));
+  for (const [file, deps] of graph) {
+    const from = placeOf(file);
+    if (from.ring !== 'capability' || inRoutes(file)) continue;
+    for (const dep of deps) {
+      if (!dep.file || dep.typeOnly) continue;
+      const to = placeOf(dep.file);
+      if (to.ring !== 'capability' || to.name === from.name) continue;
+      const seen = uses.get(from.name);
+      seen?.set(to.name, (seen.get(to.name) ?? 0) + 1);   // the pair is the edge; the count is how many files draw it
+    }
+  }
+  return uses;
+}
+
+/** How many capabilities lean on `name`, given the map `capabilityUses` returns. */
+const dependentsOf = (uses, name) => [...uses.values()].filter((on) => on.has(name)).length;
+
 /*
  * 6. Capability dependencies are acyclic.
  *
@@ -425,18 +457,8 @@ function tarjan(nodes, edgesOf) {
  * file-level check walks straight past. Tarjan again, and reported as the whole
  * set for the same reason.
  */
-const moduleEdges = new Map();
-for (const [file, deps] of graph) {
-  const from = placeOf(file);
-  if (from.ring !== 'capability' || inRoutes(file)) continue;
-  for (const dep of deps) {
-    if (!dep.file || dep.typeOnly) continue;
-    const to = placeOf(dep.file);
-    if (to.ring !== 'capability' || to.name === from.name) continue;
-    moduleEdges.set(from.name, [...(moduleEdges.get(from.name) ?? []), to.name]);
-  }
-}
-const moduleKnots = tarjan([...moduleEdges.keys()], (name) => moduleEdges.get(name) ?? []);
+const moduleEdges = capabilityUses();
+const moduleKnots = tarjan([...moduleEdges.keys()], (name) => [...(moduleEdges.get(name)?.keys() ?? [])]);
 for (const knot of moduleKnots) {
   problems.push(`capability cycle: ${knot.join(' <-> ')} — one of them has to come first.`);
 }
@@ -484,6 +506,73 @@ const short = (file) => file?.replace(/^(server|web|shared|mcp)\/src\//, '') ?? 
  * One number, one source: a diagram that embeds its own copy of this table goes
  * stale the first time a file moves, and nothing says so.
  */
+/**
+ * The strongest fifth ring this graph could offer, found by looking at all of them.
+ *
+ * A ring is a set that depends on nothing outside itself — downward closed —
+ * and it earns its keep from how much of the rest leans on it. So every way of
+ * splitting the capabilities into a lower part and an upper one is enumerated
+ * and scored by how many capabilities above it lean in, smallest winning a tie.
+ * The winner is the best case that could be made for a fifth ring, which is why
+ * the document quotes it: the best case is weak.
+ *
+ * Exhaustively, because an exact answer is the whole point — a heuristic that
+ * settled for a poor cut would read as evidence for the conclusion it is used
+ * to support. The price is `2 ** capabilities`, so it refuses rather than
+ * grinds if the ring ever outgrows a size where that is free.
+ */
+const bestFifthRing = (uses) => {
+  const names = [...uses.keys()];
+  if (names.length > 20) {
+    throw new Error(`modules.mjs: ${names.length} capabilities is too many to try every split — `
+      + 'find a method that scales, or drop the figure.');
+  }
+  const bit = new Map(names.map((n, i) => [n, 1 << i]));
+  const needs = names.map((n) => [...uses.get(n).keys()].reduce((m, d) => m | bit.get(d), 0));
+  const whole = (1 << names.length) - 1;
+  let splits = 0;
+  let best = { leaners: -1, size: Infinity, mask: 0 };
+  // Neither end is a split: a ring with nothing in it is not a ring, and one
+  // holding every capability has nothing above it to be a ring *of*.
+  for (let mask = 1; mask < whole; mask++) {
+    let closed = true;
+    for (let i = 0; i < names.length && closed; i++) if (mask & (1 << i)) closed = (needs[i] & ~mask) === 0;
+    if (!closed) continue;
+    splits += 1;
+    let leaners = 0;
+    let size = 0;
+    for (let i = 0; i < names.length; i++) {
+      if (mask & (1 << i)) size += 1;
+      else if (needs[i] & mask) leaners += 1;
+    }
+    if (leaners > best.leaners || (leaners === best.leaners && size < best.size)) best = { leaners, size, mask };
+  }
+  return { splits, leaners: best.leaners, size: best.size, members: names.filter((n) => best.mask & bit.get(n)) };
+};
+
+/*
+ * The capability graph as numbers, for `figures.mjs` to check the document's
+ * prose against. `members` is printed for the person reading the failure: the
+ * prose names the winning set, and no figure can check a name.
+ */
+if (process.argv.includes('--capabilities')) {
+  const uses = capabilityUses();
+  const names = [...uses.keys()];
+  const fifth = bestFifthRing(uses);
+  console.log(JSON.stringify({
+    count: names.length,
+    edges: [...uses.values()].reduce((n, on) => n + on.size, 0),
+    imports: [...uses.values()].reduce((n, on) => n + [...on.values()].reduce((a, b) => a + b, 0), 0),
+    mostDependents: Math.max(...names.map((n) => dependentsOf(uses, n))),
+    independent: names.filter((n) => dependentsOf(uses, n) === 0).length,
+    isolated: names.filter((n) => dependentsOf(uses, n) === 0 && uses.get(n).size === 0).length,
+    splits: fifth.splits,
+    bestRingSize: fifth.size,
+    bestRingLeaners: fifth.leaners,
+    bestRingMembers: fifth.members,
+  }));
+}
+
 if (process.argv.includes('--json')) {
   const rowsOut = rows.map((row) => ({
     ring: row.ring, name: row.name, flag: row.flag, files: row.files, lines: row.lines,
@@ -530,9 +619,36 @@ const CLOSE = '<!-- end generated -->';
 
 const RING_WHAT = {
   kernel: 'Always present. Nothing works without it and nothing switches it off.',
-  capability: 'The things the product does. Five carry a workspace switch; ten could.',
+  capability: 'The things the product does. Ordered rather than independent — see the table below.',
   adapter: 'Edges facing something outside the process: a protocol, a provider, a file format.',
   shell: 'Composition only — what starts, in what order, wired to what.',
+};
+
+/**
+ * Which capabilities lean on which, as a table.
+ *
+ * Generated rather than written down because it is the answer to a question
+ * somebody asked once and would otherwise be re-answered from memory: are
+ * capabilities peers? They are not, and they are not stratified either. That
+ * second half is what the document leans on to say there is no fifth ring, and
+ * it is a claim about *this* table — so the table has to be counted, not
+ * remembered, and it moves the moment an import does.
+ */
+const capabilityOrder = () => {
+  const uses = capabilityUses();
+  const names = [...uses.keys()];
+  const usedBy = new Map(names.map((n) => [n, [...uses].filter(([, on]) => on.has(n)).map(([m]) => m).sort()]));
+  return [
+    '| Capability | Leans on | Leaned on by |',
+    '|---|---|---:|',
+    ...names
+      .sort((a, b) => usedBy.get(b).length - usedBy.get(a).length || a.localeCompare(b))
+      .map((n) => {
+        const on = [...uses.get(n).keys()].sort().map((x) => `\`${x}\``).join(', ') || '—';
+        const by = usedBy.get(n);
+        return `| \`${n}\` | ${on} | ${by.length ? `${by.length} (${by.map((x) => `\`${x}\``).join(', ')})` : '—'} |`;
+      }),
+  ].join('\n');
 };
 
 const table = (kind, withFlag) => [
@@ -569,6 +685,10 @@ const generated = [
   '### Adapters',
   '',
   table('adapter', false),
+  '',
+  '### How the capabilities lean on each other',
+  '',
+  capabilityOrder(),
   '',
   CLOSE,
 ].join('\n');

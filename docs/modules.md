@@ -35,7 +35,7 @@ npm run modules -- --fix   # rewrite the tables below
 | Ring | Lines | Share | What it is |
 |---|---:|---:|---|
 | **kernel** | 20 716 | 29% | Always present. Nothing works without it and nothing switches it off. |
-| **capability** | 32 436 | 46% | The things the product does. Five carry a workspace switch; ten could. |
+| **capability** | 32 436 | 46% | The things the product does. Ordered rather than independent — see the table below. |
 | **adapter** | 15 782 | 22% | Edges facing something outside the process: a protocol, a provider, a file format. |
 | **shell** | 1 775 | 3% | Composition only — what starts, in what order, wired to what. |
 
@@ -88,6 +88,26 @@ npm run modules -- --fix   # rewrite the tables below
 | `ai` | 5 | 344 | `adapters/ai/ai-gemini.ts` (127) |
 | `calendar` | 2 | 340 | `adapters/calendar/routes/calendar.ts` (195) |
 | `s3` | 2 | 269 | `adapters/s3/s3.ts` (227) |
+
+### How the capabilities lean on each other
+
+| Capability | Leans on | Leaned on by |
+|---|---|---:|
+| `pages` | — | 3 (`ai-review`, `automation`, `work`) |
+| `work` | `ai-review`, `pages`, `planning`, `time` | 2 (`intake`, `kpis`) |
+| `ai-review` | `pages` | 1 (`work`) |
+| `budgets` | — | 1 (`kpis`) |
+| `guide` | — | 1 (`automation`) |
+| `notifications` | — | 1 (`automation`) |
+| `operations` | — | 1 (`automation`) |
+| `planning` | — | 1 (`work`) |
+| `time` | — | 1 (`work`) |
+| `trash` | — | 1 (`automation`) |
+| `automation` | `guide`, `notifications`, `operations`, `pages`, `trash` | — |
+| `chat` | — | — |
+| `infrastructure` | — | — |
+| `intake` | `work` | — |
+| `kpis` | `budgets`, `work` | — |
 
 <!-- end generated -->
 
@@ -520,12 +540,17 @@ the fifteen.
 The test is a question about failure, not about size. **If this were deleted, what breaks?**
 
 - Everything, immediately, including an empty workspace → **kernel**.
-- One area of the product; the rest keeps working → **capability**.
+- One area of the product, and whatever leans on it → **capability**.
 - One way of reaching the product; the product itself is unchanged → **adapter**.
 
 `search` is kernel because the index is written in the same transaction as the row, so removing it
 would change the write path. `trash` is a capability because tombstones would still exist, they would
 just have no screen. `mcp` is an adapter because everything it does, a person can already do.
+
+The second answer used to read "the rest keeps working", which was the flat reading and is not what
+the graph says: delete `pages` and three capabilities stop compiling. Capabilities are a sparse
+partial order, not a set of peers — see [the table](#how-the-capabilities-lean-on-each-other) and the
+argument against making a ring of it.
 
 ## The module contract
 
@@ -786,24 +811,51 @@ The two left are the share dialog, embedded by intake and by saved views, and th
 `KNOWN_OUTWARD` with the reason: `share` is an adapter on the server, where it renders a document
 for somebody with a link, and a small piece of product UI on the client, where it makes the link.
 
-*Depending on each other* is a different question and the answer is not zero. `planning` imports
-`work` because a cycle contains tasks; no inversion changes that, and a registry invented for each
-one-off relationship would be the counted budget this document argues against, in a costume. What
-they can be is **ordered**, and they already are:
+*Depending on each other* is a different question and the answer is not zero. `work` imports
+`planning` because the timeline view of a task list is a Gantt chart; no inversion changes that, and
+a registry invented for each one-off relationship would be the counted budget this document argues
+against, in a costume. Fifteen imports across thirteen module pairs, and **no cycles** — so any
+capability can be read knowing only what it leans on, and one that nothing leans on can be deleted
+without touching the rest. Rule 6 keeps it that way, and it is not implied by rule 4: two modules can
+each import the other without any single *file* doing so, which is a knot the file-level check walks
+straight past.
 
-| | capabilities |
-|---|---|
-| 3 | `intake`, `kpis` |
-| 2 | `work` |
-| 1 | `ai-review`, `automation` |
-| 0 | `budgets`, `guide`, `notifications`, `operations`, `pages`, `planning`, `time`, `trash` |
+### Is there a fifth ring? No.
 
-Fifteen imports across thirteen module pairs, and **no cycles** — so any capability can be read
-knowing only what is below it, and one at the top can be deleted without touching anything under it.
-Rule 6 keeps it that way, and it is not implied by rule 4: two modules can each import the other
-without any single *file* doing so, which is a knot the file-level check walks straight past.
+The table above raises it: capabilities are plainly not peers, so perhaps the ones others lean on are
+a ring of their own, between the kernel and the rest. Three things say no, and the last one is
+decisive.
 
-> **Remaining.** Nothing about the ring is left unnamed. What is left is the observation the order
-> makes: `work` sits at level 2 with seven capabilities under it, which says plainly that
-> capabilities are not peers. Whether that means a fifth ring or simply an honest order written down
-> is a question about the model, and the order above is the evidence for answering it.
+**There is no stratum.** A ring is not "the important ones", it is a *set that depends on nothing
+above it, and that the things above it depend on*. There are **15** capabilities and **13** edges
+between them. The most leaned-on is `pages`, and **3** of them lean on it. **5** — `automation`,
+`chat`, `infrastructure`, `intake`, `kpis` — are leaned on by nobody at all, and two of those lean on
+nothing either. Of the **2 006** ways to split this graph into a lower part that depends on nothing
+above it and an upper part, the lower part that the most capabilities lean on is `budgets` and
+`pages`: **2** modules that only **4** of the rest lean on. Every split was tried, so that is the
+strongest case for a fifth ring available here — and it would be two modules that most of the ring
+above them never mentions.
+
+**The candidate disqualifies itself.** `work` looks like the foundation — it is the biggest domain
+and other capabilities lean on it — and it leans on four of them: `ai-review`, `pages`, `planning`
+and `time`. Put `work` in a ring below capabilities and all four of those imports point outward,
+which is what rule 5 forbids: a ring that breaks the ring rule on the day it is drawn is not a ring.
+Move the four down with it and the split is legal again — but it is then one of the 2 006 counted
+above, and not the best of them.
+
+**A ring has to buy a rule.** Each of the four exists because it makes something checkable that
+otherwise is not: what is always present, what a switch can remove, what faces outside, what merely
+composes. A fifth would have to make "capabilities are ordered" checkable — and that is already rule
+6, as acyclicity, which needs no ring to say it.
+
+> **A correction.** An earlier version of this section put `work` at "level 2 with seven capabilities
+> under it" and read that as `work` being closer to the kernel. The number was a longest-dependency-
+> chain depth, which measures what a module *stands on*, not what stands on *it* — precisely
+> backwards for the question being asked. Counted the right way round, the most depended-upon
+> capability is `pages`, which leans on nothing. The table above is generated from the graph now, so
+> the next person to ask gets the measurement rather than the memory.
+
+**What changes instead is the description.** This document has called capabilities peers. They are
+not: they are a sparse partial order, generated above — 15 members, 13 edges between them, no
+cycles. That is a smaller and truer claim than a fifth ring, and it costs nothing to keep
+honest.
