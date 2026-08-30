@@ -126,17 +126,20 @@ function placeOf(file) {
  * about the directory rather than the path, and it covers the client for the
  * first time — where it immediately found one.
  *
- * The four below are not new: they were there before step 10 and the old rule
- * could not see them, because `lib` importing `routes` was the only shape it
- * knew and three of these are a screen importing another screen. They are named
- * here so the move stays a move, and emptied in the commit after it.
+ * There were four when the rule started covering the client, and none of them
+ * were new — only the rule was. All four came apart the way the ones before
+ * them did, by moving the shared thing down rather than rearranging its
+ * callers: `useUnreadMessages` out of the chat screen into `chat/unread.ts`,
+ * where the sidebar and *My work* are equal callers; `resourceUrl` out of the
+ * OAuth route into `oauth/resource.ts`, where the OAuth metadata and the MCP
+ * route are; and `automation.tsx`, which turned out not to be a route at all —
+ * nothing navigates to it, it exports a settings panel, and it now sits at
+ * `automation/settings.tsx` where that is what it says.
+ *
+ * An empty list is worth more than a short one: with nothing grandfathered, the
+ * next import into a `routes/` file fails the build with no precedent to cite.
  */
-const KNOWN_LAYERING = [
-  'server/src/adapters/mcp/routes/mcp.ts -> server/src/adapters/oauth/routes/oauth.ts',
-  'web/src/kernel/design-system/AppShell.tsx -> web/src/modules/chat/routes/chat.tsx',
-  'web/src/modules/operations/routes/settings.tsx -> web/src/modules/automation/routes/automation.tsx',
-  'web/src/modules/work/routes/personal.tsx -> web/src/modules/chat/routes/chat.tsx',
-];
+const KNOWN_LAYERING = [];
 
 /**
  * Knots of files that import each other, each one named. There are none.

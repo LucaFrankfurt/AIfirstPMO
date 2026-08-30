@@ -3,7 +3,7 @@ import { env } from '../../../kernel/platform/env.ts';
 import { authenticate } from '../../../kernel/identity/auth.ts';
 import { handleRpc, PROTOCOL_VERSION, toolNames, type McpCtx } from '../index.ts';
 import { readJson, send, unauthorized, type Ctx, type Router } from '../../../kernel/platform/http.ts';
-import { resourceUrl } from '../../oauth/routes/oauth.ts';
+import { resourceUrl } from '../../oauth/resource.ts';
 
 /**
  * Streamable-HTTP MCP endpoint.

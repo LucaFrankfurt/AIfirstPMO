@@ -17,7 +17,7 @@ import { markAllRead, markNotificationRead } from '../../../kernel/sync/mutation
 import { useOpenTask } from '../../../kernel/design-system/navigation';
 import { byId, list, useQuery } from '../../../kernel/sync/store';
 import { useFeatures, useMe, usePeople, useSession } from '../../../kernel/identity/session';
-import { useUnreadMessages } from '../../chat/routes/chat';
+import { useUnreadMessages } from '../../chat/unread';
 import { useT } from '../../../kernel/i18n/i18n';
 import { DESTINATIONS, enabled } from '../../../kernel/design-system/nav';
 import { Button } from '../../../kernel/design-system/ui/button';

@@ -17,18 +17,18 @@ import {
   type AutomationTriggerKind, type FanOut, type Priority, type Recipient, type RecipientKind,
   type RelationKind, type StateGroup, type TemplateKind, type WorkspaceRole,
 } from '@kolibri/shared';
-import { MarkdownEditor } from '../../pages/Markdown';
-import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
-import { api } from '../../../kernel/sync/api';
-import { relativeTime } from '../../../kernel/design-system/format';
-import { groupKey, priorityKey, relationKey, roleKey, useT, type TranslationKey, type Translate } from '../../../kernel/i18n/i18n';
-import { byId, list, useQuery } from '../../../kernel/sync/store';
-import { create, remove, update } from '../../../kernel/sync/mutations';
-import { pull } from '../../../kernel/sync/sync';
-import { Button } from '../../../kernel/design-system/ui/button';
-import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
-import { SectionHeading } from '../../../kernel/design-system/ui/section';
-import { useMembers, useSession } from '../../../kernel/identity/session';
+import { MarkdownEditor } from '../pages/Markdown';
+import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { api } from '../../kernel/sync/api';
+import { relativeTime } from '../../kernel/design-system/format';
+import { groupKey, priorityKey, relationKey, roleKey, useT, type TranslationKey, type Translate } from '../../kernel/i18n/i18n';
+import { byId, list, useQuery } from '../../kernel/sync/store';
+import { create, remove, update } from '../../kernel/sync/mutations';
+import { pull } from '../../kernel/sync/sync';
+import { Button } from '../../kernel/design-system/ui/button';
+import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { SectionHeading } from '../../kernel/design-system/ui/section';
+import { useMembers, useSession } from '../../kernel/identity/session';
 
 const KIND_KEY: Record<TemplateKind, TranslationKey> = {
   feedback: 'tpl.kindFeedback', review: 'tpl.kindReview', task: 'tpl.kindTask',

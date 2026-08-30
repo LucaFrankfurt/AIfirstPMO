@@ -5,7 +5,7 @@ import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../
 import { api } from '../../../kernel/sync/api';
 import { relativeTime } from '../../../kernel/design-system/format';
 import { useFeature, useSeesMoney, useSession } from '../../../kernel/identity/session';
-import { AutomationSettings } from '../../automation/routes/automation';
+import { AutomationSettings } from '../../automation/settings';
 import { Trash } from '../../trash/trash';
 import { AuditLog, Webhooks } from '../admin';
 import { Backups, PersonalExport, WorkspaceTransfer } from '../../../adapters/transfer/data';

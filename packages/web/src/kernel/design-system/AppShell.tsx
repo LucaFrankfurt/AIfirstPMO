@@ -16,7 +16,7 @@ import { CommandPalette } from './CommandPalette';
 import { Button } from './ui/button';
 import { navCount, navItem } from './ui/nav';
 import { chipDot } from './ui/chip';
-import { useUnreadMessages } from '../../modules/chat/routes/chat';
+import { useUnreadMessages } from '../../modules/chat/unread';
 
 /** Which project branches this device has folded. Never synced — see below. */
 const COLLAPSED_KEY = 'kolibri.collapsed-projects';

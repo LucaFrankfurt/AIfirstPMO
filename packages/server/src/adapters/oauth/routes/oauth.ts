@@ -30,6 +30,7 @@
  * Settings beside the hand-made ones and the same Revoke button stops it, so
  * there is one place to look and one thing to press.
  */
+import { resourceUrl } from '../resource.ts';
 import { createHash } from 'node:crypto';
 import { all, get, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
@@ -45,7 +46,6 @@ const ACCESS_TOKEN_MINUTES = 60;
 const CODE_SECONDS = 60;
 
 /** The thing a token is for, in the one spelling everybody has to agree on. */
-export const resourceUrl = (ctx: Ctx): string => `${origin(ctx)}/mcp`;
 
 const s256 = (verifier: string): string =>
   createHash('sha256').update(verifier).digest('base64url');
