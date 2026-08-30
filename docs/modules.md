@@ -704,9 +704,9 @@ Honest limits, so nothing here is oversold:
 ## The rules, and who enforces them
 
 `scripts/modules.mjs` runs in CI. It regenerates the tables above and fails if they have drifted,
-and it checks seven rules. Each rule has an escape hatch that must be *named*, never counted — a
+and it checks seven rules. Where a rule has an escape hatch it must be *named*, never counted — a
 threshold is a budget somebody will spend, and a named exception has to be deleted by the person who
-fixes it.
+fixes it. Three of the seven carry a list; all three are empty.
 
 1. **Every source file belongs to exactly one module.** Since step 10 the path *is* the claim —
    `packages/<pkg>/src/<ring>/<module>/…` — so belonging to two is impossible and belonging to none
