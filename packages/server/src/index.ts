@@ -1,40 +1,53 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
-import { close, currentSeq, run } from './db/index.ts';
-import { env } from './env.ts';
-import { authenticate } from './lib/auth.ts';
-import { startMailWorker, stopMailWorker } from './lib/mail.ts';
-import { startScheduler, stopScheduler } from './lib/scheduler.ts';
-import { startTelegram, stopTelegram } from './lib/telegram.ts';
-import { provision } from './lib/provision.ts';
-import { installSettings } from './lib/settings.ts';
-import { buildCsp } from './lib/csp.ts';
-import { HttpError, Router, send, type Ctx } from './lib/http.ts';
-import { overTls } from './lib/origin.ts';
-import { registerAiRoutes } from './routes/ai.ts';
-import { registerAuthRoutes } from './routes/auth.ts';
-import { registerEntityRoutes } from './routes/entities.ts';
-import { registerExportRoutes } from './routes/export.ts';
-import { registerFileRoutes } from './routes/files.ts';
-import { registerMcpRoutes } from './routes/mcp.ts';
-import { registerOAuthRoutes } from './routes/oauth.ts';
-import { registerSearchRoutes } from './routes/search.ts';
-import { registerSettingsRoutes } from './routes/settings.ts';
-import { registerInboundRoutes } from './routes/inbound.ts';
-import { registerCalendarRoutes } from './routes/calendar.ts';
-import { registerShareRoutes } from './routes/share.ts';
-import { registerSyncRoutes } from './routes/sync.ts';
+import { close, currentSeq, run } from './kernel/platform/db/index.ts';
+import { env } from './kernel/platform/env.ts';
+import { authenticate } from './kernel/identity/auth.ts';
+import { startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
+import { startScheduler, stopScheduler } from './modules/automation/scheduler.ts';
+import { startTelegram, stopTelegram } from './adapters/telegram/telegram.ts';
+import { provision } from './modules/operations/provision.ts';
+import { installSettings } from './kernel/platform/settings.ts';
+import { installEffects } from './wiring.ts';
+import { buildCsp } from './kernel/platform/csp.ts';
+import { HttpError, Router, send, type Ctx } from './kernel/platform/http.ts';
+import { overTls } from './kernel/platform/origin.ts';
+import { registerAiRoutes } from './modules/ai-review/routes/ai.ts';
+import { registerAuthRoutes } from './kernel/identity/routes/auth.ts';
+import { registerWorkspaceRoutes } from './kernel/identity/routes/workspaces.ts';
+import { registerMailRoutes } from './adapters/mail/routes/mail.ts';
+import { registerTelegramRoutes } from './adapters/telegram/routes/telegram.ts';
+import { registerPushRoutes } from './adapters/push/routes/push.ts';
+import { registerEntityRoutes } from './kernel/write-path/routes/entities.ts';
+import { registerExportRoutes } from './adapters/transfer/routes/export.ts';
+import { registerFileRoutes } from './kernel/files/routes/files.ts';
+import { registerMcpRoutes } from './adapters/mcp/routes/mcp.ts';
+import { registerOAuthRoutes } from './adapters/oauth/routes/oauth.ts';
+import { registerSearchRoutes } from './kernel/search/routes/search.ts';
+import { registerSettingsRoutes } from './kernel/platform/routes/settings.ts';
+import { registerInboundRoutes } from './adapters/webhooks/routes/inbound.ts';
+import { registerCalendarRoutes } from './adapters/calendar/routes/calendar.ts';
+import { registerShareRoutes } from './adapters/share/routes/share.ts';
+import { registerSyncRoutes } from './kernel/sync/routes/sync.ts';
 
 // Before any route reads a setting: what an admin stored in the database wins
 // over the environment, and `env` has been reading nothing until now.
 installSettings();
+
+// And before any route can write one: `repo` offers a hook rather than calling
+// the rules engine by name, so somebody has to take it up. See `lib/wiring.ts`.
+installEffects();
 
 const router = new Router();
 
 // Order matters: specific paths must be registered before the generic
 // `/api/workspaces/:ws/:collection` CRUD routes.
 registerAuthRoutes(router);
+registerWorkspaceRoutes(router);
+registerMailRoutes(router);
+registerTelegramRoutes(router);
+registerPushRoutes(router);
 // Before `registerEntityRoutes`, which owns the generic `/api/:collection/:id`
 // and would otherwise answer `DELETE /api/me/calendar` with "unknown
 // collection me". Specific before generic, the way the auth routes above are.

@@ -16,8 +16,8 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { emptyTrash, purgeable } = await import('../src/lib/trash.ts');
-const { all, get } = await import('../src/db/index.ts');
+const { emptyTrash, purgeable } = await import('../src/modules/trash/trash.ts');
+const { all, get } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let cookie = '';
@@ -180,7 +180,7 @@ describe('the bytes behind it', () => {
 
 describe('a retention window', () => {
   it('is off unless somebody sets one, because a month is not this project’s decision', async () => {
-    const { applyRetention } = await import('../src/lib/trash.ts');
+    const { applyRetention } = await import('../src/modules/trash/trash.ts');
     const doomed = await makeTask('Would go under a policy');
     await ok(`/api/tasks/${doomed.id}`, undefined, 'DELETE');
     assert.equal(applyRetention(), 0, 'nothing, with no window set');

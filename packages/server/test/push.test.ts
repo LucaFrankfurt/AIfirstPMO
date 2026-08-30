@@ -18,10 +18,10 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { keys, authorization, notifyDevices, subscribe } = await import('../src/lib/push.ts');
-const { isSuppressed, queueMail, suppress, unsuppress } = await import('../src/lib/mail.ts');
-const { all, get, run } = await import('../src/db/index.ts');
-const { env } = await import('../src/env.ts');
+const { keys, authorization, notifyDevices, subscribe } = await import('../src/adapters/push/push.ts');
+const { isSuppressed, queueMail, suppress, unsuppress } = await import('../src/adapters/mail/mail.ts');
+const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
 
 /* ---------------------------------------------------- the push service */
 
@@ -157,8 +157,8 @@ describe('a subscribed device', () => {
       Date.now(), Date.now());
     run(`INSERT INTO workspace_members (id, workspace_id, user_id, role, created_at, updated_at) VALUES ('m2', ?, 'other', 'member', ?, ?)`,
       workspaceId, Date.now(), Date.now());
-    const { writeEntity } = await import('../src/lib/repo.ts');
-    const { serverClock } = await import('../src/lib/bootstrap.ts');
+    const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
+    const { serverClock } = await import('../src/kernel/write-path/bootstrap.ts');
     writeEntity('task', task.id, { assignees: [userId] }, {
       workspaceId, actorId: 'other', hlc: serverClock.now(),
     });

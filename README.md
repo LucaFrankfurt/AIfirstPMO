@@ -255,6 +255,7 @@ length. Source in [`sites/docs`](sites/docs).
 | | |
 |---|---|
 | [`architecture.md`](docs/architecture.md) | How the pieces fit together, including [why there is no Redis or Postgres](docs/architecture.md#why-no-redis-or-postgres--and-why-s3-and-email-are-optional) |
+| [`modules.md`](docs/modules.md) | Where one capability lives, the kernel/capability/adapter rings, and the seven rules `npm run check:modules` enforces |
 | [`sync.md`](docs/sync.md) | The offline protocol, conflict rules and failure modes |
 | [`api.md`](docs/api.md) | REST endpoints, auth, uploads |
 | [`mcp.md`](docs/mcp.md) | Every tool, prompt and resource with examples |
@@ -316,6 +317,7 @@ npm run check:css         # every class the source uses is actually defined — 
 npm run check:responsive  # 16 screens, 340px to 1600px in 20px steps, looking for overflow
 npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
 npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
+npm run test:checks       # the checks above, against a broken copy of the tree
 ```
 
 They are not decoration. `check:contrast` found twenty unreadable places on its first run,

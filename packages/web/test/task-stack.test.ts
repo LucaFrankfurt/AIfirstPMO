@@ -11,7 +11,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { isTaskLocation, nextTaskState, stackDepth } from '../src/lib/task-stack.ts';
+import { isTaskLocation, nextTaskState, stackDepth } from '../src/kernel/design-system/task-stack.ts';
 
 const board = { pathname: '/projects/p1' };
 const at = (pathname: string, state: unknown) => ({ pathname, state });

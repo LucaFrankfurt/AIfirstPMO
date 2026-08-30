@@ -14,7 +14,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ancestry, descendants, wouldLoop, type Node } from '../src/lib/family.ts';
+import { ancestry, descendants, wouldLoop, type Node } from '../src/kernel/design-system/family.ts';
 
 /** epic ▸ story ▸ chore ▸ detail, and a `loner` off to one side. */
 const TREE: Node[] = [

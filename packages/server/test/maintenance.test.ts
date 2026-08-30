@@ -17,9 +17,9 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const maintenance = await import('../src/lib/maintenance.ts');
-const { verify } = await import('../src/lib/restore.ts');
-const { run, all, get } = await import('../src/db/index.ts');
+const maintenance = await import('../src/modules/operations/maintenance.ts');
+const { verify } = await import('../src/modules/operations/restore.ts');
+const { run, all, get } = await import('../src/kernel/platform/db/index.ts');
 
 const CLI = new URL('../src/cli.ts', import.meta.url).pathname;
 const NODE_FLAGS = ['--experimental-sqlite', '--disable-warning=ExperimentalWarning'];
@@ -214,10 +214,10 @@ describe('a restore', () => {
 
 describe('folding away deleted page text', () => {
   it('shrinks a page that has been rewritten, without changing what it says', async () => {
-    const { compactPages } = await import('../src/lib/maintenance.ts');
+    const { compactPages } = await import('../src/modules/operations/maintenance.ts');
     const { crdt } = await import('@kolibri/shared');
-    const { get, run } = await import('../src/db/index.ts');
-    const { uid } = await import('../src/lib/ids.ts');
+    const { get, run } = await import('../src/kernel/platform/db/index.ts');
+    const { uid } = await import('../src/kernel/platform/ids.ts');
 
     // A page written and rewritten several times: every draft is still in there,
     // which is exactly what lets a device that was away merge without

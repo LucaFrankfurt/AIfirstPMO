@@ -19,7 +19,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { buildCalendar } = await import('../src/lib/ical.ts');
+const { buildCalendar } = await import('../src/adapters/calendar/ical.ts');
 
 let base = '';
 const jar: Record<string, string> = {};

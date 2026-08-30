@@ -25,10 +25,10 @@ import { after, before, beforeEach, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { env } = await import('../src/env.ts');
-const { get, run } = await import('../src/db/index.ts');
-const { loadSettings, resetSettings } = await import('../src/lib/settings.ts');
-const { refreshEnv } = await import('../src/env.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
+const { get, run } = await import('../src/kernel/platform/db/index.ts');
+const { loadSettings, resetSettings } = await import('../src/kernel/platform/settings.ts');
+const { refreshEnv } = await import('../src/kernel/platform/env.ts');
 
 let base = '';
 /** The admin: the first account on the instance claims it. */

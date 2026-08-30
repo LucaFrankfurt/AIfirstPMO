@@ -17,7 +17,7 @@ export const DOCS_URL = import.meta.env.PUBLIC_DOCS_URL ?? 'https://docs.kolibri
 export const REPO_URL =
   import.meta.env.PUBLIC_REPO_URL ?? 'https://github.com/LucaFrankfurt/AIfirstPMO';
 
-/** Seeded by `npm run seed` — see `packages/server/src/lib/demo.ts`. */
+/** Seeded by `npm run seed` — see `packages/server/src/modules/operations/demo.ts`. */
 export const DEMO_EMAIL = import.meta.env.PUBLIC_DEMO_EMAIL ?? 'ada@kolibri.dev';
 export const DEMO_PASSWORD = import.meta.env.PUBLIC_DEMO_PASSWORD ?? 'kolibri-demo';
 

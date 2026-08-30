@@ -16,9 +16,9 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { all, get } = await import('../src/db/index.ts');
-const { env } = await import('../src/env.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { all, get } = await import('../src/kernel/platform/db/index.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 let cookie = '';

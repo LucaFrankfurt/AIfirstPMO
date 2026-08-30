@@ -25,7 +25,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let port = 0;
 

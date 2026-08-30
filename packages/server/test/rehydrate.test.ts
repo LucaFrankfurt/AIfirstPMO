@@ -20,11 +20,11 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
-const { unzip } = await import('../src/lib/zip.ts');
-const backups = await import('../src/lib/backups.ts');
-const rehydrate = await import('../src/lib/rehydrate.ts');
-const { all, get, pluck } = await import('../src/db/index.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { unzip } = await import('../src/kernel/files/zip.ts');
+const backups = await import('../src/modules/operations/backups.ts');
+const rehydrate = await import('../src/modules/operations/rehydrate.ts');
+const { all, get, pluck } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let cookie = '';
@@ -159,7 +159,7 @@ describe('a snapshot from an instance that no longer exists', () => {
 
     // Wipe the blob from the store, so the restore has to put it back rather
     // than find it already there — which is the state a new machine is in.
-    const storage = await import('../src/lib/storage.ts');
+    const storage = await import('../src/kernel/files/storage.ts');
     const row = get<any>(`SELECT hash, mime FROM files WHERE hash = ?`, pictureHash);
     await storage.remove(storage.keyFor(String(row.hash), String(row.mime)));
     assert.equal(await storage.exists(storage.keyFor(String(row.hash), String(row.mime))), false);
@@ -198,7 +198,7 @@ describe('a snapshot from an instance that no longer exists', () => {
 
 describe('a snapshot older than the schema', () => {
   it('restores through the columns both sides have', async () => {
-    const { db } = await import('../src/db/index.ts');
+    const { db } = await import('../src/kernel/platform/db/index.ts');
     const path = backups.pathOf(snapshot)!;
     // Age the snapshot: drop a column this build has, the way a snapshot taken
     // before that column existed would not have had it.

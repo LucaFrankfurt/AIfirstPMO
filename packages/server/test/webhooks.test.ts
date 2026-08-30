@@ -16,10 +16,10 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { sign } = await import('../src/lib/webhooks.ts');
-const { run, get } = await import('../src/db/index.ts');
-const { flushDeliveries, pruneDeliveries } = await import('../src/lib/webhooks.ts');
-const { env } = await import('../src/env.ts');
+const { sign } = await import('../src/adapters/webhooks/webhooks.ts');
+const { run, get } = await import('../src/kernel/platform/db/index.ts');
+const { flushDeliveries, pruneDeliveries } = await import('../src/adapters/webhooks/webhooks.ts');
+const { env } = await import('../src/kernel/platform/env.ts');
 
 let base = '';
 let cookie = '';

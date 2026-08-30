@@ -19,7 +19,7 @@ import {
 } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
-const { get } = await import('../src/db/index.ts');
+const { get } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let cookie = '';

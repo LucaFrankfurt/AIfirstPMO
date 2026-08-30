@@ -25,7 +25,7 @@ import type { AddressInfo } from 'node:net';
 import { request as httpRequest } from 'node:http';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 let cookie = '';
@@ -285,7 +285,7 @@ describe('finding the way in from nothing but a URL', () => {
     // minutes into twenty; here it must leave the promise exactly where it was.
     for (let i = 0; i < 10; i++) await json('/oauth/register', { client_name: 'Claude', redirect_uris: [REDIRECT] });
 
-    const { rateLimitInternals } = await import('../src/lib/ratelimit.ts');
+    const { rateLimitInternals } = await import('../src/kernel/identity/ratelimit.ts');
     const bucket = [...rateLimitInternals.buckets.entries()]
       .find(([key]) => key.startsWith('oauth-register:'))?.[1];
     assert.ok(bucket, 'the bucket is there to look at');
@@ -302,7 +302,7 @@ describe('finding the way in from nothing but a URL', () => {
    */
   it('caps the registrations nobody ever used, and keeps the ones that worked', async () => {
     resetRateLimits();
-    const { run, get } = await import('../src/db/index.ts');
+    const { run, get } = await import('../src/kernel/platform/db/index.ts');
     const count = (where: string) => get<{ n: number }>(`SELECT count(*) AS n FROM oauth_clients WHERE ${where}`)!.n;
 
     // Old enough to be at the front of the queue for pruning, so nothing this

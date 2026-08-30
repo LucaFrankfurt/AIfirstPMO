@@ -1,5 +1,9 @@
 # Architecture
 
+This is the horizontal view: the layers, and what each is allowed to know. For the vertical one —
+where a single capability lives, what it would cost to switch one off or take one out, and the rings
+the code is checked against — see [`modules.md`](modules.md).
+
 Kolibri is four packages in one repository. The rule that shapes all of them: **the client owns a
 full copy of the workspace, the server owns the truth, and one registry describes both.**
 
@@ -15,7 +19,7 @@ packages/server   HTTP · sync · MCP · SQLite     packages/web   React PWA · 
 
 ## The entity registry
 
-`packages/shared/src/entities.ts` lists every syncable entity, its table, its mutable fields and
+`packages/shared/src/kernel/registry/entities.ts` lists every syncable entity, its table, its mutable fields and
 which of them only the server may write. Everything else is derived from it:
 
 - the server's generic write path, REST routes and sync queries,
@@ -53,7 +57,7 @@ runs the TypeScript sources directly, so there is no build step and no `dist/` t
 | `lib/auth.ts` | scrypt passwords, hashed session and API tokens, role checks |
 | `lib/repo.ts` | **the only write path** — per-field LWW merge, side effects, search index |
 | `lib/bootstrap.ts` | workspace/project creation with default states and labels |
-| `lib/mcp.ts` | MCP tools, prompts, resources; plain JSON-RPC, no SDK |
+| `lib/mcp/` | MCP: the JSON-RPC envelope and prompts in `index.ts`, the shared vocabulary in `kit.ts`, and one file of tools per group under `tools/`. No SDK |
 | `lib/automation.ts` | rules: what fired, who it resolves to, and why it did nothing |
 | `lib/notify.ts` | writing a notification, and every channel that has to hear about it |
 | `lib/telegram.ts` | the bot: long-polled updates, single-use link codes, delivery |
@@ -151,7 +155,7 @@ Everything written here — a description, a comment, a page, a chat message —
 `<textarea>`. A rich-text surface would mean the document and what is on screen were two different
 things, with a conversion between them that is wrong in some corner for ever.
 
-The cost of that choice is that conveniences have to be written by hand, and `shared/src/editor.ts`
+The cost of that choice is that conveniences have to be written by hand, and `shared/src/modules/pages/editor.ts`
 is where they live: Enter continues the list you are in (another bullet, the next number, another
 empty checkbox, the same indent) and ends it on an item you left empty; Tab and Shift-Tab nest and
 unnest inside a list and stay a plain indent everywhere else; Cmd/Ctrl-B, -I and -K wrap the

@@ -16,7 +16,7 @@ import { Clock, orderKey, type PullResponse, type PushResponse } from '@kolibri/
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
 const { server } = await import('../src/index.ts');
-const { all } = await import('../src/db/index.ts');
+const { all } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let cookie = '';
@@ -415,10 +415,10 @@ describe('kolibri api', () => {
     // An array return is wrapped — `structuredContent` must be an object.
     const labels = listed.result.structuredContent.result;
     // The English names of DEFAULT_LABELS, straight from the file that seeds them.
-    const bootstrap = readFileSync(new URL('../src/lib/bootstrap.ts', import.meta.url), 'utf8');
+    const bootstrap = readFileSync(new URL('../src/kernel/write-path/bootstrap.ts', import.meta.url), 'utf8');
     const from = bootstrap.indexOf('const DEFAULT_LABELS');
     const keys = [...bootstrap.slice(from, bootstrap.indexOf('];', from)).matchAll(/name: '([\w.]+)'/g)].map((m) => m[1]);
-    const { LOCALES } = await import('../src/lib/i18n.ts');
+    const { LOCALES } = await import('../src/kernel/i18n/i18n.ts');
     const expected = keys.map((key) => (LOCALES.en as Record<string, string>)[key].toLowerCase());
     assert.ok(expected.length >= 2, `only ${expected.length} seeded labels — the scan is broken`);
 
@@ -1391,7 +1391,7 @@ describe('asking a model to review a task', () => {
 
   /** Turn a model on for the duration of one case, and off again after. */
   const withModel = async (run: () => Promise<void>) => {
-    const { env } = await import('../src/env.ts');
+    const { env } = await import('../src/kernel/platform/env.ts');
     const port = (provider.address() as AddressInfo).port;
     process.env.KOLIBRI_AI_PROVIDER = 'anthropic';
     const before = { ...env.ai };

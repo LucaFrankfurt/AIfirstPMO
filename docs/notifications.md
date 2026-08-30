@@ -22,7 +22,7 @@ inbox always gets everything — it is the source of truth, not a channel.
 One kind splits: a **chat message is important for the instant channels** (Telegram, Web Push) and
 deliberately not for email. Email here is batched into a digest on purpose, and a chat message that
 arrives in a two-hour summary is one answered too late to matter. Both answers come from a single
-definition in `packages/shared/src/chat.ts`, so the two cannot quietly drift apart — which they had,
+definition in `packages/shared/src/modules/chat/chat.ts`, so the two cannot quietly drift apart — which they had,
 under a comment claiming they matched.
 
 Mentions accept what people actually type: `@ada`, `@adalovelace`, `@ada@example.com`. Unknown

@@ -459,7 +459,7 @@ failure mid-run is fixed by running it again.
 | `KOLIBRI_MAX_UPLOAD_MB=5` | A public upload box is a public upload box |
 | `KOLIBRI_SESSION_DAYS=1` | Everyone is the same person; a sixty-day cookie on a shared account is a sixty-day shared cookie |
 
-**One flag that does nothing yet.** There is a `KOLIBRI_DEMO` in `packages/server/src/env.ts`,
+**One flag that does nothing yet.** There is a `KOLIBRI_DEMO` in `packages/server/src/kernel/platform/env.ts`,
 described in `scripts/compose-env.mjs` as "read-only mode for the public demo instance". Nothing
 reads it — it is declared and unused. The demo's protection is the reset and the switches above,
 not a read-only mode, and this file will say otherwise on the day that changes.

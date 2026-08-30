@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { nextReactions, REACTIONS } from '../src/lib/reactions.ts';
+import { nextReactions, REACTIONS } from '../src/modules/work/reaction-set.ts';
 
 const ADA = 'user-ada';
 const LIN = 'user-lin';

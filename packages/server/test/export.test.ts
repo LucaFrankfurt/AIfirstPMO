@@ -22,10 +22,10 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
-const { zip, unzip, crc32 } = await import('../src/lib/zip.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { zip, unzip, crc32 } = await import('../src/kernel/files/zip.ts');
 const { writeCsv, parseCsv } = await import('@kolibri/shared');
-const backups = await import('../src/lib/backups.ts');
+const backups = await import('../src/modules/operations/backups.ts');
 
 let base = '';
 let cookie = '';

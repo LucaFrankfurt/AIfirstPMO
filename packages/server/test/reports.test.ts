@@ -26,7 +26,7 @@ const { server } = await import('../src/index.ts');
 /* Registration is limited to five per two minutes, on purpose. This file makes
    a fresh workspace per describe block, so it runs into that limit for reasons
    that have nothing to do with what any of these tests are asserting. */
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 let cookie = '';
@@ -239,7 +239,7 @@ describe('mcp reports', () => {
     assert.deepEqual(quiet.cycles, []);
     assert.equal(quiet.totals.cycles, 0);
 
-    const cycle = await api(`/api/workspaces/${workspaceId}/cycles`, {
+    await api(`/api/workspaces/${workspaceId}/cycles`, {
       body: { project_id: projectId, name: 'Sprint 1', start_date: isoDay(-2), end_date: isoDay(5) },
     });
     for (const key of ['overdue', 'finished']) {

@@ -15,8 +15,8 @@ import type { AddressInfo } from 'node:net';
 import { mayEnter } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
-const { get } = await import('../src/db/index.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { get } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let ownerCookie = '';
@@ -130,8 +130,8 @@ describe('a column that only admins may fill', () => {
   it('does not stand in the way of the server’s own writes', async () => {
     // An automation, an import or a recurrence rolling a task forward is not a
     // person moving a card, and a rule that blocked those would be a bug.
-    const { writeEntity } = await import('../src/lib/repo.ts');
-    const { serverClock } = await import('../src/lib/bootstrap.ts');
+    const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
+    const { serverClock } = await import('../src/kernel/write-path/bootstrap.ts');
     const member = get<any>(`SELECT id FROM users WHERE email = 'grace@example.com'`)!;
     const { row } = writeEntity('task', taskId, { state_id: doneStateId }, {
       workspaceId, actorId: member.id, hlc: serverClock.now(), system: true,

@@ -44,12 +44,12 @@ function walk(dir: string, out: string[] = []): string[] {
 }
 
 describe('web catalogues', () => {
-  const en = readCatalogue(join(webSrc, 'locales/en.ts'));
+  const en = readCatalogue(join(webSrc, 'kernel/i18n/locales/en.ts'));
   // Every locale beside English, found rather than listed: adding a language
   // should not mean remembering to add it here too.
-  const others = readdirSync(join(webSrc, 'locales'))
+  const others = readdirSync(join(webSrc, 'kernel/i18n/locales'))
     .filter((name) => name.endsWith('.ts') && name !== 'en.ts')
-    .map((name) => [name.replace('.ts', ''), readCatalogue(join(webSrc, 'locales', name))] as const);
+    .map((name) => [name.replace('.ts', ''), readCatalogue(join(webSrc, 'kernel/i18n/locales', name))] as const);
 
   it('finds every catalogue, and they are all the same size', () => {
     assert.ok(en.size > 300, `expected a full English catalogue, got ${en.size} keys`);
@@ -115,7 +115,7 @@ describe('web catalogues', () => {
 
 describe('server catalogue', () => {
   it('keeps the locales in step', async () => {
-    const { LOCALES, translate } = await import('../src/lib/i18n.ts');
+    const { LOCALES, translate } = await import('../src/kernel/i18n/i18n.ts');
     const keys = Object.keys(LOCALES.en);
     for (const [name, catalogue] of Object.entries(LOCALES)) {
       assert.deepEqual(Object.keys(catalogue), keys, `${name} has different keys`);
@@ -134,7 +134,7 @@ describe('server catalogue', () => {
   });
 
   it('falls back rather than showing a key', async () => {
-    const { translate } = await import('../src/lib/i18n.ts');
+    const { translate } = await import('../src/kernel/i18n/i18n.ts');
     // An unknown locale is not reachable through the API, but a stale database
     // row could still carry one — it must not surface as raw key text. `zz` is
     // reserved for exactly this in ISO 639, so it will not become real later.
@@ -142,7 +142,7 @@ describe('server catalogue', () => {
   });
 
   it('speaks French, since a third language is what the scaffolding was for', async () => {
-    const { translate } = await import('../src/lib/i18n.ts');
+    const { translate } = await import('../src/kernel/i18n/i18n.ts');
     assert.equal(translate('fr' as 'en', 'mail.openKolibri'), 'Ouvrir Kolibri');
     assert.equal(
       translate('fr' as 'en', 'notify.assigned', { identifier: 'WEB-1', title: 'Ship it' }),
@@ -165,7 +165,7 @@ describe('server catalogue', () => {
  * asks the question the catalogues cannot ask themselves, once per language.
  */
 describe('what a new project starts with', () => {
-  const bootstrap = readFileSync(join(root, 'packages/server/src/lib/bootstrap.ts'), 'utf8');
+  const bootstrap = readFileSync(join(root, 'packages/server/src/kernel/write-path/bootstrap.ts'), 'utf8');
 
   /** The `name:` keys of one seed list, read as data rather than imported. */
   const seeded = (constant: string): string[] => {
@@ -188,7 +188,7 @@ describe('what a new project starts with', () => {
    * list, in a language where two of these translate alike.
    */
   it('never offers the same word twice, in any language', async () => {
-    const { LOCALES } = await import('../src/lib/i18n.ts');
+    const { LOCALES } = await import('../src/kernel/i18n/i18n.ts');
     const clashes: string[] = [];
     for (const [locale, catalogue] of Object.entries(LOCALES)) {
       const strings = catalogue as Record<string, string>;
@@ -247,7 +247,7 @@ describe('a language with more than two plural forms', () => {
   });
 
   it('is the same lookup the interface uses, not a second one written for the test', () => {
-    const source = readFileSync(join(webSrc, 'lib/i18n.ts'), 'utf8');
+    const source = readFileSync(join(webSrc, 'kernel/i18n/i18n.ts'), 'utf8');
     assert.match(source, /new Intl\.PluralRules\(locale\)\.select\(vars\.count\)/);
     assert.match(source, /catalogue\[`\$\{key\}_\$\{category\}`\] \?\? catalogue\[`\$\{key\}_other`\]/);
   });

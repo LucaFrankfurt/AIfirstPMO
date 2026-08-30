@@ -1060,7 +1060,7 @@ await step('chat: history, drafts, order and Enter — the four that were broken
 /**
  * The editor's conveniences, and a checkbox that can actually be ticked.
  *
- * `shared/src/editor.ts` is tested as what it is — pure rewrites of a string —
+ * `shared/src/modules/pages/editor.ts` is tested as what it is — pure rewrites of a string —
  * so what is left for a browser is the wiring: that Enter reaches the rewrite
  * at all, and that a box ticked in the preview changes the *markdown* rather
  * than only the pixel.

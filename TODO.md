@@ -901,7 +901,7 @@ confused later.
 - [x] **A chat message is not in the email digest.** It is important for the instant channels —
       Telegram, Web Push — and excluded from email, because email is batched on purpose and a chat
       message in a two-hour summary is one answered too late to matter. One definition in
-      `shared/src/chat.ts` serves both, so they cannot drift apart again.
+      `shared/src/modules/chat/chat.ts` serves both, so they cannot drift apart again.
 - [x] **Pictures in a conversation.** Paste or drop a screenshot into the composer; it uploads,
       downscales and goes in as markdown, the same path comments and pages use. This also exposed a
       real bug: `reclaimFiles` keeps a blob only while something on a written-out list names its

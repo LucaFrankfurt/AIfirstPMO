@@ -22,7 +22,7 @@ async function readEnv(vars: Record<string, string>) {
   }
   Object.assign(process.env, vars);
   process.env.KOLIBRI_DATA_DIR = `${root}/${n}`;
-  const { env } = await import(`../src/env.ts?mailcfg=${n++}`);
+  const { env } = await import(`../src/kernel/platform/env.ts?mailcfg=${n++}`);
   return env;
 }
 

@@ -19,7 +19,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/lib/ratelimit.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 
@@ -143,8 +143,8 @@ describe('a stranger holding an id', () => {
    * layer that guards nineteen other callers cannot go quiet.
    */
   it('is refused by the visibility guard itself, whatever route asks it', async () => {
-    const { canSeeProject } = await import('../src/lib/repo.ts');
-    const { get } = await import('../src/db/index.ts');
+    const { canSeeProject } = await import('../src/kernel/write-path/repo.ts');
+    const { get } = await import('../src/kernel/platform/db/index.ts');
     const adaId = get<{ id: string }>(`SELECT id FROM users WHERE email = 'ada@example.com'`)!.id;
     const malloryId = get<{ id: string }>(`SELECT id FROM users WHERE email = 'mallory@example.com'`)!.id;
 

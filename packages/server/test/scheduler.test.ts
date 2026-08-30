@@ -14,8 +14,8 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { sweep, nextDueDate, remindAboutDueTasks, rollRecurringTasks } = await import('../src/lib/scheduler.ts');
-const { all, get, run } = await import('../src/db/index.ts');
+const { sweep, nextDueDate, remindAboutDueTasks, rollRecurringTasks } = await import('../src/modules/automation/scheduler.ts');
+const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
 
 let base = '';
 let cookie = '';

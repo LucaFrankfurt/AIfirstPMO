@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { base32Decode, base32Encode, codeFor, currentCode, generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../src/lib/totp.ts';
+import { base32Decode, base32Encode, codeFor, currentCode, generateRecoveryCodes, generateSecret, otpauthUri, verifyCode } from '../src/kernel/identity/totp.ts';
 
 /** The RFC's SHA-1 key, "12345678901234567890", as base32. */
 const RFC_SECRET = base32Encode(Buffer.from('12345678901234567890'));

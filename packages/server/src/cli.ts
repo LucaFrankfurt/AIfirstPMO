@@ -9,7 +9,7 @@
  * against a *closed* database, and importing the db module at the top of this
  * file would open one before the argument list had even been read.
  */
-import { env } from './env.ts';
+import { env } from './kernel/platform/env.ts';
 
 const USAGE = `kolibri — maintenance
 
@@ -47,7 +47,7 @@ function flagValue(argv: string[], name: string): number | undefined {
 }
 
 async function doctor(flags: Set<string>): Promise<Exit> {
-  const maintenance = await import('./lib/maintenance.ts');
+  const maintenance = await import('./modules/operations/maintenance.ts');
   let findings = [...maintenance.check(), ...(await maintenance.checkStorage())];
 
   const stranded = maintenance.strandedFiles();
@@ -106,13 +106,13 @@ async function main(): Promise<Exit> {
       return doctor(flags);
 
     case 'reindex': {
-      const { reindex } = await import('./lib/maintenance.ts');
+      const { reindex } = await import('./modules/operations/maintenance.ts');
       out(`Rebuilt the search index over ${reindex()} row(s).`);
       return 0;
     }
 
     case 'vacuum': {
-      const { vacuum, mb } = await import('./lib/maintenance.ts');
+      const { vacuum, mb } = await import('./modules/operations/maintenance.ts');
       const { before, after } = vacuum();
       out(`Compacted the database from ${mb(before)} to ${mb(after)}.`);
       return 0;
@@ -128,7 +128,7 @@ async function main(): Promise<Exit> {
       const explicit = rest[0];
       const keep = flagValue(argv, '--keep');
       if (explicit && !flags.has('--keep') && !flags.has('--offsite')) {
-        const { backup } = await import('./lib/maintenance.ts');
+        const { backup } = await import('./modules/operations/maintenance.ts');
         const manifest = backup(explicit);
         out(`Snapshot written to ${explicit}`);
         out(`  ${Object.entries(manifest.counts).map(([table, n]) => `${n} ${table}`).join(', ')}`);
@@ -143,14 +143,14 @@ async function main(): Promise<Exit> {
 
       const dir = explicit || env.backup.dir;
       if (!dir) { err('Where to? kolibri backup /var/backups/kolibri, or set KOLIBRI_BACKUP_DIR'); return 1; }
-      const store = await import('./lib/backups.ts');
+      const store = await import('./modules/operations/backups.ts');
       const done = store.take(dir, { force: true });
       if (!done) { err('Could not take a snapshot'); return 1; }
       out(`Snapshot ${done.snapshot.name} written to ${done.snapshot.path}`);
       out(`  ${Object.entries(done.manifest.counts).map(([table, n]) => `${n} ${table}`).join(', ')}`);
       out(`  uploads: ${done.manifest.uploads}`);
 
-      const { verify } = await import('./lib/restore.ts');
+      const { verify } = await import('./modules/operations/restore.ts');
       try {
         verify(done.snapshot.path);
         out('  ✓ it opens and passes an integrity check');
@@ -172,7 +172,7 @@ async function main(): Promise<Exit> {
     }
 
     case 'backups': {
-      const store = await import('./lib/backups.ts');
+      const store = await import('./modules/operations/backups.ts');
       const status = store.status();
       const list = store.snapshots();
       if (flags.has('--json')) {
@@ -189,7 +189,7 @@ async function main(): Promise<Exit> {
         return 0;
       }
       for (const snapshot of list) {
-        const { mb } = await import('./lib/maintenance.ts');
+        const { mb } = await import('./modules/operations/maintenance.ts');
         out(`  ${snapshot.name}  ${mb(snapshot.size).padStart(10)}  ${Object.entries(snapshot.counts).map(([t, n]) => `${n} ${t}`).join(', ')}`);
       }
       out('');
@@ -208,15 +208,15 @@ async function main(): Promise<Exit> {
     case 'export': {
       const which = rest[0];
       if (!which) { err('Which workspace? kolibri export acme [acme.zip]'); return 1; }
-      const { get } = await import('./db/index.ts');
+      const { get } = await import('./kernel/platform/db/index.ts');
       const workspace = get<{ id: string; name: string; slug: string }>(
         `SELECT id, name, slug FROM workspaces WHERE (id = ?1 OR slug = ?1) AND deleted_at IS NULL`, which,
       );
       if (!workspace) { err(`No workspace called ${which}. "kolibri doctor" lists what is here.`); return 1; }
 
-      const { exportWorkspace } = await import('./lib/workspace-transfer.ts');
-      const { sendArchive } = await import('./lib/archive.ts');
-      const storage = await import('./lib/storage.ts');
+      const { exportWorkspace } = await import('./adapters/transfer/workspace-transfer.ts');
+      const { sendArchive } = await import('./modules/planning/archive.ts');
+      const storage = await import('./kernel/files/storage.ts');
       await storage.init();
 
       const doc = exportWorkspace(workspace.id);
@@ -237,7 +237,7 @@ async function main(): Promise<Exit> {
     case 'verify': {
       const dir = rest[0];
       if (!dir) { err('Which snapshot? kolibri verify /var/backups/kolibri/2026-08-19'); return 1; }
-      const { verify, readManifest } = await import('./lib/restore.ts');
+      const { verify, readManifest } = await import('./modules/operations/restore.ts');
       try {
         const { rows } = verify(dir);
         const manifest = readManifest(dir);
@@ -253,7 +253,7 @@ async function main(): Promise<Exit> {
     case 'restore': {
       const dir = rest[0];
       if (!dir) { err('Which snapshot? kolibri restore /var/backups/kolibri/2026-08-19'); return 1; }
-      const { restore } = await import('./lib/restore.ts');
+      const { restore } = await import('./modules/operations/restore.ts');
       try {
         const report = restore(dir, { force: flags.has('--force') });
         out(`Restored ${report.from} into ${report.database}.`);
@@ -273,8 +273,8 @@ async function main(): Promise<Exit> {
         return 1;
       }
       const to = rest[1];
-      const { moveFiles } = await import('./lib/maintenance.ts');
-      const storage = await import('./lib/storage.ts');
+      const { moveFiles } = await import('./modules/operations/maintenance.ts');
+      const storage = await import('./kernel/files/storage.ts');
       if (to === 's3' && env.storage.kind !== 's3') {
         err('KOLIBRI_STORAGE is not s3, so there is nothing configured to move to.');
         return 1;

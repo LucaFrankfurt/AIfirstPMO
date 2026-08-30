@@ -1245,9 +1245,6 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .priority-bars i:nth-child(2) { height: 7.5px; }
 .priority-bars i:nth-child(3) { height: 11px; }
 
-.due-overdue { color: var(--danger); }
-.due-today { color: var(--warn); }
-
 /* a task's review — see components/task-review.tsx */
 .review {
   border: 1px solid var(--line);

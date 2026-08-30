@@ -180,7 +180,7 @@ was never sent.
 Message notifications count as *important* for the **instant** channels — Telegram and Web Push —
 and deliberately **not** for email. Email here is batched into a digest on purpose, and a chat
 message that arrives in a two-hour summary is one answered too late to matter. Both answers come
-from one definition in `shared/src/chat.ts` so they cannot drift; an earlier version had two sets
+from one definition in `shared/src/modules/chat/chat.ts` so they cannot drift; an earlier version had two sets
 and a comment claiming they matched. See [`notifications.md`](notifications.md).
 
 ## Unread
@@ -338,15 +338,15 @@ fade within the minute.
 
 | | |
 |---|---|
-| `packages/shared/src/chat.ts` | the rules both sides have to agree on — the derived id, unread, titles, name shape |
-| `packages/shared/src/entities.ts` | `channel`, `message`, `channelRead` |
-| `packages/server/src/lib/repo.ts` | the invariants, the guards, and the notification rules |
-| `packages/server/src/routes/sync.ts` | the visibility filter for a delta pull, and the presence frames on the stream |
-| `packages/server/src/lib/presence.ts` | who is here and who is typing — in memory, never a row |
-| `packages/web/src/lib/presence.ts` | the same on the client: the heartbeat, the store, and the hooks |
-| `packages/web/src/routes/chat.tsx` | the screen |
-| `packages/shared/src/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
-| `packages/web/src/components/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |
-| `packages/web/src/routes/Login.tsx` | `AcceptInvite` — the invite link, opened by an account that already exists |
-| `packages/server/src/routes/auth.ts` | `GET /api/people` — the instance's directory, for starting a conversation |
-| `packages/server/src/lib/bootstrap.ts` | `addMember`, which is what makes somebody appear in the People list at all |
+| `packages/shared/src/modules/chat/chat.ts` | the rules both sides have to agree on — the derived id, unread, titles, name shape |
+| `packages/shared/src/kernel/registry/entities.ts` | `channel`, `message`, `channelRead` |
+| `packages/server/src/kernel/write-path/repo.ts` | the invariants, the guards, and the notification rules |
+| `packages/server/src/kernel/sync/routes/sync.ts` | the visibility filter for a delta pull, and the presence frames on the stream |
+| `packages/server/src/modules/chat/presence.ts` | who is here and who is typing — in memory, never a row |
+| `packages/web/src/modules/chat/presence.ts` | the same on the client: the heartbeat, the store, and the hooks |
+| `packages/web/src/modules/chat/routes/chat.tsx` | the screen |
+| `packages/shared/src/modules/pages/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
+| `packages/web/src/modules/pages/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |
+| `packages/web/src/kernel/identity/routes/Login.tsx` | `AcceptInvite` — the invite link, opened by an account that already exists |
+| `packages/server/src/kernel/identity/routes/auth.ts` | `GET /api/people` — the instance's directory, for starting a conversation |
+| `packages/server/src/kernel/write-path/bootstrap.ts` | `addMember`, which is what makes somebody appear in the People list at all |

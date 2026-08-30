@@ -1,0 +1,1527 @@
+<title>Kolibri Module Map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Serif:wght@500;600&display=swap">
+
+<style>
+/* ─────────────────────────────────────────────────────────── tokens ── */
+:root {
+  color-scheme: light;
+  --page:      #fbfbfc;
+  --raised:    #ffffff;
+  --sunken:    #f4f4f7;
+  --ink:       #14161c;
+  --ink-soft:  #4a4f5a;
+  --ink-muted: #6e737e;
+  --line:      #e2e3e9;
+  --line-firm: #cfd1da;
+
+  --kernel:     #5b5bd6;
+  --capability: #1f8f76;
+  --adapter:    #c2691f;
+  --shell:      #9a5b8e;
+  --accent:     var(--kernel);
+  --accent-wash:#eeeefc;
+
+  --serif: 'IBM Plex Serif', Georgia, 'Times New Roman', serif;
+  --sans:  'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --cond:  'IBM Plex Sans Condensed', 'IBM Plex Sans', -apple-system, sans-serif;
+  --mono:  'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --measure: 68ch;
+  --r: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --page:      #0e1014;
+    --raised:    #15181e;
+    --sunken:    #0a0c10;
+    --ink:       #e8eaef;
+    --ink-soft:  #a7adba;
+    --ink-muted: #868c99;
+    --line:      #242833;
+    --line-firm: #333947;
+
+    --kernel:     #7c7cf0;
+    --capability: #22a186;
+    --adapter:    #cf7a2c;
+    --shell:      #b070a2;
+    --accent-wash:#1d1f3d;
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page:      #0e1014;
+  --raised:    #15181e;
+  --sunken:    #0a0c10;
+  --ink:       #e8eaef;
+  --ink-soft:  #a7adba;
+  --ink-muted: #868c99;
+  --line:      #242833;
+  --line-firm: #333947;
+
+  --kernel:     #7c7cf0;
+  --capability: #22a186;
+  --adapter:    #cf7a2c;
+  --shell:      #b070a2;
+  --accent-wash:#1d1f3d;
+}
+
+/* ─────────────────────────────────────────────────────────── base ── */
+* { box-sizing: border-box; }
+
+body {
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 16px;
+  line-height: 1.62;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 28px 96px;
+}
+
+@media (min-width: 1080px) {
+  .wrap { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 56px; align-items: start; }
+  .wrap > header, .wrap > .rail { grid-column: 1 / -1; }
+}
+
+/* headings ---------------------------------------------------------- */
+h1, h2, h3 { font-family: var(--serif); font-weight: 600; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(2.1rem, 5vw, 3.15rem); line-height: 1.08; letter-spacing: -0.021em; }
+h2 { font-size: clamp(1.42rem, 2.6vw, 1.78rem); line-height: 1.2; letter-spacing: -0.013em; }
+h3 { font-size: 1.06rem; line-height: 1.32; letter-spacing: -0.006em; }
+
+.eyebrow {
+  font-family: var(--cond);
+  font-weight: 600;
+  font-size: 0.735rem;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+p { margin: 0; max-width: var(--measure); }
+.lede { font-size: 1.14rem; color: var(--ink-soft); max-width: 62ch; }
+
+a { color: var(--accent); text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--accent) 36%, transparent); }
+a:hover { border-bottom-color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+
+code, .mono { font-family: var(--mono); font-size: 0.855em; font-variant-ligatures: none; }
+code { background: var(--sunken); border: 1px solid var(--line); padding: 0.5px 4px; border-radius: 3px; }
+
+.num { font-variant-numeric: tabular-nums; }
+
+/* ─────────────────────────────────────────────────────── masthead ── */
+header.masthead { padding: 72px 0 0; border-bottom: 1px solid var(--line); }
+
+.masthead .kicker { display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; margin-bottom: 22px; }
+.masthead .kicker .repo { font-family: var(--mono); font-size: 0.78rem; color: var(--ink-muted); }
+
+.masthead h1 { max-width: 17ch; }
+.masthead .lede { margin-top: 20px; }
+
+.tally {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  margin: 40px 0 34px;
+  overflow: hidden;
+}
+.tally div { background: var(--raised); padding: 15px 17px 14px; }
+.tally .v { font-family: var(--serif); font-size: 1.62rem; font-weight: 600; letter-spacing: -0.017em; display: block; }
+.tally .k { font-family: var(--cond); font-size: 0.7rem; letter-spacing: 0.11em; text-transform: uppercase; color: var(--ink-muted); }
+
+.provenance {
+  font-size: 0.83rem; color: var(--ink-muted); max-width: 74ch;
+  padding-bottom: 30px;
+}
+.provenance code { font-size: 0.8em; }
+
+/* ────────────────────────────────────────────────────────── rail ── */
+nav.rail { padding-top: 40px; }
+nav.rail ol { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+nav.rail a {
+  font-family: var(--cond); font-size: 0.78rem; letter-spacing: 0.075em; text-transform: uppercase;
+  color: var(--ink-muted); border: 0;
+}
+nav.rail a:hover { color: var(--ink); }
+nav.rail .n { font-family: var(--mono); font-size: 0.68rem; color: var(--line-firm); margin-right: 5px; }
+
+@media (min-width: 1080px) {
+  nav.rail { grid-column: 1; position: sticky; top: 26px; padding-top: 58px; }
+  nav.rail ol { flex-direction: column; gap: 9px; }
+  main { grid-column: 2; }
+}
+
+/* ─────────────────────────────────────────────────────── sections ── */
+section { padding-top: 62px; scroll-margin-top: 22px; }
+section > .eyebrow { display: block; margin-bottom: 9px; }
+section > h2 + p { margin-top: 15px; }
+.stack { display: flex; flex-direction: column; gap: 17px; }
+.stack--tight { gap: 11px; }
+
+/* ────────────────────────────────────────────────────────── table ── */
+.scroller { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 9px 15px; border-bottom: 1px solid var(--line); }
+thead th {
+  font-family: var(--cond); font-weight: 600; font-size: 0.71rem; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--ink-muted); white-space: nowrap;
+  background: var(--sunken);
+}
+tbody tr:last-child td { border-bottom: 0; }
+td.n, th.n { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td .path { font-family: var(--mono); font-size: 0.86em; }
+
+/* ──────────────────────────────────────────────────── the inventory ── */
+.legend { display: flex; flex-wrap: wrap; gap: 7px 20px; margin: 26px 0 20px; }
+.legend span { display: inline-flex; align-items: center; gap: 8px; font-size: 0.845rem; color: var(--ink-soft); }
+.legend i { width: 11px; height: 11px; border-radius: 2px; display: block; flex: none; }
+
+.plate {
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--raised);
+  overflow: hidden;
+}
+.plate + .plate { margin-top: 16px; }
+
+.plate > .head {
+  display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px;
+  padding: 13px 17px; background: var(--sunken); border-bottom: 1px solid var(--line);
+}
+.plate > .head .t { font-family: var(--cond); font-size: 0.78rem; letter-spacing: 0.11em; text-transform: uppercase; }
+.plate > .head .s { font-size: 0.815rem; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.bars { padding: 5px 0 9px; }
+.bar {
+  display: grid;
+  grid-template-columns: 148px minmax(60px, 1fr) 62px 210px;
+  align-items: center;
+  gap: 13px;
+  padding: 4px 17px;
+}
+.bar:hover { background: var(--sunken); }
+.bar .name { font-family: var(--mono); font-size: 0.83rem; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .track { height: 15px; }
+.bar .fill { height: 15px; border-radius: 0 4px 4px 0; display: block; min-width: 2px; }
+.bar .lines { font-family: var(--mono); font-size: 0.815rem; text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-soft); }
+.bar .biggest {
+  font-family: var(--mono); font-size: 0.71rem; color: var(--ink-muted);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.bar .flag {
+  font-family: var(--cond); font-size: 0.66rem; letter-spacing: 0.07em; text-transform: uppercase;
+  border: 1px solid currentColor; border-radius: 20px; padding: 0 5px; margin-left: 6px;
+  vertical-align: 1px; opacity: 0.82;
+}
+
+@media (max-width: 900px) {
+  .bar { grid-template-columns: 132px minmax(50px, 1fr) 58px; }
+  .bar .biggest { display: none; }
+}
+@media (max-width: 620px) {
+  .bar { grid-template-columns: 104px minmax(40px, 1fr) 52px; gap: 9px; padding: 4px 12px; }
+}
+
+.plate > .note { padding: 12px 17px; border-top: 1px solid var(--line); font-size: 0.86rem; color: var(--ink-soft); }
+
+/* ─────────────────────────────────────────────────────── findings ── */
+.findings { display: flex; flex-direction: column; gap: 14px; margin-top: 28px; }
+
+.finding {
+  border: 1px solid var(--line); border-radius: var(--r); background: var(--raised);
+  padding: 19px 21px 20px;
+  display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 0 15px;
+}
+.finding .rank {
+  font-family: var(--mono); font-size: 0.98rem; font-weight: 500;
+  color: var(--ink-muted); padding-top: 1px; font-variant-numeric: tabular-nums;
+}
+.finding h3 { margin-bottom: 7px; }
+.finding p { font-size: 0.945rem; color: var(--ink-soft); }
+.finding .body { display: flex; flex-direction: column; gap: 11px; }
+
+.evidence {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.evidence b {
+  font-family: var(--mono); font-weight: 500; font-size: 0.775rem;
+  background: var(--sunken); border: 1px solid var(--line); border-radius: 3px;
+  padding: 2px 7px; color: var(--ink-soft); font-variant-numeric: tabular-nums;
+}
+
+.fix {
+  border-left: 2px solid var(--accent);
+  padding: 2px 0 2px 14px;
+  font-size: 0.92rem;
+  color: var(--ink-soft);
+}
+.fix strong { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 620px) {
+  .finding { grid-template-columns: 1fr; gap: 6px; }
+}
+
+/* ───────────────────────────────────────────────────────── figures ── */
+figure { margin: 26px 0 0; }
+figure svg { display: block; width: 100%; height: auto; min-width: 560px; }
+figure svg text { font-family: var(--mono); fill: var(--ink); }
+figure svg .lbl { font-family: var(--cond); letter-spacing: 0.11em; }
+figure svg .box { fill: none; stroke: currentColor; stroke-width: 1.5; }
+figure svg .flow { stroke: var(--ink); stroke-width: 1.5; fill: none; }
+figure svg .dim { fill: var(--ink-muted); }
+figure svg .c-kernel { color: var(--kernel); }
+figure svg .c-capability { color: var(--capability); }
+figure svg .c-adapter { color: var(--adapter); }
+figure svg .on { fill: currentColor; }
+figure svg .arc { fill: none; stroke: currentColor; }
+figure svg .rule { stroke: var(--line-firm); stroke-width: 1; stroke-dasharray: 3 5; }
+figcaption { font-size: 0.855rem; color: var(--ink-muted); margin-top: 11px; max-width: 66ch; }
+.figbox { border: 1px solid var(--line); border-radius: var(--r); background: var(--raised); padding: 20px 18px; overflow-x: auto; }
+
+/* ───────────────────────────────────────────────────────── ladder ── */
+.ladder { display: flex; flex-direction: column; gap: 0; margin-top: 26px; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; background: var(--raised); }
+.step { display: grid; grid-template-columns: 34px minmax(0, 1fr) 88px; gap: 14px; padding: 13px 17px; border-bottom: 1px solid var(--line); align-items: baseline; }
+.step:last-child { border-bottom: 0; }
+.step .i { font-family: var(--mono); font-size: 0.85rem; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.step .what { font-size: 0.945rem; }
+.step .what em { font-style: normal; color: var(--ink-muted); display: block; font-size: 0.865rem; margin-top: 2px; }
+.step .risk {
+  font-family: var(--cond); font-size: 0.7rem; letter-spacing: 0.09em; text-transform: uppercase;
+  text-align: right; white-space: nowrap;
+}
+.step .risk[data-r="none"] { color: var(--capability); }
+.step .risk[data-r="low"] { color: var(--ink-muted); }
+.step .risk[data-r="medium"] { color: var(--adapter); }
+.step .risk[data-r="high"] { color: var(--shell); }
+.step.done { background: var(--accent-wash); }
+.step.done .i { color: var(--accent); }
+
+@media (max-width: 620px) {
+  .step { grid-template-columns: 26px minmax(0, 1fr); gap: 4px 10px; }
+  .step .risk { grid-column: 2; text-align: left; }
+}
+
+/* ─────────────────────────────────────────────────────────── lists ── */
+ul.plain { margin: 0; padding-left: 1.15em; max-width: var(--measure); }
+ul.plain li { margin-bottom: 9px; }
+ul.plain li::marker { color: var(--line-firm); }
+
+pre.cmd {
+  margin: 0; background: var(--sunken); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 14px 16px; overflow-x: auto; font-family: var(--mono); font-size: 0.815rem;
+  line-height: 1.85; color: var(--ink-soft);
+}
+pre.cmd b { color: var(--ink); font-weight: 500; }
+pre.cmd i { color: var(--ink-muted); font-style: normal; }
+
+footer {
+  margin-top: 76px; padding-top: 22px; border-top: 1px solid var(--line);
+  font-size: 0.845rem; color: var(--ink-muted); max-width: var(--measure);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+<header class="masthead">
+  <div class="kicker">
+    <span class="eyebrow">Architecture analysis</span>
+    <span class="repo">LucaFrankfurt/AIfirstPMO · Kolibri</span>
+  </div>
+
+  <h1>Where does one capability live?</h1>
+
+  <p class="lede">
+    <code>architecture.md</code> describes the layers. Nothing described the capabilities. This is
+    every function and capability in Kolibri sorted into modules, the seven places where the
+    boundaries have already failed — and how all seven were closed.
+  </p>
+
+  <div class="tally">
+<!-- generated: tally -->
+    <div><span class="v num">243</span><span class="k">source files</span></div>
+    <div><span class="v num">38</span><span class="k">modules</span></div>
+    <div><span class="v num">70 757</span><span class="k">lines</span></div>
+<!-- end -->
+    <div><span class="v num">42</span><span class="k">entities</span></div>
+    <div><span class="v num">120</span><span class="k">endpoints</span></div>
+    <div><span class="v num">72</span><span class="k">MCP tools</span></div>
+  </div>
+
+  <p class="provenance">
+    Every figure here is produced by <code>scripts/modules.mjs</code>, which runs in CI: it
+    regenerates the inventory in <code>docs/modules.md</code>, fails when the tables drift, and
+    enforces six dependency rules — with <code>noUnusedLocals</code> as a seventh, the typechecker’s
+    own. Every step recorded below was landed with typecheck, the whole
+    test suite, both browser walkthroughs and every static check green.
+  </p>
+</header>
+
+<nav class="rail" aria-label="Sections">
+  <ol>
+    <li><a href="#traced"><span class="n">01</span>One capability</a></li>
+    <li><a href="#inventory"><span class="n">02</span>The inventory</a></li>
+    <li><a href="#findings"><span class="n">03</span>Seven findings</a></li>
+    <li><a href="#target"><span class="n">04</span>The target</a></li>
+    <li><a href="#writepath"><span class="n">05</span>The write path</a></li>
+    <li><a href="#ladder"><span class="n">06</span>Getting there</a></li>
+    <li><a href="#limits"><span class="n">07</span>What it won't fix</a></li>
+    <li><a href="#rules"><span class="n">08</span>The rules</a></li>
+  </ol>
+</nav>
+
+<main>
+
+<!-- ═══════════════════════════════════════════════════ 01 traced ══ -->
+<section id="traced">
+  <span class="eyebrow">01 — The diagnosis, stated once</span>
+  <h2>One capability, traced</h2>
+  <div class="stack">
+    <p>
+      Budgets is the newest optional feature and the cleanest specimen: switched off by default, its
+      own four tables, nothing else in the product needs it. Here is everywhere the word appears
+      <em>outside</em> its own three files.
+    </p>
+
+    <div class="scroller">
+      <table>
+        <thead>
+          <tr><th>File</th><th class="n">Mentions</th><th>What lives there</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="path">web/locales/{en,de,fr}.ts</td><td class="n">191 ea.</td><td>Every string, in three catalogues</td></tr>
+          <tr><td class="path">server/lib/mcp.ts</td><td class="n">134</td><td>Seven tools, 461 lines</td></tr>
+          <tr><td class="path">server/lib/repo.ts</td><td class="n">73</td><td>Invariants, cascades, <code>canSeeBudget</code></td></tr>
+          <tr><td class="path">shared/types.ts</td><td class="n">43</td><td>Four interfaces, the constants, the switch</td></tr>
+          <tr><td class="path">server/db/schema.sql</td><td class="n">25</td><td>Four tables</td></tr>
+          <tr><td class="path">shared/entities.ts</td><td class="n">21</td><td>Four registry entries</td></tr>
+          <tr><td class="path">server/routes/entities.ts</td><td class="n">16</td><td>Collection names and guards</td></tr>
+          <tr><td class="path">web/routes/settings.tsx</td><td class="n">5</td><td>The switch that turns it on</td></tr>
+          <tr><td class="path">web/App.tsx</td><td class="n">3</td><td>Two routes</td></tr>
+          <tr><td class="path">web/lib/nav.ts</td><td class="n">2</td><td>One destination</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>
+      Ten files, three of them the largest in the repository, none of them about budgets. That is
+      the whole problem in one line: <strong>the capability is real, its boundary is not.</strong>
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ 02 inventory ══ -->
+<section id="inventory">
+<!-- generated: files -->
+  <span class="eyebrow">02 — All 243 files, sorted</span>
+<!-- end -->
+  <h2>The inventory</h2>
+  <div class="stack">
+    <p>
+      Three rings, and the test for which one a thing belongs to is a question about failure rather
+      than size: <em>if this were deleted, what breaks?</em> Everything, including an empty
+      workspace, means kernel. One area of the product means capability. One way of
+      <em>reaching</em> the product means adapter.
+    </p>
+
+    <div class="legend" role="list">
+<!-- generated: legend -->
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 20 891 lines, 30%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 32 594 lines, 46%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 15 497 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 775 lines, 3%</span>
+<!-- end -->
+    </div>
+
+    <div id="plates"></div>
+
+    <p>
+      Two rows were the whole diagnosis a second time. <code>notifications</code> was
+      <strong>58 lines</strong> — writing a notification is one small function, because everything it
+      <em>meant</em> had been distributed into <code>repo.ts</code> and everything it <em>did</em>
+      into five adapters. It is <strong>296 lines</strong> now, and the growth is the fix: the
+      meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
+      delivery stayed in the adapters but through a port they register with. And
+      <code>adapter/mcp</code> is <strong>5 768</strong>: the assistant's view of the product is
+      larger than the largest thing the product actually does. Fifteen files rather than three, now,
+      which makes it readable — not smaller. Finding 7 is why.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════ 03 findings ══ -->
+<section id="findings">
+  <span class="eyebrow">03 — Ordered by what they cost</span>
+  <h2>Seven findings</h2>
+  <p>
+    Each with the measurement behind it and the fix it implies. The numbering is a ranking, not a
+    sequence — the order they are fixed in is <a href="#ladder">further down</a>, and it is different.
+  </p>
+  <p class="provenance">
+    <strong>The numbers in this section are records, not measurements.</strong> Every bold figure on
+    this page is one or the other and <code>check:figures</code> will not let it be neither: a
+    measurement is claimed against the tree and fails the build when the two disagree; a record is
+    listed in <code>HISTORY</code> with a line saying what it is a record of. These are records —
+    <code>2 370 lines</code>, <code>1 030 selector runs</code> — and correcting one to today's value
+    would delete the evidence for the argument it belongs to.
+  </p>
+
+  <div class="findings">
+
+    <article class="finding">
+      <div class="rank">1</div>
+      <div class="body">
+        <h3><code>lib/mcp.ts</code> was a second application</h3>
+        <div class="evidence"><b>5 464 lines → 13 files</b><b>largest now 1 149</b><b>72 tools, unchanged</b><b>126 SQL statements</b></div>
+        <p>
+          One <code>TOOLS</code> array, eleven groups, and the eleven groups map one-to-one onto
+          capabilities that already exist. Adding a capability meant editing this file; removing one
+          meant editing this file. <strong>It is a directory now</strong> — an envelope of 265 lines,
+          a shared kit of 1 149, and eleven files of 190 to 740. The helpers are what made the split
+          work rather than the tools: they were what the groups shared, so pulling them out left each
+          group as a plain array that reads like a list of what an assistant can do.
+        </p>
+        <p>
+          Nothing about the surface moved: 72 tools, the same names, none missing and none doubled —
+          checked against the list from before, and again through the browser, where the walkthrough
+          asserts a freshly authorised token reaches 72 tools.
+        </p>
+        <p>
+          Both of the repository's layering violations were here too — <code>mcp.ts</code> importing
+          <code>storeFile</code> and <code>searchWorkspace</code> from route files. <strong>Fixed:</strong>
+          both moved down into <code>lib/uploads.ts</code> and <code>lib/search.ts</code>, where the
+          route and the MCP tool are equal callers of one implementation. There are now no layering
+          exceptions at all, which is worth more than two — nothing is left to cite as precedent.
+        </p>
+        <p class="fix"><strong>Remaining.</strong> The <strong>eleven</strong> files sit under the
+          adapter rather than beside the capability whose product they expose, and the module map
+          says so. This note used to call moving <code>tools/budgets.ts</code> next to
+          <code>budgets</code> step 10's job; step 10 came and went, put every file under
+          <code>&lt;ring&gt;/&lt;module&gt;/</code> and left these where they were, so it is nobody's
+          until somebody takes it — and it still wants <code>ToolDef</code> to have a home a
+          capability may import without importing an adapter. A switched-off feature also still
+          loads its tools; assembling the list per workspace is a behaviour change and has no place
+          in a refactor.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="rank">2</div>
+      <div class="body">
+        <h3><code>lib/repo.ts</code> contained the rules it should dispatch to</h3>
+        <div class="evidence"><b>2 370 → 1 282 lines</b><b>all 8 domains moved</b><b>194-line switch gone</b><b>219 tests hold it</b></div>
+        <p>
+          The merge, the transaction and the tombstones genuinely belong together. The budget
+          invariants, the KPI cascades, the landscape detachments and the rate rules did not.
+          <strong><code>writeEntity</code> has the hook points now</strong> —
+          <code>repo.onEntity</code> takes a rule naming the entities it speaks for, filling in
+          whichever of three moments it cares about: defaults on create, invariants on every write,
+          effects once the row is written — plus <code>guards</code>, which came with the core
+          domains. <strong>All eight have moved</strong>, each file claimed by its own capability
+          rather than by the kernel: <code>applyInvariants</code> is gone entirely, down from 194
+          lines to a single dispatch at its call site.
+        </p>
+        <p>
+          <code>guards</code> is the one that needed care. Chat's three checks and
+          <code>guardTransition</code> are <em>permission</em> checks, and each was an
+          <code>if (entity === … &amp;&amp; !opts.system)</code> branch. The <code>!opts.system</code>
+          half belongs to the hook now rather than to each rule, because a check a module has to
+          remember to gate is a check that will be forgotten. It does not make a permission boundary
+          optional: a rule that is not registered is not there at all, which <code>wiring.ts</code>
+          and its test exist to prevent.
+        </p>
+        <p>
+          What made this mechanical rather than a re-derivation of every rule is one sentence:
+          <strong>one write is one entity.</strong> Two rules for different entities never both run,
+          so their relative order cannot matter — only the order <em>within</em> an entity, which is
+          the order they are registered in, which is the order they were branches in. Every moved
+          line is verbatim, and not registering them fails 29 tests for the switchable four and 190
+          for the core four.
+        </p>
+        <p class="fix"><strong>The finding underneath.</strong> Two moved rules failed to announce
+          themselves: a budget line follows its budget's workspace and a KPI reading follows its
+          KPI's, and no test could tell either from doing nothing, because
+          <code>guardReferences</code> refuses a cross-workspace parent one step earlier. They are
+          not doing nothing — a <code>system</code> write skips that guard, and imports, restores and
+          transfers all take it. They have a test now, itself checked by disabling each rule.</p>
+        <p class="fix"><strong>What a mechanical move damages quietly.</strong> The first extractor
+          counted braces from the first line of a statement, which is wrong for a multi-line
+          condition — it truncated two blocks and left dangling braces, and that attempt was reset
+          rather than patched. The subtler one: three <code>//</code> comments were left standing
+          over code that had gone. Losing the reasoning is the damage nothing fails on, so the check
+          is to compare every comment line in the old file against the new set and require the
+          difference to be empty.</p>
+        <p class="fix"><strong>Remaining.</strong> <strong>Sixteen</strong> branches, in
+          <code>notify</code>, <code>fireWebhooks</code> and <code>applyCreateDefaults</code> — which
+          are <code>modules/notifications/effects.ts</code>, <code>adapters/webhooks/effects.ts</code>
+          and <code>repo.ts</code> since the write path handed the first two out. A different thing
+          from a domain rule — the same three effects for every entity with per-entity field
+          mapping — and finding 7 is the shape that untangles them.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="rank">3</div>
+      <div class="body">
+        <h3>The write path and the rules engine held each other up</h3>
+        <div class="evidence"><b>repo → automation → bootstrap → repo</b><b>fixed</b><b>0 knots left</b></div>
+        <p>
+          The relationship is real — the write path calls the rules engine and the rules engine
+          writes rows. Only the <em>import</em> was accidental, and being precise about which part
+          mattered, because the obvious fix was wrong. <code>afterWrite</code> said so in its own
+          comment: <code>runAutomations</code> stays inline on purpose, because what a rule writes
+          must land inside the transaction. Publishing on the bus and subscribing would have made
+          that asynchronous and broken <code>create_tasks_batch</code>'s <em>every task or none</em>
+          for exactly the rows a rule generated.
+        </p>
+        <p>
+          <strong>Fixed by dependency inversion, not asynchrony.</strong> <code>repo</code> exposes
+          <code>onWrite</code> — an array of functions called in order, where
+          <code>runAutomations</code> used to be. Same place, still synchronous, still inside the
+          transaction. Only the import direction moved.
+        </p>
+        <p class="fix"><strong>The cost, and what pays it.</strong> The new shape has a way to go
+          wrong the old one did not: a binary that writes rows without wiring the listeners up runs
+          no rules, silently. <code>lib/wiring.ts</code> is the one list of what hangs off the write
+          path — and where each capability's <code>effects</code> will register, so step 7 needs
+          more registrations rather than a new mechanism. <code>wiring.test.ts</code> checks that
+          list against the files <em>and</em> the scripts in <code>package.json</code>. That the
+          wiring is load-bearing was checked by removing it: eight of thirteen automation tests
+          fail.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="rank">4</div>
+      <div class="body">
+        <h3>Three capabilities on the client held each other up</h3>
+        <div class="evidence"><b>budget → insights → rates → budget</b><b>2 knots fixed</b><b>53 files in one folder</b></div>
+        <p>
+          Budgets borrowed a table from planning, planning borrowed <em>may this person see money</em>
+          from time, and time borrowed a money input back from budgets. A second knot,
+          <code>views.tsx</code> ↔ <code>saved-views.tsx</code>, was a view's <em>shape</em> living in
+          the screen that renders it.
+        </p>
+        <p>
+          <strong>Both fixed</strong>, and none of it needed the callers rearranged — only the shared
+          thing moved down to where all of them could reach it: <code>asMoney</code> and
+          <code>MoneyInput</code> into <code>components/ui/money.tsx</code>, the chart table into
+          <code>components/ui/table.tsx</code>, <code>useSeesMoney</code> into
+          <code>session.tsx</code> where it only ever read a role, and <code>ViewConfig</code> into
+          <code>task-parts.tsx</code>, which both files already imported <code>GroupBy</code> from.
+        </p>
+        <p class="fix"><strong>Closed by step 10.</strong> The folder of 53 components is
+          <code>kernel/design-system</code> now — 23 files, the primitives under <code>ui/</code> —
+          and the cross-capability imports it worried about are no longer invisible: a project page
+          hosting the KPI and budget panels is a row in the table further down, kept acyclic by
+          rule 6.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="rank">5</div>
+      <div class="body">
+        <h3>Nothing was code-split, so every workspace downloaded every feature</h3>
+        <div class="evidence"><b>1 304 kB → 819 kB</b><b>385 kB → 253 kB gzipped</b><b>−37%</b></div>
+        <p>
+          For a workspace with the optional features off, the first load carried the budget screens,
+          the KPI screens, the register, the timesheet, the manual and two locale catalogues nobody
+          had selected — a sixth of the source tree, parsed on a phone that would never render a word
+          of it. The switch already existed and <code>lib/nav.ts</code> already read it: a workspace
+          without budgets got no link to budgets and all of the code anyway. <strong>Fixed.</strong>
+        </p>
+        <p>
+          Three things this needed that <em>add React.lazy</em> does not say, and all three were
+          load-bearing. <strong>English stays static</strong> — it is the fallback
+          <code>translate</code> reaches for and the catalogue the key type derives from, so
+          <code>main.tsx</code> awaits the detected locale before the first render rather than
+          showing a frame of English. <strong>A capability's panels count as the capability</strong>:
+          <code>routes/projects.tsx</code> imported the KPI panels statically, which pulled all 1 676
+          lines of that screen straight back in and cancelled the split; they are fetched now, behind
+          the switch at the call site, because a check inside the component runs after the import.
+          And <strong>splitting would have cost offline</strong> — the first thing this project
+          promises.
+        </p>
+        <p class="fix"><strong>The offline part.</strong> The service worker caches
+          <code>/assets/</code> on first request, so a chunk nobody opened is not on the device and
+          Settings on a train would have found nothing. The screens are warmed in
+          <code>requestIdleCallback</code> once the app is up, narrowed by the same switches the
+          navigation uses: off the critical path, on disk a second later. And because a chunk can
+          still be missing after a deploy replaces the file an open tab remembers, the route switch
+          sits in an error boundary that says so and offers a reload.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="rank">6</div>
+      <div class="body">
+        <h3>The client store recomputed everything on every change</h3>
+        <div class="evidence"><b>103 selector runs per keystroke</b><b>now 10</b><b>193 call sites</b></div>
+        <p>
+          One counter for the whole cache: any write bumped it, every listener fired, and all 193
+          <code>useQuery</code> call sites recomputed. A chat message typed in another channel
+          invalidated the budget dashboard's selectors — and worse than the scan itself, handed
+          every caller a freshly allocated array, so each <code>useMemo</code> keyed on one fell
+          over too. Measured on a board with a task sheet open, ten writes to one task row cost
+          <b>1 030</b> selector runs.
+        </p>
+        <p class="fix"><strong>Fixed with a counter per table — and a read set nobody declares.</strong>
+          The counters were the easy half. The plan said
+          <code>useQuery(fn, deps, ['task', 'state'])</code>, and that is the shape that fails: a
+          caller lists what it thinks it reads, someone adds a <code>byId('label', …)</code> three
+          calls deep in a helper, and the screen quietly stops updating. No compiler catches it.
+          So the read set is <em>observed</em>: <code>list</code> and <code>byId</code> are the only
+          ways into the cache, each records its table into whatever selector is running, and the
+          memo keys on the sum of those counters. The same ten writes now cost <b>100</b> runs.</p>
+        <p class="fix"><strong>What did not change.</strong> The component still re-renders on every
+          write. 89 reads go straight from a render body into the cache, and the global re-render is
+          the only thing telling them a row moved — narrowing the subscription first would be a
+          staleness bug in 89 places, not an optimisation.</p>
+      </div>
+    </article>
+
+    <article class="finding">
+      <div class="rank">7</div>
+      <div class="body">
+        <h3>Reads had no home, so the assistant and the screen disagreed</h3>
+        <div class="evidence"><b>359 distinct SELECTs</b><b>21 written twice</b><b>1 real definition</b></div>
+        <p>
+          The cost was not duplicated code but duplicated <em>definitions</em>. The MCP tool
+          <code>deadlines_at_risk</code> weighed overdue, blocked, unstarted and unassigned into a
+          severity; the chip on a task row painted a due date red if <code>due &lt; today</code> and
+          looked at nothing else. The screen's answer was also wrong, and had been all along — a task
+          shipped in January stayed red for ever. Nobody had noticed, because the class it set had no
+          effect either: <code>.due-overdue</code> was a hand-written rule, and the chip already
+          carries <code>text-soft</code> from <code>chipVariants</code>. Two faults cancelling into
+          no colour at all.
+        </p>
+        <p class="fix"><strong>Fixed by a shared predicate.</strong> <code>shared/src/risk.ts</code>
+          states it once — <code>riskOf</code> for the report, <code>dueTone</code> for the chip,
+          <code>isDoneGroup</code> for anything asking whether work has stopped — pure, with the
+          caller passing in what today is. Eighteen places across twelve files had written it by
+          hand.</p>
+        <p class="fix"><strong>The <code>queries.ts</code> half was dropped, on measurement.</strong>
+          359 distinct <code>SELECT</code>s in the server, 21 written in more than one file, and
+          every one of the 21 a keyed lookup or an existence check. Not one is a definition. The one
+          real definition was "at risk", and it belongs in <code>shared</code>, where a
+          <code>queries.ts</code> could not have put it. Moving 631 statements to de-duplicate 21
+          one-line lookups buys tidiness and risks behaviour.</p>
+        <p class="fix"><strong>The other half was real, and is done.</strong>
+          <code>routes/auth.ts</code> — 957 lines, 41 endpoints, eight concerns — is five files now:
+          <code>auth.ts</code> (17 endpoints), <code>workspaces.ts</code> (10), and
+          <code>mail.ts</code> (7), <code>telegram.ts</code> (4) and <code>push.ts</code> (3) beside
+          the adapters they belong to.</p>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ═════════════════════════════════════════════════ 04 target ══ -->
+<section id="target">
+  <span class="eyebrow">04 — The shape being aimed at</span>
+  <h2>A kernel, capabilities, adapters</h2>
+  <div class="stack">
+    <p>
+      Three rules, and they are the whole architecture. What they buy: a capability that can be
+      added by adding a directory, switched off without being <em>loaded</em> on either side, tested
+      against the kernel and nothing else, and removed by deleting a directory and one line. None of
+      those is true today for any of the fifteen.
+    </p>
+
+    <figure>
+      <div class="figbox">
+        <svg viewBox="0 0 790 330" role="img"
+             aria-label="Three rings: adapters depend on capabilities, which depend on the kernel. Nothing points back up. Capabilities never import each other; where two need the same thing, that thing moves down into the kernel.">
+          <g class="c-adapter">
+            <rect class="box" x="120" y="16" width="460" height="70" rx="6"/>
+            <text class="lbl on" x="136" y="38" font-size="11.5">ADAPTERS</text>
+          </g>
+          <text x="136" y="60" font-size="12">mcp · rest · webhooks · calendar · share · intake</text>
+          <text x="136" y="77" font-size="12">mail · push · telegram · s3 · ai · oauth · transfer</text>
+
+          <g class="c-capability">
+            <rect class="box" x="120" y="128" width="460" height="70" rx="6"/>
+            <text class="lbl on" x="136" y="150" font-size="11.5">CAPABILITIES</text>
+          </g>
+          <text x="136" y="172" font-size="12">work · planning · pages · chat · automation · trash</text>
+          <text x="136" y="189" font-size="12">time · budgets · kpis · infrastructure · ai-review</text>
+
+          <g class="c-kernel">
+            <rect class="box" x="120" y="240" width="460" height="70" rx="6"/>
+            <text class="lbl on" x="136" y="262" font-size="11.5">KERNEL</text>
+          </g>
+          <text x="136" y="284" font-size="12">registry · write path · sync · identity · files</text>
+          <text x="136" y="301" font-size="12">search · i18n · platform · design system</text>
+
+          <line class="flow" x1="350" y1="90" x2="350" y2="115"/>
+          <polygon points="344,113 356,113 350,124" fill="currentColor"/>
+          <text class="dim" x="360" y="111" font-size="11.5">translates</text>
+
+          <line class="flow" x1="350" y1="202" x2="350" y2="227"/>
+          <polygon points="344,225 356,225 350,236" fill="currentColor"/>
+          <text class="dim" x="360" y="223" font-size="11.5">registers with</text>
+
+          <path class="arc" d="M 116 163 C 74 163 74 100 116 100"
+                stroke-width="1.3" stroke-dasharray="4 4" opacity="0.55"/>
+          <line x1="83" y1="121" x2="97" y2="135" stroke="currentColor" stroke-width="1.7" opacity="0.7"/>
+          <line x1="97" y1="121" x2="83" y2="135" stroke="currentColor" stroke-width="1.7" opacity="0.7"/>
+          <text class="dim" x="14" y="180" font-size="11">nothing</text>
+          <text class="dim" x="14" y="194" font-size="11">points up</text>
+
+          <g class="c-kernel">
+            <path class="arc" d="M 584 163 C 616 163 616 272 592 272" stroke-width="1.3"/>
+            <polygon class="on" points="594,266 594,278 582,272"/>
+          </g>
+          <text class="dim" x="626" y="196" font-size="11">where two capabilities</text>
+          <text class="dim" x="626" y="211" font-size="11">need the same thing,</text>
+          <text class="dim" x="626" y="226" font-size="11">that thing moves down</text>
+          <text class="dim" x="626" y="241" font-size="11">rather than sideways</text>
+        </svg>
+      </div>
+      <figcaption>
+        Dependencies point one way only. A capability never imports another capability — where two
+        genuinely need the same thing, that thing moves down into the kernel rather than becoming a
+        shortcut sideways. Finding 4 is what the rule is for.
+      </figcaption>
+    </figure>
+
+    <p>
+      The contract is deliberately narrow. <strong>No dynamic loading and no plugin API</strong> —
+      manifests are imported statically by one registry file, because a plugin API is a compatibility
+      promise the project does not want yet. <strong>No new runtime dependency</strong> — the registry
+      is an array of objects and a <code>for</code> loop. <strong>No change to the sync protocol or
+      the schema</strong> — every table keeps its name and every entity keeps its registry entry;
+      what moves is which <em>file</em> the entry is written in.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ 05 write path ══ -->
+<section id="writepath">
+  <span class="eyebrow">05 — The one edge that changes</span>
+  <h2>What actually moves</h2>
+  <div class="stack">
+    <p>
+      Findings 2 and 3 are one mechanism seen twice: <code>writeEntity</code> both
+      <em>contains</em> every capability's rules and <em>imported</em> the rules engine it calls.
+      Both become the same thing — a hook a module registers for. The right half below is now
+      real: <code>onWrite</code> exists and <code>automation</code> is its first user. Note what did
+      <em>not</em> change: the calls stay synchronous and inside the transaction, which is the
+      invariant <code>withEffectsHeld</code> exists to protect.
+    </p>
+
+    <figure>
+      <div class="figbox">
+        <svg viewBox="0 0 740 252" role="img"
+             aria-label="Today writeEntity contains a 194-line switch over every entity and calls runAutomations synchronously, which writes rows back through writeEntity, forming a three-file cycle. Under the module contract writeEntity asks the hooks each module registered, then the effect hooks, still inside the same transaction; automation is registered for one like anything else, so the cycle is gone without the timing changing.">
+          <text class="lbl dim" x="0" y="14" font-size="11.5">TODAY</text>
+
+          <rect class="box" x="0" y="30" width="150" height="52" rx="5"/>
+          <text x="12" y="52" font-size="12">writeEntity</text>
+          <text class="dim" x="12" y="69" font-size="10.5">merge + transaction</text>
+
+          <g class="c-adapter">
+            <rect class="box" x="0" y="105" width="150" height="52" rx="5"/>
+            <text class="on" x="12" y="127" font-size="12">applyInvariants</text>
+          </g>
+          <text class="dim" x="12" y="144" font-size="10.5">194-line switch</text>
+
+          <g class="c-adapter">
+            <rect class="box" x="0" y="180" width="150" height="52" rx="5"/>
+            <text class="on" x="12" y="202" font-size="12">runAutomations</text>
+          </g>
+          <text class="dim" x="12" y="219" font-size="10.5">writes rows</text>
+
+          <line class="flow" x1="75" y1="82" x2="75" y2="94"/>
+          <polygon points="69,92 81,92 75,103" fill="currentColor"/>
+          <line class="flow" x1="75" y1="157" x2="75" y2="169"/>
+          <polygon points="69,167 81,167 75,178" fill="currentColor"/>
+          <g class="c-adapter">
+            <path class="arc" d="M 154 206 C 204 206 204 56 164 56" stroke-width="1.5"/>
+            <polygon class="on" points="166,51 166,61 155,56"/>
+            <text class="on" x="212" y="126" font-size="11">cycle</text>
+          </g>
+          <text class="dim" x="212" y="140" font-size="11">3 files</text>
+
+          <line class="rule" x1="322" y1="20" x2="322" y2="242"/>
+
+          <text class="lbl dim" x="368" y="14" font-size="11.5">UNDER THE MODULE CONTRACT</text>
+
+          <rect class="box" x="368" y="30" width="150" height="52" rx="5"/>
+          <text x="380" y="52" font-size="12">writeEntity</text>
+          <text class="dim" x="380" y="69" font-size="10.5">merge + dispatch</text>
+
+          <g class="c-capability">
+            <rect class="box" x="368" y="105" width="150" height="52" rx="5"/>
+            <text class="on" x="380" y="127" font-size="12">module hooks</text>
+          </g>
+          <text class="dim" x="380" y="144" font-size="10.5">registered per entity</text>
+
+          <g class="c-kernel">
+            <rect class="box" x="368" y="180" width="150" height="52" rx="5"/>
+            <text class="on" x="380" y="202" font-size="12">effect hooks</text>
+          </g>
+          <text class="dim" x="380" y="219" font-size="10.5">same transaction</text>
+
+          <g class="c-capability">
+            <rect class="box" x="580" y="180" width="150" height="52" rx="5"/>
+            <text class="on" x="592" y="202" font-size="12">automation</text>
+          </g>
+          <text class="dim" x="592" y="219" font-size="10.5">registers, is called</text>
+
+          <line class="flow" x1="443" y1="82" x2="443" y2="94"/>
+          <polygon points="437,92 449,92 443,103" fill="currentColor"/>
+          <text class="dim" x="452" y="97" font-size="10.5">asks</text>
+          <line class="flow" x1="443" y1="157" x2="443" y2="169"/>
+          <polygon points="437,167 449,167 443,178" fill="currentColor"/>
+          <text class="dim" x="452" y="172" font-size="10.5">then asks</text>
+          <line class="flow" x1="522" y1="206" x2="566" y2="206"/>
+          <polygon points="564,200 564,212 576,206" fill="currentColor"/>
+        </svg>
+      </div>
+      <figcaption>
+        Left: <code>writeEntity</code> holds every capability's rules and imports the rules engine,
+        which writes rows back through it. Right: it asks whatever each module registered, and
+        <code>automation</code> is registered for an effect hook like anything else. The rules and
+        the timing are unchanged — what moves is who owns them and which way the import points.
+      </figcaption>
+    </figure>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════════ 06 ladder ══ -->
+<section id="ladder">
+  <span class="eyebrow">06 — Ordered by value against risk</span>
+  <h2>Getting there</h2>
+  <p>
+    Each step ships on its own, keeps the tests green, and is useful even if the next one never
+    happens. All eleven are done.
+  </p>
+
+  <div class="ladder">
+    <div class="step done">
+      <span class="i num">1</span>
+      <span class="what">Land <code>scripts/modules.mjs</code> and <code>docs/modules.md</code>
+        <em>The map exists, is generated, and is checked in CI</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">2</span>
+      <span class="what">Lazy-load capability routes and locale catalogues
+        <em>First load 1 304 → 819 kB, gzipped 385 → 253; warmed in idle so offline is unaffected</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">3</span>
+      <span class="what">Move the money widget, the chart table, <code>useSeesMoney</code> and <code>ViewConfig</code> down
+        <em>Both client knots gone — 12 files, no logic changed</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">4</span>
+      <span class="what"><code>repo.onWrite()</code>, and <code>automation</code> registers at startup
+        <em>The last knot, with no change to transaction semantics — 6 files</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">5</span>
+      <span class="what">Move <code>storeFile</code> and <code>searchWorkspace</code> down out of <code>routes/</code>
+        <em>Zero layering exceptions — nothing left to cite as precedent</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">6</span>
+      <span class="what">Split <code>lib/mcp.ts</code> into eleven tool files
+        <em>The adapter is 14 files now, the largest 1 150 lines, and a group is a file</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">7</span>
+      <span class="what">Hook points in <code>writeEntity</code>; the four switchable capabilities out
+        <em>The mechanism, proven first on rules nothing else depends on</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">7b</span>
+      <span class="what">The core domains, and a <code>guards</code> hook for the permission checks
+        <em><code>repo.ts</code> 2 370 → 1 282; <code>applyInvariants</code> gone</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">8</span>
+      <span class="what"><code>shared/src/risk.ts</code>: one definition of late, for both sides
+        <em>The report and the chip agree, and the chip is coloured at all — it never was</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">8b</span>
+      <span class="what">Split <code>routes/auth.ts</code> along the modules its endpoints belong to
+        <em>957 lines → 498; mail, Telegram and push stop living inside identity</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">9</span>
+      <span class="what">A counter per table on the client, and an observed read set
+        <em>103 selector runs per keystroke → 10</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+    <div class="step done">
+      <span class="i num">10</span>
+      <span class="what">Every file into <code>&lt;ring&gt;/&lt;module&gt;/</code> on all three packages
+        <em>220 files. The map is read off the tree now, not written down beside it</em></span>
+      <span class="risk" data-r="none">Shipped</span>
+    </div>
+  </div>
+
+  <p style="margin-top: 20px;">
+    Step 10 was last on purpose and earned the place: 220 files moved, no behaviour changed, and by
+    then the files being moved were already small and already owned their rules. What it bought is
+    not the directory listing — it is that the map above is now <em>read off the tree</em> rather
+    than written down beside it. A list of claims in a script is a second source of truth, and a file
+    could be moved without moving what claimed it.
+  </p>
+  <p>
+    Two things went wrong, which is the reason a rename this size is checked rather than trusted.
+    <code>lib/reactions.ts</code> and <code>components/reactions.tsx</code> were unambiguous in two
+    directories and not in one — <code>./reactions</code> resolves <code>.ts</code> before
+    <code>.tsx</code>, so every importer of the component would silently have got the helper. And
+    <code>env.ts</code> worked out the repository root by counting <code>../..</code>, then moved two
+    directories deeper: the typechecker was happy, all 1 340 tests passed, and the server served no
+    web build at all. The first was caught by comparing the resolved import graph before and after —
+    319 nodes, 2 004 edges, the same graph under the rename. The second by the browser walkthrough,
+    which is far too late, so the root is <em>found</em> now and three runtime paths have a test.
+  </p>
+</section>
+
+<!-- ══════════════════════════════════════════════ 07 limits ══ -->
+<section id="limits">
+  <span class="eyebrow">07 — Honest limits</span>
+  <h2>What this won't fix</h2>
+  <ul class="plain">
+    <li>
+      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 858 lines,
+      from 2 370. This entry used to promise a floor around 1 300 — the merge, the transaction, the
+      tombstones, the search index and the generic effects, said to belong together. Two of them did
+      not: the notification copy and the webhook payloads were a capability and an adapter sitting in
+      the write path, and they left when it got a hook for them. What is left is the floor.
+    </li>
+    <li>
+      <strong>The kernel stays a single node.</strong> Modules do not change <code>nextSeq()</code>
+      or the in-process bus, and step 4 deliberately does not either — inverting an import is not the
+      same as making a call asynchronous, and only the second buys a second replica. Every trade-off
+      <code>architecture.md</code> accepts is still accepted.
+    </li>
+    <li>
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 599 lines is three
+      catalogues of 2 252 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      catalogues smaller, and it should not — a compile error on a missing key is worth more than the
+      file size.
+    </li>
+    <li>
+      <strong>Modules are not a permission boundary.</strong> A capability is a unit of code, not of
+      trust. Who may see what is still <code>canSeeProject</code> and the workspace check in front of
+      it, and moving visibility rules into modules must not make that check optional.
+    </li>
+  </ul>
+</section>
+
+<!-- ══════════════════════════════════════════════ 08 rules ══ -->
+<section id="rules">
+  <span class="eyebrow">08 — What stops the map rotting</span>
+  <h2>The rules, and who enforces them</h2>
+  <div class="stack">
+    <p>
+      <code>scripts/modules.mjs</code> runs in CI beside <code>check:compose</code> and
+      <code>check:figures</code>. Seven numbered rules, plus a check that the tables in the document
+      still match the tree — the last row below. Where a rule has an escape hatch it is
+      <em>named</em> rather than counted: a threshold is a budget somebody will spend, and a named
+      exception has to be deleted from the file by whoever fixes it. Three of the seven carry a
+      list; all three are empty.
+    </p>
+    <p>
+      <strong>The checks have a suite of their own.</strong> Every rule below was proved once by
+      breaking the tree by hand and watching the check complain — and then the proof was thrown
+      away. <code>scripts/checks.test.mjs</code> is those proofs kept: a case copies the tree,
+      breaks one thing in the copy, runs the checker and asserts what it says. Two of them break the
+      <em>script</em> instead, because a walk that quietly returns nothing is the regression that
+      would leave every check passing and every table on this page wrong.
+    </p>
+
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Rule</th><th>Why</th><th class="n">Exceptions</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>Every source file belongs to exactly one module</td>
+            <td>Forces the question <em>which capability is this?</em> while somebody still knows</td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>Packages point one way</td>
+            <td><code>shared</code> imports neither; <code>web</code> never imports <code>server</code></td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>Only the shell may import a <code>routes/</code> file</td>
+            <td>A module's routes are its top; anything reaching in makes them impossible to replace</td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>No import knots</td>
+            <td>Reported as the whole set of mutually reachable files, so the list is stable</td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>The rings point one way</td>
+            <td>A ring that leans outward has chosen a provider on everybody's behalf</td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>Module dependencies are acyclic, in every ring</td>
+            <td>Not independent — <em>ordered</em>, so each can be read knowing only what it leans on</td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>Every port is filled, from further out</td>
+            <td>A port nobody fills asks for what will never arrive; one filled from its own ring
+                bought nothing a direct import would not have</td>
+            <td class="n">0</td>
+          </tr>
+          <tr>
+            <td>The inventory tables match the tree</td>
+            <td>A table pasted into prose is <code>figures.mjs</code>'s problem one size up</td>
+            <td class="n">0</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+<pre class="cmd"><b>npm run check:modules</b>      <i># the seven rules and the tables; exit 1 on a violation</i>
+<b>npm run test:checks</b>        <i># the checks themselves, against a broken copy of the tree</i>
+<b>npm run modules</b>            <i># the inventory on the terminal</i>
+<b>npm run modules -- --fix</b>   <i># rewrite the tables in docs/modules.md</i></pre>
+
+    <p>
+      All three allowlists are empty, and shrinking is the only direction they move: an exception is
+      deleted by whoever fixes it, never traded for another. A new violation has no precedent to
+      point at. Rule 1 stopped being a list at all in step 10 — the path <em>is</em> the claim, so
+      belonging to two modules is impossible and belonging to none fails the build. Rule 3 was
+      <code>lib/</code> below <code>routes/</code>, which was the same idea in the only two
+      directories that then existed; stated about a directory it started covering the client and
+      found four violations there and in the MCP adapter within minutes. All four are fixed.
+    </p>
+
+    <h3 style="margin-top: 28px;">The direction rules, and which of them are rules now</h3>
+    <p>
+      The rules about <em>direction</em> became checkable once the modules were in directories. The
+      first measurement said 108 crossings, which was two counting mistakes on top of a real
+      problem. A <code>routes/</code> file <em>composes</em> — that is what a route is, wherever it
+      sits — so counting a route's imports as ring dependencies made the kernel look like it
+      depended on nine capabilities when what it had was nine endpoints. And an
+      <code>import type</code> is erased when the file compiles: it couples the build, not the run.
+      108 becomes 35 that survive compilation and 5 that do not.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Direction</th><th class="n">Before</th><th class="n">Now</th></tr></thead>
+        <tbody>
+<!-- generated: directions -->
+          <tr><td>kernel → a capability</td><td class="n">5</td><td class="n"><b>0</b></td></tr>
+          <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
+          <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
+          <tr><td>capability → another capability</td><td class="n">14</td><td class="n">17</td></tr>
+          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">8</td></tr>
+<!-- end -->
+        </tbody>
+      </table>
+    </div>
+    <p>
+      <strong>Nothing points outward any more. <code>KNOWN_OUTWARD</code> is empty, and rule 5
+      keeps it that way.</strong>
+      The last row moves the other way on purpose: an adapter is <em>supposed</em> to lean on a
+      capability, and it does so 8 times now precisely because the outward edges were turned
+      round.
+      The way out was the same every time — the inner ring says what it needs, the outer one
+      registers. There are <strong>8 ports</strong> across <strong>7 modules</strong> now, and
+      all 8 are filled. Four of the fixes were not inversions at all but things filed in the wrong
+      place, and those four are the interesting ones.
+    </p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Asked by</th><th>For</th><th>Filled by</th></tr></thead>
+        <tbody>
+<!-- generated: ports -->
+          <tr><td><code>kernel/design-system</code></td><td>the link into the guide that <code>Empty</code> offers <span class="dim"><code>provideGuideHint</code></span></td><td><code>capability/guide</code></td></tr>
+          <tr><td><code>kernel/files</code></td><td>a place to put bytes <span class="dim"><code>registerBackend</code></span></td><td><code>adapter/s3</code></td></tr>
+          <tr><td><code>kernel/sync</code></td><td>a handler for one kind of frame on the live connection <span class="dim"><code>onStream</code></span></td><td><code>capability/chat</code></td></tr>
+          <tr><td><code>kernel/write-path</code></td><td>a listener run once the write has committed <span class="dim"><code>onCommitted</code></span></td><td><code>adapter/webhooks</code>, <code>capability/notifications</code></td></tr>
+          <tr><td><code>kernel/write-path</code></td><td>a listener run inside the write's own transaction <span class="dim"><code>onWrite</code></span></td><td><code>capability/automation</code></td></tr>
+          <tr><td><code>capability/ai-review</code></td><td>a model that can answer, under a configuration name <span class="dim"><code>provideModel</code></span></td><td><code>adapter/ai</code></td></tr>
+          <tr><td><code>capability/automation</code></td><td>a chore for the periodic sweep to run <span class="dim"><code>onSweep</code></span></td><td><code>adapter/telegram</code>, <code>adapter/webhooks</code></td></tr>
+          <tr><td><code>capability/notifications</code></td><td>a channel a notification is carried on <span class="dim"><code>onNotification</code></span></td><td><code>adapter/push</code>, <code>adapter/telegram</code></td></tr>
+<!-- end -->
+        </tbody>
+      </table>
+    </div>
+    <p>
+      Every row's third column is an import pointing <em>inward</em>, which is the whole trick. The
+      table is generated from a <code>@port</code> tag on each declaring function, because the
+      sentence it replaces had already drifted: it said six and named six while <code>ui</code> had
+      been offering a guide hint since the same commit as <code>sync</code>'s stream. Nothing in the
+      source said which functions were ports, so nothing could count them.
+    </p>
+    <p>
+      <strong>Rule 7 turned that table into a check.</strong> A port nobody fills is a module asking
+      for what will never arrive; a port filled from its own ring is ceremony, because a direct
+      import would have been legal there. That second half is the one no other rule catches — a
+      kernel module filling another kernel module's port passes rules 5 and 6 and is still not a
+      port. And a <code>@port</code> tag on anything but an exported function would drop a row here
+      and three figures with it, silently, so the tags are counted twice and a disagreement is
+      named.
+    </p>
+    <div class="findings">
+
+      <article class="finding">
+        <div class="rank">1</div>
+        <div class="body">
+          <h3>A format filed as a provider</h3>
+          <div class="evidence"><b>3 of the 5 exceptions</b><b>kernel/mail, 2 files</b><b>4 callers, 1 sends mail</b></div>
+          <p>
+            <code>env.ts</code> and <code>settings.ts</code> reached into <code>adapters/mail</code>
+            because parsing <code>KOLIBRI_SMTP_URL</code> means knowing what an SMTP URL looks like,
+            and checking <code>KOLIBRI_MAIL_FROM</code> means knowing what an address looks like.
+            Both true — and both needed the <em>shape</em>, not the client.
+            <strong><code>kernel/mail</code> holds the shape</strong>; <code>adapters/mail</code>
+            keeps the sockets, the RFC 5321 conversation and the retries.
+          </p>
+          <p>
+            The address half had a reader no rule could see. <code>isEmailAddress</code> was also
+            imported by identity's sign-up and invite routes, which rule 3 excuses because a
+            <code>routes/</code> file composes. Four things ask what an address is and one of them
+            is sending mail: an account is named by an address whether or not this instance can post
+            to one.
+          </p>
+        </div>
+      </article>
+
+      <article class="finding">
+        <div class="rank">2</div>
+        <div class="body">
+          <h3>A dialog filed as an edge</h3>
+          <div class="evidence"><b>2 of the 5 exceptions</b><b>modules/share, 155 lines</b><b>3 screens embed it</b></div>
+          <p>
+            The old note had the diagnosis and stopped there: <code>share</code> is an adapter on the
+            server, where it renders a board for whoever holds the link, and product UI on the
+            client, where it <em>makes</em> the link. The client half imports the design system, the
+            store and the session and nothing outside the process, which is a screen —
+            <strong>so it is a capability</strong>. Intake, saved views and the page tree lean on it
+            the way capabilities are allowed to lean on each other.
+          </p>
+          <div class="fix">
+            <strong>Two nouns now name a module in two rings.</strong> <code>mail</code> and
+            <code>share</code> each have an inner half and an adapter half, which is the ring
+            boundary drawn <em>through</em> a domain rather than around it. <code>ABOUT</code> is
+            keyed by <code>ring/name</code> where that happens: one sentence covering both halves
+            would have to be vague enough to be wrong about each.
+          </div>
+        </div>
+      </article>
+
+      <article class="finding">
+        <div class="rank">3</div>
+        <div class="body">
+          <h3>The exception was hiding a cycle</h3>
+          <div class="evidence"><b>rule 6 now covers every ring</b><b>0 module cycles</b></div>
+          <p>
+            Emptying the list is what showed why the rule was too narrow. The three named
+            kernel-to-adapter edges were not only arrows pointing the wrong way: with them,
+            <code>kernel/platform</code>, <code>kernel/i18n</code> and <code>adapter/mail</code>
+            formed a module cycle — <strong>excused by name under rule 5, and invisible to rule 6,
+            which was only looking at capabilities</strong>. Rule 6 covers every ring now, and after
+            rule 5 a cycle cannot cross a ring boundary, so any that appears is inside one ring and
+            this is what finds it. Re-adding a single edge reports both faults at once.
+          </p>
+        </div>
+      </article>
+
+    </div>
+    <p style="margin-top: 18px;">
+      Two more were misfilings of the same kind, fixed earlier: <code>AppShell.tsx</code> composes
+      work, chat and the guide, which is a shell and not a design system, and <code>zip.ts</code>
+      imports <code>node:zlib</code> and nothing else, which is a format and not an adapter.
+    </p>
+
+    <h3 style="margin-top: 28px;">Capabilities are ordered, not independent</h3>
+    <p>
+      Depending on each <em>other</em> is the second question and the answer is not zero.
+      <code>work</code> imports <code>planning</code> because the timeline view of a task list is a
+      Gantt chart; no inversion changes that, and a registry invented per one-off relationship would
+      be the counted budget this document argues against, in a costume. What they can be is
+      <em>ordered</em>, and they already are — 17 imports across 15 module pairs, generated
+      from the import graph rather than remembered:
+    </p>
+    <div class="scroller">
+      <table>
+        <thead><tr><th>Capability</th><th>Leans on</th><th class="n">Leaned on by</th></tr></thead>
+        <tbody>
+<!-- generated: leans -->
+          <tr><td><code>pages</code></td><td><span class="dim">—</span></td><td class="n">3 (<code>ai-review</code>, <code>automation</code>, <code>work</code>)</td></tr>
+          <tr><td><code>share</code></td><td><span class="dim">—</span></td><td class="n">2 (<code>intake</code>, <code>work</code>)</td></tr>
+          <tr><td><code>work</code></td><td><code>ai-review</code>, <code>pages</code>, <code>planning</code>, <code>share</code>, <code>time</code></td><td class="n">2 (<code>intake</code>, <code>kpis</code>)</td></tr>
+          <tr><td><code>ai-review</code></td><td><code>pages</code></td><td class="n">1 (<code>work</code>)</td></tr>
+          <tr><td><code>budgets</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>kpis</code>)</td></tr>
+          <tr><td><code>guide</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
+          <tr><td><code>notifications</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
+          <tr><td><code>operations</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
+          <tr><td><code>planning</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>work</code>)</td></tr>
+          <tr><td><code>time</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>work</code>)</td></tr>
+          <tr><td><code>trash</code></td><td><span class="dim">—</span></td><td class="n">1 (<code>automation</code>)</td></tr>
+          <tr><td><code>automation</code></td><td><code>guide</code>, <code>notifications</code>, <code>operations</code>, <code>pages</code>, <code>trash</code></td><td class="n"><span class="dim">—</span></td></tr>
+          <tr><td><code>chat</code></td><td><span class="dim">—</span></td><td class="n"><span class="dim">—</span></td></tr>
+          <tr><td><code>infrastructure</code></td><td><span class="dim">—</span></td><td class="n"><span class="dim">—</span></td></tr>
+          <tr><td><code>intake</code></td><td><code>share</code>, <code>work</code></td><td class="n"><span class="dim">—</span></td></tr>
+          <tr><td><code>kpis</code></td><td><code>budgets</code>, <code>work</code></td><td class="n"><span class="dim">—</span></td></tr>
+<!-- end -->
+        </tbody>
+      </table>
+    </div>
+    <p>
+      No cycles, so any capability can be read knowing only what it leans on, and one that nothing
+      leans on can be deleted without touching the rest. Rule 6 keeps it that way and it is
+      <em>not</em> implied by rule 4: two modules can each import the other without any single file
+      doing so. Adding <code>planning → work</code> to the tree reports a capability cycle and no
+      import knot, which is the whole argument for having both.
+    </p>
+
+    <h3 style="margin-top: 28px;">Is there a fifth ring? No.</h3>
+    <p>
+      The table raises it: capabilities are plainly not peers, so perhaps the ones others lean on are
+      a ring of their own, between the kernel and the rest. Three things say no, and the last is
+      decisive.
+    </p>
+    <div class="findings">
+
+      <article class="finding">
+        <div class="rank">1</div>
+        <div class="body">
+          <h3>There is no stratum</h3>
+          <div class="evidence"><b>16 capabilities</b><b>15 edges</b><b>most leaned-on: 3</b><b>5 leaned on by nobody</b></div>
+          <p>
+            A ring is not "the important ones", it is a <em>set that depends on nothing above it and
+            that the things above it depend on</em>. The most leaned-on capability is
+            <code>pages</code>, and 3 of the other 15 lean on it. Five —
+            <code>automation</code>, <code>chat</code>, <code>infrastructure</code>,
+            <code>intake</code>, <code>kpis</code> — are leaned on by nobody at all, and two of those
+            lean on nothing either.
+          </p>
+          <p>
+            There are <strong>3 606</strong> ways to split this graph into a lower part that depends on
+            nothing above it and an upper part. Every one of them was tried. The lower part that the
+            most capabilities lean on is <code>budgets</code>, <code>pages</code> and
+            <code>share</code>: <strong>3 modules that 5 of the rest lean on</strong>. That is the strongest case
+            available for a fifth ring, and it is a sparse graph with a few edges rather than a
+            foundation with a product on top.
+          </p>
+        </div>
+      </article>
+
+      <article class="finding">
+        <div class="rank">2</div>
+        <div class="body">
+          <h3>The candidate disqualifies itself</h3>
+          <div class="evidence"><b>work → ai-review</b><b>work → pages</b><b>work → planning</b><b>work → share</b><b>work → time</b></div>
+          <p>
+            <code>work</code> looks like the foundation — it is the biggest domain and other
+            capabilities lean on it — and it leans on five of them. Put <code>work</code> in a ring
+            below capabilities and all five of those imports point outward, which is what rule 5
+            forbids: <strong>a ring that breaks the ring rule on the day it is drawn is not a
+            ring</strong>. Move the five down with it and the split is legal again — but it is then
+            one of the 3 606 counted above, and not the best of them.
+          </p>
+        </div>
+      </article>
+
+      <article class="finding">
+        <div class="rank">3</div>
+        <div class="body">
+          <h3>A ring has to buy a rule</h3>
+          <p>
+            Each of the four exists because it makes something checkable that otherwise is not: what
+            is always present, what a switch can remove, what faces outside, what merely composes. A
+            fifth would have to make "capabilities are ordered" checkable —
+            <strong>and that is already rule 6, as acyclicity, which needs no ring to say it.</strong>
+          </p>
+          <div class="fix">
+            <strong>What changes instead is the description.</strong> This analysis called
+            capabilities peers. They are not: they are a sparse partial order, 16 members and
+            15 edges, no cycles. Smaller and truer than a fifth ring, and it costs nothing to keep
+            honest.
+          </div>
+        </div>
+      </article>
+
+    </div>
+    <p style="margin-top: 22px;">
+      <strong>A correction.</strong> An earlier version of this page put <code>work</code> at "level
+      2 with seven capabilities under it" and read that as <code>work</code> sitting closer to the
+      kernel. The number was a longest-dependency-chain depth, which measures what a module
+      <em>stands on</em>, not what stands on <em>it</em> — precisely backwards for the question being
+      asked. Counted the right way round, the most depended-upon capability is <code>pages</code>,
+      which leans on nothing. The table above is generated from the graph now, so the next person to
+      ask gets the measurement rather than the memory.
+    </p>
+  </div>
+</section>
+
+<footer>
+  This page is <code>docs/module-map.html</code> in the repository, beside the document it
+  illustrates, <code>docs/modules.md</code>. Its tally, legend, inventory and three of its tables
+  are written by <code>scripts/modules.mjs</code> between markers, and the numbers in its sentences
+  are claimed in <code>scripts/figures.mjs</code>; <code>npm run check:modules</code> and
+  <code>npm run check:figures</code> fail on a stale one. It is checked rather than trusted, which
+  it was not while it lived outside the tree — that is how it came to say 227 files, three wrong
+  ring totals and five ring exceptions that had already been fixed.
+</footer>
+
+</main>
+</div>
+
+<script>
+/* generated: inventory */
+const MODULES = [
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7599,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2385},
+{"ring":"kernel","name":"registry","flag":"","files":5,"lines":2341,"biggest":"kernel/registry/types.ts","biggestLines":1556},
+{"ring":"kernel","name":"identity","flag":"","files":9,"lines":2076,"biggest":"kernel/identity/routes/auth.ts","biggestLines":498},
+{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":1871,"biggest":"kernel/write-path/repo.ts","biggestLines":858},
+{"ring":"kernel","name":"design-system","flag":"","files":23,"lines":1828,"biggest":"kernel/design-system/ui.tsx","biggestLines":522},
+{"ring":"kernel","name":"platform","flag":"","files":10,"lines":1676,"biggest":"kernel/platform/env.ts","biggestLines":505},
+{"ring":"kernel","name":"sync","flag":"","files":6,"lines":1571,"biggest":"kernel/sync/routes/sync.ts","biggestLines":448},
+{"ring":"kernel","name":"search","flag":"","files":5,"lines":1059,"biggest":"kernel/search/routes/search.tsx","biggestLines":580},
+{"ring":"kernel","name":"files","flag":"","files":6,"lines":700,"biggest":"kernel/files/zip.ts","biggestLines":315},
+{"ring":"kernel","name":"mail","flag":"","files":2,"lines":170,"biggest":"kernel/mail/address.ts","biggestLines":88},
+{"ring":"capability","name":"work","flag":"","files":25,"lines":6119,"biggest":"modules/work/views.tsx","biggestLines":996},
+{"ring":"capability","name":"planning","flag":"","files":11,"lines":4260,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1491},
+{"ring":"capability","name":"pages","flag":"","files":13,"lines":3741,"biggest":"modules/pages/Markdown.tsx","biggestLines":672},
+{"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3239,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1669},
+{"ring":"capability","name":"operations","flag":"","files":9,"lines":3037,"biggest":"modules/operations/routes/settings.tsx","biggestLines":970},
+{"ring":"capability","name":"chat","flag":"","files":6,"lines":2483,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1428},
+{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1842,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":935},
+{"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1627,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":568},
+{"ring":"capability","name":"guide","flag":"","files":6,"lines":1625,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
+{"ring":"capability","name":"time","flag":"time","files":6,"lines":1490,"biggest":"modules/time/rates.tsx","biggestLines":581},
+{"ring":"capability","name":"automation","flag":"","files":3,"lines":1485,"biggest":"modules/automation/settings.tsx","biggestLines":729},
+{"ring":"capability","name":"ai-review","flag":"ai","files":4,"lines":535,"biggest":"modules/ai-review/task-review.tsx","biggestLines":204},
+{"ring":"capability","name":"trash","flag":"","files":2,"lines":433,"biggest":"modules/trash/trash.tsx","biggestLines":217},
+{"ring":"capability","name":"notifications","flag":"","files":2,"lines":296,"biggest":"modules/notifications/effects.ts","biggestLines":219},
+{"ring":"capability","name":"intake","flag":"","files":1,"lines":227,"biggest":"modules/intake/intake.tsx","biggestLines":227},
+{"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
+{"ring":"adapter","name":"mcp","flag":"","files":14,"lines":5768,"biggest":"adapters/mcp/kit.ts","biggestLines":1150},
+{"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3337,"biggest":"adapters/transfer/transfer.ts","biggestLines":793},
+{"ring":"adapter","name":"webhooks","flag":"","files":6,"lines":1920,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
+{"ring":"adapter","name":"mail","flag":"","files":6,"lines":1114,"biggest":"adapters/mail/mail.ts","biggestLines":426},
+{"ring":"adapter","name":"oauth","flag":"","files":3,"lines":787,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":497},
+{"ring":"adapter","name":"telegram","flag":"","files":5,"lines":756,"biggest":"adapters/telegram/telegram.ts","biggestLines":460},
+{"ring":"adapter","name":"share","flag":"","files":1,"lines":479,"biggest":"adapters/share/routes/share.ts","biggestLines":479},
+{"ring":"adapter","name":"push","flag":"","files":4,"lines":383,"biggest":"adapters/push/push.ts","biggestLines":209},
+{"ring":"adapter","name":"ai","flag":"","files":5,"lines":344,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
+{"ring":"adapter","name":"calendar","flag":"","files":2,"lines":340,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":195},
+{"ring":"adapter","name":"s3","flag":"","files":2,"lines":269,"biggest":"adapters/s3/s3.ts","biggestLines":227},
+{"ring":"shell","name":"shell","flag":"","files":12,"lines":1775,"biggest":"AppShell.tsx","biggestLines":478}
+];
+/* end */
+
+const RINGS = [
+  ['kernel', 'Kernel', 'Always present. Nothing switches it off.'],
+  ['capability', 'Capabilities', 'What the product does. Ordered, not independent.'],
+  ['adapter', 'Adapters', 'One way of reaching the product, not the product.'],
+  ['shell', 'Shell', 'Composition only.'],
+];
+
+const group = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const max = Math.max(...MODULES.map((m) => m.lines));
+
+const plates = document.getElementById('plates');
+
+for (const [key, title, blurb] of RINGS) {
+  const rows = MODULES.filter((m) => m.ring === key);
+  const sum = rows.reduce((n, m) => n + m.lines, 0);
+  const files = rows.reduce((n, m) => n + m.files, 0);
+
+  const plate = document.createElement('div');
+  plate.className = 'plate';
+
+  const head = document.createElement('div');
+  head.className = 'head';
+  const t = document.createElement('span');
+  t.className = 't';
+  t.style.color = `var(--${key})`;
+  t.textContent = title;
+  const s = document.createElement('span');
+  s.className = 's';
+  s.textContent = `${rows.length} module${rows.length === 1 ? '' : 's'} · ${files} files · ${group(sum)} lines`;
+  head.append(t, s);
+
+  const bars = document.createElement('div');
+  bars.className = 'bars';
+
+  for (const m of rows) {
+    const row = document.createElement('div');
+    row.className = 'bar';
+
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.style.color = `var(--${key})`;
+    name.textContent = m.name;
+    if (m.flag) {
+      const flag = document.createElement('span');
+      flag.className = 'flag';
+      flag.textContent = m.flag;
+      name.append(flag);
+    }
+
+    const track = document.createElement('span');
+    track.className = 'track';
+    const fill = document.createElement('span');
+    fill.className = 'fill';
+    fill.style.background = `var(--${key})`;
+    fill.style.width = `${Math.max((m.lines / max) * 100, 0.9)}%`;
+    fill.style.opacity = '0.82';
+    track.append(fill);
+
+    const biggest = document.createElement('span');
+    biggest.className = 'biggest';
+    biggest.textContent = `${m.biggest} · ${group(m.biggestLines)}`;
+
+    const lines = document.createElement('span');
+    lines.className = 'lines';
+    lines.textContent = group(m.lines);
+
+    row.append(name, track, lines, biggest);
+    row.title = `${m.name} — ${m.files} file${m.files === 1 ? '' : 's'}, ${group(m.lines)} lines. Largest: ${m.biggest} (${group(m.biggestLines)}).`;
+    bars.append(row);
+  }
+
+  const note = document.createElement('div');
+  note.className = 'note';
+  note.textContent = blurb;
+
+  plate.append(head, bars, note);
+  plates.append(plate);
+}
+</script>
