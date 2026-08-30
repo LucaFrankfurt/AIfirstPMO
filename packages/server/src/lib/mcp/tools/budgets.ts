@@ -1,7 +1,7 @@
 /**
  * What was planned, what has gone, and which projects pay for it.
  */
-import { actualFromPlan, type Budget, BUDGET_STATUS, type BudgetActual, type BudgetLine, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, coversProject, formatMoney, healthOf, orderKey, plannedForMonth, type PlannedForMonth, plannedTotal, projectShare, SPEND_STAGES, type SpendStage } from '@kolibri/shared';
+import { actualFromPlan, BUDGET_STATUS, type BudgetActual, type BudgetLine, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, coversProject, formatMoney, healthOf, orderKey, plannedForMonth, type PlannedForMonth, plannedTotal, projectShare, SPEND_STAGES, type SpendStage } from '@kolibri/shared';
 import { all, type Row } from '../../../db/index.ts';
 import { env } from '../../../env.ts';
 import { serialize, writeEntity } from '../../repo.ts';

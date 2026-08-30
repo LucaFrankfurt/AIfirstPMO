@@ -3,9 +3,9 @@
  */
 import { orderKey, STATE_GROUPS } from '@kolibri/shared';
 import { all, get, type Row } from '../../../db/index.ts';
-import { read, writeEntity } from '../../repo.ts';
+import { writeEntity } from '../../repo.ts';
 import { uid } from '../../ids.ts';
-import { colour, findLabel, findProject, findState, labelView, McpError, requireWrite, resolveLabels, stateGroup, stateView, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
+import { colour, findLabel, findProject, findState, labelView, McpError, requireWrite, stateGroup, stateView, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 
 export const configTools: ToolDef[] = [
   {

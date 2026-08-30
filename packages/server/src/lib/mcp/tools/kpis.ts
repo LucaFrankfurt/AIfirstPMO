@@ -3,7 +3,7 @@
  */
 import { coversProject, dueOn, formatMeasure, type KpiTarget, MEASURE_CADENCES, MEASURE_DIRECTIONS, MEASURE_HEALTH, MEASURE_UNITS, orderKey, parseMeasure } from '@kolibri/shared';
 import { all, type Row } from '../../../db/index.ts';
-import { read, serialize, writeEntity } from '../../repo.ts';
+import { serialize, writeEntity } from '../../repo.ts';
 import { uid } from '../../ids.ts';
 import { asKpi, findKpi, findProject, isoDay, kpiContext, kpiReport, McpError, requireFeature, requireWrite, resolveScope, scopeOf, str, type ToolDef, visibleKpis, workspaceOf, writeOpts } from '../kit.ts';
 

@@ -18,7 +18,7 @@ import { currentLocale, useT, type TranslationKey } from '../lib/i18n';
 import { today } from '../lib/format';
 import { create, remove } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
-import { useMembers, useSeesMoney, useSession } from '../session';
+import { useMembers, useSeesMoney } from '../session';
 import { Empty, Icon, Sheet, useConfirm } from './ui';
 import { Button } from './ui/button';
 import { Chip } from './ui/chip';

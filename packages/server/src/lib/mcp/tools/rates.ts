@@ -1,10 +1,10 @@
 /**
  * What an hour costs, what it is charged at, and what that comes to.
  */
-import { formatMoney, RATE_KINDS, rollUp, type TimeEntry, totalsOf, utilisation } from '@kolibri/shared';
-import { read, writeEntity } from '../../repo.ts';
+import { formatMoney, RATE_KINDS, type TimeEntry, totalsOf, utilisation } from '@kolibri/shared';
+import { writeEntity } from '../../repo.ts';
 import { uid } from '../../ids.ts';
-import { entriesIn, findMember, findProject, hours, isoDay, money, moneyList, namesOf, projectNames, ratesOf, requireAdmin, requireFeature, requireMoney, requireWrite, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
+import { entriesIn, findMember, findProject, hours, isoDay, moneyList, namesOf, projectNames, ratesOf, requireAdmin, requireFeature, requireMoney, requireWrite, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 
 export const rateTools: ToolDef[] = [
   {

@@ -14,7 +14,7 @@
  * same unhappy answer. See `docs/modules.md`.
  */
 import { type EntityName } from '@kolibri/shared';
-import { all, get, type Row } from '../../db/index.ts';
+import { all, type Row } from '../../db/index.ts';
 import { read } from '../repo.ts';
 import { holes, type McpCtx, McpError, type ToolDef } from './kit.ts';
 import { workspaceTools } from './tools/workspace.ts';

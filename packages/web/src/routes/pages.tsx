@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../components/AppShell';

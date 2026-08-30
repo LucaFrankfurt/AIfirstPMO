@@ -12,7 +12,7 @@ import { relativeTime } from '../lib/format';
 import { comment as postComment, remove } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
 import { useCanWrite, useMe, useMemberMap } from '../session';
-import { anchorLabel, findAnchor, type Anchor, type Comment } from '@kolibri/shared';
+import { anchorLabel, findAnchor, type Anchor } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from './Markdown';
 import { Button } from '../components/ui/button';
 import { Chip } from './ui/chip';

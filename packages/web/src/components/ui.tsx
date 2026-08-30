@@ -9,7 +9,7 @@
  */
 import {
   createContext, Fragment, useCallback, useContext, useEffect, useId,
-  useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
+  useMemo, useState, type MouseEvent as ReactMouseEvent, type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { VariantProps } from 'class-variance-authority';

@@ -14,13 +14,13 @@
  * every tool that returns one uses. Everything is exported, because the point
  * of the file is to be imported from.
  */
-import { annualCost, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, coversProject, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, PROJECT_STATUS, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
+import { annualCost, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
 import { all, get, type Row } from '../../db/index.ts';
 import { env } from '../../env.ts';
 import { type Auth } from '../auth.ts';
 import { serverClock } from '../bootstrap.ts';
 import { hasFeature } from '../features.ts';
-import { canSeeBudget, canSeeKpi, canSeeProject, read, serialize, visibleProjectIds, writeEntity } from '../repo.ts';
+import { canSeeBudget, canSeeKpi, canSeeProject, serialize, visibleProjectIds, writeEntity } from '../repo.ts';
 import { uid } from '../ids.ts';
 
 export interface ToolDef {

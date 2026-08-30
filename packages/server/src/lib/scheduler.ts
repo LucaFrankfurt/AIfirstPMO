@@ -10,7 +10,7 @@
  * that it happened, and the sweep skips what it already did. A restart, a
  * double tick or a clock jump therefore cost nothing.
  */
-import { all, get, nextSeq, run, type Row } from '../db/index.ts';
+import { all, get, run, type Row } from '../db/index.ts';
 import { serverClock } from './bootstrap.ts';
 import { uid } from './ids.ts';
 import { translatorFor } from './i18n.ts';

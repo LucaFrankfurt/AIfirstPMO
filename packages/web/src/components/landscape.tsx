@@ -18,7 +18,7 @@ import { today } from '../lib/format';
 import { create, update } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
 import { useMembers } from '../session';
-import { Icon, Sheet } from './ui';
+import { Sheet } from './ui';
 import { Button } from './ui/button';
 import { Chip } from './ui/chip';
 import { Input, Select, Textarea } from './ui/field';

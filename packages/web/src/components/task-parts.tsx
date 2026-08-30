@@ -1,7 +1,7 @@
 import { Fragment } from 'react';
 import {
   PRIORITIES, coversProject, fieldKeys, isDoneGroup, mayEnter,
-  type Cycle, type Filters, type Label, type Layout, type Module, type Priority, type State, type Task,
+  type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../lib/store';
 import { ancestry, descendants } from '../lib/family';

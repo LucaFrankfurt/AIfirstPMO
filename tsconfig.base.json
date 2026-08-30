@@ -10,6 +10,11 @@
     "verbatimModuleSyntax": true,
     "noEmit": true,
     "strict": true,
+    /* A name imported and not used is dead weight the reader has to rule out,
+       and a refactor that leaves twenty behind says the move was not finished.
+       `noUnusedParameters` is deliberately off: an unused argument is often the
+       shape of a callback rather than a mistake. */
+    "noUnusedLocals": true,
     "skipLibCheck": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,

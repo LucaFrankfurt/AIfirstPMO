@@ -239,7 +239,7 @@ describe('mcp reports', () => {
     assert.deepEqual(quiet.cycles, []);
     assert.equal(quiet.totals.cycles, 0);
 
-    const cycle = await api(`/api/workspaces/${workspaceId}/cycles`, {
+    await api(`/api/workspaces/${workspaceId}/cycles`, {
       body: { project_id: projectId, name: 'Sprint 1', start_date: isoDay(-2), end_date: isoDay(5) },
     });
     for (const key of ['overdue', 'finished']) {

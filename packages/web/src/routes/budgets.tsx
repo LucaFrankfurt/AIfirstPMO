@@ -26,7 +26,7 @@ import {
 import { Header } from '../components/AppShell';
 import {
   AllocationChips, AllocationEditor, BurnChart, Health, PlanVsActual, SplitBars,
-  Variance, categoryKey, confidenceKey, healthKey, recurrenceKey, stageKey,
+  Variance, categoryKey, confidenceKey, recurrenceKey, stageKey,
   useProjectNames, useRollUp,
 } from '../components/budget';
 import { Stat } from '../components/insights';

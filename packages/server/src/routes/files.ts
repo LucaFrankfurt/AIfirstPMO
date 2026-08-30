@@ -1,4 +1,4 @@
-import { all, get, type Row } from '../db/index.ts';
+import { all, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { requireAuth, requireWorkspace } from '../lib/auth.ts';
 import { badRequest, forbidden, notFound, readBody, type Ctx, type Router } from '../lib/http.ts';

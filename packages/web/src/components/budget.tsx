@@ -15,7 +15,7 @@ import { useMemo, useState } from 'react';
 import {
   COST_CATEGORIES, FULL_SHARE, healthOf, normaliseAllocations,
   projectShare, rollUp,
-  type Allocation, type Budget, type BudgetActual, type BudgetHealth, type BudgetLine, type BudgetRollUp,
+  type Allocation, type Budget, type BudgetHealth, type BudgetRollUp,
   type BudgetScenario, type CostCategory, type Minor,
 } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../lib/i18n';
@@ -25,7 +25,7 @@ import { Chip } from './ui/chip';
 import { Button } from './ui/button';
 import { Input } from './ui/field';
 import { Table } from './ui/table';
-import { MoneyInput, asMoney } from './ui/money';
+import { asMoney } from './ui/money';
 
 /* ------------------------------------------------------------------ money */
 

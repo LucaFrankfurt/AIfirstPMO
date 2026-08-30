@@ -16,7 +16,6 @@ import { translatorFor } from '../lib/i18n.ts';
 import { createNotification } from '../lib/notify.ts';
 import { dispatch } from '../lib/webhooks.ts';
 import { uid } from '../lib/ids.ts';
-import { notifyDevices } from '../lib/push.ts';
 import { byAddress, enforce, LIMITS } from '../lib/ratelimit.ts';
 import { readBody, type Ctx, type Router } from '../lib/http.ts';
 import { readFilters, tasksMatching } from '../lib/viewquery.ts';

@@ -12,9 +12,9 @@ import { HORIZON_DAYS, plusDays } from '../lib/overview';
 import { idFrom, isDrag, startDrag, STATE_DRAG, TASK_DRAG } from '../lib/drag';
 import { useCanWrite, useMemberMap, useMembers, useSession } from '../session';
 import {
-  DEFAULT_VIEW, fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
+  fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
   useCycles, useLabels, useModules, useStates,
-  type BaseGroupBy, type GroupBy, type Implied, type ViewConfig,
+  type BaseGroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
 import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from './ui';
@@ -441,7 +441,9 @@ export function BoardView({
   const states = useStates(projectId);
   const labels = useLabels(projectId);
   const members = useMembers();
-  const fields = useFields(projectId);
+  // Called for the subscription, not the value: a board redraws when a custom
+  // field changes, and the cards read the field rows themselves.
+  useFields(projectId);
   const [dragId, setDragId] = useState<string | null>(null);
   const [overColumn, setOverColumn] = useState<string | null>(null);
   /** Where in the column the card would land — the gap the line is drawn in. */

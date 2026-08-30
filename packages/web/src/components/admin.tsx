@@ -10,7 +10,7 @@ import { useT } from '../lib/i18n';
 import { create, remove, update } from '../lib/mutations';
 import { list, useQuery } from '../lib/store';
 import { useSession } from '../session';
-import { Avatar, Empty, Icon, useConfirm, useToast } from './ui';
+import { Avatar, Icon, useConfirm, useToast } from './ui';
 import { Button } from '../components/ui/button';
 import { Input, Select } from '../components/ui/field';
 import { SectionHeading } from './ui/section';

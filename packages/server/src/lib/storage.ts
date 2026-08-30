@@ -10,7 +10,6 @@ import { createReadStream, existsSync, mkdirSync, statSync, unlinkSync, writeFil
 import { Readable } from 'node:stream';
 import { join } from 'node:path';
 import { env } from '../env.ts';
-import { disposition } from './mime.ts';
 import * as s3 from './s3.ts';
 
 export type StorageKind = 'disk' | 's3';

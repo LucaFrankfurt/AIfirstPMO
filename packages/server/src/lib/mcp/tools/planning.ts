@@ -1,11 +1,11 @@
 /**
  * Cycles, milestones, templates and logged time.
  */
-import { coversProject, type Move, orderKey, parseDuration, PROJECT_STATUS } from '@kolibri/shared';
+import { coversProject, orderKey, parseDuration, PROJECT_STATUS } from '@kolibri/shared';
 import { all, get, type Row } from '../../../db/index.ts';
 import { env } from '../../../env.ts';
 import { instantiateTemplate } from '../../automation.ts';
-import { canSeeProject, deleteEntity, read, serialize, visibleProjectIds, writeEntity } from '../../repo.ts';
+import { canSeeProject, deleteEntity, visibleProjectIds, writeEntity } from '../../repo.ts';
 import { uid } from '../../ids.ts';
 import { CYCLE_STATUS, cycleView, findCycle, findMember, findModule, findProject, findTask, holes, isoDay, McpError, moduleView, requireFeature, requireWrite, resolveScope, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 

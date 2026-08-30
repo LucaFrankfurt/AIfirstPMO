@@ -6,7 +6,7 @@ import { all, get, type Row } from '../../../db/index.ts';
 import { createProject } from '../../bootstrap.ts';
 import { serialize, visibleProjectIds, writeEntity } from '../../repo.ts';
 import { searchWorkspace } from '../../search.ts';
-import { countTasks, findProject, isoDay, McpError, requireWrite, resolveUsers, stateGroup, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
+import { countTasks, findProject, isoDay, McpError, requireWrite, resolveUsers, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 
 export const workspaceTools: ToolDef[] = [
   {

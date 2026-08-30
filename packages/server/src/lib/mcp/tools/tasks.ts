@@ -3,7 +3,7 @@
  */
 import { PRIORITIES, readFieldValue, RELATION_KINDS, type RelationKind } from '@kolibri/shared';
 import { all, get, type Row, tx } from '../../../db/index.ts';
-import { deleteEntity, read, visibleProjectIds, withEffectsHeld, writeEntity } from '../../repo.ts';
+import { deleteEntity, visibleProjectIds, withEffectsHeld, writeEntity } from '../../repo.ts';
 import { searchWorkspace } from '../../search.ts';
 import { uid } from '../../ids.ts';
 import { blockingLoop, fileTask, findModule, findProject, findTask, INVERSE_RELATION, isoDay, McpError, requireWrite, resolveCycle, resolveLabels, resolveState, resolveUsers, str, taskView, type ToolDef, workspaceOf, writeCustomFields, writeOpts } from '../kit.ts';

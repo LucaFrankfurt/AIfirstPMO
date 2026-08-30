@@ -3,7 +3,7 @@
  */
 import { all, get, type Row } from '../../../db/index.ts';
 import { env } from '../../../env.ts';
-import { deleteEntity, read } from '../../repo.ts';
+import { deleteEntity } from '../../repo.ts';
 import { storeFile } from '../../uploads.ts';
 import { findPage, findTask, McpError, mimeFromName, requireWrite, str, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
 

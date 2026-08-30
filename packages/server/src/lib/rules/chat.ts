@@ -15,9 +15,9 @@
  */
 
 import { canManageMembers, directMembers, normaliseChannelName } from '@kolibri/shared';
-import { all, get, type Row } from '../../db/index.ts';
+import { get, type Row } from '../../db/index.ts';
 import { badRequest, forbidden } from '../http.ts';
-import { canSeeChannel, type EntityRule, parseIds, read, resendUser, safeJson, type WriteOpts } from '../repo.ts';
+import { canSeeChannel, type EntityRule, parseIds, resendUser, safeJson, type WriteOpts } from '../repo.ts';
 
 const isWorkspaceAdmin = (workspaceId: string, userId: string): boolean => !!get(
   `SELECT 1 FROM workspace_members

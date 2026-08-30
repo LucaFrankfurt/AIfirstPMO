@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, projectScope, orderKey,
-  STATE_GROUPS, type Task,
+  STATE_GROUPS,
 } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { QuickAdd } from '../components/QuickAdd';
@@ -706,7 +706,6 @@ export function CyclePage() {
   const t = useT();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const cycle = useRow('cycle', id);
   const [view, setView] = useState<ViewConfig>({ ...DEFAULT_VIEW, groupBy: 'state' });
   const [adding, setAdding] = useState(false);
@@ -905,7 +904,6 @@ export function ModulePage() {
   const t = useT();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
-  const navigate = useNavigate();
   const module = useRow('module', id);
   const [view, setView] = useState<ViewConfig>(DEFAULT_VIEW);
   const [editing, setEditing] = useState(false);

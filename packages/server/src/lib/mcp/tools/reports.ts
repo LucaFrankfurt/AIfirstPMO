@@ -1,9 +1,9 @@
 /**
  * The six questions a lead asks on a Monday, each answered with a reason rather than a list.
  */
-import { coversProject, isDoneGroup, riskOf } from '@kolibri/shared';
+import { isDoneGroup, riskOf } from '@kolibri/shared';
 import { all, get, type Row } from '../../../db/index.ts';
-import { read, visibleProjectIds } from '../../repo.ts';
+import { visibleProjectIds } from '../../repo.ts';
 import { assigneeNames, brief, findProject, holes, McpError, namesOf, perProject, reportScope, safeList, str, taskView, type ToolDef, windowDays, workspaceOf } from '../kit.ts';
 
 export const reportTools: ToolDef[] = [

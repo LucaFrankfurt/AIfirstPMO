@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { excerpt, isDoneGroup, type Task } from '@kolibri/shared';
+import { excerpt, isDoneGroup } from '@kolibri/shared';
 import { Header } from '../components/AppShell';
 import { TaskRow } from '../components/task-parts';
 import { TaskViews, useVisibleTasks, ViewControls } from '../components/views';
@@ -281,7 +281,6 @@ export function Inbox() {
 
 export function More() {
   const t = useT();
-  const navigate = useNavigate();
   const { session, workspaceId, setWorkspace, signOut, user } = useSession();
   const me = useMe();
   const has = useFeatures();
