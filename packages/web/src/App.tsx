@@ -1,6 +1,6 @@
 import { Component, Suspense, lazy, useEffect, type ReactNode } from 'react';
 import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AppShell } from './kernel/design-system/AppShell';
+import { AppShell } from './AppShell';
 import { TaskDetail } from './modules/work/TaskDetail';
 import { Empty, ToastHost } from './kernel/design-system/ui';
 import { Button } from './kernel/design-system/ui/button';

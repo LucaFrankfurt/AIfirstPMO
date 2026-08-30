@@ -1,16 +1,22 @@
 /**
- * Blob storage with two backends: the local disk (default) and any
- * S3-compatible object store (MinIO, Ceph, R2, AWS).
+ * Blob storage, with the disk under it and room for anything else.
  *
  * Files are content-addressed, so the key is derived from the bytes and never
  * changes. Each row in `files` records which backend holds it, which means an
- * instance can switch from disk to S3 without losing what is already stored.
+ * instance can switch from disk to S3 without losing what is already stored —
+ * every function below therefore takes the backend a row *says* it is in, not
+ * just the one configured now.
+ *
+ * The disk is here because it is the default and needs nothing outside the
+ * process. Everything else registers: this file used to import the S3 client
+ * directly and branch on `kind === 's3'` in six places, which is the kernel
+ * knowing one specific provider. It knows the *name* from configuration and
+ * nothing else now.
  */
 import { createReadStream, existsSync, mkdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { Readable } from 'node:stream';
 import { join } from 'node:path';
 import { env } from '../platform/env.ts';
-import * as s3 from '../../adapters/s3/s3.ts';
 
 export type StorageKind = 'disk' | 's3';
 
@@ -34,49 +40,81 @@ export interface ReadResult {
   size?: number;
 }
 
-/** Ready the backend: create the bucket, or make sure the directory exists. */
-export async function init(): Promise<void> {
-  if (env.storage.kind === 's3') await s3.ensureBucket(env.storage.s3);
-  else mkdirSync(env.uploadDir, { recursive: true });
+/**
+ * What a place to put bytes has to be able to do.
+ *
+ * `directUrl` is optional because handing the browser a URL is a property of
+ * the store rather than of storage: the disk has no such thing and returns
+ * null, which is the caller's signal to stream the bytes itself.
+ */
+export interface Backend {
+  /** Create the bucket, make the directory — whatever readiness means. */
+  init(): Promise<void>;
+  put(key: string, body: Buffer, mime: string): Promise<void>;
+  exists(key: string): Promise<boolean>;
+  read(key: string): Promise<ReadResult | null>;
+  remove(key: string): Promise<void>;
+  directUrl?(key: string, filename: string, mime: string): string | null;
+  /** One line for the doctor and the settings screen. */
+  describe(): string;
 }
 
-export async function put(key: string, body: Buffer, mime: string, kind: StorageKind = activeKind): Promise<void> {
-  if (kind === 's3') {
-    await s3.putObject(env.storage.s3, key, body, mime);
-    return;
-  }
-  const path = diskPath(key);
-  mkdirSync(join(path, '..'), { recursive: true });
-  if (!existsSync(path)) writeFileSync(path, body);
+const disk: Backend = {
+  async init() {
+    mkdirSync(env.uploadDir, { recursive: true });
+  },
+  async put(key, body) {
+    const path = diskPath(key);
+    mkdirSync(join(path, '..'), { recursive: true });
+    if (!existsSync(path)) writeFileSync(path, body);
+  },
+  async exists(key) {
+    return existsSync(diskPath(key));
+  },
+  async read(key) {
+    const path = diskPath(key);
+    if (!existsSync(path)) return null;
+    return { stream: createReadStream(path), size: statSync(path).size };
+  },
+  async remove(key) {
+    const path = diskPath(key);
+    if (existsSync(path)) unlinkSync(path);
+  },
+  describe: () => `disk (${env.uploadDir})`,
+};
+
+const backends = new Map<StorageKind, Backend>([['disk', disk]]);
+
+/**
+ * Offer a place to put bytes. `wiring.ts` installs the ones this build has.
+ *
+ * A configured backend that nothing registered is a configuration error rather
+ * than a silent fall back to the disk: writing to the wrong store is how an
+ * instance ends up with half its files in each.
+ */
+export function registerBackend(kind: StorageKind, backend: Backend): void {
+  backends.set(kind, backend);
 }
 
-export async function exists(key: string, kind: StorageKind = activeKind): Promise<boolean> {
-  if (kind === 's3') return (await s3.headObject(env.storage.s3, key)) !== null;
-  return existsSync(diskPath(key));
-}
+const backendFor = (kind: StorageKind): Backend => {
+  const backend = backends.get(kind);
+  if (!backend) throw new Error(`storage: nothing registered for "${kind}" — see wiring.ts`);
+  return backend;
+};
 
-export async function read(key: string, kind: StorageKind = activeKind): Promise<ReadResult | null> {
-  if (kind === 's3') {
-    const response = await s3.getObject(env.storage.s3, key);
-    if (!response.body) return null;
-    return {
-      stream: Readable.fromWeb(response.body as Parameters<typeof Readable.fromWeb>[0]),
-      size: Number(response.headers.get('content-length') ?? 0) || undefined,
-    };
-  }
-  const path = diskPath(key);
-  if (!existsSync(path)) return null;
-  return { stream: createReadStream(path), size: statSync(path).size };
-}
+export const init = (): Promise<void> => backendFor(activeKind).init();
 
-export async function remove(key: string, kind: StorageKind = activeKind): Promise<void> {
-  if (kind === 's3') {
-    await s3.deleteObject(env.storage.s3, key);
-    return;
-  }
-  const path = diskPath(key);
-  if (existsSync(path)) unlinkSync(path);
-}
+export const put = (key: string, body: Buffer, mime: string, kind: StorageKind = activeKind): Promise<void> =>
+  backendFor(kind).put(key, body, mime);
+
+export const exists = (key: string, kind: StorageKind = activeKind): Promise<boolean> =>
+  backendFor(kind).exists(key);
+
+export const read = (key: string, kind: StorageKind = activeKind): Promise<ReadResult | null> =>
+  backendFor(kind).read(key);
+
+export const remove = (key: string, kind: StorageKind = activeKind): Promise<void> =>
+  backendFor(kind).remove(key);
 
 /**
  * A URL the browser can fetch directly, or null when the app has to stream the
@@ -84,16 +122,7 @@ export async function remove(key: string, kind: StorageKind = activeKind): Promi
  * cost of a short-lived URL that carries its own authorisation — which is why
  * the permission check happens before one is minted.
  */
-export function directUrl(key: string, filename: string, mime: string, kind: StorageKind = activeKind): string | null {
-  if (kind !== 's3' || !env.storage.presign) return null;
-  // Sign for the host the browser will actually connect to.
-  const config = env.storage.publicEndpoint
-    ? { ...env.storage.s3, endpoint: env.storage.publicEndpoint }
-    : env.storage.s3;
-  return s3.presignGet(config, key, env.storage.presignSeconds, new Date(), filename, mime);
-}
+export const directUrl = (key: string, filename: string, mime: string, kind: StorageKind = activeKind): string | null =>
+  backendFor(kind).directUrl?.(key, filename, mime) ?? null;
 
-export const describe = (): string =>
-  env.storage.kind === 's3'
-    ? `s3 (${env.storage.s3.endpoint}/${env.storage.s3.bucket}${env.storage.presign ? ', pre-signed URLs' : ''})`
-    : `disk (${env.uploadDir})`;
+export const describe = (): string => backendFor(activeKind).describe();

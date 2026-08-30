@@ -73,8 +73,8 @@ describe('every screen has a way to it', () => {
     // The two surfaces are allowed to differ in shape and order. What they are
     // not allowed to do is decide for themselves what is in the app.
     for (const [file, list] of [
-      ['kernel/design-system/AppShell.tsx', 'WORKSPACE_DESTINATIONS'],
-      ['kernel/design-system/AppShell.tsx', 'PLANNING_DESTINATIONS'],
+      ['AppShell.tsx', 'WORKSPACE_DESTINATIONS'],
+      ['AppShell.tsx', 'PLANNING_DESTINATIONS'],
       ['modules/work/routes/personal.tsx', 'DESTINATIONS'],
     ] as const) {
       assert.match(src(file), new RegExp(`\\b${list}\\b`), `${file} should render ${list}`);
@@ -91,7 +91,7 @@ describe('every screen has a way to it', () => {
        short labels and unread dots, hard-coded because they are the one part
        of the navigation that cannot grow. */
     const paths = DESTINATIONS.map((item) => item.to).filter((path) => !TAB_BAR.includes(path));
-    for (const file of ['kernel/design-system/AppShell.tsx', 'modules/work/routes/personal.tsx']) {
+    for (const file of ['AppShell.tsx', 'modules/work/routes/personal.tsx']) {
       const body = src(file);
       for (const path of paths) {
         assert.ok(

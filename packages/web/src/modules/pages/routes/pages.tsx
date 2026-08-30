@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
   ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems, movePage,

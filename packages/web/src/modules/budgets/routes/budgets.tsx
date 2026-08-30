@@ -23,7 +23,7 @@ import {
   type Allocation, type Budget, type BudgetActual, type BudgetLine, type BudgetScenario,
   type CostCategory, type Minor, type PlannedForMonth, type ScenarioAdjustment, type SpendStage,
 } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import {
   AllocationChips, AllocationEditor, BurnChart, Health, PlanVsActual, SplitBars,
   Variance, categoryKey, confidenceKey, recurrenceKey, stageKey,

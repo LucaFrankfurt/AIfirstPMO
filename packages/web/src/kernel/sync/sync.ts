@@ -13,7 +13,6 @@ import {
 import { api, ApiError } from './api';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
-import { applyPresence, clearPresence, startBeating, stopBeating } from '../../modules/chat/presence';
 import { applyChanges, hydrate, notifyStore, purgedRows, reset } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
@@ -280,32 +279,58 @@ function handleError(err: unknown): void {
 
 /* --------------------------------------------------------------- realtime */
 
+/**
+ * A frame on the sync stream that is not a change.
+ *
+ * The stream carries `change`, which is this file's own business, and anything
+ * else a capability wants pushed to it. Presence is the one today, and it used
+ * to be four calls from here into `modules/chat/presence` — the sync engine
+ * knowing which capability wanted its frames, which is backwards: sync owns the
+ * connection, the capability owns what the frame means.
+ */
+export interface StreamHandler {
+  /** The event name the server sends. */
+  event: string;
+  /** `first` is true for the first frame after the connection opened. */
+  onFrame(data: string, first: boolean): void;
+  /** The connection opened, or came back after a drop. */
+  onOpen?(): void;
+  /** The connection went away; whatever this was showing is now stale. */
+  onDrop?(): void;
+}
+
+const handlers: StreamHandler[] = [];
+
+export function onStream(handler: StreamHandler): void {
+  if (!handlers.includes(handler)) handlers.push(handler);
+}
+
 function connect(): void {
   stream?.close();
   if (!workspaceId) return;
   stream = new EventSource(`/api/sync/stream?workspace=${workspaceId}&client=${clientId}`, { withCredentials: true });
   stream.addEventListener('change', () => void pull());
-  // Presence rides the same connection and is handled entirely separately: it
-  // carries no cursor, so it never triggers a pull and a dropped presence event
-  // costs nothing but a stale dot until the next one.
+  // Anything else riding the same connection is handled entirely separately: it
+  // carries no cursor, so it never triggers a pull and a dropped frame costs
+  // nothing but a stale dot until the next one.
   let first = true;
-  stream.addEventListener('presence', (event) => {
-    try {
-      applyPresence(JSON.parse((event as MessageEvent).data), first);
-      first = false;
-    } catch {
-      /* malformed frame: the next one will be fine */
-    }
-  });
+  for (const handler of handlers) {
+    stream.addEventListener(handler.event, (event) => {
+      try {
+        handler.onFrame((event as MessageEvent).data, first);
+      } catch {
+        /* malformed frame: the next one will be fine */
+      }
+    });
+  }
   stream.addEventListener('error', () => {
     // EventSource reconnects on its own; a pull on recovery closes any gap.
-    clearPresence();
-    stopBeating();
+    for (const handler of handlers) handler.onDrop?.();
     if (stream?.readyState === EventSource.CLOSED) setTimeout(connect, 5000);
   });
   stream.addEventListener('open', () => {
     first = true;
-    startBeating();
+    for (const handler of handlers) handler.onOpen?.();
     void pull();
   });
 }

@@ -11,7 +11,7 @@
  */
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import { CostReport, Timesheet } from '../rates';
 import { Empty } from '../../../kernel/design-system/ui';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';

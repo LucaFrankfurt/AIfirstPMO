@@ -20,7 +20,7 @@ import { LOCALE_NAMES, localeLabel, useI18n, type Locale, type TranslationKey } 
 import { list, useQuery } from '../../kernel/sync/store';
 import { pull } from '../../kernel/sync/sync';
 import { useMembers, useSession } from '../../kernel/identity/session';
-import { THEME_KEY, useTheme } from '../../kernel/design-system/AppShell';
+import { THEME_KEY, useTheme } from '../../kernel/design-system/chrome';
 import { OverviewDiagram } from './diagrams';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';

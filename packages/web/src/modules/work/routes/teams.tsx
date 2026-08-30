@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { isDoneGroup } from '@kolibri/shared';
 import { keyFromName } from '../../../kernel/design-system/text';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import { Avatar, Empty, Icon, MenuButton, Progress, useConfirm } from '../../../kernel/design-system/ui';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../../kernel/sync/store';

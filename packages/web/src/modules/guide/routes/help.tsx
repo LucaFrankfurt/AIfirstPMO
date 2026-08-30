@@ -11,7 +11,7 @@
  */
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import {
   AssistantDiagram, AutomationDiagram, CaptureDiagram, ChatDiagram,
   CollaborationDiagram,

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Header, THEME_KEY, useTheme } from '../../../kernel/design-system/AppShell';
-import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Header, THEME_KEY, useTheme } from '../../../kernel/design-system/chrome';
+import { Avatar, Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { relativeTime } from '../../../kernel/design-system/format';
 import { useFeature, useSeesMoney, useSession } from '../../../kernel/identity/session';

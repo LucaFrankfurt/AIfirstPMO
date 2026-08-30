@@ -14,7 +14,7 @@ import {
   type Component, type Move, type Vendor,
 } from '@kolibri/shared';
 import { useSearchParams } from 'react-router-dom';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import {
   ComponentCost, ComponentForm, Cost, Delta, Lifecycles, MoveForm, VendorForm,
   envKey, kindKey, moveStatusKey, useComponentRows, useVendorMap, vendorKindKey,

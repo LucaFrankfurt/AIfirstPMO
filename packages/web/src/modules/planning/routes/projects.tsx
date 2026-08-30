@@ -4,7 +4,7 @@ import {
   DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, projectScope, orderKey,
   STATE_GROUPS,
 } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import { QuickAdd } from '../../work/QuickAdd';
 import { CycleProgress, TaskViews, useVisibleTasks, ViewControls } from '../../work/views';
 import { DEFAULT_VIEW, type ViewConfig } from '../../work/task-parts';
@@ -35,7 +35,8 @@ const MilestoneKpis = lazy(() => import('../../kpis/routes/kpis').then((m) => ({
  */
 const ProjectBudget = lazy(() => import('../../budgets/budget').then((m) => ({ default: m.ProjectBudget })));
 import { Markdown, MarkdownEditor } from '../../pages/Markdown';
-import { Avatar, Empty, GuideHint, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Avatar, Empty, Icon, MenuButton, Progress, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { GuideHint } from '../../guide/hint';
 import { api } from '../../../kernel/sync/api';
 import { shortDate, today } from '../../../kernel/design-system/format';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';

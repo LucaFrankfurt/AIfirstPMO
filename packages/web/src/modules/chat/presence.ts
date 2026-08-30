@@ -11,6 +11,7 @@
  * has put the phone in a pocket, so "the socket is up" is a poor answer to "is
  * anyone there"; "the tab was visible in the last 45 seconds" is a good one.
  */
+import { onStream } from '../../kernel/sync/sync';
 import { useMemo, useSyncExternalStore } from 'react';
 import { api } from '../../kernel/sync/api';
 
@@ -188,3 +189,18 @@ export function useTypists(channelId: string | null | undefined, exclude?: strin
   );
   return joined ? joined.split(',') : [];
 }
+
+/**
+ * Take the presence frames off the sync stream.
+ *
+ * The registration is here rather than a call from `sync.ts` into this file:
+ * the sync engine owns the connection and this owns what a `presence` frame
+ * means. `wiring.ts` installs it.
+ */
+export const installPresence = (): void => onStream({
+  event: 'presence',
+  onFrame: (data, first) => applyPresence(JSON.parse(data), first),
+  onOpen: startBeating,
+  // A dropped connection means every dot on screen is now a guess.
+  onDrop: () => { clearPresence(); stopBeating(); },
+});

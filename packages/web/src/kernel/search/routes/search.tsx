@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { excerpt, type Task } from '@kolibri/shared';
-import { Header } from '../../design-system/AppShell';
+import { Header } from '../../design-system/chrome';
 import { TaskRow } from '../../../modules/work/task-parts';
 import { Avatar, Empty, Icon, useToast } from '../../design-system/ui';
 import { Chip, chipDot } from '../../design-system/ui/chip';

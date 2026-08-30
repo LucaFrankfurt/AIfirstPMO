@@ -5,6 +5,7 @@ import App from './App';
 import { I18nProvider, detectLocale, loadLocale } from './kernel/i18n/i18n';
 import { SessionProvider } from './kernel/identity/session';
 import { TooltipProvider } from './kernel/design-system/ui/tooltip';
+import { installEffects } from './wiring';
 import './styles/app.css';
 
 // Apply the stored theme before first paint to avoid a flash of the wrong one.
@@ -17,6 +18,9 @@ if (theme && theme !== 'system') document.documentElement.setAttribute('data-the
 // file that is already being fetched alongside the app, and if it never arrives
 // the app still renders, in English.
 await loadLocale(detectLocale());
+
+// Before the app can open a stream. See `wiring.ts`.
+installEffects();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

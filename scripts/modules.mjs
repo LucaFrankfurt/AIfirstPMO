@@ -164,6 +164,27 @@ const KNOWN_LAYERING = [];
  */
 const KNOWN_KNOTS = [];
 
+/**
+ * The kernel reaching up, each one named. Three, and all the same argument.
+ *
+ * `env.ts` and `settings.ts` are where configuration is parsed and checked —
+ * one place, which is what makes `check:compose` able to prove every documented
+ * variable is reachable. Checking `KOLIBRI_SMTP_URL` means knowing what an SMTP
+ * URL looks like, and checking `KOLIBRI_MAIL_FROM` means knowing what an email
+ * address looks like. Both of those live with mail, because that is where every
+ * other reader would look for them.
+ *
+ * Inverting it would mean either a second copy of the parser in the kernel or
+ * configuration parsed lazily by whoever needs it — and the second gives up the
+ * property that makes the config check possible. A trade that was made, then,
+ * rather than an oversight, and written down as one.
+ */
+const KNOWN_OUTWARD = [
+  'server/src/kernel/platform/env.ts -> server/src/adapters/mail/smtp.ts',
+  'server/src/kernel/platform/settings.ts -> server/src/adapters/mail/address.ts',
+  'server/src/kernel/platform/settings.ts -> server/src/adapters/mail/smtp.ts',
+];
+
 /* -------------------------------------------------------------- the reading */
 
 const sources = [];
@@ -197,9 +218,17 @@ function importsOf(file) {
   const text = readFileSync(join(PACKAGES, file), 'utf8');
   const here = file.split('/').slice(0, -1);
   const out = [];
-  for (const [, spec] of text.matchAll(/(?:^|\n)(?:import|export)[\s\S]*?from '([^']+)'/g)) {
+  for (const match of text.matchAll(/(?:^|\n)(?:import|export)(\s+type)?\s([\s\S]*?)from '([^']+)'/g)) {
+    const [, typeKeyword, clause, spec] = match;
+    /*
+     * `import type` is erased when the file is compiled, so it couples the
+     * build and not the run: a ring it crosses is a weaker thing than a call.
+     * Rule 5 below cares only about the ones that survive.
+     */
+    const specifiers = [...clause.matchAll(/(?:^|,|\{)\s*(type\s+)?[A-Za-z_$][\w$]*/g)].map((m) => !!m[1]);
+    const typeOnly = !!typeKeyword || (specifiers.length > 0 && specifiers.every(Boolean));
     if (!spec.startsWith('.')) {
-      out.push({ external: spec });
+      out.push({ external: spec, typeOnly });
       continue;
     }
     const parts = [...here];
@@ -211,7 +240,7 @@ function importsOf(file) {
     const target = parts.join('/').replace(/\.tsx?$/, '');
     const resolved = sources.find((s) => s.replace(/\.tsx?$/, '') === target)
       ?? sources.find((s) => s.replace(/\.tsx?$/, '') === `${target}/index`);
-    if (resolved) out.push({ file: resolved });
+    if (resolved) out.push({ file: resolved, typeOnly });
   }
   return out;
 }
@@ -234,7 +263,8 @@ const problems = [];
 const SHELL = new Set([
   'shared/src/index.ts',
   'server/src/index.ts', 'server/src/seed.ts', 'server/src/cli.ts', 'server/src/wiring.ts',
-  'web/src/main.tsx', 'web/src/App.tsx', 'web/vite.config.ts',
+  'web/src/main.tsx', 'web/src/App.tsx', 'web/src/AppShell.tsx',
+  'web/src/CommandPalette.tsx', 'web/src/wiring.ts', 'web/vite.config.ts',
   'mcp/src/index.ts',
 ]);
 for (const file of sources) {
@@ -288,6 +318,38 @@ for (const edge of layering) {
 }
 for (const edge of KNOWN_LAYERING) {
   if (!layering.includes(edge)) problems.push(`fixed: "${edge}" no longer happens — delete it from KNOWN_LAYERING.`);
+}
+
+/*
+ * 5. The kernel depends on nothing above it.
+ *
+ * The rings are only worth drawing if the arrows go one way. A capability may
+ * lean on the kernel — that is what a kernel is for — and the kernel leaning
+ * back means neither can be understood, tested or replaced without the other.
+ *
+ * Two things do not count, for reasons rule 3 has already made:
+ *
+ * - **A `routes/` file composes.** That is what a route is, wherever it sits: a
+ *   kernel module's endpoints may reach for a capability the same way the shell
+ *   does, and rule 3 is what stops anything reaching back into them.
+ * - **An `import type` is erased.** A kernel file naming a capability's *type*
+ *   couples the build and not the run. Deleting the capability would break the
+ *   typecheck and nothing else — a real cost, and a different one.
+ */
+const RING_ABOVE = { capability: 1, adapter: 1 };
+const outward = [];
+for (const [file, deps] of graph) {
+  if (placeOf(file).ring !== 'kernel' || inRoutes(file)) continue;
+  for (const dep of deps) {
+    if (!dep.file || dep.typeOnly) continue;
+    if (RING_ABOVE[placeOf(dep.file).ring]) outward.push(`${file} -> ${dep.file}`);
+  }
+}
+for (const edge of outward) {
+  if (!KNOWN_OUTWARD.includes(edge)) problems.push(`kernel reaches up: ${edge}`);
+}
+for (const edge of KNOWN_OUTWARD) {
+  if (!outward.includes(edge)) problems.push(`fixed: "${edge}" no longer happens — delete it from KNOWN_OUTWARD.`);
 }
 
 /* 4. No import knots. Tarjan, so every knot is found rather than the first lap
@@ -484,5 +546,5 @@ if (problems.length) {
 
 console.log(
   `modules.mjs: ${sources.length} files, ${MODULES.length} modules, rules hold ` +
-  `(${KNOWN_LAYERING.length} layering and ${KNOWN_KNOTS.length} knot exceptions, all named).`,
+  `(${KNOWN_LAYERING.length} layering, ${KNOWN_KNOTS.length} knot and ${KNOWN_OUTWARD.length} kernel exceptions, all named).`,
 );

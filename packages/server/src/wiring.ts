@@ -21,6 +21,7 @@
 import { installAutomations } from './modules/automation/automation.ts';
 import { installNotifications } from './modules/notifications/effects.ts';
 import { installWebhookEvents } from './adapters/webhooks/effects.ts';
+import { installS3Storage } from './adapters/s3/backend.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
@@ -46,6 +47,7 @@ export function installEffects(): void {
   installAutomations();
   installNotifications();
   installWebhookEvents();
+  installS3Storage();
   // The order within an entity is the order they were branches in. Across
   // entities it cannot matter — one write is one entity. See `repo.onEntity`.
   for (const rule of [

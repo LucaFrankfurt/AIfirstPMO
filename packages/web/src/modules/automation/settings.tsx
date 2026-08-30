@@ -18,7 +18,8 @@ import {
   type RelationKind, type StateGroup, type TemplateKind, type WorkspaceRole,
 } from '@kolibri/shared';
 import { MarkdownEditor } from '../pages/Markdown';
-import { Avatar, Empty, GuideHint, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Avatar, Empty, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { GuideHint } from '../guide/hint';
 import { api } from '../../kernel/sync/api';
 import { relativeTime } from '../../kernel/design-system/format';
 import { groupKey, priorityKey, relationKey, roleKey, useT, type TranslationKey, type Translate } from '../../kernel/i18n/i18n';

@@ -132,6 +132,9 @@ process.env.KOLIBRI_S3_PATH_STYLE = 'true';
 const storage = await import('../src/kernel/files/storage.ts');
 const s3 = await import('../src/adapters/s3/s3.ts');
 const { env } = await import('../src/kernel/platform/env.ts');
+// `storage` knows the disk and whatever registers. Anything driving it has to
+// wire the rest up, exactly as the server does — see `wiring.ts`.
+(await import('../src/wiring.ts')).installEffects();
 
 after(() => {
   s3Server.close();

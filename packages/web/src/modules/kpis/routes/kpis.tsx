@@ -21,7 +21,7 @@ import {
   type Kpi, type KpiReading, type KpiTarget, type MeasureCadence, type MeasureDirection,
   type MeasureUnit,
 } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import {
   Health, MeasureChart, MeasureInput, Pace, Trend,
   cadenceKey, directionKey, healthKey, measure, unitKey,

@@ -13,12 +13,11 @@ import {
 } from 'react';
 import { createPortal } from 'react-dom';
 import type { VariantProps } from 'class-variance-authority';
-import { Link } from 'react-router-dom';
 import type { Priority, StateGroup } from '@kolibri/shared';
 import { isDoneGroup } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from './format';
 import { priorityKey, useT } from '../i18n/i18n';
-import { guideHref, type GuideTarget } from '../../modules/guide/guide';
+import type { GuideTarget } from '../../modules/guide/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from './ui/menu';
@@ -446,20 +445,24 @@ export function Empty({
       <strong style={{ color: 'var(--fg)' }}>{title}</strong>
       {hint && <span style={{ maxWidth: 340 }}>{hint}</span>}
       {action}
-      {guide && <GuideHint to={guide} />}
+      {guide && renderHint?.(guide)}
     </div>
   );
 }
 
-/** A quiet link into the part of the guide that explains the screen you are on. */
-export function GuideHint({ to, className = '' }: { to: GuideTarget; className?: string }) {
-  const t = useT();
-  return (
-    <Link className={`guide-hint ${className}`} to={guideHref(to)}>
-      <Icon name="help" size={13} />
-      {t('guide.explainThis')}
-    </Link>
-  );
+/**
+ * How to draw the link into the guide, filled in by the guide.
+ *
+ * `Empty` wants to offer the right explanation and has no business knowing
+ * where the guide keeps it — this file used to import `guideHref` and build the
+ * link itself, which is the design system depending on a capability. It takes
+ * the target and asks for a hint; `modules/guide/hint.tsx` says what one looks
+ * like, and a build without the guide simply shows none.
+ */
+let renderHint: ((to: GuideTarget) => ReactNode) | null = null;
+
+export function provideGuideHint(render: (to: GuideTarget) => ReactNode): void {
+  renderHint = render;
 }
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {

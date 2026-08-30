@@ -1,82 +1,34 @@
+/**
+ * The frame every screen is drawn inside: the sidebar, the navigation, the
+ * project tree, the command palette and the quick-add sheet.
+ *
+ * Shell, not design system. It composes work, chat and the guide — which is
+ * what a shell is for and what a design system must never do; it sat in
+ * `kernel/design-system/` and was the last thing making the kernel depend on a
+ * capability. What every route actually wanted from it — `Header`, the theme —
+ * stayed behind in `kernel/design-system/chrome.tsx`.
+ */
 import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useNavigate, type NavLinkProps } from 'react-router-dom';
-import { byId as byIdStore, list, useQuery } from '../sync/store';
-import { update } from '../sync/mutations';
-import { pull, subscribeSync, type SyncStatus } from '../sync/sync';
-import { useCanWrite, useFeatures, useMe, useSession } from '../identity/session';
-import { currentLocale, useT, type TranslationKey } from '../i18n/i18n';
-import { enabled, PLANNING_DESTINATIONS, WORKSPACE_DESTINATIONS } from './nav';
-import { Avatar, Icon, MenuButton, type MenuItem } from './ui';
-import { QuickAdd } from '../../modules/work/QuickAdd';
-import { useActiveProject } from './active-project';
-import { isDrag, idFrom, PROJECT_DRAG, startDrag, TASK_DRAG } from './drag';
-import { useRecordVisits } from '../search/recents';
-import { useRefile } from '../../modules/work/task-parts';
+import { byId as byIdStore, list, useQuery } from './kernel/sync/store';
+import { update } from './kernel/sync/mutations';
+import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
+import { useT } from './kernel/i18n/i18n';
+import { enabled, PLANNING_DESTINATIONS, WORKSPACE_DESTINATIONS } from './kernel/design-system/nav';
+import { Avatar, Icon, MenuButton, type MenuItem } from './kernel/design-system/ui';
+import { useActiveProject } from './kernel/design-system/active-project';
+import { isDrag, idFrom, PROJECT_DRAG, startDrag, TASK_DRAG } from './kernel/design-system/drag';
+import { useRecordVisits } from './kernel/search/recents';
+import { Button } from './kernel/design-system/ui/button';
+import { navCount, navItem } from './kernel/design-system/ui/nav';
+import { THEME_KEY, useTheme } from './kernel/design-system/chrome';
 import { CommandPalette } from './CommandPalette';
-import { Button } from './ui/button';
-import { navCount, navItem } from './ui/nav';
-import { chipDot } from './ui/chip';
-import { useUnreadMessages } from '../../modules/chat/unread';
+import { QuickAdd } from './modules/work/QuickAdd';
+import { useRefile } from './modules/work/task-parts';
+import { useUnreadMessages } from './modules/chat/unread';
 
 /** Which project branches this device has folded. Never synced — see below. */
 const COLLAPSED_KEY = 'kolibri.collapsed-projects';
-
-/* ------------------------------------------------------------ sync status */
-
-function SyncPill() {
-  const t = useT();
-  const [status, setStatus] = useState<SyncStatus>({ state: 'starting', pending: 0, lastSyncedAt: null });
-  useEffect(() => subscribeSync(setStatus), []);
-
-  const label =
-    status.state === 'offline'
-      ? (status.pending ? t('sync.offlineQueued', { count: status.pending }) : t('sync.offline'))
-      : status.state === 'error' ? t('sync.issue')
-        : status.pending ? t('sync.syncing', { count: status.pending })
-          : t('sync.synced');
-
-  return (
-    <button
-      className={`status-pill ${status.state}`}
-      onClick={() => void pull()}
-      // The word beside the dot is `hide-sm`, so on a phone this button is a
-      // coloured dot and nothing else. The name has to come from somewhere.
-      aria-label={`${label} — ${t('sync.now')}`}
-      title={status.message ?? (status.lastSyncedAt
-        ? t('sync.lastSynced', { time: new Date(status.lastSyncedAt).toLocaleTimeString(currentLocale()) })
-        : t('sync.now'))}
-    >
-      {/* `dot` as well as the utilities: every colour this indicator has —
-          green for synced, amber for offline, red for a failure, and the
-          pulsing accent while it works — is keyed on `.status-pill .dot` in
-          the stylesheet, and the class had been dropped. The dot was drawing
-          nothing. On a desktop the word beside it covered for that; on a phone
-          the word is hidden and the status was an empty circle. */}
-      <span className={`dot ${chipDot}`} />
-      <span className="hide-sm">{label}</span>
-    </button>
-  );
-}
-
-/* ----------------------------------------------------------------- themes */
-
-type Theme = 'system' | 'light' | 'dark';
-
-function applyTheme(theme: Theme): void {
-  if (theme === 'system') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', theme);
-  localStorage.setItem('kolibri.theme', theme);
-}
-
-export const THEME_KEY: Record<Theme, TranslationKey> = {
-  system: 'profile.themeSystem', light: 'profile.themeLight', dark: 'profile.themeDark',
-};
-
-export function useTheme(): [Theme, (theme: Theme) => void] {
-  const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('kolibri.theme') as Theme) ?? 'system');
-  useEffect(() => applyTheme(theme), [theme]);
-  return [theme, setTheme];
-}
 
 /* ------------------------------------------------------------------ shell */
 
@@ -521,19 +473,5 @@ function ProjectRow({
         </MenuButton>
       )}
     </div>
-  );
-}
-
-/** Page header used by every route. */
-export function Header({ title, children }: { title: React.ReactNode; children?: React.ReactNode }) {
-  return (
-    <header className="header">
-      {/* `min-w-[72px]`, not `min-w-0`: the header scrolls sideways rather than
-          squeezing, so a title that may shrink to nothing shrinks to nothing —
-          which is what it did, leaving a screen with no name on it. */}
-      <h1 className="flex-1 min-w-[72px] truncate">{title}</h1>
-      {children}
-      <SyncPill />
-    </header>
   );
 }

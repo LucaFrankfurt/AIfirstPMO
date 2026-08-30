@@ -2,13 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { excerpt } from '@kolibri/shared';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { list, useQuery } from '../sync/store';
+import { list, useQuery } from './kernel/sync/store';
 
-import { useOpenTask } from './navigation';
-import { useSession } from '../identity/session';
-import { useT } from '../i18n/i18n';
-import { Icon, StateDot } from './ui';
-import { stateOf } from '../../modules/work/task-parts';
+import { useOpenTask } from './kernel/design-system/navigation';
+import { useSession } from './kernel/identity/session';
+import { useT } from './kernel/i18n/i18n';
+import { Icon, StateDot } from './kernel/design-system/ui';
+import { stateOf } from './modules/work/task-parts';
 
 interface Command {
   id: string;

@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { excerpt, isDoneGroup } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/AppShell';
+import { Header } from '../../../kernel/design-system/chrome';
 import { TaskRow } from '../task-parts';
 import { TaskViews, useVisibleTasks, ViewControls } from '../views';
 import { DEFAULT_VIEW, type ViewConfig } from '../task-parts';
