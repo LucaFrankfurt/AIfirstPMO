@@ -127,12 +127,15 @@ npm run modules -- --fix   # rewrite the tables below
 
 <!-- end generated -->
 
-Two rows in those tables are the whole diagnosis. `notifications` is **58 lines** — writing a
-notification is one small function, because everything it *means* got distributed into `repo.ts` and
-everything it *does* got distributed into five adapters. And `adapter/mcp` is still the largest
-thing here: the assistant's view of the product is larger than the product's own largest capability,
-because every tool re-derives from SQL what a screen already knows. It is fifteen files rather than
-three now, which makes it readable; it does not make it smaller, and finding 7 is why.
+Two rows in those tables were the whole diagnosis. `notifications` was **58 lines** — writing a
+notification is one small function, because everything it *meant* had been distributed into
+`repo.ts` and everything it *did* into five adapters. It is **296** now, in two files, and the
+growth is the fix: the meaning came home when `repo` started offering `onCommitted`, and the
+delivery stayed in the adapters but through a port they register with rather than a name the
+capability calls. And `adapter/mcp` is still the largest thing here: the assistant's view of the
+product is larger than the product's own largest capability, because every tool re-derives from SQL
+what a screen already knows. It is fifteen files rather than three now, which makes it readable; it
+does not make it smaller, and finding 7 is why.
 
 ## What already works
 
@@ -752,6 +755,12 @@ fixes it. Three of the seven carry a list; all three are empty.
    would drop a row from the table above and three figures with it, silently, which is the failure
    the tag was added to stop. **No exceptions**, and no list for them — a same-ring port to break a
    rule-6 cycle would be a real one, and whoever needs the first writes it down then.
+
+There is an illustrated version of all this in [`module-map.html`](module-map.html) beside this
+file. It is not a second source: its tally, its legend, its inventory and three of its tables are
+written into it by the same script that writes the tables here, and the numbers in its sentences are
+claimed in `figures.mjs` like every other figure. It was hand-maintained until it moved into the
+tree, which is why it had drifted to `227 files` and to five ring exceptions that no longer existed.
 
 ```bash
 npm run check:modules      # the seven rules and the tables; exit 1 on a violation

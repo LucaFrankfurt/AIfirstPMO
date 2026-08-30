@@ -39,7 +39,7 @@
  *   node scripts/modules.mjs --json      # the same rows, for anything that draws them
  *   node scripts/modules.mjs --graph     # the graph as numbers, for figures.mjs
  */
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
@@ -562,6 +562,26 @@ for (const port of PORTS) {
 }
 
 const capabilityUses = () => moduleUses('capability');
+const CAP_USES = capabilityUses();
+
+/** Every import that crosses a ring, by direction — the table the document leads with. */
+const ringCrossings = () => {
+  const counts = { 'kernel->capability': 0, 'kernel->adapter': 0, 'capability->adapter': 0, 'adapter->capability': 0 };
+  for (const [file, deps] of graph) {
+    const from = placeOf(file);
+    if (from.ring === 'shell' || inRoutes(file)) continue;
+    for (const dep of deps) {
+      if (!dep.file || dep.typeOnly) continue;
+      const to = placeOf(dep.file);
+      if (to.ring === 'shell' || to.ring === from.ring) continue;
+      const key = `${from.ring}->${to.ring}`;
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+  }
+  return counts;
+};
+const RINGS = ringCrossings();
+const capImports = [...CAP_USES.values()].reduce((n, on) => n + [...on.values()].reduce((a, b) => a + b, 0), 0);
 
 /** How many modules lean on `name`, given the map `moduleUses` returns. */
 const dependentsOf = (uses, name) => [...uses.values()].filter((on) => on.has(name)).length;
@@ -695,45 +715,41 @@ const bestFifthRing = (uses) => {
  * answer was eight. A table of measurements nobody measures is prose.
  */
 if (process.argv.includes('--graph')) {
-  const uses = capabilityUses();
-  const names = [...uses.keys()];
-  const fifth = bestFifthRing(uses);
-  const rings = {};
-  for (const [file, deps] of graph) {
-    const from = placeOf(file);
-    if (from.ring === 'shell' || inRoutes(file)) continue;
-    for (const dep of deps) {
-      if (!dep.file || dep.typeOnly) continue;
-      const to = placeOf(dep.file);
-      if (to.ring === 'shell' || to.ring === from.ring) continue;
-      const key = `${from.ring}->${to.ring}`;
-      rings[key] = (rings[key] ?? 0) + 1;
-    }
-  }
+  const names = [...CAP_USES.keys()];
+  const fifth = bestFifthRing(CAP_USES);
   console.log(JSON.stringify({
     capabilities: {
       count: names.length,
-      edges: [...uses.values()].reduce((n, on) => n + on.size, 0),
-      imports: [...uses.values()].reduce((n, on) => n + [...on.values()].reduce((a, b) => a + b, 0), 0),
-      mostDependents: Math.max(...names.map((n) => dependentsOf(uses, n))),
-      independent: names.filter((n) => dependentsOf(uses, n) === 0).length,
-      isolated: names.filter((n) => dependentsOf(uses, n) === 0 && uses.get(n).size === 0).length,
+      edges: [...CAP_USES.values()].reduce((n, on) => n + on.size, 0),
+      imports: capImports,
+      mostDependents: Math.max(...names.map((n) => dependentsOf(CAP_USES, n))),
+      independent: names.filter((n) => dependentsOf(CAP_USES, n) === 0).length,
+      isolated: names.filter((n) => dependentsOf(CAP_USES, n) === 0 && CAP_USES.get(n).size === 0).length,
       splits: fifth.splits,
       bestRingSize: fifth.size,
       bestRingLeaners: fifth.leaners,
       bestRingMembers: fifth.members,
     },
+    modules: Object.fromEntries(rows.map((row) => [`${row.ring}/${row.name}`, {
+      files: row.files, lines: row.lines, biggest: short(row.biggest), biggestLines: lines(row.biggest),
+    }])),
+    files: sources.length,
+    lines: total,
+    exceptions: {
+      layering: KNOWN_LAYERING.length,
+      knots: KNOWN_KNOTS.length,
+      outward: KNOWN_OUTWARD.length,
+      moduleCycles: moduleKnots.length,
+    },
+    endpoints: sources.filter((f) => f.startsWith('server/'))
+      .reduce((n, f) => n + (readFileSync(join(PACKAGES, f), 'utf8')
+        .match(/router\.(?:get|post|put|patch|delete)\('/g) ?? []).length, 0),
     ports: {
       count: PORTS.length,
       modules: new Set(PORTS.map((port) => `${port.ring}/${port.module}`)).size,
       filled: PORTS.filter((port) => port.fills.length > 0).length,
     },
-    rings: {
-      'kernel->capability': rings['kernel->capability'] ?? 0,
-      'kernel->adapter': rings['kernel->adapter'] ?? 0,
-      'capability->adapter': rings['capability->adapter'] ?? 0,
-      'adapter->capability': rings['adapter->capability'] ?? 0,
-    },
+    rings: RINGS,
   }));
 }
 
@@ -806,35 +822,42 @@ const RING_WHAT = {
  * wrong. Every row's third column is an import pointing *inward* — that is the
  * whole trick, and a row with nothing in it would be a port nobody fills.
  */
+const portRows = () => [...PORTS]
+  .sort((a, b) => (RING_ORDER[a.ring] - RING_ORDER[b.ring])
+    || (a.module < b.module ? -1 : a.module > b.module ? 1 : 0)
+    || (a.fn < b.fn ? -1 : 1))
+  .map((port) => ({
+    asked: `${port.ring}/${port.module}`,
+    what: port.what,
+    fn: port.fn,
+    fills: port.fills.map((f) => `\`${f}\``).join(', ') || '**nobody**',
+  }));
+
 const portTable = () => [
   '| Asked by | For | Filled by |',
   '|---|---|---|',
-  ...[...PORTS]
-    .sort((a, b) => (RING_ORDER[a.ring] - RING_ORDER[b.ring])
-      || (a.module < b.module ? -1 : a.module > b.module ? 1 : 0)
-      || (a.fn < b.fn ? -1 : 1))
-    .map((port) => {
-      const fills = port.fills.map((f) => `\`${f}\``).join(', ') || '**nobody**';
-      return `| \`${port.ring}/${port.module}\` | ${port.what} <sub>\`${port.fn}\`</sub> | ${fills} |`;
-    }),
+  ...portRows().map((row) => `| \`${row.asked}\` | ${row.what} <sub>\`${row.fn}\`</sub> | ${row.fills} |`),
 ].join('\n');
 
-const capabilityOrder = () => {
-  const uses = capabilityUses();
-  const names = [...uses.keys()];
-  const usedBy = new Map(names.map((n) => [n, [...uses].filter(([, on]) => on.has(n)).map(([m]) => m).sort()]));
-  return [
-    '| Capability | Leans on | Leaned on by |',
-    '|---|---|---:|',
-    ...names
-      .sort((a, b) => usedBy.get(b).length - usedBy.get(a).length || a.localeCompare(b))
-      .map((n) => {
-        const on = [...uses.get(n).keys()].sort().map((x) => `\`${x}\``).join(', ') || '—';
-        const by = usedBy.get(n);
-        return `| \`${n}\` | ${on} | ${by.length ? `${by.length} (${by.map((x) => `\`${x}\``).join(', ')})` : '—'} |`;
-      }),
-  ].join('\n');
+const capabilityRows = () => {
+  const names = [...CAP_USES.keys()];
+  const usedBy = new Map(names.map((n) => [n, [...CAP_USES].filter(([, on]) => on.has(n)).map(([m]) => m).sort()]));
+  return names
+    .sort((a, b) => usedBy.get(b).length - usedBy.get(a).length || a.localeCompare(b))
+    .map((name) => ({
+      name,
+      on: [...CAP_USES.get(name).keys()].sort().map((x) => `\`${x}\``).join(', ') || '—',
+      by: usedBy.get(name).length
+        ? `${usedBy.get(name).length} (${usedBy.get(name).map((x) => `\`${x}\``).join(', ')})`
+        : '—',
+    }));
 };
+
+const capabilityOrder = () => [
+  '| Capability | Leans on | Leaned on by |',
+  '|---|---|---:|',
+  ...capabilityRows().map((row) => `| \`${row.name}\` | ${row.on} | ${row.by} |`),
+].join('\n');
 
 const table = (kind, withFlag) => [
   withFlag ? '| Module | Files | Lines | Switch | Largest file |' : '| Module | Files | Lines | Largest file |',
@@ -881,6 +904,111 @@ const generated = [
   '',
   CLOSE,
 ].join('\n');
+
+/**
+ * The same figures, into the page beside the document.
+ *
+ * `docs/module-map.html` is the illustrated version of all this, and it says
+ * the same numbers in its own markup — the tally, the ring legend, the
+ * inventory bars, and three of the tables. Hand-copying them is what it was,
+ * and hand-copying is why it sat at `227 files` and `5 exceptions` after both
+ * had moved. So the volatile parts are written here, between markers, and a
+ * stale page fails this check the way a stale table does.
+ *
+ * Its prose is left alone: `figures.mjs` claims the numbers *in* sentences,
+ * which is the division of labour those two scripts already have.
+ */
+const PAGE = 'docs/module-map.html';
+
+/** A cell the markdown tables write, as the page writes it. */
+const html = (text) => text
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+  .replace(/—/g, '<span class="dim">—</span>');
+
+const pageBlocks = () => ({
+  tally: [
+    `    <div><span class="v num">${thousands(sources.length)}</span><span class="k">source files</span></div>`,
+    `    <div><span class="v num">${MODULES.length}</span><span class="k">modules</span></div>`,
+    `    <div><span class="v num">${thousands(total)}</span><span class="k">lines</span></div>`,
+  ].join('\n'),
+
+  files: `  <span class="eyebrow">02 — All ${sources.length} files, sorted</span>`,
+
+  legend: ['kernel', 'capability', 'adapter', 'shell'].map((kind) =>
+    `      <span role="listitem"><i style="background: var(--${kind})"></i> `
+    + `${kind[0].toUpperCase()}${kind.slice(1)} — ${thousands(ringLines(kind))} lines, `
+    + `${Math.round((ringLines(kind) / total) * 100)}%</span>`).join('\n'),
+
+  inventory: 'const MODULES = [\n' + rows.map((row) => JSON.stringify({
+    ring: row.ring, name: row.name, flag: row.flag, files: row.files, lines: row.lines,
+    biggest: short(row.biggest), biggestLines: lines(row.biggest),
+  })).join(',\n') + '\n];',
+
+  directions: [
+    ['kernel → a capability', 5, RINGS['kernel->capability'], true],
+    ['kernel → an adapter', 3, RINGS['kernel->adapter'], true],
+    ['capability → an adapter', 12, RINGS['capability->adapter'], true],
+    ['capability → another capability', 14, capImports, false],
+    ['adapter → a capability <span class="dim">(inward — allowed)</span>', 1, RINGS['adapter->capability'], false],
+  ].map(([what, before, now, bold]) =>
+    `          <tr><td>${what}</td><td class="n">${before}</td>`
+    + `<td class="n">${bold ? `<b>${now}</b>` : now}</td></tr>`).join('\n'),
+
+  leans: capabilityRows().map(({ name, on, by }) =>
+    `          <tr><td><code>${name}</code></td><td>${html(on)}</td><td class="n">${html(by)}</td></tr>`).join('\n'),
+
+  ports: portRows().map(({ asked, what, fn, fills }) =>
+    `          <tr><td><code>${asked}</code></td><td>${html(what)} `
+    + `<span class="dim"><code>${fn}</code></span></td><td>${html(fills)}</td></tr>`).join('\n'),
+});
+
+/**
+ * Replace what sits between `<!-- generated: name -->` and its `<!-- end -->`.
+ *
+ * Markers rather than a template because the page is written by hand around
+ * these holes: the argument, the diagrams and the prose are not generated and
+ * should not be.
+ */
+const fillBlocks = (text, blocks) => {
+  let out = text;
+  for (const [name, body] of Object.entries(blocks)) {
+    // The inventory block sits inside a `<script>`, where an HTML comment is
+    // not one. Both syntaxes are accepted so the marker is a comment wherever
+    // it lands rather than something a browser has to be lenient about.
+    const html = [`<!-- generated: ${name} -->`, '<!-- end -->'];
+    const js = [`/* generated: ${name} */`, '/* end */'];
+    const [open, close] = out.includes(js[0]) ? js : html;
+    const from = out.indexOf(open);
+    if (from < 0) {
+      problems.push(`${PAGE}: no \`${open}\` marker — the page cannot be kept in step with the tree.`);
+      continue;
+    }
+    const to = out.indexOf(close, from);
+    if (to < 0) {
+      problems.push(`${PAGE}: \`${open}\` is never closed by \`${close}\`.`);
+      continue;
+    }
+    out = `${out.slice(0, from + open.length)}\n${body}\n${out.slice(to)}`;
+  }
+  return out;
+};
+
+const pagePath = join(ROOT, PAGE);
+if (existsSync(pagePath)) {
+  const page = readFileSync(pagePath, 'utf8');
+  const filled = fillBlocks(page, pageBlocks());
+  if (filled !== page) {
+    if (process.argv.includes('--fix')) {
+      writeFileSync(pagePath, filled);
+      console.log(`${PAGE}: the generated blocks were rewritten.`);
+    } else {
+      problems.push(`${PAGE}: the generated blocks are out of date. Run \`npm run modules -- --fix\`.`);
+    }
+  }
+} else {
+  problems.push(`${PAGE} is missing — the page the document points at has to exist for its figures to be checked.`);
+}
 
 const docPath = join(ROOT, DOC);
 const doc = readFileSync(docPath, 'utf8');

@@ -72,7 +72,7 @@ const between = (text, start, end) => {
  * crossings sat at `12` and `1` for two commits after the answers became `0`
  * and `8`, because a table nobody measures is prose with lines around it.
  */
-const { capabilities, ports, rings } = (() => {
+const { capabilities, endpoints, exceptions, modules, ports, rings } = (() => {
   /*
    * `modules.mjs` exits non-zero when one of its own rules is broken, which
    * makes `execSync` throw and throw the output away with it. That is the
@@ -92,30 +92,38 @@ const FIGURES = [
     what: 'capabilities',
     actual: capabilities.count,
     claims: [{ file: 'docs/modules.md', pattern: prose('There are \\*\\*(\\d+)\\*\\* capabilities') },
-             { file: 'docs/modules.md', pattern: prose('generated above — (\\d+) members') }],
+             { file: 'docs/modules.md', pattern: prose('generated above — (\\d+) members') },
+             { file: 'docs/module-map.html', pattern: prose('<b>(\\d+) capabilities</b>') },
+             { file: 'docs/module-map.html', pattern: prose('a sparse partial order, (\\d+) members and') }],
   },
   {
     what: 'edges between capabilities',
     actual: capabilities.edges,
     claims: [{ file: 'docs/modules.md', pattern: prose('capabilities and \\*\\*(\\d+)\\*\\* edges') },
              { file: 'docs/modules.md', pattern: prose('members, (\\d+) edges between them') },
-             { file: 'docs/modules.md', pattern: prose('imports across (\\w+) module pairs') }],
+             { file: 'docs/modules.md', pattern: prose('imports across (\\w+) module pairs') },
+             { file: 'docs/module-map.html', pattern: prose('<b>(\\d+) edges</b>') },
+             { file: 'docs/module-map.html', pattern: prose('members and\\s*(\\d+) edges, no cycles') }],
   },
   {
     what: 'imports from one capability to another',
     actual: capabilities.imports,
     claims: [{ file: 'docs/modules.md', pattern: prose('(\\w+) imports across \\w+ module pairs') },
-             { file: 'docs/modules.md', pattern: prose('capability → another capability \\| \\d+ \\| (\\d+) \\|') }],
+             { file: 'docs/modules.md', pattern: prose('capability → another capability \\| \\d+ \\| (\\d+) \\|') },
+             { file: 'docs/module-map.html', pattern: prose('already are — (\\d+) imports across') }],
   },
   {
     what: 'dependents of the most leaned-on capability',
     actual: capabilities.mostDependents,
-    claims: [{ file: 'docs/modules.md', pattern: prose('and \\*\\*(\\d+)\\*\\* of them lean on it') }],
+    claims: [{ file: 'docs/modules.md', pattern: prose('and \\*\\*(\\d+)\\*\\* of them lean on it') },
+             { file: 'docs/module-map.html', pattern: prose('<b>most leaned-on: (\\d+)</b>') },
+             { file: 'docs/module-map.html', pattern: prose('<code>pages</code>, and (\\d+) of the other') }],
   },
   {
     what: 'capabilities nothing leans on',
     actual: capabilities.independent,
-    claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* — `automation`, `chat`') }],
+    claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* — `automation`, `chat`') },
+             { file: 'docs/module-map.html', pattern: prose('<b>(\\d+) leaned on by nobody</b>') }],
   },
   {
     what: 'capabilities that neither lean nor are leaned on',
@@ -126,18 +134,22 @@ const FIGURES = [
     what: 'ways to split the capabilities into a ring and what sits above it',
     actual: capabilities.splits,
     claims: [{ file: 'docs/modules.md', pattern: prose('Of the \\*\\*(\\d+(?: \\d{3})*)\\*\\* ways to split') },
-             { file: 'docs/modules.md', pattern: prose('one of the (\\d+(?: \\d{3})*) counted') }],
+             { file: 'docs/modules.md', pattern: prose('one of the (\\d+(?: \\d{3})*) counted') },
+             { file: 'docs/module-map.html', pattern: prose('There are <strong>([\\d ]+)</strong> ways to split') },
+             { file: 'docs/module-map.html', pattern: prose('one of the ([\\d ]+) counted above') }],
   },
   {
     what: 'modules in the best fifth ring available',
     actual: capabilities.bestRingSize,
     claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* modules that only') },
-             { file: 'docs/modules.md', pattern: prose('would be (\\w+) modules that most') }],
+             { file: 'docs/modules.md', pattern: prose('would be (\\w+) modules that most') },
+             { file: 'docs/module-map.html', pattern: prose('<strong>(\\d+) modules that \\d+ of the rest lean on</strong>') }],
   },
   {
     what: 'capabilities leaning on the best fifth ring available',
     actual: capabilities.bestRingLeaners,
-    claims: [{ file: 'docs/modules.md', pattern: prose('only \\*\\*(\\d+)\\*\\* of the rest lean on') }],
+    claims: [{ file: 'docs/modules.md', pattern: prose('only \\*\\*(\\d+)\\*\\* of the rest lean on') },
+             { file: 'docs/module-map.html', pattern: prose('<strong>\\d+ modules that (\\d+) of the rest lean on</strong>') }],
   },
   {
     what: 'kernel imports of a capability',
@@ -158,7 +170,8 @@ const FIGURES = [
     what: 'adapter imports of a capability',
     actual: rings['adapter->capability'],
     claims: [{ file: 'docs/modules.md', pattern: prose('adapter → a capability \\| \\d+ \\| (\\d+) \\|') },
-             { file: 'docs/modules.md', pattern: prose('It does so (\\w+) times now') }],
+             { file: 'docs/modules.md', pattern: prose('It does so (\\w+) times now') },
+             { file: 'docs/module-map.html', pattern: prose('it does so (\\d+) times now') }],
   },
   {
     /*
@@ -186,17 +199,106 @@ const FIGURES = [
     what: 'modules that declare a port',
     actual: ports.modules,
     claims: [{ file: 'docs/modules.md', pattern: prose('now does it (\\w+)\\s*times') },
-             { file: 'docs/modules.md', pattern: prose('across \\*\\*(\\d+)\\*\\* modules') }],
+             { file: 'docs/modules.md', pattern: prose('across \\*\\*(\\d+)\\*\\* modules') },
+             { file: 'docs/module-map.html', pattern: prose('across <strong>(\\d+) modules</strong> now') }],
   },
   {
     what: 'ports',
     actual: ports.count,
-    claims: [{ file: 'docs/modules.md', pattern: prose('There are \\*\\*(\\d+)\\*\\* ports now') }],
+    claims: [{ file: 'docs/modules.md', pattern: prose('There are \\*\\*(\\d+)\\*\\* ports now') },
+             { file: 'docs/module-map.html', pattern: prose('There are <strong>(\\d+) ports</strong>') },
+             { file: 'docs/module-map.html', pattern: prose('now, and\\s*all (\\d+) are filled') }],
   },
   {
     what: 'ports something fills',
     actual: ports.filled,
     claims: [{ file: 'docs/modules.md', pattern: prose('and \\*\\*(\\d+)\\*\\* of them are filled') }],
+  },
+  {
+    what: 'HTTP endpoints',
+    actual: endpoints,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<span class="v num">(\\d+)</span><span class="k">endpoints</span>') }],
+  },
+  {
+    what: 'named layering exceptions',
+    actual: exceptions.layering,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<code>routes/</code> file</td> <td>[^<]*</td> <td class="n">(\\d+)</td>') }],
+  },
+  {
+    what: 'named import-knot exceptions',
+    actual: exceptions.knots,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<td>No import knots</td> <td>[^<]*</td> <td class="n">(\\d+)</td>') },
+             { file: 'docs/module-map.html', pattern: prose('<b>(\\d+) knots left</b>') }],
+  },
+  {
+    what: 'named ring exceptions',
+    actual: exceptions.outward,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<td>The rings point one way</td> <td>[^<]*</td> <td class="n">(\\d+)</td>') }],
+  },
+  {
+    what: 'module cycles',
+    actual: exceptions.moduleCycles,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<b>(\\d+) module cycles</b>') }],
+  }
+,
+  {
+    what: 'files in the MCP adapter',
+    actual: modules['adapter/mcp'].files,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('The adapter is (\\d+) files now') }],
+  },
+  {
+    what: 'lines in the largest MCP file',
+    actual: modules['adapter/mcp'].biggestLines,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('the largest ([\\d ]+) lines') }],
+  },
+  {
+    what: 'files in the design system',
+    actual: modules['kernel/design-system'].files,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('now — (\\d+) files, the primitives') }],
+  },
+  {
+    what: 'entities in the registry',
+    actual: [...between(read('packages/shared/src/kernel/registry/entities.ts'), 'export type EntityName =', ';')
+      .matchAll(/'([a-zA-Z]+)'/g)].length,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<span class="v num">(\\d+)</span><span class="k">entities</span>') },
+             { file: 'docs/modules.md', pattern: prose('entities.ts` — (\\d+) entities, six flags') },
+             { file: 'scripts/modules.mjs', pattern: prose("'registry': \\['The (\\d+) entities") }],
+  },
+  {
+    what: 'keys in a locale catalogue',
+    actual: (read('packages/web/src/kernel/i18n/locales/en.ts').match(/^  '/gm) ?? []).length,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('catalogues of ([\\d ]+) keys') }],
+  }
+,
+  {
+    /*
+     * `docs/module-map.html` is the illustrated version of the document. Its
+     * tables and its inventory are generated by `modules.mjs`; these are the
+     * numbers inside its *sentences*, which nothing generated could reach.
+     * They are here because the page was hand-maintained until now and had
+     * quietly gone stale in four places at once — `227 files`, three of the
+     * four ring totals, `5 667` lines of MCP, and `5` ring exceptions after
+     * the list was emptied.
+     */
+    what: 'lines in the MCP adapter',
+    actual: modules['adapter/mcp'].lines,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('<code>adapter/mcp</code> is <strong>([\\d ]+)</strong>') }],
+  },
+  {
+    what: 'lines in the notifications capability',
+    actual: modules['capability/notifications'].lines,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('It is <strong>([\\d ]+) lines</strong> now') },
+             { file: 'docs/modules.md', pattern: prose('It is \\*\\*([\\d ]+)\\*\\* now, in two files') }],
+  },
+  {
+    what: 'lines in repo.ts',
+    actual: modules['kernel/write-path'].biggestLines,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('It is ([\\d ]+) lines,') }],
+  },
+  {
+    what: 'lines in the i18n kernel module',
+    actual: modules['kernel/i18n'].lines,
+    claims: [{ file: 'docs/module-map.html', pattern: prose('module\\.</strong> ([\\d ]+) lines is three') }],
   },
   {
     what: 'MCP tools',
@@ -205,6 +307,7 @@ const FIGURES = [
       { file: 'README.md', pattern: prose('\\*\\*(\\d+) tools\\*\\*') },
       { file: 'README.md', pattern: prose('with (\\d+) tools, \\d+ prompts') },
       { file: 'TODO.md', pattern: prose('MCP exposes (\\d+) tools') },
+      { file: 'docs/module-map.html', pattern: prose('<span class="v num">(\\d+)</span><span class="k">MCP tools</span>') },
     ],
   },
   {
