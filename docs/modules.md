@@ -196,6 +196,14 @@ there is to go: the other 54 are still spread across a shared kit and four unrel
 
 > Paths in this section are the ones that existed when each finding was written. Step 10 moved every
 > file into `<ring>/<module>/`; the inventory above is where things are now.
+>
+> **The numbers are records, not measurements.** A bold figure in this document is one or the other,
+> and `figures.mjs` will not let it be neither: a *measurement* has a claim there and fails the build
+> when the tree disagrees, a *record* has a `HISTORY` entry saying what it is a record of. Everything
+> below is a record — `2 370 lines`, `108 crossings`, `1 030 selector runs` — and must not be
+> "corrected" to what the tree says today, because then the argument it is evidence for loses its
+> evidence. `repo.ts` came down to 1 306 lines at step 7b; it is 858 now; both are true and only the
+> second is checked.
 
 Seven of them, each with the evidence and each with a fix, ordered by what they cost.
 
@@ -293,7 +301,8 @@ the order they were branches in.
 All eight domains have moved — `rules/work.ts`, `rules/pages.ts`, `rules/chat.ts`,
 `rules/planning.ts`, `rules/budgets.ts`, `rules/kpis.ts`, `rules/infrastructure.ts`,
 `rules/rates.ts` — and each file sits in its own capability in the table above rather than in the
-kernel. `repo.ts` is **1 306 lines**, from 2 370.
+kernel. `repo.ts` came down to **1 306 lines** from 2 370 at that step, and to **858** later, when
+`notify` and `fireWebhooks` moved out of the write path behind `onCommitted`.
 
 | | Was | Now |
 |---|---:|---:|
