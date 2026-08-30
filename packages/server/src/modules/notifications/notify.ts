@@ -6,13 +6,16 @@
  * remember to wake the subscribed devices afterwards — which is a thing that
  * gets forgotten exactly once, quietly, by whoever adds the fifth.
  *
- * So the delivery lives with the write. Add a channel here and every kind of
+ * So the delivery lives with the write. Register a channel and every kind of
  * notification gets it, including the ones written next year.
+ *
+ * Registered, not called by name: a browser subscription and a chat bot are two
+ * adapters, and *which* channels exist is not this module's business. It knows
+ * one row was written, for this person, and says so.
  */
 import { nextSeq, run } from '../../kernel/platform/db/index.ts';
 import { uid } from '../../kernel/platform/ids.ts';
-import { notifyDevices } from '../../adapters/push/push.ts';
-import { deliverNotification } from '../../adapters/telegram/telegram.ts';
+
 
 export interface NewNotification {
   /** Null for something that happened outside any workspace — a direct message. */
@@ -27,6 +30,26 @@ export interface NewNotification {
   projectId?: string | null;
   channelId?: string | null;
   actorId?: string | null;
+}
+
+/**
+ * Somewhere a notification is carried to.
+ *
+ * Deliberately given the id and the recipient and nothing else: a channel that
+ * needs the title reads the row it has just been told about, which keeps one
+ * copy of what a notification says.
+ */
+export type Delivery = (notification: { id: string; userId: string }) => void;
+
+const carriers: Delivery[] = [];
+
+export function onNotification(deliver: Delivery): void {
+  if (!carriers.includes(deliver)) carriers.push(deliver);
+}
+
+/** For a test that wants the row written and nothing carried. */
+export function clearDeliveries(): void {
+  carriers.length = 0;
 }
 
 /** Write one, and tell everything that carries it. Returns the row's id. */
@@ -44,14 +67,9 @@ export function createNotification(input: NewNotification): string {
     now, now, nextSeq(),
   );
 
-  // The push carries no payload — the service worker reads the notification it
-  // has just been told exists. That keeps the contents on this server.
-  notifyDevices(input.userId);
-
-  // Telegram arrives immediately rather than in a digest, so it is sent here
-  // rather than by a batching worker. Deliberately not awaited: somebody else's
-  // chat service must never sit in the path of somebody's edit.
-  void deliverNotification(id);
+  // None of them may sit in the path of somebody's edit — see each carrier for
+  // how it makes sure of that.
+  for (const carry of carriers) carry({ id, userId: input.userId });
 
   return id;
 }

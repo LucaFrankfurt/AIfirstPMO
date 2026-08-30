@@ -18,10 +18,7 @@
 import type { ReviewField, ReviewFinding, ReviewKind, TaskReview } from '@kolibri/shared';
 import { REVIEW_FIELDS } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
-import { AiError, type AiRequest, type Reviewer } from '../../adapters/ai/ai.ts';
-import { DEFAULT_MODEL as ANTHROPIC_MODEL, reviewWithAnthropic } from '../../adapters/ai/ai-anthropic.ts';
-import { DEFAULT_MODEL as GEMINI_MODEL, reviewWithGemini } from '../../adapters/ai/ai-gemini.ts';
-import { DEFAULT_MODEL as OPENROUTER_MODEL, reviewWithOpenRouter } from '../../adapters/ai/ai-openrouter.ts';
+import { AiError, modelFor, type AiRequest, type Model } from './model.ts';
 import { env } from '../../kernel/platform/env.ts';
 
 /** Long enough for a rewritten description, short enough to bound the bill. */
@@ -191,19 +188,8 @@ export function parseReview(text: string, model: string, task: Row): TaskReview 
 
 /* ------------------------------------------------------------ the whole of it */
 
-/** Whose model answers, and under what name. */
-export function reviewer(): { ask: Reviewer; model: string } | null {
-  switch (env.aiProvider) {
-    case 'anthropic':
-      return { ask: reviewWithAnthropic, model: env.ai.model || ANTHROPIC_MODEL };
-    case 'gemini':
-      return { ask: reviewWithGemini, model: env.ai.model || GEMINI_MODEL };
-    case 'openrouter':
-      return { ask: reviewWithOpenRouter, model: env.ai.model || OPENROUTER_MODEL };
-    default:
-      return null;
-  }
-}
+/** Whose model answers, and under what name. See `model.ts` for who offers. */
+export const reviewer = (): Model | null => modelFor(env.aiProvider);
 
 export async function reviewTask(task: Row): Promise<TaskReview> {
   const chosen = reviewer();

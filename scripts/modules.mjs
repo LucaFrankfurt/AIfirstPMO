@@ -165,24 +165,30 @@ const KNOWN_LAYERING = [];
 const KNOWN_KNOTS = [];
 
 /**
- * The kernel reaching up, each one named. Three, and all the same argument.
+ * A ring reaching outward, each one named. Five, and two arguments.
  *
- * `env.ts` and `settings.ts` are where configuration is parsed and checked —
- * one place, which is what makes `check:compose` able to prove every documented
- * variable is reachable. Checking `KOLIBRI_SMTP_URL` means knowing what an SMTP
- * URL looks like, and checking `KOLIBRI_MAIL_FROM` means knowing what an email
- * address looks like. Both of those live with mail, because that is where every
- * other reader would look for them.
+ * **Configuration.** `env.ts` and `settings.ts` are where configuration is
+ * parsed and checked — one place, which is what makes `check:compose` able to
+ * prove every documented variable is reachable. Checking `KOLIBRI_SMTP_URL`
+ * means knowing what an SMTP URL looks like, and checking `KOLIBRI_MAIL_FROM`
+ * means knowing what an email address looks like; both live with mail, because
+ * that is where every other reader would look for them. Inverting it would mean
+ * a second copy of the parser in the kernel, or configuration parsed lazily by
+ * whoever needs it — and the second gives up the property that makes the config
+ * check possible.
  *
- * Inverting it would mean either a second copy of the parser in the kernel or
- * configuration parsed lazily by whoever needs it — and the second gives up the
- * property that makes the config check possible. A trade that was made, then,
- * rather than an oversight, and written down as one.
+ * **The share dialog.** `share` is an adapter on the server, where it renders a
+ * read-only document for somebody with a link, and a small piece of product UI
+ * on the client, where it makes the link and turns it off. Two screens embed
+ * the second. Splitting the module in two so the rings agree would put the same
+ * name in two rings and make the map harder to read than the edge it removed.
  */
 const KNOWN_OUTWARD = [
   'server/src/kernel/platform/env.ts -> server/src/adapters/mail/smtp.ts',
   'server/src/kernel/platform/settings.ts -> server/src/adapters/mail/address.ts',
   'server/src/kernel/platform/settings.ts -> server/src/adapters/mail/smtp.ts',
+  'web/src/modules/intake/intake.tsx -> web/src/adapters/share/share.tsx',
+  'web/src/modules/work/saved-views.tsx -> web/src/adapters/share/share.tsx',
 ];
 
 /* -------------------------------------------------------------- the reading */
@@ -321,11 +327,18 @@ for (const edge of KNOWN_LAYERING) {
 }
 
 /*
- * 5. The kernel depends on nothing above it.
+ * 5. The rings point one way.
  *
- * The rings are only worth drawing if the arrows go one way. A capability may
- * lean on the kernel — that is what a kernel is for — and the kernel leaning
- * back means neither can be understood, tested or replaced without the other.
+ * They are only worth drawing if the arrows agree: a capability may lean on the
+ * kernel, and an adapter on both, and nothing leans outward. A kernel that
+ * leans back on a capability means neither can be understood, tested or
+ * replaced without the other; a capability that reaches for an adapter has
+ * chosen a provider on everybody's behalf.
+ *
+ * The way out of both is the same and this repository now does it five times
+ * over: the inner ring says what it needs and the outer one registers. `repo`
+ * offers `onWrite` and `onCommitted`, `storage` a `Backend`, `notify` a
+ * delivery, `ai-review` a model, `sync` a stream and the scheduler a chore.
  *
  * Two things do not count, for reasons rule 3 has already made:
  *
@@ -336,58 +349,101 @@ for (const edge of KNOWN_LAYERING) {
  *   couples the build and not the run. Deleting the capability would break the
  *   typecheck and nothing else — a real cost, and a different one.
  */
-const RING_ABOVE = { capability: 1, adapter: 1 };
+const RING_DEPTH = { kernel: 0, capability: 1, adapter: 2, shell: 3 };
 const outward = [];
 for (const [file, deps] of graph) {
-  if (placeOf(file).ring !== 'kernel' || inRoutes(file)) continue;
+  const from = placeOf(file);
+  if (from.ring === 'shell' || inRoutes(file)) continue;
   for (const dep of deps) {
     if (!dep.file || dep.typeOnly) continue;
-    if (RING_ABOVE[placeOf(dep.file).ring]) outward.push(`${file} -> ${dep.file}`);
+    const to = placeOf(dep.file);
+    if (to.ring === 'shell') continue;
+    if (RING_DEPTH[to.ring] > RING_DEPTH[from.ring]) outward.push(`${file} -> ${dep.file}`);
   }
 }
 for (const edge of outward) {
-  if (!KNOWN_OUTWARD.includes(edge)) problems.push(`kernel reaches up: ${edge}`);
+  if (!KNOWN_OUTWARD.includes(edge)) problems.push(`ring points outward: ${edge}`);
 }
 for (const edge of KNOWN_OUTWARD) {
   if (!outward.includes(edge)) problems.push(`fixed: "${edge}" no longer happens — delete it from KNOWN_OUTWARD.`);
 }
 
-/* 4. No import knots. Tarjan, so every knot is found rather than the first lap
-      out of whichever file the search entered from. */
-const knots = [];
-(function findKnots() {
+/**
+ * Every set of nodes that can all reach each other — Tarjan's algorithm.
+ *
+ * Reported as the whole set rather than one lap around it, so the output does
+ * not reshuffle when an unrelated node is renamed. Used twice: once over files
+ * and once over modules, which are different questions with the same shape.
+ */
+function tarjan(nodes, edgesOf) {
   const index = new Map();
   const low = new Map();
   const onStack = new Set();
   const stack = [];
+  const found = [];
   let next = 0;
-  const visit = (file) => {
-    index.set(file, next);
-    low.set(file, next);
+  const visit = (node) => {
+    index.set(node, next);
+    low.set(node, next);
     next += 1;
-    stack.push(file);
-    onStack.add(file);
-    for (const dep of graph.get(file) ?? []) {
-      if (!dep.file) continue;
-      if (!index.has(dep.file)) {
-        visit(dep.file);
-        low.set(file, Math.min(low.get(file), low.get(dep.file)));
-      } else if (onStack.has(dep.file)) {
-        low.set(file, Math.min(low.get(file), index.get(dep.file)));
+    stack.push(node);
+    onStack.add(node);
+    for (const to of edgesOf(node)) {
+      if (!index.has(to)) {
+        visit(to);
+        low.set(node, Math.min(low.get(node), low.get(to)));
+      } else if (onStack.has(to)) {
+        low.set(node, Math.min(low.get(node), index.get(to)));
       }
     }
-    if (low.get(file) !== index.get(file)) return;
+    if (low.get(node) !== index.get(node)) return;
     const group = [];
     let member;
     do {
       member = stack.pop();
       onStack.delete(member);
       group.push(member);
-    } while (member !== file);
-    if (group.length > 1) knots.push(group.sort().join(' + '));
+    } while (member !== node);
+    if (group.length > 1) found.push(group.sort());
   };
-  for (const file of sources) if (!index.has(file)) visit(file);
-})();
+  for (const node of nodes) if (!index.has(node)) visit(node);
+  return found.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+}
+
+/*
+ * 6. Capability dependencies are acyclic.
+ *
+ * Capabilities are not independent and pretending otherwise would be a lie
+ * about the domain: `planning` imports `work` because a cycle contains tasks,
+ * and no amount of inverting changes that. What they can be is *ordered* — a
+ * directed graph with no way back — so any one of them can be read knowing only
+ * what it depends on, and a module can be deleted from the top of the order
+ * without touching anything below it.
+ *
+ * This is rule 4 one floor up, and it is not implied by it: two modules can
+ * each import the other without any single *file* doing so, which is a knot the
+ * file-level check walks straight past. Tarjan again, and reported as the whole
+ * set for the same reason.
+ */
+const moduleEdges = new Map();
+for (const [file, deps] of graph) {
+  const from = placeOf(file);
+  if (from.ring !== 'capability' || inRoutes(file)) continue;
+  for (const dep of deps) {
+    if (!dep.file || dep.typeOnly) continue;
+    const to = placeOf(dep.file);
+    if (to.ring !== 'capability' || to.name === from.name) continue;
+    moduleEdges.set(from.name, [...(moduleEdges.get(from.name) ?? []), to.name]);
+  }
+}
+const moduleKnots = tarjan([...moduleEdges.keys()], (name) => moduleEdges.get(name) ?? []);
+for (const knot of moduleKnots) {
+  problems.push(`capability cycle: ${knot.join(' <-> ')} — one of them has to come first.`);
+}
+
+/* 4. No import knots, between files. */
+const knots = tarjan(sources, (file) => (graph.get(file) ?? []).filter((d) => d.file).map((d) => d.file))
+  .map((group) => group.join(' + '));
 knots.sort();
 for (const knot of knots) {
   if (!KNOWN_KNOTS.includes(knot)) problems.push(`import knot: ${knot}`);
@@ -546,5 +602,5 @@ if (problems.length) {
 
 console.log(
   `modules.mjs: ${sources.length} files, ${MODULES.length} modules, rules hold ` +
-  `(${KNOWN_LAYERING.length} layering, ${KNOWN_KNOTS.length} knot and ${KNOWN_OUTWARD.length} kernel exceptions, all named).`,
+  `(${KNOWN_LAYERING.length} layering, ${KNOWN_KNOTS.length} knot and ${KNOWN_OUTWARD.length} ring exceptions, all named).`,
 );

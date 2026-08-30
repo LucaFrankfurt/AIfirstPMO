@@ -18,8 +18,6 @@ import { createNotification } from '../notifications/notify.ts';
 import { canSeeProject, writeEntity } from '../../kernel/write-path/repo.ts';
 import { runAutomationsForDue } from './automation.ts';
 import { applyRetention } from '../trash/trash.ts';
-import { expireLinks as expireTelegramLinks, retryPending as retryPendingTelegram } from '../../adapters/telegram/telegram.ts';
-import { flushDeliveries, pruneDeliveries } from '../../adapters/webhooks/webhooks.ts';
 import { sweepBackups } from '../operations/backups.ts';
 
 const HOUR = 3_600_000;
@@ -150,18 +148,40 @@ export function rollRecurringTasks(): number {
 
 /* ------------------------------------------------------------------ sweep */
 
-export function sweep(now = Date.now()): { reminders: number; recurred: number; rules: number; purged: number; codes: number } {
-  // Telegram messages that failed on the way out get another go, and the
-  // link codes nobody used are dropped. Both are deliberately fire-and-forget:
-  // the sweep's own result is about the work it did to the database, and an
-  // unreachable chat service is not a reason for it to report a failure.
-  void retryPendingTelegram(now);
-  // The same arrangement for calls out: a delivery waiting on its backoff is
-  // picked up by an in-process timer, and by this sweep if the process was
-  // restarted in the middle of one. Fire-and-forget for the same reason —
-  // somebody else's endpoint being down is not this sweep failing.
-  void flushDeliveries(now);
-  pruneDeliveries(now);
+/**
+ * Periodic work somebody else owns.
+ *
+ * The sweep used to retry Telegram messages, expire link codes and flush
+ * webhook deliveries by name, which meant a capability's timer knew which
+ * adapters had housekeeping. An adapter with periodic work says so now, and a
+ * fourth one is a registration rather than an edit to this file.
+ *
+ * A named chore's count appears in the sweep's result; an unnamed one is
+ * fire-and-forget, which is what the two network-facing ones are — somebody
+ * else's endpoint being down is not this sweep failing.
+ */
+export interface Chore {
+  name?: string;
+  run(now: number): number | void;
+}
+
+const chores: Chore[] = [];
+
+export function onSweep(chore: Chore): void {
+  if (!chores.includes(chore)) chores.push(chore);
+}
+
+/** For a test that wants the sweep with nothing hanging off it. */
+export function clearChores(): void {
+  chores.length = 0;
+}
+
+export function sweep(now = Date.now()): Record<string, number> {
+  const counted: Record<string, number> = {};
+  for (const chore of chores) {
+    const done = chore.run(now);
+    if (chore.name && typeof done === 'number') counted[chore.name] = done;
+  }
   return {
     reminders: remindAboutDueTasks(now),
     recurred: rollRecurringTasks(),
@@ -170,7 +190,7 @@ export function sweep(now = Date.now()): { reminders: number; recurred: number; 
     // on a daily one because the cutoff is an age, not a date: running it
     // twice in one day purges nothing the first pass did not already take.
     purged: applyRetention(now),
-    codes: expireTelegramLinks(now),
+    ...counted,
   };
 }
 

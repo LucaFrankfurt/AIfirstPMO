@@ -30,7 +30,7 @@ import { join, resolve } from 'node:path';
 import { env } from '../../kernel/platform/env.ts';
 import { backup as takeSnapshot, mb, type Manifest } from './maintenance.ts';
 import { readManifest, verify } from './restore.ts';
-import * as s3 from '../../adapters/s3/s3.ts';
+import { exists as storedAlready, put as store } from '../../kernel/files/storage.ts';
 
 /**
  * A snapshot is named for the day it covers: `2026-08-26`.
@@ -178,14 +178,16 @@ export async function offsite(name: string, dir = env.backup.dir): Promise<{ upl
   if (!path) throw new Error(`No snapshot called ${name}`);
   if (env.storage.kind !== 's3') throw new Error('There is no object store configured to copy to (KOLIBRI_STORAGE=s3)');
 
-  const config = env.storage.s3;
   const prefix = `${env.backup.prefix}/${name}`;
   let uploaded = 0;
   let skipped = 0;
   let bytes = 0;
 
+  // Through `storage`, not the S3 client: this writes to the store the instance
+  // is already configured with, under a prefix of its own, and which store that
+  // is happens to be the one question this module has no reason to answer.
   const send = async (key: string, body: Buffer, type: string): Promise<void> => {
-    await s3.putObject(config, key, body, type);
+    await store(key, body, type);
     uploaded++;
     bytes += body.length;
   };
@@ -199,7 +201,7 @@ export async function offsite(name: string, dir = env.backup.dir): Promise<{ upl
       const key = `${env.backup.prefix}/blobs/${relative}`;
       // Content-addressed: the same key always holds the same bytes, so one
       // that is already there is already right.
-      if (await s3.headObject(config, key)) { skipped++; continue; }
+      if (await storedAlready(key)) { skipped++; continue; }
       await send(key, readFileSync(join(uploads, relative)), 'application/octet-stream');
     }
   }

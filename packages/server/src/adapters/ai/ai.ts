@@ -12,37 +12,9 @@
  * than having it read back out of the message later.
  */
 import { env } from '../../kernel/platform/env.ts';
+import { AiError } from '../../modules/ai-review/model.ts';
 
-export interface AiRequest {
-  /** The standing instructions. Identical on every call, so it caches well. */
-  system: string;
-  /** The task, as text. Everything that differs between two calls is here. */
-  user: string;
-  /** A ceiling, not a target. A review that hits it was going wrong anyway. */
-  maxTokens: number;
-}
-
-/** Answers with the model's text, or throws `AiError`. */
-export type Reviewer = (request: AiRequest) => Promise<string>;
-
-/**
- * A model that did not answer, and whether asking again could help.
- *
- * `permanent` is the same idea as `DeliveryError.permanent` and is classified
- * the same way — in HTTP's terms, where 4xx is a request that will never work
- * and 5xx is a bad moment. Nothing retries here, because a person is waiting;
- * what it decides is whether the sentence they read says "try again" or
- * "somebody has to fix the configuration".
- */
-export class AiError extends Error {
-  readonly permanent: boolean;
-
-  constructor(message: string, permanent: boolean) {
-    super(message);
-    this.name = 'AiError';
-    this.permanent = permanent;
-  }
-}
+export { AiError, type AiRequest, type Reviewer } from '../../modules/ai-review/model.ts';
 
 /**
  * Which failures are worth trying again, in HTTP's terms.

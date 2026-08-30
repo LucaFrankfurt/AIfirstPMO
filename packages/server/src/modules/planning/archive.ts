@@ -24,7 +24,7 @@ import type { Writable } from 'node:stream';
 import { get, type Row } from '../../kernel/platform/db/index.ts';
 import { badRequest } from '../../kernel/platform/http.ts';
 import * as storage from '../../kernel/files/storage.ts';
-import { ZipWriter, unzip } from '../../adapters/transfer/zip.ts';
+import { ZipWriter, unzip } from '../../kernel/files/zip.ts';
 import type { FileRef } from '../../adapters/transfer/transfer.ts';
 
 /** The document's name inside the archive. */

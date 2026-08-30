@@ -21,7 +21,7 @@ import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
-const { unzip } = await import('../src/adapters/transfer/zip.ts');
+const { unzip } = await import('../src/kernel/files/zip.ts');
 const backups = await import('../src/modules/operations/backups.ts');
 const rehydrate = await import('../src/modules/operations/rehydrate.ts');
 const { all, get, pluck } = await import('../src/kernel/platform/db/index.ts');

@@ -28,7 +28,7 @@ import { exportProject, importProject, type ProjectDoc } from '../transfer.ts';
 import {
   detectWorkspaceDoc, exportWorkspace, importWorkspace, type WorkspaceDoc,
 } from '../workspace-transfer.ts';
-import { unzip, ZipWriter } from '../zip.ts';
+import { unzip, ZipWriter } from '../../../kernel/files/zip.ts';
 
 /** A filename a browser will accept and a filesystem will keep. */
 const safe = (value: string): string =>

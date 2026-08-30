@@ -23,7 +23,7 @@ import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
-const { zip, unzip, crc32 } = await import('../src/adapters/transfer/zip.ts');
+const { zip, unzip, crc32 } = await import('../src/kernel/files/zip.ts');
 const { writeCsv, parseCsv } = await import('@kolibri/shared');
 const backups = await import('../src/modules/operations/backups.ts');
 

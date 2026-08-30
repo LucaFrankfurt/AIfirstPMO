@@ -22,6 +22,11 @@ import { installAutomations } from './modules/automation/automation.ts';
 import { installNotifications } from './modules/notifications/effects.ts';
 import { installWebhookEvents } from './adapters/webhooks/effects.ts';
 import { installS3Storage } from './adapters/s3/backend.ts';
+import { installPushDelivery } from './adapters/push/delivery.ts';
+import { installTelegramDelivery } from './adapters/telegram/delivery.ts';
+import { installAiProviders } from './adapters/ai/providers.ts';
+import { installTelegramChores } from './adapters/telegram/chores.ts';
+import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
@@ -48,6 +53,11 @@ export function installEffects(): void {
   installNotifications();
   installWebhookEvents();
   installS3Storage();
+  installPushDelivery();
+  installTelegramDelivery();
+  installAiProviders();
+  installTelegramChores();
+  installWebhookChores();
   // The order within an entity is the order they were branches in. Across
   // entities it cannot matter — one write is one entity. See `repo.onEntity`.
   for (const rule of [
