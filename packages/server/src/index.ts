@@ -15,6 +15,10 @@ import { HttpError, Router, send, type Ctx } from './lib/http.ts';
 import { overTls } from './lib/origin.ts';
 import { registerAiRoutes } from './routes/ai.ts';
 import { registerAuthRoutes } from './routes/auth.ts';
+import { registerWorkspaceRoutes } from './routes/workspaces.ts';
+import { registerMailRoutes } from './routes/mail.ts';
+import { registerTelegramRoutes } from './routes/telegram.ts';
+import { registerPushRoutes } from './routes/push.ts';
 import { registerEntityRoutes } from './routes/entities.ts';
 import { registerExportRoutes } from './routes/export.ts';
 import { registerFileRoutes } from './routes/files.ts';
@@ -40,6 +44,10 @@ const router = new Router();
 // Order matters: specific paths must be registered before the generic
 // `/api/workspaces/:ws/:collection` CRUD routes.
 registerAuthRoutes(router);
+registerWorkspaceRoutes(router);
+registerMailRoutes(router);
+registerTelegramRoutes(router);
+registerPushRoutes(router);
 // Before `registerEntityRoutes`, which owns the generic `/api/:collection/:id`
 // and would otherwise answer `DELETE /api/me/calendar` with "unknown
 // collection me". Specific before generic, the way the auth routes above are.

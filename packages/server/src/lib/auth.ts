@@ -2,8 +2,10 @@ import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypt
 import { all, get, run, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { forbidden, unauthorized, type Ctx, parseCookies } from './http.ts';
+import { featuresOf } from './features.ts';
+import { serialize } from './repo.ts';
 import { token, uid } from './ids.ts';
-import type { WorkspaceRole } from '@kolibri/shared';
+import type { SessionInfo, WorkspaceRole } from '@kolibri/shared';
 
 export const SESSION_COOKIE = 'kolibri_session';
 
@@ -87,6 +89,40 @@ export function loadMemberships(userId: string): Map<string, WorkspaceRole> {
     userId,
   );
   return new Map(rows.map((r) => [r.workspace_id, r.role]));
+}
+
+/** The user as anybody may see them — the registry decides which fields that is. */
+const publicUser = (row: Row | undefined) => (row ? serialize('user', row) : null);
+
+/**
+ * Everything the client needs to know about who it is talking as.
+ *
+ * Here rather than in `routes/auth.ts` because two route files answer with it —
+ * signing in, and creating or joining a workspace, which changes the list below
+ * and therefore has to hand back the new one.
+ */
+export function sessionInfo(userId: string): SessionInfo {
+  const user = get<Row>(`SELECT * FROM users WHERE id = ?`, userId);
+  if (!user) throw unauthorized();
+  const memberships = loadMemberships(userId);
+  const workspaces = all<Row>(
+    `SELECT w.* FROM workspaces w
+      JOIN workspace_members m ON m.workspace_id = w.id
+     WHERE m.user_id = ? AND m.deleted_at IS NULL AND w.deleted_at IS NULL
+     ORDER BY w.created_at`,
+    userId,
+  ).map((w) => ({
+    id: w.id, name: w.name, slug: w.slug, logo_url: w.logo_url ?? null, created_at: w.created_at,
+    features: featuresOf(w),
+    role: (memberships.get(w.id) ?? 'member') as WorkspaceRole,
+  }));
+  return {
+    // `two_factor` rather than the secret: the registry keeps `totp_secret` and
+    // the recovery codes out of the serialised user, and they stay out.
+    user: { ...(publicUser(user) as SessionInfo['user']), two_factor: !!user.totp_confirmed_at },
+    workspaces,
+    instanceAdmin: !!user.is_admin,
+  };
 }
 
 function bearer(ctx: Ctx): string | null {

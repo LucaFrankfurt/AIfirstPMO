@@ -98,7 +98,7 @@ const MODULES = [
     what: 'Who is asking: accounts, sessions, tokens, roles, rate limits, second factors.',
     files: [
       'server/src/lib/auth.ts', 'server/src/lib/totp.ts', 'server/src/lib/ratelimit.ts',
-      'server/src/routes/auth.ts',
+      'server/src/routes/auth.ts', 'server/src/routes/workspaces.ts',
       'web/src/routes/Login.tsx', 'web/src/components/AuthLayout.tsx',
       'web/src/components/security.tsx', 'web/src/session.tsx',
     ],
@@ -321,20 +321,20 @@ const MODULES = [
     what: 'Batching, the queue, SMTP by hand, and knowing an address from a bounce.',
     files: [
       'server/src/lib/mail.ts', 'server/src/lib/smtp.ts', 'server/src/lib/address.ts',
-      'server/src/lib/delivery.ts', 'server/src/lib/scaleway.ts',
+      'server/src/lib/delivery.ts', 'server/src/lib/scaleway.ts', 'server/src/routes/mail.ts',
     ],
   },
   {
     name: 'adapter/push',
     ring: 'adapter',
     what: 'Web push, sent with no payload.',
-    files: ['server/src/lib/push.ts', 'web/src/components/push.tsx'],
+    files: ['server/src/lib/push.ts', 'server/src/routes/push.ts', 'web/src/components/push.tsx'],
   },
   {
     name: 'adapter/telegram',
     ring: 'adapter',
     what: 'The bot: long-polled updates, single-use link codes, delivery.',
-    files: ['server/src/lib/telegram.ts', 'web/src/components/telegram.tsx'],
+    files: ['server/src/lib/telegram.ts', 'server/src/routes/telegram.ts', 'web/src/components/telegram.tsx'],
   },
   {
     name: 'adapter/webhooks',
