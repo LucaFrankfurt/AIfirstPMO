@@ -258,11 +258,13 @@ moved down into `lib/uploads.ts` and `lib/search.ts`, where the route and the MC
 callers of one implementation rather than one of them reaching up into the other. There are now no
 layering exceptions at all, which is worth more than two: nothing is left to cite as precedent.
 
-> **Remaining.** The eleven files sit under the adapter rather than beside the capability whose
-> product they expose, and the module map says so: they are all `adapter/mcp`. Moving
-> `tools/budgets.ts` next to `budgets` is step 10's job, and it needs one thing first — `ToolDef` is
-> the contract a capability and the envelope agree on, so it will want a home that a capability may
-> import without importing an adapter. A workspace with budgets off also still *loads* those tools
+> **Remaining.** The **11** files sit under the adapter rather than beside the capability whose
+> product they expose, and the module map says so: they are all `adapter/mcp`. This note used to say
+> that moving `tools/budgets.ts` next to `budgets` was step 10's job. Step 10 came and went — it put
+> every file under `<ring>/<module>/` and left these where they were — so the job is nobody's until
+> somebody takes it, and it still needs the one thing it always did: `ToolDef` is the contract a
+> capability and the envelope agree on, so it wants a home a capability may import without importing
+> an adapter. A workspace with budgets off also still *loads* those tools
 > and checks the switch per call; assembling the list per workspace instead is a behaviour change and
 > was deliberately left out of a refactor.
 
@@ -334,8 +336,10 @@ extractor only walked back over `/** */` blocks. Nothing was lost — the check 
 comment line in the old file against the new set and require the difference to be empty — but three
 had to be carried to where their code went.
 
-> **Remaining.** Sixteen `if (entity === …)` branches are left, in `notify`, `fireWebhooks` and
-> `applyCreateDefaults`. They are a different thing from a domain rule: the same three effects for
+> **Remaining.** **16** `if (entity === …)` branches are left — in `notify`, `fireWebhooks` and
+> `applyCreateDefaults`, which are `modules/notifications/effects.ts`, `adapters/webhooks/effects.ts`
+> and `repo.ts` since the write path handed the first two out. They are a different thing from a
+> domain rule: the same three effects for
 > every entity, with per-entity field mapping — which field holds prose a mention can be written
 > into, what a row is called in a notification, which anchor it hangs off. That is a descriptor per
 > entity, and the entity registry is where a descriptor belongs. (An earlier draft of this document
@@ -389,9 +393,12 @@ already imported `GroupBy` from.
 
 What is left is the directory: 53 components in one folder is still 53 components in one folder.
 
-> **Remaining.** Move `components/` into `modules/<name>/`, which makes the cross-capability imports
-> that survive — `routes/projects.tsx` hosting the KPI and budget panels is the clearest — visible as
-> imports rather than invisible as neighbours.
+> **Closed by step 10, though not the way this asked.** It said to move `components/` into
+> `modules/<name>/`. What happened instead is that the folder became `kernel/design-system` — the
+> parts every screen is built from are kernel, not a capability's — and the cross-capability imports
+> it wanted made visible are visible: a project page hosting the KPI and budget panels is a row in
+> [the capability table](#how-the-capabilities-lean-on-each-other), and rule 6 keeps the whole of it
+> acyclic. Neither half of the note is left.
 
 ### 5. Nothing was code-split, so every workspace downloaded every feature — **fixed**
 
@@ -432,8 +439,9 @@ Three things this needed that "add `React.lazy`" does not say:
 
 > **Remaining.** Chat, the board and the task sheet stay eager on purpose: a screen somebody reaches
 > several times an hour must not spend a frame on a spinner to save bytes on a file they were always
-> going to need. The next honest win there is not splitting but the mermaid and katex chunks, which
-> are already lazy and are the largest things on disk.
+> going to need. The next honest win there is not splitting but mermaid, which is already lazy and
+> is by far the largest thing on disk — it does not arrive alone, but with cytoscape and a renderer
+> per diagram kind, and that family outweighs everything else lazy, katex included.
 
 ### 6. The client store recomputed everything on every change — **fixed**
 
@@ -462,8 +470,10 @@ This closed the last read that went around `list` and `byId`: `trash.tsx` walked
 because tombstones are the one thing `list` hides. A read the memo cannot see is a selector that
 would have kept its first answer for ever, so the store offers `listAll` and the screen calls it.
 
-> **Remaining.** The component still re-renders on every write; only the recomputation stopped. 89
-> reads go straight from a render body or a `useMemo` into the cache rather than through `useQuery`,
+> **Remaining.** The component still re-renders on every write; only the recomputation stopped.
+> **89** reads — counted when step 9 shipped, by reading the call sites rather than by a rule a
+> script could re-apply, which is why this is a record rather than a figure — go straight from a
+> render body or a `useMemo` into the cache rather than through `useQuery`,
 > and a global re-render is the only thing telling them a row moved. Narrowing the subscription
 > before those move behind hooks would not be an optimisation, it would be a staleness bug in 89
 > places — so the cheap half shipped and the rest waits for them. A re-render that recomputes

@@ -508,12 +508,15 @@ footer {
           route and the MCP tool are equal callers of one implementation. There are now no layering
           exceptions at all, which is worth more than two — nothing is left to cite as precedent.
         </p>
-        <p class="fix"><strong>Remaining.</strong> The eleven files sit under the adapter rather
-          than beside the capability whose product they expose, and the module map says so. Moving
-          <code>tools/budgets.ts</code> next to <code>budgets</code> is step 10's job, and wants
-          <code>ToolDef</code> to have a home a capability may import without importing an adapter.
-          A switched-off feature also still loads its tools — assembling the list per workspace is a
-          behaviour change and has no place in a refactor.</p>
+        <p class="fix"><strong>Remaining.</strong> The <strong>eleven</strong> files sit under the
+          adapter rather than beside the capability whose product they expose, and the module map
+          says so. This note used to call moving <code>tools/budgets.ts</code> next to
+          <code>budgets</code> step 10's job; step 10 came and went, put every file under
+          <code>&lt;ring&gt;/&lt;module&gt;/</code> and left these where they were, so it is nobody's
+          until somebody takes it — and it still wants <code>ToolDef</code> to have a home a
+          capability may import without importing an adapter. A switched-off feature also still
+          loads its tools; assembling the list per workspace is a behaviour change and has no place
+          in a refactor.</p>
       </div>
     </article>
 
@@ -563,10 +566,12 @@ footer {
           over code that had gone. Losing the reasoning is the damage nothing fails on, so the check
           is to compare every comment line in the old file against the new set and require the
           difference to be empty.</p>
-        <p class="fix"><strong>Remaining.</strong> Sixteen branches, in <code>notify</code>,
-          <code>fireWebhooks</code> and <code>applyCreateDefaults</code>. A different thing from a
-          domain rule — the same three effects for every entity with per-entity field mapping — and
-          finding 7 is the shape that untangles them.</p>
+        <p class="fix"><strong>Remaining.</strong> <strong>Sixteen</strong> branches, in
+          <code>notify</code>, <code>fireWebhooks</code> and <code>applyCreateDefaults</code> — which
+          are <code>modules/notifications/effects.ts</code>, <code>adapters/webhooks/effects.ts</code>
+          and <code>repo.ts</code> since the write path handed the first two out. A different thing
+          from a domain rule — the same three effects for every entity with per-entity field
+          mapping — and finding 7 is the shape that untangles them.</p>
       </div>
     </article>
 

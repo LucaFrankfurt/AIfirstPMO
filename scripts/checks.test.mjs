@@ -230,6 +230,20 @@ const BREAKS = [
     says: /says 3 607, is 3 606/,
   },
   {
+    what: 'a "remaining" note whose count has quietly grown',
+    script: 'figures.mjs',
+    break: (t) => t.edit('packages/server/src/adapters/webhooks/effects.ts',
+      "  if (entity === 'budget') {",
+      "  if (entity === 'label') { void 0; }\n  if (entity === 'budget') {"),
+    says: /branches left in the three effects — says 16, is 17/,
+  },
+  {
+    what: 'a "remaining" note about files, when a file joins them',
+    script: 'figures.mjs',
+    break: (t) => t.write('packages/server/src/adapters/mcp/tools/telepathy.ts', 'export const TOOLS = [];\n'),
+    says: /MCP tool files still under the adapter — says 11, is 12/,
+  },
+  {
     what: 'a bolded number that is neither claimed nor recorded',
     script: 'figures.mjs',
     break: (t) => t.edit('docs/modules.md', '## The rules, and who enforces them',

@@ -242,6 +242,29 @@ const FIGURES = [
   }
 ,
   {
+    what: 'MCP tool files still under the adapter',
+    actual: readdirSync(join(ROOT, toolsDir)).filter((name) => name.endsWith('.ts')).length,
+    claims: [{ file: 'docs/modules.md', pattern: prose('The \\*\\*(\\d+)\\*\\* files sit under the adapter') },
+             { file: 'docs/module-map.html', pattern: prose('The <strong>(\\w+)</strong> files sit under the adapter') }],
+  },
+  {
+    /*
+     * The per-entity branches the write path handed out but nobody has turned
+     * into a descriptor yet. Counted at the three sites the note names, so a
+     * new one there fails the note rather than growing behind it — and if one
+     * of the three moves, this throws instead of quietly counting less.
+     */
+    what: 'if (entity === …) branches left in the three effects',
+    actual: [
+      'packages/server/src/modules/notifications/effects.ts',
+      'packages/server/src/adapters/webhooks/effects.ts',
+      'packages/server/src/kernel/write-path/repo.ts',
+    ].reduce((n, file) => n + (read(file).match(/^ *if \(entity === /gm) ?? []).length, 0),
+    claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* `if \\(entity === …\\)` branches are left') },
+             { file: 'docs/module-map.html', pattern: prose('<strong>(\\w+)</strong> branches, in <code>notify</code>') }],
+  }
+,
+  {
     what: 'files in the MCP adapter',
     actual: modules['adapter/mcp'].files,
     claims: [{ file: 'docs/module-map.html', pattern: prose('The adapter is (\\d+) files now') }],
@@ -381,6 +404,8 @@ const like = (stated, actual) => {
  * equals what the tree says", a record says "this is what the tree said then".
  */
 const HISTORY = [
+  { file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* reads — counted when step 9 shipped'),
+    what: 'reads bypassing useQuery when step 9 shipped, counted by reading the call sites' },
   { file: 'docs/modules.md', pattern: prose('was \\*\\*(\\d+) lines\\*\\*'), what: 'notifications, before the write path handed its meaning back' },
   { file: 'docs/modules.md', pattern: prose('with \\*\\*(\\d+) raw SQL'), what: 'raw statements in the one MCP file, before it became a directory' },
   { file: 'docs/modules.md', pattern: prose('came down to \\*\\*([\\d ]+) lines\\*\\*'), what: 'repo.ts at step 7b, between 2 370 and the live figure beside it' },
