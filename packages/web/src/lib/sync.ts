@@ -14,7 +14,7 @@ import { api, ApiError } from './api';
 import * as idb from './idb';
 import { currentLocale, translate } from './i18n';
 import { applyPresence, clearPresence, startBeating, stopBeating } from './presence';
-import { applyChanges, hydrate, notifyStore, purgedRows, reset, tables } from './store';
+import { applyChanges, hydrate, notifyStore, purgedRows, reset } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
@@ -323,6 +323,3 @@ setInterval(() => {
   if (navigator.onLine && workspaceId && document.visibilityState === 'visible') void pull();
 }, 60_000);
 
-/* --------------------------------------------------------------- mutations */
-
-export const rows = tables;

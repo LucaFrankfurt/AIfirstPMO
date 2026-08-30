@@ -17,7 +17,7 @@ import { api } from '../lib/api';
 import { relativeTime } from '../lib/format';
 import { useT, type TranslationKey } from '../lib/i18n';
 import { restore, update } from '../lib/mutations';
-import { byId, tables } from '../lib/store';
+import { byId, listAll } from '../lib/store';
 import { useQuery } from '../lib/store';
 import { pull } from '../lib/sync';
 import { useMemberMap, useSession } from '../session';
@@ -54,15 +54,15 @@ interface Entry {
 }
 
 /**
- * Deleted rows are the one thing `list()` hides, so this reads the tables
- * directly. That is the whole reason the screen can exist without a new
+ * Deleted rows are the one thing `list()` hides, so this reads through
+ * `listAll`. That is the whole reason the screen can exist without a new
  * endpoint: the tombstones are already here.
  */
 function useRecoverable(workspaceId: string, mode: 'deleted' | 'archived'): Entry[] {
   return useQuery(() => {
     const out: Entry[] = [];
     for (const { entity, label, icon } of KINDS) {
-      for (const row of tables[entity].values()) {
+      for (const row of listAll(entity)) {
         const record = row as Record<string, any>;
         if (record.workspace_id !== workspaceId) continue;
         // A channel records when it was archived rather than that it was; the
