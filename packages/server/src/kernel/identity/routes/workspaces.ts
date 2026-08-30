@@ -18,7 +18,7 @@ import { addMember, createProject, createWorkspace, serverClock } from '../../wr
 import { featuresOf } from '../../platform/features.ts';
 import { badRequest, conflict, forbidden, notFound, readJson, type Router } from '../../platform/http.ts';
 import { shortCode, uid } from '../../platform/ids.ts';
-import { isEmailAddress } from '../../../adapters/mail/address.ts';
+import { isEmailAddress } from '../../mail/address.ts';
 import { byAddress, enforce, LIMITS } from '../ratelimit.ts';
 import { queueInvite } from '../../../adapters/mail/mail.ts';
 import { writeEntity } from '../../write-path/repo.ts';

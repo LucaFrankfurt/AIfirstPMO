@@ -28,7 +28,7 @@ import {
 import {
   HttpError, badRequest, conflict, cookie, forbidden, notFound, parseCookies, readJson, unauthorized, type Ctx, type Router } from '../../platform/http.ts';
 import { token, uid } from '../../platform/ids.ts';
-import { isEmailAddress } from '../../../adapters/mail/address.ts';
+import { isEmailAddress } from '../../mail/address.ts';
 import { byAddress, byValue, enforce, LIMITS } from '../ratelimit.ts';
 import { defaultLocale, isLocale, translate } from '../../i18n/i18n.ts';
 import { writeEntity } from '../../write-path/repo.ts';

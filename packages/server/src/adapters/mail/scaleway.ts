@@ -30,7 +30,8 @@
  * default URL rather than assembled from a region name that has one legal
  * value.
  */
-import { assertEmailAddress, headerSafe, isHeaderName } from './address.ts';
+import { assertEmailAddress } from '../../kernel/mail/address.ts';
+import { headerSafe, isHeaderName } from './headers.ts';
 import { DeliveryError, type Deliverable } from './delivery.ts';
 
 export interface ScalewayConfig {

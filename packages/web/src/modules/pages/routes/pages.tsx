@@ -11,7 +11,7 @@ import type { DropZone } from '../pagetree';
 import { Markdown, MarkdownEditor } from '../Markdown';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../../kernel/design-system/drag';
-import { ShareSheet } from '../../../adapters/share/share';
+import { ShareSheet } from '../../share/share';
 import { useHighlights, useSelectionAnchor } from '../annotate';
 import { relativeTime } from '../../../kernel/design-system/format';
 

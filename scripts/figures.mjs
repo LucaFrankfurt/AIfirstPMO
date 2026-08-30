@@ -62,14 +62,17 @@ const between = (text, start, end) => {
 };
 
 /**
- * The capability graph, from `modules.mjs`, so the argument about a fifth ring
- * is checked against the code rather than against whoever last counted.
+ * The module graph, from `modules.mjs`, so the argument about the rings is
+ * checked against the code rather than against whoever last counted.
  *
- * It is here rather than left as prose because the first version of that
- * argument miscounted the modules and the dependents, in a paragraph whose
- * whole point was that the number decides the answer.
+ * It is here rather than left as prose because both halves of that argument
+ * have been wrong in writing already. The first version of the fifth-ring
+ * paragraph miscounted the modules and the dependents, in a paragraph whose
+ * whole point was that the number decides the answer; and the table of ring
+ * crossings sat at `12` and `1` for two commits after the answers became `0`
+ * and `8`, because a table nobody measures is prose with lines around it.
  */
-const capabilities = (() => {
+const { capabilities, rings } = (() => {
   /*
    * `modules.mjs` exits non-zero when one of its own rules is broken, which
    * makes `execSync` throw and throw the output away with it. That is the
@@ -78,9 +81,9 @@ const capabilities = (() => {
    * status is ignored and the first line — the JSON, printed before the
    * summary — is read either way.
    */
-  const run = spawnSync('node', ['scripts/modules.mjs', '--capabilities'], { cwd: ROOT, encoding: 'utf8' });
+  const run = spawnSync('node', ['scripts/modules.mjs', '--graph'], { cwd: ROOT, encoding: 'utf8' });
   const line = (run.stdout ?? '').split('\n')[0];
-  if (!line.startsWith('{')) throw new Error('figures.mjs: modules.mjs printed no capability graph');
+  if (!line.startsWith('{')) throw new Error('figures.mjs: modules.mjs printed no module graph');
   return JSON.parse(line);
 })();
 
@@ -101,7 +104,8 @@ const FIGURES = [
   {
     what: 'imports from one capability to another',
     actual: capabilities.imports,
-    claims: [{ file: 'docs/modules.md', pattern: prose('(\\w+) imports across \\w+ module pairs') }],
+    claims: [{ file: 'docs/modules.md', pattern: prose('(\\w+) imports across \\w+ module pairs') },
+             { file: 'docs/modules.md', pattern: prose('capability → another capability \\| \\d+ \\| (\\d+) \\|') }],
   },
   {
     what: 'dependents of the most leaned-on capability',
@@ -127,13 +131,46 @@ const FIGURES = [
   {
     what: 'modules in the best fifth ring available',
     actual: capabilities.bestRingSize,
-    claims: [{ file: 'docs/modules.md', pattern: prose('and `pages`: \\*\\*(\\d+)\\*\\* modules') },
+    claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* modules that only') },
              { file: 'docs/modules.md', pattern: prose('would be (\\w+) modules that most') }],
   },
   {
     what: 'capabilities leaning on the best fifth ring available',
     actual: capabilities.bestRingLeaners,
     claims: [{ file: 'docs/modules.md', pattern: prose('only \\*\\*(\\d+)\\*\\* of the rest lean on') }],
+  },
+  {
+    what: 'kernel imports of a capability',
+    actual: rings['kernel->capability'],
+    claims: [{ file: 'docs/modules.md', pattern: prose('kernel → a capability \\| \\d+ \\| \\*\\*(\\d+)\\*\\* \\|') }],
+  },
+  {
+    what: 'kernel imports of an adapter',
+    actual: rings['kernel->adapter'],
+    claims: [{ file: 'docs/modules.md', pattern: prose('kernel → an adapter \\| \\d+ \\| \\*\\*(\\d+)\\*\\* \\|') }],
+  },
+  {
+    what: 'capability imports of an adapter',
+    actual: rings['capability->adapter'],
+    claims: [{ file: 'docs/modules.md', pattern: prose('capability → an adapter \\| \\d+ \\| \\*\\*(\\d+)\\*\\* \\|') }],
+  },
+  {
+    what: 'adapter imports of a capability',
+    actual: rings['adapter->capability'],
+    claims: [{ file: 'docs/modules.md', pattern: prose('adapter → a capability \\| \\d+ \\| (\\d+) \\|') },
+             { file: 'docs/modules.md', pattern: prose('It does so (\\w+) times now') }],
+  },
+  {
+    /*
+     * The rules `check:modules` enforces, counted from their own headings.
+     * The README said four for two of them, which is the failure mode this
+     * whole file exists for: a number in prose beside a list that grew.
+     */
+    what: 'rules check:modules enforces',
+    actual: new Set([...read('scripts/modules.mjs').matchAll(/^(?:\/\*| \*) (\d+)\. /gm)]
+      .map((m) => m[1])).size,
+    claims: [{ file: 'README.md', pattern: prose('the (\\w+) rules `npm run check:modules` enforces') },
+             { file: 'docs/modules.md', pattern: prose('# the (\\w+) rules and the tables') }],
   },
   {
     what: 'MCP tools',

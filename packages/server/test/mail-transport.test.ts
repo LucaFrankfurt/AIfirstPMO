@@ -18,7 +18,8 @@ import { after, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 import { DeliveryError, isPermanentFailure } from '../src/adapters/mail/delivery.ts';
-import { parseSmtpUrl, sendMail } from '../src/adapters/mail/smtp.ts';
+import { parseSmtpUrl } from '../src/kernel/mail/relay.ts';
+import { sendMail } from '../src/adapters/mail/smtp.ts';
 import { sendViaScaleway } from '../src/adapters/mail/scaleway.ts';
 
 const letter = {

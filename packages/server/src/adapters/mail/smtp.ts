@@ -9,42 +9,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { connect as netConnect, type Socket } from 'node:net';
 import { connect as tlsConnect, type TLSSocket } from 'node:tls';
-import { assertEmailAddress, headerSafe, isHeaderName } from './address.ts';
+import { assertEmailAddress } from '../../kernel/mail/address.ts';
+import type { SmtpConfig } from '../../kernel/mail/relay.ts';
+import { headerSafe, isHeaderName } from './headers.ts';
 import { DeliveryError, type Deliverable } from './delivery.ts';
-
-/**
- * How the connection is protected.
- *
- *   `tls`      — encrypted from the first byte. Port 465.
- *   `starttls` — a plaintext connection upgraded before anything is said. Port
- *                587. **Required, not attempted**: see below.
- *   `none`     — no encryption at all. Only ever right for a capture inbox on
- *                localhost; refused outright if credentials are set.
- *
- * This used to be a boolean named `secure`, where `false` meant "STARTTLS if
- * the relay offers it". That is the dangerous half of opportunistic TLS: a
- * relay that does not advertise STARTTLS — because it is having a bad day, or
- * because somebody is sitting in the middle stripping the capability out of its
- * EHLO reply — got a plaintext connection instead, and then `AUTH PLAIN` put
- * the account's password on the wire in base64, which is to say in the clear.
- * Nothing logged it and nothing failed. The mail went through, which is exactly
- * what makes it worth writing down.
- *
- * So the setting names the guarantee rather than the attempt, and `starttls`
- * aborts if the upgrade is not on offer.
- */
-export type SmtpEncryption = 'none' | 'starttls' | 'tls';
-
-export interface SmtpConfig {
-  host: string;
-  port: number;
-  encryption: SmtpEncryption;
-  user?: string;
-  pass?: string;
-  /** Accept self-signed certificates — for an internal relay on a private network. */
-  allowInvalidCerts?: boolean;
-  timeoutMs?: number;
-}
 
 /** The same shape every transport takes — see `delivery.ts`. */
 export type Mail = Deliverable;
@@ -310,35 +278,3 @@ export function buildMessage(mail: Mail, messageId: string): string {
   ].join('\r\n');
 }
 
-/**
- * `smtp://user:pass@host:587` / `smtps://…` -> config.
- *
- * `smtps:` is implicit TLS. `smtp:` means STARTTLS, which is what this scheme
- * has always been documented to mean here — the difference is that it is now
- * enforced rather than attempted.
- *
- * A capture inbox speaks neither, so `?encryption=none` says so out loud. It is
- * a query parameter rather than a third scheme because there is no third scheme
- * to spell it with, and because a URL that turns encryption off should have to
- * say the word.
- */
-export function parseSmtpUrl(raw: string): SmtpConfig | null {
-  try {
-    const url = new URL(raw);
-    const implicit = url.protocol === 'smtps:';
-    const asked = url.searchParams.get('encryption');
-    return {
-      host: url.hostname,
-      port: Number(url.port) || (implicit ? 465 : 587),
-      encryption: isEncryption(asked) ? asked : implicit ? 'tls' : 'starttls',
-      user: url.username ? decodeURIComponent(url.username) : undefined,
-      pass: url.password ? decodeURIComponent(url.password) : undefined,
-      allowInvalidCerts: url.searchParams.get('insecure') === 'true',
-    };
-  } catch {
-    return null;
-  }
-}
-
-export const isEncryption = (value: unknown): value is SmtpEncryption =>
-  value === 'none' || value === 'starttls' || value === 'tls';

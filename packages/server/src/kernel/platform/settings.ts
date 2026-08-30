@@ -37,9 +37,9 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { all, run } from './db/index.ts';
 import { env, refreshEnv, useSettingsSource } from './env.ts';
-import { isEmailAddress } from '../../adapters/mail/address.ts';
+import { isEmailAddress } from '../mail/address.ts';
 import { badRequest } from './http.ts';
-import { isEncryption } from '../../adapters/mail/smtp.ts';
+import { isEncryption } from '../mail/relay.ts';
 
 export type SettingGroup = 'mail' | 'telegram' | 'ai';
 export type SettingKind = 'text' | 'secret' | 'number' | 'bool' | 'choice';

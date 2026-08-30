@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { isEncryption, parseSmtpUrl, type SmtpEncryption } from '../../adapters/mail/smtp.ts';
+import { isEncryption, parseSmtpUrl, type SmtpEncryption } from '../mail/relay.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 

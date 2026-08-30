@@ -12,7 +12,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
-import { sendMail, type SmtpConfig } from './smtp.ts';
+import { type SmtpConfig } from '../../kernel/mail/relay.ts';
+import { sendMail } from './smtp.ts';
 import { sendViaScaleway } from './scaleway.ts';
 import { DeliveryError, isPermanentFailure, type Deliverable } from './delivery.ts';
 import { uid } from '../../kernel/platform/ids.ts';

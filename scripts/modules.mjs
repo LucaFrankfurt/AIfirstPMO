@@ -67,6 +67,14 @@ const RING_OF_DIR = { kernel: 'kernel', modules: 'capability', adapters: 'adapte
  *
  * The two things a directory cannot say. Everything else about a module — which
  * files, how many lines, which package it spans — comes from the tree.
+ *
+ * Keyed by name, or by `ring/name` where one noun sits on both sides of a ring
+ * boundary and the two halves are not the same thing. `mail` and `share` both
+ * do: the kernel knows what an address and a relay URL look like, the adapter
+ * knows how to talk to one; the adapter serves a shared board to a stranger,
+ * the capability is the screen that makes the link. A single sentence for each
+ * pair would have to be vague enough to cover both, which is the description
+ * going quietly wrong rather than loudly.
  */
 const ABOUT = {
   'i18n': ['Catalogues, plurals, and the locale a person reads in.'],
@@ -96,10 +104,12 @@ const ABOUT = {
   'mcp': ['The tool surface an assistant talks to: 72 tools and 5 prompts.'],
   'transfer': ['Import and export, per project and per workspace.'],
   'webhooks': ['Signed outgoing calls with a delivery log, and incoming ones that name a task.'],
-  'mail': ['Batching, the queue, SMTP by hand, and knowing an address from a bounce.'],
+  'kernel/mail': ['What an address is and how a URL spells a relay. No sockets.'],
+  'adapter/mail': ['Batching, the queue, SMTP by hand, and knowing an address from a bounce.'],
   'oauth': ['Single sign-on in, and an authorisation server out.'],
   'telegram': ['The bot: long-polled updates, single-use link codes, delivery.'],
-  'share': ['A read-only link to one page or board.'],
+  'adapter/share': ['A read-only link to one page or board, rendered for whoever holds it.'],
+  'capability/share': ['Making, listing and revoking those links, from the screen the thing is on.'],
   'push': ['Web push, sent with no payload.'],
   'ai': ['Three providers behind one call.'],
   'calendar': ['An iCal feed of what is due.'],
@@ -185,13 +195,7 @@ const KNOWN_KNOTS = [];
  * the second. Splitting the module in two so the rings agree would put the same
  * name in two rings and make the map harder to read than the edge it removed.
  */
-const KNOWN_OUTWARD = [
-  'server/src/kernel/platform/env.ts -> server/src/adapters/mail/smtp.ts',
-  'server/src/kernel/platform/settings.ts -> server/src/adapters/mail/address.ts',
-  'server/src/kernel/platform/settings.ts -> server/src/adapters/mail/smtp.ts',
-  'web/src/modules/intake/intake.tsx -> web/src/adapters/share/share.tsx',
-  'web/src/modules/work/saved-views.tsx -> web/src/adapters/share/share.tsx',
-];
+const KNOWN_OUTWARD = [];
 
 /* -------------------------------------------------------------- the reading */
 
@@ -211,9 +215,11 @@ sources.sort();
 const lines = (file) => readFileSync(join(PACKAGES, file), 'utf8').split('\n').length;
 
 /** Every module the tree actually contains, with what `ABOUT` says of it. */
+const about = (ring, name) => ABOUT[`${ring}/${name}`] ?? ABOUT[name];
 const MODULES = [...new Map(sources.map((file) => {
   const { ring, name } = placeOf(file);
-  return [`${ring}/${name}`, { ring, name, what: ABOUT[name]?.[0], flag: ABOUT[name]?.[1] ?? '' }];
+  const said = about(ring, name);
+  return [`${ring}/${name}`, { ring, name, what: said?.[0], flag: said?.[1] ?? '' }];
 })).values()];
 
 const owner = (file) => {
@@ -288,8 +294,11 @@ for (const module of MODULES) {
     problems.push(`undescribed: the ${module.name} directory exists but ABOUT says nothing about it.`);
   }
 }
-for (const name of Object.keys(ABOUT)) {
-  if (!MODULES.some((m) => m.name === name)) problems.push(`stale description: ABOUT still describes ${name}.`);
+for (const key of Object.keys(ABOUT)) {
+  const has = key.includes('/')
+    ? MODULES.some((m) => `${m.ring}/${m.name}` === key)
+    : MODULES.some((m) => m.name === key);
+  if (!has) problems.push(`stale description: ABOUT still describes ${key}.`);
 }
 
 /* 2. Packages point one way. */
@@ -311,7 +320,7 @@ for (const [file, deps] of graph) {
   }
 }
 
-/* 3. Layers point one way: lib/ is below routes/. */
+/* 3. Layers point one way: a module's `routes/` is its top. */
 const inRoutes = (file) => file.split('/').includes('routes');
 const sameModule = (a, b) => placeOf(a).name === placeOf(b).name && placeOf(a).ring === placeOf(b).ring;
 const layering = [];
@@ -413,54 +422,72 @@ function tarjan(nodes, edgesOf) {
 }
 
 /**
- * Which capability leans on which — the one walk three things below share.
+ * Which module leans on which — the one walk four things below share.
  *
- * A capability leans on another when one of its files imports one of theirs for
- * a *value*. The two exclusions are the ring rules' own: a `routes/` file
+ * A module leans on another when one of its files imports one of theirs for a
+ * *value*. The two exclusions are the ring rules' own: a `routes/` file
  * composes rather than depends, and an `import type` is gone by the time
- * anything runs. Rule 6 checks this graph for cycles, the report prints it as a
- * table, and `--capabilities` hands its shape to `figures.mjs` — from here, so
- * that the three cannot come to disagree.
+ * anything runs. Rule 6 checks this graph for cycles, the report prints the
+ * capability half of it as a table, and `--capabilities` hands that half's
+ * shape to `figures.mjs` — all from here, so they cannot come to disagree.
+ *
+ * With `ring`, only that ring's modules and only the edges inside it, keyed by
+ * bare name because a name is unique within a ring. Without it, every module,
+ * keyed `ring/name` because two are not unique across rings — `mail` and
+ * `share` each name a kernel or capability module and an adapter.
  */
-function capabilityUses() {
-  const names = [...new Set(MODULES.filter((m) => m.ring === 'capability').map((m) => m.name))].sort();
-  const uses = new Map(names.map((n) => [n, new Map()]));
+function moduleUses(ring) {
+  const id = (place) => (ring ? place.name : `${place.ring}/${place.name}`);
+  const nodes = MODULES.filter((m) => !ring || m.ring === ring);
+  const uses = new Map(nodes.map((m) => [id(m), new Map()]).sort((a, b) => (a[0] < b[0] ? -1 : 1)));
   for (const [file, deps] of graph) {
     const from = placeOf(file);
-    if (from.ring !== 'capability' || inRoutes(file)) continue;
+    if (inRoutes(file) || (ring && from.ring !== ring)) continue;
     for (const dep of deps) {
       if (!dep.file || dep.typeOnly) continue;
       const to = placeOf(dep.file);
-      if (to.ring !== 'capability' || to.name === from.name) continue;
-      const seen = uses.get(from.name);
-      seen?.set(to.name, (seen.get(to.name) ?? 0) + 1);   // the pair is the edge; the count is how many files draw it
+      if (ring && to.ring !== ring) continue;
+      if (to.name === from.name && to.ring === from.ring) continue;
+      const seen = uses.get(id(from));
+      seen?.set(id(to), (seen.get(id(to)) ?? 0) + 1);   // the pair is the edge; the count is how many files draw it
     }
   }
   return uses;
 }
 
-/** How many capabilities lean on `name`, given the map `capabilityUses` returns. */
+const capabilityUses = () => moduleUses('capability');
+
+/** How many modules lean on `name`, given the map `moduleUses` returns. */
 const dependentsOf = (uses, name) => [...uses.values()].filter((on) => on.has(name)).length;
 
 /*
- * 6. Capability dependencies are acyclic.
+ * 6. Module dependencies are acyclic.
  *
- * Capabilities are not independent and pretending otherwise would be a lie
- * about the domain: `planning` imports `work` because a cycle contains tasks,
- * and no amount of inverting changes that. What they can be is *ordered* — a
- * directed graph with no way back — so any one of them can be read knowing only
- * what it depends on, and a module can be deleted from the top of the order
- * without touching anything below it.
+ * Modules are not independent and pretending otherwise would be a lie about the
+ * domain: `work` imports `planning` because the timeline view of a task list is
+ * a Gantt chart, and no amount of inverting changes that. What they can be is
+ * *ordered* — a directed graph with no way back — so any one of them can be
+ * read knowing only what it leans on, and one that nothing leans on can be
+ * deleted without touching the rest.
  *
  * This is rule 4 one floor up, and it is not implied by it: two modules can
  * each import the other without any single *file* doing so, which is a knot the
  * file-level check walks straight past. Tarjan again, and reported as the whole
  * set for the same reason.
+ *
+ * It covers every ring rather than only the capabilities, because emptying
+ * `KNOWN_OUTWARD` showed what the narrower rule was missing. The three named
+ * kernel-to-adapter edges were not only arrows pointing the wrong way: with
+ * them, `kernel/platform`, `kernel/i18n` and `adapter/mail` formed a cycle no
+ * rule here could see — rule 5 excused it by name and rule 6 was not looking at
+ * the kernel. Both halves of that are fixed, and this half is the one that
+ * stays fixed: after rule 5, a cycle cannot cross a ring boundary, so any that
+ * appears from here is inside one ring and this is what finds it.
  */
-const moduleEdges = capabilityUses();
+const moduleEdges = moduleUses();
 const moduleKnots = tarjan([...moduleEdges.keys()], (name) => [...(moduleEdges.get(name)?.keys() ?? [])]);
 for (const knot of moduleKnots) {
-  problems.push(`capability cycle: ${knot.join(' <-> ')} — one of them has to come first.`);
+  problems.push(`module cycle: ${knot.join(' <-> ')} — one of them has to come first.`);
 }
 
 /* 4. No import knots, between files. */
@@ -551,25 +578,51 @@ const bestFifthRing = (uses) => {
 };
 
 /*
- * The capability graph as numbers, for `figures.mjs` to check the document's
- * prose against. `members` is printed for the person reading the failure: the
- * prose names the winning set, and no figure can check a name.
+ * The graph as numbers, for `figures.mjs` to check the document's prose
+ * against. `bestRingMembers` is printed for the person reading the failure:
+ * the prose names the winning set, and no figure can check a name.
+ *
+ * `rings` counts every import that crosses a ring, by direction, which is the
+ * table the document leads with. It is here because that table went stale
+ * without anything noticing: it still read `capability → an adapter: 12` after
+ * ten of the twelve had been inverted, and `adapter → a capability: 1` when the
+ * answer was eight. A table of measurements nobody measures is prose.
  */
-if (process.argv.includes('--capabilities')) {
+if (process.argv.includes('--graph')) {
   const uses = capabilityUses();
   const names = [...uses.keys()];
   const fifth = bestFifthRing(uses);
+  const rings = {};
+  for (const [file, deps] of graph) {
+    const from = placeOf(file);
+    if (from.ring === 'shell' || inRoutes(file)) continue;
+    for (const dep of deps) {
+      if (!dep.file || dep.typeOnly) continue;
+      const to = placeOf(dep.file);
+      if (to.ring === 'shell' || to.ring === from.ring) continue;
+      const key = `${from.ring}->${to.ring}`;
+      rings[key] = (rings[key] ?? 0) + 1;
+    }
+  }
   console.log(JSON.stringify({
-    count: names.length,
-    edges: [...uses.values()].reduce((n, on) => n + on.size, 0),
-    imports: [...uses.values()].reduce((n, on) => n + [...on.values()].reduce((a, b) => a + b, 0), 0),
-    mostDependents: Math.max(...names.map((n) => dependentsOf(uses, n))),
-    independent: names.filter((n) => dependentsOf(uses, n) === 0).length,
-    isolated: names.filter((n) => dependentsOf(uses, n) === 0 && uses.get(n).size === 0).length,
-    splits: fifth.splits,
-    bestRingSize: fifth.size,
-    bestRingLeaners: fifth.leaners,
-    bestRingMembers: fifth.members,
+    capabilities: {
+      count: names.length,
+      edges: [...uses.values()].reduce((n, on) => n + on.size, 0),
+      imports: [...uses.values()].reduce((n, on) => n + [...on.values()].reduce((a, b) => a + b, 0), 0),
+      mostDependents: Math.max(...names.map((n) => dependentsOf(uses, n))),
+      independent: names.filter((n) => dependentsOf(uses, n) === 0).length,
+      isolated: names.filter((n) => dependentsOf(uses, n) === 0 && uses.get(n).size === 0).length,
+      splits: fifth.splits,
+      bestRingSize: fifth.size,
+      bestRingLeaners: fifth.leaners,
+      bestRingMembers: fifth.members,
+    },
+    rings: {
+      'kernel->capability': rings['kernel->capability'] ?? 0,
+      'kernel->adapter': rings['kernel->adapter'] ?? 0,
+      'capability->adapter': rings['capability->adapter'] ?? 0,
+      'adapter->capability': rings['adapter->capability'] ?? 0,
+    },
   }));
 }
 
@@ -724,3 +777,4 @@ console.log(
   `modules.mjs: ${sources.length} files, ${MODULES.length} modules, rules hold ` +
   `(${KNOWN_LAYERING.length} layering, ${KNOWN_KNOTS.length} knot and ${KNOWN_OUTWARD.length} ring exceptions, all named).`,
 );
+

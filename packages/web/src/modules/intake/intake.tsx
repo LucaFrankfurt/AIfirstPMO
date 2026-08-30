@@ -18,7 +18,7 @@ import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery } from '../../kernel/sync/store';
 import { pull } from '../../kernel/sync/sync';
 import { useCanWrite, useMemberMap } from '../../kernel/identity/session';
-import { ShareSheet } from '../../adapters/share/share';
+import { ShareSheet } from '../share/share';
 import { useStates } from '../work/task-parts';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';

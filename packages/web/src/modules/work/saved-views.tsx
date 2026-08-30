@@ -22,7 +22,7 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useMe, useSession } from '../../kernel/identity/session';
 import { Icon, MenuButton, Sheet, useConfirm, useToast, type IconName, type MenuItem } from '../../kernel/design-system/ui';
 import { DEFAULT_VIEW, type GroupBy, type ViewConfig } from './task-parts';
-import { ShareSheet, type ShareTarget } from '../../adapters/share/share';
+import { ShareSheet, type ShareTarget } from '../share/share';
 import { Button } from '../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';

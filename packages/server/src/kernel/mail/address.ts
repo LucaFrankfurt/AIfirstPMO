@@ -8,6 +8,13 @@
  * An address with a newline in it is not a badly-typed address, it is an
  * instruction to the mail relay.
  *
+ * It lives in the kernel rather than beside the SMTP client because four
+ * different things ask this question and only one of them is sending mail:
+ * signing up, inviting somebody to a workspace, checking `KOLIBRI_MAIL_FROM`,
+ * and addressing an envelope. An account is named by an address whether or not
+ * this instance can send to one, so the shape is not the relay's to own — and
+ * while it was the relay's, the kernel imported an adapter to ask.
+ *
  * The regex this replaces was `/^[^\s@]+@[^\s@]+\.[^\s@]+$/`, which reads as
  * though it forbids whitespace and does — except that JavaScript's `$` without
  * the `m` flag also matches immediately before a final newline. `a@b.c\n`
@@ -78,10 +85,3 @@ export function assertEmailAddress(raw: string, what: string): string {
   if (!isEmailAddress(raw)) throw new Error(`${what} is not a usable email address`);
   return raw;
 }
-
-/** A header value that cannot start a header of its own. */
-export const headerSafe = (value: string): string =>
-  String(value ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ');
-
-/** A header *name*: letters, digits and hyphens, which is all RFC 5322 allows. */
-export const isHeaderName = (name: string): boolean => /^[A-Za-z0-9-]+$/.test(name);
