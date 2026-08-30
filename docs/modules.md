@@ -771,6 +771,13 @@ written into it by the same script that writes the tables here, and the numbers 
 claimed in `figures.mjs` like every other figure. It was hand-maintained until it moved into the
 tree, which is why it had drifted to `227 files` and to five ring exceptions that no longer existed.
 
+The checks have a suite of their own, `scripts/checks.test.mjs`. Every rule above was proved once by
+breaking the tree by hand and watching the check complain, and then that proof was thrown away; the
+suite is those proofs kept. Each case copies the tree, breaks one thing in the copy, runs the checker
+against it and asserts what it says — and two of the cases break the *script* rather than the tree,
+because a walk that quietly returns nothing is the regression that would leave every check passing
+and every table wrong.
+
 ```bash
 npm run check:modules      # the seven rules and the tables; exit 1 on a violation
 npm run modules            # the inventory on the terminal

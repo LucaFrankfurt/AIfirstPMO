@@ -1049,6 +1049,14 @@ footer {
       exception has to be deleted from the file by whoever fixes it. Three of the seven carry a
       list; all three are empty.
     </p>
+    <p>
+      <strong>The checks have a suite of their own.</strong> Every rule below was proved once by
+      breaking the tree by hand and watching the check complain — and then the proof was thrown
+      away. <code>scripts/checks.test.mjs</code> is those proofs kept: a case copies the tree,
+      breaks one thing in the copy, runs the checker and asserts what it says. Two of them break the
+      <em>script</em> instead, because a walk that quietly returns nothing is the regression that
+      would leave every check passing and every table on this page wrong.
+    </p>
 
     <div class="scroller">
       <table>
@@ -1099,7 +1107,8 @@ footer {
       </table>
     </div>
 
-<pre class="cmd"><b>npm run check:modules</b>      <i># the rules and the tables; exit 1 on a violation</i>
+<pre class="cmd"><b>npm run check:modules</b>      <i># the seven rules and the tables; exit 1 on a violation</i>
+<b>npm run test:checks</b>        <i># the checks themselves, against a broken copy of the tree</i>
 <b>npm run modules</b>            <i># the inventory on the terminal</i>
 <b>npm run modules -- --fix</b>   <i># rewrite the tables in docs/modules.md</i></pre>
 

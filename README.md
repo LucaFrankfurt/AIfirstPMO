@@ -317,6 +317,7 @@ npm run check:css         # every class the source uses is actually defined — 
 npm run check:responsive  # 16 screens, 340px to 1600px in 20px steps, looking for overflow
 npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
 npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
+npm run test:checks       # the checks above, against a broken copy of the tree
 ```
 
 They are not decoration. `check:contrast` found twenty unreadable places on its first run,
