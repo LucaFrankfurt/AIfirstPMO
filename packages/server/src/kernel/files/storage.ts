@@ -92,6 +92,7 @@ const backends = new Map<StorageKind, Backend>([['disk', disk]]);
  * than a silent fall back to the disk: writing to the wrong store is how an
  * instance ends up with half its files in each.
  */
+/** @port a place to put bytes */
 export function registerBackend(kind: StorageKind, backend: Backend): void {
   backends.set(kind, backend);
 }

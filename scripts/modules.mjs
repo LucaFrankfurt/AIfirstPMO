@@ -239,10 +239,12 @@ function importsOf(file) {
      * build and not the run: a ring it crosses is a weaker thing than a call.
      * Rule 5 below cares only about the ones that survive.
      */
-    const specifiers = [...clause.matchAll(/(?:^|,|\{)\s*(type\s+)?[A-Za-z_$][\w$]*/g)].map((m) => !!m[1]);
-    const typeOnly = !!typeKeyword || (specifiers.length > 0 && specifiers.every(Boolean));
+    const specifiers = [...clause.matchAll(/(?:^|,|\{)\s*(type\s+)?([A-Za-z_$][\w$]*)/g)];
+    const typeOnly = !!typeKeyword || (specifiers.length > 0 && specifiers.every((m) => !!m[1]));
+    // The names as *exported*, not as bound: `foo as bar` is still a caller of `foo`.
+    const names = specifiers.map((m) => m[2]);
     if (!spec.startsWith('.')) {
-      out.push({ external: spec, typeOnly });
+      out.push({ external: spec, typeOnly, names });
       continue;
     }
     const parts = [...here];
@@ -254,7 +256,7 @@ function importsOf(file) {
     const target = parts.join('/').replace(/\.tsx?$/, '');
     const resolved = sources.find((s) => s.replace(/\.tsx?$/, '') === target)
       ?? sources.find((s) => s.replace(/\.tsx?$/, '') === `${target}/index`);
-    if (resolved) out.push({ file: resolved, typeOnly });
+    if (resolved) out.push({ file: resolved, typeOnly, names });
   }
   return out;
 }
@@ -455,6 +457,52 @@ function moduleUses(ring) {
   return uses;
 }
 
+/**
+ * The ports: what an inner ring asks an outer one to supply.
+ *
+ * Rule 5 says nothing may lean outward; a port is how a module gets what it
+ * needs anyway. The inner ring declares the shape and a function to fill it,
+ * the outer ring calls that function, and the import points inward like every
+ * other one.
+ *
+ * Found by the `@port` tag on the declaring function rather than listed here,
+ * because a list here is a second place to update and the document's sentence
+ * about them had already drifted: it said the repository does this six times
+ * and named six, while `ui` had been offering a guide hint since the same
+ * commit as `sync`'s stream. The tag sits on the thing it describes, so it
+ * moves and dies with it.
+ *
+ * Who fills each one is read from the import graph — a module other than the
+ * declaring one that imports the function by name. `foo as bar` still counts,
+ * because the specifier list keeps the exported name rather than the bound one.
+ */
+function ports() {
+  const found = [];
+  for (const file of sources) {
+    const text = readFileSync(join(PACKAGES, file), 'utf8');
+    for (const match of text.matchAll(/\/\*\*([\s\S]*?)\*\/\s*export function (\w+)/g)) {
+      const tag = match[1].match(/@port\s+([^\n*]+)/);
+      if (!tag) continue;
+      const at = placeOf(file);
+      found.push({ file, fn: match[2], what: tag[1].trim(), ring: at.ring, module: at.name, fills: [] });
+    }
+  }
+  for (const port of found) {
+    const fills = new Set();
+    for (const [file, deps] of graph) {
+      const at = placeOf(file);
+      if (at.ring === port.ring && at.name === port.module) continue;   // the module's own use is not a filling
+      for (const dep of deps) {
+        if (dep.file === port.file && dep.names?.includes(port.fn)) fills.add(`${at.ring}/${at.name}`);
+      }
+    }
+    port.fills = [...fills].sort();
+  }
+  return found.sort((a, b) => `${a.module}/${a.fn}` < `${b.module}/${b.fn}` ? -1 : 1);
+}
+
+const PORTS = ports();
+
 const capabilityUses = () => moduleUses('capability');
 
 /** How many modules lean on `name`, given the map `moduleUses` returns. */
@@ -617,6 +665,11 @@ if (process.argv.includes('--graph')) {
       bestRingLeaners: fifth.leaners,
       bestRingMembers: fifth.members,
     },
+    ports: {
+      count: PORTS.length,
+      modules: new Set(PORTS.map((port) => `${port.ring}/${port.module}`)).size,
+      filled: PORTS.filter((port) => port.fills.length > 0).length,
+    },
     rings: {
       'kernel->capability': rings['kernel->capability'] ?? 0,
       'kernel->adapter': rings['kernel->adapter'] ?? 0,
@@ -687,6 +740,27 @@ const RING_WHAT = {
  * it is a claim about *this* table — so the table has to be counted, not
  * remembered, and it moves the moment an import does.
  */
+/**
+ * The ports as a table: who asks, for what, and who supplies it.
+ *
+ * Generated for the reason the inventory is: a hand-written version of this is
+ * a second place to update, and the sentence it replaces had already been
+ * wrong. Every row's third column is an import pointing *inward* — that is the
+ * whole trick, and a row with nothing in it would be a port nobody fills.
+ */
+const portTable = () => [
+  '| Asked by | For | Filled by |',
+  '|---|---|---|',
+  ...[...PORTS]
+    .sort((a, b) => (RING_ORDER[a.ring] - RING_ORDER[b.ring])
+      || (a.module < b.module ? -1 : a.module > b.module ? 1 : 0)
+      || (a.fn < b.fn ? -1 : 1))
+    .map((port) => {
+      const fills = port.fills.map((f) => `\`${f}\``).join(', ') || '**nobody**';
+      return `| \`${port.ring}/${port.module}\` | ${port.what} <sub>\`${port.fn}\`</sub> | ${fills} |`;
+    }),
+].join('\n');
+
 const capabilityOrder = () => {
   const uses = capabilityUses();
   const names = [...uses.keys()];
@@ -743,6 +817,10 @@ const generated = [
   '',
   capabilityOrder(),
   '',
+  '### What each ring asks the next one for',
+  '',
+  portTable(),
+  '',
   CLOSE,
 ].join('\n');
 
@@ -763,6 +841,7 @@ if (from < 0 || to < 0) {
     }
   }
 }
+
 
 /* --------------------------------------------------------------- the verdict */
 

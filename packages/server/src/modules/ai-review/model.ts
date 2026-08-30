@@ -55,6 +55,7 @@ const providers = new Map<string, () => Model>();
  * configuration at the moment of asking — a provider registered at startup must
  * not freeze what `KOLIBRI_AI_MODEL` said then.
  */
+/** @port a model that can answer, under a configuration name */
 export function provideModel(name: string, make: () => Model): void {
   providers.set(name, make);
 }

@@ -43,6 +43,7 @@ export type Delivery = (notification: { id: string; userId: string }) => void;
 
 const carriers: Delivery[] = [];
 
+/** @port a channel a notification is carried on */
 export function onNotification(deliver: Delivery): void {
   if (!carriers.includes(deliver)) carriers.push(deliver);
 }

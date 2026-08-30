@@ -301,6 +301,7 @@ export interface StreamHandler {
 
 const handlers: StreamHandler[] = [];
 
+/** @port a handler for one kind of frame on the live connection */
 export function onStream(handler: StreamHandler): void {
   if (!handlers.includes(handler)) handlers.push(handler);
 }

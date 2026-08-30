@@ -72,7 +72,7 @@ const between = (text, start, end) => {
  * crossings sat at `12` and `1` for two commits after the answers became `0`
  * and `8`, because a table nobody measures is prose with lines around it.
  */
-const { capabilities, rings } = (() => {
+const { capabilities, ports, rings } = (() => {
   /*
    * `modules.mjs` exits non-zero when one of its own rules is broken, which
    * makes `execSync` throw and throw the output away with it. That is the
@@ -171,6 +171,28 @@ const FIGURES = [
       .map((m) => m[1])).size,
     claims: [{ file: 'README.md', pattern: prose('the (\\w+) rules `npm run check:modules` enforces') },
              { file: 'docs/modules.md', pattern: prose('# the (\\w+) rules and the tables') }],
+  },
+  {
+    /*
+     * The ports, from the `@port` tags themselves. This is the figure that
+     * needed a marker before it could exist: the sentence about them said six
+     * and named six while there were seven, and nothing in the source said
+     * which functions were ports, so nothing could count them.
+     */
+    what: 'modules that declare a port',
+    actual: ports.modules,
+    claims: [{ file: 'docs/modules.md', pattern: prose('now does it (\\w+)\\s*times') },
+             { file: 'docs/modules.md', pattern: prose('across \\*\\*(\\d+)\\*\\* modules') }],
+  },
+  {
+    what: 'ports',
+    actual: ports.count,
+    claims: [{ file: 'docs/modules.md', pattern: prose('There are \\*\\*(\\d+)\\*\\* ports now') }],
+  },
+  {
+    what: 'ports something fills',
+    actual: ports.filled,
+    claims: [{ file: 'docs/modules.md', pattern: prose('and \\*\\*(\\d+)\\*\\* of them are filled') }],
   },
   {
     what: 'MCP tools',

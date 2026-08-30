@@ -461,6 +461,7 @@ export function Empty({
  */
 let renderHint: ((to: GuideTarget) => ReactNode) | null = null;
 
+/** @port the link into the guide that `Empty` offers */
 export function provideGuideHint(render: (to: GuideTarget) => ReactNode): void {
   renderHint = render;
 }

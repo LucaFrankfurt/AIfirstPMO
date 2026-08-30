@@ -463,6 +463,7 @@ const listeners: WriteListener[] = [];
  * Registering twice is a no-op, because more than one entry point wires this
  * up and a test may import them both.
  */
+/** @port a listener run inside the write's own transaction */
 export function onWrite(listener: WriteListener): void {
   if (!listeners.includes(listener)) listeners.push(listener);
 }
@@ -485,6 +486,7 @@ export function onWrite(listener: WriteListener): void {
  */
 const committed: WriteListener[] = [];
 
+/** @port a listener run once the write has committed */
 export function onCommitted(listener: WriteListener): void {
   if (!committed.includes(listener)) committed.push(listener);
 }

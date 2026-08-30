@@ -167,6 +167,7 @@ export interface Chore {
 
 const chores: Chore[] = [];
 
+/** @port a chore for the periodic sweep to run */
 export function onSweep(chore: Chore): void {
   if (!chores.includes(chore)) chores.push(chore);
 }
