@@ -628,6 +628,7 @@ fixes it.
 npm run check:modules      # the four rules and the tables; exit 1 on a violation
 npm run modules            # the inventory on the terminal
 npm run modules -- --fix   # rewrite the tables above
+npm run modules -- --json  # the same rows, for anything that draws them
 ```
 
 A fifth rule is the typechecker's rather than this script's: **`noUnusedLocals`**, on since the

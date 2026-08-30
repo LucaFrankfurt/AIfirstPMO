@@ -29,6 +29,7 @@
  *   node scripts/modules.mjs            # check (exit 1 on a violation)
  *   node scripts/modules.mjs --report   # the inventory, as tables on the terminal
  *   node scripts/modules.mjs --fix      # rewrite the tables in docs/modules.md
+ *   node scripts/modules.mjs --json     # the same rows, for anything that draws them
  */
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -612,6 +613,20 @@ const ringLines = (kind) => rows.filter((row) => row.ring === kind).reduce((n, r
 /** Thin spaces would be prettier and copy badly; a normal space groups fine. */
 const thousands = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const short = (file) => file?.replace(/^(server|web|shared|mcp)\/src\//, '') ?? '';
+
+/**
+ * The same rows as JSON, for anything that draws them rather than reads them.
+ *
+ * One number, one source: a diagram that embeds its own copy of this table goes
+ * stale the first time a file moves, and nothing says so.
+ */
+if (process.argv.includes('--json')) {
+  const rowsOut = rows.map((row) => ({
+    ring: row.ring, name: row.name, flag: row.flag, files: row.files, lines: row.lines,
+    biggest: short(row.biggest), biggestLines: row.biggest ? lines(row.biggest) : 0,
+  }));
+  console.log(`[\n${rowsOut.map((row) => JSON.stringify(row)).join(',\n')}\n]`);
+}
 
 if (process.argv.includes('--report')) {
   const pad = (text, width) => String(text).padEnd(width);
