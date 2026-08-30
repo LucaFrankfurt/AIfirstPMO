@@ -11,7 +11,7 @@ this document is about which ten, why it happened, and what shape fixes it.
 
 It is written to be re-runnable rather than believed. The inventory in the next section is
 *generated* by `scripts/modules.mjs` and checked by it in CI, so it cannot quietly stop being true;
-the same script enforces the six rules at the end.
+the same script enforces the seven rules at the end.
 
 ```bash
 npm run check:modules      # the rules, and whether the tables below still match
@@ -704,7 +704,7 @@ Honest limits, so nothing here is oversold:
 ## The rules, and who enforces them
 
 `scripts/modules.mjs` runs in CI. It regenerates the tables above and fails if they have drifted,
-and it checks six rules. Each rule has an escape hatch that must be *named*, never counted — a
+and it checks seven rules. Each rule has an escape hatch that must be *named*, never counted — a
 threshold is a budget somebody will spend, and a named exception has to be deleted by the person who
 fixes it.
 
@@ -745,12 +745,20 @@ fixes it.
    without any single file doing so. It covers the kernel and the adapters as well as the
    capabilities, because emptying `KNOWN_OUTWARD` is what showed why it should. **No exceptions**,
    and none needed.
+7. **Every port is filled, from further out.** A port is how a module gets what rule 5 forbids it to
+   reach for, so a port nobody fills is a module asking for something it will never get, and a port
+   filled from its own ring is ceremony — a direct import would have been legal there, and the
+   indirection bought nothing. The tag is checked too: `@port` on anything but an exported function
+   would drop a row from the table above and three figures with it, silently, which is the failure
+   the tag was added to stop. **No exceptions**, and no list for them — a same-ring port to break a
+   rule-6 cycle would be a real one, and whoever needs the first writes it down then.
 
 ```bash
-npm run check:modules      # the six rules and the tables; exit 1 on a violation
+npm run check:modules      # the seven rules and the tables; exit 1 on a violation
 npm run modules            # the inventory on the terminal
 npm run modules -- --fix   # rewrite the tables above
 npm run modules -- --json  # the same rows, for anything that draws them
+npm run modules -- --graph # the graph as numbers, for figures.mjs
 ```
 
 A fifth rule is the typechecker's rather than this script's: **`noUnusedLocals`**, on since the

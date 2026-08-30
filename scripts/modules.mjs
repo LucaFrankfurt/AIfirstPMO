@@ -8,28 +8,36 @@
  * mode `figures.mjs` exists for, one floor up: there the number was wrong, here
  * it would be the shape.
  *
- * So the map is data rather than prose, and four rules are checked against it:
+ * So the map is data rather than prose, and seven rules are checked against it:
  *
- *   1. **Every source file belongs to exactly one module.** A new file that
- *      nothing claims fails the build, which is the whole point: it forces the
- *      question "which capability is this?" at the moment somebody still knows
- *      the answer, rather than two years later from the outside.
+ *   1. **Every source file belongs to exactly one module.** Since step 10 the
+ *      path is the claim, so belonging to two is impossible and belonging to
+ *      none fails the build — which forces the question "which capability is
+ *      this?" while somebody still knows the answer, rather than two years
+ *      later from the outside.
  *   2. **Packages point one way.** `shared` imports neither of the others;
  *      `web` never imports `server`; `server` never imports `web`.
- *   3. **Layers point one way.** Inside the server, `lib/` is below `routes/`
- *      and may not import from it.
+ *   3. **Layers point one way.** A module's `routes/` is its top: only the
+ *      shell, which composes everything, may import one.
  *   4. **No import knots.** No file may be reachable from a file it imports.
+ *   5. **The rings point one way.** A capability may lean on the kernel, an
+ *      adapter on both, and nothing leans outward.
+ *   6. **Module dependencies are acyclic.** Rule 4 one floor up, in every ring,
+ *      and not implied by it.
+ *   7. **Every port is filled, from further out.** What a module asks the ring
+ *      outside it for has to arrive, and from outside.
  *
- * Rules 3 and 4 carry an allowlist rather than a threshold, because a count is
- * a budget somebody will spend. A named exception has to be deleted from a file
- * by the person who fixes it, and cannot be paid for by fixing a different one.
- * Both lists are empty as of this writing, which is worth more than short: a
- * new violation has no precedent to point at.
+ * Rules 3, 4 and 5 carry an allowlist rather than a threshold, because a count
+ * is a budget somebody will spend. A named exception has to be deleted from a
+ * file by the person who fixes it, and cannot be paid for by fixing a different
+ * one. All three are empty as of this writing, which is worth more than short:
+ * a new violation has no precedent to point at.
  *
- *   node scripts/modules.mjs            # check (exit 1 on a violation)
- *   node scripts/modules.mjs --report   # the inventory, as tables on the terminal
- *   node scripts/modules.mjs --fix      # rewrite the tables in docs/modules.md
- *   node scripts/modules.mjs --json     # the same rows, for anything that draws them
+ *   node scripts/modules.mjs             # check (exit 1 on a violation)
+ *   node scripts/modules.mjs --report    # the inventory, as tables on the terminal
+ *   node scripts/modules.mjs --fix       # rewrite the tables in docs/modules.md
+ *   node scripts/modules.mjs --json      # the same rows, for anything that draws them
+ *   node scripts/modules.mjs --graph     # the graph as numbers, for figures.mjs
  */
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -502,6 +510,56 @@ function ports() {
 }
 
 const PORTS = ports();
+
+/*
+ * 7. Every port is filled, from further out.
+ *
+ * A port is how a module gets something rule 5 forbids it to reach for: it
+ * declares the shape and a function to fill it, the outer ring calls that
+ * function, and the import points inward like every other one. Three ways that
+ * goes quiet:
+ *
+ * - **Nobody fills it.** Whatever supplied it was removed and the declaration
+ *   stayed, or it was written for a caller that never arrived. Either way the
+ *   module asks for something it will never get, and the branch below it that
+ *   handles "nothing registered" is the only branch left.
+ * - **It is filled from the same ring, or from inside.** Then a direct import
+ *   would have been legal and the port bought nothing; the indirection is
+ *   ceremony. A same-ring port to break a rule-6 cycle would be a real
+ *   exception — there are none, so there is no list for them, and whoever
+ *   needs the first one adds it here with the reason, the way the other three
+ *   lists were filled and then emptied.
+ * - **The tag is on something that is not an exported function.** Then the
+ *   generated table silently loses a row and three figures silently drop,
+ *   which is the exact failure the tag was added to stop. So the tags are
+ *   counted twice — loosely, and by the parse that builds the table — and a
+ *   disagreement is named. Write `@port` in prose with backticks around it and
+ *   the loose count will not see it.
+ */
+for (const file of sources) {
+  const loose = (readFileSync(join(PACKAGES, file), 'utf8').match(/@port\s/g) ?? []).length;
+  const parsed = PORTS.filter((port) => port.file === file).length;
+  if (loose !== parsed) {
+    problems.push(
+      `${file}: ${loose} \`@port\` tag${loose === 1 ? '' : 's'}, ${parsed} of them on an exported function — `
+      + 'a tag has to sit in the docblock directly above one.',
+    );
+  }
+}
+for (const port of PORTS) {
+  const where = `${port.ring}/${port.module}`;
+  if (!port.fills.length) {
+    problems.push(`port nobody fills: ${where} offers \`${port.fn}\` and nothing calls it — fill it or delete it.`);
+    continue;
+  }
+  const notOutward = port.fills.filter((f) => RING_DEPTH[f.split('/')[0]] <= RING_DEPTH[port.ring]);
+  if (notOutward.length) {
+    problems.push(
+      `port filled from the wrong side: ${where}'s \`${port.fn}\` is filled by ${notOutward.join(', ')} — `
+      + 'a direct import would have been legal there, so the port buys nothing.',
+    );
+  }
+}
 
 const capabilityUses = () => moduleUses('capability');
 

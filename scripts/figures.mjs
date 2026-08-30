@@ -170,7 +170,11 @@ const FIGURES = [
     actual: new Set([...read('scripts/modules.mjs').matchAll(/^(?:\/\*| \*) (\d+)\. /gm)]
       .map((m) => m[1])).size,
     claims: [{ file: 'README.md', pattern: prose('the (\\w+) rules `npm run check:modules` enforces') },
-             { file: 'docs/modules.md', pattern: prose('# the (\\w+) rules and the tables') }],
+             { file: 'docs/modules.md', pattern: prose('# the (\\w+) rules and the tables') },
+             { file: 'docs/modules.md', pattern: prose('enforces the (\\w+) rules at the end') },
+             { file: 'docs/modules.md', pattern: prose('and it checks (\\w+) rules') },
+             // the script's own docblock, so the tool's description of itself is checked by the tool
+             { file: 'scripts/modules.mjs', pattern: prose('and (\\w+) rules are checked against it') }],
   },
   {
     /*
