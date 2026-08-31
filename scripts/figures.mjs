@@ -186,6 +186,7 @@ const FIGURES = [
              { file: 'docs/modules.md', pattern: prose('# the (\\w+) rules and the tables') },
              { file: 'docs/modules.md', pattern: prose('enforces the (\\w+) rules at the end') },
              { file: 'docs/modules.md', pattern: prose('and it checks (\\w+) rules') },
+             { file: 'CLAUDE.md', pattern: prose('enforces the (\\w+) rules') },
              // the script's own docblock, so the tool's description of itself is checked by the tool
              { file: 'scripts/modules.mjs', pattern: prose('and (\\w+) rules are checked against it') }],
   },
@@ -440,6 +441,7 @@ const HISTORY = [
 ];
 
 const BOLD = {
+  'CLAUDE.md': /\*\*(\d[\d ]*\d|\d)/dg,
   'docs/modules.md': /\*\*(\d[\d ]*\d|\d)/dg,
   'docs/module-map.html': /<(?:strong|b)>\s*(\d[\d ]*\d|\d)/dg,
 };

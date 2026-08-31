@@ -21,7 +21,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -46,7 +46,11 @@ const SKIP = /[/\\](node_modules|dist|data|public|test)([/\\]|$)/;
 function tree() {
   const dir = mkdtempSync(join(tmpdir(), 'kolibri-checks-'));
   made.push(dir);
-  for (const entry of ['scripts', 'docs', 'README.md', 'TODO.md']) {
+  // Every top-level document rather than a list of them: `figures.mjs` grew a
+  // claim against `CLAUDE.md` and the named list did not, so ten cases failed
+  // on a missing file instead of on what they were testing.
+  const top = readdirSync(ROOT).filter((name) => name.endsWith('.md'));
+  for (const entry of ['scripts', 'docs', ...top]) {
     cpSync(join(ROOT, entry), join(dir, entry), { recursive: true });
   }
   cpSync(join(ROOT, 'packages'), join(dir, 'packages'), { recursive: true, filter: (src) => !SKIP.test(src) });
