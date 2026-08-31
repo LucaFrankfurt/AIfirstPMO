@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Plain HTTP, in the one build that cannot be shipped.
+
+  Android has refused cleartext by default since API 28, which is right for a
+  release: the address typed into the server picker is where a bearer token
+  goes, and a bearer token on an unencrypted network is a bearer token somebody
+  else has. But a self-hosted app is developed against a laptop on the same
+  wifi, and that server is `http://192.168.x.x:4000` long before it is anything
+  else.
+
+  This overlay merges only into `debug`, so the exception cannot reach a build
+  with a store on the other end of it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:usesCleartextTraffic="true" />
+</manifest>

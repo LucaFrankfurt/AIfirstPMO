@@ -1,0 +1,15 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!--
+  The debug variant, told apart on the phone as well as in the package name.
+
+  `build.gradle` gives it `day.kolibri.client.dev` so it can sit beside a store
+  build; without these three it would sit beside it under the same name and the
+  same icon, which is the confusion the suffix was meant to end. The URL scheme
+  is here for the same reason — two apps claiming `day.kolibri.client://` means
+  Android picks one, and which one is not something you get to know.
+-->
+<resources>
+    <string name="app_name">Kolibri dev</string>
+    <string name="title_activity_main">Kolibri dev</string>
+    <string name="custom_url_scheme">day.kolibri.client.dev</string>
+</resources>
