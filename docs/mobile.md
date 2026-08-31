@@ -62,6 +62,25 @@ The exception is development, where the server is a laptop on the same wifi:
   and the private address ranges while leaving every public host behind it. Nobody has run this
   against a numeric address from a device, so treat it as untested.
 
+## The icons
+
+Both shells shipped with Capacitor's own mark on them. They now come off the same
+source art as everything else — `python3 scripts/brand.py` writes the favicon, the
+PWA icons, the two native launcher sets and both launch screens from
+`assets/brand/kolibri-logo-outline.svg`, so the app's mark cannot drift between
+the web and a phone by having been re-run in only one place.
+
+Each platform masks an icon to a circle of its own size, and the script derives
+one fill ratio per case from a single rule rather than keeping three numbers: a
+square inscribed in a circle of diameter `d` has side `d / sqrt(2)`, and the
+silhouette's empty corners buy a little past that. Asked with the PWA's 80% it
+reproduces the ratio that was already there by eye, which is the reason to trust
+it for Android's 66.7% and for a full circle.
+
+Re-running the script needs Pillow (`pip install pillow`). It rewrites every icon
+in the repository, and PNG bytes differ between Pillow versions even when the
+pixels do not — so check `git diff` for files you did not mean to change.
+
 ## The two identifiers
 
 The app is `day.kolibri.client` on both stores — reverse-DNS of a domain that is ours, and `client`
