@@ -141,7 +141,20 @@ it agrees with the phone rather than with itself; recovery codes are stored hash
 each. Every secret is compared with `secretEquals`, which does not return early at the first
 differing byte — `!==` answers "how much of this did you get right", which is a way to learn a
 secret one byte at a time. Session and API tokens are 24 random bytes stored hashed, so there is
-nothing there to guess at rather than a limit standing in front of the guessing. Sessions are listed in Settings and revocable one at a time. OIDC is authorization-code with
+nothing there to guess at rather than a limit standing in front of the guessing. Sessions are listed in Settings and revocable one at a time.
+
+A browser is authenticated by a cookie, and the cookie is `HttpOnly` so script cannot read it. A
+packaged app cannot use that cookie at all: it loads from its own origin — `capacitor://localhost`
+on iOS — so nothing the server sets for its own origin is ever sent back. It carries the session
+token as a bearer instead, which `authenticate` has always accepted because server-sent events
+cannot set a header either. What is new is that a client can now *ask* for that token, by sending
+`x-kolibri-client: native` when it signs in, signs up, or changes a password.
+
+It is opt-in for one reason. Putting the token in a response body puts it where script can read it,
+which is the whole of what `HttpOnly` buys. A browser never sends the header, so a browser never
+gets one, and cross-site scripting on the web client is no better off than it was. What an app gets
+in exchange is a credential it has to store itself, on a device whose storage it does not control —
+which is a worse place than an `HttpOnly` cookie and the best available on that platform. OIDC is authorization-code with
 PKCE and nothing else — no implicit flow, no refresh tokens held here — and an address is taken from
 the provider only when the provider marks it verified.
 
