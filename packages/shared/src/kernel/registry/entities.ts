@@ -47,6 +47,7 @@ export type EntityName =
   | 'channel'
   | 'message'
   | 'channelRead'
+  | 'mailbox'
   | 'purge';
 
 export interface EntityDef {
@@ -488,6 +489,39 @@ export const ENTITIES = {
     readOnly: true,
   },
   /**
+   * A mail account this workspace has connected, not a folder inside one.
+   *
+   * `support@calendoora.de` with a host, a login and a password, so that three
+   * people can search one inbox without any of them holding its credentials.
+   * The messages are deliberately **not** entities: a mailbox has forty
+   * thousand of them, and syncing that into every device's mirror to make an
+   * assistant's search work would be paying the largest storage cost in the
+   * product for the one reader that is not a browser. They live in server-only
+   * tables and are reached over the API and MCP — the shape `email_queue` and
+   * `webhook_deliveries` already use.
+   *
+   * `access` and `members` are the channel rule rather than the project rule,
+   * because an inbox is entrusted rather than joined — see `canReadMailbox`,
+   * which is the one place that decides, and note that an empty `members` on a
+   * restricted mailbox means nobody.
+   *
+   * The password is `secret`: the settings screen shows whether one is set and
+   * never what it is, the sync feed omits the column entirely, and a copied
+   * database is not a copied inbox — it is sealed with the instance key the
+   * same way an SMTP password in `instance_settings` is.
+   */
+  mailbox: {
+    table: 'mailboxes',
+    fields: [
+      'workspace_id', 'address', 'name', 'host', 'port', 'encryption', 'username',
+      'folders', 'access', 'members', 'enabled', 'sync_days', 'created_by',
+    ],
+    /** What the poller found out. Worth showing; not the client's to claim. */
+    serverOnly: ['last_sync_at', 'last_error', 'last_status', 'message_count'],
+    secret: ['password'],
+    json: ['members', 'folders'],
+  },
+  /**
    * A tombstone that has itself been thrown away.
    *
    * Deleting a row here means stamping `deleted_at` and letting the tombstone
@@ -580,6 +614,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   channel: 'channels',
   message: 'messages',
   channelRead: 'channel-reads',
+  mailbox: 'mailboxes',
   activity: 'activities',
   intake: 'intakes',
   purge: 'purges',

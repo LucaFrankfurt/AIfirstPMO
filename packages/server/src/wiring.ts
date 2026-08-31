@@ -25,6 +25,7 @@ import { installS3Storage } from './adapters/s3/backend.ts';
 import { installPushDelivery } from './adapters/push/delivery.ts';
 import { installTelegramDelivery } from './adapters/telegram/delivery.ts';
 import { installAiProviders } from './adapters/ai/providers.ts';
+import { installImapFetcher } from './adapters/imap/fetcher.ts';
 import { installTelegramChores } from './adapters/telegram/chores.ts';
 import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
@@ -36,6 +37,7 @@ import { workRules } from './modules/work/rules/work.ts';
 import { pageRules } from './modules/pages/rules/pages.ts';
 import { chatRules } from './modules/chat/rules/chat.ts';
 import { planningRules } from './modules/planning/rules/planning.ts';
+import { mailRules } from './modules/mail/rules/mail.ts';
 
 let installed = false;
 
@@ -56,6 +58,7 @@ export function installEffects(): void {
   installPushDelivery();
   installTelegramDelivery();
   installAiProviders();
+  installImapFetcher();
   installTelegramChores();
   installWebhookChores();
   // The order within an entity is the order they were branches in. Across
@@ -63,5 +66,6 @@ export function installEffects(): void {
   for (const rule of [
     workRules, pageRules, chatRules, planningRules,
     budgetRules, rateRules, kpiRules, landscapeRules,
+    mailRules,
   ]) onEntity(rule);
 }

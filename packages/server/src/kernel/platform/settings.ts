@@ -34,12 +34,12 @@
  * halves — but the difference between "a leaked backup is a leaked backup" and
  * "a leaked backup is a leaked relay" is worth the twenty lines.
  */
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { all, run } from './db/index.ts';
 import { env, refreshEnv, useSettingsSource } from './env.ts';
 import { isEmailAddress } from '../mail/address.ts';
 import { badRequest } from './http.ts';
 import { isEncryption } from '../mail/relay.ts';
+import { seal as sealWith, unseal as unsealWith } from './seal.ts';
 
 export type SettingGroup = 'mail' | 'telegram' | 'ai';
 export type SettingKind = 'text' | 'secret' | 'number' | 'bool' | 'choice';
@@ -156,38 +156,13 @@ const SPECS = new Map(SETTINGS.map((spec) => [spec.key, spec]));
 /* ------------------------------------------------------------------ sealing */
 
 /**
- * The key is derived rather than used directly, so the same instance secret
- * that signs a session is not also literally the encryption key.
+ * The mechanics moved to `seal.ts` when a mailbox password needed the same
+ * treatment; what stays here is the name of the purpose these values are sealed
+ * under, which is what keeps a settings ciphertext from opening as anything
+ * else. The reasoning is in that file.
  */
-const sealKey = (): Buffer => createHash('sha256').update(`kolibri.settings:${env.secret}`).digest();
-
-const seal = (plain: string): string => {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', sealKey(), iv);
-  const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-  return ['v1', iv.toString('base64'), cipher.getAuthTag().toString('base64'), body.toString('base64')].join('.');
-};
-
-/**
- * Null rather than a throw when it cannot be opened.
- *
- * The one way that happens in practice is an instance secret that changed —
- * `KOLIBRI_SECRET` set after the fact, or a restore without the `.secret` file.
- * Every session is invalid in that case too, and the honest thing for a
- * setting is to read as unset so the screen says "not set" and can be typed
- * in again.
- */
-const unseal = (stored: string): string | null => {
-  const [version, iv, tag, body] = stored.split('.');
-  if (version !== 'v1' || !iv || !tag || !body) return null;
-  try {
-    const decipher = createDecipheriv('aes-256-gcm', sealKey(), Buffer.from(iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64'));
-    return Buffer.concat([decipher.update(Buffer.from(body, 'base64')), decipher.final()]).toString('utf8');
-  } catch {
-    return null;
-  }
-};
+const seal = (plain: string): string => sealWith('settings', plain);
+const unseal = (stored: string): string | null => unsealWith('settings', stored);
 
 /* -------------------------------------------------------------------- store */
 

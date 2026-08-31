@@ -116,6 +116,27 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P2 — the obvious next features
 
+- [ ] **OAuth for Gmail and Microsoft mailboxes.** Connected mailboxes sign in with a password
+      today, which for either of those providers means an app password: a workspace admin has to
+      generate one per inbox, and an account with the setting disabled by policy cannot connect at
+      all. IMAP's answer is `AUTHENTICATE XOAUTH2`, which the client does not speak — the token
+      dance is the work, not the command. It is left out because a password gets the feature into
+      somebody's hands and OAuth is a refresh-token lifecycle in the settings screen; it is the
+      first thing to build if this is used against Google Workspace rather than a mail host.
+- [ ] **Mail is not in the global search box.** `search_mail` and the Mail screen find it; the one
+      box over everything does not, because mail has its own FTS table. That was the right call for
+      the query — a message is found by words *and* by who sent it, when, and whether a PDF was
+      attached, and folding four unindexed columns onto every task and page to share one table is
+      not a trade worth making. It leaves the box saying "no results" for a word that is in an
+      inbox, which is a real gap. Fixing it properly means the kernel's search declaring a port for
+      a corpus with its own visibility rule, so `mail` can register one from further out; doing it
+      by teaching `search.ts` about mailboxes would be the kernel leaning on a capability, which is
+      the rule the whole module map exists to keep.
+- [ ] **A mailbox is polled, not pushed.** Five minutes, deliberately — see
+      [`docs/mail.md`](docs/mail.md) for why IDLE was not taken. The cost is that "did the invoice
+      arrive" can be five minutes stale, and the honest fix if that ever matters is not IDLE but a
+      Sync now button, which exists.
+
 - [x] **Saved views UI.** Save the current filter set under a name, from a project or from My work,
       shared with the team by default. A dot marks a view you have changed since saving. One view can
       be pinned as what a project *opens* on — stored on the project rather than as a flag on the
@@ -966,7 +987,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 72 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 80 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

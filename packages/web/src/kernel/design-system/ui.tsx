@@ -30,6 +30,9 @@ import { cn } from './cn';
 const PATHS = {
   home: 'M3 10.5 12 3l9 7.5M5 9.5V20h14V9.5',
   inbox: 'M4 13h4l2 3h4l2-3h4M4 13 6 5h12l2 8v6H4z',
+  // An envelope, for the connected mailboxes. Distinct from `inbox`, which is
+  // the tray of notifications and would be read as the same place.
+  mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3',
   plus: 'M12 5v14M5 12h14',
   check: 'M4 12.5 9 17.5 20 6.5',
