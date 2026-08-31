@@ -14,7 +14,7 @@ import { installBrowser } from './browser.ts';
 
 installBrowser();
 
-const { authHeaders, clientHeaders, serverOrigin, serverUrl, sessionToken, useServer, useSessionToken } =
+const { authHeaders, clientHeaders, isPackaged, needsServer, serverOrigin, serverUrl, sessionToken, useServer, useSessionToken } =
   await import('../src/kernel/sync/server');
 
 beforeEach(() => {
@@ -93,5 +93,33 @@ describe('when the device refuses to remember anything', () => {
     } finally {
       Object.defineProperty(globalThis, 'localStorage', { value: real, writable: true, configurable: true });
     }
+  });
+});
+
+describe('who has to be asked where the server is', () => {
+  const withCapacitor = (run: () => void) => {
+    Object.defineProperty(globalThis, 'Capacitor', { value: {}, configurable: true });
+    try { run(); } finally { delete (globalThis as Record<string, unknown>).Capacitor; }
+  };
+
+  it('never a browser: an empty origin there is the answer, not a question', () => {
+    useServer('');
+    assert.equal(isPackaged(), false);
+    assert.equal(needsServer(), false, 'a browser would have been shown the picker');
+  });
+
+  it('the packaged app, until it has been told', () => {
+    withCapacitor(() => {
+      useServer('');
+      assert.equal(isPackaged(), true);
+      assert.equal(needsServer(), true);
+    });
+  });
+
+  it('and not again once it has', () => {
+    withCapacitor(() => {
+      useServer('https://kolibri.example');
+      assert.equal(needsServer(), false);
+    });
   });
 });

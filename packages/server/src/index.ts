@@ -159,7 +159,10 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {
       'access-control-allow-methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
-      'access-control-allow-headers': 'content-type,authorization,x-filename,mcp-protocol-version',
+      // `x-kolibri-client` is what a packaged app sends to be given a session
+      // token; a preflight that does not list it fails the sign-in before it
+      // is made, which is a CORS error in a WebView and no server log at all.
+      'access-control-allow-headers': 'content-type,authorization,x-filename,x-kolibri-client,mcp-protocol-version',
       'access-control-max-age': '86400',
     });
     res.end();

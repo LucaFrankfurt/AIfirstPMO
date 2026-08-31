@@ -43,6 +43,23 @@ const remember = (key: string, value: string | null): void => {
 let origin = stored(ORIGIN_KEY) ?? '';
 let token = stored(TOKEN_KEY);
 
+/**
+ * Is this the packaged app rather than a browser?
+ *
+ * Capacitor puts itself on `window` before the bundle runs, which is the only
+ * honest signal available: a build flag would have to be set correctly by
+ * whoever builds, and a wrong one is an app that asks a browser for a server
+ * address or a browser that never asks at all.
+ *
+ * It matters because an empty origin means two different things. In a browser
+ * it means "this page's own origin", which is the answer. In the app it means
+ * "nobody has said yet", which is a question.
+ */
+export const isPackaged = (): boolean => 'Capacitor' in globalThis;
+
+/** Does this client still need to be told where its server is? */
+export const needsServer = (): boolean => isPackaged() && !origin;
+
 /** Where the server is. Empty in a browser, which means "wherever this page came from". */
 export const serverOrigin = (): string => origin;
 

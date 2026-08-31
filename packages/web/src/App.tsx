@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useEffect, type ReactNode } from 'react';
+import { Component, Suspense, lazy, useEffect, useState, type ReactNode } from 'react';
 import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { TaskDetail } from './modules/work/TaskDetail';
@@ -6,6 +6,8 @@ import { Empty, ToastHost } from './kernel/design-system/ui';
 import { Button } from './kernel/design-system/ui/button';
 import { WelcomeTour } from './modules/guide/tour';
 import { AcceptInvite, Login } from './kernel/identity/routes/Login';
+import { ServerPicker } from './kernel/identity/routes/ServerPicker';
+import { needsServer } from './kernel/sync/server';
 import { Portfolio } from './modules/planning/portfolio';
 import { Planner } from './modules/planning/planner';
 import { Inbox, More, MyWork } from './modules/work/routes/personal';
@@ -104,6 +106,15 @@ class ScreenBoundary extends Component<{ children: ReactNode; label: string; hin
 
 export default function App() {
   const { t, adoptLocale } = useI18n();
+  /*
+   * Asked before anything reaches for the API, because until an address is
+   * known a relative `/api/…` addresses the app's own bundle: the session
+   * lookup would 404 against itself and the app would show a sign-in form for
+   * a server it has never heard of. A browser is never in this state — its
+   * origin is the page it came from — so this is dead weight there and the
+   * condition says so.
+   */
+  const [askingForServer, setAskingForServer] = useState(needsServer());
   const { ready, session, workspaceId } = useSession();
   const has = useFeatures();
   const location = useLocation();
@@ -156,6 +167,10 @@ export default function App() {
   useEffect(() => {
     if (accountLocale) adoptLocale(accountLocale as Locale);
   }, [accountLocale, adoptLocale]);
+
+  // Before `ready`: the session lookup this waits on is the request that would
+  // go to the wrong place.
+  if (askingForServer) return <ServerPicker onReady={() => setAskingForServer(false)} />;
 
   if (!ready) return <Boot />;
 

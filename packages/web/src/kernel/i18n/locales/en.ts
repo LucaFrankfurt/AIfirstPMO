@@ -1576,6 +1576,12 @@ export const en = {
   'field.wanted': '· wanted',
   'field.open': 'Open link',
   /* -------------------------------------------------- the way in */
+  'server.title': 'Which Kolibri?',
+  'server.explain': 'This app talks to your own server. Enter its address once — you can change it later by signing out.',
+  'server.address': 'Server address',
+  'server.connect': 'Connect',
+  'server.checking': 'Checking…',
+  'server.unreachable': 'No Kolibri answered at that address. Check the address, and that the server is reachable from this device.',
   'auth.headline': 'Your work lives on your server.',
   'auth.blurb': 'Projects, tasks and pages — offline first, with an assistant allowed to read along.',
   'auth.factOffline': 'Keeps working when the network does not',
