@@ -55,6 +55,29 @@ function setSessionCookie(ctx: Ctx, raw: string): void {
 }
 
 /**
+ * Start a session, and hand the token back only to a client that cannot hold a
+ * cookie.
+ *
+ * A packaged app loads from its own origin — `capacitor://localhost` on iOS —
+ * so the session cookie set for the server's origin is never sent with its
+ * requests. `authenticate` has always accepted a session token as a bearer,
+ * which is what SSE needs; what was missing was a way for the client to *get*
+ * one. This is that way, and it is opt-in for one reason: the browser's cookie
+ * is `HttpOnly`, so script cannot read it, and putting the same token in a
+ * response body would hand cross-site scripting the thing the flag exists to
+ * protect. A browser never asks, so a browser never gets one.
+ *
+ * The header rather than a field in the body because all three ways in — sign
+ * up, sign in, finish two-factor — would otherwise each need the flag threaded
+ * through a different shape.
+ */
+function startSession(ctx: Ctx, userId: string): { token?: string } {
+  const raw = createSession(userId, ctx.req.headers['user-agent']);
+  setSessionCookie(ctx, raw);
+  return ctx.req.headers['x-kolibri-client'] === 'native' ? { token: raw } : {};
+}
+
+/**
  * Make an account, with its first workspace or against an invite.
  *
  * Shared by the sign-up form and by single sign-on so the two cannot drift:
@@ -192,8 +215,7 @@ export function registerAuthRoutes(router: Router): void {
 
     const user = createAccount({ email, name, password, locale: body.locale ?? null, invite: body.invite, workspace: body.workspace });
 
-    setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
-    return sessionInfo(user.id);
+    return { ...sessionInfo(user.id), ...startSession(ctx, user.id) };
   });
 
   router.post('/api/auth/login', async (ctx) => {
@@ -228,8 +250,7 @@ export function registerAuthRoutes(router: Router): void {
       }
     }
 
-    setSessionCookie(ctx, createSession(user.id, ctx.req.headers['user-agent']));
-    return sessionInfo(user.id);
+    return { ...sessionInfo(user.id), ...startSession(ctx, user.id) };
   });
 
   /* ------------------------------------------------------ single sign-on */
@@ -457,8 +478,10 @@ export function registerAuthRoutes(router: Router): void {
     if ((body.next ?? '').length < 8) throw badRequest('New password must be at least 8 characters');
     run(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`, hashPassword(body.next!), Date.now(), auth.userId);
     run(`DELETE FROM sessions WHERE user_id = ?`, auth.userId); // sign other devices out
-    setSessionCookie(ctx, createSession(auth.userId, ctx.req.headers['user-agent']));
-    return { ok: true };
+    // Including this caller's, whose bearer token has just been deleted with
+    // the rest: a browser gets a fresh cookie and never notices, and a client
+    // holding a token would be signed out by its own password change.
+    return { ok: true, ...startSession(ctx, auth.userId) };
   });
 
   /* ------------------------------------------------------------ API tokens */

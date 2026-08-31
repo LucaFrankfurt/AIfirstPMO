@@ -364,6 +364,30 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 - [x] **Image lightbox** for images in any rendered markdown — delegated, because the renderer
       produces plain HTML and has no components to hand a handler to.
 - [x] **Per-task notification opt-in and out**, in the task menu.
+- [x] **An iOS and an Android app**, as a Capacitor shell around the same bundle a browser gets —
+      `day.kolibri.client` on both stores, both native projects committed, icons and launch screens
+      generated from the same source art as the favicon. A packaged app loads from its own origin,
+      so it asks once which Kolibri it belongs to and carries a bearer token where a browser carries
+      its cookie. Nobody has compiled either project or seen the app on a phone; what is open is
+      below and in [`docs/mobile.md`](docs/mobile.md).
+- [ ] **Uploaded files do not load in the packaged app**, and the fix is a decision rather than a
+      repair. The server returns root-relative `/files/<hash>/<name>` URLs, which address the app's
+      own bundle; and that route requires authentication, which an `<img>`, a CSS `url()` and a
+      `<link>` cannot supply. Measured: a bare GET is 401, `Authorization` is 200, `?access_token`
+      is 200. So a query token is the only thing that makes an image load — and it puts the session
+      token in the DOM, in the referrer and in the access log, and the "open original" link would
+      hand it to the system browser. The three ways out and the one that looks right are laid out
+      in [`docs/mobile.md`](docs/mobile.md#the-open-question-uploaded-files-do-not-load). Nothing
+      here affects a browser, where every one of these URLs is same-origin and carries the cookie.
+- [ ] **Native push.** The port is already there — `notify.onNotification` — and the web fills it
+      with a service worker. Neither web push in an Android WebView nor a service worker under
+      `capacitor://` delivers anything, so the app needs an FCM and an APNs adapter filling that
+      same port. Credentials this repository does not have, and a device to prove it on.
+- [ ] **SSO does not work in the app.** `ssoHref` is root-relative and the provider redirects back
+      to the *server's* origin, which the app is not. Needs a registered deep link and a redirect
+      target that reaches it. The app ID already claims a URL scheme; nothing listens on it.
+- [ ] **Nothing has been submitted to either store.** No screenshots, no privacy manifest, no
+      `PrivacyInfo.xcprivacy`, no App Store Connect or Play Console entry, no signing identity.
 
 ---
 
@@ -1012,6 +1036,13 @@ Things nobody has measured yet, so treat any claim about them as a guess:
 - Performance with a large workspace (>10k tasks, >100 concurrent SSE clients).
 - Real iOS Safari and Android Chrome behaviour — only Chromium's device emulation was used.
   IndexedDB eviction under storage pressure on iOS is the specific risk.
+- The two native shells, on every claim about them. Nobody has compiled either project or run the
+  app on a phone; there is no Xcode, no Android SDK and no device anywhere this repository is built.
+  Three specifics: whether `NSAllowsLocalNetworking` reaches a numeric `http://192.168.x.x` address
+  on iOS; how large the adaptive launcher icon reads beside other apps, its fill being derived from
+  the circle Android *guarantees* rather than the one a launcher usually shows; and whether the
+  launch screen hands over without a flash, which should hold in dark mode and change once at the
+  end in light, because splash, WebView ground and web manifest are all `#0b0d12`.
 - Behaviour when the disk fills up mid-write.
 - Real SMTP relays (Postmark, SES, Gmail) — the client is tested against a server written for the
   test, which cannot catch a provider's quirks or a deliverability problem.

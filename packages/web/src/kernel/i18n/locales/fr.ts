@@ -1575,6 +1575,12 @@ export const fr: Catalogue = {
   'field.wanted': '· attendu',
   'field.open': 'Ouvrir le lien',
   /* -------------------------------------------------- the way in */
+  'server.title': 'Quel Kolibri ?',
+  'server.explain': 'Cette application parle à votre propre serveur. Saisissez son adresse une fois — vous pourrez la changer en vous déconnectant.',
+  'server.address': 'Adresse du serveur',
+  'server.connect': 'Se connecter',
+  'server.checking': 'Vérification…',
+  'server.unreachable': 'Aucun Kolibri n’a répondu à cette adresse. Vérifiez l’adresse et que le serveur est joignable depuis cet appareil.',
   'auth.headline': 'Votre travail vit sur votre serveur.',
   'auth.blurb': 'Projets, tâches et pages — hors ligne d’abord, avec un assistant autorisé à lire par-dessus votre épaule.',
   'auth.factOffline': 'Continue de fonctionner quand le réseau s’arrête',

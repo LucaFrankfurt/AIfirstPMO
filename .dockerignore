@@ -10,3 +10,8 @@ data
 .env.*
 *.sqlite*
 smoke.mjs
+
+# The native app trees. A container serves the web build; it has no use for an
+# Xcode project or a Gradle wrapper, and they are the largest thing in the tree.
+packages/web/ios
+packages/web/android

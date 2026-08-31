@@ -1,5 +1,6 @@
 import type { ImportResult, SessionInfo, TaskReview } from '@kolibri/shared';
 import { currentLocale, translate } from '../i18n/i18n';
+import { authHeaders, clientHeaders, serverUrl, useSessionToken } from './server';
 
 export class ApiError extends Error {
   status: number;
@@ -14,14 +15,30 @@ export class ApiError extends Error {
 
 export const isOffline = (err: unknown): boolean => err instanceof TypeError || (err instanceof ApiError && err.status === 0);
 
+/**
+ * The endpoints that hand back a session token, named rather than sniffed.
+ *
+ * A packaged app has to keep whatever the server issues, and the three that
+ * issue one do not share a response shape: sign-in and sign-up return a
+ * session, changing a password returns `{ ok: true }`. Looking for a `token`
+ * field anywhere instead would have caught `/api/tokens`, whose `token` is an
+ * API token for somebody else's script — storing that as the session would
+ * swap this client's identity for one with different scopes.
+ */
+const ISSUES_SESSION = new Set(['/api/auth/login', '/api/auth/register', '/api/me/password']);
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path, {
+    response = await fetch(serverUrl(path), {
       credentials: 'include',
       ...init,
       headers: {
         ...(init.body && typeof init.body === 'string' ? { 'content-type': 'application/json' } : {}),
+        // Both are empty in a browser, where the cookie above is the credential
+        // and the page's own origin is the server. See `server.ts`.
+        ...authHeaders(),
+        ...clientHeaders(),
         ...init.headers,
       },
     });
@@ -34,6 +51,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (!response.ok) {
     throw new ApiError(response.status, payload?.message ?? response.statusText, payload?.error ?? 'error');
   }
+  if (ISSUES_SESSION.has(path) && typeof payload?.token === 'string') useSessionToken(payload.token);
   return payload as T;
 }
 
@@ -65,7 +83,13 @@ export const api = {
     // The language goes with the sign-up so the starter project's workflow,
     // labels and templates are seeded in it rather than in English.
     request<SessionInfo>('/api/auth/register', json({ ...body, locale: currentLocale() })),
-  logout: () => request<{ ok: boolean }>('/api/auth/logout', json({})),
+  logout: async () => {
+    // Ordered so a failed sign-out does not leave a client holding a token the
+    // server has already forgotten: the server first, then this side.
+    const done = await request<{ ok: boolean }>('/api/auth/logout', json({}));
+    useSessionToken(null);
+    return done;
+  },
 
   /**
    * Uploads go up as a raw body with the filename in a header — no multipart

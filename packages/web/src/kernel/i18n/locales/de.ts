@@ -1571,6 +1571,12 @@ export const de: Catalogue = {
   'field.wanted': '· erwünscht',
   'field.open': 'Link öffnen',
   /* -------------------------------------------------- the way in */
+  'server.title': 'Welches Kolibri?',
+  'server.explain': 'Diese App spricht mit deinem eigenen Server. Gib seine Adresse einmal ein — ändern kannst du sie später beim Abmelden.',
+  'server.address': 'Serveradresse',
+  'server.connect': 'Verbinden',
+  'server.checking': 'Wird geprüft…',
+  'server.unreachable': 'Unter dieser Adresse hat kein Kolibri geantwortet. Prüfe die Adresse und ob der Server von diesem Gerät aus erreichbar ist.',
   'auth.headline': 'Die Arbeit liegt auf deinem Server.',
   'auth.blurb': 'Projekte, Aufgaben und Seiten — offline zuerst, mit einem Assistenten, der mitlesen darf.',
   'auth.factOffline': 'Arbeitet weiter, wenn das Netz nicht will',

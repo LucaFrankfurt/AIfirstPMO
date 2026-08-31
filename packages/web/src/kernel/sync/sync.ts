@@ -11,6 +11,7 @@ import {
   type ChangeSet, type EntityName, type Mutation, type PullResponse, type PushResponse,
 } from '@kolibri/shared';
 import { api, ApiError } from './api';
+import { serverUrl, sessionToken } from './server';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
 import { applyChanges, hydrate, notifyStore, purgedRows, reset } from './store';
@@ -309,7 +310,15 @@ export function onStream(handler: StreamHandler): void {
 function connect(): void {
   stream?.close();
   if (!workspaceId) return;
-  stream = new EventSource(`/api/sync/stream?workspace=${workspaceId}&client=${clientId}`, { withCredentials: true });
+  // `EventSource` cannot set a header, which is why the server has always read
+  // `access_token` from the query for this one endpoint. A browser sends
+  // neither and is authenticated by the cookie `withCredentials` carries.
+  const token = sessionToken();
+  const auth = token ? `&access_token=${encodeURIComponent(token)}` : '';
+  stream = new EventSource(
+    serverUrl(`/api/sync/stream?workspace=${workspaceId}&client=${clientId}${auth}`),
+    { withCredentials: true },
+  );
   stream.addEventListener('change', () => void pull());
   // Anything else riding the same connection is handled entirely separately: it
   // carries no cursor, so it never triggers a pull and a dropped frame costs
