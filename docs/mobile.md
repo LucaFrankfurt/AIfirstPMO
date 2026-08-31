@@ -93,15 +93,67 @@ The Android `debug` variant is `day.kolibri.client.dev`, labelled "Kolibri dev" 
 URL scheme. An installed Android app is keyed by its `applicationId` and nothing else, so without the
 suffix a debug build would replace a store build on the same phone and take its database with it.
 
+## The open question: uploaded files do not load
+
+**This is the one thing that stops the app being usable, and it is a decision rather than a
+repair.** No attachment, avatar, page cover or pasted screenshot renders in a packaged app.
+
+Measured against a seeded server, uploading a file the way the client does:
+
+```
+server returns:  /files/<hash>/px.png     ← root-relative
+  bare GET         401     ← what an <img> sends: no cookie (cross-origin), no header (an image
+                              cannot set one)
+  Authorization    200     ← what an <img> cannot send
+  ?access_token    200
+```
+
+Two things go wrong at once. The URL the server stores and returns is root-relative, so in a
+packaged app it addresses the app's own bundle rather than a Kolibri; and `/files/:hash` requires
+authentication, which an `<img>`, a CSS `url()` and a `<link>` have no way to supply. Six places
+render one: `TaskDetail`, `page-parts`, `Avatar` in `ui.tsx`, and the markdown renderer in
+`@kolibri/shared`, which is what comments, chat and page bodies all go through.
+
+`authenticate` accepts `?access_token=` on every route, not only on SSE — so a query token is the
+only mechanism that makes an `<img>` load, and that is the whole difficulty:
+
+| | |
+|---|---|
+| **Token in the query** | Works everywhere with one helper. But the session token then sits in the DOM, in `document.referrer`, and in the server's access log — and the "open original" link carries `target="_blank"`, which on a phone hands that token to the system browser. |
+| **`fetch` + a `blob:` URL** | Nothing leaves the WebView. But an image is no longer a URL, so the markdown renderer's raw HTML needs a pass over the rendered subtree, and the bytes sit in memory. |
+| **A short-lived file ticket** | A second token, read-only and expiring in a minute. Still a token in a URL, but a narrow one — and it is a new endpoint, a new table and a new thing to revoke. |
+
+The shape that seems right, and is not yet agreed: a query token for `<img>` and CSS `url()`, where
+the URL never leaves the WebView and SSE already set the precedent — and `fetch` + `blob:` for the
+anchors that open a file, so nothing ever hands a session token to an external browser. Whichever
+way it goes, it is one helper in `kernel/sync/server.ts` plus an option on `MarkdownOptions`, so
+`@kolibri/shared` keeps knowing nothing about origins.
+
 ## What is not done
 
 - **Push.** The server already has the port (`notify.onNotification`) and the web has a service
   worker behind it, but neither web push in an Android WebView nor a service worker under
   `capacitor://` delivers anything. Native push means an FCM and an APNs adapter filling that same
   port, and credentials this repository does not have.
+- **SSO.** `ssoHref` is root-relative, and the provider redirects back to the *server's* origin —
+  which the app is not. Making OIDC work in the shell means a registered deep link and a redirect
+  target that reaches it; the app ID already claims a URL scheme, and nothing listens on it yet.
 - **Store listings.** No screenshots, no privacy manifest, no `PrivacyInfo.xcprivacy`, no App Store
   or Play Console entry.
 - **Anything measured on a device.** Every claim here about how a WebView behaves was reasoned from
   the platform's documentation and the client's own code. The client half was verified across a real
   origin boundary — the bundle on one port, the API on another, `window.Capacitor` present, at a
-  phone's viewport — and that is not the same as a phone.
+  phone's viewport — and that is not the same as a phone. Specifically unmeasured:
+
+  - Whether `NSAllowsLocalNetworking` reaches a numeric `http://192.168.x.x` address on iOS.
+  - How large the adaptive icon looks in a launcher. Its fill is derived conservatively, from the
+    circle Android *guarantees* rather than the one a launcher usually shows, so it may read small
+    beside other apps. One number in `brand.py`, with the trade-off written beside it.
+  - Whether the launch screen hands over to the app without a flash. Splash, WebView ground and the
+    web manifest are all `#0b0d12`, so a dark-mode start should be one colour throughout and a
+    light-mode one should change once at the end — but nobody has watched it happen.
+
+- **`npm audit` reports three moderate advisories**, all one thing: `uuid` below 11.1.1, reached
+  through `xcode`, reached through `@capacitor/cli`. A build-time devDependency that writes the
+  `.pbxproj`; nothing in it ships. The offered fix downgrades the CLI, which costs more than the
+  advisory does.

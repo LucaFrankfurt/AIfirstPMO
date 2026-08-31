@@ -160,17 +160,14 @@ def compose(bird: Image.Image, size: int, fill: float, rounded: bool, ground=TIL
     return tile
 
 
-def on_canvas(bird: Image.Image, w: int, h: int, fill: float) -> Image.Image:
-    """The mark centred on a white rectangle, at `fill` of the shorter side.
+def on_canvas(art: Image.Image, w: int, h: int, ground) -> Image.Image:
+    """`art` centred on a rectangle of `ground`.
 
     A splash is the one place the canvas is not a square: Android sets the PNG
     as the launch window's `background`, which stretches it to the screen, so
     each drawable is already the shape of the screen it is for.
     """
-    target = min(w, h) * fill
-    ratio = bird.width / bird.height
-    art = bird.resize((round(target * ratio), round(target)), Image.LANCZOS)
-    canvas = Image.new("RGBA", (w, h), TILE_BG)
+    canvas = Image.new("RGBA", (w, h), ground)
     canvas.alpha_composite(art, ((w - art.width) // 2, (h - art.height) // 2))
     return canvas
 
@@ -252,9 +249,20 @@ def write_ico(bird: Image.Image, name: str) -> None:
     report(path, "16/32/48")
 
 
-# How much of a launch screen the mark spans, across the shorter side. Small:
+# How much of a launch screen the tile spans, across the shorter side. Small:
 # a splash is a held breath, not a poster.
 SPLASH_FILL = 0.30
+
+# The ground behind it, which is the one the web manifest already declares — and
+# `capacitor.config.ts` gives the WebView the same value, so the launch screen,
+# the frame after it and the PWA's own splash are all one colour.
+#
+# It is not white, and the tile on it is, which is the pair the manifest already
+# chose: the bird is drawn with a heavy black keyline that disappears on a dark
+# ground with nothing behind it. Painting the whole screen white instead would
+# make a light-mode start seamless and a dark-mode one flash twice; this way it
+# flashes once, at the end, and never during the wait.
+SPLASH_GROUND = (11, 13, 18, 255)  # #0b0d12
 
 # The iOS launch image is a square, scaled `aspectFill` into a screen taller
 # than it is wide — so it is the screen's *height* the square is matched to, and
@@ -307,15 +315,20 @@ def write_splashes(bird: Image.Image) -> None:
     iOS by a scale in `Contents.json` — and a list kept here would be a second
     copy of those rules, wrong the first time either template changed.
     """
+    def splash(w: int, h: int, fill: float) -> Image.Image:
+        # The rounded tile rather than the bare bird, which is what the PWA
+        # shows on this same ground and for the same reason.
+        return on_canvas(compose(bird, round(min(w, h) * fill), ANY_FILL, rounded=True), w, h, SPLASH_GROUND)
+
     for path in sorted(ANDROID.glob("drawable*/splash.png")):
         with Image.open(path) as existing:
             w, h = existing.size
-        write_png(on_canvas(bird, w, h, SPLASH_FILL), path.name, into=path.parent)
+        write_png(splash(w, h, SPLASH_FILL), path.name, into=path.parent)
 
     for path in sorted((IOS / "Splash.imageset").glob("*.png")):
         with Image.open(path) as existing:
             w, h = existing.size
-        write_png(on_canvas(bird, w, h, IOS_SPLASH_FILL), path.name, into=path.parent)
+        write_png(splash(w, h, IOS_SPLASH_FILL), path.name, into=path.parent)
 
 
 def main() -> None:
