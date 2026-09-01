@@ -29,9 +29,10 @@ const { server } = await import('../src/index.ts');
 const { canReadMailbox, parseMailQuery, scoreDocument, padDate } = await import('@kolibri/shared');
 const { run, get, all } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
-const { visibleMailboxes, findMailbox, setPassword, credentialsFor, hasPassword } =
+const { visibleMailboxes, findMailbox, setPassword, credentialsFor, hasPassword, configOf, mailboxView } =
   await import('../src/modules/mail/mailboxes.ts');
 const { storeMessage, highestUid, forgetMailbox, countMessages } = await import('../src/modules/mail/store.ts');
+const { checkMailbox, cleanHost } = await import('../src/kernel/mail/mailbox.ts');
 const { pollMailbox } = await import('../src/modules/mail/poll.ts');
 const { searchMail, countMail, narrow, threadOf } = await import('../src/modules/mail/search.ts');
 const { mailStats, responseTimes } = await import('../src/modules/mail/analytics.ts');
@@ -256,6 +257,112 @@ describe('the rules a mailbox is written under', () => {
     const row = get<any>(`SELECT * FROM mailboxes WHERE id = ?`, boxes.support);
     assert.equal(row.address, 'support@calendoora.de');
     assert.equal(row.username, 'support@calendoora.de');
+  });
+});
+
+/* ------------------------------------------------- what a paste drags in */
+
+/**
+ * A host is copied out of a hosting panel, and a selection takes what is at its
+ * edges.
+ *
+ * One instance sat on `calendoora-de.netcup-mail.de` being refused for
+ * containing a space, in a field showing no space, because what it contained
+ * was invisible. The refusal read "a host name has no spaces in it", which is
+ * the one thing an error must never do — argue with what the person can see.
+ *
+ * So the invisible ones are removed and only the visible ones are reported, by
+ * name. Both halves are pinned: the cleaning, and the sentence.
+ */
+describe('a host name that was pasted rather than typed', () => {
+  const HOST = 'calendoora-de.netcup-mail.de';
+
+  for (const [what, host] of [
+    ['a trailing space', `${HOST} `],
+    ['a leading space', ` ${HOST}`],
+    ['a non-breaking space at the end', `${HOST}\u00a0`],
+    ['a zero-width space at the end', `${HOST}\u200b`],
+    ['a zero-width space in the middle', 'calendoora-de.\u200bnetcup-mail.de'],
+    ['a byte-order mark in front', `\ufeff${HOST}`],
+    ['a trailing newline', `${HOST}\n`],
+  ] as const) {
+    it(`survives ${what}`, () => {
+      assert.equal(cleanHost(host), HOST);
+      assert.equal(checkMailbox({ host, port: 993, encryption: 'tls', username: 'support@calendoora.de' }), null);
+    });
+  }
+
+  /*
+   * The other half of the rule, and the reason it is not simply "strip all
+   * whitespace": a space in the middle is one somebody can see, so it is a typo
+   * to report rather than a character to delete. Deleting it would turn
+   * "mail example com" into a host that resolves somewhere else entirely.
+   */
+  it('still refuses a space somebody can see, and says which character it is', () => {
+    const said = checkMailbox({ host: 'calendoora-de netcup-mail.de', port: 993, encryption: 'tls' });
+    assert.match(String(said), /has a space in it/);
+  });
+
+  it('names a non-breaking space in the middle rather than calling it a space', () => {
+    const said = checkMailbox({ host: 'calendoora-de.\u00a0netcup-mail.de', port: 993, encryption: 'tls' });
+    assert.match(String(said), /non-breaking space \(U\+00A0\)/);
+  });
+
+  it('names the character in a pasted URL instead of talking about spaces', () => {
+    const said = checkMailbox({ host: 'imaps://mail.example.com', port: 993, encryption: 'tls' });
+    assert.match(String(said), /"\/" \(U\+002F\)/);
+  });
+
+  it('asks for a host when there is none, rather than blaming spaces', () => {
+    assert.match(String(checkMailbox({ host: '', port: 993, encryption: 'tls' })), /needs a host/);
+  });
+
+  /* And the write path settles it, so no later reader has to clean it again. */
+  it('stores the cleaned host, not what was pasted', async () => {
+    const made = await raw(people.ada, `/api/workspaces/${workspaceId}/mailboxes`, {
+      address: 'pasted@calendoora.de',
+      host: `\u200b${HOST} `,
+      username: ' pasted@calendoora.de ',
+    });
+    assert.equal(made.status, 200);
+    const row = get<any>(`SELECT * FROM mailboxes WHERE id = ?`, made.body.id);
+    assert.equal(row.host, HOST);
+    assert.equal(row.username, 'pasted@calendoora.de');
+    // Taken back out again. Every later block in this file counts the mailboxes
+    // it can see, and a row left behind here fails two of them — which is how
+    // this test first ran.
+    run(`DELETE FROM mailboxes WHERE id = ?`, made.body.id);
+  });
+
+  /*
+   * The row that is already wrong.
+   *
+   * Cleaning on the way in fixes every mailbox from here on and not one that is
+   * already stored — and the stored one is the whole report: its owner cannot
+   * retype a character they cannot see, and the field offers them nothing to
+   * correct. So the row is written here the way the database already holds one,
+   * and every path that reads it has to come back clean: what gets dialled,
+   * what the screen shows, and whether the password saves.
+   */
+  it('unbreaks a mailbox that was stored dirty, without anybody retyping it', async () => {
+    const dirty = get<any>(`SELECT * FROM mailboxes WHERE id = ?`, boxes.support);
+    run(`UPDATE mailboxes SET host = ? WHERE id = ?`, `\u200b${HOST} `, boxes.support);
+    try {
+      const row = get<any>(`SELECT * FROM mailboxes WHERE id = ?`, boxes.support);
+      assert.notEqual(row.host, HOST, 'the row really is stored dirty');
+
+      // What gets dialled, and what the screen shows.
+      assert.equal(configOf(row).host, HOST);
+      assert.equal(mailboxView(row).host, HOST);
+
+      // And the button that was refusing: a password now saves.
+      const saved = await raw(
+        people.ada, `/api/workspaces/${workspaceId}/mailboxes/${boxes.support}/password`, { password: 'hunter2' },
+      );
+      assert.equal(saved.status, 200);
+    } finally {
+      run(`UPDATE mailboxes SET host = ? WHERE id = ?`, dirty.host, boxes.support);
+    }
   });
 });
 

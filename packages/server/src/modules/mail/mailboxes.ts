@@ -16,7 +16,7 @@ import { canReadMailbox, isMailboxAccess, type Mailbox, type MailboxScope } from
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
 import { seal } from '../../kernel/platform/seal.ts';
-import type { MailboxConfig } from '../../kernel/mail/mailbox.ts';
+import { cleanHost, type MailboxConfig } from '../../kernel/mail/mailbox.ts';
 import { accessTokenFor, PURPOSE, storedCredential } from './oauth.ts';
 
 /**
@@ -92,10 +92,13 @@ export function mailboxView(row: Row): MailboxView {
     workspace_id: String(row.workspace_id),
     address: String(row.address),
     name: String(row.name ?? ''),
-    host: String(row.host ?? ''),
+    // Shown as it will be dialled. A row stored with an invisible character
+    // otherwise renders identically to a clean one, which is what made the
+    // original report unanswerable from the screen.
+    host: cleanHost(String(row.host ?? '')),
     port: Number(row.port ?? 993),
     encryption: String(row.encryption ?? 'tls') as Mailbox['encryption'],
-    username: String(row.username ?? ''),
+    username: String(row.username ?? '').trim(),
     folders: parseList(row.folders),
     access: String(row.access ?? 'workspace') as Mailbox['access'],
     members: parseList(row.members),
@@ -169,16 +172,29 @@ export const hasPassword = (mailboxId: string): boolean =>
  * throws: "the consent was revoked" is a different afternoon from "no password
  * stored", and the screen should say which.
  */
+/**
+ * Where a row becomes something you can dial.
+ *
+ * This existed three times — here, in the mailbox routes, and by hand in the
+ * view — which is two more than a rule survives. It matters more than the usual
+ * tidiness argument because one of the three has to clean the host: a mailbox
+ * stored before `cleanHost` existed still carries whatever its owner pasted,
+ * and the copy that forgets to clean it is the copy that cannot connect.
+ *
+ * So: one function, and every caller of it gets the same host the poller dials.
+ */
+export const configOf = (row: Row) => ({
+  host: cleanHost(String(row.host ?? '')),
+  port: Number(row.port ?? 993),
+  encryption: String(row.encryption ?? 'tls') as MailboxConfig['encryption'],
+  username: String(row.username || row.address || '').trim(),
+});
+
 export async function credentialsFor(row: Row): Promise<MailboxConfig | null> {
   const stored = storedCredential(String(row.id));
   if (!stored) return null;
 
-  const base = {
-    host: String(row.host ?? ''),
-    port: Number(row.port ?? 993),
-    encryption: String(row.encryption ?? 'tls') as MailboxConfig['encryption'],
-    username: String(row.username || row.address || ''),
-  };
+  const base = configOf(row);
 
   if (stored.kind === 'oauth') {
     const accessToken = await accessTokenFor(String(row.id));
