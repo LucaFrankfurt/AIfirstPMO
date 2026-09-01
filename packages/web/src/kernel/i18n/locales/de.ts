@@ -1768,6 +1768,7 @@ export const de: Catalogue = {
   'mailbox.messages_one': '{count} Nachricht',
   'mailbox.messages_other': '{count} Nachrichten',
   'mail.title': 'E-Mail',
+  'mail.search': 'Suchen',
   'mail.searchPlaceholder': 'von:stripe seit:2024-01 rechnung',
   'mail.searchHint': 'Wörter durchsuchen Betreff, Text und Dateinamen. Präfixe: von, an, betreff, seit, bis, anhang — und from, to, subject, since, until, file.',
   'mail.documents': 'Belege',

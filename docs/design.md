@@ -87,14 +87,17 @@ window not quite maximised, and nobody finds that by looking at one screenshot.
 
 `node scripts/responsive.mjs` (`npm run check:responsive`) walks every screen from 340px to 1600px
 in 20px steps and asks whether the page scrolls sideways, whether a one-row bar is taller than
-itself, whether a header control reaches over the tabs, and whether a title has been squeezed away.
+itself, whether a header control reaches over the tabs, and whether a title — or a field — has been
+squeezed away. The field question was added after the mailbox editor shipped with its host input at
+a content width of zero, on a screen the walk could not reach because the feature was switched off.
 
 ## Colour is measured, not eyeballed
 
 The person who picks a grey can always read it. That is the whole problem, so none of this is
 settled by looking:
 
-`node scripts/contrast.mjs` (`npm run check:contrast`) walks twelve screens in **four modes** —
+`node scripts/contrast.mjs` (`npm run check:contrast`) walks every screen in its list in **four
+modes** —
 light and dark, desktop and phone — and for every element that renders text computes the real
 background (walking up through transparency and blending as it goes) and the WCAG contrast against
 it. The floor is 4.5:1, or 3:1 for large text.

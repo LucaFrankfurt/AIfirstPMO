@@ -2,13 +2,15 @@
  * Every screen, at every width, looking for a layout that has come apart.
  *
  * A screenshot proves one width. This walks from a small phone to a wide
- * desktop in 20px steps and asks four questions the eye would have to catch by
- * accident:
+ * desktop in 20px steps and asks the questions the eye would only catch by
+ * accident — the list said "four" while carrying six, so it now carries no
+ * count to go stale:
  *
  *  - does the page scroll sideways
  *  - is a bar that is one row tall taller than itself
  *  - does anything in the header reach down over the tab strip
  *  - has the screen's title been squeezed to nothing
+ *  - has a field been squeezed to nothing
  *  - does any box scroll by a sliver on an axis nobody meant it to have
  *  - can you see which tab you are on
  *
@@ -21,6 +23,7 @@
  * Run: node scripts/responsive.mjs
  */
 import { chromium } from 'playwright';
+import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const STEP = Number(process.env.KOLIBRI_STEP ?? 20);
@@ -44,6 +47,10 @@ const project = await page.evaluate(async () => {
   return (body.projects ?? body)[0]?.id;
 });
 
+// Mail is off in a seeded workspace, so its two screens are not merely
+// unchecked without this — they do not exist. See `mail-fixture.mjs`.
+await switchOnMail(page);
+
 const SCREENS = [
   ['my work', '/'],
   ['project', `/projects/${project}`],
@@ -61,6 +68,14 @@ const SCREENS = [
   ['settings: members', '/settings?tab=members'],
   ['settings: data', '/settings?tab=data'],
   ['settings: server', '/settings?tab=instance'],
+  // Behind the mail switch, and reached only because the fixture above turned
+  // it on. The third entry is what to do once the screen has loaded: the
+  // mailbox editor is a fold, and the row that came apart at 900px — a
+  // `<select>` growing to "STARTTLS (143)" and squeezing the host field to two
+  // pixels — is inside it. Checking the closed summary would have proved
+  // nothing about the thing that broke.
+  ['mail', '/mail'],
+  ['settings: mailboxes', '/settings?tab=mailboxes', openMailboxEditor],
   ['guide', '/guide'],
 ];
 
@@ -129,14 +144,52 @@ const inspect = () => {
       }
     }
   }
+
+  /*
+   * A field squeezed to nothing.
+   *
+   * The title rule above has been here since the header bug and it only ever
+   * looked at the `h1`. Nothing looked at a form control — and a form control
+   * is where it happened next. The mailbox editor shipped with its host input
+   * 22px wide, which is 10px of padding either side and a pixel of border
+   * either side: a content box of exactly zero. This file walked that screen
+   * and called it fine, because nothing overflowed.
+   *
+   * So this is a measurement rather than a threshold. A field with less room
+   * inside it than one character of its own text is a field nobody can read
+   * what they typed into. Measured across the app the narrowest legitimate
+   * field has 40px of room against a 13.5px character, so there is no line here
+   * to tune — only a floor nothing sound goes near.
+   */
+  for (const field of document.querySelectorAll('input, select, textarea')) {
+    const type = (field.getAttribute('type') ?? '').toLowerCase();
+    // Controls that are meant to be small and hold no text of their own.
+    if (['checkbox', 'radio', 'color', 'range', 'hidden', 'file'].includes(type)) continue;
+    const cs = getComputedStyle(field);
+    if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+    const box = field.getBoundingClientRect();
+    // A box with no size at all is a control being hidden on purpose — the
+    // trick behind every custom file picker — not one that came apart.
+    if (box.width < 1 || box.height < 1) continue;
+    const room = field.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    if (room < parseFloat(cs.fontSize)) {
+      // Named, because a screen has many fields and "an input is too narrow"
+      // sends whoever reads this to look for it by hand.
+      const label = field.getAttribute('aria-label') || field.getAttribute('placeholder') || field.getAttribute('name');
+      out.push(`${field.tagName.toLowerCase()} ${label ? `"${label}"` : `[type=${type || 'text'}]`} has ${Math.round(room)}px of room inside it`);
+    }
+  }
   return out;
 };
 
 let failures = 0;
-for (const [name, path] of SCREENS) {
+for (const [name, path, prepare] of SCREENS) {
   await page.setViewportSize({ width: 1400, height: 900 });
   await page.goto(base + path, { waitUntil: 'networkidle' });
   await page.keyboard.press('Escape');
+  // Opened once, at the widest size, and left open: what follows only resizes,
+  // so the fold stays unfolded across every width below.
+  if (prepare) await prepare(page);
   const bad = [];
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
