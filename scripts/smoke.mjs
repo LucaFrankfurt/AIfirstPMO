@@ -42,6 +42,7 @@ const LABELS = {
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
+    mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes', edit: 'Edit',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -55,6 +56,7 @@ const LABELS = {
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
+    mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer', edit: 'Bearbeiten',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -68,6 +70,7 @@ const LABELS = {
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
+    mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail', edit: 'Modifier',
   },
 }[locale];
 
@@ -1583,6 +1586,110 @@ await step('with no model configured, reviews leave no trace', async () => {
   }
   console.log('     settings say who configures it; the task says nothing');
   await closeSheets(page);
+});
+
+/**
+ * A screen behind a feature switch, walked the way a person walks it.
+ *
+ * This step exists because two bugs shipped through everything else in this
+ * repository, and both were invisible to every check that already ran.
+ *
+ * The **feature-switched screens are not in any of the browser scripts' lists**
+ * — a seeded instance has budgets, KPIs, the timesheet and mail switched off,
+ * so `responsive.mjs`, `contrast.mjs` and this walkthrough all stopped at the
+ * door. The mailbox editor shipped with its host field squeezed to two pixels
+ * by a `<select>` sharing its row, and nothing noticed, because nothing had
+ * opened it.
+ *
+ * And **a field is only fair to test at typing speed**. `fill()` sets a value
+ * in one assignment; a person presses one key at a time. Every box here was
+ * written straight through to the synced store on each keystroke, so React put
+ * the previous value back between the press and the render: typing `587` into
+ * the port produced `57`, and 57 is what the server stored. A `fill()` test
+ * passed the whole time.
+ *
+ * So: switch it on, make one, reload — the state where a stale snapshot can
+ * overwrite an edit — then type into it like a person and check that what is on
+ * screen, and what the server has, is what was typed.
+ */
+await step('a feature-switched screen can be opened, filled in and typed into', async () => {
+  await page.goto(`${base}/settings?tab=workspace`, { waitUntil: 'networkidle' });
+  const row = page.locator('label.check-row', { hasText: LABELS.mailFeature });
+  if (!(await row.count())) throw new Error(`no "${LABELS.mailFeature}" switch on the workspace tab`);
+  const box = row.locator('input[type=checkbox]');
+  if (!(await box.isChecked())) {
+    // A plain click, not `check()`: the box is controlled by the workspace row
+    // and only flips once the request has come back, which `check()` reads as a
+    // failure to change the state.
+    await box.click();
+    await page.waitForSelector(`.tabs button:has-text("${LABELS.mailboxesTab}")`, { timeout: 15000 });
+  }
+
+  /*
+   * Start from no mailbox, every run.
+   *
+   * The first version of this step reused whatever the last run left behind,
+   * and the last run left a mailbox on port 587 — so typing 587 into a box that
+   * kept snapping back to 587 looked exactly like success. It passed with the
+   * bug deliberately put back, which is the only thing worse than not having
+   * the step at all.
+   */
+  const workspace = await page.evaluate(async () => {
+    const session = await (await fetch('/api/session')).json();
+    const id = session.workspaces[0].id;
+    const answer = await (await fetch(`/api/workspaces/${id}/mailboxes`)).json();
+    for (const one of answer.mailboxes) {
+      if (one.address === 'smoke@example.com') await fetch(`/api/mailboxes/${one.id}`, { method: 'DELETE' });
+    }
+    return id;
+  });
+
+  await page.goto(`${base}/settings?tab=mailboxes`, { waitUntil: 'networkidle' });
+  const address = page.locator('input[placeholder="support@example.com"]');
+  await address.waitFor({ timeout: 10000 });
+  await address.fill('smoke@example.com');
+  await page.locator('form button[type=submit]').last().click();
+  await page.waitForTimeout(1200);
+
+  // Reloaded on purpose: a mailbox made in this session is not in the credential
+  // snapshot the screen fetches on mount, so every edit sticks whether or not
+  // the bug is there. Only a row that was already present when the screen
+  // loaded can show it.
+  await page.reload({ waitUntil: 'networkidle' });
+  await page.locator('button', { hasText: new RegExp(`^${LABELS.edit}$`) }).first().click();
+  await page.waitForTimeout(600);
+
+  const port = page.locator('input[type=number]').first();
+  const before = await port.inputValue();
+  // The assertion below only means something if the box does not already hold
+  // what is about to be typed into it.
+  if (before === '587') throw new Error('the new mailbox already had port 587 — this step would prove nothing');
+
+  await port.click();
+  await page.keyboard.press('Control+a');
+  for (const key of '587') {
+    await page.keyboard.type(key);
+    // A quarter of a second between keys, which is roughly how fast a person
+    // types and is the whole point of the pause. The first version of this used
+    // 80ms and passed with the bug deliberately put back: React batches
+    // keystrokes that close together, so the stale value lands after all three
+    // rather than between them. A test faster than a human is the same mistake
+    // as one gentler than a human — `fill()` was the other half of it.
+    await page.waitForTimeout(250);
+  }
+  const typed = await port.inputValue();
+  if (typed !== '587') throw new Error(`the port box lost keystrokes: shows "${typed}" after typing 587 over ${before}`);
+
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(1200);
+  const kept = await port.inputValue();
+  if (kept !== '587') throw new Error(`the port reverted to "${kept}" after leaving the field`);
+
+  const stored = await page.evaluate(async (id) => {
+    const answer = await (await fetch(`/api/workspaces/${id}/mailboxes`)).json();
+    return answer.mailboxes.find((one) => one.address === 'smoke@example.com')?.port;
+  }, workspace);
+  if (stored !== 587) throw new Error(`the server stored port ${stored}, not 587`);
 });
 
 await step('interface is in the chosen language', async () => {
