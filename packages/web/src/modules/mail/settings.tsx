@@ -26,7 +26,7 @@
  * something off throws data away, and the reason it does is that "we
  * disconnected that inbox" has to be able to mean it.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Mailbox, MailboxAccessLevel } from '@kolibri/shared';
 import { Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
@@ -76,6 +76,48 @@ interface Credential {
 
 /** A provider this instance could actually offer, from `/api/mail/oauth/providers`. */
 interface Provider { name: string; label: string }
+
+/**
+ * A box on a synced row, that does not fight the person typing into it.
+ *
+ * Every field here was `value={row.field}` with an `onChange` that wrote
+ * straight through to the store. That reads as the obvious thing and it does
+ * not work: the value comes back from an external store through
+ * `useSyncExternalStore`, so between the keystroke and the re-render React puts
+ * the *previous* value back in the box. At `fill()` speed nothing is visible;
+ * at typing speed characters are swallowed and reordered. Typing `587` into the
+ * port gave `57` — and 57 is what the server stored, so it was not only
+ * unpleasant, it was wrong.
+ *
+ * The fix is `MoneyInput`'s, because it is the same problem: hold the text
+ * locally while the field has focus, write it once on the way out. A
+ * half-finished `58` is then just a half-finished `58` rather than a value the
+ * whole workspace is told about.
+ *
+ * The draft is dropped on blur, so the next render shows whatever the row
+ * actually holds — including a value the server corrected, which is the one
+ * thing writing on every keystroke did get right and this must not lose.
+ */
+function FieldOnRow({ value, onCommit, ...rest }: {
+  value: string;
+  onCommit: (next: string) => void;
+} & Omit<ComponentProps<typeof Input>, 'value' | 'onChange' | 'onBlur'>) {
+  const [draft, setDraft] = useState<string | null>(null);
+  return (
+    <Input
+      {...rest}
+      value={draft ?? value}
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={() => {
+        if (draft !== null && draft !== value) onCommit(draft);
+        setDraft(null);
+      }}
+      // Enter commits without having to click away, which is what somebody
+      // filling in five fields in a row expects of the last one.
+      onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur(); }}
+    />
+  );
+}
 
 export function MailboxSettings() {
   const t = useT();
@@ -281,9 +323,9 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
 
       {open && (
         <div className="flex flex-col gap-2 mt-2">
-          <Input
+          <FieldOnRow
             aria-label={t('mailbox.name')} placeholder={t('mailbox.name')}
-            value={mailbox.name ?? ''} onChange={(event) => patch({ name: event.target.value })}
+            value={mailbox.name ?? ''} onCommit={(name) => patch({ name })}
           />
           {/*
             The host on its own line, and not sharing one with the port and the
@@ -294,14 +336,18 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
             most important field on the screen rendered as a two-pixel sliver,
             and `check:responsive` was happy because nothing overflowed.
           */}
-          <Input
+          <FieldOnRow
             aria-label={t('mailbox.host')} placeholder="imap.example.com"
-            value={mailbox.host ?? ''} onChange={(event) => patch({ host: event.target.value })}
+            value={mailbox.host ?? ''} onCommit={(host) => patch({ host })}
           />
           <div className="flex items-center gap-2">
-            <Input
+            <FieldOnRow
               type="number" aria-label={t('mailbox.port')} className="w-24 flex-none"
-              value={String(mailbox.port ?? 993)} onChange={(event) => patch({ port: Number(event.target.value) })}
+              value={String(mailbox.port ?? 993)}
+              // An empty box is somebody midway through retyping, not a request
+              // for port 0 — which the server would clamp back to 993, handing
+              // them the number they were trying to get rid of.
+              onCommit={(port) => { if (port.trim()) patch({ port: Number(port) }); }}
             />
             <Select
               className="flex-1 min-w-0"
@@ -314,9 +360,9 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
               <option value="none">{t('mailbox.encryptionNone')}</option>
             </Select>
           </div>
-          <Input
+          <FieldOnRow
             aria-label={t('mailbox.username')} placeholder={mailbox.address}
-            value={mailbox.username ?? ''} onChange={(event) => patch({ username: event.target.value })}
+            value={mailbox.username ?? ''} onCommit={(username) => patch({ username })}
           />
 
           {/*
@@ -386,10 +432,13 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
               raising it makes the next poll go back further. */}
           <label className="flex items-center gap-2 text-[12px] text-muted">
             {t('mailbox.syncDays')}
-            <Input
+            <FieldOnRow
               type="number" style={{ width: 100 }} aria-label={t('mailbox.syncDays')}
               value={String(mailbox.sync_days ?? 365)}
-              onChange={(event) => patch({ sync_days: Number(event.target.value) })}
+              // Empty is midway through typing; `0` is a real answer here and
+              // has to survive, so the guard is on the blank rather than on the
+              // number being falsy.
+              onCommit={(days) => { if (days.trim()) patch({ sync_days: Number(days) }); }}
             />
           </label>
 
