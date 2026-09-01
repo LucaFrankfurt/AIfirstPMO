@@ -21,7 +21,7 @@ import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from
 import { env } from '../../../kernel/platform/env.ts';
 import { randomBytes } from 'node:crypto';
 import { checkMailbox } from '../../../kernel/mail/mailbox.ts';
-import { credentialsFor, findMailbox, mailboxView, setPassword, visibleMailboxes } from '../mailboxes.ts';
+import { configOf, credentialsFor, findMailbox, mailboxView, setPassword, visibleMailboxes } from '../mailboxes.ts';
 import { availableProviders, providerNamed, storeTokens } from '../oauth.ts';
 import { attachmentsOf } from '../store.ts';
 import { countMail, narrow, readMessage, searchMail, threadOf } from '../search.ts';
@@ -178,7 +178,7 @@ export function registerMailboxRoutes(router: Router): void {
     const body = await readJson<{ password?: string }>(ctx);
     const password = String(body.password ?? '');
     if (!password) throw badRequest('A password is needed to sign in to a mailbox');
-    const wrong = checkMailbox({ ...rowConfig(mailbox), credential: { kind: 'password', password } });
+    const wrong = checkMailbox({ ...configOf(mailbox), credential: { kind: 'password', password } });
     if (wrong) throw badRequest(wrong);
     setPassword(String(mailbox.id), password, auth.userId);
     return { ok: true };
@@ -353,13 +353,6 @@ function admin(ctx: Ctx): { auth: ReturnType<typeof requireAuth>; mailbox: Row }
   if (!mailbox) throw notFound('No such mailbox');
   return { auth, mailbox };
 }
-
-const rowConfig = (row: Row) => ({
-  host: String(row.host ?? ''),
-  port: Number(row.port ?? 993),
-  encryption: String(row.encryption ?? 'tls') as 'none' | 'starttls' | 'tls',
-  username: String(row.username ?? ''),
-});
 
 /** `?q=` in the box's own dialect, with named parameters winning over it. */
 function filterFrom(ctx: Ctx): MailFilter {

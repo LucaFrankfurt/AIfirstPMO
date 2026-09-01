@@ -94,6 +94,38 @@ export function parseMailboxUrl(raw: string): MailboxConfig | null {
 }
 
 /**
+ * A host name as it was meant, from a host name as it was pasted.
+ *
+ * Hostnames are typed once and almost always by copying them out of a hosting
+ * panel, which is how one arrived here reading `calendoora-de.netcup-mail.de`
+ * and being refused for containing a space. It did contain one — the field
+ * simply cannot show it. The old refusal then said "a host name has no spaces
+ * in it" to somebody looking straight at a host name with no spaces in it,
+ * which is the worst thing an error message can do: contradict the screen.
+ *
+ * So the invisible ones are removed rather than reported. Zero-width marks and
+ * a byte-order mark carry no meaning in a host name and cannot be seen
+ * anywhere, so they go wherever they sit; ordinary whitespace goes from the
+ * ends, where it is equally invisible. `trim` covers the non-breaking space at
+ * an end too, which is what a panel that pretty-prints its own output leaves
+ * behind.
+ *
+ * A space in the *middle* is deliberately left alone. That one is visible, so
+ * it is a typo somebody can see and fix, and silently deleting it would turn
+ * "mail example com" into a host that resolves to something else entirely.
+ */
+export const cleanHost = (value: string): string => value.replace(/[\u200B-\u200D\uFEFF]/g, '').trim();
+
+/** What to call a character in a sentence somebody has to act on. */
+export const nameOfCharacter = (character: string): string => {
+  const point = `U+${character.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`;
+  if (character === ' ') return 'a space';
+  if (character === '\u00a0') return `a non-breaking space (${point})`;
+  if (/\s/.test(character)) return `whitespace (${point})`;
+  return `"${character}" (${point})`;
+};
+
+/**
  * Is this something worth trying to connect to? A sentence if not.
  *
  * Shaped like the checks in `settings.ts` — `null` for fine, prose for wrong —
@@ -110,7 +142,10 @@ export function checkMailbox(config: Partial<MailboxConfig> & { address?: string
   if (config.address !== undefined && !isEmailAddress(config.address)) {
     return 'That is not an email address';
   }
-  if (!config.host || !/^[A-Za-z0-9.:_-]+$/.test(config.host)) return 'A host name has no spaces in it';
+  const host = cleanHost(String(config.host ?? ''));
+  if (!host) return 'A mailbox needs a host to connect to';
+  const stray = host.match(/[^A-Za-z0-9.:_-]/);
+  if (stray) return `A host name is letters, digits, dots and dashes — this one has ${nameOfCharacter(stray[0])} in it`;
   const port = Number(config.port);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) return 'A port is a number from 1 to 65535';
   if (!isMailEncryption(config.encryption)) return 'Encryption is tls, starttls or none';

@@ -39,6 +39,7 @@ import { env, refreshEnv, useSettingsSource } from './env.ts';
 import { isEmailAddress } from '../mail/address.ts';
 import { badRequest } from './http.ts';
 import { isEncryption } from '../mail/relay.ts';
+import { cleanHost, nameOfCharacter } from '../mail/mailbox.ts';
 import { seal as sealWith, unseal as unsealWith } from './seal.ts';
 
 export type SettingGroup = 'mail' | 'telegram' | 'ai';
@@ -72,8 +73,16 @@ const port = (value: string): string | null => {
 const address = (value: string): string | null =>
   (isEmailAddress(value) ? null : 'That is not an email address this server can send from');
 
-const host = (value: string): string | null =>
-  (/^[A-Za-z0-9.:_-]+$/.test(value) ? null : 'A host name has no spaces in it');
+// The relay host, and the same trap the mailbox host fell into: this is pasted
+// out of a hosting panel, so what it picks up at the edges is invisible here.
+// `checkMailbox` carries the reasoning; this is the same rule for the other
+// host on the instance.
+const host = (value: string): string | null => {
+  const cleaned = cleanHost(value);
+  if (!cleaned) return 'A relay needs a host to connect to';
+  const stray = cleaned.match(/[^A-Za-z0-9.:_-]/);
+  return stray ? `A host name is letters, digits, dots and dashes — this one has ${nameOfCharacter(stray[0])} in it` : null;
+};
 
 const httpUrl = (value: string): string | null => {
   try {

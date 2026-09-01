@@ -19,7 +19,7 @@ import { isEmailAddress } from '../../../kernel/mail/address.ts';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import { hasFeature } from '../../../kernel/platform/features.ts';
-import { isMailEncryption } from '../../../kernel/mail/mailbox.ts';
+import { cleanHost, isMailEncryption } from '../../../kernel/mail/mailbox.ts';
 import { type EntityRule, parseIds, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 import { clearPassword } from '../mailboxes.ts';
 import { forgetMailbox } from '../store.ts';
@@ -72,6 +72,26 @@ function applyMailboxInvariants(values: Record<string, unknown>, forced: Record<
   if (values.address !== undefined) {
     const folded = foldAddress(String(values.address));
     if (folded !== values.address) settle('address', folded);
+  }
+  /*
+   * The two fields that are pasted rather than typed.
+   *
+   * Everything else here tidies a shape; these two tidy a *copy*. A host and a
+   * login come out of a hosting panel by selection, and a selection picks up
+   * whatever sits at its edges — which for one instance was a zero-width space
+   * on the host, invisible in the field and fatal at the regex.
+   *
+   * The username matters for the same reason and fails worse: nothing
+   * validates it, so a trailing space is not an error message, it is
+   * AUTHENTICATIONFAILED against a password that is perfectly correct.
+   */
+  if (values.host !== undefined) {
+    const host = cleanHost(String(values.host));
+    if (host !== values.host) settle('host', host);
+  }
+  if (values.username !== undefined) {
+    const username = String(values.username).trim();
+    if (username !== values.username) settle('username', username);
   }
   if (values.access !== undefined && !isMailboxAccess(values.access)) settle('access', 'workspace');
   if (values.encryption !== undefined && !isMailEncryption(values.encryption)) settle('encryption', 'tls');
