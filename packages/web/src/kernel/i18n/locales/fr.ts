@@ -1771,6 +1771,7 @@ export const fr: Catalogue = {
   'mailbox.messages_one': '{count} message',
   'mailbox.messages_other': '{count} messages',
   'mail.title': 'Courrier',
+  'mail.search': 'Rechercher',
   'mail.searchPlaceholder': 'from:stripe since:2024-01 facture',
   'mail.searchHint': 'Les mots cherchent dans l’objet, le texte et les noms de fichiers. Préfixes : from, to, subject, since, until, file — et von, an, betreff, seit, bis, anhang.',
   'mail.documents': 'Justificatifs',

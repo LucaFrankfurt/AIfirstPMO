@@ -1773,6 +1773,7 @@ export const en = {
   'mailbox.messages_one': '{count} message',
   'mailbox.messages_other': '{count} messages',
   'mail.title': 'Mail',
+  'mail.search': 'Search',
   'mail.searchPlaceholder': 'from:stripe since:2024-01 invoice',
   'mail.searchHint': 'Words search the subject, body and attachment names. Prefixes: from, to, subject, since, until, file — and von, an, betreff, seit, bis, anhang.',
   'mail.documents': 'Documents',

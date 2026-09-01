@@ -29,6 +29,7 @@
  * Run: node scripts/a11y.mjs
  */
 import { chromium, devices } from 'playwright';
+import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 
@@ -361,15 +362,30 @@ for (const [label, options] of MODES) {
     return (body.projects ?? body)[0]?.id;
   });
 
+  // Mail is off in a seeded workspace, so its two screens are unreachable
+  // rather than merely unchecked. See `mail-fixture.mjs`.
+  await switchOnMail(page);
+
+  /*
+   * A screen is a path, or a path and what to do once it has loaded.
+   *
+   * The second form exists for one screen. The mailbox editor is a fold, and
+   * what this file looks for lives inside it: seven fields whose only name is
+   * an `aria-label`, and a row of icon buttons — the exact shape that fails
+   * the name rule most often, sitting behind one click nothing was making.
+   */
   const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/teams', '/planner',
-    '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance', '/guide'];
+    '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
+    '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/guide'];
 
   const found = new Map();
   const small = new Map();
 
-  for (const path of SCREENS) {
+  for (const screen of SCREENS) {
+    const [path, prepare] = Array.isArray(screen) ? screen : [screen];
     await page.goto(base + path, { waitUntil: 'networkidle' });
     await page.keyboard.press('Escape');
+    if (prepare) await prepare(page);
     await page.waitForTimeout(350);
     for (const hit of await page.evaluate(PROBE)) if (!found.has(hit)) found.set(hit, path);
     for (const hit of await page.evaluate(TARGETS)) if (!small.has(hit)) small.set(hit, path);

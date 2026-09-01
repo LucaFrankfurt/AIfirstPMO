@@ -151,7 +151,15 @@ export function MailScreen() {
             placeholder={t('mail.searchPlaceholder')}
             value={query} onChange={(event) => setQuery(event.target.value)}
           />
-          <Button type="submit" disabled={loading}><Icon name="search" size={14} /></Button>
+          {/*
+            Named, because the icon is the whole button. A magnifier reads as
+            "button" and nothing else to a screen reader — the failure `a11y.mjs`
+            calls the most common one in every audit, and the one it found here
+            the first time it was pointed at this screen.
+          */}
+          <Button type="submit" aria-label={t('mail.search')} disabled={loading}>
+            <Icon name="search" size={14} />
+          </Button>
         </form>
         <p className="text-[12px] text-muted mt-1">{t('mail.searchHint')}</p>
         {error && <p className="text-[12px] text-danger">{error}</p>}
