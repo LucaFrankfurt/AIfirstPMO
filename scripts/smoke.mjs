@@ -1136,16 +1136,38 @@ await step('a connector can be authorised in a browser', async () => {
   const popup = await browser.newContext({ viewport: { width: 900, height: 800 }, locale, storageState: await ctx.storageState() });
   const view = await popup.newPage();
   let code = '';
+  /*
+   * Waited for, not slept through.
+   *
+   * This used to press Allow, sleep a flat 1.2s and read `code`, and it failed
+   * on a CI runner reporting a form-action policy that was never wrong. The
+   * request trace says why: the 302 is followed immediately, but Chromium
+   * issues the callback request *twice* — once during the click, and again
+   * about 1.05s later — and only the second one is the one the route handler
+   * is given. The old budget straddled that gap by roughly 150ms, so which
+   * side of it a run landed on was the runner's business, not this instance's.
+   *
+   * So wait for the redirect itself. Then the gap can be whatever it likes.
+   */
+  let arrived = () => {};
+  const back = new Promise((resolve) => { arrived = resolve; });
   await view.route(`${redirect}*`, (route) => {
     code = new URL(route.request().url()).searchParams.get('code') ?? '';
     route.fulfill({ status: 200, contentType: 'text/html', body: 'ok' });
+    arrived();
   });
   try {
     await view.goto(`${base}/oauth/authorize?${query}`);
     await view.waitForSelector('.box form', { timeout: 10000 });
     await view.locator('button.primary').click();
-    await view.waitForTimeout(1200);
+    const pressed = Date.now();
+    // `unref`, so a redirect that never comes cannot hold the process open past
+    // the failure it is about to report.
+    await Promise.race([back, new Promise((resolve) => setTimeout(resolve, 15000).unref())]);
     if (!code) throw new Error('pressing Allow produced no code — check the page\'s form-action policy');
+    // Printed rather than assumed: the next time this drifts, the log says how
+    // close it came instead of only whether it made it.
+    console.log('     the browser came back with a code after', Date.now() - pressed, 'ms');
 
     const granted = await (await fetch(`${base}/oauth/token`, {
       method: 'POST',
