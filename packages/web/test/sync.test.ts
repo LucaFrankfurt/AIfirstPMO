@@ -188,6 +188,64 @@ describe('coming back after a reload', () => {
   });
 });
 
+describe('a write the server refuses', () => {
+  it('leaves nothing behind when it was a create', async () => {
+    /*
+     * The bug this pins: `undo` re-read the rejected row from the server and
+     * swallowed the 404, on the theory that "the next full sync settles it".
+     * A pull is a delta, and a row that was never created is a row no delta
+     * will ever mention — so the optimistic copy stayed on the device, looking
+     * exactly like a duplicate the server had accepted.
+     *
+     * Found by connecting the same mailbox twice on a screen, which is the
+     * case where a person can trip a uniqueness rule by typing. Every other
+     * guard fires on moves the interface does not offer, which is why this
+     * survived so long.
+     */
+    await otherDevice(`/api/workspaces/${workspaceId}`, { features: { mail: true } }, 'PATCH');
+    const first = await otherDevice(`/api/workspaces/${workspaceId}/mailboxes`, {
+      address: 'support@example.com', host: 'imap.example.com',
+    });
+    await sync.pull();
+    assert.equal(store.byId('mailbox', first.id)?.address, 'support@example.com');
+
+    // The same address again, from this device. The server refuses it.
+    const doomed = mutations.create('mailbox', {
+      address: 'support@example.com', host: 'imap.example.com', port: 993, encryption: 'tls',
+      access: 'workspace', members: [], enabled: 1, sync_days: 365,
+    });
+    assert.ok(store.byId('mailbox', doomed), 'the optimistic row is shown while it is in flight');
+
+    await sync.flush();
+    await settle(20);
+
+    assert.equal(store.byId('mailbox', doomed), undefined, 'the refused row is gone from the store');
+    assert.equal((await idb.readAll('mailbox')).some((row: any) => row.id === doomed), false,
+      'and gone from IndexedDB, or a reload brings it back');
+    // The one the server did take is untouched.
+    assert.equal(store.byId('mailbox', first.id)?.address, 'support@example.com');
+  });
+
+  it('keeps a row the server merely would not change', async () => {
+    /*
+     * The other half, and the reason the fix is narrow. A row that came down a
+     * pull has a `seq`; the server had it once. A rejection then means the edit
+     * was refused, not that the row is imaginary — so it is re-read and kept,
+     * never dropped.
+     */
+    const mailbox = store.list('mailbox')[0];
+    assert.ok(mailbox?.seq, 'this row came from the server');
+    // A restricted mailbox with nobody on it is refused by the entity rule —
+    // a real rejection, not a value the server quietly corrects, which is what
+    // an invalid port would have been.
+    mutations.update('mailbox', mailbox.id, { access: 'members', members: [] });
+    await sync.flush();
+    await settle(20);
+    assert.ok(store.byId('mailbox', mailbox.id), 'a refused edit does not delete the row');
+    assert.equal(store.byId('mailbox', mailbox.id)?.access, 'workspace', 'and the refused change is undone');
+  });
+});
+
 describe('the store itself', () => {
   it('hides deleted rows from lists but keeps them for the sync engine', () => {
     const id = crypto.randomUUID();

@@ -248,16 +248,26 @@ function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRe
             aria-label={t('mailbox.name')} placeholder={t('mailbox.name')}
             value={mailbox.name ?? ''} onChange={(event) => patch({ name: event.target.value })}
           />
+          {/*
+            The host on its own line, and not sharing one with the port and the
+            encryption. It shared one, and the shared row did not work: every
+            control here carries `w-full` from the design system, so in a flex
+            row the `<select>` — whose longest option is "STARTTLS (143)" —
+            grew to its content and squeezed the host input to nothing. The
+            most important field on the screen rendered as a two-pixel sliver,
+            and `check:responsive` was happy because nothing overflowed.
+          */}
+          <Input
+            aria-label={t('mailbox.host')} placeholder="imap.example.com"
+            value={mailbox.host ?? ''} onChange={(event) => patch({ host: event.target.value })}
+          />
           <div className="flex items-center gap-2">
             <Input
-              className="flex-1 min-w-0" aria-label={t('mailbox.host')} placeholder="imap.example.com"
-              value={mailbox.host ?? ''} onChange={(event) => patch({ host: event.target.value })}
-            />
-            <Input
-              type="number" aria-label={t('mailbox.port')} style={{ width: 90 }}
+              type="number" aria-label={t('mailbox.port')} className="w-24 flex-none"
               value={String(mailbox.port ?? 993)} onChange={(event) => patch({ port: Number(event.target.value) })}
             />
             <Select
+              className="flex-1 min-w-0"
               aria-label={t('mailbox.encryption')}
               value={mailbox.encryption ?? 'tls'}
               onChange={(event) => patch({ encryption: event.target.value as Mailbox['encryption'] })}

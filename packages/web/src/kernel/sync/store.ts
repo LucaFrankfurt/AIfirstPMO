@@ -219,6 +219,18 @@ export function purgedRows(changes: ChangeSet): { store: string; keys: string[] 
   return [...byStore].map(([store, keys]) => ({ store, keys }));
 }
 
+/**
+ * Forget a row this device invented and the server would not take.
+ *
+ * Not a delete: a delete is a tombstone that syncs, and there is nothing to
+ * tell anybody about — the row never existed anywhere but here. It is dropped
+ * from the table outright, and `sync.ts` drops it from IndexedDB in the same
+ * breath.
+ */
+export function forgetLocal(entity: EntityName, id: string): void {
+  if (tables[entity].delete(id)) bump(entity);
+}
+
 /** Merge one row locally (optimistic update). */
 export function patchLocal(entity: EntityName, id: string, patch: Record<string, unknown>): Record<string, any> {
   const table = tables[entity];

@@ -14,7 +14,7 @@ import { api, ApiError } from './api';
 import { serverUrl, sessionToken } from './server';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
-import { applyChanges, hydrate, notifyStore, purgedRows, reset } from './store';
+import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
@@ -255,8 +255,34 @@ async function undo(rejected: Mutation[]): Promise<void> {
       const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[mutation.entity]}/${mutation.entityId}`);
       applyChanges({ [mutation.entity]: [row] } as ChangeSet);
       await persist({ [mutation.entity]: [row] } as ChangeSet);
-    } catch {
-      // The row is gone, or unreadable now. The next full sync settles it.
+    } catch (error) {
+      /*
+       * A row the server does not have, because it refused to create it.
+       *
+       * "The next full sync settles it" was the comment here, and it does not:
+       * a pull is a delta, and a row that was never created is a row no delta
+       * will ever mention. So the optimistic copy stayed on the device
+       * indefinitely — visible, editable, and gone the moment anybody reloaded
+       * from a snapshot. It looked exactly like a duplicate the server had
+       * accepted.
+       *
+       * Rare by design, as the note above says, because the interface does not
+       * offer moves the rules forbid — but connecting a mailbox is the case
+       * where a person can trip a uniqueness rule by typing, and it turned two
+       * rows out of one.
+       *
+       * Narrow on purpose. Only a definite 404, and only for a row this device
+       * invented: a row that has a `seq` came down a pull, so the server had it
+       * once and a 404 now means something else — deleted elsewhere, or a
+       * permission that changed — and dropping it locally would be guessing.
+       */
+      const invented = !byId(mutation.entity, mutation.entityId)?.seq;
+      if (error instanceof ApiError && error.status === 404 && invented) {
+        forgetLocal(mutation.entity, mutation.entityId);
+        await idb.remove(mutation.entity, mutation.entityId);
+        continue;
+      }
+      // Anything else: gone, unreadable, or a bad moment on the network.
     }
   }
 }
