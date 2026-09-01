@@ -1,6 +1,6 @@
 import {
-  COLLECTIONS, ENTITIES, IMPORT_FIELDS, convert, detectFormat, guessMapping, isCrossWorkspace, isGuestWritable,
-  parseCsv,
+  COLLECTIONS, ENTITIES, IMPORT_FIELDS, canReadMailbox, convert, detectFormat, guessMapping, isCrossWorkspace,
+  isGuestWritable, parseCsv,
   type EntityName, type ImportField, type Mapping,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../platform/db/index.ts';
@@ -12,7 +12,7 @@ import { automationRuns, instantiateTemplate } from '../../../modules/automation
 import { importCsv } from '../../../adapters/transfer/import.ts';
 import { copyProject, type CopyOptions } from '../../../modules/planning/copy.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
-import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, serialize, writeEntity } from '../repo.ts';
+import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, parseIds, serialize, writeEntity } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
 
@@ -88,6 +88,43 @@ function guardChat(userId: string, entity: EntityName, row: Row): void {
   if (entity === 'channelRead' && row.user_id !== userId) {
     throw forbidden('That read marker is somebody else\'s');
   }
+}
+
+/**
+ * A mailbox guards itself, and it is the fifth door onto the same rule.
+ *
+ * The other four — `canReadMailbox` in shared, the sync filter's SQL,
+ * `visibleMailboxes` for the mail routes, the same function again behind every
+ * MCP tool — were all in place, and this one was not, which is exactly how a
+ * rule with several spellings goes wrong. `GET /api/mailboxes/<id>` handed any
+ * member of the workspace the row for a restricted inbox: not the password,
+ * which is a `secret` in its own table, but its host, its login name, and the
+ * list of who is allowed to read it.
+ *
+ * `PATCH` and `DELETE` go through the same guard, and there the stake is
+ * higher: without it a member could not only read that row but repoint the
+ * mailbox at a host they control — which is `admin@`'s credential being tried
+ * against somebody else's server. The entity rule already refuses a write from
+ * a non-admin; this is the check that also refuses one from an admin who has
+ * been left off the list.
+ *
+ * `canReadMailbox` rather than a fresh clause, because the point of a rule with
+ * five spellings is that all five say the same thing.
+ */
+function guardMailbox(userId: string, entity: EntityName, row: Row): void {
+  if (entity !== 'mailbox') return;
+  const members = ((): string[] => {
+    try {
+      const parsed = JSON.parse(String(row.members ?? '[]'));
+      return Array.isArray(parsed) ? parsed.map(String) : [];
+    } catch {
+      return [];
+    }
+  })();
+  // An `access` value nobody recognises reads as restricted with nobody on it,
+  // which is the direction a corrupted row should fail in.
+  const access = row.access === 'workspace' || row.access === 'members' ? row.access : 'members';
+  if (!canReadMailbox({ access, members }, userId)) throw forbidden('That mailbox is not yours to read');
 }
 
 /**
@@ -546,6 +583,15 @@ export function registerEntityRoutes(router: Router): void {
       .filter((row) => entity !== 'budget' || canSeeBudget(auth.userId, String(row.id)))
       .filter((row) => !BUDGET_CHILDREN.has(entity) || canSeeBudget(auth.userId, String(row.budget_id)))
       .filter((row) => entity !== 'kpi' || canSeeKpi(auth.userId, String(row.id)))
+      // `mail/routes` registers a more specific handler for this collection and
+      // wins the match — so this line is never what answers a mailbox list. It
+      // is here because "a more specific route is registered first" is a fact
+      // about `index.ts` and not a property of this file, and a rule that holds
+      // only while somebody remembers the registration order is not a rule.
+      .filter((row) => entity !== 'mailbox' || canReadMailbox({
+        access: row.access === 'workspace' ? 'workspace' : 'members',
+        members: parseIds(row.members),
+      }, auth.userId))
       .filter((row) => !KPI_CHILDREN.has(entity) || canSeeKpi(auth.userId, String(row.kpi_id)))
       .map((row) => serialize(entity, row));
   });
@@ -593,6 +639,7 @@ export function registerEntityRoutes(router: Router): void {
     requireWorkspace(ctx, row.workspace_id);
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
+    guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
@@ -609,6 +656,7 @@ export function registerEntityRoutes(router: Router): void {
     if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot edit content');
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
+    guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
@@ -630,6 +678,7 @@ export function registerEntityRoutes(router: Router): void {
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
+    guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));

@@ -1410,3 +1410,171 @@ CREATE TABLE IF NOT EXISTS instance_settings (
   updated_at INTEGER NOT NULL,
   updated_by TEXT
 );
+
+-- A mail account this workspace has connected. Syncable, so the settings
+-- screen and the client's mailbox list come down the same pull as everything
+-- else — but note what is *not* here: the password. That lives in
+-- `mailbox_credentials`, sealed, and is never selected into a sync feed.
+CREATE TABLE IF NOT EXISTS mailboxes (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  address      TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  host         TEXT NOT NULL DEFAULT '',
+  port         INTEGER NOT NULL DEFAULT 993,
+  encryption   TEXT NOT NULL DEFAULT 'tls',
+  username     TEXT NOT NULL DEFAULT '',
+  -- Which folders to read. Empty means INBOX alone, which is what almost every
+  -- shared inbox wants: Sent and Archive double the storage and are usually
+  -- the same conversations seen from the other end.
+  folders      TEXT NOT NULL DEFAULT '[]',
+  -- 'workspace' or 'members'. See `canReadMailbox`, which is the one place the
+  -- question is answered, and note that an empty `members` list on a
+  -- restricted mailbox means nobody rather than everybody.
+  access       TEXT NOT NULL DEFAULT 'workspace',
+  members      TEXT NOT NULL DEFAULT '[]',
+  enabled      INTEGER NOT NULL DEFAULT 1,
+  -- How far back the first pass reaches. 0 is everything, which on a ten-year
+  -- inbox is a long first night and exactly what somebody hunting for old tax
+  -- documents asked for.
+  sync_days    INTEGER NOT NULL DEFAULT 365,
+  created_by   TEXT,
+  last_sync_at INTEGER,
+  last_error   TEXT,
+  last_status  TEXT NOT NULL DEFAULT 'never',
+  message_count INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS mailboxes_seq ON mailboxes (workspace_id, seq);
+CREATE UNIQUE INDEX IF NOT EXISTS mailboxes_address ON mailboxes (workspace_id, address) WHERE deleted_at IS NULL;
+
+-- The password, in its own table and sealed.
+--
+-- Its own table rather than a column on `mailboxes` because of what the sync
+-- feed does: it selects whole rows. `serialize` drops `secret` fields on the
+-- way out and that is a real guard, but it is one line standing between a
+-- credential and every device in the workspace, and the credential is for
+-- somebody else's mail server. A column that is never selected is a stronger
+-- statement than a column that is selected and then deleted — and the day a
+-- new read path forgets, this one has nothing to forget.
+--
+-- The seal is the same one `instance_settings` uses: AES-256-GCM under a key
+-- derived from the instance secret, which lives beside the database rather
+-- than inside it, so a copied backup is not a copied inbox.
+CREATE TABLE IF NOT EXISTS mailbox_credentials (
+  mailbox_id TEXT PRIMARY KEY,
+  -- The long-lived credential, sealed: a password, or an OAuth refresh token.
+  -- One column for both because they are the same thing to everything that
+  -- touches this row — the secret that outlives a session and must never be
+  -- read back out — and `kind` is what tells them apart where it matters.
+  secret     TEXT NOT NULL,
+  -- 'password' or 'oauth'.
+  kind       TEXT NOT NULL DEFAULT 'password',
+  -- Which provider minted it, for the refresh. Empty for a password.
+  provider   TEXT NOT NULL DEFAULT '',
+  -- The short-lived half, sealed too. Cached rather than fetched per poll: a
+  -- token endpoint hit every five minutes per mailbox is a rate limit waiting
+  -- to happen, and the provider already told us when it expires.
+  --
+  -- Named `access_token` and not `access`, which is what it was called for
+  -- about an hour: `mailboxes.access` two tables away means who is allowed to
+  -- read the inbox, and two columns with one name meaning two things is a join
+  -- somebody writes wrong later without either side looking odd.
+  access_token TEXT,
+  expires_at INTEGER,
+  updated_at INTEGER NOT NULL,
+  updated_by TEXT
+);
+
+-- One message, as it was found in a mailbox.
+--
+-- Not an entity, and the reason is worth stating where the rows are: a mailbox
+-- has tens of thousands of these, and syncing them into every device's mirror
+-- to make an assistant's search work would be the largest storage cost in the
+-- product paid for the one reader that is not a browser. They are read over the
+-- API and MCP, both of which check `canReadMailbox` first.
+--
+-- `uid` is the mailbox's own number for the message within a folder, and
+-- `(mailbox_id, folder, uid)` is what makes a re-poll idempotent: IMAP promises
+-- a UID is stable and never reused while `uidvalidity` holds, so the poller
+-- fetches "everything above the highest UID I have" and a restart mid-fetch
+-- costs a duplicate of nothing.
+CREATE TABLE IF NOT EXISTS mail_messages (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  mailbox_id   TEXT NOT NULL,
+  folder       TEXT NOT NULL DEFAULT 'INBOX',
+  uid          INTEGER NOT NULL,
+  -- The `Message-ID` header. Not unique here on purpose: the same message
+  -- arrives in `support@` and in `info@` when somebody was in Cc, and both
+  -- copies are real — a search for it should say it went to both.
+  message_id   TEXT NOT NULL DEFAULT '',
+  -- What ties a reply to what it answers: the first id in `References`, or the
+  -- message's own when it started the conversation.
+  thread_key   TEXT NOT NULL DEFAULT '',
+  subject      TEXT NOT NULL DEFAULT '',
+  from_name    TEXT NOT NULL DEFAULT '',
+  from_address TEXT NOT NULL DEFAULT '',
+  to_addresses TEXT NOT NULL DEFAULT '[]',
+  cc_addresses TEXT NOT NULL DEFAULT '[]',
+  sent_at      INTEGER NOT NULL,
+  seen         INTEGER NOT NULL DEFAULT 0,
+  has_attachments INTEGER NOT NULL DEFAULT 0,
+  size         INTEGER NOT NULL DEFAULT 0,
+  -- The first couple of hundred characters, so a result list needs no second
+  -- query and a hundred hits do not drag a hundred bodies into memory.
+  snippet      TEXT NOT NULL DEFAULT '',
+  body         TEXT NOT NULL DEFAULT '',
+  fetched_at   INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS mail_messages_uid ON mail_messages (mailbox_id, folder, uid);
+CREATE INDEX IF NOT EXISTS mail_messages_sent ON mail_messages (mailbox_id, sent_at);
+CREATE INDEX IF NOT EXISTS mail_messages_from ON mail_messages (workspace_id, from_address);
+CREATE INDEX IF NOT EXISTS mail_messages_thread ON mail_messages (workspace_id, thread_key);
+
+-- What was attached, without the bytes.
+--
+-- The bytes are fetched from the mail server on demand rather than copied here,
+-- which is the one place this differs from how attachments on a task work. Two
+-- reasons: a mailbox is somebody else's store and already holds them, and an
+-- invoice PDF that has been copied into this database is a second copy to keep,
+-- to back up and to delete on request. `part` is the MIME section number, which
+-- is all IMAP needs to hand back one part of one message.
+CREATE TABLE IF NOT EXISTS mail_attachments (
+  id         TEXT PRIMARY KEY,
+  message_id TEXT NOT NULL,
+  mailbox_id TEXT NOT NULL,
+  filename   TEXT NOT NULL DEFAULT '',
+  mime       TEXT NOT NULL DEFAULT 'application/octet-stream',
+  size       INTEGER NOT NULL DEFAULT 0,
+  part       TEXT NOT NULL DEFAULT '1'
+);
+CREATE INDEX IF NOT EXISTS mail_attachments_message ON mail_attachments (message_id);
+CREATE INDEX IF NOT EXISTS mail_attachments_name ON mail_attachments (mailbox_id, filename);
+
+-- Mail has its own index rather than a corner of `search_index`.
+--
+-- Not a workaround for the visibility rule — that one is answered the same way
+-- either side. It is that the two corpora want different queries: everything in
+-- `search_index` is found by words, and mail is found by words *and* by who
+-- sent it, when, and whether it had a PDF attached. Folding those filters into
+-- a table whose other rows have no sender would mean four unindexed columns on
+-- every task and page ever written.
+--
+-- The filename is indexed with the body, which is what makes the search this
+-- exists for work at all: `Rechnung_2024_08.pdf` is a stronger claim about a
+-- message than anything in its subject line.
+CREATE VIRTUAL TABLE IF NOT EXISTS mail_index USING fts5 (
+  message_id UNINDEXED,
+  mailbox_id UNINDEXED,
+  workspace_id UNINDEXED,
+  subject,
+  correspondents,
+  body,
+  filenames,
+  tokenize = 'unicode61 remove_diacritics 2'
+);

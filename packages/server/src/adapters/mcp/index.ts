@@ -28,6 +28,7 @@ import { budgetTools } from './tools/budgets.ts';
 import { rateTools } from './tools/rates.ts';
 import { infrastructureTools } from './tools/infrastructure.ts';
 import { reportTools } from './tools/reports.ts';
+import { mailTools } from './tools/mail.ts';
 
 /** The route and the stdio bridge both hand one of these to `handleRpc`. */
 export type { McpCtx };
@@ -67,6 +68,7 @@ const TOOLS: ToolDef[] = [
   ...budgetTools,
   ...rateTools,
   ...infrastructureTools,
+  ...mailTools,
   ...reportTools,
 ];
 
@@ -128,6 +130,23 @@ const PROMPTS = [
       `${args.template
         ? `Make a page from the "${args.template}" template with create_page_from_template.`
         : 'Show me list_page_templates and ask which one to use, then make a page from it with create_page_from_template.'} Title it for today's meeting. Then fill the template's sections in from prepare_meeting for ${inScope(args.project)} — keep the template's own headings and structure, and put the real numbers and task identifiers under them. Leave any section it has no data for as an empty heading rather than deleting it or inventing content, and file decisions as tasks only after I say so.`,
+  },
+  {
+    name: 'tax_documents',
+    title: 'Collect the tax documents',
+    description: 'Comb every connected mailbox for invoices, receipts and statements in a period, and list what is there and what looks missing.',
+    arguments: [
+      { name: 'year', description: 'Financial year, e.g. 2024. A period like 2024-01..2024-03 works too.', required: false },
+      { name: 'mailbox', description: 'One address, if it should not be all of them.', required: false },
+    ],
+    build: (args: Record<string, string>) => {
+      const [since, until] = (args.year ?? '').includes('..')
+        ? args.year.split('..')
+        : [args.year || '', args.year || ''];
+      const period = since ? ` with since="${since}" and until="${until}"` : '';
+      const where = args.mailbox ? ` in mailboxes=["${args.mailbox}"]` : '';
+      return `Call list_mailboxes first and say which mailboxes you are covering and how far back each one has actually been polled — an empty period may mean nothing was sent or may mean nothing was fetched, and the answer has to distinguish them. Then call find_documents${period}${where}. Read the highest-scoring candidates with get_mail rather than trusting the score: it ranks, it does not decide. Group what you find by supplier, give each a date and an amount where the message states one, and name the attachment that is the document. Close with two lists: what looks like a gap — a supplier that billed monthly and is missing a month, a subscription with no invoice — and what you were unsure about and why. Do not file anything as a task unless I ask.`;
+    },
   },
   {
     name: 'triage',

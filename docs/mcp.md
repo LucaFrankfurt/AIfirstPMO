@@ -230,7 +230,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_projects` | projects with open/done task counts |
 | `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
-| `search` | full text across tasks, pages, projects, comments, cycles, modules |
+| `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
 | `prepare_meeting` | **all six reports as one agenda**, in the order a meeting runs, with a `headline` of the numbers that decide whether it is a short one |
@@ -256,6 +256,14 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `landscape` | one day against another: what is gone by then, what has arrived, what the difference costs a year |
 | `list_moves` | the documented steps between landscapes, with how far the register says each really got |
 | `list_vendors` | suppliers, what each costs a year, and the day notice has to be given |
+| `list_mailboxes` | the connected mail accounts this token may read, with how fresh each copy is |
+| `search_mail` | one search across every readable mailbox at once |
+| `get_mail` | one message in full, with its recipients and what was attached |
+| `mail_thread` | the whole conversation, across every mailbox it touched |
+| `find_documents` | messages ranked by how likely they are to carry an invoice, receipt or statement, each with the evidence behind it |
+| `list_mail_attachments` | files across the mailboxes as one flat list — "every PDF from the Steuerberater in 2024" in one call |
+| `mail_stats` | volume by mailbox, month and weekday, top senders and domains, and reply times — with the window the copy actually covers |
+| `sync_mailbox` | poll one mailbox now rather than waiting for the next round, and say what it brought in |
 
 ### Reports
 
@@ -394,6 +402,40 @@ Three more details worth knowing before you trust a number:
 }
 ```
 
+### Mail, and the two things it will not do
+
+Nine tools over the connected mailboxes — see [mail.md](mail.md) for the whole feature. Two
+properties are worth knowing before calling any of them, because both shape what an answer can say.
+
+**Nothing writes to a mail server.** There is no send, no reply, no delete and no mark-as-read, and
+the IMAP session selects a folder with `EXAMINE`, so the *server* refuses them too. The one write in
+the group is `file_mail_as_task`, which writes to Kolibri: the message becomes work, in a project,
+with its sender, date and text carried across.
+
+**The copy is as old as the last poll.** Every tool answers from what has been fetched, not from the
+mailbox. `list_mailboxes` reports `last_sync_at` and `status` per mailbox for exactly this reason,
+and it is worth calling first — an empty 2019 is as likely to mean "not fetched" as "nothing there",
+and only that tool can tell them apart. `sync_mailbox` is the fix when the answer has to be current:
+it polls one mailbox on demand. It takes a write scope despite writing nothing, because it makes the
+instance open a connection to somebody else's server.
+
+Every tool resolves which mailboxes the token's account may read and constrains on that list. A
+restricted mailbox is invisible to everybody not named on it, workspace admins included. Naming a
+mailbox the caller cannot see drops it from the search rather than refusing — refusing would answer
+a question nobody asked, which is whether it exists — and `searched` comes back with every result so
+"nothing found" and "you cannot see that inbox" stay distinguishable.
+
+`find_documents` **ranks and does not decide**. It returns a score and, more usefully, `why`: the
+evidence in prose. What counts as tax-relevant is a judgement about a business, so nothing filters
+on the score and the answer is expected to read the top candidates with `get_mail` rather than trust
+the order.
+
+The filters are shared by `search_mail`, `find_documents`, `list_mail_attachments` and `mail_stats`:
+`from`, `to`, `subject`, `since`, `until`, `filename`, `has_attachment`, `unread`, `mailboxes`, and
+`query` — which takes the search box's own dialect, German prefixes included, so a person's typed
+words can be passed straight through. `since` and `until` accept a bare year or month, and `until`
+is inclusive to the end of the day it names.
+
 ### Writing
 
 | Tool | Notes |
@@ -427,6 +469,8 @@ Three more details worth knowing before you trust a number:
 | `set_kpi_target` | what it has to reach. Give `milestone` instead of `due_on` and the deadline moves when that milestone moves |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
+| `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |
+| `file_mail_as_task` | turn a connected mailbox's message into a task, carrying its sender, date and text |
 | `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
@@ -703,7 +747,7 @@ clients that parse), so no client has to guess.
 
 ## Prompts
 
-`prompts/list` exposes five workflows that chain the tools sensibly. This is the list a client
+`prompts/list` exposes six workflows that chain the tools sensibly. This is the list a client
 shows under "add from Kolibri" — it is **not** the tool list, so a client showing only these and
 your wiki pages there is showing you that menu rather than everything the server has.
 
@@ -713,6 +757,10 @@ your wiki pages there is showing you that menu rather than everything the server
 - **`standup`** *(project?)* — what moved, what is in flight, what is overdue, the top risk
 - **`sprint_planning`** *(project?, capacity?)* — propose the next cycle's scope from the backlog
 - **`triage`** *(project?)* — propose priority, owner and label for untriaged work, table first
+- **`tax_documents`** *(year?, mailbox?)* — comb every connected mailbox for invoices, receipts and
+  statements in a period, grouped by supplier, closing with what looks *missing*. It calls
+  `list_mailboxes` first on purpose, so the answer can say whether an empty month means nothing was
+  sent or nothing was fetched
 
 **`project` is optional on every one.** It used to be required, which meant none of them could
 answer for a workspace — "what do we talk about on Monday" is not a question about one project, and

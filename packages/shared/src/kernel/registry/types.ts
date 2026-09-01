@@ -417,6 +417,19 @@ export interface WorkspaceFeatures {
    * module, which every workspace already has.
    */
   kpi?: boolean;
+  /**
+   * Connected mailboxes: shared inboxes, searchable from one place and from an
+   * assistant.
+   *
+   * Off by default, and this is the switch with the most behind it. Turning it
+   * on means this instance holds a credential to somebody else's mail server
+   * and a copy of what is in it — which is a decision about the company rather
+   * than about a screen, and the only feature here where switching it off is
+   * not enough to undo it. So the switch hides the screens and makes MCP refuse
+   * to read, and the mailbox settings screen says in as many words that
+   * disconnecting a mailbox is what removes the messages.
+   */
+  mail?: boolean;
 }
 
 export interface Workspace {
@@ -1377,6 +1390,7 @@ export interface EntityMap {
   channel: Channel;
   message: Message;
   channelRead: ChannelRead;
+  mailbox: Mailbox;
   purge: Purge;
 }
 
@@ -1431,6 +1445,92 @@ export interface ChannelRead extends Base {
   user_id: ID;
   last_read_at: number;
   notify: ChannelNotify;
+}
+
+/* ------------------------------------------------------------------- mail */
+
+/** How the connection to a mail server is protected. Same three as the relay. */
+export type MailEncryption = 'none' | 'starttls' | 'tls';
+
+/** Who may read a mailbox — see `canReadMailbox`, which is the one place that decides. */
+export type MailboxAccessLevel = 'workspace' | 'members';
+
+/** What the poller made of its last attempt. */
+export type MailboxStatus = 'never' | 'ok' | 'failing';
+
+/**
+ * A mail account this workspace has connected.
+ *
+ * The credential is not here. `password` is a `secret` in the registry, so it
+ * is never sent to a client and never written by one — it goes in through its
+ * own admin-only route, sealed with the instance key, and the screen shows only
+ * whether one is set. See `docs/mail.md`.
+ */
+export interface Mailbox extends Base {
+  workspace_id: ID;
+  /** The address itself, folded to lower case. `support@calendoora.de`. */
+  address: string;
+  /** What to call it on screen. Empty means show the address. */
+  name: string;
+  host: string;
+  port: number;
+  encryption: MailEncryption;
+  /** Usually the address, sometimes not — Microsoft and a few hosts differ. */
+  username: string;
+  /** Which folders to read. Empty means INBOX alone. */
+  folders: string[];
+  access: MailboxAccessLevel;
+  /** Who may read it, when `access` is `members`. Empty means nobody. */
+  members: ID[];
+  enabled: number;
+  /** How far back to fetch on the first pass. 0 means everything. */
+  sync_days: number;
+  created_by: ID | null;
+  last_sync_at: number | null;
+  last_error: string | null;
+  last_status: MailboxStatus;
+  message_count: number;
+}
+
+/**
+ * One message, as it is handed to a reader.
+ *
+ * Not an entity and deliberately not synced — see the registry's note on
+ * `mailbox`. This is the shape the API and MCP return, which is why the body is
+ * optional: a search returns a hundred of these and none of them carry one.
+ */
+export interface MailMessage {
+  id: ID;
+  mailbox_id: ID;
+  /** The address of the mailbox it was found in, so a result set can say where. */
+  mailbox: string;
+  folder: string;
+  message_id: string;
+  /** The header that ties a reply to what it answers, when there was one. */
+  thread_key: string;
+  subject: string;
+  from_name: string;
+  from_address: string;
+  to_addresses: string[];
+  cc_addresses: string[];
+  /** When the message says it was sent, as epoch milliseconds. */
+  sent_at: number;
+  seen: number;
+  has_attachments: number;
+  size: number;
+  snippet: string;
+  body?: string;
+  attachments?: MailAttachment[];
+}
+
+export interface MailAttachment {
+  id: ID;
+  message_id: ID;
+  filename: string;
+  mime: string;
+  size: number;
+  /** Where in the message it is, so the bytes can be fetched on demand. */
+  part: string;
 }
 
 /* --------------------------------------------------------- sync protocol */

@@ -34,12 +34,12 @@
  * halves — but the difference between "a leaked backup is a leaked backup" and
  * "a leaked backup is a leaked relay" is worth the twenty lines.
  */
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { all, run } from './db/index.ts';
 import { env, refreshEnv, useSettingsSource } from './env.ts';
 import { isEmailAddress } from '../mail/address.ts';
 import { badRequest } from './http.ts';
 import { isEncryption } from '../mail/relay.ts';
+import { seal as sealWith, unseal as unsealWith } from './seal.ts';
 
 export type SettingGroup = 'mail' | 'telegram' | 'ai';
 export type SettingKind = 'text' | 'secret' | 'number' | 'bool' | 'choice';
@@ -118,6 +118,32 @@ export const SETTINGS: SettingSpec[] = [
   { key: 'KOLIBRI_MAIL_FROM', group: 'mail', kind: 'text', aliases: ['EMAIL_FROM_INFO'], read: () => env.mail.from, check: address },
   { key: 'KOLIBRI_MAIL_FROM_NAME', group: 'mail', kind: 'text', aliases: ['EMAIL_FROM_NAME'], read: () => env.mail.fromName },
   { key: 'KOLIBRI_MAIL_REPLY_TO', group: 'mail', kind: 'text', read: () => env.mail.replyTo ?? '', check: address },
+  /*
+   * Signing in to somebody else's mailbox.
+   *
+   * Here rather than only in the environment for the reason the relay is: this
+   * is a thing somebody discovers they need after the container is running —
+   * an inbox at Google that will not take an app password — and editing a
+   * compose file and restarting is the wrong shape for that afternoon.
+   *
+   * The redirect URI the app registration has to carry is
+   * `<public URL>/api/mail/oauth/callback`, which the mailbox screen shows so
+   * it does not have to be remembered.
+   */
+  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_ID', group: 'mail', kind: 'text', read: () => env.mailOAuth.google.clientId },
+  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_SECRET', group: 'mail', kind: 'secret', read: () => env.mailOAuth.google.clientSecret },
+  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_ID', group: 'mail', kind: 'text', read: () => env.mailOAuth.microsoft.clientId },
+  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_SECRET', group: 'mail', kind: 'secret', read: () => env.mailOAuth.microsoft.clientSecret },
+  {
+    key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_TENANT',
+    group: 'mail',
+    kind: 'text',
+    read: () => env.mailOAuth.microsoft.tenant,
+    // A tenant is `common`, `organizations`, `consumers`, or a GUID — never a
+    // URL, which is what people paste when they copy it out of the portal's
+    // address bar and is a 400 from Microsoft with no explanation.
+    check: (value) => (/^[A-Za-z0-9-]+$/.test(value) ? null : 'A tenant is `common` or a directory id, not a URL'),
+  },
   {
     key: 'KOLIBRI_SCALEWAY_SECRET_KEY',
     group: 'mail',
@@ -156,38 +182,13 @@ const SPECS = new Map(SETTINGS.map((spec) => [spec.key, spec]));
 /* ------------------------------------------------------------------ sealing */
 
 /**
- * The key is derived rather than used directly, so the same instance secret
- * that signs a session is not also literally the encryption key.
+ * The mechanics moved to `seal.ts` when a mailbox password needed the same
+ * treatment; what stays here is the name of the purpose these values are sealed
+ * under, which is what keeps a settings ciphertext from opening as anything
+ * else. The reasoning is in that file.
  */
-const sealKey = (): Buffer => createHash('sha256').update(`kolibri.settings:${env.secret}`).digest();
-
-const seal = (plain: string): string => {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv('aes-256-gcm', sealKey(), iv);
-  const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
-  return ['v1', iv.toString('base64'), cipher.getAuthTag().toString('base64'), body.toString('base64')].join('.');
-};
-
-/**
- * Null rather than a throw when it cannot be opened.
- *
- * The one way that happens in practice is an instance secret that changed —
- * `KOLIBRI_SECRET` set after the fact, or a restore without the `.secret` file.
- * Every session is invalid in that case too, and the honest thing for a
- * setting is to read as unset so the screen says "not set" and can be typed
- * in again.
- */
-const unseal = (stored: string): string | null => {
-  const [version, iv, tag, body] = stored.split('.');
-  if (version !== 'v1' || !iv || !tag || !body) return null;
-  try {
-    const decipher = createDecipheriv('aes-256-gcm', sealKey(), Buffer.from(iv, 'base64'));
-    decipher.setAuthTag(Buffer.from(tag, 'base64'));
-    return Buffer.concat([decipher.update(Buffer.from(body, 'base64')), decipher.final()]).toString('utf8');
-  } catch {
-    return null;
-  }
-};
+const seal = (plain: string): string => sealWith('settings', plain);
+const unseal = (stored: string): string | null => unsealWith('settings', stored);
 
 /* -------------------------------------------------------------------- store */
 

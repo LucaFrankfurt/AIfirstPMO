@@ -20,16 +20,18 @@ import { cn } from '../../../kernel/design-system/cn';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { RateSettings } from '../../time/rates';
+import { MailboxSettings } from '../../mail/settings';
 import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { TelegramConnection } from '../../../adapters/telegram/telegram';
 import { InstanceSettings } from '../instance';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 
-type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'automation' | 'api' | 'data' | 'instance';
+type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'automation' | 'api' | 'data' | 'instance';
 
 const TAB_KEY: Record<Tab, TranslationKey> = {
   profile: 'settings.tabProfile', notifications: 'settings.tabNotifications',
   workspace: 'settings.tabWorkspace', members: 'settings.tabMembers', rates: 'settings.tabRates',
+  mailboxes: 'settings.tabMailboxes',
   automation: 'settings.tabAutomation', api: 'settings.tabApi', data: 'settings.tabData',
   instance: 'settings.tabInstance',
 };
@@ -55,9 +57,13 @@ export function Settings() {
   // has nothing to apply one to, so the tab is not offered either.
   const seesMoney = useSeesMoney();
   const time = useFeature('time');
+  // A tab for a feature nobody switched on is a tab that answers 403 — the same
+  // reason the rates tab asks about `time`.
+  const mail = useFeature('mail');
   const tabs = (Object.keys(TAB_KEY) as Tab[])
     .filter((name) => name !== 'instance' || instanceAdmin)
-    .filter((name) => name !== 'rates' || (seesMoney && time));
+    .filter((name) => name !== 'rates' || (seesMoney && time))
+    .filter((name) => name !== 'mailboxes' || mail);
 
   const choose = (next: Tab) => {
     setTab(next);
@@ -79,6 +85,7 @@ export function Settings() {
         {tab === 'workspace' && <WorkspaceSettings />}
         {tab === 'members' && <Members />}
         {tab === 'rates' && seesMoney && time && <RateSettings />}
+        {tab === 'mailboxes' && mail && <MailboxSettings />}
         {tab === 'automation' && <AutomationSettings />}
         {tab === 'api' && <ApiSettings />}
         {tab === 'data' && <DataSettings />}
@@ -554,6 +561,27 @@ function WorkspaceSettings() {
         <span>
           <span>{t('workspace.featureKpi')}</span>
           <span className="text-[12px] text-muted">{t('workspace.featureKpiHint')}</span>
+        </span>
+      </label>
+
+      {/* The switch with the most behind it: turning it on means this instance
+          holds a credential to somebody else's mail server and a copy of what
+          is in it. Switching it off hides the screens and stops MCP reading;
+          only disconnecting a mailbox deletes the copy. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.mail}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { mail: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureMail')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureMailHint')}</span>
         </span>
       </label>
 

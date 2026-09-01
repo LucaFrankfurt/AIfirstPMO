@@ -32,6 +32,7 @@ import { Teams } from './modules/work/routes/teams';
  */
 const TimesheetPage = lazy(() => import('./modules/time/routes/timesheet').then((m) => ({ default: m.TimesheetPage })));
 const Infrastructure = lazy(() => import('./modules/infrastructure/routes/infrastructure').then((m) => ({ default: m.Infrastructure })));
+const MailScreen = lazy(() => import('./modules/mail/routes/mail').then((m) => ({ default: m.MailScreen })));
 const KpiIndex = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiIndex })));
 const KpiDetail = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiDetail })));
 const BudgetIndex = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetIndex })));
@@ -148,6 +149,7 @@ export default function App() {
       fetchQuietly(() => import('./modules/operations/routes/settings'));
       if (has('time')) fetchQuietly(() => import('./modules/time/routes/timesheet'));
       if (has('infrastructure')) fetchQuietly(() => import('./modules/infrastructure/routes/infrastructure'));
+      if (has('mail')) fetchQuietly(() => import('./modules/mail/routes/mail'));
       if (has('kpi')) fetchQuietly(() => import('./modules/kpis/routes/kpis'));
       if (has('budget')) fetchQuietly(() => import('./modules/budgets/routes/budgets'));
     };
@@ -234,6 +236,7 @@ export default function App() {
           <Route path="/chat/:id" element={<Chat />} />
           <Route path="/timesheet" element={<TimesheetPage />} />
           <Route path="/infrastructure" element={<Infrastructure />} />
+          <Route path="/mail" element={<MailScreen />} />
           <Route path="/kpis" element={<KpiIndex />} />
           <Route path="/kpis/:id" element={<KpiDetail />} />
           <Route path="/budgets" element={<BudgetIndex />} />

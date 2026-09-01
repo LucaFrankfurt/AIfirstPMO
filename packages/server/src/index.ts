@@ -5,6 +5,7 @@ import { close, currentSeq, run } from './kernel/platform/db/index.ts';
 import { env } from './kernel/platform/env.ts';
 import { authenticate } from './kernel/identity/auth.ts';
 import { startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
+import { startMailPoller, stopMailPoller } from './modules/mail/poll.ts';
 import { startScheduler, stopScheduler } from './modules/automation/scheduler.ts';
 import { startTelegram, stopTelegram } from './adapters/telegram/telegram.ts';
 import { provision } from './modules/operations/provision.ts';
@@ -17,6 +18,7 @@ import { registerAiRoutes } from './modules/ai-review/routes/ai.ts';
 import { registerAuthRoutes } from './kernel/identity/routes/auth.ts';
 import { registerWorkspaceRoutes } from './kernel/identity/routes/workspaces.ts';
 import { registerMailRoutes } from './adapters/mail/routes/mail.ts';
+import { registerMailboxRoutes } from './modules/mail/routes/mail.ts';
 import { registerTelegramRoutes } from './adapters/telegram/routes/telegram.ts';
 import { registerPushRoutes } from './adapters/push/routes/push.ts';
 import { registerEntityRoutes } from './kernel/write-path/routes/entities.ts';
@@ -46,6 +48,10 @@ const router = new Router();
 registerAuthRoutes(router);
 registerWorkspaceRoutes(router);
 registerMailRoutes(router);
+// Before the generic routes: `/api/workspaces/:ws/mail` is a search over
+// messages, which are not entities and have no collection — see the registry's
+// note on `mailbox` for why they are not.
+registerMailboxRoutes(router);
 registerTelegramRoutes(router);
 registerPushRoutes(router);
 // Before `registerEntityRoutes`, which owns the generic `/api/:collection/:id`
@@ -268,6 +274,7 @@ if (process.env.NODE_ENV !== 'test') {
     .then(() => {
       ready = true;
       startMailWorker();
+      startMailPoller();
       startScheduler();
       startTelegram();
     })
@@ -283,6 +290,7 @@ if (process.env.NODE_ENV !== 'test') {
 const shutdown = (signal: string) => {
   log('info', `${signal} received, shutting down`);
   stopMailWorker();
+  stopMailPoller();
   stopScheduler();
   stopTelegram();
   server.close(() => {

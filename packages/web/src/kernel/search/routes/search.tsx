@@ -38,17 +38,17 @@ interface Hit {
 
 const KIND_ICON: Record<string, string> = {
   task: 'check', page: 'page', project: 'folder',
-  comment: 'chat', message: 'chat', cycle: 'cycle', module: 'board',
+  comment: 'chat', message: 'chat', cycle: 'cycle', module: 'board', mail: 'mail',
 };
 
 const KIND_GROUP: Record<string, TranslationKey> = {
   task: 'search.groupTasks', page: 'search.groupPages', project: 'search.groupProjects',
   comment: 'search.groupComments', message: 'search.groupMessages',
-  cycle: 'search.groupCycles', module: 'search.groupModules',
+  cycle: 'search.groupCycles', module: 'search.groupModules', mail: 'search.groupMail',
 };
 
-/** Work first, then what is written about it. */
-const KIND_ORDER = ['task', 'page', 'project', 'cycle', 'module', 'comment', 'message'];
+/** Work first, then what is written about it — and last, what arrived from outside. */
+const KIND_ORDER = ['task', 'page', 'project', 'cycle', 'module', 'comment', 'message', 'mail'];
 
 /**
  * A row from the server, in the shape the rest of this file uses. The rename
@@ -459,6 +459,12 @@ export function Search() {
       const message = byId('message', hit.id);
       if (message?.channel_id) navigate(`/chat/${message.channel_id}`);
       else toast(t('search.messageGone'));
+    } else if (hit.kind === 'mail') {
+      // A mail is not in the local mirror — messages are deliberately not
+      // entities — so there is nothing to look up here and the id goes in the
+      // URL for the Mail screen to fetch. Which also makes the result a link
+      // somebody can send.
+      navigate(`/mail?open=${encodeURIComponent(hit.id)}`);
     }
   };
 

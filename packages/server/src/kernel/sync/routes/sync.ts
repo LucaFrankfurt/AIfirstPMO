@@ -218,6 +218,25 @@ function filterFor(entity: EntityName): string {
                         OR EXISTS (SELECT 1 FROM json_each(c.members) WHERE json_each.value = ?2)))`;
     case 'channelRead':
       return `AND ${table}.user_id = ?2`;
+    /*
+     * A mailbox reaches a device when its access rule says so — and note the
+     * inversion against every other `members` list above: an empty list here
+     * means **nobody**, not everybody.
+     *
+     * That is not this clause being clever; it is `canReadMailbox` in
+     * `@kolibri/shared`, said in SQL, and the two have to agree or a device
+     * holds a row the API would refuse it. The reason for the inversion is in
+     * that function: an empty list everywhere else is a shorthand somebody
+     * chose, whereas an empty one here is what removing the last person from a
+     * private inbox leaves behind — and the reading where that opens `admin@`
+     * to the whole company is not one to be surprised by.
+     *
+     * The credential is not part of this question. It is not on the row: it
+     * lives in `mailbox_credentials`, which no pull selects from.
+     */
+    case 'mailbox':
+      return `AND (${table}.access = 'workspace'
+                   OR EXISTS (SELECT 1 FROM json_each(${table}.members) WHERE json_each.value = ?2))`;
     case 'comment':
     case 'attachment':
       return `AND (${table}.task_id IS NULL OR EXISTS (

@@ -46,6 +46,7 @@ export const WORKSPACE_DESTINATIONS: readonly Destination[] = [
   { to: '/chat', icon: 'chat', label: 'nav.chat' },
   { to: '/pages', icon: 'page', label: 'nav.pages' },
   { to: '/teams', icon: 'users', label: 'nav.teams' },
+  { to: '/mail', icon: 'mail', label: 'nav.mail', feature: 'mail' },
   { to: '/guide', icon: 'help', label: 'nav.guide' },
 ];
 
