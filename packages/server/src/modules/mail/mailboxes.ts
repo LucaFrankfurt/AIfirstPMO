@@ -15,11 +15,9 @@
 import { canReadMailbox, isMailboxAccess, type Mailbox, type MailboxScope } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
-import { seal, unseal } from '../../kernel/platform/seal.ts';
+import { seal } from '../../kernel/platform/seal.ts';
 import type { MailboxConfig } from '../../kernel/mail/mailbox.ts';
-
-/** The purpose these credentials are sealed under. See `seal.ts`. */
-const PURPOSE = 'mailbox';
+import { accessTokenFor, PURPOSE, storedCredential } from './oauth.ts';
 
 /**
  * Every mailbox in this workspace this person may read.
@@ -80,8 +78,15 @@ const parseList = (raw: unknown): string[] => {
   }
 };
 
+/** What the API adds to a synced row: how it signs in, never what with. */
+export type MailboxView = Mailbox & {
+  has_password: boolean;
+  auth: 'none' | 'password' | 'oauth';
+  provider: string;
+};
+
 /** A row as the API returns it: the JSON columns parsed, the counts as numbers. */
-export function mailboxView(row: Row): Mailbox & { has_password: boolean } {
+export function mailboxView(row: Row): MailboxView {
   return {
     id: String(row.id),
     workspace_id: String(row.workspace_id),
@@ -109,15 +114,35 @@ export function mailboxView(row: Row): Mailbox & { has_password: boolean } {
     // Change button; it never needs the characters, and a field that could
     // return them is a field somebody will eventually log.
     has_password: hasPassword(String(row.id)),
+    // Which *kind* of credential, so the screen can offer a password box or a
+    // Connect button rather than both. Derived here rather than stored on the
+    // mailbox row: the row syncs to every device, and how an inbox is signed
+    // in to is not something a device needs a copy of.
+    auth: authKind(String(row.id)),
+    provider: storedCredential(String(row.id))?.provider ?? '',
   };
+}
+
+/** `none`, `password` or `oauth` — what this mailbox would sign in with today. */
+export function authKind(mailboxId: string): 'none' | 'password' | 'oauth' {
+  const stored = storedCredential(mailboxId);
+  return stored ? stored.kind : 'none';
 }
 
 /* ------------------------------------------------------------- credentials */
 
 export function setPassword(mailboxId: string, password: string, byUserId: string): void {
+  // Setting a password clears any OAuth state, rather than leaving a refresh
+  // token beside it. Two credentials on one mailbox is a question nobody wants
+  // to answer at sign-in time, and a stale refresh token that outlives the
+  // decision to stop using it is a grant nobody remembers making.
   run(
-    `INSERT INTO mailbox_credentials (mailbox_id, secret, updated_at, updated_by) VALUES (?, ?, ?, ?)
-     ON CONFLICT (mailbox_id) DO UPDATE SET secret = excluded.secret, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+    `INSERT INTO mailbox_credentials (mailbox_id, secret, kind, provider, access_token, expires_at, updated_at, updated_by)
+     VALUES (?, ?, 'password', '', NULL, NULL, ?, ?)
+     ON CONFLICT (mailbox_id) DO UPDATE SET
+       secret = excluded.secret, kind = 'password', provider = '',
+       access_token = NULL, expires_at = NULL,
+       updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
     mailboxId, seal(PURPOSE, password), Date.now(), byUserId,
   );
 }
@@ -130,25 +155,36 @@ export const hasPassword = (mailboxId: string): boolean =>
   !!get<Row>(`SELECT 1 AS ok FROM mailbox_credentials WHERE mailbox_id = ?`, mailboxId);
 
 /**
- * A mailbox row plus its password, ready to hand to a transport.
+ * A mailbox row plus a usable credential, ready to hand to a transport.
+ *
+ * Async because half the credentials expire: an OAuth mailbox whose access
+ * token has gone stale is renewed here, which is a request to the provider. A
+ * password mailbox does no I/O and resolves immediately.
  *
  * Null when there is no credential *or* when the seal will not open — the two
  * are the same answer to the only caller there is, which is the poller, and it
  * reports both as "cannot sign in". Distinguishing them would mean the error a
  * user sees depending on whether their instance secret changed, which is a
- * sentence nobody could act on.
+ * sentence nobody could act on. A refresh that is *refused*, on the other hand,
+ * throws: "the consent was revoked" is a different afternoon from "no password
+ * stored", and the screen should say which.
  */
-export function credentialsFor(row: Row): MailboxConfig | null {
-  const stored = get<Row>(`SELECT secret FROM mailbox_credentials WHERE mailbox_id = ?`, String(row.id));
-  const password = stored ? unseal(PURPOSE, String(stored.secret)) : null;
-  if (password === null) return null;
-  return {
+export async function credentialsFor(row: Row): Promise<MailboxConfig | null> {
+  const stored = storedCredential(String(row.id));
+  if (!stored) return null;
+
+  const base = {
     host: String(row.host ?? ''),
     port: Number(row.port ?? 993),
     encryption: String(row.encryption ?? 'tls') as MailboxConfig['encryption'],
     username: String(row.username || row.address || ''),
-    password,
   };
+
+  if (stored.kind === 'oauth') {
+    const accessToken = await accessTokenFor(String(row.id));
+    return accessToken ? { ...base, credential: { kind: 'oauth', accessToken } } : null;
+  }
+  return stored.secret === null ? null : { ...base, credential: { kind: 'password', password: stored.secret } };
 }
 
 /** Which folders to poll. Empty means INBOX, stated once. */

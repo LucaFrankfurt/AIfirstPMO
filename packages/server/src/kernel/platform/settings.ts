@@ -118,6 +118,32 @@ export const SETTINGS: SettingSpec[] = [
   { key: 'KOLIBRI_MAIL_FROM', group: 'mail', kind: 'text', aliases: ['EMAIL_FROM_INFO'], read: () => env.mail.from, check: address },
   { key: 'KOLIBRI_MAIL_FROM_NAME', group: 'mail', kind: 'text', aliases: ['EMAIL_FROM_NAME'], read: () => env.mail.fromName },
   { key: 'KOLIBRI_MAIL_REPLY_TO', group: 'mail', kind: 'text', read: () => env.mail.replyTo ?? '', check: address },
+  /*
+   * Signing in to somebody else's mailbox.
+   *
+   * Here rather than only in the environment for the reason the relay is: this
+   * is a thing somebody discovers they need after the container is running —
+   * an inbox at Google that will not take an app password — and editing a
+   * compose file and restarting is the wrong shape for that afternoon.
+   *
+   * The redirect URI the app registration has to carry is
+   * `<public URL>/api/mail/oauth/callback`, which the mailbox screen shows so
+   * it does not have to be remembered.
+   */
+  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_ID', group: 'mail', kind: 'text', read: () => env.mailOAuth.google.clientId },
+  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_SECRET', group: 'mail', kind: 'secret', read: () => env.mailOAuth.google.clientSecret },
+  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_ID', group: 'mail', kind: 'text', read: () => env.mailOAuth.microsoft.clientId },
+  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_SECRET', group: 'mail', kind: 'secret', read: () => env.mailOAuth.microsoft.clientSecret },
+  {
+    key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_TENANT',
+    group: 'mail',
+    kind: 'text',
+    read: () => env.mailOAuth.microsoft.tenant,
+    // A tenant is `common`, `organizations`, `consumers`, or a GUID — never a
+    // URL, which is what people paste when they copy it out of the portal's
+    // address bar and is a 400 from Microsoft with no explanation.
+    check: (value) => (/^[A-Za-z0-9-]+$/.test(value) ? null : 'A tenant is `common` or a directory id, not a URL'),
+  },
   {
     key: 'KOLIBRI_SCALEWAY_SECRET_KEY',
     group: 'mail',

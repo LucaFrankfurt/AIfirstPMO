@@ -100,6 +100,61 @@ leaked backup is a leaked inbox".
 
 The screen shows whether a password is set, never what it is.
 
+## Signing in without a password
+
+Gmail and Microsoft 365 both accept a password over IMAP and both make it
+awkward on purpose: two-factor turns it into an app password, which an admin has
+to generate per inbox, and an organisation that disables app passwords by policy
+cannot connect at all. So a mailbox can sign in with a token instead —
+`AUTHENTICATE XOAUTH2`, which is the command both providers intend for this.
+
+**The operator registers the app, not the workspace.** The client id and secret
+identify *this deployment* to Google or Microsoft, they carry this server's
+callback URL, and whoever can create one is whoever runs the server. They go in
+**Settings → Server** (or the environment) as
+`KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_ID` and friends. A provider with no client id
+is simply not offered — which is the right shape for an instance whose owner
+never wanted Gmail.
+
+The redirect URI to register is `<public URL>/api/mail/oauth/callback`, one for
+the whole instance rather than one per mailbox. The mailbox screen prints it
+beside the Connect buttons, because a mismatched redirect URI is the single most
+common way this fails and neither provider's error message says so.
+
+After that a workspace admin presses **Connect with Google** on the mailbox,
+consents in their own browser, and comes back. The refresh token is stored in
+the same sealed column the password would have been — to everything that touches
+that row they are the same thing, the credential that outlives a session and
+must never be read back out — and the short-lived access token is cached beside
+it against its own expiry. A token endpoint asked every five minutes per mailbox
+is a rate limit somebody meets on a bad day; the provider already says when the
+token dies.
+
+Two provider quirks are load-bearing and neither is in a specification:
+
+- **Google issues a refresh token once.** Only on the first consent, and only
+  when asked with `access_type=offline` *and* `prompt=consent`. Without the
+  second, a reconnect succeeds, returns an access token, and hands back nothing
+  to renew with — so the mailbox works for an hour and then stops. Kolibri sends
+  `prompt=consent` every time, which costs one extra click and prevents that.
+- **Microsoft needs `offline_access` spelled out** beside the IMAP scope, and
+  refuses the IMAP scope unless the app registration carries
+  `IMAP.AccessAsUser.All`. A tenant that has not granted it fails at the consent
+  screen rather than at connect, which is the better end to fail at and still
+  surprises people. `KOLIBRI_MAIL_OAUTH_MICROSOFT_TENANT` is `common` unless the
+  registration is single-tenant.
+
+A mailbox has **one** credential. Setting a password on a mailbox that was using
+OAuth clears the token and the refresh token, rather than leaving both in place:
+two ways in is a question nobody wants to answer at sign-in time, and a refresh
+token that outlives the decision to stop using it is a grant nobody remembers
+making.
+
+A refusal to renew is reported as itself. "The consent was revoked" and "no
+credential stored" are different afternoons, and the mailbox row carries the
+provider's own words — `invalid_grant` and "admin consent required" send you to
+two different screens.
+
 ## How the copy stays current
 
 Polling, every five minutes per mailbox, one mailbox at a time.
@@ -177,6 +232,25 @@ Words match the subject, the body **and the attachment names**. That last one is
 what makes the feature work: `Rechnung_2024_08.pdf` is a stronger claim about a
 message than anything in its subject line.
 
+### And in the box over everything
+
+The one search box at the top of the app finds mail too, grouped under its own
+heading. It does that without the kernel knowing that a mailbox exists: mail
+registers itself as a *corpus* — an index with a visibility rule of its own —
+and answers for its own rows, so the rule stays in one place and a restricted
+inbox is no more findable from that box than from anywhere else.
+
+What the box does **not** take is the dialect above. `von:stripe seit:2024` is
+this screen's language; the box over everything already has one of its own, and
+two query languages in one field is a field nobody can predict. Words go through
+as words.
+
+Two rankings from two FTS tables cannot be compared — `bm25` is relative to its
+own table's document count and average length — so the merge is by position
+within each corpus rather than by score: every corpus's best hit, then every
+corpus's second. That claims only what is true, and it means one mail matching a
+word nothing else matches is near the top rather than off the end.
+
 ## Finding the documents
 
 The question this was built for is "everything the accountant needs for 2024",
@@ -219,7 +293,7 @@ the median of an empty set.
 
 ## Through MCP
 
-Eight tools. Seven read; one writes, and it writes to Kolibri.
+Nine tools. Seven read, one fetches, and one writes — to Kolibri.
 
 | | |
 |---|---|
@@ -230,7 +304,14 @@ Eight tools. Seven read; one writes, and it writes to Kolibri.
 | `find_documents` | the ranked document hunt, with its reasons |
 | `list_mail_attachments` | files across the mailboxes, as one flat list |
 | `mail_stats` | the numbers, with the window they cover |
+| `sync_mailbox` | poll one mailbox now, rather than waiting for the next round |
 | `file_mail_as_task` | the message becomes work, in a project |
+
+`sync_mailbox` is the answer to "did it arrive yet". Every other tool reads the
+copy, and the copy is as old as `list_mailboxes` says it is; this one fetches
+first. It takes a write scope even though nothing anywhere is written, because
+it makes this instance open a connection to somebody else's server, and a
+read-only token should not be able to do that at will.
 
 There is a `tax_documents` prompt that runs the whole hunt: it lists the
 mailboxes and how far back each has been polled *first*, so the answer can tell
@@ -266,7 +347,5 @@ forgets gets no rows instead of all of them.
   an intake form — see [webhooks](api.md) and the intake queue.
 - **Not archival.** The copy is a search index with the text alongside it. It
   goes when the mailbox is disconnected, and it does not claim to be a record.
-- **Not OAuth.** Gmail and Microsoft accounts connect with an app password
-  today. XOAUTH2 is a real gap and it is in [TODO.md](../TODO.md).
 - **Not encrypted mail.** A PGP or S/MIME message is stored and indexed as
   whatever its outer part says, which for an encrypted body is nothing useful.

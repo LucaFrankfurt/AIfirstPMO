@@ -1467,7 +1467,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS mailboxes_address ON mailboxes (workspace_id, 
 -- than inside it, so a copied backup is not a copied inbox.
 CREATE TABLE IF NOT EXISTS mailbox_credentials (
   mailbox_id TEXT PRIMARY KEY,
+  -- The long-lived credential, sealed: a password, or an OAuth refresh token.
+  -- One column for both because they are the same thing to everything that
+  -- touches this row — the secret that outlives a session and must never be
+  -- read back out — and `kind` is what tells them apart where it matters.
   secret     TEXT NOT NULL,
+  -- 'password' or 'oauth'.
+  kind       TEXT NOT NULL DEFAULT 'password',
+  -- Which provider minted it, for the refresh. Empty for a password.
+  provider   TEXT NOT NULL DEFAULT '',
+  -- The short-lived half, sealed too. Cached rather than fetched per poll: a
+  -- token endpoint hit every five minutes per mailbox is a rate limit waiting
+  -- to happen, and the provider already told us when it expires.
+  --
+  -- Named `access_token` and not `access`, which is what it was called for
+  -- about an hour: `mailboxes.access` two tables away means who is allowed to
+  -- read the inbox, and two columns with one name meaning two things is a join
+  -- somebody writes wrong later without either side looking odd.
+  access_token TEXT,
+  expires_at INTEGER,
   updated_at INTEGER NOT NULL,
   updated_by TEXT
 );

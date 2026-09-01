@@ -115,10 +115,20 @@ export interface PollResult {
  */
 export async function pollMailbox(row: Row): Promise<PollResult> {
   const address = String(row.address);
-  const config = credentialsFor(row);
+  // Inside the try that follows in spirit, but not in it: a refusal to renew an
+  // OAuth token is a *different* failure from a fetch that went wrong, and it
+  // is the one that needs a person. Reported with the provider's own words.
+  let config;
+  try {
+    config = await credentialsFor(row);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    fail(row, message);
+    return { mailbox: address, fetched: 0, error: message };
+  }
   if (!config) {
-    fail(row, 'No password stored for this mailbox');
-    return { mailbox: address, fetched: 0, error: 'No password stored for this mailbox' };
+    fail(row, 'No credential stored for this mailbox');
+    return { mailbox: address, fetched: 0, error: 'No credential stored for this mailbox' };
   }
 
   let fetched = 0;

@@ -28,7 +28,7 @@
  */
 import { connect as netConnect, type Socket } from 'node:net';
 import { connect as tlsConnect, type TLSSocket } from 'node:tls';
-import type { MailboxConfig } from '../../kernel/mail/mailbox.ts';
+import { hasSecret, type MailboxConfig } from '../../kernel/mail/mailbox.ts';
 import { tokenise, type Segment, type Token } from './protocol.ts';
 
 export interface Response {
@@ -69,9 +69,12 @@ export class ImapConnection {
   static async open(config: MailboxConfig): Promise<ImapConnection> {
     const timeoutMs = config.timeoutMs ?? DEFAULT_TIMEOUT;
     const implicit = config.encryption === 'tls';
-    if (config.encryption === 'none' && config.password) {
+    // Either kind of credential. A bearer token on a plaintext connection is a
+    // mailbox for whoever is listening; that it expires in an hour is the only
+    // way it beats a password.
+    if (config.encryption === 'none' && hasSecret(config.credential)) {
       throw new ImapError(
-        `Refusing to send a password to ${config.host}:${config.port} unencrypted — set the encryption to starttls or tls`,
+        `Refusing to send a credential to ${config.host}:${config.port} unencrypted — set the encryption to starttls or tls`,
         true,
       );
     }
@@ -117,15 +120,23 @@ export class ImapConnection {
     }
 
     if (!preauth) {
-      // Quoted and escaped, because a password with a `"` or a `\` in it is
-      // otherwise a syntax error at best — and at worst an extra argument.
-      const login = `LOGIN ${quote(config.username)} ${quote(config.password)}`;
-      const result = await connection.command(login);
-      if (result.status !== 'OK') {
-        connection.end();
-        // Reported as permanent: a wrong password does not become right on a
-        // retry, and retrying is how an account gets locked.
-        throw new ImapError(`Sign-in refused: ${result.text || 'no reason given'}`, true);
+      if (config.credential.kind === 'oauth') {
+        // Capabilities are read *after* any upgrade, for the reason the SMTP
+        // client re-reads them: what a server advertises before TLS is not
+        // binding, and AUTH in particular is commonly withheld until it is safe.
+        const capabilities = flat(await connection.command('CAPABILITY')).toUpperCase();
+        await connection.authenticateXOAuth2(config.username, config.credential.accessToken, capabilities);
+      } else {
+        // Quoted and escaped, because a password with a `"` or a `\` in it is
+        // otherwise a syntax error at best — and at worst an extra argument.
+        const login = `LOGIN ${quote(config.username)} ${quote(config.credential.password)}`;
+        const result = await connection.command(login);
+        if (result.status !== 'OK') {
+          connection.end();
+          // Reported as permanent: a wrong password does not become right on a
+          // retry, and retrying is how an account gets locked.
+          throw new ImapError(`Sign-in refused: ${result.text || 'no reason given'}`, true);
+        }
       }
     }
     return connection;
@@ -267,6 +278,59 @@ export class ImapConnection {
       throw new ImapError(`${text.split(' ')[0]} failed: ${result.text || result.status}`, result.status === 'NO');
     }
     return result;
+  }
+
+  /**
+   * `AUTHENTICATE XOAUTH2`, which is two protocols in a trench coat.
+   *
+   * The credential is a SASL blob — `user=…^Aauth=Bearer …^A^A`, base64'd —
+   * and there are two ways to send it. A server advertising `SASL-IR` takes it
+   * on the command line; one that does not wants the command alone, answers
+   * with a bare `+`, and reads the blob as the next line. Both are in the
+   * field, so both are here.
+   *
+   * The failure path is the part worth writing down, because getting it wrong
+   * does not produce an error — it produces a hang. When the token is refused,
+   * the server does **not** reply `NO`: it replies with a `+` continuation
+   * carrying a base64 JSON explanation, and it then waits for the client to
+   * acknowledge with an empty line before it will say `NO`. A client that
+   * treats that `+` as noise and keeps reading waits for a tagged reply that
+   * will never come, until the socket times out thirty seconds later — and the
+   * mailbox is recorded as unreachable rather than as signed out, which sends
+   * whoever is debugging it to the firewall instead of to the consent screen.
+   */
+  async authenticateXOAuth2(username: string, token: string, capabilities: string): Promise<void> {
+    if (!capabilities.includes('XOAUTH2')) {
+      this.end();
+      throw new ImapError('This mail server does not accept OAuth sign-in (no AUTH=XOAUTH2)', true);
+    }
+    const blob = Buffer.from(`user=${username}\x01auth=Bearer ${token}\x01\x01`).toString('base64');
+    this.counter += 1;
+    const tag = `k${this.counter}`;
+    const inline = capabilities.includes('SASL-IR');
+    this.socket.write(inline ? `${tag} AUTHENTICATE XOAUTH2 ${blob}\r\n` : `${tag} AUTHENTICATE XOAUTH2\r\n`);
+
+    let sent = inline;
+    for (;;) {
+      const segments = await this.readSegments();
+      const line = 'text' in segments[0] ? segments[0].text : '';
+      if (line.startsWith('+')) {
+        // The first `+` on the two-step path is the server asking for the blob.
+        // Any later one is the refusal above, and the empty line is what lets
+        // the server finish the sentence.
+        this.socket.write(sent ? '\r\n' : `${blob}\r\n`);
+        sent = true;
+        continue;
+      }
+      if (!line.startsWith(`${tag} `)) continue; // untagged chatter
+      const [, status = '', rest = ''] = /^\S+\s+(\S+)\s*([\s\S]*)$/.exec(line) ?? [];
+      if (status.toUpperCase() === 'OK') return;
+      this.end();
+      // Permanent: an expired token is refreshed by the caller and a revoked
+      // one needs a person. Neither is helped by trying again immediately, and
+      // trying again is how a provider starts rate-limiting the account.
+      throw new ImapError(`OAuth sign-in refused: ${rest.trim() || status || 'no reason given'}`, true);
+    }
   }
 
   end(): void {

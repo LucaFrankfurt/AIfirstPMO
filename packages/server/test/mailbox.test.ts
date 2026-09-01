@@ -32,9 +32,16 @@ const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { visibleMailboxes, findMailbox, setPassword, credentialsFor, hasPassword } =
   await import('../src/modules/mail/mailboxes.ts');
 const { storeMessage, highestUid, forgetMailbox, countMessages } = await import('../src/modules/mail/store.ts');
+const { pollMailbox } = await import('../src/modules/mail/poll.ts');
 const { searchMail, countMail, narrow, threadOf } = await import('../src/modules/mail/search.ts');
 const { mailStats, responseTimes } = await import('../src/modules/mail/analytics.ts');
 const { rankDocuments } = await import('../src/modules/mail/documents.ts');
+const { accessTokenFor, registerMailAuthProvider, storeTokens, storedCredential } =
+  await import('../src/modules/mail/oauth.ts');
+const { registerCorpus, searchWorkspace } = await import('../src/kernel/search/search.ts');
+const { writeEntity } = await import('../src/kernel/write-path/repo.ts');
+const { serverClock } = await import('../src/kernel/write-path/bootstrap.ts');
+const { uid } = await import('../src/kernel/platform/ids.ts');
 
 let base = '';
 let workspaceId = '';
@@ -58,6 +65,19 @@ async function as(who: { cookie: string }, path: string, body?: unknown, method?
   const result = await raw(who, path, body, method);
   if (result.status >= 400) throw new Error(`${result.status} ${method ?? ''} ${path}: ${JSON.stringify(result.body)}`);
   return result.body;
+}
+
+/**
+ * A request that does not follow the redirect.
+ *
+ * The OAuth callback answers with a 302 to the settings screen, because
+ * whoever is looking at it is a person in a tab rather than a script — and
+ * `fetch` follows redirects by default, so `raw` would parse the served
+ * `index.html` as JSON and fail with a syntax error rather than a useful one.
+ */
+async function hop(who: { cookie: string }, path: string): Promise<{ status: number; location: string }> {
+  const response = await fetch(`${base}${path}`, { headers: { cookie: who.cookie }, redirect: 'manual' });
+  return { status: response.status, location: response.headers.get('location') ?? '' };
 }
 
 async function register(email: string, name: string) {
@@ -181,7 +201,8 @@ describe('the four doors', () => {
     // And it is not on the row at all — it is in its own table, sealed.
     assert.equal(get<any>(`SELECT * FROM mailboxes WHERE id = ?`, boxes.support).password, undefined);
     assert.notEqual(get<any>(`SELECT secret FROM mailbox_credentials WHERE mailbox_id = ?`, boxes.support).secret, 'hunter2');
-    assert.equal(credentialsFor(get<any>(`SELECT * FROM mailboxes WHERE id = ?`, boxes.support))?.password, 'hunter2');
+    const config = await credentialsFor(get<any>(`SELECT * FROM mailboxes WHERE id = ?`, boxes.support));
+    assert.deepEqual(config?.credential, { kind: 'password', password: 'hunter2' });
   });
 
   it('refuses the generic row route too — the fifth door', async () => {
@@ -454,6 +475,257 @@ describe('over MCP', () => {
     assert.deepEqual(visibleMailboxes(people.ada.id, workspaceId), []);
     await assert.rejects(() => call(people.ada, 'search_mail', { text: 'anything' }), /switched off|No mailbox/);
     await as(people.ada, `/api/workspaces/${workspaceId}`, { features: { mail: true } }, 'PATCH');
+  });
+});
+
+/* --------------------------------------------------------------- OAuth */
+
+/**
+ * A provider that hands out tokens without a network.
+ *
+ * `issued` records every refresh, which is what lets the tests below assert on
+ * the thing that actually matters — that a cached token is *not* refreshed. A
+ * token endpoint hit every five minutes per mailbox is a rate limit somebody
+ * meets on a bad day, and nothing about a working mailbox would show it.
+ */
+const issued: string[] = [];
+let refusing = false;
+
+before(() => {
+  registerMailAuthProvider({
+    name: 'fake',
+    label: 'Fake provider',
+    configured: () => true,
+    authorizeUrl: ({ state, redirectUri, login }) =>
+      `https://provider.test/consent?state=${state}&redirect_uri=${encodeURIComponent(redirectUri)}&login_hint=${encodeURIComponent(login)}`,
+    exchange: async () => ({ accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: Date.now() + 3_600_000 }),
+    refresh: async (token) => {
+      if (refusing) throw new Error('invalid_grant: the consent was revoked');
+      issued.push(token);
+      return { accessToken: `access-${issued.length + 1}`, expiresAt: Date.now() + 3_600_000 };
+    },
+  });
+});
+
+describe('a mailbox that signs in with a token', () => {
+  let box = '';
+
+  before(async () => {
+    box = (await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes`, {
+      address: 'oauth@calendoora.de', host: 'imap.calendoora.de',
+    })).id;
+    storeTokens(box, 'fake', { accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: Date.now() + 3_600_000 }, people.ada.id);
+  });
+
+  it('stores the refresh token where the password was, sealed', () => {
+    const raw = get<any>(`SELECT * FROM mailbox_credentials WHERE mailbox_id = ?`, box);
+    assert.equal(raw.kind, 'oauth');
+    assert.equal(raw.provider, 'fake');
+    assert.notEqual(raw.secret, 'refresh-1');
+    assert.notEqual(raw.access_token, 'access-1');
+    assert.equal(storedCredential(box)?.secret, 'refresh-1');
+  });
+
+  it('never sends either half to a client', async () => {
+    const listed = await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes`);
+    const row = listed.mailboxes.find((one: any) => one.id === box);
+    assert.equal(row.auth, 'oauth');
+    assert.equal(row.provider, 'fake');
+    assert.equal(row.secret, undefined);
+    assert.equal(row.access_token, undefined);
+    // `access` *is* sent and should be: two tables away it means who may read
+    // the inbox, which is a different thing entirely — see the note on the
+    // credential column, which was called `access` for about an hour.
+    assert.equal(row.access, 'workspace');
+    const pulled = await as(people.ada, `/api/sync/pull?workspace=${workspaceId}&since=0`);
+    for (const one of pulled.changes.mailbox) {
+      assert.equal(one.password, undefined);
+      assert.equal(one.secret, undefined);
+    }
+  });
+
+  it('uses the cached token rather than asking again', async () => {
+    const before = issued.length;
+    assert.equal(await accessTokenFor(box), 'access-1');
+    assert.equal(await accessTokenFor(box), 'access-1');
+    assert.equal(issued.length, before, 'a valid token was refreshed anyway');
+  });
+
+  it('refreshes once the token has gone stale, and keeps the refresh token', async () => {
+    // Expired a minute ago. The slack in `accessTokenFor` is why this is not
+    // simply `Date.now()`: a first pass holds one connection for minutes, and
+    // a token that dies halfway through is a batch lost to an error that reads
+    // like a wrong password.
+    run(`UPDATE mailbox_credentials SET expires_at = ? WHERE mailbox_id = ?`, Date.now() - 60_000, box);
+    const token = await accessTokenFor(box);
+    assert.equal(token, 'access-2');
+    assert.deepEqual(issued.slice(-1), ['refresh-1']);
+    // The provider repeated no refresh token, so the stored one is kept —
+    // overwriting it with `undefined` would sign the mailbox out in an hour.
+    assert.equal(storedCredential(box)?.secret, 'refresh-1');
+  });
+
+  it('reports a revoked consent rather than "no password stored"', async () => {
+    run(`UPDATE mailbox_credentials SET expires_at = ? WHERE mailbox_id = ?`, Date.now() - 60_000, box);
+    refusing = true;
+    try {
+      await assert.rejects(() => credentialsFor(get<any>(`SELECT * FROM mailboxes WHERE id = ?`, box)), /revoked/);
+      // And the poller records it on the row, where the screen shows it —
+      // rather than the timestamp advancing and the mailbox looking fresh.
+      const result = await pollMailbox(get<any>(`SELECT * FROM mailboxes WHERE id = ?`, box));
+      assert.match(String(result.error), /revoked/);
+      const row = get<any>(`SELECT last_status, last_error, last_sync_at FROM mailboxes WHERE id = ?`, box);
+      assert.equal(row.last_status, 'failing');
+      assert.match(String(row.last_error), /revoked/);
+      assert.equal(row.last_sync_at, null);
+    } finally {
+      refusing = false;
+    }
+  });
+
+  it('goes back to a password cleanly, taking the token with it', () => {
+    setPassword(box, 'hunter2', people.ada.id);
+    const stored = storedCredential(box);
+    assert.equal(stored?.kind, 'password');
+    assert.equal(stored?.secret, 'hunter2');
+    // Two credentials on one mailbox is a question nobody wants to answer at
+    // sign-in time, and a refresh token outliving the decision to stop using
+    // it is a grant nobody remembers making.
+    assert.equal(stored?.accessToken, null);
+    assert.equal(stored?.provider, '');
+  });
+});
+
+describe('the consent flow', () => {
+  let box = '';
+  before(async () => {
+    box = (await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes`, {
+      address: 'consent@calendoora.de', host: 'imap.calendoora.de',
+    })).id;
+  });
+
+  it('sends the browser somewhere with the mailbox pre-filled', async () => {
+    const started = await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'fake' });
+    const url = new URL(started.url);
+    assert.equal(url.host, 'provider.test');
+    // So the account picker offers the right inbox rather than whichever one
+    // the browser happens to be signed in to — which is how somebody connects
+    // their personal mail to the company's support queue.
+    assert.equal(url.searchParams.get('login_hint'), 'consent@calendoora.de');
+    assert.match(String(url.searchParams.get('redirect_uri')), /\/api\/mail\/oauth\/callback$/);
+  });
+
+  it('refuses a member, like every other mailbox write', async () => {
+    const refused = await raw(people.max, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'fake' });
+    assert.equal(refused.status, 403);
+  });
+
+  it('says which provider is missing rather than "something went wrong"', async () => {
+    // The whole content of this failure is *which* setting is absent, so the
+    // generic 500 the bare throw produced was the least useful answer
+    // available. Found by running it rather than by reading it.
+    const refused = await raw(people.ada, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'google' });
+    assert.equal(refused.status, 400);
+    assert.match(refused.body.message, /not configured on this server/);
+    const unknown = await raw(people.ada, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'nope' });
+    assert.equal(unknown.status, 400);
+    assert.match(unknown.body.message, /No mail OAuth provider/);
+  });
+
+  it('connects the mailbox when the browser comes back', async () => {
+    const started = await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'fake' });
+    const state = new URL(started.url).searchParams.get('state')!;
+    const back = await hop(people.ada, `/api/mail/oauth/callback?code=abc&state=${encodeURIComponent(state)}`);
+    assert.equal(back.status, 302);
+    assert.match(back.location, /tab=mailboxes.*mail_connected=1/);
+    assert.equal(storedCredential(box)?.kind, 'oauth');
+    assert.equal(storedCredential(box)?.secret, 'refresh-1');
+  });
+
+  it('will not accept the same state twice', async () => {
+    const started = await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'fake' });
+    const state = new URL(started.url).searchParams.get('state')!;
+    assert.match((await hop(people.ada, `/api/mail/oauth/callback?code=abc&state=${encodeURIComponent(state)}`)).location, /mail_connected/);
+    // A state is one attempt. The second is answered with an error rather than
+    // connecting again — a state that survived its use is a replay.
+    const replayed = await hop(people.ada, `/api/mail/oauth/callback?code=abc&state=${encodeURIComponent(state)}`);
+    assert.equal(replayed.status, 302);
+    assert.match(replayed.location, /mail_error/);
+  });
+
+  it('refuses a callback finished by somebody else', async () => {
+    // A callback is a URL somebody can be sent, so the person who comes back
+    // has to be the person who started it.
+    const started = await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes/${box}/oauth`, { provider: 'fake' });
+    const state = new URL(started.url).searchParams.get('state')!;
+    const stolen = await hop(people.lin, `/api/mail/oauth/callback?code=abc&state=${encodeURIComponent(state)}`);
+    assert.equal(stolen.status, 302);
+    assert.match(decodeURIComponent(stolen.location.replace(/\+/g, ' ')), /started by somebody else/);
+    // And nothing was written under the wrong person's consent.
+    assert.equal(storedCredential(box)?.secret, 'refresh-1');
+  });
+});
+
+/* ------------------------------------------------------ the box over everything */
+
+describe('mail in the global search box', () => {
+  it('finds a message the shared index has never heard of', () => {
+    // The gap this closed: the Mail screen found it, `search_mail` found it,
+    // and the one box at the top of the app said "no results" — with nothing
+    // to suggest it had not looked.
+    const hits = searchWorkspace(workspaceId, people.ada.id, 'Rechnungsnummer');
+    assert.ok(hits.some((hit) => hit.kind === 'mail'), JSON.stringify(hits));
+  });
+
+  it('carries the sender, because a subject alone does not say it is an email', () => {
+    const hit = searchWorkspace(workspaceId, people.ada.id, 'Rechnungsnummer').find((one) => one.kind === 'mail');
+    assert.match(String(hit?.snippet), /Anna Weber/);
+    assert.equal(hit?.title, 'Rechnung März 2024');
+  });
+
+  it('inherits the mailbox rule rather than restating it', () => {
+    // The corpus resolves the readable mailboxes exactly as every other reader
+    // does, so a restricted inbox is not findable from the box either — and
+    // nothing in the kernel had to be told that mailboxes exist.
+    assert.equal(searchWorkspace(workspaceId, people.ada.id, 'Lohnabrechnung').filter((h) => h.kind === 'mail').length, 1);
+    assert.equal(searchWorkspace(workspaceId, people.max.id, 'Lohnabrechnung').filter((h) => h.kind === 'mail').length, 0);
+  });
+
+  it('is skipped entirely when the caller asked for other kinds', () => {
+    // Asserted as "no mail among the hits" rather than "no hits": the same word
+    // is in a task by now, because `file_mail_as_task` above put the message's
+    // body in one. That is the corpus filter working, not a coincidence to
+    // write around.
+    const tasksOnly = searchWorkspace(workspaceId, people.ada.id, 'Rechnungsnummer', 30, ['task']);
+    assert.ok(tasksOnly.length > 0);
+    assert.equal(tasksOnly.filter((hit) => hit.kind === 'mail').length, 0);
+    assert.ok(searchWorkspace(workspaceId, people.ada.id, 'Rechnungsnummer', 30, ['mail']).length > 0);
+  });
+
+  it('interleaves rather than letting one corpus take the whole page', () => {
+    // Two rankings from two FTS tables cannot be compared — see `interleave`.
+    // What the merge promises is only that each corpus's best hit is near the
+    // top, which is what this checks: one mail among two results, not two
+    // mails and no task.
+    const project = get<any>(`SELECT id FROM projects WHERE workspace_id = ? LIMIT 1`, workspaceId);
+    const state = get<any>(`SELECT id FROM states WHERE project_id = ? LIMIT 1`, project.id);
+    for (const title of ['Zwiebelkuchen one', 'Zwiebelkuchen two', 'Zwiebelkuchen three']) {
+      writeEntity('task', uid(), { project_id: project.id, title, state_id: state.id },
+        { workspaceId, actorId: people.ada.id, hlc: serverClock.now() });
+    }
+    seed(boxes.support, { subject: 'Zwiebelkuchen', body: 'Zwiebelkuchen im Anhang' });
+
+    const two = searchWorkspace(workspaceId, people.ada.id, 'Zwiebelkuchen', 2);
+    assert.equal(two.length, 2);
+    assert.deepEqual([...new Set(two.map((hit) => hit.kind))].sort(), ['mail', 'task']);
+  });
+
+  it('answers without mail rather than not at all when a corpus fails', () => {
+    // A box that went blank because an inbox was unreachable would be a worse
+    // failure than the gap it is covering.
+    registerCorpus({ kind: 'exploding', find: () => { throw new Error('nope'); } });
+    const hits = searchWorkspace(workspaceId, people.ada.id, 'Rechnungsnummer');
+    assert.ok(hits.length > 0);
   });
 });
 

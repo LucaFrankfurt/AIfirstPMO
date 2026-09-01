@@ -354,13 +354,13 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">266</span><span class="k">source files</span></div>
+    <div><span class="v num">269</span><span class="k">source files</span></div>
     <div><span class="v num">40</span><span class="k">modules</span></div>
-    <div><span class="v num">75 629</span><span class="k">lines</span></div>
+    <div><span class="v num">76 650</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">43</span><span class="k">entities</span></div>
-    <div><span class="v num">130</span><span class="k">endpoints</span></div>
-    <div><span class="v num">80</span><span class="k">MCP tools</span></div>
+    <div><span class="v num">133</span><span class="k">endpoints</span></div>
+    <div><span class="v num">81</span><span class="k">MCP tools</span></div>
   </div>
 
   <p class="provenance">
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 266 files, sorted</span>
+  <span class="eyebrow">02 — All 269 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 21 650 lines, 29%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 35 080 lines, 46%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 029 lines, 23%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 870 lines, 2%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 21 854 lines, 29%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 35 627 lines, 46%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 295 lines, 23%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 874 lines, 2%</span>
 <!-- end -->
     </div>
 
@@ -457,7 +457,7 @@ footer {
       into five adapters. It is <strong>296 lines</strong> now, and the growth is the fix: the
       meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
       delivery stayed in the adapters but through a port they register with. And
-      <code>adapter/mcp</code> is <strong>6 177</strong>: the assistant's view of the product is
+      <code>adapter/mcp</code> is <strong>6 216</strong>: the assistant's view of the product is
       larger than the largest thing the product actually does. Fifteen files rather than three, now,
       which makes it readable — not smaller. Finding 7 is why.
     </p>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 779 lines is three
-      catalogues of 2 311 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 797 lines is three
+      catalogues of 2 317 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1146,7 +1146,7 @@ footer {
           <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → another capability</td><td class="n">14</td><td class="n">17</td></tr>
-          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">14</td></tr>
+          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">16</td></tr>
 <!-- end -->
         </tbody>
       </table>
@@ -1155,11 +1155,11 @@ footer {
       <strong>Nothing points outward any more. <code>KNOWN_OUTWARD</code> is empty, and rule 5
       keeps it that way.</strong>
       The last row moves the other way on purpose: an adapter is <em>supposed</em> to lean on a
-      capability, and it does so 14 times now precisely because the outward edges were turned
+      capability, and it does so 16 times now precisely because the outward edges were turned
       round.
       The way out was the same every time — the inner ring says what it needs, the outer one
-      registers. There are <strong>9 ports</strong> across <strong>8 modules</strong> now, and
-      all 9 are filled. Four of the fixes were not inversions at all but things filed in the wrong
+      registers. There are <strong>11 ports</strong> across <strong>9 modules</strong> now, and
+      all 11 are filled. Four of the fixes were not inversions at all but things filed in the wrong
       place, and those four are the interesting ones.
     </p>
     <div class="scroller">
@@ -1169,11 +1169,13 @@ footer {
 <!-- generated: ports -->
           <tr><td><code>kernel/design-system</code></td><td>the link into the guide that <code>Empty</code> offers <span class="dim"><code>provideGuideHint</code></span></td><td><code>capability/guide</code></td></tr>
           <tr><td><code>kernel/files</code></td><td>a place to put bytes <span class="dim"><code>registerBackend</code></span></td><td><code>adapter/s3</code></td></tr>
+          <tr><td><code>kernel/search</code></td><td>a corpus with an index and a visibility rule of its own <span class="dim"><code>registerCorpus</code></span></td><td><code>capability/mail</code></td></tr>
           <tr><td><code>kernel/sync</code></td><td>a handler for one kind of frame on the live connection <span class="dim"><code>onStream</code></span></td><td><code>capability/chat</code></td></tr>
           <tr><td><code>kernel/write-path</code></td><td>a listener run once the write has committed <span class="dim"><code>onCommitted</code></span></td><td><code>adapter/webhooks</code>, <code>capability/notifications</code></td></tr>
           <tr><td><code>kernel/write-path</code></td><td>a listener run inside the write's own transaction <span class="dim"><code>onWrite</code></span></td><td><code>capability/automation</code></td></tr>
           <tr><td><code>capability/ai-review</code></td><td>a model that can answer, under a configuration name <span class="dim"><code>provideModel</code></span></td><td><code>adapter/ai</code></td></tr>
           <tr><td><code>capability/automation</code></td><td>a chore for the periodic sweep to run <span class="dim"><code>onSweep</code></span></td><td><code>adapter/telegram</code>, <code>adapter/webhooks</code></td></tr>
+          <tr><td><code>capability/mail</code></td><td>a provider that can mint a mailbox token <span class="dim"><code>registerMailAuthProvider</code></span></td><td><code>adapter/oauth</code></td></tr>
           <tr><td><code>capability/mail</code></td><td>a transport that can read a mailbox <span class="dim"><code>registerMailFetcher</code></span></td><td><code>adapter/imap</code></td></tr>
           <tr><td><code>capability/notifications</code></td><td>a channel a notification is carried on <span class="dim"><code>onNotification</code></span></td><td><code>adapter/push</code>, <code>adapter/telegram</code></td></tr>
 <!-- end -->
@@ -1407,23 +1409,23 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7779,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2445},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7797,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2451},
 {"ring":"kernel","name":"registry","flag":"","files":5,"lines":2476,"biggest":"kernel/registry/types.ts","biggestLines":1656},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2172,"biggest":"kernel/identity/routes/auth.ts","biggestLines":521},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":1920,"biggest":"kernel/write-path/repo.ts","biggestLines":858},
 {"ring":"kernel","name":"design-system","flag":"","files":23,"lines":1832,"biggest":"kernel/design-system/ui.tsx","biggestLines":525},
+{"ring":"kernel","name":"platform","flag":"","files":11,"lines":1775,"biggest":"kernel/platform/env.ts","biggestLines":537},
 {"ring":"kernel","name":"sync","flag":"","files":7,"lines":1725,"biggest":"kernel/sync/routes/sync.ts","biggestLines":467},
-{"ring":"kernel","name":"platform","flag":"","files":11,"lines":1711,"biggest":"kernel/platform/env.ts","biggestLines":505},
-{"ring":"kernel","name":"search","flag":"","files":5,"lines":1059,"biggest":"kernel/search/routes/search.tsx","biggestLines":580},
+{"ring":"kernel","name":"search","flag":"","files":5,"lines":1158,"biggest":"kernel/search/routes/search.tsx","biggestLines":586},
 {"ring":"kernel","name":"files","flag":"","files":6,"lines":700,"biggest":"kernel/files/zip.ts","biggestLines":315},
-{"ring":"kernel","name":"mail","flag":"","files":3,"lines":276,"biggest":"kernel/mail/mailbox.ts","biggestLines":106},
+{"ring":"kernel","name":"mail","flag":"","files":3,"lines":299,"biggest":"kernel/mail/mailbox.ts","biggestLines":129},
 {"ring":"capability","name":"work","flag":"","files":25,"lines":6119,"biggest":"modules/work/views.tsx","biggestLines":996},
 {"ring":"capability","name":"planning","flag":"","files":11,"lines":4260,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1491},
 {"ring":"capability","name":"pages","flag":"","files":13,"lines":3741,"biggest":"modules/pages/Markdown.tsx","biggestLines":672},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3239,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1669},
 {"ring":"capability","name":"operations","flag":"","files":9,"lines":3065,"biggest":"modules/operations/routes/settings.tsx","biggestLines":998},
+{"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3005,"biggest":"modules/mail/settings.tsx","biggestLines":427},
 {"ring":"capability","name":"chat","flag":"","files":6,"lines":2483,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1428},
-{"ring":"capability","name":"mail","flag":"mail","files":13,"lines":2458,"biggest":"modules/mail/settings.tsx","biggestLines":323},
 {"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1842,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":935},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1627,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":568},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1625,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
@@ -1434,19 +1436,19 @@ const MODULES = [
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":296,"biggest":"modules/notifications/effects.ts","biggestLines":219},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":227,"biggest":"modules/intake/intake.tsx","biggestLines":227},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
-{"ring":"adapter","name":"mcp","flag":"","files":15,"lines":6177,"biggest":"adapters/mcp/kit.ts","biggestLines":1151},
+{"ring":"adapter","name":"mcp","flag":"","files":15,"lines":6216,"biggest":"adapters/mcp/kit.ts","biggestLines":1151},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3337,"biggest":"adapters/transfer/transfer.ts","biggestLines":793},
 {"ring":"adapter","name":"webhooks","flag":"","files":6,"lines":1920,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
-{"ring":"adapter","name":"imap","flag":"","files":4,"lines":1123,"biggest":"adapters/imap/fetcher.ts","biggestLines":344},
+{"ring":"adapter","name":"imap","flag":"","files":4,"lines":1187,"biggest":"adapters/imap/imap.ts","biggestLines":364},
 {"ring":"adapter","name":"mail","flag":"","files":6,"lines":1114,"biggest":"adapters/mail/mail.ts","biggestLines":426},
-{"ring":"adapter","name":"oauth","flag":"","files":3,"lines":787,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":497},
+{"ring":"adapter","name":"oauth","flag":"","files":4,"lines":950,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":497},
 {"ring":"adapter","name":"telegram","flag":"","files":5,"lines":756,"biggest":"adapters/telegram/telegram.ts","biggestLines":460},
 {"ring":"adapter","name":"share","flag":"","files":1,"lines":479,"biggest":"adapters/share/routes/share.ts","biggestLines":479},
 {"ring":"adapter","name":"push","flag":"","files":4,"lines":383,"biggest":"adapters/push/push.ts","biggestLines":209},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":344,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":340,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":195},
 {"ring":"adapter","name":"s3","flag":"","files":2,"lines":269,"biggest":"adapters/s3/s3.ts","biggestLines":227},
-{"ring":"shell","name":"shell","flag":"","files":13,"lines":1870,"biggest":"AppShell.tsx","biggestLines":478}
+{"ring":"shell","name":"shell","flag":"","files":13,"lines":1874,"biggest":"AppShell.tsx","biggestLines":478}
 ];
 /* end */
 

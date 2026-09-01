@@ -26,6 +26,8 @@ import { installPushDelivery } from './adapters/push/delivery.ts';
 import { installTelegramDelivery } from './adapters/telegram/delivery.ts';
 import { installAiProviders } from './adapters/ai/providers.ts';
 import { installImapFetcher } from './adapters/imap/fetcher.ts';
+import { installMailCorpus } from './modules/mail/corpus.ts';
+import { installMailAuthProviders } from './adapters/oauth/mailbox.ts';
 import { installTelegramChores } from './adapters/telegram/chores.ts';
 import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
@@ -59,6 +61,8 @@ export function installEffects(): void {
   installTelegramDelivery();
   installAiProviders();
   installImapFetcher();
+  installMailCorpus();
+  installMailAuthProviders();
   installTelegramChores();
   installWebhookChores();
   // The order within an entity is the order they were branches in. Across

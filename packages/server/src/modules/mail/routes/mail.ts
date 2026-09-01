@@ -18,8 +18,11 @@ import { parseMailQuery, type MailFilter } from '@kolibri/shared';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
 import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
+import { env } from '../../../kernel/platform/env.ts';
+import { randomBytes } from 'node:crypto';
 import { checkMailbox } from '../../../kernel/mail/mailbox.ts';
 import { credentialsFor, findMailbox, mailboxView, setPassword, visibleMailboxes } from '../mailboxes.ts';
+import { availableProviders, providerNamed, storeTokens } from '../oauth.ts';
 import { attachmentsOf } from '../store.ts';
 import { countMail, narrow, readMessage, searchMail, threadOf } from '../search.ts';
 import { mailStats, responseTimes } from '../analytics.ts';
@@ -128,7 +131,7 @@ export function registerMailboxRoutes(router: Router): void {
     );
     if (!attachment) throw notFound('No such attachment');
     const mailbox = mailboxes.find((row) => String(row.id) === String(message.mailbox_id));
-    const config = mailbox && credentialsFor(mailbox);
+    const config = mailbox && await credentialsFor(mailbox);
     if (!config || !hasMailFetcher()) throw badRequest('That mailbox cannot be reached right now');
 
     const bytes = await mailFetcher().fetchPart(
@@ -175,17 +178,134 @@ export function registerMailboxRoutes(router: Router): void {
     const body = await readJson<{ password?: string }>(ctx);
     const password = String(body.password ?? '');
     if (!password) throw badRequest('A password is needed to sign in to a mailbox');
-    const wrong = checkMailbox({ ...rowConfig(mailbox), password });
+    const wrong = checkMailbox({ ...rowConfig(mailbox), credential: { kind: 'password', password } });
     if (wrong) throw badRequest(wrong);
     setPassword(String(mailbox.id), password, auth.userId);
     return { ok: true };
   });
 
+  /* ------------------------------------------------------------- OAuth */
+
+  /**
+   * Half-finished consents, waiting for the browser to come back.
+   *
+   * In memory and used once, exactly as the sign-in flow keeps its own: Kolibri
+   * is one process by design, and a consent that survived a restart is not a
+   * property worth a table — the button is right there.
+   *
+   * `user` is on the record and checked at the callback. Without it the state
+   * is the only thing standing between a link somebody was sent and a mailbox
+   * connected to *their* Google account under this workspace's name.
+   */
+  const pending = new Map<string, { mailboxId: string; provider: string; verifier: string; user: string; at: number }>();
+  const PENDING_TTL = 10 * 60_000;
+
+  /**
+   * Where the provider sends the browser back to.
+   *
+   * One URL for the whole instance rather than one per mailbox, because it has
+   * to be registered with Google and Microsoft by hand and a registration per
+   * inbox would be absurd. Which mailbox this was for is in the state.
+   */
+  const redirectUri = (ctx: Ctx): string =>
+    `${env.publicUrl || `http://${ctx.req.headers.host ?? 'localhost'}`}/api/mail/oauth/callback`;
+
+  /** Which providers this instance could offer, and the URI to register. */
+  router.get('/api/mail/oauth/providers', (ctx) => {
+    requireAuth(ctx);
+    return {
+      providers: availableProviders().map((provider) => ({ name: provider.name, label: provider.label })),
+      // Shown on the settings screen so it does not have to be remembered or
+      // guessed — a mismatched redirect URI is the single most common way this
+      // fails, and the provider's error for it is not helpful.
+      redirect_uri: redirectUri(ctx),
+    };
+  });
+
+  /** Start the consent. Returns the URL rather than redirecting, so a fetch can open it. */
+  router.post('/api/workspaces/:ws/mailboxes/:id/oauth', async (ctx) => {
+    const { auth, mailbox } = admin(ctx);
+    const body = await readJson<{ provider?: string }>(ctx);
+    // A provider nobody registered, or one this instance has no client id for,
+    // is the caller asking for something that does not exist here — a 400 with
+    // the reason, not the 500 a bare throw becomes. The generic handler's
+    // "Something went wrong" is the least useful sentence available for a
+    // failure whose whole content is *which* setting is missing.
+    let provider;
+    try {
+      provider = providerNamed(String(body.provider ?? ''));
+    } catch (caught) {
+      throw badRequest(caught instanceof Error ? caught.message : String(caught));
+    }
+
+    for (const [key, value] of pending) if (Date.now() - value.at > PENDING_TTL) pending.delete(key);
+    const state = randomBytes(24).toString('base64url');
+    const verifier = randomBytes(48).toString('base64url');
+    pending.set(state, { mailboxId: String(mailbox.id), provider: provider.name, verifier, user: auth.userId, at: Date.now() });
+
+    return {
+      url: provider.authorizeUrl({
+        state,
+        verifier,
+        redirectUri: redirectUri(ctx),
+        // So the account picker offers the right inbox rather than whichever
+        // Google account the browser happens to be signed in to — which is how
+        // somebody connects their personal mail to the company's support queue.
+        login: String(mailbox.address),
+      }),
+    };
+  });
+
+  /**
+   * The browser coming back from the provider.
+   *
+   * A GET in a top-level navigation, so it answers with a redirect and a
+   * message rather than JSON: whoever is looking at it is a person in a tab,
+   * and a bare 400 is a tab they cannot get out of.
+   */
+  router.get('/api/mail/oauth/callback', async (ctx) => {
+    const done = (params: Record<string, string>) => {
+      ctx.res.writeHead(302, { location: `/settings?tab=mailboxes&${new URLSearchParams(params)}` });
+      ctx.res.end();
+      return undefined;
+    };
+
+    const error = ctx.query.get('error');
+    if (error) return done({ mail_error: ctx.query.get('error_description') ?? error });
+
+    const state = ctx.query.get('state') ?? '';
+    const flow = pending.get(state);
+    // Deleted whether or not the rest works: a state is one attempt, and one
+    // that survived its use is a replay.
+    pending.delete(state);
+    if (!flow || Date.now() - flow.at > PENDING_TTL) return done({ mail_error: 'That sign-in took too long — try again' });
+
+    // The same person who started it, in the same workspace they started it
+    // from. A callback is a URL somebody can be sent.
+    const auth = requireAuth(ctx);
+    if (auth.userId !== flow.user) return done({ mail_error: 'That sign-in was started by somebody else' });
+
+    try {
+      const provider = providerNamed(flow.provider);
+      const tokens = await provider.exchange({
+        code: ctx.query.get('code') ?? '',
+        verifier: flow.verifier,
+        redirectUri: redirectUri(ctx),
+      });
+      storeTokens(flow.mailboxId, flow.provider, tokens, auth.userId);
+      return done({ mail_connected: '1' });
+    } catch (caught) {
+      // The provider's own words: `invalid_grant` and "admin consent required"
+      // send whoever reads them to two different screens.
+      return done({ mail_error: caught instanceof Error ? caught.message : String(caught) });
+    }
+  });
+
   /** Sign in and hang up, so somebody knows before they wait five minutes. */
   router.post('/api/workspaces/:ws/mailboxes/:id/test', async (ctx) => {
     const { mailbox } = admin(ctx);
-    const config = credentialsFor(mailbox);
-    if (!config) throw badRequest('No password stored for this mailbox');
+    const config = await credentialsFor(mailbox);
+    if (!config) throw badRequest('No credential stored for this mailbox');
     if (!hasMailFetcher()) throw badRequest('This build has no mail transport');
     try {
       await mailFetcher().check(config);

@@ -230,7 +230,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_projects` | projects with open/done task counts |
 | `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
-| `search` | full text across tasks, pages, projects, comments, cycles, modules |
+| `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
 | `prepare_meeting` | **all six reports as one agenda**, in the order a meeting runs, with a `headline` of the numbers that decide whether it is a short one |
@@ -263,6 +263,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `find_documents` | messages ranked by how likely they are to carry an invoice, receipt or statement, each with the evidence behind it |
 | `list_mail_attachments` | files across the mailboxes as one flat list — "every PDF from the Steuerberater in 2024" in one call |
 | `mail_stats` | volume by mailbox, month and weekday, top senders and domains, and reply times — with the window the copy actually covers |
+| `sync_mailbox` | poll one mailbox now rather than waiting for the next round, and say what it brought in |
 
 ### Reports
 
@@ -403,7 +404,7 @@ Three more details worth knowing before you trust a number:
 
 ### Mail, and the two things it will not do
 
-Eight tools over the connected mailboxes — see [mail.md](mail.md) for the whole feature. Two
+Nine tools over the connected mailboxes — see [mail.md](mail.md) for the whole feature. Two
 properties are worth knowing before calling any of them, because both shape what an answer can say.
 
 **Nothing writes to a mail server.** There is no send, no reply, no delete and no mark-as-read, and
@@ -414,7 +415,9 @@ with its sender, date and text carried across.
 **The copy is as old as the last poll.** Every tool answers from what has been fetched, not from the
 mailbox. `list_mailboxes` reports `last_sync_at` and `status` per mailbox for exactly this reason,
 and it is worth calling first — an empty 2019 is as likely to mean "not fetched" as "nothing there",
-and only that tool can tell them apart.
+and only that tool can tell them apart. `sync_mailbox` is the fix when the answer has to be current:
+it polls one mailbox on demand. It takes a write scope despite writing nothing, because it makes the
+instance open a connection to somebody else's server.
 
 Every tool resolves which mailboxes the token's account may read and constrains on that list. A
 restricted mailbox is invisible to everybody not named on it, workspace admins included. Naming a
@@ -466,6 +469,7 @@ is inclusive to the end of the day it names.
 | `set_kpi_target` | what it has to reach. Give `milestone` instead of `due_on` and the deadline moves when that milestone moves |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
+| `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |
 | `file_mail_as_task` | turn a connected mailbox's message into a task, carrying its sender, date and text |
 | `plan_move` | document a step from one landscape to the next: what it retires, what it brings in |
 

@@ -23,12 +23,26 @@
 import type { MailEncryption } from '@kolibri/shared';
 import { isEmailAddress } from './address.ts';
 
+/**
+ * How the client proves who it is.
+ *
+ * A union rather than an optional token beside an optional password, because
+ * the two are alternatives and nothing sensible happens when both are present.
+ * Spelled this way the transport has to say which one it is holding, and the
+ * check below can refuse *either* over an unencrypted connection — a bearer
+ * token read off the wire is a mailbox for an hour, which is worse than a
+ * password in every respect except how long it lasts.
+ */
+export type MailboxCredential =
+  | { kind: 'password'; password: string }
+  | { kind: 'oauth'; accessToken: string };
+
 export interface MailboxConfig {
   host: string;
   port: number;
   encryption: MailEncryption;
   username: string;
-  password: string;
+  credential: MailboxCredential;
   /** Accept self-signed certificates — for an internal server on a private network. */
   allowInvalidCerts?: boolean;
   timeoutMs?: number;
@@ -69,7 +83,9 @@ export function parseMailboxUrl(raw: string): MailboxConfig | null {
       port: Number(url.port) || defaultMailboxPort(encryption),
       encryption,
       username: url.username ? decodeURIComponent(url.username) : '',
-      password: url.password ? decodeURIComponent(url.password) : '',
+      // A URL can only ever spell a password. A token is minted, not typed,
+      // and one pasted into a URL would be expired before it was useful.
+      credential: { kind: 'password', password: url.password ? decodeURIComponent(url.password) : '' },
       allowInvalidCerts: url.searchParams.get('insecure') === 'true',
     };
   } catch {
@@ -98,8 +114,15 @@ export function checkMailbox(config: Partial<MailboxConfig> & { address?: string
   const port = Number(config.port);
   if (!Number.isInteger(port) || port < 1 || port > 65_535) return 'A port is a number from 1 to 65535';
   if (!isMailEncryption(config.encryption)) return 'Encryption is tls, starttls or none';
-  if (config.encryption === 'none' && config.password) {
-    return 'Refusing to send a password unencrypted — choose tls or starttls';
+  // Either kind of credential, not only a password. A bearer token on a
+  // plaintext connection is a mailbox for whoever is listening, for as long as
+  // the token lasts — the shorter life is the only way it is better.
+  if (config.encryption === 'none' && hasSecret(config.credential)) {
+    return 'Refusing to send a credential unencrypted — choose tls or starttls';
   }
   return null;
 }
+
+/** Is there anything here worth protecting? Both arms, in one place. */
+export const hasSecret = (credential: MailboxCredential | undefined): boolean =>
+  !!(credential && (credential.kind === 'password' ? credential.password : credential.accessToken));

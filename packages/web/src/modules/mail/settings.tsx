@@ -27,6 +27,7 @@
  * disconnected that inbox" has to be able to mean it.
  */
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import type { Mailbox, MailboxAccessLevel } from '@kolibri/shared';
 import { Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -40,14 +41,22 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { useMembers, useSession } from '../../kernel/identity/session';
 
-/** What the API adds to a synced row: whether a credential is stored. */
-type MailboxRow = Mailbox & { has_password?: boolean };
+/** What the API adds to a synced row: how it signs in, never what with. */
+type MailboxRow = Mailbox & {
+  has_password?: boolean;
+  auth?: 'none' | 'password' | 'oauth';
+  provider?: string;
+};
+
+/** A provider this instance could actually offer, from `/api/mail/oauth/providers`. */
+interface Provider { name: string; label: string }
 
 export function MailboxSettings() {
   const t = useT();
   const toast = useToast();
   const { workspaceId } = useSession();
   const { confirm, dialog } = useConfirm();
+  const [params, setParams] = useSearchParams();
   const mailboxes = useQuery(() => list('mailbox', (box) => box.workspace_id === workspaceId), [workspaceId]);
   const [address, setAddress] = useState('');
   /**
@@ -58,16 +67,47 @@ export function MailboxSettings() {
    * every row reads as "no password", which is the safe direction: it prompts
    * for one that is already there rather than claiming one that is not.
    */
-  const [withPassword, setWithPassword] = useState<Set<string>>(new Set());
+  const [credentials, setCredentials] = useState<Map<string, MailboxRow>>(new Map());
   const refreshCredentials = async () => {
     try {
       const answer = await api.get<{ mailboxes: MailboxRow[] }>(`/api/workspaces/${workspaceId}/mailboxes`);
-      setWithPassword(new Set(answer.mailboxes.filter((box) => box.has_password).map((box) => box.id)));
+      setCredentials(new Map(answer.mailboxes.map((box) => [box.id, box])));
     } catch {
-      /* offline: every row shows as needing a password, which is recoverable */
+      /* offline: every row shows as needing a credential, which is recoverable */
     }
   };
   useEffect(() => { void refreshCredentials(); }, [workspaceId]);
+
+  /**
+   * Which OAuth providers this server could offer, and the URI to register.
+   *
+   * Asked once for the screen rather than per row: it is a property of the
+   * instance, and a provider nobody configured is a button that would only ever
+   * answer with an error.
+   */
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [redirectUri, setRedirectUri] = useState('');
+  useEffect(() => {
+    api.get<{ providers: Provider[]; redirect_uri: string }>('/api/mail/oauth/providers')
+      .then((answer) => { setProviders(answer.providers); setRedirectUri(answer.redirect_uri); })
+      .catch(() => setProviders([]));
+  }, [workspaceId]);
+
+  /**
+   * What the provider said on the way back.
+   *
+   * The callback is a top-level navigation, so it lands here as a query
+   * parameter rather than as a response somebody can read. Shown and then
+   * cleared, so a reload does not repeat it.
+   */
+  useEffect(() => {
+    const failed = params.get('mail_error');
+    const connected = params.get('mail_connected');
+    if (!failed && !connected) return;
+    toast(failed || t('mailbox.connected'));
+    void refreshCredentials();
+    setParams({ tab: 'mailboxes' }, { replace: true });
+  }, [params]);
 
   return (
     <>
@@ -77,8 +117,9 @@ export function MailboxSettings() {
       {mailboxes.map((box) => (
         <MailboxRowEditor
           key={box.id}
-          mailbox={box as MailboxRow}
-          hasPassword={withPassword.has(box.id)}
+          mailbox={{ ...(box as MailboxRow), ...credentials.get(box.id) }}
+          providers={providers}
+          redirectUri={redirectUri}
           onPasswordSet={refreshCredentials}
           onRemove={async () => {
             if (await confirm(t('mailbox.disconnectConfirm', { address: box.address }))) {
@@ -127,9 +168,10 @@ export function MailboxSettings() {
   );
 }
 
-function MailboxRowEditor({ mailbox, hasPassword, onPasswordSet, onRemove }: {
+function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRemove }: {
   mailbox: MailboxRow;
-  hasPassword: boolean;
+  providers: Provider[];
+  redirectUri: string;
   onPasswordSet: () => void;
   onRemove: () => void;
 }) {
@@ -140,9 +182,32 @@ function MailboxRowEditor({ mailbox, hasPassword, onPasswordSet, onRemove }: {
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const auth = mailbox.auth ?? 'none';
+  const signedIn = auth !== 'none';
 
   const patch = (fields: Partial<Mailbox>) => update('mailbox', mailbox.id, fields as Record<string, unknown>);
   const named = new Set(mailbox.members ?? []);
+
+  /**
+   * Start the consent, then hand the tab over.
+   *
+   * `location.assign` rather than a popup: a provider's consent screen is a
+   * full sign-in, sometimes with a second factor, and a popup is what a
+   * password manager and a phone both handle worst. The callback brings the
+   * browser back to this screen.
+   */
+  const connect = async (provider: string) => {
+    setBusy(true);
+    try {
+      const answer = await api.post<{ url: string }>(
+        `/api/workspaces/${workspaceId}/mailboxes/${mailbox.id}/oauth`, { provider },
+      );
+      window.location.assign(answer.url);
+    } catch (error) {
+      toast(error instanceof Error ? error.message : String(error));
+      setBusy(false);
+    }
+  };
 
   const run = async (what: 'test' | 'sync') => {
     setBusy(true);
@@ -173,7 +238,7 @@ function MailboxRowEditor({ mailbox, hasPassword, onPasswordSet, onRemove }: {
             {mailbox.message_count ? ` · ${t('mailbox.messages', { count: mailbox.message_count })}` : ''}
           </div>
         </button>
-        <MailboxStatus mailbox={mailbox} hasPassword={hasPassword} />
+        <MailboxStatus mailbox={mailbox} />
         <Button onClick={() => setOpen(!open)}>{t(open ? 'action.done' : 'action.edit')}</Button>
       </div>
 
@@ -207,32 +272,67 @@ function MailboxRowEditor({ mailbox, hasPassword, onPasswordSet, onRemove }: {
             value={mailbox.username ?? ''} onChange={(event) => patch({ username: event.target.value })}
           />
 
-          <div className="flex items-center gap-2">
-            <Input
-              className="flex-1 min-w-0" type="password" autoComplete="new-password"
-              aria-label={t('mailbox.password')}
-              placeholder={hasPassword ? t('mailbox.passwordSet') : t('mailbox.passwordUnset')}
-              value={password} onChange={(event) => setPassword(event.target.value)}
-            />
-            <Button
-              disabled={!password || busy}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  await api.post(`/api/workspaces/${workspaceId}/mailboxes/${mailbox.id}/password`, { password });
-                  setPassword('');
-                  onPasswordSet();
-                  toast(t('mailbox.passwordStored'));
-                } catch (error) {
-                  toast(error instanceof Error ? error.message : String(error));
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              {t('action.save')}
-            </Button>
-          </div>
+          {/*
+            One credential, one control. A password box beside a Connect button
+            would be two ways in on one mailbox, which is a question nobody
+            wants to answer at sign-in time — so whichever kind this mailbox
+            uses is what it shows, and switching is deliberate.
+          */}
+          {auth === 'oauth' ? (
+            <div className="flex items-center gap-2">
+              <span className="flex-1 min-w-0 text-[12px] text-muted">
+                {t('mailbox.connectedTo', { provider: providerLabel(providers, mailbox.provider) })}
+              </span>
+              <Button disabled={busy} onClick={() => void connect(mailbox.provider ?? '')}>
+                {t('mailbox.reconnect')}
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Input
+                className="flex-1 min-w-0" type="password" autoComplete="new-password"
+                aria-label={t('mailbox.password')}
+                placeholder={auth === 'password' ? t('mailbox.passwordSet') : t('mailbox.passwordUnset')}
+                value={password} onChange={(event) => setPassword(event.target.value)}
+              />
+              <Button
+                disabled={!password || busy}
+                onClick={async () => {
+                  setBusy(true);
+                  try {
+                    await api.post(`/api/workspaces/${workspaceId}/mailboxes/${mailbox.id}/password`, { password });
+                    setPassword('');
+                    onPasswordSet();
+                    toast(t('mailbox.passwordStored'));
+                  } catch (error) {
+                    toast(error instanceof Error ? error.message : String(error));
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              >
+                {t('action.save')}
+              </Button>
+            </div>
+          )}
+
+          {/*
+            Offered only where the server has a client registration for it — a
+            button that could only ever answer with an error is worse than no
+            button. The redirect URI is shown beside them because a mismatched
+            one is the single most common way this fails and the provider's own
+            message for it does not say so.
+          */}
+          {auth !== 'oauth' && !!providers.length && (
+            <div className="flex flex-wrap items-center gap-2">
+              {providers.map((provider) => (
+                <Button key={provider.name} disabled={busy} onClick={() => void connect(provider.name)}>
+                  {t('mailbox.connectWith', { provider: provider.label })}
+                </Button>
+              ))}
+              <span className="text-[12px] text-muted">{t('mailbox.redirectUri', { uri: redirectUri })}</span>
+            </div>
+          )}
 
           {/* How far back the first pass reaches. Nothing else here changes what
               is *already* stored — lowering it does not delete anything, and
@@ -282,8 +382,8 @@ function MailboxRowEditor({ mailbox, hasPassword, onPasswordSet, onRemove }: {
           )}
 
           <div className="flex items-center gap-2">
-            <Button disabled={busy || !hasPassword} onClick={() => run('test')}>{t('mailbox.test')}</Button>
-            <Button disabled={busy || !hasPassword} onClick={() => run('sync')}>{t('mailbox.syncNow')}</Button>
+            <Button disabled={busy || !signedIn} onClick={() => run('test')}>{t('mailbox.test')}</Button>
+            <Button disabled={busy || !signedIn} onClick={() => run('sync')}>{t('mailbox.syncNow')}</Button>
             <Button variant="ghost" onClick={onRemove}>{t('mailbox.disconnect')}</Button>
           </div>
           <p className="text-[12px] text-muted">{t('mailbox.disconnectHint')}</p>
@@ -294,9 +394,9 @@ function MailboxRowEditor({ mailbox, hasPassword, onPasswordSet, onRemove }: {
 }
 
 /** The one-glance answer: is this mailbox actually working. */
-function MailboxStatus({ mailbox, hasPassword }: { mailbox: MailboxRow; hasPassword: boolean }) {
+function MailboxStatus({ mailbox }: { mailbox: MailboxRow }) {
   const t = useT();
-  if (!hasPassword) return <Chip>{t('mailbox.passwordUnset')}</Chip>;
+  if ((mailbox.auth ?? 'none') === 'none') return <Chip>{t('mailbox.passwordUnset')}</Chip>;
   if (mailbox.last_status === 'failing') {
     // The error itself as the title, so hovering answers "why" without
     // opening the row. It is the provider's sentence and worth keeping whole.
@@ -305,6 +405,10 @@ function MailboxStatus({ mailbox, hasPassword }: { mailbox: MailboxRow; hasPassw
   if (!mailbox.last_sync_at) return <Chip>{t('mailbox.never')}</Chip>;
   return <Chip>{relativeTime(mailbox.last_sync_at)}</Chip>;
 }
+
+/** A provider's own name for itself, or the bare key if the server no longer offers it. */
+const providerLabel = (providers: Provider[], name: string | undefined): string =>
+  providers.find((one) => one.name === name)?.label ?? name ?? '';
 
 /** Whether this account can see any mailbox at all — for hiding the search screen. */
 export const useMailboxes = (): MailboxRow[] => {

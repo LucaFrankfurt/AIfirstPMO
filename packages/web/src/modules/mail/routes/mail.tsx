@@ -108,6 +108,24 @@ export function MailScreen() {
 
   useEffect(() => { void search(query); }, [workspaceId]);
 
+  /**
+   * `?open=<id>` opens one message straight away.
+   *
+   * How a hit from the search box over everything arrives here: a mail is not
+   * in the local mirror, so the box has an id and nothing else, and this is
+   * what turns that into a message on screen. It also makes any message a link
+   * somebody can send.
+   */
+  useEffect(() => {
+    const wanted = params.get('open');
+    if (!wanted) return;
+    api.get<Detail>(`/api/workspaces/${workspaceId}/mail/${wanted}`)
+      .then(setOpen)
+      // Gone, or in a mailbox this account may not read. Either way the screen
+      // is still useful, so the link fails quietly rather than emptying it.
+      .catch(() => setOpen(null));
+  }, [workspaceId, params]);
+
   return (
     <>
       <Header title={t('mail.title')} />
@@ -148,7 +166,12 @@ export function MailScreen() {
         {tab === 'stats' && <Numbers query={query} />}
       </div>
 
-      {open && <Message message={open} onClose={() => setOpen(null)} />}
+      {open && <Message message={open} onClose={() => {
+        setOpen(null);
+        // The link stops naming a message once it is closed, so Back does not
+        // reopen the sheet somebody just dismissed.
+        if (params.get('open')) setParams(query ? { q: query } : {}, { replace: true });
+      }} />}
     </>
   );
 }

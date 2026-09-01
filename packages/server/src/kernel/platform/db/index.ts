@@ -86,6 +86,12 @@ for (const [table, column, definition] of [
   // is the same constraint — it is how SQLite implements UNIQUE anyway.
   ['users', 'calendar_token', 'TEXT'],
   ['projects', 'is_container', 'INTEGER NOT NULL DEFAULT 0'],
+  // A mailbox credential that is a token rather than a password. Added rather
+  // than a new table because it is the same row: one mailbox, one way in.
+  ['mailbox_credentials', 'kind', `TEXT NOT NULL DEFAULT 'password'`],
+  ['mailbox_credentials', 'provider', `TEXT NOT NULL DEFAULT ''`],
+  ['mailbox_credentials', 'access_token', 'TEXT'],
+  ['mailbox_credentials', 'expires_at', 'INTEGER'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

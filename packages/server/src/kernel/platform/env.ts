@@ -275,6 +275,36 @@ const computeTelegram = () => ({
 const telegram = computeTelegram();
 
 /**
+ * Client credentials for signing in to somebody else's mailbox.
+ *
+ * Per instance rather than per workspace, because they identify *this
+ * deployment* to Google and Microsoft — an app registration carrying this
+ * server's callback URL — and because whoever can create one is whoever runs
+ * the server. A workspace admin connects a mailbox with them; they do not
+ * supply their own.
+ *
+ * Through `setting` like the relay and the bot token, so an admin who discovers
+ * they need OAuth after the container is running types it into Settings rather
+ * than editing a compose file. Empty means the provider is not offered at all,
+ * which is the right shape for an instance whose owner never wanted Gmail.
+ */
+const computeMailOAuth = () => ({
+  google: {
+    clientId: setting('KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_ID') ?? '',
+    clientSecret: setting('KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_SECRET') ?? '',
+  },
+  microsoft: {
+    clientId: setting('KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_ID') ?? '',
+    clientSecret: setting('KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_SECRET') ?? '',
+    /** `common` works for most; a single-tenant registration needs its own id. */
+    tenant: setting('KOLIBRI_MAIL_OAUTH_MICROSOFT_TENANT') ?? 'common',
+  },
+});
+
+const mailOAuth = computeMailOAuth();
+
+
+/**
  * Read the environment and the stored settings again.
  *
  * Called when a setting is written, so a relay typed into Settings is the
@@ -283,6 +313,7 @@ const telegram = computeTelegram();
  */
 export function refreshEnv(): void {
   Object.assign(mail, computeMail());
+  Object.assign(mailOAuth, computeMailOAuth());
   Object.assign(ai, computeAi());
   Object.assign(telegram, computeTelegram());
 }
@@ -433,6 +464,7 @@ export const env = {
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,
+  mailOAuth,
   admin,
   /** Fill an empty database with the demo workspace on first start. */
   seedDemo: bool(process.env.KOLIBRI_SEED_DEMO, false),

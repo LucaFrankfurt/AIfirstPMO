@@ -31,6 +31,7 @@
 import { parseMailQuery, type MailFilter } from '@kolibri/shared';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { mailboxView, visibleMailboxes } from '../../../modules/mail/mailboxes.ts';
+import { hasMailFetcher, pollById } from '../../../modules/mail/poll.ts';
 import { attachmentsOf } from '../../../modules/mail/store.ts';
 import { countMail, narrow, readMessage, searchMail, threadOf } from '../../../modules/mail/search.ts';
 import { rankDocuments } from '../../../modules/mail/documents.ts';
@@ -327,6 +328,44 @@ export const mailTools: ToolDef[] = [
         ...mailStats(options),
         response: responseTimes(options, covered.map((row) => String(row.address))),
         searched: covered.map((row) => String(row.address)),
+      };
+    },
+  },
+  {
+    name: 'sync_mailbox',
+    title: 'Fetch new mail now',
+    description:
+      'Poll one mailbox immediately instead of waiting for the next five-minute round, and report how many messages that brought in. Worth calling before answering "did it arrive yet" — every other tool here reads a copy, and the copy is as old as list_mailboxes says it is. It fetches; it still cannot send, reply or delete.',
+    schema: {
+      type: 'object',
+      required: ['mailbox'],
+      properties: {
+        mailbox: { type: 'string', description: 'Address or id, from list_mailboxes.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: async (args, ctx) => {
+      const { workspaceId, mailboxes } = mailScope(args, ctx);
+      // A write scope, even though nothing in Kolibri changes and nothing on
+      // the mail server does either. What it does do is make this instance open
+      // a connection to somebody else's server on demand — which is an outbound
+      // effect a read-only token should not be able to trigger at will.
+      requireWrite(ctx, workspaceId);
+      const wanted = String(args.mailbox).trim().toLowerCase();
+      const mailbox = mailboxes.find(
+        (row) => String(row.id) === String(args.mailbox) || String(row.address).toLowerCase() === wanted,
+      );
+      if (!mailbox) throw new McpError('No such mailbox, or this account may not read it');
+      if (!hasMailFetcher()) throw new McpError('This build has no mail transport', -32000);
+
+      const result = await pollById(String(mailbox.id));
+      return {
+        mailbox: result.mailbox,
+        fetched: result.fetched,
+        // Reported rather than thrown: a mailbox that will not sign in is a
+        // fact about that mailbox, and an answer covering three others should
+        // still come back.
+        error: result.error ?? null,
       };
     },
   },

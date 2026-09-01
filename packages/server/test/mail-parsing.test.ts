@@ -18,17 +18,47 @@ process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-mail-parsing-${process.pid}`;
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { createServer, type Server, type Socket } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
+import { createServer as createTlsServer, type TLSSocket } from 'node:tls';
 import type { AddressInfo } from 'node:net';
+
+/**
+ * A throwaway certificate for the servers below.
+ *
+ * Generated rather than checked in, exactly as `mail.test.ts` does it and for
+ * the reason written there: a private key in a repository is a private key in a
+ * repository even when it is only good for `127.0.0.1`.
+ *
+ * It is needed at all because the client refuses to send *any* credential over
+ * a plaintext connection, token included — so a fake server that stayed in
+ * plaintext could only ever test the refusal, and the sign-in these tests are
+ * about would never happen.
+ */
+const certDir = mkdtempSync(join(tmpdir(), 'kolibri-imap-cert-'));
+execFileSync('openssl', [
+  'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '1',
+  '-subj', '/CN=127.0.0.1', '-addext', 'subjectAltName=IP:127.0.0.1',
+  '-keyout', join(certDir, 'key.pem'), '-out', join(certDir, 'cert.pem'),
+], { stdio: 'ignore' });
+const credentials = {
+  key: readFileSync(join(certDir, 'key.pem')),
+  cert: readFileSync(join(certDir, 'cert.pem')),
+};
 
 import { decodeBody, decodeParameter, decodeQuotedPrintable, decodeWords, htmlToText, parseHeaders } from '../src/adapters/imap/mime.ts';
 import { asList, asText, chooseParts, filenameParams, flattenStructure, tokenise } from '../src/adapters/imap/protocol.ts';
 import { ranges } from '../src/adapters/imap/fetcher.ts';
 import { checkMailbox, defaultMailboxPort, parseMailboxUrl } from '../src/kernel/mail/mailbox.ts';
 
-after(() => rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true }));
+after(() => {
+  rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
+  rmSync(certDir, { recursive: true, force: true });
+});
 
 /* ------------------------------------------------------------------- MIME */
 
@@ -238,11 +268,16 @@ describe('what a mailbox URL spells', () => {
 });
 
 describe('what a mailbox form will accept', () => {
-  it('refuses a password over an unencrypted connection', () => {
-    assert.match(
-      checkMailbox({ host: 'localhost', port: 143, encryption: 'none', password: 'hunter2' }) ?? '',
-      /unencrypted/,
-    );
+  it('refuses either kind of credential over an unencrypted connection', () => {
+    // A bearer token as much as a password: read off the wire it is a mailbox
+    // for as long as it lasts, and the shorter life is the only way it is
+    // better.
+    for (const credential of [
+      { kind: 'password', password: 'hunter2' },
+      { kind: 'oauth', accessToken: 'ya29.a0' },
+    ] as const) {
+      assert.match(checkMailbox({ host: 'localhost', port: 143, encryption: 'none', credential }) ?? '', /unencrypted/);
+    }
   });
 
   it('accepts a capture server with no password', () => {
@@ -253,6 +288,172 @@ describe('what a mailbox form will accept', () => {
     assert.match(checkMailbox({ host: 'a b', port: 993, encryption: 'tls' }) ?? '', /host name/);
     assert.match(checkMailbox({ host: 'x.de', port: 0, encryption: 'tls' }) ?? '', /1 to 65535/);
     assert.match(checkMailbox({ address: 'not an address', host: 'x.de', port: 993, encryption: 'tls' }) ?? '', /email address/);
+  });
+});
+
+/* ------------------------------------------------------------- XOAUTH2 */
+
+/**
+ * A server that speaks the SASL half of IMAP, and can be told to refuse.
+ *
+ * `sasl` says which form it advertises — inline with `SASL-IR`, or the
+ * two-step exchange — because both are in the field and the client has to do
+ * both. `accept` is the token it will take; anything else gets the refusal,
+ * which is the interesting path: a rejected token is answered with a `+`
+ * continuation rather than a `NO`, and a client that does not send the empty
+ * line back waits for a tagged reply that never comes.
+ */
+function startSaslImap(options: { sasl: 'inline' | 'twostep'; accept: string }): Promise<{ port: number; server: ReturnType<typeof createTlsServer>; spoken: string[] }> {
+  const spoken: string[] = [];
+  const capability = options.sasl === 'inline'
+    ? '* CAPABILITY IMAP4rev1 SASL-IR AUTH=XOAUTH2 AUTH=PLAIN\r\n'
+    : '* CAPABILITY IMAP4rev1 AUTH=XOAUTH2 AUTH=PLAIN\r\n';
+
+  const server = createTlsServer(credentials, (socket: TLSSocket) => {
+    socket.setEncoding('utf8');
+    socket.write('* OK fake IMAP ready\r\n');
+    let buffer = '';
+    let awaitingBlob = false;
+    let refusing = false;
+    let authTag = '';
+
+    socket.on('data', (chunk: string) => {
+      buffer += chunk;
+      let end = buffer.indexOf('\r\n');
+      while (end >= 0) {
+        const line = buffer.slice(0, end);
+        buffer = buffer.slice(end + 2);
+        end = buffer.indexOf('\r\n');
+
+        if (refusing) {
+          // The empty line acknowledging the refusal. Only now does the server
+          // finish the sentence.
+          socket.write(`${authTag} NO AUTHENTICATE failed.\r\n`);
+          refusing = false;
+          awaitingBlob = false;
+          continue;
+        }
+        if (awaitingBlob) {
+          spoken.push(`BLOB ${line}`);
+          awaitingBlob = false;
+          const decoded = Buffer.from(line, 'base64').toString();
+          if (decoded.includes(`auth=Bearer ${options.accept}`)) socket.write(`${authTag} OK signed in\r\n`);
+          else {
+            refusing = true;
+            socket.write(`+ ${Buffer.from('{"status":"401"}').toString('base64')}\r\n`);
+          }
+          continue;
+        }
+
+        const [tag, ...rest] = line.split(' ');
+        const command = rest.join(' ');
+        spoken.push(command);
+        if (/^CAPABILITY/i.test(command)) {
+          socket.write(capability);
+          socket.write(`${tag} OK done\r\n`);
+        } else if (/^AUTHENTICATE XOAUTH2/i.test(command)) {
+          authTag = tag;
+          const inline = command.split(' ')[2];
+          if (inline) {
+            spoken.push(`BLOB ${inline}`);
+            const decoded = Buffer.from(inline, 'base64').toString();
+            if (decoded.includes(`auth=Bearer ${options.accept}`)) socket.write(`${tag} OK signed in\r\n`);
+            else {
+              refusing = true;
+              socket.write(`+ ${Buffer.from('{"status":"401"}').toString('base64')}\r\n`);
+            }
+          } else {
+            awaitingBlob = true;
+            socket.write('+ \r\n');
+          }
+        } else socket.write(`${tag} OK done\r\n`);
+      }
+    });
+    socket.on('error', () => undefined);
+  });
+
+  return new Promise((resolve) => {
+    server.listen(0, '127.0.0.1', () =>
+      resolve({ port: (server.address() as AddressInfo).port, server, spoken }));
+  });
+}
+
+describe('signing in with a token', () => {
+  const connect = async (port: number, token: string) => {
+    const { ImapConnection } = await import('../src/adapters/imap/imap.ts');
+    return ImapConnection.open({
+      host: '127.0.0.1', port, encryption: 'tls', allowInvalidCerts: true,
+      username: 'support@calendoora.de',
+      credential: { kind: 'oauth', accessToken: token },
+    });
+  };
+
+  it('sends the SASL blob on the command line when the server offers SASL-IR', async () => {
+    const { port, server, spoken } = await startSaslImap({ sasl: 'inline', accept: 'good-token' });
+    try {
+      (await connect(port, 'good-token')).end();
+      const blob = spoken.find((one) => one.startsWith('BLOB '))!.slice(5);
+      assert.equal(
+        Buffer.from(blob, 'base64').toString(),
+        'user=support@calendoora.de\x01auth=Bearer good-token\x01\x01',
+      );
+      // One command, not two: the initial response went with it.
+      assert.equal(spoken.filter((one) => /^AUTHENTICATE/i.test(one)).length, 1);
+    } finally {
+      server.close();
+    }
+  });
+
+  it('waits for the continuation when the server does not', async () => {
+    const { port, server, spoken } = await startSaslImap({ sasl: 'twostep', accept: 'good-token' });
+    try {
+      (await connect(port, 'good-token')).end();
+      // The command carried no blob; the blob arrived as its own line.
+      assert.ok(spoken.includes('AUTHENTICATE XOAUTH2'));
+      assert.ok(spoken.some((one) => one.startsWith('BLOB ')));
+    } finally {
+      server.close();
+    }
+  });
+
+  it('answers the refusal continuation rather than hanging on it', async () => {
+    // The failure worth a test of its own. A rejected token is answered with a
+    // `+` and nothing else until the client sends an empty line — so a client
+    // that treats it as noise blocks until the socket times out, and the
+    // mailbox is recorded as unreachable rather than as signed out. That sends
+    // whoever is debugging it to the firewall instead of the consent screen.
+    const { port, server } = await startSaslImap({ sasl: 'inline', accept: 'good-token' });
+    try {
+      const started = Date.now();
+      await assert.rejects(() => connect(port, 'stale-token'), /OAuth sign-in refused/);
+      assert.ok(Date.now() - started < 5_000, 'it waited for a timeout instead of answering');
+    } finally {
+      server.close();
+    }
+  });
+
+  it('refuses outright when the server does not offer XOAUTH2 at all', async () => {
+    const server = createTlsServer(credentials, (socket: TLSSocket) => {
+      socket.setEncoding('utf8');
+      socket.write('* OK plain only\r\n');
+      socket.on('data', (chunk: string) => {
+        for (const line of chunk.split('\r\n').filter(Boolean)) {
+          const tag = line.split(' ')[0];
+          socket.write('* CAPABILITY IMAP4rev1 AUTH=PLAIN\r\n');
+          socket.write(`${tag} OK done\r\n`);
+        }
+      });
+      socket.on('error', () => undefined);
+    });
+    await new Promise<void>((done) => { server.listen(0, '127.0.0.1', () => done()); });
+    try {
+      await assert.rejects(
+        () => connect((server.address() as AddressInfo).port, 'good-token'),
+        /does not accept OAuth sign-in/,
+      );
+    } finally {
+      server.close();
+    }
   });
 });
 
@@ -339,7 +540,10 @@ describe('fetching from a mailbox', () => {
 
     try {
       const messages = await mailFetcher().fetch(
-        { host: '127.0.0.1', port, encryption: 'none', username: 'support@calendoora.de', password: '' },
+        {
+          host: '127.0.0.1', port, encryption: 'none', username: 'support@calendoora.de',
+          credential: { kind: 'password', password: '' },
+        },
         'INBOX',
         { sinceUid: 0, sinceDays: 365, limit: 500 },
       );

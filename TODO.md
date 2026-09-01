@@ -116,26 +116,49 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## P2 — the obvious next features
 
-- [ ] **OAuth for Gmail and Microsoft mailboxes.** Connected mailboxes sign in with a password
-      today, which for either of those providers means an app password: a workspace admin has to
-      generate one per inbox, and an account with the setting disabled by policy cannot connect at
-      all. IMAP's answer is `AUTHENTICATE XOAUTH2`, which the client does not speak — the token
-      dance is the work, not the command. It is left out because a password gets the feature into
-      somebody's hands and OAuth is a refresh-token lifecycle in the settings screen; it is the
-      first thing to build if this is used against Google Workspace rather than a mail host.
-- [ ] **Mail is not in the global search box.** `search_mail` and the Mail screen find it; the one
-      box over everything does not, because mail has its own FTS table. That was the right call for
-      the query — a message is found by words *and* by who sent it, when, and whether a PDF was
-      attached, and folding four unindexed columns onto every task and page to share one table is
-      not a trade worth making. It leaves the box saying "no results" for a word that is in an
-      inbox, which is a real gap. Fixing it properly means the kernel's search declaring a port for
-      a corpus with its own visibility rule, so `mail` can register one from further out; doing it
-      by teaching `search.ts` about mailboxes would be the kernel leaning on a capability, which is
-      the rule the whole module map exists to keep.
-- [ ] **A mailbox is polled, not pushed.** Five minutes, deliberately — see
-      [`docs/mail.md`](docs/mail.md) for why IDLE was not taken. The cost is that "did the invoice
-      arrive" can be five minutes stale, and the honest fix if that ever matters is not IDLE but a
-      Sync now button, which exists.
+- [x] **OAuth for Gmail and Microsoft mailboxes.** Built. `AUTHENTICATE XOAUTH2` in the IMAP
+      client, the authorization-code flow with PKCE S256 in `adapters/oauth`, and the token
+      lifecycle in `modules/mail/oauth.ts` behind a port — so the capability decides when a token
+      is stale and the adapter is the only thing that talks to `oauth2.googleapis.com`.
+      The refresh token is stored where the password was, in the same sealed column, because to
+      everything that touches that row they are the same thing; `kind` tells them apart at the two
+      places it matters. The access token is cached against its expiry rather than fetched per
+      poll — a token endpoint hit every five minutes per mailbox is a rate limit somebody meets on
+      a bad day, and nothing about a working mailbox would show it.
+      Two provider quirks turned out to be load-bearing and neither is in a specification: Google
+      issues a refresh token **once**, only with `access_type=offline` *and* `prompt=consent`, so a
+      reconnect without the second returns an access token and nothing to renew with and the
+      mailbox stops working in an hour; Microsoft needs `offline_access` spelled out beside the
+      IMAP scope, and a registration missing `IMAP.AccessAsUser.All` fails at consent. Both are in
+      `docs/mail.md`. Still to do if anyone needs it: nothing, unless a third provider appears —
+      it is a `MailAuthProvider` and the port is the whole of what one has to fill.
+- [x] **Mail is in the global search box.** `kernel/search` declares `registerCorpus` and
+      `capability/mail` fills it, which is the arrangement the entry asked for: the kernel still
+      does not know that a mailbox exists, and the visibility stays in one place because the corpus
+      resolves the readable mailboxes exactly as every other reader does. A restricted inbox is not
+      findable from the box by somebody not on its list.
+      What had to be decided along the way: two `bm25` rankings from two FTS tables cannot be
+      compared — the score depends on the table's own document count and average length — so
+      sorting the concatenation would look principled and be arbitrary, and the arbitrariness would
+      land as "mail always wins" or "mail never appears" depending on which corpus was larger. The
+      merge is by **position within each corpus** instead: every corpus's best hit, then every
+      corpus's second. It claims only what is true, and it has the property the flat list needs,
+      which is that one mail matching a word nothing else matches is near the top rather than off
+      the end.
+      Not passed through: the mail dialect. `von:stripe seit:2024` is the Mail screen's language and
+      the box over everything already has one of its own — two query languages in one field is a
+      field nobody can predict.
+- [x] **A mailbox is polled, not pushed — and that stays the answer.** Not built, decided. IDLE
+      would deliver mail the second it arrives and needs a connection held open per mailbox, which
+      is the thing a self-hosted instance behind NAT with a laptop lid cannot do; the reasoning is
+      in [`docs/mail.md`](docs/mail.md) and it has not changed.
+      What *did* change is where the mitigation the entry already named is reachable from. "Sync
+      now" was a button on a settings screen, which is the wrong place for the case that actually
+      bites — somebody asking an assistant "is the invoice there yet". So there is a `sync_mailbox`
+      tool: it polls one mailbox on demand and reports what that brought in, and it takes a write
+      scope even though nothing anywhere is written, because it makes this instance open a
+      connection to somebody else's server and a read-only token should not be able to do that at
+      will.
 
 - [x] **Saved views UI.** Save the current filter set under a name, from a project or from My work,
       shared with the team by default. A dot marks a view you have changed since saving. One view can
@@ -987,7 +1010,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 80 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 81 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
