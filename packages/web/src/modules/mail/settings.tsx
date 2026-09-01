@@ -41,12 +41,38 @@ import { byId, list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { useMembers, useSession } from '../../kernel/identity/session';
 
-/** What the API adds to a synced row: how it signs in, never what with. */
-type MailboxRow = Mailbox & {
-  has_password?: boolean;
-  auth?: 'none' | 'password' | 'oauth';
-  provider?: string;
-};
+/**
+ * The API's answer: a synced row with the credential fields alongside.
+ *
+ * Only `refreshCredentials` sees this shape, and it takes the three fields off
+ * it immediately. Everything downstream gets a plain `Mailbox` and a
+ * `Credential`, so a component cannot reach for `mailbox.auth` and silently
+ * get `undefined` — which is how the reverting-field bug below got written.
+ */
+type MailboxResponse = Mailbox & Credential;
+
+/**
+ * The three things the API knows and the sync feed cannot say, and nothing else.
+ *
+ * This was the whole row for an afternoon, kept in a map and spread over the
+ * synced one — and spread *last*, so it won. The map is filled once when the
+ * screen mounts, so every edit to a mailbox that already existed then snapped
+ * straight back to its mount-time value: pick STARTTLS, watch it stay on TLS.
+ *
+ * The write had gone through. The server had the new value, a reload showed it,
+ * and the form showed the old one in between — which is the worst version of
+ * this bug, because "it did not save" is at least a thing you can act on.
+ *
+ * So the type is narrowed to what actually cannot sync. A `secret` field never
+ * reaches a client, and how a mailbox signs in is derived from one; everything
+ * else about a mailbox is an ordinary synced column and the mirror is its
+ * source of truth.
+ */
+interface Credential {
+  has_password: boolean;
+  auth: 'none' | 'password' | 'oauth';
+  provider: string;
+}
 
 /** A provider this instance could actually offer, from `/api/mail/oauth/providers`. */
 interface Provider { name: string; label: string }
@@ -67,11 +93,17 @@ export function MailboxSettings() {
    * every row reads as "no password", which is the safe direction: it prompts
    * for one that is already there rather than claiming one that is not.
    */
-  const [credentials, setCredentials] = useState<Map<string, MailboxRow>>(new Map());
+  const [credentials, setCredentials] = useState<Map<string, Credential>>(new Map());
   const refreshCredentials = async () => {
     try {
-      const answer = await api.get<{ mailboxes: MailboxRow[] }>(`/api/workspaces/${workspaceId}/mailboxes`);
-      setCredentials(new Map(answer.mailboxes.map((box) => [box.id, box])));
+      const answer = await api.get<{ mailboxes: MailboxResponse[] }>(`/api/workspaces/${workspaceId}/mailboxes`);
+      // Three fields, not the row. See `Credential` for what happened when it
+      // was the row.
+      setCredentials(new Map(answer.mailboxes.map((box) => [box.id, {
+        has_password: !!box.has_password,
+        auth: box.auth,
+        provider: box.provider,
+      }])));
     } catch {
       /* offline: every row shows as needing a credential, which is recoverable */
     }
@@ -117,7 +149,11 @@ export function MailboxSettings() {
       {mailboxes.map((box) => (
         <MailboxRowEditor
           key={box.id}
-          mailbox={{ ...(box as MailboxRow), ...credentials.get(box.id) }}
+          // The synced row carries everything a mailbox is; the credential adds
+          // only what cannot sync. Spread in that order and it stays that way
+          // even if `Credential` ever grows a field it should not have.
+          mailbox={box}
+          credential={credentials.get(box.id)}
           providers={providers}
           redirectUri={redirectUri}
           onPasswordSet={refreshCredentials}
@@ -168,8 +204,9 @@ export function MailboxSettings() {
   );
 }
 
-function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRemove }: {
-  mailbox: MailboxRow;
+function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPasswordSet, onRemove }: {
+  mailbox: Mailbox;
+  credential: Credential | undefined;
   providers: Provider[];
   redirectUri: string;
   onPasswordSet: () => void;
@@ -182,7 +219,7 @@ function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRe
   const [open, setOpen] = useState(false);
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
-  const auth = mailbox.auth ?? 'none';
+  const auth = credential?.auth ?? 'none';
   const signedIn = auth !== 'none';
 
   const patch = (fields: Partial<Mailbox>) => update('mailbox', mailbox.id, fields as Record<string, unknown>);
@@ -238,7 +275,7 @@ function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRe
             {mailbox.message_count ? ` · ${t('mailbox.messages', { count: mailbox.message_count })}` : ''}
           </div>
         </button>
-        <MailboxStatus mailbox={mailbox} />
+        <MailboxStatus mailbox={mailbox} auth={auth} />
         <Button onClick={() => setOpen(!open)}>{t(open ? 'action.done' : 'action.edit')}</Button>
       </div>
 
@@ -291,9 +328,9 @@ function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRe
           {auth === 'oauth' ? (
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0 text-[12px] text-muted">
-                {t('mailbox.connectedTo', { provider: providerLabel(providers, mailbox.provider) })}
+                {t('mailbox.connectedTo', { provider: providerLabel(providers, credential?.provider) })}
               </span>
-              <Button disabled={busy} onClick={() => void connect(mailbox.provider ?? '')}>
+              <Button disabled={busy} onClick={() => void connect(credential?.provider ?? '')}>
                 {t('mailbox.reconnect')}
               </Button>
             </div>
@@ -404,9 +441,9 @@ function MailboxRowEditor({ mailbox, providers, redirectUri, onPasswordSet, onRe
 }
 
 /** The one-glance answer: is this mailbox actually working. */
-function MailboxStatus({ mailbox }: { mailbox: MailboxRow }) {
+function MailboxStatus({ mailbox, auth }: { mailbox: Mailbox; auth: 'none' | 'password' | 'oauth' }) {
   const t = useT();
-  if ((mailbox.auth ?? 'none') === 'none') return <Chip>{t('mailbox.passwordUnset')}</Chip>;
+  if (auth === 'none') return <Chip>{t('mailbox.passwordUnset')}</Chip>;
   if (mailbox.last_status === 'failing') {
     // The error itself as the title, so hovering answers "why" without
     // opening the row. It is the provider's sentence and worth keeping whole.
@@ -421,12 +458,12 @@ const providerLabel = (providers: Provider[], name: string | undefined): string 
   providers.find((one) => one.name === name)?.label ?? name ?? '';
 
 /** Whether this account can see any mailbox at all — for hiding the search screen. */
-export const useMailboxes = (): MailboxRow[] => {
+export const useMailboxes = (): Mailbox[] => {
   const { workspaceId } = useSession();
   return useQuery(
     () => list('mailbox', (box) => box.workspace_id === workspaceId && !!box.enabled),
     [workspaceId],
-  ) as MailboxRow[];
+  ) as Mailbox[];
 };
 
 /** One mailbox from the mirror, for a result row that needs its name. */
