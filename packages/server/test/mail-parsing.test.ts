@@ -53,7 +53,8 @@ const credentials = {
 import { decodeBody, decodeParameter, decodeQuotedPrintable, decodeWords, htmlToText, parseHeaders } from '../src/adapters/imap/mime.ts';
 import { asList, asText, chooseParts, filenameParams, flattenStructure, tokenise } from '../src/adapters/imap/protocol.ts';
 import { ranges } from '../src/adapters/imap/fetcher.ts';
-import { checkMailbox, defaultMailboxPort, parseMailboxUrl } from '../src/kernel/mail/mailbox.ts';
+import { checkMailbox, parseMailboxUrl } from '../src/kernel/mail/mailbox.ts';
+import { defaultMailboxPort, isDefaultMailboxPort } from '@kolibri/shared';
 
 after(() => {
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
@@ -264,6 +265,30 @@ describe('what a mailbox URL spells', () => {
   it('refuses anything that is not an IMAP URL', () => {
     assert.equal(parseMailboxUrl('https://imap.x.de'), null);
     assert.equal(parseMailboxUrl('nonsense'), null);
+  });
+
+  /*
+   * The question the settings screen asks before it moves anybody's port.
+   *
+   * A mailbox on 993 under TLS is there because that is what TLS uses, so
+   * switching to STARTTLS should take it to 143 — the pairing it would
+   * otherwise be left in cannot connect at all, and was reported from a live
+   * instance. A mailbox on 10993 is there because a hosting company said so,
+   * and that is the one number on the form nobody could have guessed.
+   */
+  it('knows a port nobody chose from one somebody did', () => {
+    assert.equal(isDefaultMailboxPort(993, 'tls'), true);
+    assert.equal(isDefaultMailboxPort(143, 'starttls'), true);
+    assert.equal(isDefaultMailboxPort(143, 'none'), true);
+
+    // The pairing from the report: 993 is not STARTTLS's, so switching *to*
+    // STARTTLS from a default-993 mailbox is exactly the case that moves.
+    assert.equal(isDefaultMailboxPort(993, 'starttls'), false);
+    assert.equal(isDefaultMailboxPort(143, 'tls'), false);
+
+    // And the one that must never move.
+    assert.equal(isDefaultMailboxPort(10_993, 'tls'), false);
+    assert.equal(isDefaultMailboxPort(10_993, 'starttls'), false);
   });
 });
 

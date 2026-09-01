@@ -28,7 +28,8 @@
  */
 import { useEffect, useState, type ComponentProps } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { Mailbox, MailboxAccessLevel } from '@kolibri/shared';
+import { defaultMailboxPort, isDefaultMailboxPort, type Mailbox, type MailboxAccessLevel }
+  from '@kolibri/shared';
 import { Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
@@ -349,11 +350,36 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
               // them the number they were trying to get rid of.
               onCommit={(port) => { if (port.trim()) patch({ port: Number(port) }); }}
             />
+            {/*
+              Changing the encryption moves the port with it — but only when the
+              port was the old encryption's default.
+
+              A mailbox left the factory on 993 because that is what TLS uses,
+              not because anybody chose it, and switching to STARTTLS while
+              leaving 993 behind produces a pairing that cannot connect: 993
+              speaks TLS from the first byte, so a STARTTLS client sits there
+              waiting for a greeting that has already been encrypted. That
+              combination was reported from a live instance, with the two
+              controls sitting side by side, each showing something reasonable.
+
+              A port that is *not* the default is the one thing on this form
+              nobody could have guessed — a hosting company said 10993 — so it
+              is left exactly where it is. The dropdown's own labels carry the
+              numbers, which is what makes the change legible rather than
+              surprising: pick "STARTTLS (143)" and the box next to it says 143.
+            */}
             <Select
               className="flex-1 min-w-0"
               aria-label={t('mailbox.encryption')}
               value={mailbox.encryption ?? 'tls'}
-              onChange={(event) => patch({ encryption: event.target.value as Mailbox['encryption'] })}
+              onChange={(event) => {
+                const encryption = event.target.value as Mailbox['encryption'];
+                const before = mailbox.encryption ?? 'tls';
+                const port = mailbox.port ?? defaultMailboxPort(before);
+                patch(isDefaultMailboxPort(port, before)
+                  ? { encryption, port: defaultMailboxPort(encryption) }
+                  : { encryption });
+              }}
             >
               <option value="tls">TLS (993)</option>
               <option value="starttls">STARTTLS (143)</option>

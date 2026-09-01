@@ -18,7 +18,7 @@
  * `support@` holds nothing anybody minds, and those are two different lists of
  * people that no project membership happens to describe.
  */
-import type { MailboxAccessLevel } from '../../kernel/registry/types.ts';
+import type { MailboxAccessLevel, MailEncryption } from '../../kernel/registry/types.ts';
 
 /**
  * Who may read a mailbox — the two values `MailboxAccessLevel` names.
@@ -67,6 +67,30 @@ export function canReadMailbox(scope: MailboxScope, userId: string): boolean {
  * `rechnung@x.de` counting as two correspondents in the same report, which is
  * a statistic that is wrong in a way nobody would report as a bug.
  */
+/**
+ * The port a mailbox is on when nobody said.
+ *
+ * 993 for implicit TLS, 143 for everything else. Stated once rather than at
+ * each call site, because "which port does STARTTLS use again" is a question
+ * that gets answered differently by whoever is typing — and it is now answered
+ * on both sides of the wire: the server fills it in when a URL omits it, and
+ * the settings screen pulls the port along when somebody changes the
+ * encryption.
+ */
+export const defaultMailboxPort = (encryption: MailEncryption): number => (encryption === 'tls' ? 993 : 143);
+
+/**
+ * Is this port simply the default for that encryption, or did somebody choose it?
+ *
+ * The difference decides whether changing the encryption may move the port. A
+ * mailbox sitting on the default is sitting there because nobody thought about
+ * it, so it should follow; one on 10993 is on 10993 because a hosting company
+ * said so, and moving it would throw away the only part of the form that could
+ * not be guessed.
+ */
+export const isDefaultMailboxPort = (port: number, encryption: MailEncryption): boolean =>
+  port === defaultMailboxPort(encryption);
+
 export const foldAddress = (raw: string): string => raw.trim().toLowerCase();
 
 /** The domain half, for grouping senders by who they work for. */

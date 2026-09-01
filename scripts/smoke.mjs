@@ -1634,6 +1634,16 @@ await step('with no model configured, reviews leave no trace', async () => {
  * overwrite an edit — then type into it like a person and check that what is on
  * screen, and what the server has, is what was typed.
  */
+/**
+ * One mailbox's row on the settings screen, addressed by the address.
+ *
+ * `bg-raised` is the card each connected mailbox is drawn in; the filter picks
+ * the one that mentions this address, so everything below — the fields, the
+ * dropdowns — is scoped to that mailbox rather than to whichever happens to be
+ * first on the screen.
+ */
+const mailboxRow = (on, address) => on.locator('div.bg-raised').filter({ hasText: address }).first();
+
 await step('a feature-switched screen can be opened, filled in and typed into', async () => {
   await page.goto(`${base}/settings?tab=workspace`, { waitUntil: 'networkidle' });
   const row = page.locator('label.check-row', { hasText: LABELS.mailFeature });
@@ -1678,10 +1688,20 @@ await step('a feature-switched screen can be opened, filled in and typed into', 
   // the bug is there. Only a row that was already present when the screen
   // loaded can show it.
   await page.reload({ waitUntil: 'networkidle' });
-  await page.locator('button', { hasText: new RegExp(`^${LABELS.edit}$`) }).first().click();
+  /*
+   * The row is found by its address, not by being first.
+   *
+   * It used to be `.first()`, which is the same thing exactly as long as this
+   * mailbox is the only one — and silently a different thing the moment
+   * something else has left one behind. That happened: the browser checks
+   * create their own, and this step then typed into theirs and asserted
+   * against ours, reporting a bug in the app that was a bug in the selector.
+   */
+  const mailbox = mailboxRow(page, 'smoke@example.com');
+  await mailbox.locator('button.text-left').first().click();
   await page.waitForTimeout(600);
 
-  const port = page.locator('input[type=number]').first();
+  const port = mailbox.locator('input[type=number]').first();
   const before = await port.inputValue();
   // The assertion below only means something if the box does not already hold
   // what is about to be typed into it.
@@ -1712,6 +1732,71 @@ await step('a feature-switched screen can be opened, filled in and typed into', 
     return answer.mailboxes.find((one) => one.address === 'smoke@example.com')?.port;
   }, workspace);
   if (stored !== 587) throw new Error(`the server stored port ${stored}, not 587`);
+});
+
+/**
+ * Two controls that have to agree, and the rule for when one moves the other.
+ *
+ * Reported from a live instance: a mailbox on port 993 with the encryption set
+ * to STARTTLS, refusing to connect. Neither control was wrong on its own —
+ * 993 is what TLS uses and STARTTLS is a thing you can pick — and together
+ * they cannot work, because 993 is encrypted from the first byte and a STARTTLS
+ * client waits for a greeting it will never be able to read.
+ *
+ * So the port follows the encryption, *unless somebody chose it*. That
+ * exception is the whole of the design and the only part worth a walkthrough:
+ * a port that is not a default is the one number on this form nobody could have
+ * guessed, and moving it would throw away the only thing the hosting company
+ * had to tell them.
+ */
+await step('the port follows the encryption, unless somebody chose the port', async () => {
+  const workspace = await page.evaluate(async () => (await (await fetch('/api/session')).json()).workspaces[0].id);
+  const stored = async () => page.evaluate(async (id) => {
+    const answer = await (await fetch(`/api/workspaces/${id}/mailboxes`)).json();
+    const box = answer.mailboxes.find((one) => one.address === 'smoke@example.com');
+    return `${box?.port}/${box?.encryption}`;
+  }, workspace);
+
+  // Put it back on a default, which the previous step typed away from. Setup,
+  // not the thing under test, so it goes through the API.
+  await page.evaluate(async (id) => {
+    const answer = await (await fetch(`/api/workspaces/${id}/mailboxes`)).json();
+    const box = answer.mailboxes.find((one) => one.address === 'smoke@example.com');
+    await fetch(`/api/mailboxes/${box.id}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ port: 993, encryption: 'tls' }),
+    });
+  }, workspace);
+
+  await page.goto(`${base}/settings?tab=mailboxes`, { waitUntil: 'networkidle' });
+  const row = mailboxRow(page, 'smoke@example.com');
+  await row.locator('button.text-left').first().click();
+  await page.waitForTimeout(600);
+
+  const port = row.locator('input[type=number]').first();
+  // Picked by what it contains rather than by its label: the access dropdown is
+  // the other `select` in this row, and both labels are translated.
+  const encryption = row.locator('select').filter({ has: page.locator('option[value="starttls"]') }).first();
+
+  if ((await port.inputValue()) !== '993') throw new Error(`expected to start on 993, saw ${await port.inputValue()}`);
+
+  await encryption.selectOption('starttls');
+  await page.waitForTimeout(900);
+  if ((await port.inputValue()) !== '143') throw new Error(`the port stayed on ${await port.inputValue()} when the encryption became STARTTLS`);
+  if ((await stored()) !== '143/starttls') throw new Error(`the server has ${await stored()}, not 143/starttls`);
+
+  // And now the half that must not move. 10993 is nobody's default.
+  await port.click();
+  await page.keyboard.press('Control+a');
+  for (const key of '10993') { await page.keyboard.type(key); await page.waitForTimeout(150); }
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(900);
+
+  await encryption.selectOption('tls');
+  await page.waitForTimeout(900);
+  if ((await port.inputValue()) !== '10993') throw new Error(`a chosen port was overwritten with ${await port.inputValue()}`);
+  if ((await stored()) !== '10993/tls') throw new Error(`the server has ${await stored()}, not 10993/tls`);
+  console.log('     993→143 with the switch, and 10993 left where it was put');
 });
 
 await step('interface is in the chosen language', async () => {
