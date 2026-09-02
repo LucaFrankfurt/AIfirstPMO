@@ -20,7 +20,7 @@
  * and two identical unions is how a settings screen ends up with two dropdowns
  * that have to be kept in step by hand.
  */
-import type { MailEncryption } from '@kolibri/shared';
+import { defaultMailboxPort, type MailEncryption } from '@kolibri/shared';
 import { isEmailAddress } from './address.ts';
 
 /**
@@ -50,16 +50,6 @@ export interface MailboxConfig {
 
 export const isMailEncryption = (value: unknown): value is MailEncryption =>
   value === 'none' || value === 'starttls' || value === 'tls';
-
-/**
- * The port a mailbox is on when nobody said.
- *
- * 993 for implicit TLS, 143 for everything else. Both defaults are stated here
- * rather than at the two call sites that need them, because "which port does
- * STARTTLS use again" is a question that gets answered differently by whoever
- * is typing.
- */
-export const defaultMailboxPort = (encryption: MailEncryption): number => (encryption === 'tls' ? 993 : 143);
 
 /**
  * `imaps://user:pass@host:993` / `imap://…?encryption=starttls` -> config.
