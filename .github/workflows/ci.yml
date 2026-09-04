@@ -50,7 +50,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     # Without this a hung step sits on a runner until the six-hour default.
-    timeout-minutes: 20
+    #
+    # 30 rather than 20, because 20 was not a guard any more — it was a coin
+    # flip. Measured across two consecutive runs of the same job: the one that
+    # passed took 1147s of its 1200s budget, and the one that followed took
+    # 1214s and was killed mid-`check:contrast`. The difference was not the
+    # walkthrough — that grew by five seconds — it was `npm ci` and the
+    # Playwright install going from 354s and 328s to 423s and 421s. Two thirds
+    # of this job is dependency installation, and how long a registry takes on
+    # a given morning is nothing a diff can be held responsible for.
+    #
+    # This buys room rather than fixing that; the installs are still the thing
+    # worth attacking.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
