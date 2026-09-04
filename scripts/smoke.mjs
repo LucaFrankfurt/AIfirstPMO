@@ -28,49 +28,58 @@ const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const locale = process.env.KOLIBRI_LOCALE ?? 'en';
 const shots = process.env.KOLIBRI_SHOT_DIR ?? (locale === 'en' ? '/tmp/shots' : `/tmp/shots-${locale}`);
 
-/** Only the strings the walkthrough clicks on — not a second catalogue. */
+/**
+ * Only the strings the walkthrough clicks on — not a second catalogue.
+ *
+ * And only the ones it *still* clicks on. Three entries outlived their steps
+ * here — `edit` went when the mailbox row started being found by its address —
+ * and nothing catches that: `noUnusedLocals` does not look inside an object,
+ * so a dead label is invisible to every check in this repository. Whoever
+ * stops using one should take it out; `LABELS[kind]` below is the only place
+ * that reads a key it does not spell, and it reads `cycle` and `module`.
+ */
 const LABELS = {
   en: {
     board: 'Board', newTask: 'New task', createTask: 'Create task', pages: 'Pages',
     guide: 'Guide', welcome: 'Welcome', log: 'Log',
-    chat: 'Chat', newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
+    newChannel: 'New channel', createChannel: 'Create channel', send: 'Send',
     findPerson: 'Find somebody', preview: 'Preview', write: 'Write',
-    newProject: 'New project', createProject: 'Create project', save: 'Save',
+    createProject: 'Create project', save: 'Save',
     taskLabels: 'Labels',
     taskParent: 'Parent',
     reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
-    mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes', edit: 'Edit',
+    mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
     guide: 'Anleitung', welcome: 'Willkommen', log: 'Protokoll',
-    chat: 'Chat', newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
+    newChannel: 'Neuer Kanal', createChannel: 'Kanal anlegen', send: 'Senden',
     findPerson: 'Jemanden suchen', preview: 'Vorschau', write: 'Schreiben',
-    newProject: 'Neues Projekt', createProject: 'Projekt anlegen', save: 'Speichern',
+    createProject: 'Projekt anlegen', save: 'Speichern',
     taskLabels: 'Labels',
     taskParent: 'Übergeordnet',
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
-    mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer', edit: 'Bearbeiten',
+    mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
     guide: 'Guide', welcome: 'Bienvenue', log: 'Journal',
-    chat: 'Discussion', newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
+    newChannel: 'Nouveau salon', createChannel: 'Créer le salon', send: 'Envoyer',
     findPerson: 'Trouver quelqu', preview: 'Aperçu', write: 'Écrire',
-    newProject: 'Nouveau projet', createProject: 'Créer le projet', save: 'Enregistrer',
+    createProject: 'Créer le projet', save: 'Enregistrer',
     taskLabels: 'Étiquettes',
     taskParent: 'Tâche parente',
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
-    mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail', edit: 'Modifier',
+    mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail',
   },
 }[locale];
 
