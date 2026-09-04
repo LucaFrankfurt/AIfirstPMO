@@ -9,6 +9,7 @@ import { useFeature, useSeesMoney, useSession } from '../../../kernel/identity/s
 import { AutomationSettings } from '../../automation/settings';
 import { Trash } from '../../trash/trash';
 import { AuditLog, Webhooks } from '../admin';
+import { tokenScope } from '../tokens';
 import { Backups, PersonalExport, WorkspaceTransfer } from '../../../adapters/transfer/data';
 import { Sessions, TwoFactor } from '../../../kernel/identity/security';
 import { downscale } from '../../pages/Markdown';
@@ -814,11 +815,20 @@ function CalendarFeed() {
 
 function ApiSettings() {
   const t = useT();
-  const { workspaceId } = useSession();
+  const { workspaceId, session } = useSession();
   const toast = useToast();
   const [tokens, setTokens] = useState<any[]>([]);
   const [name, setName] = useState('Claude');
   const [created, setCreated] = useState<string | null>(null);
+
+  const workspaces = session?.workspaces ?? [];
+  /* Der Workspace als Wort, nicht als UUID — und die UUID im `title`, weil sie
+     genau dann gebraucht wird, wenn der Name nicht auflösbar ist. */
+  const scopeLabel = (id: string | null | undefined) => {
+    const scope = tokenScope(id, workspaces);
+    if (scope.kind === 'all') return t('api.tokenAllWorkspaces');
+    return scope.kind === 'named' ? scope.name : t('api.tokenOtherWorkspace');
+  };
 
   const load = () => api.tokens().then(setTokens).catch(() => setTokens([]));
   useEffect(() => {
@@ -855,12 +865,20 @@ function ApiSettings() {
           <Icon name="plus" size={14} /> {t('action.create')}
         </Button>
       </div>
+      {/* Wo das neue Token landet, bevor es angelegt wird: `createToken` bindet
+          es an den gerade offenen Workspace, und danach steht das nirgends mehr
+          zur Wahl. */}
+      <p className="text-muted text-[12.5px] mb-3">
+        {t('api.tokenBoundTo', { workspace: scopeLabel(workspaceId) })}
+      </p>
 
       {tokens.map((token) => (
         <div className="flex items-center gap-2" key={token.id} style={{ padding: '7px 0', borderTop: '1px solid var(--line)' }}>
           <div className="flex-1 min-w-0">
             <div className="truncate">{token.name}</div>
-            <div className="text-muted mono truncate">{token.prefix}… · {token.scopes}</div>
+            <div className="text-muted truncate" title={token.workspace_id ?? undefined}>
+              <span className="mono">{token.prefix}… · {token.scopes}</span> · {scopeLabel(token.workspace_id)}
+            </div>
           </div>
           <span className="text-muted text-[11.5px]">
             {token.last_used_at ? t('api.usedAgo', { time: relativeTime(token.last_used_at) }) : t('api.neverUsed')}
