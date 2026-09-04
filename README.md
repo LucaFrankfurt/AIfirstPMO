@@ -262,7 +262,7 @@ length. Source in [`sites/docs`](sites/docs).
 | [`sync.md`](docs/sync.md) | The offline protocol, conflict rules and failure modes |
 | [`mobile.md`](docs/mobile.md) | The iOS and Android shells: building one, why the app asks for a server address, and what is not done |
 | [`api.md`](docs/api.md) | REST endpoints, auth, uploads |
-| [`openapi.json`](docs/openapi.json) | the same surface for a machine — generated from the registry and the routes |
+| [`openapi.json`](docs/openapi.json) | the same surface for a machine — generated, and served by every instance at `/openapi.json` |
 | [`mcp.md`](docs/mcp.md) | Every tool, prompt and resource with examples |
 | [`query.md`](docs/query.md) | The two small languages: a task on one line, and a filter as text |
 | [`markdown.md`](docs/markdown.md) | The one dialect every box that takes writing accepts, what it deliberately leaves out, and why there is no sanitiser |

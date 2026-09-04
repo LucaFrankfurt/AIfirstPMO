@@ -139,7 +139,7 @@ export function onNotification(deliver: Delivery): void { … }
 Rule 7 then requires that somebody further out fills it. The generated table in `docs/modules.md`
 shows who asks for what and who supplies it — a port nobody fills renders as **nobody** and fails.
 
-**A route.** Nothing to do beyond writing it — but run `npm run openapi -- --fix`, because
+**A route.** Nothing to do beyond writing it — but run `npm run openapi`, because
 `docs/openapi.json` is generated from the routes and CI compares it byte for byte. A path built at
 runtime rather than written as a literal is refused: the document has to be all of them or it is
 worth nothing.

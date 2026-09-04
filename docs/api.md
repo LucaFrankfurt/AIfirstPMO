@@ -3,6 +3,26 @@
 Base URL is your instance, e.g. `https://kolibri.example.com`. All responses are JSON; errors look
 like `{ "error": "forbidden", "message": "Project is private" }` with a matching HTTP status.
 
+## The document
+
+The instance hands out its own description, unauthenticated:
+
+```bash
+curl $URL/openapi.json          # OpenAPI 3.1, generated from the registry and the routes
+```
+
+Point a client generator at that rather than at this page — it carries every path, a real schema for
+every entity, and no prose to go stale:
+
+```bash
+npx @openapitools/openapi-generator-cli generate \
+  -i $URL/openapi.json -g typescript-fetch -o ./kolibri-client
+```
+
+It needs no credentials on purpose. It names no secrets — a `secret` field is left out of it — and it
+describes a surface where every route asks for a token anyway; the people who need it most are the
+ones who do not have one yet.
+
 ## Authentication
 
 Two options, both accepted everywhere:

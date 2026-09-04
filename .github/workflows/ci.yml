@@ -238,6 +238,21 @@ jobs:
             echo "a key in .env did not reach the container"; exit 1
           }
 
+      # The one thing `paths.test.ts` can only approximate. It asserts the
+      # Dockerfile still carries the COPY line; this asserts the file arrived,
+      # from the image, over HTTP, unauthenticated — which is how anybody
+      # generating a client against a real instance will ask for it.
+      - name: The instance hands out its own API document
+        run: |
+          curl -fsS http://127.0.0.1:4000/openapi.json > spec.json
+          python3 -c "
+          import json
+          spec = json.load(open('spec.json'))
+          assert spec['openapi'].startswith('3.1'), spec['openapi']
+          assert '/openapi.json' in spec['paths'], 'the document does not describe the route serving it'
+          print(f\"{len(spec['paths'])} paths, {len(spec['components']['schemas'])} models\")
+          "
+
       - name: The owner account exists without anyone clicking anything
         run: |
           curl -fsS -c jar -X POST http://127.0.0.1:4000/api/auth/login \

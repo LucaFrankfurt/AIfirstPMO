@@ -36,6 +36,11 @@ COPY --chown=node:node packages/server/package.json ./packages/server/package.js
 COPY --chown=node:node packages/server/src ./packages/server/src
 COPY --chown=node:node packages/mcp ./packages/mcp
 COPY --from=build --chown=node:node /app/packages/web/dist ./packages/web/dist
+# The API document, and only it, out of `docs/`. The instance serves it at
+# `/openapi.json`, so leaving it behind would make that route 404 on every
+# deployment while passing on any checkout. `paths.test.ts` reads this file to
+# check the copy is still here.
+COPY --chown=node:node docs/openapi.json ./docs/openapi.json
 # Workspace links so `@kolibri/shared` resolves without a package manager.
 RUN mkdir -p node_modules/@kolibri \
     && ln -s /app/packages/shared node_modules/@kolibri/shared \
