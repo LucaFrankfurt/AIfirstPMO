@@ -1,13 +1,14 @@
 /**
  * The checks, checked.
  *
- * `modules.mjs` and `figures.mjs` are the only things standing between this
- * repository's architecture and its description of itself. Nothing stood
- * behind *them*: every rule here was proved once, by breaking the tree by hand
- * and watching the check complain, and then the proof was thrown away. A
- * regression in either script — a regex that stops matching, a walk that
- * returns nothing — would leave every check passing and every table quietly
- * wrong, which is precisely the failure both scripts exist to prevent.
+ * `modules.mjs`, `figures.mjs` and `openapi.mjs` are the only things standing
+ * between this repository's architecture, its description of itself and the API
+ * document clients are generated from. Nothing stood behind *them*: every rule
+ * here was proved once, by breaking the tree by hand and watching the check
+ * complain, and then the proof was thrown away. A regression in any of the
+ * three — a regex that stops matching, a walk that returns nothing — would
+ * leave every check passing and every table quietly wrong, which is precisely
+ * the failure they exist to prevent.
  *
  * So each proof is a case here. A case copies the tree, breaks one thing in
  * the copy, runs the checker against the copy, and asserts it says so. The
@@ -21,7 +22,7 @@
  */
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -37,11 +38,13 @@ after(() => made.forEach((dir) => rmSync(dir, { recursive: true, force: true }))
 /**
  * A copy of everything the two checkers read, and nothing they do not.
  *
- * `data` is a running instance's database, `test` and `dist` are skipped by the
- * walker anyway: leaving all three out is most of the bytes, and the cases run
- * a few dozen times.
+ * `data` is a running instance's database and `dist` is skipped by the walker
+ * anyway: leaving them out is most of the bytes, and the cases run a few dozen
+ * times. `test` is copied — `openapi.mjs` does not read it, but leaving a
+ * directory out of a tree that claims to be a copy is how the last three
+ * omissions were found, one failure at a time.
  */
-const SKIP = /[/\\](node_modules|dist|data|public|test)([/\\]|$)/;
+const SKIP = /[/\\](node_modules|dist|data|public)([/\\]|$)/;
 
 function tree() {
   const dir = mkdtempSync(join(tmpdir(), 'kolibri-checks-'));
@@ -50,10 +53,17 @@ function tree() {
   // claim against `CLAUDE.md` and the named list did not, so ten cases failed
   // on a missing file instead of on what they were testing.
   const top = readdirSync(ROOT).filter((name) => name.endsWith('.md'));
-  for (const entry of ['scripts', 'docs', ...top]) {
+  // `package.json` is in the list because `openapi.mjs` reads the version out of
+  // it: a copy without it failed on ENOENT rather than on the break under test.
+  for (const entry of ['scripts', 'docs', 'package.json', ...top]) {
     cpSync(join(ROOT, entry), join(dir, entry), { recursive: true });
   }
   cpSync(join(ROOT, 'packages'), join(dir, 'packages'), { recursive: true, filter: (src) => !SKIP.test(src) });
+  // Linked rather than copied: `openapi.mjs` reads the tree with the TypeScript
+  // compiler, so a copy that cannot resolve `typescript` fails on the import
+  // instead of on the thing the case is about. A link costs nothing and lets
+  // the copied scripts resolve exactly what the real ones do.
+  symlinkSync(join(ROOT, 'node_modules'), join(dir, 'node_modules'), 'dir');
 
   const read = (file) => readFileSync(join(dir, file), 'utf8');
   const write = (file, text) => {
@@ -253,6 +263,40 @@ const BREAKS = [
     break: (t) => t.edit('docs/modules.md', '## The rules, and who enforces them',
       'The tree has **4711** corners.\n\n## The rules, and who enforces them'),
     says: /UNMARKED docs\/modules\.md:\d+: \*\*4711\*\* is neither checked nor recorded as history/,
+  },
+  {
+    what: 'a route added and the API document not regenerated',
+    script: 'openapi.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',
+      'export function registerSearchRoutes(router: Router): void {',
+      "export function registerSearchRoutes(router: Router): void {\n  router.get('/api/telepathy', () => ({ read: 'your mind' }));"),
+    says: /docs\/openapi\.json no longer matches the tree/,
+  },
+  {
+    what: 'a field added to an entity and the API document not regenerated',
+    script: 'openapi.mjs',
+    break: (t) => t.edit('packages/shared/src/kernel/registry/types.ts',
+      'export interface Mailbox extends Base {', 'export interface Mailbox extends Base {\n  hunch: string;'),
+    says: /docs\/openapi\.json no longer matches the tree/,
+  },
+  {
+    what: 'a route whose path is built rather than written, which cannot be documented',
+    script: 'openapi.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',
+      'export function registerSearchRoutes(router: Router): void {',
+      "export function registerSearchRoutes(router: Router): void {\n  const where = '/api/guess';\n  router.get(where, () => ({}));"),
+    says: /router\.get\(\) with a path this cannot read: where/,
+  },
+  {
+    what: 'two routes that would generate the same client method name',
+    script: 'openapi.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',
+      'export function registerSearchRoutes(router: Router): void {',
+      // An *interior* parameter is dropped from the name, so these two are
+      // `getSearchNear` twice. Two trailing parameters would not collide — the
+      // first version of this case used those and proved nothing.
+      "export function registerSearchRoutes(router: Router): void {\n  router.get('/api/search/:q/near', () => ({}));\n  router.get('/api/search/near', () => ({}));"),
+    says: /two routes want the operationId getSearchNear/,
   },
 ];
 

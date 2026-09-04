@@ -24,14 +24,15 @@ returned exactly once — only its hash is stored. A `read` token is rejected on
 
 ## Entities
 
-Every entity in the registry gets the same five routes, and the list is derived from `COLLECTIONS`
-in `packages/shared/src/kernel/registry/entities.ts` rather than written out there — a new entity is one line in one
-file and it appears here:
+Every entity in the registry gets the same five routes, and the list is derived from `REST_ENTITIES`
+in `packages/shared/src/kernel/registry/entities.ts` rather than written out here — a new entity is
+one line in one file and it appears in all five.
 
-`teams`, `team-members`, `projects`, `project-members`, `states`, `fields`,
-`field-values`, `baselines`, `shares`, `labels`, `tasks`, `relations`, `cycles`, `modules`, `pages`,
-`comments`, `attachments`, `views`, `time-entries`, `templates`, `automations`, `webhooks`,
-`notifications`, `channels`, `messages`, `channel-reads`, `intakes`, `purges`.
+Which collections those are is not repeated in this paragraph any more. It was, and it said
+twenty-eight while the server had been answering on forty for some time: nobody lied, somebody added
+an entity, and the sentence describing the entities was not the thing that changed. **`docs/openapi.json`**
+lists them, with the real shape of every row — generated from the registry and the route files, and
+compared against the tree on every build. Point a client generator at that rather than at this page.
 
 ```
 GET    /api/workspaces/:ws/:collection      list, filterable by any field

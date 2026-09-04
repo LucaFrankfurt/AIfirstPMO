@@ -39,6 +39,10 @@ jobs:
       # Numbers in prose have no compiler behind them. "MCP exposes 23 tools"
       # was true once and nothing noticed for twenty-seven of them.
       - run: npm run check:figures
+      # `docs/openapi.json` is generated from the registry and the route files,
+      # and it is what anybody generating a client reads. A route added without
+      # regenerating it is a client that cannot call the thing that was added.
+      - run: npm run check:openapi
       - run: npm test
       - run: npm run build
 

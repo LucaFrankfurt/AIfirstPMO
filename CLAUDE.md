@@ -70,6 +70,7 @@ In this order, because each is cheaper than the next:
 npm run typecheck        # strict; noUnusedLocals is on
 npm run check:modules    # the seven rules and the generated tables
 npm run check:figures    # every number in prose, against the tree
+npm run check:openapi    # docs/openapi.json, against the registry and the routes
 npm test                 # server, web, and the checks' own suite
 npm run check:css        # every class the source uses is defined
 npm run check:compose    # every documented env var is reachable
@@ -138,6 +139,11 @@ export function onNotification(deliver: Delivery): void { … }
 Rule 7 then requires that somebody further out fills it. The generated table in `docs/modules.md`
 shows who asks for what and who supplies it — a port nobody fills renders as **nobody** and fails.
 
+**A route.** Nothing to do beyond writing it — but run `npm run openapi -- --fix`, because
+`docs/openapi.json` is generated from the routes and CI compares it byte for byte. A path built at
+runtime rather than written as a literal is refused: the document has to be all of them or it is
+worth nothing.
+
 **A number in prose.** Decide which kind it is before you write it. If the tree can count it, add a
 claim to `FIGURES`; if it is a measurement of a past state, add a `HISTORY` entry saying what of.
 
@@ -160,7 +166,8 @@ claim to `FIGURES`; if it is a measurement of a past state, add a `HISTORY` entr
 | `docs/architecture.md` | the layers, the request path, the process |
 | `docs/sync.md` | the offline mirror, the outbox, the cursor |
 | `docs/security.md` | sessions, permissions, what a share link is |
-| `docs/api.md`, `docs/mcp.md` | the two surfaces |
+| `docs/api.md`, `docs/mcp.md` | the two surfaces, in prose |
+| `docs/openapi.json` | the REST surface as a machine reads it — generated, never hand-edited |
 | `TODO.md` | what is deliberately not built, with the reason |
 
 ## Working with the maintainer
