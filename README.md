@@ -152,7 +152,7 @@ are the manual for running and extending it.
 | **Search** | One box that takes ordinary words: instant matches from the local copy, then SQLite FTS5 full text across tasks, pages, comments, projects, cycles and chat messages. `@` offers the people, `#` the labels and `+` the projects, so narrowing a search is picked from a list rather than remembered as syntax — and a name nobody has stays prose and is searched for as text. A private conversation is checked against its membership before the page of results is trimmed, so it cannot even push a readable hit off the end. |
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
-| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 81 tools, 6 prompts and page resources. [API](docs/api.md) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
+| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 81 tools, 6 prompts and page resources. [API](docs/api.md) · [OpenAPI](docs/openapi.json) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
 | **Task reviews** | Optional, manual and off by default: a button asks a model to read a task back and suggest clearer wording, with the replacement already written and applied only by a click. Anthropic, Gemini or OpenRouter, chosen by an environment variable. [What leaves the instance](docs/ai.md) |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
@@ -262,6 +262,7 @@ length. Source in [`sites/docs`](sites/docs).
 | [`sync.md`](docs/sync.md) | The offline protocol, conflict rules and failure modes |
 | [`mobile.md`](docs/mobile.md) | The iOS and Android shells: building one, why the app asks for a server address, and what is not done |
 | [`api.md`](docs/api.md) | REST endpoints, auth, uploads |
+| [`openapi.json`](docs/openapi.json) | the same surface for a machine — generated, and served by every instance at `/openapi.json` |
 | [`mcp.md`](docs/mcp.md) | Every tool, prompt and resource with examples |
 | [`query.md`](docs/query.md) | The two small languages: a task on one line, and a filter as text |
 | [`markdown.md`](docs/markdown.md) | The one dialect every box that takes writing accepts, what it deliberately leaves out, and why there is no sanitiser |
@@ -318,6 +319,7 @@ node scripts/smoke.mjs                    # walkthrough incl. mobile + offline
 KOLIBRI_LOCALE=de node scripts/smoke.mjs  # the same walk through the German interface
 KOLIBRI_LOCALE=fr node scripts/smoke.mjs  # and the French one
 
+npm run check:openapi     # docs/openapi.json, against the registry and every route file
 npm run check:css         # every class the source uses is actually defined — no build needed
 npm run check:responsive  # 18 screens, 340px to 1600px in 20px steps, looking for overflow
 npm run check:contrast    # WCAG ratios for every element that renders text, light and dark

@@ -744,8 +744,22 @@ if (process.argv.includes('--graph')) {
       outward: KNOWN_OUTWARD.length,
       moduleCycles: moduleKnots.length,
     },
+    /*
+     * Registrations, not mentions.
+     *
+     * This counted `router.get('` anywhere in a server file, and a docblock in
+     * `http.ts` that *quotes* the call while explaining what the router does
+     * took the figure from 133 to 134 — a number nothing else could contradict,
+     * in a document whose whole point is that its numbers are counted rather
+     * than remembered. A comment line is dropped instead: every comment in this
+     * repository is either `//` or a `*`-prefixed line of a block, and no route
+     * is registered on such a line.
+     */
     endpoints: sources.filter((f) => f.startsWith('server/'))
       .reduce((n, f) => n + (readFileSync(join(PACKAGES, f), 'utf8')
+        .split('\n')
+        .filter((line) => !/^\s*(\/\/|\*|\/\*)/.test(line))
+        .join('\n')
         .match(/router\.(?:get|post|put|patch|delete)\('/g) ?? []).length, 0),
     ports: {
       count: PORTS.length,

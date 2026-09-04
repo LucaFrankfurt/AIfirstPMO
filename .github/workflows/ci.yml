@@ -39,6 +39,10 @@ jobs:
       # Numbers in prose have no compiler behind them. "MCP exposes 23 tools"
       # was true once and nothing noticed for twenty-seven of them.
       - run: npm run check:figures
+      # `docs/openapi.json` is generated from the registry and the route files,
+      # and it is what anybody generating a client reads. A route added without
+      # regenerating it is a client that cannot call the thing that was added.
+      - run: npm run check:openapi
       - run: npm test
       - run: npm run build
 
@@ -46,7 +50,19 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     # Without this a hung step sits on a runner until the six-hour default.
-    timeout-minutes: 20
+    #
+    # 30 rather than 20, because 20 was not a guard any more — it was a coin
+    # flip. Measured across two consecutive runs of the same job: the one that
+    # passed took 1147s of its 1200s budget, and the one that followed took
+    # 1214s and was killed mid-`check:contrast`. The difference was not the
+    # walkthrough — that grew by five seconds — it was `npm ci` and the
+    # Playwright install going from 354s and 328s to 423s and 421s. Two thirds
+    # of this job is dependency installation, and how long a registry takes on
+    # a given morning is nothing a diff can be held responsible for.
+    #
+    # This buys room rather than fixing that; the installs are still the thing
+    # worth attacking.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -233,6 +249,21 @@ jobs:
           echo "$health" | grep -q '"ai":"anthropic"' || {
             echo "a key in .env did not reach the container"; exit 1
           }
+
+      # The one thing `paths.test.ts` can only approximate. It asserts the
+      # Dockerfile still carries the COPY line; this asserts the file arrived,
+      # from the image, over HTTP, unauthenticated — which is how anybody
+      # generating a client against a real instance will ask for it.
+      - name: The instance hands out its own API document
+        run: |
+          curl -fsS http://127.0.0.1:4000/openapi.json > spec.json
+          python3 -c "
+          import json
+          spec = json.load(open('spec.json'))
+          assert spec['openapi'].startswith('3.1'), spec['openapi']
+          assert '/openapi.json' in spec['paths'], 'the document does not describe the route serving it'
+          print(f\"{len(spec['paths'])} paths, {len(spec['components']['schemas'])} models\")
+          "
 
       - name: The owner account exists without anyone clicking anything
         run: |

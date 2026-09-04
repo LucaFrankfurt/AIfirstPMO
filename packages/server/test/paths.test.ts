@@ -8,7 +8,12 @@
  * passed, and the server quietly served no web build at all. The browser
  * walkthrough was the first thing that noticed, which is far too late.
  *
- * So the three that are computed rather than configured are pinned here.
+ * So the ones that are computed rather than configured are pinned here — and,
+ * for the API document, the line in the `Dockerfile` that puts it within reach.
+ * A path can be right in the tree and wrong in the image, which is the same
+ * failure wearing a different hat: `docs/` is not in the runtime image, so the
+ * route that serves `/openapi.json` would have 404'd on every real deployment
+ * while passing here.
  */
 process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-paths-${process.pid}`;
@@ -35,6 +40,20 @@ describe('what the server works out about where it is', () => {
     // Not that it exists — a checkout that has not been built is fine — but
     // that the path is the one `npm run build` writes to.
     assert.equal(env.webDir, join(ROOT, 'packages/web/dist'));
+  });
+
+  it('serves the API document from a path that exists, and ships it', () => {
+    const document = join(ROOT, 'docs/openapi.json');
+    assert.ok(existsSync(document), 'docs/openapi.json is not where index.ts looks for it');
+    JSON.parse(readFileSync(document, 'utf8'));
+
+    // The other half, which no amount of local testing would catch.
+    const dockerfile = readFileSync(join(ROOT, 'Dockerfile'), 'utf8');
+    assert.match(
+      dockerfile,
+      /COPY[^\n]*docs\/openapi\.json/,
+      'the Dockerfile no longer copies docs/openapi.json, so /openapi.json would 404 in the image',
+    );
   });
 
   it('reads the schema from beside the module that reads it', () => {

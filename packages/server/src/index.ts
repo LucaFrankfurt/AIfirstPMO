@@ -1,8 +1,8 @@
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
 import { close, currentSeq, run } from './kernel/platform/db/index.ts';
-import { env } from './kernel/platform/env.ts';
+import { ROOT, env } from './kernel/platform/env.ts';
 import { authenticate } from './kernel/identity/auth.ts';
 import { startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
 import { startMailPoller, stopMailPoller } from './modules/mail/poll.ts';
@@ -97,6 +97,40 @@ router.get('/api/health', () => ({
   // answers is the part an operator wants to see confirmed.
   ai: env.aiProvider,
 }));
+
+/**
+ * The API, as a machine reads it.
+ *
+ * Unauthenticated on purpose. It contains no secrets — a `secret` field is left
+ * out of it entirely — and it describes a surface whose every route asks for
+ * credentials anyway. The people who need it most are the ones who do not have
+ * a token yet: a client generator is pointed at this before anybody has signed
+ * in, and putting it behind auth would mostly mean pasting the file around.
+ *
+ * Read once and kept. It ships with the image and cannot change under a running
+ * process, so re-reading 600KB per request would buy nothing.
+ *
+ * The Dockerfile copies this one file deliberately — `docs/` is otherwise not
+ * in the runtime image at all, which is the failure this would have had: green
+ * on a checkout, 404 on every instance anybody actually runs. `paths.test.ts`
+ * pins both halves.
+ */
+const SPEC = join(ROOT, 'docs/openapi.json');
+let spec: string | null = null;
+
+router.get('/openapi.json', (ctx: Ctx) => {
+  if (spec === null) spec = existsSync(SPEC) ? readFileSync(SPEC, 'utf8') : '';
+  if (!spec) throw new HttpError(404, 'This build carries no API document', 'not_found');
+  ctx.res.writeHead(200, {
+    'content-type': 'application/json; charset=utf-8',
+    'content-length': String(Buffer.byteLength(spec)),
+    // Generated at build time and constant for the life of the process, but a
+    // deploy replaces it — so revalidate rather than cache hard.
+    'cache-control': 'no-cache',
+  });
+  ctx.res.end(spec);
+  return undefined;
+});
 
 /* ------------------------------------------------------------ static files */
 

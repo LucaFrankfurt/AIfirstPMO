@@ -619,3 +619,21 @@ export const COLLECTIONS: Record<EntityName, string> = {
   intake: 'intakes',
   purge: 'purges',
 };
+
+/**
+ * URL segment -> entity, for the five routes every entity gets.
+ *
+ * Derived from `COLLECTIONS` rather than written out again, so a new entity is
+ * one line in one file and it appears in the REST surface. Three are left out
+ * because they are read through their own routes: `user` and `member` come back
+ * shaped by who is asking, and `activity` is a log rather than a collection.
+ *
+ * It lives here beside the map it filters, not beside the routes that use it,
+ * because it is a fact about the registry — and because the OpenAPI generator
+ * has to be able to ask which collections exist without starting a server.
+ */
+export const REST_ENTITIES: Record<string, EntityName> = Object.fromEntries(
+  (Object.entries(COLLECTIONS) as [EntityName, string][])
+    .filter(([entity]) => entity !== 'user' && entity !== 'member' && entity !== 'activity')
+    .map(([entity, segment]) => [segment, entity]),
+);

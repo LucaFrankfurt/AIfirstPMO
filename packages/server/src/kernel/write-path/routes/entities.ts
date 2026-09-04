@@ -1,5 +1,5 @@
 import {
-  COLLECTIONS, ENTITIES, IMPORT_FIELDS, canReadMailbox, convert, detectFormat, guessMapping, isCrossWorkspace,
+  ENTITIES, IMPORT_FIELDS, REST_ENTITIES, canReadMailbox, convert, detectFormat, guessMapping, isCrossWorkspace,
   isGuestWritable, parseCsv,
   type EntityName, type ImportField, type Mapping,
 } from '@kolibri/shared';
@@ -15,19 +15,6 @@ import { exportProject, importProject, type ProjectDoc } from '../../../adapters
 import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, parseIds, serialize, writeEntity } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
-
-/**
- * URL segment -> entity. Everything the sync engine knows is also plain REST.
- *
- * Derived from the shared `COLLECTIONS` map rather than written out again, so a
- * new entity is one line in one file. `user`, `member` and `activity` are read
- * through their own routes and are not in this table.
- */
-export const REST_ENTITIES: Record<string, EntityName> = Object.fromEntries(
-  (Object.entries(COLLECTIONS) as [EntityName, string][])
-    .filter(([entity]) => entity !== 'user' && entity !== 'member' && entity !== 'activity')
-    .map(([entity, segment]) => [segment, entity]),
-);
 
 const resolve = (segment: string): EntityName => {
   const entity = REST_ENTITIES[segment];
