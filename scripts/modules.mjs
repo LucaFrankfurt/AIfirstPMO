@@ -289,6 +289,7 @@ const problems = [];
 const SHELL = new Set([
   'shared/src/index.ts',
   'server/src/index.ts', 'server/src/seed.ts', 'server/src/cli.ts', 'server/src/wiring.ts',
+  'server/src/backends.ts',
   'web/src/main.tsx', 'web/src/App.tsx', 'web/src/AppShell.tsx',
   'web/src/CommandPalette.tsx', 'web/src/wiring.ts',
   'web/vite.config.ts', 'web/capacitor.config.ts',

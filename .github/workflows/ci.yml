@@ -16,6 +16,14 @@ concurrency:
   group: ci-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  # Pinned, and deliberately not in the manifest: Playwright is only needed by
+  # the browser jobs, and the server ships no runtime dependencies. `latest`
+  # was fine until it was measured — a version that changes under CI cannot be
+  # cached, and the install was five to seven minutes on every job that needed
+  # it. Bump this line to move; the caches below key on it.
+  PLAYWRIGHT_VERSION: 1.62.1
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -27,7 +35,31 @@ jobs:
           # 22.18+ runs the server's TypeScript directly and ships node:sqlite.
           node-version: "22"
           cache: npm
-      - run: npm ci
+      # `setup-node`'s cache is the npm *download* cache; `npm ci` still writes
+      # every file of node_modules, which measured 354–423s on this workspace.
+      # This caches the tree itself, so an unchanged lockfile skips the install
+      # rather than repeating it.
+      - id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
+      # Written here, and not by `actions/cache`, whose post-step saves the tree
+      # even when the job failed — a half-written node_modules would then be
+      # restored by every later run and the install skipped over it. A step runs
+      # only if the one before it succeeded, so this saves a complete tree or
+      # nothing at all.
+      - if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
       - run: npm run typecheck
       # A setting the server reads that no compose file passes is documented and
       # dead. This is static, so it belongs in the fast job.
@@ -60,8 +92,8 @@ jobs:
     # of this job is dependency installation, and how long a registry takes on
     # a given morning is nothing a diff can be held responsible for.
     #
-    # This buys room rather than fixing that; the installs are still the thing
-    # worth attacking.
+    # The installs are cached below, which is the actual fix; this is the room
+    # to survive a cold cache on a slow morning.
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -69,14 +101,30 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-      - run: npm ci
+      # One cache for both installs, because Playwright lands in the same
+      # node_modules that `npm ci` writes — so the key carries the lockfile and
+      # the pinned version, and a hit skips seven minutes twice over. It is
+      # saved after the browser step below, for the same reason as in `test`:
+      # nothing reaches the cache that a failed step left half-written.
+      - id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: modules-pw-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}-${{ env.PLAYWRIGHT_VERSION }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci
       - run: npm run build
-      # Playwright is only needed here, so it stays out of the manifest.
+      # Playwright is only needed here, so it stays out of the manifest — see
+      # the pinned version at the top of this file.
       - name: A browser to walk with
         # Bounded, because this step is what hung the job for hours.
         timeout-minutes: 10
         run: |
-          npm install --no-save playwright
+          if [ ! -d node_modules/playwright ]; then
+            npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
+          fi
           # Not `--with-deps`: that shells out to apt, and apt on this runner
           # answers `Ign:` for every InRelease on the Azure mirror and retries
           # until something kills it. Nothing here needs a package manager.
@@ -90,6 +138,13 @@ jobs:
             # Playwright's CDN — still no apt.
             npx playwright install chromium
           fi
+      - if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: modules-pw-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}-${{ env.PLAYWRIGHT_VERSION }}
       - name: Seed and start the server
         run: |
           npm run seed
@@ -163,7 +218,22 @@ jobs:
           node-version: "22"
           cache: npm
           cache-dependency-path: sites/${{ matrix.site }}/package-lock.json
-      - run: npm ci --no-audit --no-fund
+      # Two trees here: the site's own, and the repo root's — which this job
+      # wants only Playwright out of, but gets whole, because `npm install` at a
+      # workspace root reconciles the root manifest on its way past. So the key
+      # carries both lockfiles; a root dependency change must not be answered
+      # with a tree that predates it. The save sits after the browser step for
+      # the same reason as in `test`: a post-step would write the cache even
+      # when the job failed half way through installing.
+      - id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            sites/${{ matrix.site }}/node_modules
+            node_modules
+          key: site-${{ matrix.site }}-${{ runner.os }}-node22-${{ hashFiles(format('sites/{0}/package-lock.json', matrix.site), 'package-lock.json') }}-${{ env.PLAYWRIGHT_VERSION }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
         working-directory: sites/${{ matrix.site }}
       # `astro check` is the typecheck for `.astro` files, which `tsc` alone
       # does not read — a prop renamed in a component and not at its call site
@@ -190,7 +260,9 @@ jobs:
       - name: A browser to look with
         timeout-minutes: 8
         run: |
-          npm install --no-save playwright
+          if [ ! -d node_modules/playwright ]; then
+            npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
+          fi
           # Not `--with-deps`: that shells out to apt, which on this runner
           # retries the Azure mirror until something kills it. The image ships
           # Google Chrome, which is the same engine.
@@ -199,6 +271,13 @@ jobs:
           else
             npx playwright install chromium
           fi
+      - if: steps.modules.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            sites/${{ matrix.site }}/node_modules
+            node_modules
+          key: site-${{ matrix.site }}-${{ runner.os }}-node22-${{ hashFiles(format('sites/{0}/package-lock.json', matrix.site), 'package-lock.json') }}-${{ env.PLAYWRIGHT_VERSION }}
 
       - name: Widths and contrast, in a real browser
         run: |
@@ -304,7 +383,15 @@ jobs:
       # against the real image, on a real volume, with the real object store.
       - name: A snapshot can be taken, checked and put back
         run: |
-          docker compose exec -T kolibri kolibri doctor | tee doctor.txt
+          # Not `| tee`: a pipe hands back the exit code of `tee`, so a doctor
+          # that *crashed* wrote no ✗ and this step went green — which is how
+          # `kolibri doctor` came to be broken on every S3 instance for a while
+          # with CI perfectly happy. A check that is more satisfied by a crash
+          # than by a finding is worse than no check.
+          if ! docker compose exec -T kolibri kolibri doctor > doctor.txt 2>&1; then
+            echo "the doctor exited non-zero:"; cat doctor.txt; exit 1
+          fi
+          cat doctor.txt
           if grep -q '✗' doctor.txt; then echo "the doctor found something broken"; exit 1; fi
 
           docker compose exec -T kolibri kolibri backup /data/snapshot
