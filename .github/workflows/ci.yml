@@ -18,10 +18,10 @@ concurrency:
 
 env:
   # Pinned, and deliberately not in the manifest: Playwright is only needed by
-  # the browser jobs, and the server ships no runtime dependencies. `latest`
-  # was fine until it was measured — a version that changes under CI cannot be
-  # cached, and the install was five to seven minutes on every job that needed
-  # it. Bump this line to move; the caches below key on it.
+  # the browser jobs, and the server ships no runtime dependencies. The pin is
+  # so the caches below have something to key on — `latest` is not a cache key.
+  # It is not what made that step slow; see the note above `npm ci` in `test`.
+  # Bump this line to move; the caches key on it.
   PLAYWRIGHT_VERSION: 1.62.1
 
 jobs:
@@ -39,6 +39,20 @@ jobs:
       # every file of node_modules, which measured 354–423s on this workspace.
       # This caches the tree itself, so an unchanged lockfile skips the install
       # rather than repeating it.
+      #
+      # `--no-audit --no-fund` on every install in this file, because the audit
+      # is not free and is not wanted. Timestamps from the four browser steps of
+      # two consecutive runs: npm's last install line lands 3.5–4.4s in, every
+      # time, and then the step sits there — 3.6s, 147s, 298s and 418s — before
+      # printing its summary. The one run that said why said this:
+      #
+      #     npm notice This endpoint is being retired. Use the bulk advisory
+      #     endpoint instead.
+      #
+      # …at the exact second the 298s stall ended. Nothing here reads an audit;
+      # a vulnerability report belongs to Dependabot, which already sends one.
+      # How much of `npm ci`'s own 400-odd seconds is the same call was not
+      # measured — the flag costs nothing either way.
       - id: modules
         uses: actions/cache/restore@v4
         with:
@@ -47,7 +61,7 @@ jobs:
             packages/*/node_modules
           key: modules-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}
       - if: steps.modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: npm ci --no-audit --no-fund
       # Written here, and not by `actions/cache`, whose post-step saves the tree
       # even when the job failed — a half-written node_modules would then be
       # restored by every later run and the install skipped over it. A step runs
@@ -114,7 +128,7 @@ jobs:
             packages/*/node_modules
           key: modules-pw-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}-${{ env.PLAYWRIGHT_VERSION }}
       - if: steps.modules.outputs.cache-hit != 'true'
-        run: npm ci
+        run: npm ci --no-audit --no-fund
       - run: npm run build
       # Playwright is only needed here, so it stays out of the manifest — see
       # the pinned version at the top of this file.
@@ -123,7 +137,7 @@ jobs:
         timeout-minutes: 10
         run: |
           if [ ! -d node_modules/playwright ]; then
-            npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
+            npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
           fi
           # Not `--with-deps`: that shells out to apt, and apt on this runner
           # answers `Ign:` for every InRelease on the Azure mirror and retries
@@ -261,7 +275,7 @@ jobs:
         timeout-minutes: 8
         run: |
           if [ ! -d node_modules/playwright ]; then
-            npm install --no-save "playwright@${PLAYWRIGHT_VERSION}"
+            npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
           fi
           # Not `--with-deps`: that shells out to apt, which on this runner
           # retries the Azure mirror until something kills it. The image ships
