@@ -10,6 +10,22 @@
  * file would open one before the argument list had even been read.
  */
 import { env } from './kernel/platform/env.ts';
+import { installBackends } from './backends.ts';
+
+/*
+ * Backends, not effects.
+ *
+ * Every command below that reads or writes a file needs to know how to reach
+ * one; none of them may fire a write rule, which is why this file is exempt
+ * from `installEffects` and says so in `wiring.test.ts`. `backends.ts` is the
+ * half that is safe here — and its absence is what made `kolibri doctor` die on
+ * every S3 instance while passing on every checkout.
+ *
+ * Safe at import: the S3 adapter reaches for `env` and the storage registry and
+ * nothing that opens a database, so the lazy opening this file depends on is
+ * untouched.
+ */
+installBackends();
 
 const USAGE = `kolibri — maintenance
 

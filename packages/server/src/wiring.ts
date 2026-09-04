@@ -21,7 +21,7 @@
 import { installAutomations } from './modules/automation/automation.ts';
 import { installNotifications } from './modules/notifications/effects.ts';
 import { installWebhookEvents } from './adapters/webhooks/effects.ts';
-import { installS3Storage } from './adapters/s3/backend.ts';
+import { installBackends } from './backends.ts';
 import { installPushDelivery } from './adapters/push/delivery.ts';
 import { installTelegramDelivery } from './adapters/telegram/delivery.ts';
 import { installAiProviders } from './adapters/ai/providers.ts';
@@ -56,7 +56,8 @@ export function installEffects(): void {
   installAutomations();
   installNotifications();
   installWebhookEvents();
-  installS3Storage();
+  // The half every binary needs, including the ones that never write.
+  installBackends();
   installPushDelivery();
   installTelegramDelivery();
   installAiProviders();

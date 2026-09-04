@@ -161,13 +161,37 @@ export function check(now = Date.now()): Finding[] {
 export async function checkStorage(): Promise<Finding[]> {
   const rows = all<{ hash: string; mime: string; storage: string }>(`SELECT hash, mime, storage FROM files`);
   const missing: string[] = [];
-  for (const row of rows) {
-    if (!(await storage.exists(keyFor(row.hash, row.mime), row.storage as 'disk' | 's3'))) missing.push(row.hash);
-  }
+  const findings: Finding[] = [];
 
-  const findings: Finding[] = [missing.length === 0
-    ? ok('files', `${rows.length} file(s), every one of them readable`)
-    : { check: 'files', level: 'fail', detail: `${missing.length} of ${rows.length} file(s) have a row but no bytes: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ' …' : ''}` }];
+  /*
+   * A store that cannot be reached is a finding, not an exception.
+   *
+   * This asked the object store about every file and let whatever came back
+   * escape. With MinIO down that is `ECONNREFUSED` off the top of a stack
+   * trace — from the one command whose entire job is to say what is wrong, at
+   * the hour somebody runs it precisely because something is. It also cannot
+   * be distinguished from "the bytes are gone", which is a different
+   * afternoon: one is a broken deployment, the other is lost data.
+   */
+  // The backend of the row being asked about, not the instance's default: a
+  // file can sit on the one this instance no longer uses, and naming the wrong
+  // one sends whoever reads this to check a service that is perfectly fine.
+  let asking = env.storage.kind;
+  try {
+    for (const row of rows) {
+      asking = row.storage as 'disk' | 's3';
+      if (!(await storage.exists(keyFor(row.hash, row.mime), asking))) missing.push(row.hash);
+    }
+    findings.push(missing.length === 0
+      ? ok('files', `${rows.length} file(s), every one of them readable`)
+      : { check: 'files', level: 'fail', detail: `${missing.length} of ${rows.length} file(s) have a row but no bytes: ${missing.slice(0, 5).join(', ')}${missing.length > 5 ? ' …' : ''}` });
+  } catch (error) {
+    findings.push({
+      check: 'files',
+      level: 'fail',
+      detail: `could not ask the ${asking} store about ${rows.length} file(s): ${error instanceof Error ? error.message : String(error)}`,
+    });
+  }
 
   // Only the disk backend can be walked cheaply; listing a bucket is a paged
   // API call per thousand objects and belongs behind an explicit command.
