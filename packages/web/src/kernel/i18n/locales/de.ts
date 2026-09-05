@@ -48,6 +48,10 @@ export const de: Catalogue = {
   'nav.chat': 'Chat',
   'nav.pages': 'Seiten',
   'nav.teams': 'Teams',
+  'nav.trail': 'Wo Sie sind',
+  'icon.choose': 'Symbol wählen',
+  'icon.none': 'Kein Symbol',
+  'nav.backToList': 'Zurück zur Übersicht',
   'nav.projects': 'Projekte',
   'nav.more': 'Mehr',
   /* Die Wörter der unteren Leiste: kürzer als in der Seitenleiste, weil
@@ -1493,7 +1497,6 @@ export const de: Catalogue = {
   'page.toggleTree': 'Auf- und zuklappen',
   'page.archivedCount_one': '{count} archiviert',
   'page.archivedCount_other': '{count} archiviert',
-  'page.trail': 'Wo diese Seite liegt',
   'page.outline': 'Auf dieser Seite',
   'page.graph': 'Graph',
   'page.embedLoop': 'Weiter oben schon gezeigt:',

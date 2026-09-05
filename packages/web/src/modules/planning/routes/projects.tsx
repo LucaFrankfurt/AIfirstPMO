@@ -4,7 +4,7 @@ import {
   DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, projectScope, orderKey,
   STATE_GROUPS,
 } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/chrome';
+import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { QuickAdd } from '../../work/QuickAdd';
 import { CycleProgress, TaskViews, useVisibleTasks, ViewControls } from '../../work/views';
 import { DEFAULT_VIEW, type ViewConfig } from '../../work/task-parts';
@@ -53,6 +53,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
 import { Input, Select } from '../../../kernel/design-system/ui/field';
+import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Chip, chipDot, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { Triage, useNewIntakeCount } from '../../intake/intake';
@@ -235,9 +236,12 @@ export function ProjectNew() {
             />
           </div>
           <div className="flex items-start gap-2.5">
-            <div className="field" style={{ width: 120 }}>
+            <div className="field" style={{ width: 60 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
-              <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
+              <EmojiPicker
+                id="p-icon" value={form.icon} fallback="🚀"
+                onChange={(next) => setForm({ ...form, icon: next ?? '' })}
+              />
             </div>
             <div className="field flex-1 min-w-0">
               <label htmlFor="p-key">{t('project.key')}</label>
@@ -406,10 +410,35 @@ export function ProjectPage() {
     return (
       <>
         <Header title={t('nav.projects')} />
-        <Empty emoji="🕳️" title={t('project.notFound')} hint={t('project.notFoundHint')} />
+        {/* Archived, deleted, or in a workspace this account left: all three
+            open from a bookmark, and all three used to be a dead end. */}
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/projects', label: t('nav.projects'), icon: <Icon name="board" size={13} /> }]} />
+        </div>
+        <Empty
+          emoji="🕳️" title={t('project.notFound')} hint={t('project.notFoundHint')}
+          action={<Button onClick={() => navigate('/projects')}>{t('nav.backToList')}</Button>}
+        />
       </>
     );
   }
+
+  // Projects nest, so the trail walks up the same way the wiki's does — and
+  // stops on a parent it cannot see rather than looping on one that arrived
+  // reparented over sync.
+  const ancestors: typeof project[] = [];
+  const seen = new Set<string>([project.id]);
+  for (let at = project.parent_id ?? null; at && !seen.has(at);) {
+    const parent = byId('project', at);
+    if (!parent) break;
+    seen.add(at);
+    ancestors.unshift(parent);
+    at = parent.parent_id ?? null;
+  }
+  const crumbs: Crumb[] = [
+    { to: '/projects', label: t('nav.projects'), icon: <Icon name="board" size={13} /> },
+    ...ancestors.map((one) => ({ to: `/projects/${one.id}`, label: one.name, icon: one.icon })),
+  ];
 
   return (
     <>
@@ -427,6 +456,13 @@ export function ProjectPage() {
           </Button>
         ))}
       </Header>
+
+      {/* Above the tabs, not below: the tabs are places inside this project, and
+          the trail is the way out of it. Mixing the two would read as a tenth
+          tab. */}
+      <div className="px-3 pt-3 sm:px-6">
+        <Trail parts={crumbs} />
+      </div>
 
       <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {/* Reports is always here, even for a project that will never use it.
@@ -703,8 +739,30 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
   );
 }
 
+/**
+ * The way back out of a cycle or a milestone.
+ *
+ * Neither has a list of its own — both are a tab inside a project — so the
+ * trail names the project and the tab, which is exactly the screen somebody
+ * came from. `?tab=` is already how a link points at one, so this is the same
+ * address the tab strip writes.
+ *
+ * A cycle or milestone several projects run has no single project to go back
+ * to; the comments on both screens say so about scoping a view, and it is the
+ * same fact here. Those get the project list, which is the honest answer rather
+ * than picking one of the projects and calling it the parent.
+ */
+function planningCrumbs(projectId: string | null | undefined, tab: 'cycles' | 'modules', label: string): Crumb[] {
+  const project = projectId ? byId('project', projectId) : undefined;
+  return [
+    { to: '/projects', label, icon: <Icon name="board" size={13} /> },
+    ...(project ? [{ to: `/projects/${project.id}?tab=${tab}`, label: project.name, icon: project.icon }] : []),
+  ];
+}
+
 export function CyclePage() {
   const t = useT();
+  const navigate = useNavigate();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
   const cycle = useRow('cycle', id);
@@ -722,7 +780,23 @@ export function CyclePage() {
     return { done, total: tasks.length, points, donePoints };
   }, [tasks]);
 
-  if (!cycle) return <Empty emoji="🕳️" title={t('cycle.notFound')} />;
+  // Without a `Header` this screen lost the app's chrome altogether — no title,
+  // no sync pill, and nothing to press. A cycle that has been deleted still
+  // opens from a link in a chat message.
+  if (!cycle) {
+    return (
+      <>
+        <Header title={t('cycle.title')} />
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/projects', label: t('nav.projects'), icon: <Icon name="board" size={13} /> }]} />
+        </div>
+        <Empty
+          emoji="🕳️" title={t('cycle.notFound')}
+          action={<Button onClick={() => navigate('/projects')}>{t('nav.backToList')}</Button>}
+        />
+      </>
+    );
+  }
 
   return (
     <>
@@ -736,6 +810,7 @@ export function CyclePage() {
         <Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <Trail parts={planningCrumbs(cycle.project_id, 'cycles', t('nav.projects'))} />
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5">
           <div className="flex items-center gap-2 mb-2">
             <div className="flex-1 min-w-0">
@@ -903,6 +978,7 @@ function Modules({ projectId }: { projectId: string }) {
 
 export function ModulePage() {
   const t = useT();
+  const navigate = useNavigate();
   const openTask = useOpenTask();
   const { id = '' } = useParams();
   const module = useRow('module', id);
@@ -912,7 +988,20 @@ export function ModulePage() {
   const visible = useVisibleTasks(tasks, view);
   const canWrite = useCanWrite();
   const kpis = useFeature('kpi');
-  if (!module) return <Empty emoji="🕳️" title={t('module.notFound')} />;
+  if (!module) {
+    return (
+      <>
+        <Header title={t('module.title')} />
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/projects', label: t('nav.projects'), icon: <Icon name="board" size={13} /> }]} />
+        </div>
+        <Empty
+          emoji="🕳️" title={t('module.notFound')}
+          action={<Button onClick={() => navigate('/projects')}>{t('nav.backToList')}</Button>}
+        />
+      </>
+    );
+  }
   return (
     <>
       <Header title={module.name}>
@@ -930,6 +1019,7 @@ export function ModulePage() {
         <ViewControls view={view} onChange={setView} projectId={module.project_id ?? undefined} />
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
+        <Trail parts={planningCrumbs(module.project_id, 'modules', t('nav.projects'))} />
         {editing ? (
           <div className="mb-3.5">
             <MarkdownEditor
@@ -1134,10 +1224,12 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           makes a project and the screen that changes one should not lay the
           same two fields out differently. */}
       <div className="flex items-start gap-2.5">
-        <div className="field" style={{ width: 120 }}>
+        <div className="field" style={{ width: 60 }}>
           <label htmlFor="s-icon">{t('project.icon')}</label>
-          <Input id="s-icon" value={project.icon ?? ''} maxLength={4}
-            onChange={(event) => update('project', projectId, { icon: event.target.value })} />
+          <EmojiPicker
+            id="s-icon" value={project.icon} fallback="🚀"
+            onChange={(next) => update('project', projectId, { icon: next })}
+          />
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-name">{t('project.name')}</label>

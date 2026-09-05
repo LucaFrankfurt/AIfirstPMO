@@ -282,6 +282,59 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       positions are seeded from the node's own id, so the same wiki draws the same picture and a
       test can assert about it. Its work is budgeted as `nodes² × rounds`, and the budget is on the
       time rather than on how many pages somebody is allowed to have.
+      **The trail is also the way out.** It started at the outermost *page*, which left a top-level
+      page with no crumbs at all and every page with no route back to the wiki except the sidebar —
+      on a phone, opening the menu to leave a document. A breadcrumb that stops before the section
+      it is in is missing its first crumb, so *Pages* is always the first one and the trail is
+      always drawn, editing included. One affordance rather than two: a back arrow in the header
+      would do the same job and say nothing, where this also answers "where am I". A page that is
+      gone has no trail to carry it, having no page, so that screen offers the way back as a button
+      instead — it used to be a dead end reachable from any stale bookmark.
+      **Six screens had the same hole, so it was one missing piece of furniture.**
+      A project, a cycle, a milestone, a KPI, a budget and a page can each be opened from a link, a
+      search result or a bookmark, and not one of them said where it sat or offered a way back to
+      its list — the only route out was the sidebar, which on a phone means opening the menu to
+      leave a document. `Trail` is in the design system now and all six render it: a project shows
+      the projects it is nested under, a cycle and a milestone show the project *and the tab* they
+      came from (`?tab=cycles`, which is the address the tab strip already writes), and a KPI or a
+      budget shows its list. A cycle several projects run has no single project to go back to — the
+      same fact both screens already state about scoping a view — so those get the project list
+      rather than one project picked and called the parent.
+      Deliberately a trail and not a back arrow: an arrow does one job and says nothing, where this
+      does the same job and answers "where am I". It sits above the tab strip on the screens that
+      have one, because the tabs are places *inside* the thing and the trail is the way out of it.
+      **And every "it is gone" screen was a dead end.** An emoji, a sentence, nothing to press —
+      reachable from any stale bookmark. Two of them, the cycle and the milestone, rendered no
+      `Header` at all, so the screen lost the app's chrome along with its way out. All six carry
+      the trail and a button now.
+      The fix is held in place rather than promised: `reachable.test.ts` has asked "can a phone get
+      there?" since chat shipped desktop-only, and it asks the mirror question too now — every
+      `/x/:id` route the router registers either renders a `Trail` or is named with the way it is
+      left, and every empty screen for a missing thing carries an action. Proven to bite by taking
+      the trail off the KPI screen and watching it fail.
+      **The icon field was a text box, which is three bugs.** A project, a page and a task template
+      each had an `Input maxLength={4}`, so the icon could be an emoji from this year that a
+      colleague's older laptop draws as an empty rectangle; a ZWJ sequence like 👨‍💻, which a system
+      that does not know the combination draws as *two or three* emoji side by side and which
+      therefore makes the row wider than its column; or the letter `P`, because a text box takes
+      text. None of the three is visible to the person who chose it, and the icon exists precisely
+      to be recognised by everybody else at a glance.
+      So there is one set and one picker. `emoji-set.ts` holds about sixty emoji drawn only from
+      code point ranges that shipped with Unicode 6.0 (2010) — the run iOS 5, Android 4.1 and
+      Windows 8 all carry — and `emoji.test.ts` holds the mechanical half of that: nothing joined,
+      nothing skin-toned, no flags, one glyph wide, inside the ranges. The ranges stop short of the
+      end of the blocks they sit in, because the tail of Miscellaneous Symbols and Pictographs
+      (🖥 🗂 and the rest of the Webdings imports) is Unicode 7.0.
+      **What is already stored is never overruled.** An icon typed into the old box, or set by an
+      import or an assistant over MCP, is shown as it is and offered back as the first cell. That
+      rule was wrong once and the browser found it: it asked "is this portable" when the question
+      is "do I offer this", so 🌐 and 🚨 — both perfectly old, both used by the seed, neither in the
+      list — came out with a trigger showing one thing, nothing marked in the grid, and no way back
+      once anything else was pressed.
+      The set is not enforced on the way in. MCP, the REST API and an import may still write any
+      string, deliberately: refusing an icon would fail an import over a decoration, and the field
+      has always been a string. The picker is what the interface writes, which is what the
+      complaint was about.
       **Still not built: a link table.** Not an omission but the design — a link lives in the text
       that spells it, and a row saying the same thing is a second thing to keep true, one that goes
       stale the first time a body is written by a path that forgot about it. The graph is built from

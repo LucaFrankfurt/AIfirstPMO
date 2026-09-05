@@ -354,9 +354,9 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">275</span><span class="k">source files</span></div>
+    <div><span class="v num">277</span><span class="k">source files</span></div>
     <div><span class="v num">40</span><span class="k">modules</span></div>
-    <div><span class="v num">78 836</span><span class="k">lines</span></div>
+    <div><span class="v num">79 219</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">43</span><span class="k">entities</span></div>
     <div><span class="v num">134</span><span class="k">endpoints</span></div>
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 275 files, sorted</span>
+  <span class="eyebrow">02 — All 277 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,8 +441,8 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 21 999 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 37 430 lines, 47%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 22 242 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 37 570 lines, 47%</span>
       <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 446 lines, 22%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 961 lines, 2%</span>
 <!-- end -->
@@ -626,7 +626,7 @@ footer {
           <code>task-parts.tsx</code>, which both files already imported <code>GroupBy</code> from.
         </p>
         <p class="fix"><strong>Closed by step 10.</strong> The folder of 53 components is
-          <code>kernel/design-system</code> now — 23 files, the primitives under <code>ui/</code> —
+          <code>kernel/design-system</code> now — 25 files, the primitives under <code>ui/</code> —
           and the cross-capability imports it worried about are no longer invisible: a project page
           hosting the KPI and budget panels is a row in the table further down, kept acyclic by
           rule 6.</p>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 851 lines is three
-      catalogues of 2 335 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 860 lines is three
+      catalogues of 2 338 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1409,28 +1409,28 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7851,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2469},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7860,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2472},
 {"ring":"kernel","name":"registry","flag":"","files":5,"lines":2494,"biggest":"kernel/registry/types.ts","biggestLines":1656},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2172,"biggest":"kernel/identity/routes/auth.ts","biggestLines":521},
+{"ring":"kernel","name":"design-system","flag":"","files":25,"lines":2066,"biggest":"kernel/design-system/ui.tsx","biggestLines":525},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":1907,"biggest":"kernel/write-path/repo.ts","biggestLines":858},
-{"ring":"kernel","name":"design-system","flag":"","files":23,"lines":1832,"biggest":"kernel/design-system/ui.tsx","biggestLines":525},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":1798,"biggest":"kernel/platform/env.ts","biggestLines":537},
 {"ring":"kernel","name":"sync","flag":"","files":7,"lines":1763,"biggest":"kernel/sync/routes/sync.ts","biggestLines":467},
 {"ring":"kernel","name":"search","flag":"","files":5,"lines":1158,"biggest":"kernel/search/routes/search.tsx","biggestLines":586},
 {"ring":"kernel","name":"files","flag":"","files":6,"lines":700,"biggest":"kernel/files/zip.ts","biggestLines":315},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"work","flag":"","files":25,"lines":6119,"biggest":"modules/work/views.tsx","biggestLines":996},
-{"ring":"capability","name":"pages","flag":"","files":17,"lines":5263,"biggest":"modules/pages/Markdown.tsx","biggestLines":791},
-{"ring":"capability","name":"planning","flag":"","files":11,"lines":4260,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1491},
-{"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3239,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1669},
+{"ring":"capability","name":"pages","flag":"","files":17,"lines":5271,"biggest":"modules/pages/Markdown.tsx","biggestLines":791},
+{"ring":"capability","name":"planning","flag":"","files":11,"lines":4352,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1583},
+{"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3253,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1683},
 {"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3188,"biggest":"modules/mail/settings.tsx","biggestLines":549},
 {"ring":"capability","name":"operations","flag":"","files":10,"lines":3163,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1016},
 {"ring":"capability","name":"chat","flag":"","files":6,"lines":2483,"biggest":"modules/chat/routes/chat.tsx","biggestLines":1428},
-{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1842,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":935},
+{"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1861,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":954},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1627,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":568},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1625,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
+{"ring":"capability","name":"automation","flag":"","files":3,"lines":1492,"biggest":"modules/automation/settings.tsx","biggestLines":736},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1490,"biggest":"modules/time/rates.tsx","biggestLines":581},
-{"ring":"capability","name":"automation","flag":"","files":3,"lines":1485,"biggest":"modules/automation/settings.tsx","biggestLines":729},
 {"ring":"capability","name":"ai-review","flag":"ai","files":4,"lines":535,"biggest":"modules/ai-review/task-review.tsx","biggestLines":204},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":433,"biggest":"modules/trash/trash.tsx","biggestLines":217},
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":296,"biggest":"modules/notifications/effects.ts","biggestLines":219},

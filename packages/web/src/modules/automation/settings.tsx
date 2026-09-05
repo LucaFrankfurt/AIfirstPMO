@@ -28,6 +28,7 @@ import { create, remove, update } from '../../kernel/sync/mutations';
 import { pull } from '../../kernel/sync/sync';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
+import { EmojiPicker } from '../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useMembers, useSession } from '../../kernel/identity/session';
 
@@ -291,9 +292,15 @@ function TemplateEditor({
       </div>
 
       <div className="flex items-start gap-2.5">
-        <div className="field" style={{ width: 96 }}>
+        <div className="field" style={{ width: 60 }}>
           <label htmlFor="tpl-icon">{t('project.icon')}</label>
-          <Input id="tpl-icon" maxLength={4} value={form.icon} onChange={(e) => set('icon', e.target.value)} />
+          {/* The fallback is the one `save` will actually store for this kind,
+              not a guess: a trigger showing 📋 for a template that becomes 🐞
+              the moment it is saved is a small lie the form tells about itself. */}
+          <EmojiPicker
+            id="tpl-icon" value={form.icon} fallback={KIND_ICON[form.kind]}
+            onChange={(next) => set('icon', next ?? '')}
+          />
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="tpl-kind">{t('tpl.kind')}</label>

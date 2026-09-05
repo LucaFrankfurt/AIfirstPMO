@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { compareOrder, excerpt, outlineOf, pageResolver, type Anchor, type Page } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/chrome';
+import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
   ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems, movePage,
@@ -23,6 +23,7 @@ import { useCollaborativeText } from '../collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../../../kernel/identity/session';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
+import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { navItem } from '../../../kernel/design-system/ui/nav';
 import { chipDot } from '../../../kernel/design-system/ui/chip';
@@ -478,12 +479,31 @@ export function PageDetail() {
     return (
       <>
         <Header title={t('page.title')} />
-        <Empty emoji="🕳️" title={t('page.notFound')} />
+        {/* A deleted page still opens from a bookmark or from somebody else's
+            link, and this screen used to be a dead end. The trail says where
+            you still are; the button is for the middle of the screen, which is
+            where the eye goes when there is nothing else on it. */}
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> }]} />
+        </div>
+        <Empty
+          emoji="🕳️" title={t('page.notFound')}
+          action={<Button onClick={() => navigate('/pages')}>{t('nav.backToList')}</Button>}
+        />
       </>
     );
   }
 
   const author = members.get(page.created_by);
+
+  const crumbs: Crumb[] = [
+    { to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> },
+    ...trail.map((parent) => ({
+      to: `/pages/${parent.id}`,
+      label: parent.title || t('common.untitled'),
+      icon: parent.icon ?? '📄',
+    })),
+  ];
 
   /**
    * Commit the title, and take the links to it along.
@@ -588,30 +608,18 @@ export function PageDetail() {
             )}
           </div>
         )}
-        {/* Where this page sits in the tree. Without it a page opened from a
-            search, a link or a bookmark said nothing at all about its place —
-            which is the difference between a folder structure and a pile of
-            documents that happen to have parents. */}
-        {trail.length > 0 && (
-          <nav className="page-trail" aria-label={t('page.trail')}>
-            {trail.map((parent, at) => (
-              <span key={parent.id} className="contents">
-                {at > 0 && <span className="sep" aria-hidden="true">/</span>}
-                <Link to={`/pages/${parent.id}`}>
-                  <span aria-hidden="true">{parent.icon ?? '📄'}</span>
-                  <span className="truncate">{parent.title || t('common.untitled')}</span>
-                </Link>
-              </span>
-            ))}
-          </nav>
-        )}
+        {/* The wiki itself is the first crumb, then the pages this one is
+            nested under. Without the first one a top-level page had no trail at
+            all, and no route back to the wiki except the sidebar. */}
+        <Trail parts={crumbs} />
         <PageCover page={page} />
         {cover.input}
         {editing ? (
           <>
             <div className="flex items-center gap-2 mb-2.5">
-              <Input style={{ width: 60, textAlign: 'center', fontSize: 18 }} value={page.icon ?? '📄'}
-                maxLength={4} onChange={(event) => update('page', id, { icon: event.target.value })}
+              <EmojiPicker
+                value={page.icon} fallback="📄"
+                onChange={(next) => update('page', id, { icon: next })}
               />
               <Input
                 className="flex-1 min-w-0 font-semibold" style={{ fontSize: 19 }} value={title}

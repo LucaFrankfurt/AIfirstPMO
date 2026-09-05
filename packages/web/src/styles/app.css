@@ -547,6 +547,51 @@ p { margin: 0 0 0.75em; }
    explanation lines up under the label rather than under the checkbox. */
 .check-row > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 
+/* Choosing the icon a project, a page or a template wears. The trigger is a
+   square the size of a small button, so it sits on a form row beside a name
+   field without making that row taller. */
+.emoji-trigger { width: 36px; padding: 0; justify-content: center; font-size: 17px; }
+
+/* Sixty cells, eight across. A grid rather than a wrapping flex row so the
+   columns line up down the popover — emoji are not all the same width, and a
+   flex row of them comes out ragged. */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
+  gap: 2px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.emoji-cell {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.emoji-cell:hover { background: var(--bg-hover); }
+.emoji-cell.chosen { background: var(--bg-active); box-shadow: inset 0 0 0 1px var(--accent); }
+/* Across the whole width and worded, because clearing is a different act from
+   choosing and a cell shaped like the others would be pressed by accident. */
+.emoji-clear {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  padding: 6px;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.emoji-clear:hover { color: var(--fg); }
+
 /* The emoji picker on a saved view: square buttons, not text ones. */
 .icon-choices { gap: 4px; margin-top: 2px; }
 .icon-choices button { padding: 0; width: 32px; height: 32px; justify-content: center; }
@@ -2807,9 +2852,10 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-size: 13px;
 }
 
-/* The path from the root of the tree down to this page. Small and quiet: it is
-   orientation, not content, and it sits above a cover image that may be loud. */
-.page-trail {
+/* Where you are, on any detail screen. Small and quiet: it is orientation
+   rather than content, and on a page it sits above a cover image that may be
+   loud. */
+.trail {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2818,12 +2864,17 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-size: 12.5px;
   color: var(--fg-muted);
 }
-.page-trail a { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: inherit; }
-.page-trail a:hover { color: var(--fg); }
+/* `min-height` is not decoration: WCAG 2.2 AA asks for 24px of target and
+   `check:a11y` measures it. The spec exempts a link sitting inside a sentence,
+   and a crumb is not one — it is a navigation control, and on a phone it is the
+   way out of the screen, so it has to be big enough to hit. At 12.5px text
+   these came out 19px tall and CI was right to say so. */
+.trail a { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; min-width: 0; color: inherit; }
+.trail a:hover { color: var(--fg); }
 /* The separator is an element rather than a `content:` string, because a
    generated string is read out by some screen readers and there is no reason
    for anybody to hear "handbook slash onboarding". The markup hides it. */
-.page-trail .sep { color: var(--line-strong); }
+.trail .sep { color: var(--line-strong); }
 
 /* The headings of a page, collapsed. Quiet furniture: it sits above the text
    and must not be the first thing the eye lands on. */

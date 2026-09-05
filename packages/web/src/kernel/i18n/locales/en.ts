@@ -47,6 +47,10 @@ export const en = {
   'nav.chat': 'Chat',
   'nav.pages': 'Pages',
   'nav.teams': 'Teams',
+  'nav.trail': 'Where you are',
+  'icon.choose': 'Choose an icon',
+  'icon.none': 'No icon',
+  'nav.backToList': 'Back to the list',
   'nav.projects': 'Projects',
   'nav.more': 'More',
   /* The bottom bar's words. Shorter than the sidebar's, because six items
@@ -1498,7 +1502,6 @@ export const en = {
   'page.toggleTree': 'Toggle',
   'page.archivedCount_one': '{count} archived',
   'page.archivedCount_other': '{count} archived',
-  'page.trail': 'Where this page sits',
   'page.outline': 'On this page',
   'page.graph': 'Graph',
   'page.embedLoop': 'Already shown above:',

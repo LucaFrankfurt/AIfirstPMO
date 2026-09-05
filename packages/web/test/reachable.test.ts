@@ -17,6 +17,15 @@
  * list, in the phone's bottom bar, or named below with the reason it is
  * reached some other way. Adding a screen without a way to it now fails here
  * rather than in somebody's hand.
+ *
+ * The second half of this file asks the mirror question, and it was added
+ * because the answer was no six times over. A project, a cycle, a milestone, a
+ * KPI, a budget and a page could each be opened from a link, a search result or
+ * a bookmark, and none of them said where it sat or offered a way back to its
+ * list — the only route out was the sidebar, which on a phone means opening the
+ * menu to leave a document. Six screens with one gap is a missing piece of
+ * furniture rather than six oversights, so there is a `Trail` now, and this is
+ * what keeps the seventh screen from shipping without one.
  */
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -42,6 +51,43 @@ const REACHED_ELSEWHERE: Record<string, string> = {
   '/settings/*': 'the More screen and the account menu',
   '/pages/new': 'a `[[link]]` to a page nobody has written, and the wiki index’s list of those',
 };
+
+/**
+ * Detail screens that get out some other way, each with the way written down.
+ *
+ * The same rule as `REACHED_ELSEWHERE` above: an entry has to name the
+ * somewhere, because "it is reachable somehow" is the excuse that lets the next
+ * dead end through.
+ */
+const LEAVES_ELSEWHERE: Record<string, string> = {
+  '/chat/:id': 'a back arrow in its own header, and from 900px the channel list is beside it',
+  '/t/:id': 'a sheet over whatever you were reading, closed rather than navigated away from',
+  '/pages/new': 'never rendered — it creates the page and redirects in an effect',
+  '/invite/:code': 'signed out, where there is nowhere else to be',
+};
+
+/** Every `<Route path="/x/:id" element={<Component />}>` the router registers. */
+function details(): { path: string; component: string }[] {
+  return [...src('App.tsx').matchAll(/<Route\s+path="([^"]*\/(?::\w+|new))"\s+element=\{<(\w+)/g)]
+    .map((match) => ({ path: match[1], component: match[2] }));
+}
+
+/**
+ * The file a route component comes from.
+ *
+ * Two shapes, because the router uses both: a plain import for the screens the
+ * first paint needs, and `lazy(() => import(…))` for the ones behind a feature
+ * switch. Looking for only the first is how this test spent its first run
+ * insisting that `App.tsx` does not import `KpiDetail`.
+ */
+function fileOf(component: string): string {
+  const app = src('App.tsx');
+  const lazily = new RegExp(`const ${component} = lazy\\(\\(\\) => import\\('\\./([^']+)'`).exec(app);
+  const plainly = new RegExp(`import \\{[^}]*\\b${component}\\b[^}]*\\} from '\\./([^']+)'`).exec(app);
+  const found = lazily ?? plainly;
+  assert.ok(found, `App.tsx does not import ${component}`);
+  return `${found![1]}.tsx`;
+}
 
 /** Every `path="…"` the signed-in router registers. */
 function routes(): string[] {
@@ -99,6 +145,54 @@ describe('every screen has a way to it', () => {
           !body.includes(`to="${path}"`),
           `${file} hard-codes a link to ${path}; it is in kernel/design-system/nav.ts and both navigations render that`,
         );
+      }
+    }
+  });
+});
+
+/**
+ * Can it get back?
+ *
+ * Asserted over the source for the same reason as everything above: a detail
+ * screen with no way out renders perfectly, throws nothing, and is only found
+ * by somebody stuck on it. The check is coarse on purpose — that the file
+ * renders a `Trail` at all — because the alternative is asserting about JSX
+ * structure, which breaks on every refactor and teaches people to delete the
+ * test rather than fix the screen.
+ */
+describe('every detail screen has a way back', () => {
+  it('finds the detail routes, so a rename cannot make this vacuous', () => {
+    const found = details().map((one) => one.path);
+    assert.ok(found.length > 4, `expected the detail routes, found ${found.join(', ')}`);
+    assert.ok(found.includes('/pages/:id'), 'expected /pages/:id among them');
+  });
+
+  it('draws a trail on each of them', () => {
+    const missing = details()
+      .filter((one) => !(one.path in LEAVES_ELSEWHERE))
+      .filter((one) => !src(fileOf(one.component)).includes('<Trail'))
+      .map((one) => `${one.path} (${one.component})`);
+    assert.deepEqual(
+      missing,
+      [],
+      `no way back from: ${missing.join(', ')}. Render a <Trail> from `
+      + 'kernel/design-system/chrome, or add the route to LEAVES_ELSEWHERE in this test '
+      + 'with the way it is left.',
+    );
+  });
+
+  it('offers the way out on the screen for a thing that is gone, too', () => {
+    // A deleted project, cycle, milestone, KPI, budget or page still opens from
+    // a bookmark or somebody else's link, and every one of those screens was a
+    // dead end: an emoji, a sentence, and nothing to press.
+    for (const { path, component } of details()) {
+      if (path in LEAVES_ELSEWHERE) continue;
+      const source = src(fileOf(component));
+      const notFound = [...source.matchAll(/<Empty\b[\s\S]{0,400}?\/>/g)]
+        .filter((match) => /🕳️|notFound|\.gone/.test(match[0]));
+      assert.ok(notFound.length, `${component} has no "it is gone" screen to check`);
+      for (const match of notFound) {
+        assert.match(match[0], /action=/, `${component}: an empty screen for a missing thing needs a way out`);
       }
     }
   });

@@ -21,7 +21,7 @@ import {
   type Kpi, type KpiReading, type KpiTarget, type MeasureCadence, type MeasureDirection,
   type MeasureUnit,
 } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/chrome';
+import { Header, Trail } from '../../../kernel/design-system/chrome';
 import {
   Health, MeasureChart, MeasureInput, Pace, Trend,
   cadenceKey, directionKey, healthKey, measure, unitKey,
@@ -167,6 +167,7 @@ export function KpiDetail() {
   const [tab, setTab] = useState<Tab>(TABS.includes(asked as Tab) ? asked as Tab : 'overview');
   const strip = useTabStrip(tab);
 
+  const navigate = useNavigate();
   const readings = useQuery(() => list('kpiReading', (row) => row.kpi_id === id), [id]);
   const targets = useQuery(() => list('kpiTarget', (row) => row.kpi_id === id), [id]);
   const modules = useQuery(() => list('module'), []);
@@ -177,7 +178,20 @@ export function KpiDetail() {
   );
 
   if (!enabled) return <><Header title={t('kpi.title')} /><SwitchedOff /></>;
-  if (!kpi) return <><Header title={t('kpi.title')} /><Empty emoji="🎯" title={t('kpi.gone')} /></>;
+  if (!kpi) {
+    return (
+      <>
+        <Header title={t('kpi.title')} />
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/kpis', label: t('kpi.title'), icon: <Icon name="target" size={13} /> }]} />
+        </div>
+        <Empty
+          emoji="🎯" title={t('kpi.gone')}
+          action={<Button onClick={() => navigate('/kpis')}>{t('nav.backToList')}</Button>}
+        />
+      </>
+    );
+  }
 
   const go = (next: Tab) => { setTab(next); setSearch({ tab: next }, { replace: true }); };
 
@@ -186,6 +200,11 @@ export function KpiDetail() {
       <Header title={kpi.name}>
         {progress && <Health health={progress.health} />}
       </Header>
+      {/* Above the tabs: the tabs are places inside this KPI, the trail is the
+          way out of it, and mixing the two would read as a fifth tab. */}
+      <div className="px-3 pt-3 sm:px-6">
+        <Trail parts={[{ to: '/kpis', label: t('kpi.title'), icon: <Icon name="target" size={13} /> }]} />
+      </div>
       <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
           <button key={name} className={tab === name ? 'active' : ''} onClick={() => go(name)}>
