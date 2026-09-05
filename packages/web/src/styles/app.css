@@ -2864,7 +2864,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-size: 12.5px;
   color: var(--fg-muted);
 }
-.trail a { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: inherit; }
+/* `min-height` is not decoration: WCAG 2.2 AA asks for 24px of target and
+   `check:a11y` measures it. The spec exempts a link sitting inside a sentence,
+   and a crumb is not one — it is a navigation control, and on a phone it is the
+   way out of the screen, so it has to be big enough to hit. At 12.5px text
+   these came out 19px tall and CI was right to say so. */
+.trail a { display: inline-flex; align-items: center; gap: 4px; min-height: 24px; min-width: 0; color: inherit; }
 .trail a:hover { color: var(--fg); }
 /* The separator is an element rather than a `content:` string, because a
    generated string is read out by some screen readers and there is no reason
