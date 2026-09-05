@@ -1514,6 +1514,41 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-radius: 5px; padding: 0 4px; white-space: nowrap;
 }
 .md a.md-ref:hover { text-decoration: underline; text-underline-offset: 2px; }
+/* A link to another page. Underlined rather than chipped, unlike a task
+   reference: `[[Onboarding]]` is usually the subject of the sentence it sits in
+   and reads as part of it, where `WEB-42` is a thing being pointed at. */
+.md a.md-page { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+.md a.md-page:hover { text-decoration-style: solid; }
+/* A page nobody has written yet. Muted rather than red: a link ahead of its
+   page is how a wiki gets written, not a mistake — and following it is what
+   writes the page. The mark is what says so without relying on the colour,
+   which WCAG 1.4.1 is about and which a colour-blind reader would miss.
+   The `/ ''` is its alternative text, and it is empty on purpose: a screen
+   reader reading "Expenses policy plus" is worse than one reading the title,
+   and this is decoration for the eye. */
+.md a.md-page-new { color: var(--fg-muted); }
+.md a.md-page-new::after { content: '+' / ''; font-size: 0.75em; vertical-align: super; margin-inline-start: 1px; }
+/* A heading somebody can link to. The margin is for the fragment landing: the
+   screen's own header sits over the top of the scroll area, and without this a
+   link to a section arrives with that section underneath it. */
+.md :is(h1, h2, h3, h4, h5, h6)[id] { scroll-margin-top: 72px; }
+
+/* Another page, drawn inside this one. Set apart rather than blended in: the
+   reader has to be able to tell whose words these are, and the caption says
+   whose — and takes them there, since editing them happens on that page. */
+.md .md-embed {
+  margin: 14px 0;
+  padding: 12px 14px 8px;
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+}
+.md .md-embed > :last-child { margin-bottom: 0; }
+.md .md-embed figcaption { margin-top: 8px; font-size: 12.5px; color: var(--fg-muted); }
+/* An embed that would repeat a page already open above it. Said rather than
+   silently dropped: a section that vanished would read as a bug. */
+.md .md-embed-loop { font-size: 12.5px; color: var(--fg-muted); }
 /* A table wider than the column it sits in scrolls inside itself rather than
    pushing the page sideways, which on a phone is the difference between a table
    and a broken screen. `display: block` is what gives it something to scroll;
@@ -2771,6 +2806,82 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   color: var(--fg-soft);
   font-size: 13px;
 }
+
+/* The path from the root of the tree down to this page. Small and quiet: it is
+   orientation, not content, and it sits above a cover image that may be loud. */
+.page-trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin-bottom: 10px;
+  font-size: 12.5px;
+  color: var(--fg-muted);
+}
+.page-trail a { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: inherit; }
+.page-trail a:hover { color: var(--fg); }
+/* The separator is an element rather than a `content:` string, because a
+   generated string is read out by some screen readers and there is no reason
+   for anybody to hear "handbook slash onboarding". The markup hides it. */
+.page-trail .sep { color: var(--line-strong); }
+
+/* The headings of a page, collapsed. Quiet furniture: it sits above the text
+   and must not be the first thing the eye lands on. */
+.page-outline {
+  margin-bottom: 18px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+  font-size: 13px;
+}
+.page-outline > summary { padding: 8px 12px; cursor: pointer; font-weight: 550; }
+.page-outline > ul { margin: 0; padding: 0 12px 10px; list-style: none; }
+.page-outline li { padding-block: 2px; }
+.page-outline a { color: var(--fg-soft); text-decoration: none; }
+.page-outline a:hover { color: var(--fg); text-decoration: underline; text-underline-offset: 2px; }
+
+/* The wiki as a picture. Square, because the layout works in a square and
+   stretching it would make the distances — which are the whole information —
+   say something that is not true. */
+.page-graph {
+  display: block;
+  width: 100%;
+  /* Square, and never taller than the window: a graph you have to scroll to
+     see the other half of is a graph that answers nothing at a glance. */
+  max-width: min(640px, 62vh);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+.page-graph line { stroke: var(--line-strong); stroke-width: 1; }
+.page-graph .page-graph-node circle { fill: var(--accent); stroke: var(--bg-raised); stroke-width: 1.5; }
+/* A title somebody linked to and nobody has written: hollow, because the shape
+   of the hole is the thing this picture says that no list does. */
+.page-graph .page-graph-node.unwritten circle { fill: none; stroke: var(--fg-muted); stroke-dasharray: 3 2; }
+.page-graph text { fill: var(--fg-soft); font-size: 11px; pointer-events: none; }
+.page-graph .page-graph-node:hover circle, .page-graph .page-graph-node:focus-visible circle { stroke: var(--accent); stroke-width: 2.5; }
+.page-graph .page-graph-node:hover text, .page-graph .page-graph-node:focus-visible text { fill: var(--fg); }
+/* Hovering one node quiets everything it does not touch — how a hairball is
+   read without clicking through it. */
+.page-graph .quiet { opacity: 0.18; }
+.page-graph .page-graph-node.quiet text { opacity: 0.35; }
+
+/* One page that links here, with the sentence it said it in. A card rather than
+   a row because the quote is the point: a bare list of titles is a question
+   ("why?") rather than an answer. */
+.page-backlink {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 9px 11px;
+  margin-bottom: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-raised);
+}
+.page-backlink:hover { border-color: var(--line-strong); background: var(--bg-hover); }
 
 /* ------------------------------------------------------------------ budgets
  *

@@ -40,6 +40,7 @@ const REACHED_ELSEWHERE: Record<string, string> = {
   '/projects': 'the guide links to it twice; the navigations list the projects themselves',
   '/projects/new': 'the More screen and the sidebar’s + beside the projects heading',
   '/settings/*': 'the More screen and the account menu',
+  '/pages/new': 'a `[[link]]` to a page nobody has written, and the wiki index’s list of those',
 };
 
 /** Every `path="…"` the signed-in router registers. */

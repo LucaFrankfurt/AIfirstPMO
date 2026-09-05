@@ -5,6 +5,7 @@ import { enterInList, indentList, renderMarkdown, toggleTask, type Edit, type Ma
 import { api } from '../../kernel/sync/api';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMermaid } from './mermaid';
+import { HEADING_PREFIX, usePageBody, usePageHref } from './page-links';
 import { backgroundOf } from '../../kernel/design-system/navigation';
 import { useMembers, useSession } from '../../kernel/identity/session';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -20,13 +21,21 @@ import { Textarea } from '../../kernel/design-system/ui/field';
  * pattern cannot tell `WEB-42` from `UTF-8` and a line about an encoding should
  * not sprout a link to a task nobody has. Both come out of the synced cache, so
  * a reference resolves on a train like everything else here.
+ *
+ * `[[Onboarding]]` comes from the same cache and answers everywhere prose is
+ * rendered, not only on a page: a chat message about the handbook and the
+ * handbook itself should link to it the same way, and a syntax that works in
+ * one box and not the next is a syntax nobody trusts.
  */
-export function useMarkdownRefs(): MarkdownOptions {
+export function useMarkdownRefs(asPage = false): MarkdownOptions {
+  const t = useT();
   const { workspaceId } = useSession();
   const projects = useQuery(
     () => list('project', (project) => project.workspace_id === workspaceId && !project.deleted_at),
     [workspaceId],
   );
+  const pageHref = usePageHref();
+  const pageBody = usePageBody();
   return useMemo(() => {
     const byKey = new Map(projects.filter((project) => project.key).map((project) => [project.key as string, project.id]));
     return {
@@ -35,13 +44,25 @@ export function useMarkdownRefs(): MarkdownOptions {
         const id = byKey.get(key);
         return id ? `/projects/${id}` : undefined;
       },
+      pageHref,
+      // A document, and a message, are not the same thing. Ids on headings and
+      // `![[…]]` drawing a whole page belong to the first: a hundred messages
+      // in a scroller would be a hundred `#notes` competing for one fragment,
+      // and a page unrolled inside a chat bubble is not what anybody typing
+      // that meant.
+      ...(asPage ? { pageBody, headingPrefix: HEADING_PREFIX, embedLoopNote: t('page.embedLoop') } : {}),
     };
-  }, [projects]);
+  }, [projects, pageHref, pageBody, asPage, t]);
 }
 
-export function Markdown({ source, className = '', onChange }: {
+export function Markdown({ source, className = '', onChange, asPage }: {
   source?: string | null;
   className?: string;
+  /**
+   * This text is a page rather than a message: its headings get ids to link to,
+   * and `![[Another page]]` on a line of its own draws that page here.
+   */
+  asPage?: boolean;
   /**
    * Given, the checkboxes can be ticked where they are rendered and this is
    * called with the rewritten markdown.
@@ -54,7 +75,7 @@ export function Markdown({ source, className = '', onChange }: {
    */
   onChange?: (next: string) => void;
 }) {
-  const refs = useMarkdownRefs();
+  const refs = useMarkdownRefs(asPage);
   const options = useMemo(() => ({ ...refs, interactiveTasks: !!onChange }), [refs, onChange]);
   const html = useMemo(() => renderMarkdown(source ?? '', options), [source, options]);
   /**
@@ -218,6 +239,8 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   const [mention, setMention] = useState<{ query: string; at: number; index: number } | null>(null);
   // ...and the `#` menu, which offers work rather than people.
   const [hash, setHash] = useState<{ query: string; at: number; index: number } | null>(null);
+  // ...and the `[[` menu, which offers pages.
+  const [wiki, setWiki] = useState<{ query: string; at: number; index: number } | null>(null);
 
   const matches = mention
     ? members
@@ -263,6 +286,31 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
       }));
     return [...projects, ...tasks];
   }, [hash?.query, workspaceId]);
+
+  /**
+   * What `[[` offers: the pages of this workspace, by title.
+   *
+   * Only pages, and only their titles, because that is what the link resolves
+   * by — offering something the syntax cannot address would teach the wrong
+   * thing. Nothing is offered for a title nobody has written: the link renders
+   * as an invitation to write it, which is the answer, and a menu row saying
+   * "create" would put the creating a step earlier than the author is.
+   */
+  const pageMatches = useQuery(() => {
+    if (!wiki) return [] as RefChoice[];
+    const query = wiki.query.toLowerCase();
+    return list('page', (page) => page.workspace_id === workspaceId && !page.archived)
+      .filter((page) => !query || (page.title ?? '').toLowerCase().includes(query))
+      .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))
+      .slice(0, 6)
+      .map((page): RefChoice => ({
+        key: page.id,
+        token: page.title ?? '',
+        icon: page.icon || '📄',
+        label: page.title ?? '',
+        hint: page.is_template ? t('page.template') : '',
+      }));
+  }, [wiki?.query, workspaceId]);
 
   useEffect(() => {
     if (autoFocus) ref.current?.focus();
@@ -376,6 +424,37 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   };
 
   /**
+   * Notice a `[[` being typed and offer the pages it could mean.
+   *
+   * No word-boundary rule here, unlike `@` and `#`: `[[` is two characters
+   * nothing else in markdown spells, so wherever it appears it was meant. It
+   * closes on a `]`, a `|` or a line break — past any of those the link is
+   * already written and a menu is in the way.
+   */
+  const trackPage = (text: string, caret: number) => {
+    const found = text.slice(0, caret).match(/\[\[([^[\]|\n]*)$/);
+    setWiki(found ? { query: found[1], at: caret - found[1].length - 2, index: 0 } : null);
+  };
+
+  /**
+   * Replace the half-typed `[[…` with the page's title.
+   *
+   * The title rather than the id, because that is what the link resolves by and
+   * what the next reader of the source has to be able to understand. A `]]` the
+   * author already typed is consumed rather than doubled — the editor does not
+   * close the brackets for them, so anybody who closed their own would
+   * otherwise end up with four.
+   */
+  const pickPage = (choice: RefChoice) => {
+    if (!wiki) return;
+    const field = ref.current;
+    const caret = field?.selectionStart ?? value.length;
+    const after = value.slice(caret, caret + 2) === ']]' ? caret + 2 : caret;
+    setWiki(null);
+    rewrite(`${value.slice(0, wiki.at)}[[${choice.token}]]${value.slice(after)}`, wiki.at + choice.token.length + 4);
+  };
+
+  /**
    * Replace the partial `#...` with the reference itself.
    *
    * A task goes in as its bare identifier and a project as `#KEY` — the tokens
@@ -476,12 +555,33 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             onChange(event.target.value);
             trackMention(event.target.value, event.target.selectionStart ?? 0);
             trackRef(event.target.value, event.target.selectionStart ?? 0);
+            trackPage(event.target.value, event.target.selectionStart ?? 0);
           }}
           onBlur={() => setTimeout(() => {
             setMention(null);
             setHash(null);
+            setWiki(null);
           }, 120)}
           onKeyDown={(event) => {
+            // Pages first: `[[#` is a page whose title starts with a hash, and
+            // the `#` menu must not take the keystroke off this one.
+            if (wiki && pageMatches.length) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                setWiki({ ...wiki, index: (wiki.index + step + pageMatches.length) % pageMatches.length });
+                return;
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                pickPage(pageMatches[wiki.index]);
+                return;
+              }
+              if (event.key === 'Escape') {
+                setWiki(null);
+                return;
+              }
+            }
             if (hash && refMatches.length) {
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
                 event.preventDefault();
@@ -579,6 +679,25 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             void upload([...event.dataTransfer.files]);
           }}
         />
+        {wiki && pageMatches.length > 0 && (
+          <div className="mention-menu" role="listbox" aria-label={t('editor.mentionPage')}>
+            {pageMatches.map((choice, index) => (
+              <button
+                key={choice.key}
+                type="button"
+                role="option"
+                aria-selected={index === wiki.index}
+                className={index === wiki.index ? 'active' : ''}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickPage(choice)}
+              >
+                <span aria-hidden="true" style={{ width: 18, textAlign: 'center' }}>{choice.icon}</span>
+                <span className="flex-1 min-w-0 truncate">{choice.label}</span>
+                {choice.hint && <span className="text-muted truncate text-[11.5px]">{choice.hint}</span>}
+              </button>
+            ))}
+          </div>
+        )}
         {hash && refMatches.length > 0 && (
           <div className="mention-menu" role="listbox" aria-label={t('editor.mentionWork')}>
             {refMatches.map((choice, index) => (

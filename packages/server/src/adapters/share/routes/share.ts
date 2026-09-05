@@ -10,7 +10,7 @@
  * The token in the URL is the whole of the authorisation, so this file is
  * deliberately narrow: it reads one row, renders it, and offers nothing else.
  */
-import { isDoneGroup, renderMarkdown } from '@kolibri/shared';
+import { isDoneGroup, pageResolver, renderMarkdown } from '@kolibri/shared';
 import { all, get, nextSeq, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { translatorFor } from '../../../kernel/i18n/i18n.ts';
 import { createNotification } from '../../../modules/notifications/notify.ts';
@@ -139,14 +139,47 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
     new RegExp(`^\\s*#\\s+${String(row.title ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm')
       .test(String(row.content ?? '').split('\n', 3).join('\n'));
 
+  /*
+   * `[[Onboarding]]`, for a reader with no workspace to link into.
+   *
+   * A shared page brings its tree, so a link to a page that came with it is a
+   * link *within this document* and resolves to the section further down.
+   * Everything else stays as the author typed it — brackets and all — because
+   * the alternative is a link to `/pages/…` that asks a stranger to sign in,
+   * and a dead-end dressed as a link is worse than visible syntax. That is the
+   * same rule `keys` follows here: this renderer links what the reader can
+   * actually reach, and nothing else.
+   */
+  const inDocument = pageResolver([page, ...children].map((row) => ({
+    id: String(row.id),
+    title: String(row.title ?? ''),
+    created_at: Number(row.created_at ?? 0),
+  })));
+  const refs = {
+    pageHref: (target: string) => {
+      const found = inDocument(target);
+      return found ? { href: `#page-${found.id}` } : undefined;
+    },
+  };
+
+  /*
+   * The id a link within the document points at. On the heading where there is
+   * one, and on an empty span where the page wrote its own — an empty heading
+   * would be read out as a heading with nothing in it, which is worse than the
+   * extra element.
+   */
+  const target = (row: Row, level: number): string =>
+    (ownTitle(row)
+      ? `<span id="page-${escape(String(row.id))}"></span>`
+      : `<h${level} id="page-${escape(String(row.id))}">${escape(row.icon ?? '')} ${escape(row.title)}</h${level}>`);
+
   const section = (row: Row, level: number): string =>
-    (ownTitle(row) ? '' : `<h${level}>${escape(row.icon ?? '')} ${escape(row.title)}</h${level}>`)
-    + renderMarkdown(String(row.content ?? ''));
+    target(row, level) + renderMarkdown(String(row.content ?? ''), refs);
 
   return [
-    ownTitle(page) ? '' : `<h1>${escape(page.icon ?? '')} ${escape(page.title)}</h1>`,
+    target(page, 1),
     `<p class="meta">Updated ${new Date(Number(page.updated_at)).toISOString().slice(0, 10)}</p>`,
-    renderMarkdown(String(page.content ?? '')),
+    renderMarkdown(String(page.content ?? ''), refs),
     ...children.map((child) => section(child, 2)),
     noteBox(share, notice),
   ].filter(Boolean).join('\n');

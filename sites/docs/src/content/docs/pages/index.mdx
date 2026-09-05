@@ -26,6 +26,60 @@ on-call rota, the decision log.
 in the sidebar tree, so a section is a page with pages under it rather than a separate kind of
 object.
 
+## Linking pages to each other
+
+Type `[[` and the pages of the workspace are offered by title. Pick one and you get
+`[[Onboarding]]`, which renders as a link to that page.
+
+- **`[[Onboarding|how we start]]`** shows your words and links the page. A rename keeps them.
+- **A link to a page nobody has written yet** is drawn faintly with a `+`. Following it creates
+  that page, titled what you typed. This is how a wiki actually gets written: you say what is
+  missing while you are writing about it, not later from a blank New page button.
+- **The wiki index lists those**, under *Linked to, not written yet*, with how many pages want
+  each one. It is the only to-do list here that writes itself.
+- **Backlinks.** Every page shows what points at it, with the sentence the link was written in.
+  Sub-pages are what a page contains; backlinks are what it is part of, and a wiki without them
+  can only be read downwards.
+- **Renaming carries the links.** Rename a page and every `[[…]]` that pointed at it is rewritten
+  to follow, and the app says how many pages it touched. Each of those keeps its previous
+  revision in its own [version history](/pages/history/). It happens wherever the rename does —
+  here, over MCP, or through the API — because it is a rule of the wiki rather than a trick of one
+  screen. Renaming while offline is the one case that waits: the links catch up when the device
+  syncs.
+
+- **`[[Handbuch#Ablauf]]`** links to a section. Headings carry ids, so the link lands on the
+  section rather than the top of the page, and it reads as the section's name. `[[#Ablauf]]` on its
+  own is a section of the page you are writing.
+- **`![[Zahlungsziel]]`** on a line of its own draws that page here, with a caption saying where it
+  came from. Editing still happens on the page itself — this is a view of it, not a copy. A page
+  already shown further up is drawn as a link instead of repeating.
+
+Links resolve by title, so they work anywhere prose does — a chat message about the handbook
+links to it the same way the handbook does. Two pages may share a title; the older one wins, so a
+link that resolved yesterday still resolves to the same page today. Sections and embeds are page
+features: a chat message is not a document, and a page unrolled inside a chat bubble is not what
+anybody typing that meant.
+
+A [shared link](/pages/sharing/) carries the page and its children, so a `[[…]]` naming one of
+those jumps to it inside the shared document. Anything else stays as written: a stranger following
+a link into an app they cannot sign into is worse than seeing the brackets.
+
+## Finding your way around
+
+**The breadcrumb** above a page shows where it sits in the tree, from the top down. A page opened
+from a search, a link or a bookmark used to say nothing at all about its place.
+
+**On this page** is the outline: every heading, collapsed, above the text. It appears on pages with
+enough headings to get lost in.
+
+**Drag a page onto another** in the tree to nest it, or onto the gap between two to reorder. The
+page menu has the same four moves for a keyboard — in, out, up, down.
+
+**Graph** on the wiki index draws the links instead of the tree. Filled circles are pages, hollow
+ones are titles nobody has written yet; hovering one quiets everything it does not touch. It is a
+second view and not the way in — a picture of circles is a poor list, whatever it is a good picture
+of. Only pages a link touches are in it.
+
 ## The editor
 
 The same editor as comments and the chat composer, so everything here works in all three:
@@ -34,6 +88,7 @@ The same editor as comments and the chat composer, so everything here works in a
 - **`@mentions`** with autocomplete. Only a newly added handle notifies — see
   [comments and mentions](/tasks/comments/).
 - **Task and project references.** `WEB-42` becomes a link; `#` offers projects and tasks.
+- **Page links.** `[[` offers the pages of the workspace by title; `![[` embeds the page instead.
 - **Images**, dragged or pasted. They downscale in your browser before upload.
 - <kbd>Tab</kbd> indents by two spaces.
 - **Mermaid diagrams** in a fenced ` ```mermaid ` block.

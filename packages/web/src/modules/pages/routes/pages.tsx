@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { compareOrder, excerpt, type Anchor, type Page } from '@kolibri/shared';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { compareOrder, excerpt, outlineOf, pageResolver, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
@@ -8,6 +8,8 @@ import {
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
 import type { DropZone } from '../pagetree';
+import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
+import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../../kernel/design-system/drag';
@@ -126,6 +128,79 @@ function TreeItem({ node, depth, activeId, canWrite }: {
   );
 }
 
+/**
+ * The headings of a page, as something to jump by.
+ *
+ * Collapsed, and above the text rather than beside it. A handbook chapter is
+ * the case this is for and those are long, but the reading column here is a
+ * fixed measure — a sticky aside would have to take width from it, and a
+ * narrower line of prose to make room for a table of contents is a bad trade on
+ * the screen most people read on. One click, no scrolling past it.
+ *
+ * Only where there is enough of a page to get lost in. An outline over two
+ * headings is furniture.
+ */
+function PageOutline({ source }: { source: string }) {
+  const t = useT();
+  const headings = useMemo(() => outlineOf(source).filter((one) => one.level <= 3), [source]);
+  if (headings.length < 3) return null;
+  return (
+    <details className="page-outline">
+      <summary>{t('page.outline')}</summary>
+      <ul>
+        {headings.map((heading) => (
+          <li key={heading.slug} style={{ paddingInlineStart: (heading.level - 1) * 12 }}>
+            {/* A plain anchor, not a router link: a fragment on the page you are
+                already on is the browser's job, and it does it better. */}
+            <a href={`#${encodeURIComponent(HEADING_PREFIX + heading.slug)}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
+ * `[[A page nobody has written]]`, followed.
+ *
+ * Obsidian's one genuinely load-bearing idea: a link to a page that does not
+ * exist is how the page gets written. The alternative — a dead bracket, and a
+ * New page button somewhere else that starts you at Untitled — is why wikis
+ * fill up with pages nobody meant and stay missing the ones somebody did.
+ *
+ * A route rather than a click handler on the renderer, so the link is a real
+ * link: middle-click opens it in a tab, the address bar shows what it will do,
+ * and `Markdown` stays a component that renders text and knows nothing about
+ * creating anything.
+ *
+ * It resolves once more before creating. Between the render that drew the link
+ * and the click that followed it, somebody else's page may have arrived over
+ * sync — or the reader may have followed the same broken link twice — and a
+ * second page with the same title would take every other link with it.
+ */
+export function PageFromLink() {
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const me = useMe();
+  const { workspaceId } = useSession();
+  const canWrite = useCanWrite();
+  const wanted = (params.get('title') ?? '').trim();
+  // React runs an effect twice in development, and creating a page is not a
+  // thing to do twice.
+  const done = useRef(false);
+
+  useEffect(() => {
+    if (done.current) return;
+    done.current = true;
+    const existing = pageResolver(list('page', (page) => page.workspace_id === workspaceId))(wanted);
+    if (existing) navigate(`/pages/${existing.id}`, { replace: true });
+    else if (!wanted || !canWrite) navigate('/pages', { replace: true });
+    else navigate(`/pages/${createPage({ title: wanted }, me)}`, { replace: true });
+  }, [wanted, workspaceId, canWrite, me, navigate]);
+
+  return null;
+}
+
 export function PagesIndex() {
   const t = useT();
   const { workspaceId } = useSession();
@@ -162,6 +237,13 @@ export function PagesIndex() {
     const used = new Set(all.flatMap((page) => page.labels ?? []));
     return labels.filter((label) => used.has(label.id));
   }, [all, labels]);
+  // What the wiki has asked for and nobody has written: the only to-do list
+  // here that writes itself.
+  const unwritten = useUnwritten();
+  const graph = usePageGraph();
+  // The tree is the way in and stays the default; the picture answers a
+  // different question and waits to be asked.
+  const [drawn, setDrawn] = useState(false);
 
   return (
     <>
@@ -272,9 +354,47 @@ export function PagesIndex() {
             </div>
             <div className="flex items-center gap-2 mb-2">
               <h2 className="text-sm font-semibold">{t('page.all')}</h2>
-              {canWrite && <span className="text-[12px] text-muted">{t('page.dragHint')}</span>}
+              {!drawn && canWrite && <span className="text-[12px] text-muted">{t('page.dragHint')}</span>}
+              <span className="flex-1 min-w-0" />
+              {graph.nodes.length > 1 && (
+                <Button
+                  variant={drawn ? 'primary' : 'ghost'} size="sm"
+                  aria-pressed={drawn}
+                  onClick={() => setDrawn(!drawn)}
+                >
+                  <Icon name="hierarchy" size={14} />
+                  <span className="hide-sm">{t('page.graph')}</span>
+                </Button>
+              )}
             </div>
-            {tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} canWrite={canWrite} />)}
+            {drawn
+              ? <PageGraph nodes={graph.nodes} edges={graph.edges} />
+              : tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} canWrite={canWrite} />)}
+
+            {canWrite && unwritten.length > 0 && (
+              <section className="mt-7">
+                <h2 className="mb-1 text-sm font-semibold">{t('page.unwritten')}</h2>
+                <p className="mb-3 text-[12.5px] text-muted">{t('page.unwrittenHint')}</p>
+                {unwritten.slice(0, 8).map((entry) => (
+                  <Link
+                    key={entry.title}
+                    to={`/pages/new?title=${encodeURIComponent(entry.title)}`}
+                    className="page-row"
+                  >
+                    <span className={navItem()}>
+                      {/* The app's own pencil rather than a `✎` character: a
+                          glyph the reader's font may or may not have looked
+                          like a paperclip in one of the three it fell back to. */}
+                      <span style={{ width: 16 }} className="text-muted"><Icon name="pencil" size={13} /></span>
+                      <span className="flex-1 min-w-0 truncate">{entry.title}</span>
+                      <span className="text-[11.5px] text-muted hide-sm">
+                        {t('page.wantedBy', { count: entry.from.length })}
+                      </span>
+                    </span>
+                  </Link>
+                ))}
+              </section>
+            )}
           </>
         )}
       </div>
@@ -301,6 +421,11 @@ export function PageDetail() {
 
   const { workspaceId } = useSession();
   const children = useQuery(() => list('page', (p) => p.parent_id === id && !p.archived), [id]);
+  // Where this page sits, and what points at it: the tree and the web, the two
+  // halves of finding your way around a wiki.
+  const trail = useTrail(id);
+  const backlinks = useBacklinks(id);
+  const rename = useRenamePage();
   const labels = usePageLabels((page ?? { project_id: null }) as any);
   const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
   const cover = useCover((page ?? { id, cover_url: null }) as any);
@@ -330,6 +455,25 @@ export function PageDetail() {
     setTitle(page?.title ?? '');
   }, [id, page?.title]);
 
+  /**
+   * Arrive at the section a link named.
+   *
+   * The browser scrolls to a fragment on a page it loaded; this is a router
+   * moving between two screens it already has, and it does not. Waited for
+   * rather than done at once, because the body is rendered from text that
+   * arrives with the row — the element the fragment names does not exist yet on
+   * the render that changes the URL.
+   */
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const target = decodeURIComponent(hash.slice(1));
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(target)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash, id, page?.content]);
+
   if (!page) {
     return (
       <>
@@ -341,13 +485,29 @@ export function PageDetail() {
 
   const author = members.get(page.created_by);
 
+  /**
+   * Commit the title, and take the links to it along.
+   *
+   * Said out loud when it happens. Rewriting somebody else's page is a real
+   * thing to have done, however right it is, and a rename that quietly touched
+   * four other documents is the kind of surprise that ends with people not
+   * trusting the feature.
+   */
+  const commitTitle = () => {
+    const next = title.trim() || t('common.untitled');
+    if (next === page.title) return;
+    const moved = rename(page, next);
+    if (moved.refused) toast(t('page.renameRefused'));
+    else if (moved.pages) toast(t('page.renameLinks', { count: moved.pages }));
+  };
+
   return (
     <>
       <Header title={<span className="flex items-center gap-1.5"><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
         <Button size="sm" hidden={!canWrite} onClick={() => {
           if (editing) {
             flush();
-            if (title !== page.title) update('page', id, { title });
+            commitTitle();
           }
           setEditing(!editing);
         }}>
@@ -428,6 +588,23 @@ export function PageDetail() {
             )}
           </div>
         )}
+        {/* Where this page sits in the tree. Without it a page opened from a
+            search, a link or a bookmark said nothing at all about its place —
+            which is the difference between a folder structure and a pile of
+            documents that happen to have parents. */}
+        {trail.length > 0 && (
+          <nav className="page-trail" aria-label={t('page.trail')}>
+            {trail.map((parent, at) => (
+              <span key={parent.id} className="contents">
+                {at > 0 && <span className="sep" aria-hidden="true">/</span>}
+                <Link to={`/pages/${parent.id}`}>
+                  <span aria-hidden="true">{parent.icon ?? '📄'}</span>
+                  <span className="truncate">{parent.title || t('common.untitled')}</span>
+                </Link>
+              </span>
+            ))}
+          </nav>
+        )}
         <PageCover page={page} />
         {cover.input}
         {editing ? (
@@ -439,7 +616,7 @@ export function PageDetail() {
               <Input
                 className="flex-1 min-w-0 font-semibold" style={{ fontSize: 19 }} value={title}
                 onChange={(event) => setTitle(event.target.value)}
-                onBlur={() => update('page', id, { title: title.trim() || t('common.untitled') })}
+                onBlur={commitTitle}
               />
             </div>
             <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} fieldRef={fieldRef} />
@@ -460,10 +637,11 @@ export function PageDetail() {
               {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
             <div className="flex items-center flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
+            <PageOutline source={page.content ?? ''} />
             {page.content?.trim()
               ? (
                 <div className="annotatable" ref={setBody}>
-                  <Markdown source={page.content} />
+                  <Markdown source={page.content} asPage />
                   {bubble}
                 </div>
               )
@@ -479,6 +657,26 @@ export function PageDetail() {
                 <span>{child.icon ?? '📄'}</span>
                 <span className="flex-1 min-w-0 truncate">{child.title}</span>
               </button>
+            ))}
+          </section>
+        )}
+
+        {/* The other direction. Sub-pages are what this page contains; these are
+            what it is part of, and a wiki without them is a set of documents
+            that can only be read downwards. Quoted with the sentence the link
+            was written in, because "who links here" without "why" is a list
+            somebody has to open five pages to understand. */}
+        {backlinks.length > 0 && (
+          <section className="mt-7">
+            <SectionHeading tight>{t('page.backlinks', { count: backlinks.length })}</SectionHeading>
+            {backlinks.map(({ page: from, context }) => (
+              <Link key={from.id} to={`/pages/${from.id}`} className="page-backlink">
+                <span className="flex items-center gap-2">
+                  <span aria-hidden="true">{from.icon ?? '📄'}</span>
+                  <strong className="flex-1 min-w-0 truncate">{from.title || t('common.untitled')}</strong>
+                </span>
+                {context && <span className="text-[12.5px] text-muted">{context}</span>}
+              </Link>
             ))}
           </section>
         )}

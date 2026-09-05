@@ -13,7 +13,7 @@ import { Planner } from './modules/planning/planner';
 import { Inbox, More, MyWork } from './modules/work/routes/personal';
 import { Search } from './kernel/search/routes/search';
 import { CyclePage, ModulePage, ProjectList, ProjectNew, ProjectPage } from './modules/planning/routes/projects';
-import { PageDetail, PagesIndex } from './modules/pages/routes/pages';
+import { PageDetail, PageFromLink, PagesIndex } from './modules/pages/routes/pages';
 import { Chat } from './modules/chat/routes/chat';
 import { Teams } from './modules/work/routes/teams';
 
@@ -242,6 +242,10 @@ export default function App() {
           <Route path="/budgets" element={<BudgetIndex />} />
           <Route path="/budgets/:id" element={<BudgetDetail />} />
           <Route path="/pages" element={<PagesIndex />} />
+          {/* Above `:id` in the file for a reader; the router ranks the literal
+              segment higher either way. This is where a link to a page nobody
+              has written yet lands. */}
+          <Route path="/pages/new" element={<PageFromLink />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/guide" element={<Help />} />

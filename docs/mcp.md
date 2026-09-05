@@ -235,7 +235,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
 | `prepare_meeting` | **all six reports as one agenda**, in the order a meeting runs, with a `headline` of the numbers that decide whether it is a short one |
 | `list_page_templates` | the pages marked as templates — meeting notes, a decision record, a runbook |
-| `list_pages` / `get_page` | wiki pages, markdown included. Templates are left out unless `include_templates` asks for them |
+| `list_pages` / `get_page` | wiki pages, markdown included. `parent` walks the tree one level at a time (`root` for the top). `get_page` also answers `links_to`, `linked_from` and `links_unwritten` — the `[[…]]` web around the page, minus anything the token may not read. Templates are left out unless `include_templates` asks for them |
 | `list_templates` | pre-written tasks, with the checklist each one carries |
 | `list_time` | logged time, narrowed by task, project, date range or `mine`, with the total |
 | `list_members` | people with role and open task count |
@@ -457,7 +457,7 @@ is inclusive to the end of the day it names.
 | `create_module` | a milestone with a lead and a target date, for one project, several, or all |
 | `create_page_from_template` | copies a template into a new page — the same thing the interface's button does, and a copy rather than a link |
 | `update_module` / `delete_module` | edit a milestone's dates, lead, status and which projects work on it; deleting is soft and keeps the tasks |
-| `create_page` / `update_page` | `update_page` takes `content` (replace) or `append` |
+| `create_page` / `update_page` | `update_page` takes `content` (replace) or `append`, and `parent` to move it in the tree (`root` for the top level) — a page offered its own subtree is refused. A `title` change carries the `[[links]]` that pointed at the old one and answers `links_followed` with how many pages moved |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |
 | `create_budget` | an envelope of money over a period, scoped like a cycle: one project's, several, or the workspace |
