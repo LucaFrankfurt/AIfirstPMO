@@ -49,6 +49,8 @@ export const de: Catalogue = {
   'nav.pages': 'Seiten',
   'nav.teams': 'Teams',
   'nav.trail': 'Wo Sie sind',
+  'icon.choose': 'Symbol wählen',
+  'icon.none': 'Kein Symbol',
   'nav.backToList': 'Zurück zur Übersicht',
   'nav.projects': 'Projekte',
   'nav.more': 'Mehr',

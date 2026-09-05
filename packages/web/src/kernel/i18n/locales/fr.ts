@@ -56,6 +56,8 @@ export const fr: Catalogue = {
   'nav.pages': 'Pages',
   'nav.teams': 'Équipes',
   'nav.trail': 'Où vous êtes',
+  'icon.choose': 'Choisir une icône',
+  'icon.none': 'Aucune icône',
   'nav.backToList': 'Retour à la liste',
   'nav.projects': 'Projets',
   'nav.more': 'Plus',

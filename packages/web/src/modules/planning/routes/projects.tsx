@@ -53,6 +53,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
 import { cn } from '../../../kernel/design-system/cn';
 import { Input, Select } from '../../../kernel/design-system/ui/field';
+import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Chip, chipDot, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { Triage, useNewIntakeCount } from '../../intake/intake';
@@ -235,9 +236,12 @@ export function ProjectNew() {
             />
           </div>
           <div className="flex items-start gap-2.5">
-            <div className="field" style={{ width: 120 }}>
+            <div className="field" style={{ width: 60 }}>
               <label htmlFor="p-icon">{t('project.icon')}</label>
-              <Input id="p-icon" value={form.icon} maxLength={4} onChange={(event) => setForm({ ...form, icon: event.target.value })} />
+              <EmojiPicker
+                id="p-icon" value={form.icon} fallback="🚀"
+                onChange={(next) => setForm({ ...form, icon: next ?? '' })}
+              />
             </div>
             <div className="field flex-1 min-w-0">
               <label htmlFor="p-key">{t('project.key')}</label>
@@ -1220,10 +1224,12 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           makes a project and the screen that changes one should not lay the
           same two fields out differently. */}
       <div className="flex items-start gap-2.5">
-        <div className="field" style={{ width: 120 }}>
+        <div className="field" style={{ width: 60 }}>
           <label htmlFor="s-icon">{t('project.icon')}</label>
-          <Input id="s-icon" value={project.icon ?? ''} maxLength={4}
-            onChange={(event) => update('project', projectId, { icon: event.target.value })} />
+          <EmojiPicker
+            id="s-icon" value={project.icon} fallback="🚀"
+            onChange={(next) => update('project', projectId, { icon: next })}
+          />
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="s-name">{t('project.name')}</label>

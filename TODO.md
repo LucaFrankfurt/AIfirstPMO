@@ -312,6 +312,29 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `/x/:id` route the router registers either renders a `Trail` or is named with the way it is
       left, and every empty screen for a missing thing carries an action. Proven to bite by taking
       the trail off the KPI screen and watching it fail.
+      **The icon field was a text box, which is three bugs.** A project, a page and a task template
+      each had an `Input maxLength={4}`, so the icon could be an emoji from this year that a
+      colleague's older laptop draws as an empty rectangle; a ZWJ sequence like 👨‍💻, which a system
+      that does not know the combination draws as *two or three* emoji side by side and which
+      therefore makes the row wider than its column; or the letter `P`, because a text box takes
+      text. None of the three is visible to the person who chose it, and the icon exists precisely
+      to be recognised by everybody else at a glance.
+      So there is one set and one picker. `emoji-set.ts` holds about sixty emoji drawn only from
+      code point ranges that shipped with Unicode 6.0 (2010) — the run iOS 5, Android 4.1 and
+      Windows 8 all carry — and `emoji.test.ts` holds the mechanical half of that: nothing joined,
+      nothing skin-toned, no flags, one glyph wide, inside the ranges. The ranges stop short of the
+      end of the blocks they sit in, because the tail of Miscellaneous Symbols and Pictographs
+      (🖥 🗂 and the rest of the Webdings imports) is Unicode 7.0.
+      **What is already stored is never overruled.** An icon typed into the old box, or set by an
+      import or an assistant over MCP, is shown as it is and offered back as the first cell. That
+      rule was wrong once and the browser found it: it asked "is this portable" when the question
+      is "do I offer this", so 🌐 and 🚨 — both perfectly old, both used by the seed, neither in the
+      list — came out with a trigger showing one thing, nothing marked in the grid, and no way back
+      once anything else was pressed.
+      The set is not enforced on the way in. MCP, the REST API and an import may still write any
+      string, deliberately: refusing an icon would fail an import over a decoration, and the field
+      has always been a string. The picker is what the interface writes, which is what the
+      complaint was about.
       **Still not built: a link table.** Not an omission but the design — a link lives in the text
       that spells it, and a row saying the same thing is a second thing to keep true, one that goes
       stale the first time a body is written by a path that forgot about it. The graph is built from

@@ -547,6 +547,51 @@ p { margin: 0 0 0.75em; }
    explanation lines up under the label rather than under the checkbox. */
 .check-row > span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 
+/* Choosing the icon a project, a page or a template wears. The trigger is a
+   square the size of a small button, so it sits on a form row beside a name
+   field without making that row taller. */
+.emoji-trigger { width: 36px; padding: 0; justify-content: center; font-size: 17px; }
+
+/* Sixty cells, eight across. A grid rather than a wrapping flex row so the
+   columns line up down the popover — emoji are not all the same width, and a
+   flex row of them comes out ragged. */
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 32px);
+  gap: 2px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+.emoji-cell {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius);
+  background: none;
+  cursor: pointer;
+  font-size: 17px;
+  line-height: 1;
+}
+.emoji-cell:hover { background: var(--bg-hover); }
+.emoji-cell.chosen { background: var(--bg-active); box-shadow: inset 0 0 0 1px var(--accent); }
+/* Across the whole width and worded, because clearing is a different act from
+   choosing and a cell shaped like the others would be pressed by accident. */
+.emoji-clear {
+  grid-column: 1 / -1;
+  margin-top: 3px;
+  padding: 6px;
+  border: none;
+  border-top: 1px solid var(--line);
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: 12.5px;
+}
+.emoji-clear:hover { color: var(--fg); }
+
 /* The emoji picker on a saved view: square buttons, not text ones. */
 .icon-choices { gap: 4px; margin-top: 2px; }
 .icon-choices button { padding: 0; width: 32px; height: 32px; justify-content: center; }

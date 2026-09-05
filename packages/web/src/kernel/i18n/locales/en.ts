@@ -48,6 +48,8 @@ export const en = {
   'nav.pages': 'Pages',
   'nav.teams': 'Teams',
   'nav.trail': 'Where you are',
+  'icon.choose': 'Choose an icon',
+  'icon.none': 'No icon',
   'nav.backToList': 'Back to the list',
   'nav.projects': 'Projects',
   'nav.more': 'More',

@@ -23,6 +23,7 @@ import { useCollaborativeText } from '../collab';
 import { useCanWrite, useMe, useMemberMap, useSession } from '../../../kernel/identity/session';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
+import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { navItem } from '../../../kernel/design-system/ui/nav';
 import { chipDot } from '../../../kernel/design-system/ui/chip';
@@ -616,8 +617,9 @@ export function PageDetail() {
         {editing ? (
           <>
             <div className="flex items-center gap-2 mb-2.5">
-              <Input style={{ width: 60, textAlign: 'center', fontSize: 18 }} value={page.icon ?? '📄'}
-                maxLength={4} onChange={(event) => update('page', id, { icon: event.target.value })}
+              <EmojiPicker
+                value={page.icon} fallback="📄"
+                onChange={(next) => update('page', id, { icon: next })}
               />
               <Input
                 className="flex-1 min-w-0 font-semibold" style={{ fontSize: 19 }} value={title}
