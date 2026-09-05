@@ -207,3 +207,137 @@ export const Cursor: React.FC<{ style?: React.CSSProperties; size?: number }> = 
     />
   </svg>
 );
+
+/**
+ * A rounded panel with an optional header strip.
+ *
+ * Extracted when the fourth widget drew the same border, the same radius and
+ * the same faintly lit header for the fourth time. Everything in this folder
+ * that is "a piece of the app, floating" is one of these.
+ */
+export const Panel: React.FC<{
+  label?: string;
+  size: number;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}> = ({ label, size, children, style }) => (
+  <div
+    style={{
+      boxSizing: 'border-box',
+      borderRadius: 14,
+      background: colour.bgRaised,
+      border: `1px solid ${colour.lineStrong}`,
+      boxShadow: '0 30px 70px -30px rgba(0,0,0,0.9)',
+      overflow: 'hidden',
+      textAlign: 'left',
+      ...style,
+    }}
+  >
+    {label ? (
+      <div
+        style={{
+          padding: `${size * 0.5}px ${size * 0.9}px`,
+          borderBottom: `1px solid ${colour.line}`,
+          font: `500 ${size * 0.72}px/1 ${font.sans}`,
+          letterSpacing: '0.1em',
+          textTransform: 'uppercase',
+          color: colour.fgMuted,
+          background: 'rgba(255,255,255,0.02)',
+        }}
+      >
+        {label}
+      </div>
+    ) : null}
+    <div style={{ padding: `${size * 0.9}px ${size}px ${size * 1.1}px` }}>{children}</div>
+  </div>
+);
+
+/**
+ * A switch, in the two states a switch has and the movement between them.
+ *
+ * `on` is a number rather than a boolean on purpose: everything in this folder
+ * animates from a ramp, and a switch that snaps is the one control a viewer
+ * reads as broken rather than as fast.
+ */
+export const Toggle: React.FC<{ on: number; size: number }> = ({ on, size }) => (
+  <span
+    style={{
+      width: size * 2.1,
+      height: size * 1.15,
+      borderRadius: 999,
+      flex: 'none',
+      background: on > 0.5 ? colour.accentDeep : colour.bg,
+      border: `1px solid ${on > 0.5 ? colour.accent : colour.lineStrong}`,
+      boxSizing: 'border-box',
+      display: 'flex',
+      alignItems: 'center',
+      padding: size * 0.12,
+    }}
+  >
+    <span
+      style={{
+        width: size * 0.85,
+        height: size * 0.85,
+        borderRadius: 999,
+        background: on > 0.5 ? '#ffffff' : colour.fgMuted,
+        transform: `translateX(${on * (size * 0.93)}px)`,
+      }}
+    />
+  </span>
+);
+
+/**
+ * A form field with a label, being typed into. `typed` is a character count so
+ * that the caller can drive several of these from one clock and have them fill
+ * in sequence, which is what a person filling in a form actually looks like.
+ */
+export const TypedField: React.FC<{
+  label: string;
+  value: string;
+  typed: number;
+  size: number;
+  /** Renders as dots, for the one field that should not be readable. */
+  secret?: boolean;
+  caret?: boolean;
+}> = ({ label, value, typed, size, secret = false, caret = false }) => {
+  const shown = value.slice(0, typed);
+  return (
+    <label style={{ display: 'block' }}>
+      <span
+        style={{
+          display: 'block',
+          marginBottom: size * 0.35,
+          font: `500 ${size * 0.8}px/1 ${font.sans}`,
+          color: colour.fgMuted,
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          display: 'block',
+          padding: `${size * 0.62}px ${size * 0.8}px`,
+          borderRadius: 10,
+          background: colour.bg,
+          border: `1px solid ${typed > 0 ? colour.lineStrong : colour.line}`,
+          font: `400 ${size}px/1.25 ${secret ? font.mono : font.sans}`,
+          color: colour.fg,
+          minHeight: size * 1.25,
+          whiteSpace: 'pre',
+        }}
+      >
+        {secret ? '•'.repeat(shown.length) : shown}
+        <span
+          style={{
+            display: 'inline-block',
+            width: 2,
+            height: size * 1.05,
+            marginBottom: -size * 0.14,
+            background: colour.accent,
+            opacity: caret ? 1 : 0,
+          }}
+        />
+      </span>
+    </label>
+  );
+};

@@ -1,28 +1,31 @@
 # The spots
 
-Three thirty-second films, each rendered in two shapes. All six are 30fps and
-**exactly 900 frames** — 30.00s — because that is what a social upload cuts at and
-what a landing-page loop can hold.
+Six thirty-second films, each rendered in two shapes — twelve masters. All of them are 30fps and
+**exactly 900 frames** — 30.00s — because that is what a social upload cuts at and what a
+landing-page loop can hold.
 
-| composition | output | |
-|---|---|---|
-| `KolibriThirty` | `kolibri-30s.mp4` | 1920×1080 · the product |
-| `KolibriThirtyVertical` | `kolibri-30s-vertical.mp4` | 1080×1920 |
-| `TasksThirty` | `tasks-30s.mp4` | 1920×1080 · what a task is |
-| `TasksThirtyVertical` | `tasks-30s-vertical.mp4` | 1080×1920 |
-| `PagesThirty` | `pages-30s.mp4` | 1920×1080 · what a page is |
-| `PagesThirtyVertical` | `pages-30s-vertical.mp4` | 1080×1920 |
+| spot | composition | output | |
+|---|---|---|---|
+| the product | `KolibriThirty` | `kolibri-30s.mp4` | offline-first, five layouts, quick add, dependencies, MCP |
+| tasks | `TasksThirty` | `tasks-30s.mp4` | one line to file it, every field, the query |
+| pages | `PagesThirty` | `pages-30s.mp4` | markdown, wiki links, two at once, comments, history |
+| sign-up | `SignUpThirty` | `signup-30s.mp4` | the first account, invites, SSO, two-factor, sessions |
+| workspace | `WorkspaceThirty` | `workspace-30s.mp4` | what a workspace is, roles, feature switches, teams |
+| hierarchy | `HierarchyThirty` | `hierarchy-30s.mp4` | workspace → team → project → task, and the two rules |
+
+Each has a `…Vertical` sibling at 1080×1920, and a `build:…:vertical` script beside its own.
 
 ```bash
 npm install
-npm run dev                    # the studio, on http://localhost:3000
-npm run build                  # → out/kolibri-30s.mp4
+npm run dev                # the studio, on http://localhost:3000
+npm run build              # → out/kolibri-30s.mp4
 npm run build:vertical
-npm run build:tasks
-npm run build:tasks:vertical
-npm run build:pages
-npm run build:pages:vertical
-npm run poster                 # the frame a <video> shows before it plays
+npm run build:tasks        #   :vertical
+npm run build:pages        #   :vertical
+npm run build:signup       #   :vertical
+npm run build:workspace    #   :vertical
+npm run build:hierarchy    #   :vertical
+npm run poster             # the frame a <video> shows before it plays
 ```
 
 `out/` is a build directory and is not committed. The rendered masters that ship live in
@@ -47,6 +50,9 @@ src/
     kolibri/     the flagship — seven beats, half of them real screenshots
     tasks/       what a task is
     pages/       what a page is
+    signup/      how somebody gets in, and who decides
+    workspace/   what a workspace is, and what it has switched on
+    hierarchy/   the six levels, and the two rules that keep them honest
 ```
 
 **A widget is where the behaviour lives; a scene only says how big it is.** The outbox knows when
@@ -95,6 +101,40 @@ return if they do not add up to 900.
 | 5 | comments | 138 | a passage selected, commented, and a whole sentence typed above it |
 | 6 | history | 126 | three versions, a line diff, and a restore |
 | 7 | close | 96 | |
+
+**Sign-up.** `src/spots/signup/timing.ts`
+
+| | beat | frames | what is on screen |
+|---|---|---|---|
+| 1 | open | 96 | Kolibri / Sign-up |
+| 2 | the first account | 150 | a form filled in, and the workspace and starter project it makes |
+| 3 | invites | 132 | a role picked, a link copied, and the link becoming nothing |
+| 4 | single sign-on | 126 | two doors, and the switch that closes one |
+| 5 | two-factor | 144 | six digits landing, and ten recovery codes |
+| 6 | sessions | 156 | three devices, one revoked, and what the database actually holds |
+| 7 | close | 96 | |
+
+**Workspace.** `src/spots/workspace/timing.ts`
+
+| | beat | frames | what is on screen |
+|---|---|---|---|
+| 1 | open | 96 | Kolibri / Workspace |
+| 2 | one at a time | 132 | a switcher, two workspaces, two roles, and the projects changing behind it |
+| 3 | roles | 156 | a four-by-five matrix filling in as a staircase |
+| 4 | features | 228 | six switches off, five turned on, one turned back off, and no rows touched |
+| 5 | teams | 156 | two teams, their keys, their people and their projects |
+| 6 | close | 132 | |
+
+**Hierarchy.** `src/spots/hierarchy/timing.ts`
+
+| | beat | frames | what is on screen |
+|---|---|---|---|
+| 1 | open | 96 | Kolibri / Hierarchy |
+| 2 | the shape | 222 | the tree building a level at a time, workspace down to sub-task |
+| 3 | identifiers | 138 | a key and a number fusing into `WEB-6`, twice |
+| 4 | nesting | 162 | a container project, a private child, and a guest who sees one of them |
+| 5 | cycles and modules | 156 | a cycle across two projects, then an emptied list and all three |
+| 6 | close | 126 | |
 
 ## What is real and what is drawn
 

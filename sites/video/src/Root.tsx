@@ -14,6 +14,9 @@ import { Spot } from './spots/kolibri/Wide';
 import { SpotTall } from './spots/kolibri/Tall';
 import { TasksWide, TasksTall } from './spots/tasks/Spot';
 import { PagesWide, PagesTall } from './spots/pages/Spot';
+import { SignupWide, SignupTall } from './spots/signup/Spot';
+import { WorkspaceWide, WorkspaceTall } from './spots/workspace/Spot';
+import { HierarchyWide, HierarchyTall } from './spots/hierarchy/Spot';
 
 /**
  * Two shapes of the same thirty seconds. They share the beat table, so a beat
@@ -65,6 +68,54 @@ export const RemotionRoot: React.FC = () => (
     <Composition
       id="PagesThirtyVertical"
       component={PagesTall}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="SignUpThirty"
+      component={SignupWide}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="SignUpThirtyVertical"
+      component={SignupTall}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="WorkspaceThirty"
+      component={WorkspaceWide}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="WorkspaceThirtyVertical"
+      component={WorkspaceTall}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1920}
+    />
+    <Composition
+      id="HierarchyThirty"
+      component={HierarchyWide}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1920}
+      height={1080}
+    />
+    <Composition
+      id="HierarchyThirtyVertical"
+      component={HierarchyTall}
       durationInFrames={TOTAL}
       fps={FPS}
       width={1080}
