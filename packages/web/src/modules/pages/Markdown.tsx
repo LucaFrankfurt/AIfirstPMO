@@ -5,7 +5,7 @@ import { enterInList, indentList, renderMarkdown, toggleTask, type Edit, type Ma
 import { api } from '../../kernel/sync/api';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMermaid } from './mermaid';
-import { usePageHref } from './page-links';
+import { HEADING_PREFIX, usePageBody, usePageHref } from './page-links';
 import { backgroundOf } from '../../kernel/design-system/navigation';
 import { useMembers, useSession } from '../../kernel/identity/session';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -27,13 +27,15 @@ import { Textarea } from '../../kernel/design-system/ui/field';
  * handbook itself should link to it the same way, and a syntax that works in
  * one box and not the next is a syntax nobody trusts.
  */
-export function useMarkdownRefs(): MarkdownOptions {
+export function useMarkdownRefs(asPage = false): MarkdownOptions {
+  const t = useT();
   const { workspaceId } = useSession();
   const projects = useQuery(
     () => list('project', (project) => project.workspace_id === workspaceId && !project.deleted_at),
     [workspaceId],
   );
   const pageHref = usePageHref();
+  const pageBody = usePageBody();
   return useMemo(() => {
     const byKey = new Map(projects.filter((project) => project.key).map((project) => [project.key as string, project.id]));
     return {
@@ -43,13 +45,24 @@ export function useMarkdownRefs(): MarkdownOptions {
         return id ? `/projects/${id}` : undefined;
       },
       pageHref,
+      // A document, and a message, are not the same thing. Ids on headings and
+      // `![[…]]` drawing a whole page belong to the first: a hundred messages
+      // in a scroller would be a hundred `#notes` competing for one fragment,
+      // and a page unrolled inside a chat bubble is not what anybody typing
+      // that meant.
+      ...(asPage ? { pageBody, headingPrefix: HEADING_PREFIX, embedLoopNote: t('page.embedLoop') } : {}),
     };
-  }, [projects, pageHref]);
+  }, [projects, pageHref, pageBody, asPage, t]);
 }
 
-export function Markdown({ source, className = '', onChange }: {
+export function Markdown({ source, className = '', onChange, asPage }: {
   source?: string | null;
   className?: string;
+  /**
+   * This text is a page rather than a message: its headings get ids to link to,
+   * and `![[Another page]]` on a line of its own draws that page here.
+   */
+  asPage?: boolean;
   /**
    * Given, the checkboxes can be ticked where they are rendered and this is
    * called with the rewritten markdown.
@@ -62,7 +75,7 @@ export function Markdown({ source, className = '', onChange }: {
    */
   onChange?: (next: string) => void;
 }) {
-  const refs = useMarkdownRefs();
+  const refs = useMarkdownRefs(asPage);
   const options = useMemo(() => ({ ...refs, interactiveTasks: !!onChange }), [refs, onChange]);
   const html = useMemo(() => renderMarkdown(source ?? '', options), [source, options]);
   /**

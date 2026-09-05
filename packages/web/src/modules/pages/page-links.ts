@@ -14,9 +14,11 @@
  */
 import { useMemo } from 'react';
 import {
-  linkContext, linkGraph, linkableTitle, pageKey, pageResolver, renameLinks, wikiLinks, type Page,
+  headingSlug, linkContext, linkGraph, linkableTitle, pageKey, pageResolver, renameLinks, wikiLinks,
+  type Page,
 } from '@kolibri/shared';
 import { list, useQuery } from '../../kernel/sync/store';
+import type { GraphEdge, GraphNode } from './pagegraph';
 import { update } from '../../kernel/sync/mutations';
 import { useCanWrite, useSession } from '../../kernel/identity/session';
 
@@ -31,6 +33,20 @@ const linkable = (workspaceId: string): Page[] =>
   list('page', (page) => page.workspace_id === workspaceId);
 
 /**
+ * The prefix every heading id on a page carries.
+ *
+ * One constant because three things have to agree about it — the renderer
+ * writing the ids, the link resolver writing the fragments, and the outline
+ * writing its own links — and a prefix that two of them share is a set of
+ * anchors that work from one direction only.
+ */
+export const HEADING_PREFIX = 'h-';
+
+/** The fragment a link to a section spells, or nothing for a link to a page. */
+export const sectionHash = (heading: string | null): string =>
+  (heading ? `#${encodeURIComponent(HEADING_PREFIX + headingSlug(heading))}` : '');
+
+/**
  * What `[[…]]` resolves to for this reader, as the renderer asks for it.
  *
  * A title nothing answers to becomes a link to the page that would be written —
@@ -42,19 +58,51 @@ const linkable = (workspaceId: string): Page[] =>
  * style choice: `Q3 plan / draft` is a perfectly ordinary title, and a `%2F`
  * inside a path segment is decoded before the router matches, so the route
  * simply never matched and the link landed on Page not found.
+ *
+ * `[[#Somewhere]]` names a section of the page it is written on and resolves to
+ * a bare fragment. That one is never "missing": a section this page does not
+ * have is a typo, and offering to *create a page* called Somewhere would be a
+ * strange answer to it.
  */
-export function usePageHref(): (target: string) => { href: string; missing?: boolean } | undefined {
+export function usePageHref(): (target: string, heading: string | null) => { href: string; missing?: boolean } | undefined {
   const { workspaceId } = useSession();
   const canWrite = useCanWrite();
   const pages = useQuery(() => linkable(workspaceId), [workspaceId]);
   return useMemo(() => {
     const resolve = pageResolver(pages);
-    return (target: string) => {
+    return (target: string, heading: string | null) => {
+      const hash = sectionHash(heading);
+      if (!target) return hash ? { href: hash } : undefined;
       const found = resolve(target);
-      if (found) return { href: `/pages/${found.id}` };
+      if (found) return { href: `/pages/${found.id}${hash}` };
       return canWrite ? { href: `/pages/new?title=${encodeURIComponent(target.trim())}`, missing: true } : undefined;
     };
   }, [pages, canWrite]);
+}
+
+/**
+ * What `![[…]]` draws, for a reader who may see it.
+ *
+ * The same cache and the same resolution as a link, handing over the text as
+ * well as the address — so the visibility rule is still the one the store
+ * applied when it synced, and this file has no second opinion about it.
+ *
+ * An archived page is deliberately still embeddable. It resolves as a link, and
+ * a document that quietly lost a section because somebody tidied up elsewhere
+ * would be the worse surprise of the two.
+ */
+export function usePageBody(): (target: string) => { id: string; title: string; href: string; content: string } | undefined {
+  const { workspaceId } = useSession();
+  const pages = useQuery(() => linkable(workspaceId), [workspaceId]);
+  return useMemo(() => {
+    const resolve = pageResolver(pages);
+    return (target: string) => {
+      const found = resolve(target);
+      return found
+        ? { id: found.id, title: found.title || target, href: `/pages/${found.id}`, content: found.content ?? '' }
+        : undefined;
+    };
+  }, [pages]);
 }
 
 /** One page that links here, and the sentence it said it in. */
@@ -154,36 +202,33 @@ export function useUnwritten(): { title: string; from: Page[] }[] {
   }, [pages]);
 }
 
-/** What a rename did to the rest of the wiki. */
+/** What a rename will do to the rest of the wiki. */
 export interface Renamed {
-  /** How many other pages had a link rewritten. */
+  /** How many other pages have a link that follows it. */
   pages: number;
-  /** The new title cannot be written inside `[[…]]`, so the links were left alone. */
+  /** The new title cannot be written inside `[[…]]`, so the links stay where they are. */
   refused: boolean;
 }
 
 /**
- * Rename a page and keep the links to it pointing at it.
+ * Rename a page, and say what that does to the links pointing at it.
  *
- * A wiki where renaming a page breaks every link to it is a wiki where people
- * stop renaming pages, and then stop linking to them. So the rename carries the
- * links with it: every other page whose `[[Old title]]` resolved here is
- * rewritten to the new one, and the alias somebody wrote about this page —
- * `[[Old title|how we start]]` — is kept, because those were their words about
- * the page and not a copy of its name.
+ * The rewriting itself is **not** here: it is an invariant of the write path,
+ * so it holds for MCP and for a `PATCH` typed into curl as much as for this
+ * screen — see `followRename` in the server's page rules. Doing it here as
+ * well would not be belt and braces but a bug: two independent CRDT edits
+ * deleting the same span and inserting the same words merge into the words
+ * twice.
  *
- * Two things it deliberately does not do.
+ * What is left here is the sentence somebody needs to hear. It is a prediction
+ * rather than a report — counted against the pages this client holds, before
+ * the server has done anything — and it is the same count for the same reason
+ * the resolver is: every page a person may read is already in the cache.
  *
- * It does not touch the page being renamed. Its body is a CRDT under an open
- * editor, and writing `content` at it would replace that CRDT from text —
- * which is the documented reading of a content-only write, and exactly the
- * wrong one while somebody is typing into it. A page linking to itself by name
- * is rare enough to be worth that.
- *
- * And it does not ask first. Every page it rewrites keeps its previous revision
- * in the page history, so the undo already exists; a dialog in front of a
- * correct default is a dialog people learn to dismiss. The caller says how many
- * pages moved.
+ * The cost of the split is honest and small: rename a page with no connection
+ * and the links to it read as unwritten on this device until the rewrite comes
+ * back down the sync. Nothing is lost, and the alternative was the interface
+ * quietly replacing a colleague's paragraph with its own copy of it.
  */
 export function useRenamePage(): (page: Page, title: string) => Renamed {
   const { workspaceId } = useSession();
@@ -194,14 +239,69 @@ export function useRenamePage(): (page: Page, title: string) => Renamed {
     if (!was || !next || pageKey(was) === pageKey(next)) return { pages: 0, refused: false };
     if (!linkableTitle(next)) return { pages: 0, refused: true };
 
-    let changed = 0;
-    for (const other of linkable(workspaceId)) {
-      if (other.id === page.id) continue;
+    const following = linkable(workspaceId).filter((other) => {
+      if (other.id === page.id) return false;
       const rewritten = renameLinks(other.content ?? '', was, next);
-      if (rewritten === null || rewritten === other.content) continue;
-      update('page', other.id, { content: rewritten });
-      changed += 1;
-    }
-    return { pages: changed, refused: false };
+      return rewritten !== null && rewritten !== other.content;
+    });
+    return { pages: following.length, refused: false };
   };
+}
+
+/**
+ * The wiki as a picture: what is joined to what, and what is missing.
+ *
+ * Only pages a link touches. A wiki's graph with every page in it is mostly
+ * dots — the tree above already lists those, and drawing them again as
+ * unconnected specks says nothing except that the screen is busy. What is left
+ * is the part the picture is *for*: the clusters, the page everything hangs
+ * off, and the titles nobody has written yet, which are the holes.
+ */
+export function usePageGraph(): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const { workspaceId } = useSession();
+  const pages = useQuery(() => linkable(workspaceId), [workspaceId]);
+  return useMemo(() => {
+    const live = pages.filter((page) => !page.archived);
+    const graph = linkGraph(live);
+    const byId = new Map(live.map((page) => [page.id, page]));
+    // The spelling an author actually typed, kept against the folded key the
+    // graph groups by — a node labelled `kündigung` is the index talking, not
+    // anything anybody wrote.
+    const written = new Map<string, string>();
+    for (const page of live) {
+      for (const link of wikiLinks(page.content ?? '')) {
+        if (link.target && !written.has(pageKey(link.target))) written.set(pageKey(link.target), link.target.trim());
+      }
+    }
+    const edges: GraphEdge[] = [];
+    const touched = new Set<string>();
+
+    for (const [from, targets] of graph.out) {
+      for (const to of targets) {
+        edges.push({ from, to });
+        touched.add(from);
+        touched.add(to);
+      }
+    }
+    // An unwritten title is one node however many pages want it, which is what
+    // makes it look like the hole it is rather than like several.
+    for (const [key, from] of graph.missing) {
+      const wanted = from.filter((id) => byId.has(id));
+      if (!wanted.length) continue;
+      const id = `?${key}`;
+      for (const one of wanted) {
+        edges.push({ from: one, to: id });
+        touched.add(one);
+      }
+      touched.add(id);
+    }
+
+    const nodes: GraphNode[] = [...touched].map((id) => {
+      const page = byId.get(id);
+      return page
+        ? { id, label: page.title || id, kind: 'page' as const }
+        : { id, label: written.get(id.slice(1)) ?? id.slice(1), kind: 'unwritten' as const };
+    });
+    return { nodes, edges };
+  }, [pages]);
 }

@@ -16,7 +16,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  excerpt, linkContext, linkGraph, linkableTitle, pageKey, pageResolver, renameLinks, renderMarkdown, wikiLinks,
+  excerpt, headingSlug, linkContext, linkGraph, linkableTitle, outlineOf, pageKey, pageResolver,
+  renameLinks, renderMarkdown, wikiLinks,
 } from '@kolibri/shared';
 
 const pages = [
@@ -171,11 +172,11 @@ describe('rendering a link', () => {
   });
 
   it('leaves a title alone that is spelled the way emphasis is', () => {
-    const html = renderMarkdown('[[Q1_targets_2026]] and [[#done]]', {
-      pageHref: (target) => ({ href: `/pages/${target === '#done' ? 'p9' : 'p8'}` }),
+    const html = renderMarkdown('[[Q1_targets_2026]] and [[Q3 * Q4]]', {
+      pageHref: () => ({ href: '/pages/p8' }),
     });
     assert.match(html, />Q1_targets_2026</, 'an underscore in a title is not emphasis');
-    assert.match(html, />#done</, 'a title starting with # is not a tag');
+    assert.match(html, />Q3 \* Q4</, 'a star in a title is not emphasis either');
     assert.doesNotMatch(html, /<em>|md-tag/);
   });
 
@@ -207,5 +208,144 @@ describe('a link in a preview', () => {
     // through here, and both used to show the brackets.
     assert.equal(excerpt('Fang bei [[Onboarding]] an.'), 'Fang bei Onboarding an.');
     assert.equal(excerpt('Zurück zum [[Handbuch|Handbuch]].'), 'Zurück zum Handbuch.');
+  });
+});
+
+describe('a link to a section', () => {
+  it('splits the title from the heading, and reads as the heading', () => {
+    const [link] = wikiLinks('See [[Onboarding#Day one]].');
+    assert.equal(link.target, 'Onboarding');
+    assert.equal(link.heading, 'Day one');
+    assert.match(
+      renderMarkdown('See [[Onboarding#Day one]].', {
+        pageHref: (target, heading) => ({ href: `/pages/p2#h-${heading?.toLowerCase().replace(' ', '-')}` }),
+      }),
+      /href="\/pages\/p2#h-day-one">Day one</,
+    );
+  });
+
+  it('reads a leading # as a section of the page it is written on', () => {
+    const [link] = wikiLinks('Jump to [[#Day one]].');
+    assert.equal(link.target, '');
+    assert.equal(link.heading, 'Day one');
+    // ...and names no other page, so it is not an edge in the graph.
+    assert.equal(linkGraph([{ id: 'p1', title: 'A', content: 'Jump to [[#Day one]].' }]).out.size, 0);
+  });
+
+  it('keeps the section when the page is renamed', () => {
+    assert.equal(
+      renameLinks('See [[Onboarding#Day one|day one]].', 'Onboarding', 'Getting started'),
+      'See [[Getting started#Day one|day one]].',
+    );
+  });
+});
+
+describe('the id a heading carries', () => {
+  it('is the same slug the link has to spell', () => {
+    assert.equal(headingSlug('Day one'), 'day-one');
+    assert.equal(headingSlug('## Über uns'), 'über-uns', 'an umlaut is not folded away');
+    assert.equal(headingSlug('`code` and [a link](/x)'), 'code-and-a-link');
+  });
+
+  it('is only emitted when the caller asked for one', () => {
+    assert.equal(renderMarkdown('# Day one'), '<h1>Day one</h1>');
+    assert.equal(renderMarkdown('# Day one', { headingPrefix: 'h-' }), '<h1 id="h-day-one">Day one</h1>');
+  });
+
+  it('numbers a slug two headings want, so a fragment means one section', () => {
+    const html = renderMarkdown('## Notes\n\n## Notes\n', { headingPrefix: 'h-' });
+    assert.match(html, /id="h-notes"/);
+    assert.match(html, /id="h-notes-2"/);
+  });
+
+  it('gives a heading with nothing sluggable in it something to be', () => {
+    assert.match(renderMarkdown('## ---', { headingPrefix: 'h-' }), /id="h-section"/);
+  });
+});
+
+describe('a page drawn inside another', () => {
+  const body = (pages: Record<string, string>) => (target: string) => {
+    const content = pages[target];
+    return content === undefined
+      ? undefined
+      : { id: target, title: target, href: `/pages/${target}`, content };
+  };
+
+  it('draws the page where the line was, and says where it came from', () => {
+    const html = renderMarkdown('Before.\n\n![[Terms]]\n\nAfter.', {
+      pageBody: body({ Terms: '## Terms\n\nPay in thirty days.' }),
+    });
+    assert.match(html, /<figure class="md-embed">/);
+    assert.match(html, /Pay in thirty days\./);
+    assert.match(html, /<figcaption><a class="md-page" href="\/pages\/Terms">Terms<\/a><\/figcaption>/);
+    assert.match(html, /<p>Before\.<\/p>/);
+  });
+
+  it('stays as it was written when the caller cannot say what the page holds', () => {
+    assert.equal(renderMarkdown('![[Terms]]'), '<p>![[Terms]]</p>');
+    assert.equal(renderMarkdown('![[Nothing]]', { pageBody: body({}) }), '<p>![[Nothing]]</p>');
+  });
+
+  it('is a block, so a line with anything else on it is a paragraph', () => {
+    const html = renderMarkdown('See ![[Terms]] there.', { pageBody: body({ Terms: 'x' }) });
+    assert.doesNotMatch(html, /md-embed/);
+  });
+
+  it('refuses to re-enter a page already open above it', () => {
+    // A page embedding itself, and two embedding each other: both would recurse
+    // forever, and both are things somebody does by accident.
+    const self = renderMarkdown('![[A]]', { pageBody: body({ A: 'inside\n\n![[A]]' }) });
+    assert.match(self, /md-embed-loop/);
+    assert.equal(self.match(/inside/g)?.length, 1);
+
+    const pair = renderMarkdown('![[A]]', { pageBody: body({ A: '![[B]]', B: '![[A]]' }) });
+    assert.match(pair, /md-embed-loop/);
+  });
+
+  it('does not let an embedded page take ids from the page around it', () => {
+    /* The outline is read off the host's own source, so a heading numbered by
+       text the host does not contain is a link that lands on the wrong
+       paragraph — which is what this did before the embed was given its own
+       (absent) prefix. */
+    const html = renderMarkdown('![[Terms]]\n\n## Notes\n', {
+      headingPrefix: 'h-',
+      pageBody: body({ Terms: '## Notes\n\nPay in thirty days.' }),
+    });
+    assert.match(html, /id="h-notes"/, "the host's own heading keeps the plain slug");
+    assert.doesNotMatch(html, /id="h-notes-2"/);
+    assert.deepEqual(outlineOf('![[Terms]]\n\n## Notes\n').map((one) => one.slug), ['notes']);
+  });
+
+  it('draws the checkboxes of an embedded page inert', () => {
+    const html = renderMarkdown('![[List]]', { pageBody: body({ List: '- [ ] one' }) });
+    // `toggleTask` counts over the host page's source, which has never seen
+    // this line: a box that ticked here would tick something else.
+    assert.match(html, /<input type="checkbox" disabled/);
+    assert.doesNotMatch(html, /data-task/);
+  });
+});
+
+describe('the outline of a page', () => {
+  it('reads the headings the renderer would draw, and slugs them the same way', () => {
+    const source = '# Handbuch\n\ntext\n\n## Über uns\n\n### Team\n\nUnterstrichen\n---\n';
+    assert.deepEqual(outlineOf(source), [
+      { level: 1, text: 'Handbuch', slug: 'handbuch' },
+      { level: 2, text: 'Über uns', slug: 'über-uns' },
+      { level: 3, text: 'Team', slug: 'team' },
+      { level: 2, text: 'Unterstrichen', slug: 'unterstrichen' },
+    ]);
+    // The whole point of sharing the slug maker: these two must agree.
+    const html = renderMarkdown(source, { headingPrefix: 'h-' });
+    for (const heading of outlineOf(source)) assert.match(html, new RegExp(`id="h-${heading.slug}"`));
+  });
+
+  it('numbers a repeated heading the way the ids are numbered', () => {
+    const source = '## Notes\n\n## Notes\n';
+    assert.deepEqual(outlineOf(source).map((h) => h.slug), ['notes', 'notes-2']);
+    assert.match(renderMarkdown(source, { headingPrefix: 'h-' }), /id="h-notes-2"/);
+  });
+
+  it('is not fooled by a comment in a shell block or a rule under nothing', () => {
+    assert.deepEqual(outlineOf('```sh\n# not a heading\n```\n\n---\n'), []);
   });
 });

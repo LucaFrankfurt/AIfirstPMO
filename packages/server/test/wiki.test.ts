@@ -162,6 +162,32 @@ describe('the wiki over MCP', () => {
     await tool(token, 'update_page', { page: 'Tools | toys', title: 'Tooling we use' });
   });
 
+  it('follows the links for a plain REST rename too, and merges rather than replaces', async () => {
+    /* The gap this closes: renaming used to be the interface's trick, so the
+       same rename typed into curl left every link to the page pointing at a
+       title nobody had. It is an invariant of the write path now, which is why
+       this asserts it through the API the interface does not use. */
+    const notes = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Runbook', content: 'Escalate per [[Incident drill]].' },
+    });
+    const drill = await api(`/api/workspaces/${workspaceId}/pages`, {
+      body: { title: 'Incident drill', content: 'Once a quarter.' },
+    });
+
+    await api(`/api/pages/${drill.id}`, { method: 'PATCH', body: { title: 'Fire drill' } });
+    const after = await api(`/api/pages/${notes.id}`);
+    assert.equal(after.content, 'Escalate per [[Fire drill]].');
+
+    // ...and the rewrite went in as an edit to the page's CRDT, not as a fresh
+    // one built from text. A body that had been replaced would carry only the
+    // characters this write knew about.
+    assert.ok(after.body, 'the linking page still has a body');
+    const renamedAgain = await api(`/api/pages/${drill.id}`, { method: 'PATCH', body: { title: 'Fire drill' } });
+    assert.equal(renamedAgain.title, 'Fire drill');
+    assert.equal((await api(`/api/pages/${notes.id}`)).content, 'Escalate per [[Fire drill]].',
+      'renaming to the name it already has changes nothing');
+  });
+
   it('turns a link into an anchor when the page it names came with the share', async () => {
     const share = await api(`/api/workspaces/${workspaceId}/shares`, {
       body: { kind: 'page', page_id: page.Handbook },

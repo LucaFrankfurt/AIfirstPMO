@@ -457,7 +457,7 @@ is inclusive to the end of the day it names.
 | `create_module` | a milestone with a lead and a target date, for one project, several, or all |
 | `create_page_from_template` | copies a template into a new page — the same thing the interface's button does, and a copy rather than a link |
 | `update_module` / `delete_module` | edit a milestone's dates, lead, status and which projects work on it; deleting is soft and keeps the tasks |
-| `create_page` / `update_page` | `update_page` takes `content` (replace) or `append`, and `parent` to move it in the tree (`root` for the top level) — a page offered its own subtree is refused |
+| `create_page` / `update_page` | `update_page` takes `content` (replace) or `append`, and `parent` to move it in the tree (`root` for the top level) — a page offered its own subtree is refused. A `title` change carries the `[[links]]` that pointed at the old one and answers `links_followed` with how many pages moved |
 | `apply_template` | files a real task from a template, checklist and all — the same path the automations use |
 | `log_time` | records time spent; takes `90`, `1h30`, `1.5h` or `1:30`, defaults to today and to the token owner |
 | `create_budget` | an envelope of money over a period, scoped like a cycle: one project's, several, or the workspace |

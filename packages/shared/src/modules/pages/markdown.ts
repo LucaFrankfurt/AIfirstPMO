@@ -13,6 +13,8 @@
  * job, and the editor's toolbar writes fences.
  */
 
+import { slugCounter, splitTarget } from './links.ts';
+
 const escapeHtml = (text: string): string =>
   text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
@@ -64,7 +66,41 @@ export interface MarkdownOptions {
    * left as text, because a wiki is written by linking to pages before they
    * exist: the broken link *is* the invitation to write one.
    */
-  pageHref?: (target: string) => { href: string; missing?: boolean } | undefined;
+  pageHref?: (target: string, heading: string | null) => { href: string; missing?: boolean } | undefined;
+  /**
+   * The text behind `![[Onboarding]]`, for a caller that wants it embedded.
+   *
+   * Transclusion asks a question `pageHref` does not: not "where is it" but
+   * "what does it say", and only the caller knows which pages this reader may
+   * be shown. Left out, `![[…]]` stays as the author typed it — the same rule
+   * every other resolution here follows.
+   *
+   * The rendering recurses, so a page embedding itself, or two embedding each
+   * other, would not stop. It is stopped exactly rather than by a depth
+   * counter: a page already open on the path is drawn as a link instead, which
+   * says what happened where a truncation would only look like a bug.
+   */
+  pageBody?: (target: string) => { id: string; title: string; href: string; content: string } | undefined;
+  /**
+   * What to say where an embed would repeat a page already open above it.
+   *
+   * A word, from the caller, because this file has no language: it renders the
+   * same markup for three locales and a shared page nobody has signed into.
+   * Left out, the link stands on its own — which is the honest minimum, since
+   * the page it names *is* somewhere above.
+   */
+  embedLoopNote?: string;
+  /**
+   * Given, every heading carries `id="<prefix><slug>"` — so a section can be
+   * linked to, from `[[Page#Section]]` or from an outline beside the text.
+   *
+   * A prefix rather than a flag because one document may hold several pages: a
+   * shared page brings its children, and two of them are quite likely to have a
+   * heading called Notes. Left out, headings carry no id at all, which is right
+   * for a chat message — a hundred of those in a scroller would be a hundred
+   * ids competing for the same fragment.
+   */
+  headingPrefix?: string;
 }
 
 
@@ -84,12 +120,15 @@ const KEY_SHAPE = /^[A-Z][A-Z0-9]{0,9}$/;
  * Skipping that made `[[Tools & toys]]` a link to a page nobody has.
  */
 function pageLinks(html: string, refs: MarkdownOptions, stash: string[]): string {
-  return html.replace(/\[\[([^[\]|\n]+)(?:\|([^[\]\n]*))?\]\]/g, (match, raw: string, alias: string | undefined) => {
-    const target = raw.trim();
-    if (!target) return match;
-    const found = refs.pageHref!(unescapeHtml(target));
+  return html.replace(/\[\[([^[\]|\n]*)(?:\|([^[\]\n]*))?\]\]/g, (match, raw: string, alias: string | undefined) => {
+    const { target, heading } = splitTarget(unescapeHtml(raw));
+    if (!target && !heading) return match;
+    const found = refs.pageHref!(target, heading);
     if (!found) return match;
-    const label = (alias ?? '').trim() || target;
+    // What it is called, when the author did not say: the section if the link
+    // named one, otherwise the page. `[[Onboarding#Day one]]` reads as its
+    // section, because that is the part of the sentence doing the work.
+    const label = (alias ?? '').trim() || escapeHtml(heading || target);
     stash.push(
       `<a class="md-page${found.missing ? ' md-page-new' : ''}" href="${escapeHtml(found.href)}">${label}</a>`,
     );
@@ -320,6 +359,28 @@ interface TaskCount {
   n: number;
 }
 
+/**
+ * What one render has to remember about itself.
+ *
+ * Three things, and each of them is about the *whole* document rather than the
+ * block being written: how many checkboxes have gone by, which heading slugs
+ * are already taken, and which pages are open further up an embed. Carried as
+ * one object because `blocks` calls itself — for a blockquote, and for an
+ * embedded page — and three parameters threaded through two recursions is
+ * three chances to thread one of them wrong.
+ *
+ * `tasks` is the one that is deliberately dropped on the way into a quote; the
+ * other two are shared by reference, because a slug taken inside a quote is
+ * still taken outside it.
+ */
+interface Render {
+  tasks: TaskCount | null;
+  /** The document's slug maker, so two sections called Notes get two ids. */
+  slug: (text: string) => string;
+  /** The pages open above this one, so an embed cannot re-enter one. */
+  embedded: Set<string>;
+}
+
 const FENCE = /^(\s*)(`{3,}|~{3,})\s*([^`]*)$/;
 const FENCE_END = /^\s*(`{3,}|~{3,})\s*$/;
 
@@ -334,7 +395,51 @@ function code(source: string, language: string): string {
 }
 
 export function renderMarkdown(source: string, refs?: MarkdownOptions): string {
-  return blocks(String(source ?? '').replace(/\r\n?/g, '\n').split('\n'), refs, { n: 0 });
+  return blocks(String(source ?? '').replace(/\r\n?/g, '\n').split('\n'), refs, {
+    tasks: { n: 0 }, slug: slugCounter(), embedded: new Set(),
+  });
+}
+
+/**
+ * `![[Onboarding]]` on a line of its own: that page, drawn here.
+ *
+ * Block-level only, and that is not a limitation waiting to be lifted — half a
+ * document inside a sentence is not a thing anybody means, and requiring the
+ * line to be nothing else is what keeps this out of the way of the inline
+ * rules.
+ *
+ * A page already open above this one is drawn as a plain link with a word
+ * saying why. That is the cycle guard, and it is exact: a counter would cut a
+ * legitimately deep chain and look identical to a bug.
+ */
+function embed(target: string, refs: MarkdownOptions, state: Render): string {
+  const found = refs.pageBody!(target);
+  if (!found) return '';
+  const title = `${escapeHtml(found.title)}`;
+  const link = `<a class="md-page" href="${escapeHtml(found.href)}">${title}</a>`;
+  if (state.embedded.has(found.id)) {
+    const note = refs.embedLoopNote ? `${escapeHtml(refs.embedLoopNote)} ` : '';
+    return `<p class="md-embed-loop">${note}${link}</p>`;
+  }
+  /*
+   * The embedded page's headings carry no ids, and that is a correction rather
+   * than a simplification. They used to take them from the host's slug maker,
+   * so a page embedding another and then writing its own `## Notes` got
+   * `h-notes-2` for a section its own outline called `h-notes` — an outline
+   * link landing on somebody else's paragraph. An embedded copy is a *view* of
+   * a page; the anchors for it live on the page itself.
+   */
+  const inner = blocks(String(found.content ?? '').replace(/\r\n?/g, '\n').split('\n'), {
+    ...refs, headingPrefix: undefined,
+  }, {
+    // The embedded page's checkboxes are drawn inert: `toggleTask` counts over
+    // the *host* page's source and has never seen this text, so a box that
+    // ticked here would tick a line somewhere else.
+    tasks: null,
+    slug: state.slug,
+    embedded: new Set([...state.embedded, found.id]),
+  });
+  return `<figure class="md-embed">\n${inner}\n<figcaption>${link}</figcaption>\n</figure>`;
 }
 
 /**
@@ -350,7 +455,8 @@ export function renderMarkdown(source: string, refs?: MarkdownOptions): string {
  * checkbox inside a quote is drawn inert and counted by neither. That is what
  * keeps a click and a line of markdown pointing at the same box.
  */
-function blocks(lines: string[], refs: MarkdownOptions | undefined, tasks: TaskCount | null): string {
+function blocks(lines: string[], refs: MarkdownOptions | undefined, state: Render): string {
+  const tasks = state.tasks;
   const html: string[] = [];
   const lists: ListLevel[] = [];
   let paragraph: string[] = [];
@@ -421,12 +527,26 @@ function blocks(lines: string[], refs: MarkdownOptions | undefined, tasks: TaskC
       continue;
     }
 
+    // Before the heading rule and everything under it: `![[…]]` alone on a line
+    // is a document, not a paragraph starting with an exclamation mark.
+    const embedded = refs?.pageBody ? /^\s*!\[\[([^[\]|\n]+)\]\]\s*$/.exec(line) : null;
+    if (embedded) {
+      const drawn = embed(splitTarget(embedded[1]).target, refs!, state);
+      if (drawn) {
+        closeParagraph();
+        closeLists();
+        html.push(drawn);
+        continue;
+      }
+    }
+
     const heading = /^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(line);
     if (heading) {
       closeParagraph();
       closeLists();
       const level = heading[1].length;
-      html.push(`<h${level}>${inline(heading[2], refs)}</h${level}>`);
+      const id = refs?.headingPrefix === undefined ? '' : ` id="${escapeHtml(refs.headingPrefix + state.slug(heading[2]))}"`;
+      html.push(`<h${level}${id}>${inline(heading[2], refs)}</h${level}>`);
       continue;
     }
 
@@ -436,7 +556,10 @@ function blocks(lines: string[], refs: MarkdownOptions | undefined, tasks: TaskC
     const underline = /^ {0,3}(=+|-+)\s*$/.exec(line);
     if (underline && paragraph.length && !lists.length) {
       const level = underline[1][0] === '=' ? 1 : 2;
-      html.push(`<h${level}>${inlineBlock(paragraph, refs)}</h${level}>`);
+      const id = refs?.headingPrefix === undefined
+        ? ''
+        : ` id="${escapeHtml(refs.headingPrefix + state.slug(paragraph.join(' ')))}"`;
+      html.push(`<h${level}${id}>${inlineBlock(paragraph, refs)}</h${level}>`);
       paragraph = [];
       continue;
     }
@@ -459,7 +582,7 @@ function blocks(lines: string[], refs: MarkdownOptions | undefined, tasks: TaskC
         inner.push(quoted[1]);
       }
       index = end - 1;
-      html.push(`<blockquote>\n${blocks(inner, refs, null)}\n</blockquote>`);
+      html.push(`<blockquote>\n${blocks(inner, refs, { ...state, tasks: null })}\n</blockquote>`);
       continue;
     }
 

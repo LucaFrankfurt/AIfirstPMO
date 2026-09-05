@@ -245,13 +245,48 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       page and its children, so a `[[…]]` naming one of those becomes an anchor into the same
       document; everything else stays as the author typed it. The same rule `keys` already
       followed: a dead-end dressed as a link is worse than visible syntax.
-      **Not built, deliberately.** No link table — a link lives in the text that spells it, and a
-      second copy in a row is a second thing to keep true. No `[[Page#Heading]]`: the renderer puts
-      no ids on headings, and a link to an anchor that does not exist is worse than no link. No
-      `![[transclusion]]`: a page whose rendering depends on another page's text is a cycle waiting
-      to happen and a permission question nobody has asked. No graph view — it is the feature
-      everybody demos and nobody navigates by, and the backlink list with its quotes answers the
-      question the picture is standing in for.
+      **The rename moved into the write path.** It began on the client, which left a plain
+      `PATCH /api/pages/:id` renaming a page and breaking every link to it — the invariant held for
+      the screen that happened to implement it and nowhere else. It is `followRename` in the page
+      rules now, so the interface, MCP, curl and whatever writes next all get it. Two details are
+      load-bearing. It writes a **CRDT edit** rather than `content`: a content write rebuilds the
+      body from text, so renaming a page while a colleague was mid-paragraph in a page linking to it
+      would have replaced their paragraph with this process's copy of it. And it runs in exactly one
+      place — the client counts what will move, to say so, and writes nothing, because two
+      independent edits deleting the same span and inserting the same words merge into the words
+      twice. The cost is named rather than hidden: rename a page with no connection and the links to
+      it read as unwritten on that device until the rewrite comes back down the sync.
+      **Sections, and an outline.** `[[Page#Heading]]` needed ids on headings, so headings have
+      them — slugged by `headingSlug`, numbered from the second when two sections share a name, and
+      only where the caller asks, because a hundred chat messages in a scroller would be a hundred
+      `#notes` competing for one fragment. A leading `#` means a section of the page it is written
+      on, which is Obsidian's reading; the cost is that a page literally called `#done` cannot be
+      linked to by that name, and that is the cheaper of the two losses. The outline beside a long
+      page reads the same slugs from the same maker — one function, because a slug two callers
+      disagree about is a link that goes nowhere and nothing that says so. It is collapsed and above
+      the text rather than in a sticky aside: the reading column here is a fixed measure, and
+      narrowing the prose to make room for a table of contents is a bad trade on a laptop.
+      **`![[Transclusion]]`**, on a line of its own. The cycle it was held back for is prevented
+      exactly rather than by a depth counter — a page already open above is drawn as a link with a
+      word saying so, where a truncation would look like a bug. The embedded page's checkboxes are
+      inert (`toggleTask` counts over the host's source and has never seen that text) and its
+      headings carry no ids, which was a real bug for one commit: they took numbers from the host's
+      slug maker, so a page embedding another and then writing its own `## Notes` got `h-notes-2`
+      for a section its own outline called `h-notes`.
+      **A graph view, earning its place on the second colour.** It was left out as the feature
+      everybody demos and nobody navigates by, and that is still true of the first colour. What
+      makes it worth a screen is the hollow node: a title somebody linked to and nobody has written,
+      so the picture says where the holes are — which the tree and the backlink list genuinely
+      cannot at a glance. Only pages a link touches are in it; the rest are dots the tree already
+      lists. The layout is a spring simulation in `pagegraph.ts` with no library and no randomness:
+      positions are seeded from the node's own id, so the same wiki draws the same picture and a
+      test can assert about it. Its work is budgeted as `nodes² × rounds`, and the budget is on the
+      time rather than on how many pages somebody is allowed to have.
+      **Still not built: a link table.** Not an omission but the design — a link lives in the text
+      that spells it, and a row saying the same thing is a second thing to keep true, one that goes
+      stale the first time a body is written by a path that forgot about it. The graph is built from
+      the text on demand instead, which is cheap because the text is already in hand on both sides:
+      the client syncs every page it may read, and the server holds them in one table.
 - [x] **One dialect, written down.** Every box in the app that takes more than a line — page
       bodies, task descriptions, comments, chat, module descriptions, what a rule writes — goes
       through one renderer, and what it accepts had never been stated anywhere but the source.

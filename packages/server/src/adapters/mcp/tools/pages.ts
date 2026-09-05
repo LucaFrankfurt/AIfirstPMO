@@ -1,12 +1,11 @@
 /**
  * The wiki: reading it, writing it, and starting from a template.
  */
-import {
-  linkGraph, linkableTitle, orderKey, pageKey, pageResolver, renameLinks, wikiLinks, type LinkablePage,
-} from '@kolibri/shared';
+import { linkGraph, orderKey, pageResolver, wikiLinks, type LinkablePage } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
-import { serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { renameFollowers } from '../../../modules/pages/rules/pages.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
   findPage, findProject, McpError, requireWrite, str, type McpCtx, type ToolDef, workspaceOf, writeOpts,
@@ -35,33 +34,6 @@ const linkablePages = (workspaceId: string, userId: string): LinkablePage[] =>
   }));
 
 /**
- * Rename a page and take the links to it along, the way the interface does.
- *
- * Here rather than in the write path, and that is a decision worth stating.
- * The client rewrites the links itself because it is offline-first: a rename
- * made on a train has to leave a wiki whose links work before anything reaches
- * a server. Doing it in the entity rule as well would mean the same rewrite
- * arriving from both ends of the sync. So each surface that offers a *rename*
- * carries it, and a raw `PATCH /api/pages/:id` — which is documented as a field
- * write and nothing more — does not.
- */
-function followRename(page: Row, next: string, workspaceId: string, ctx: McpCtx): number {
-  const was = String(page.title ?? '').trim();
-  if (!was || !next.trim() || pageKey(was) === pageKey(next) || !linkableTitle(next.trim())) return 0;
-  let moved = 0;
-  for (const other of all<Row>(
-    `SELECT id, content FROM pages WHERE workspace_id = ? AND deleted_at IS NULL AND id <> ?`,
-    workspaceId, page.id,
-  )) {
-    const rewritten = renameLinks(String(other.content ?? ''), was, next.trim());
-    if (rewritten === null || rewritten === String(other.content ?? '')) continue;
-    writeEntity('page', String(other.id), { content: rewritten }, writeOpts(workspaceId, ctx));
-    moved += 1;
-  }
-  return moved;
-}
-
-/**
  * Where a page lands when it is moved under another one.
  *
  * Both halves at once — the parent and a `sort_order` at the end of its new
@@ -80,15 +52,11 @@ function reparent(page: Row, ref: string, workspaceId: string, ctx: McpCtx): Rec
   if (ref === 'root' || ref === '') return { parent_id: null, sort_order: lastOrder(workspaceId, null) };
   const parent = findPage(ref, workspaceId, ctx);
   if (parent.id === page.id) throw new McpError('A page cannot be its own parent');
-  // A set rather than a depth limit: a cycle already in the table would spin
-  // here forever, and a number picked as "deep enough" is a wrong answer
-  // waiting for somebody's genuinely deep handbook.
-  const seen = new Set<string>([String(parent.id)]);
-  let at = String(parent.parent_id ?? '') || null;
-  while (at && !seen.has(at)) {
-    if (at === page.id) throw new McpError(`"${page.title}" cannot be moved inside itself`);
-    seen.add(at);
-    at = (get<Row>(`SELECT parent_id FROM pages WHERE id = ?`, at)?.parent_id as string | null) ?? null;
+  // The write path's own walk, which the task and component trees already use
+  // — the question "would this make a loop" has one answer here, not one per
+  // kind of tree.
+  if (wouldLoop('pages', String(page.id), String(parent.id))) {
+    throw new McpError(`"${page.title}" cannot be moved inside itself`);
   }
   return { parent_id: parent.id, sort_order: lastOrder(workspaceId, String(parent.id)) };
 }
@@ -242,7 +210,12 @@ export const pageTools: ToolDef[] = [
       );
       if (!page) throw new McpError(`Page ${args.page} not found`);
       const patch: Record<string, unknown> = {};
-      const renamed = args.title !== undefined ? followRename(page, String(args.title), workspaceId, ctx) : 0;
+      /* Counted before the write, because the write is what changes the answer.
+         The rewriting itself belongs to the write path — see `renameFollowers`
+         — so this is only the sentence the caller needs to hear about it. */
+      const following = args.title !== undefined
+        ? renameFollowers(String(page.id), workspaceId, String(page.title ?? ''), String(args.title)).length
+        : 0;
       if (args.title !== undefined) patch.title = String(args.title);
       if (args.content !== undefined) patch.content = String(args.content);
       if (args.append) patch.content = `${page.content ?? ''}\n\n${args.append}`;
@@ -251,7 +224,7 @@ export const pageTools: ToolDef[] = [
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       // Said in the answer, because rewriting other people's pages is a real
       // thing to have done and the caller is the only one who can mention it.
-      return { ...serialize('page', row), ...(renamed ? { links_followed: renamed } : {}) };
+      return { ...serialize('page', row), ...(following ? { links_followed: following } : {}) };
     },
   },
   {

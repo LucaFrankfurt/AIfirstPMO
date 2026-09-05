@@ -14,19 +14,26 @@
  * arithmetic is worth proving without a browser. The same functions answer for
  * MCP on the server, over rows out of SQLite.
  *
- * Three things are deliberately *not* here. There is no link table: a link
- * lives in the text that spells it, and a second copy in a row is a second
- * thing to keep true. There is no `[[Page#Heading]]`, because the renderer puts
- * no ids on headings and a link to an anchor that does not exist is worse than
- * no link. And there is no `![[embed]]`: transclusion means a page's rendering
- * depends on another page's text, which is a cycle waiting to happen and a
- * permission question nobody has asked yet.
+ * One thing is deliberately *not* here: a link table. A link lives in the text
+ * that spells it, and a row saying the same thing is a second thing to keep
+ * true — one that goes stale the first time a body is written by a path that
+ * forgot about it. The graph is built from the text on demand instead, which is
+ * cheap because the text is already in hand on both sides.
  */
 
 /** One `[[…]]` in a page, and where in the source it sits. */
 export interface WikiLink {
   /** The title as written, trimmed. `[[ Onboarding | how we start ]]` → `Onboarding`. */
   target: string;
+  /**
+   * The section, when the link named one: `[[Onboarding#Day one]]` → `Day one`.
+   *
+   * A leading `#` means *this* page — `[[#Day one]]` — and leaves `target`
+   * empty, which is Obsidian's reading and worth matching because it is the one
+   * people arrive with. The cost is that a page literally called `#done` cannot
+   * be linked to by that name, and that is the cheaper of the two losses.
+   */
+  heading: string | null;
   /** What to show instead of the title, when the author gave one. */
   label: string | null;
   /** Offsets into the source, so a rewrite can splice rather than re-parse. */
@@ -95,18 +102,31 @@ function withoutCode(source: string): string {
   return kept.join('\n').replace(/`[^`\n]+`/g, (span) => ' '.repeat(span.length));
 }
 
-/** `[[target]]`, `[[target|label]]`. Never across a line break — neither does Obsidian. */
-const LINK = /\[\[([^[\]|\n]+)(?:\|([^[\]\n]*))?\]\]/g;
+/**
+ * `[[target]]`, `[[target#section]]`, `[[target|label]]`. Never across a line
+ * break — neither does Obsidian.
+ */
+const LINK = /\[\[([^[\]|\n]*)(?:\|([^[\]\n]*))?\]\]/g;
+
+/** The title and the section a target names, split at the first `#`. */
+export function splitTarget(raw: string): { target: string; heading: string | null } {
+  const at = raw.indexOf('#');
+  if (at < 0) return { target: raw.trim(), heading: null };
+  return { target: raw.slice(0, at).trim(), heading: raw.slice(at + 1).trim() || null };
+}
 
 /** Every link in a page's markdown, in the order they are read. */
 export function wikiLinks(source: string): WikiLink[] {
   const text = withoutCode(String(source ?? ''));
   const found: WikiLink[] = [];
   for (const match of text.matchAll(LINK)) {
-    const target = match[1].trim();
-    if (!target) continue;
+    const { target, heading } = splitTarget(match[1]);
+    // `[[#Day one]]` is a section of this page and names no other; `[[  ]]` and
+    // `[[#]]` name nothing at all.
+    if (!target && !heading) continue;
     found.push({
       target,
+      heading,
       label: match[2] === undefined ? null : match[2].trim() || null,
       at: match.index,
       end: match.index + match[0].length,
@@ -114,6 +134,27 @@ export function wikiLinks(source: string): WikiLink[] {
   }
   return found;
 }
+
+/**
+ * The id a heading carries, and the fragment a link to it has to spell.
+ *
+ * Shared rather than computed on both sides, because a slug that two functions
+ * disagree about is a link that goes nowhere and nothing that says so. Letters
+ * and digits survive as they were written — `Über uns` is `über-uns`, not
+ * `uber-uns` — because folding an umlaut is a decision about somebody's
+ * language, and the fragment is percent-encoded by the browser anyway.
+ */
+export const headingSlug = (text: string): string =>
+  String(text ?? '')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(LINK, (_, raw: string, alias: string | undefined) =>
+      (alias?.trim() || splitTarget(raw).target || splitTarget(raw).heading || ''))
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_~]/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/^-+|-+$/g, '');
 
 /**
  * Look a title up among these pages.
@@ -172,6 +213,8 @@ export function linkGraph<T extends LinkablePage>(pages: readonly T[]): LinkGrap
   };
   for (const page of pages) {
     for (const link of wikiLinks(page.content ?? '')) {
+      // A link to a section of the page it is written on names nothing else.
+      if (!link.target) continue;
       const found = resolve(link.target);
       if (!found) push(graph.missing, pageKey(link.target), page.id);
       else if (found.id !== page.id) {
@@ -203,7 +246,8 @@ export function linkContext(source: string, target: string, max = 180): string |
     const after = text.indexOf('\n\n', link.end);
     const paragraph = source.slice(before < 0 ? 0 : before + 2, after < 0 ? source.length : after);
     const shown = paragraph
-      .replace(LINK, (_, title: string, label: string | undefined) => (label?.trim() || title.trim()))
+      .replace(LINK, (_, raw: string, label: string | undefined) =>
+        (label?.trim() || splitTarget(raw).target || splitTarget(raw).heading || ''))
       .replace(/[#>*_~`]/g, ' ')
       .replace(/\s+/g, ' ')
       .trim();
@@ -232,14 +276,78 @@ export function renameLinks(source: string, from: string, to: string): string | 
   const text = String(source ?? '');
   const key = pageKey(from);
   const next = to.trim();
-  const links = wikiLinks(text).filter((link) => pageKey(link.target) === key);
+  const links = wikiLinks(text).filter((link) => link.target && pageKey(link.target) === key);
   if (!links.length) return text;
   let out = '';
   let cursor = 0;
   for (const link of links) {
     out += text.slice(cursor, link.at);
-    out += link.label === null ? `[[${next}]]` : `[[${next}|${link.label}]]`;
+    // The section and the alias both survive: one is where in the page, the
+    // other is what the author called it, and a rename is about neither.
+    const inside = `${next}${link.heading ? `#${link.heading}` : ''}`;
+    out += link.label === null ? `[[${inside}]]` : `[[${inside}|${link.label}]]`;
     cursor = link.end;
   }
   return out + text.slice(cursor);
+}
+
+/**
+ * A slug maker that remembers what it has already given out.
+ *
+ * The dedup lives here rather than in each caller because there are two of
+ * them — the renderer, writing the ids, and the outline, writing the links to
+ * them — and a document with two sections called Notes is the case where a
+ * disagreement between them stops being theoretical.
+ */
+export function slugCounter(): (text: string) => string {
+  const seen = new Map<string, number>();
+  return (text: string) => {
+    const base = headingSlug(text) || 'section';
+    const at = (seen.get(base) ?? 0) + 1;
+    seen.set(base, at);
+    return `${base}${at > 1 ? `-${at}` : ''}`;
+  };
+}
+
+/** One heading in a page, as an outline beside the text draws it. */
+export interface Heading {
+  /** 1 for `#`, 6 for `######`. */
+  level: number;
+  text: string;
+  /** Without the document's prefix — the caller knows that. */
+  slug: string;
+}
+
+/**
+ * The headings of a page, in the order they are written.
+ *
+ * Read off the source rather than off the rendered HTML, so an outline can be
+ * drawn without rendering the document twice — and so the same function answers
+ * on the server, where there is no DOM to query. Code is skipped, because a
+ * `# comment` inside a shell block is not a section and an outline full of
+ * those is an outline nobody reads.
+ *
+ * The `Setext` form — a row of `=` or `-` under a line — counts too, because
+ * the renderer treats it as a heading and an outline that disagreed with the
+ * page would be worse than no outline.
+ */
+export function outlineOf(source: string): Heading[] {
+  const lines = withoutCode(String(source ?? '')).split('\n');
+  const slug = slugCounter();
+  const out: Heading[] = [];
+  for (let at = 0; at < lines.length; at += 1) {
+    const hash = /^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(lines[at]);
+    if (hash) {
+      out.push({ level: hash[1].length, text: hash[2].trim(), slug: slug(hash[2]) });
+      continue;
+    }
+    const under = /^ {0,3}(=+|-+)\s*$/.exec(lines[at + 1] ?? '');
+    // A row of dashes under a blank line is a rule, and under a list item it is
+    // that item — the renderer only reads it as an underline for a paragraph.
+    if (under && lines[at].trim() && !/^\s*([-*+]|\d+[.)])\s/.test(lines[at]) && !/^\s*>/.test(lines[at])) {
+      out.push({ level: under[1][0] === '=' ? 1 : 2, text: lines[at].trim(), slug: slug(lines[at]) });
+      at += 1;
+    }
+  }
+  return out;
 }

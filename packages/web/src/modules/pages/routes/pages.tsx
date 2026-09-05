@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { compareOrder, excerpt, pageResolver, type Anchor, type Page } from '@kolibri/shared';
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { compareOrder, excerpt, outlineOf, pageResolver, type Anchor, type Page } from '@kolibri/shared';
 import { Header } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
@@ -8,7 +8,8 @@ import {
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
 import type { DropZone } from '../pagetree';
-import { useBacklinks, useRenamePage, useTrail, useUnwritten } from '../page-links';
+import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
+import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../../kernel/design-system/drag';
@@ -128,6 +129,38 @@ function TreeItem({ node, depth, activeId, canWrite }: {
 }
 
 /**
+ * The headings of a page, as something to jump by.
+ *
+ * Collapsed, and above the text rather than beside it. A handbook chapter is
+ * the case this is for and those are long, but the reading column here is a
+ * fixed measure — a sticky aside would have to take width from it, and a
+ * narrower line of prose to make room for a table of contents is a bad trade on
+ * the screen most people read on. One click, no scrolling past it.
+ *
+ * Only where there is enough of a page to get lost in. An outline over two
+ * headings is furniture.
+ */
+function PageOutline({ source }: { source: string }) {
+  const t = useT();
+  const headings = useMemo(() => outlineOf(source).filter((one) => one.level <= 3), [source]);
+  if (headings.length < 3) return null;
+  return (
+    <details className="page-outline">
+      <summary>{t('page.outline')}</summary>
+      <ul>
+        {headings.map((heading) => (
+          <li key={heading.slug} style={{ paddingInlineStart: (heading.level - 1) * 12 }}>
+            {/* A plain anchor, not a router link: a fragment on the page you are
+                already on is the browser's job, and it does it better. */}
+            <a href={`#${encodeURIComponent(HEADING_PREFIX + heading.slug)}`}>{heading.text}</a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/**
  * `[[A page nobody has written]]`, followed.
  *
  * Obsidian's one genuinely load-bearing idea: a link to a page that does not
@@ -207,6 +240,10 @@ export function PagesIndex() {
   // What the wiki has asked for and nobody has written: the only to-do list
   // here that writes itself.
   const unwritten = useUnwritten();
+  const graph = usePageGraph();
+  // The tree is the way in and stays the default; the picture answers a
+  // different question and waits to be asked.
+  const [drawn, setDrawn] = useState(false);
 
   return (
     <>
@@ -317,9 +354,22 @@ export function PagesIndex() {
             </div>
             <div className="flex items-center gap-2 mb-2">
               <h2 className="text-sm font-semibold">{t('page.all')}</h2>
-              {canWrite && <span className="text-[12px] text-muted">{t('page.dragHint')}</span>}
+              {!drawn && canWrite && <span className="text-[12px] text-muted">{t('page.dragHint')}</span>}
+              <span className="flex-1 min-w-0" />
+              {graph.nodes.length > 1 && (
+                <Button
+                  variant={drawn ? 'primary' : 'ghost'} size="sm"
+                  aria-pressed={drawn}
+                  onClick={() => setDrawn(!drawn)}
+                >
+                  <Icon name="hierarchy" size={14} />
+                  <span className="hide-sm">{t('page.graph')}</span>
+                </Button>
+              )}
             </div>
-            {tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} canWrite={canWrite} />)}
+            {drawn
+              ? <PageGraph nodes={graph.nodes} edges={graph.edges} />
+              : tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} canWrite={canWrite} />)}
 
             {canWrite && unwritten.length > 0 && (
               <section className="mt-7">
@@ -404,6 +454,25 @@ export function PageDetail() {
   useEffect(() => {
     setTitle(page?.title ?? '');
   }, [id, page?.title]);
+
+  /**
+   * Arrive at the section a link named.
+   *
+   * The browser scrolls to a fragment on a page it loaded; this is a router
+   * moving between two screens it already has, and it does not. Waited for
+   * rather than done at once, because the body is rendered from text that
+   * arrives with the row — the element the fragment names does not exist yet on
+   * the render that changes the URL.
+   */
+  const { hash } = useLocation();
+  useEffect(() => {
+    if (!hash) return;
+    const target = decodeURIComponent(hash.slice(1));
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(target)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [hash, id, page?.content]);
 
   if (!page) {
     return (
@@ -568,10 +637,11 @@ export function PageDetail() {
               {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
             <div className="flex items-center flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
+            <PageOutline source={page.content ?? ''} />
             {page.content?.trim()
               ? (
                 <div className="annotatable" ref={setBody}>
-                  <Markdown source={page.content} />
+                  <Markdown source={page.content} asPage />
                   {bubble}
                 </div>
               )

@@ -310,7 +310,7 @@ function applyCreateDefaults(entity: EntityName, id: string, values: Record<stri
  * are written by devices that may be offline, so two moves that are each legal
  * can be a loop together, and only the side that sees both can say so.
  */
-export function wouldLoop(table: 'projects' | 'tasks' | 'components', id: string, parentId: string | null): boolean {
+export function wouldLoop(table: 'projects' | 'tasks' | 'components' | 'pages', id: string, parentId: string | null): boolean {
   let cursor = parentId;
   for (let hops = 0; cursor && hops < 50; hops++) {
     if (cursor === id) return true;
