@@ -282,6 +282,14 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       positions are seeded from the node's own id, so the same wiki draws the same picture and a
       test can assert about it. Its work is budgeted as `nodes² × rounds`, and the budget is on the
       time rather than on how many pages somebody is allowed to have.
+      **The trail is also the way out.** It started at the outermost *page*, which left a top-level
+      page with no crumbs at all and every page with no route back to the wiki except the sidebar —
+      on a phone, opening the menu to leave a document. A breadcrumb that stops before the section
+      it is in is missing its first crumb, so *Pages* is always the first one and the trail is
+      always drawn, editing included. One affordance rather than two: a back arrow in the header
+      would do the same job and say nothing, where this also answers "where am I". A page that is
+      gone has no trail to carry it, having no page, so that screen offers the way back as a button
+      instead — it used to be a dead end reachable from any stale bookmark.
       **Still not built: a link table.** Not an omission but the design — a link lives in the text
       that spells it, and a row saying the same thing is a second thing to keep true, one that goes
       stale the first time a body is written by a path that forgot about it. The graph is built from
