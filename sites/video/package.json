@@ -12,6 +12,10 @@
     "dev": "remotion studio src/index.ts",
     "build": "remotion render src/index.ts KolibriThirty out/kolibri-30s.mp4",
     "build:vertical": "remotion render src/index.ts KolibriThirtyVertical out/kolibri-30s-vertical.mp4",
+    "build:tasks": "remotion render src/index.ts TasksThirty out/tasks-30s.mp4",
+    "build:tasks:vertical": "remotion render src/index.ts TasksThirtyVertical out/tasks-30s-vertical.mp4",
+    "build:pages": "remotion render src/index.ts PagesThirty out/pages-30s.mp4",
+    "build:pages:vertical": "remotion render src/index.ts PagesThirtyVertical out/pages-30s-vertical.mp4",
     "poster": "remotion still src/index.ts KolibriThirty out/poster.jpg --frame=870 --jpeg-quality=92",
     "poster:vertical": "remotion still src/index.ts KolibriThirtyVertical out/poster-vertical.jpg --frame=870 --jpeg-quality=92",
     "typecheck": "tsc --noEmit"

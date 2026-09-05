@@ -1,7 +1,7 @@
 /**
  * The quick-add input: typed, parsed, and captioned under each sigil.
  *
- * The token offsets are counted out of the string in `copy.ts` rather than
+ * The token offsets are counted out of the string in `product.ts` rather than
  * written down, because the string is quoted verbatim from
  * `packages/shared/src/modules/work/quickadd.ts` and will change when the syntax
  * does. Counting them means a changed example moves its own highlights; a table
@@ -13,11 +13,11 @@
  * also why `size` is the only thing the two cuts pass differently.
  */
 import React from 'react';
-import { beats } from '../copy';
+import { quickAdd } from '../product';
 import { colour, font } from '../theme';
 import { ramp, span, stagger } from './anim';
 
-const LINE = beats.quickAdd.line;
+const LINE = quickAdd.line;
 
 /** Typing runs from here to here; everything else hangs off the end of it. */
 export const QUICK_ADD = { typeFrom: 12, typeTo: 80, parseFrom: 86, filed: 124 };
@@ -133,7 +133,7 @@ export const QuickAddField: React.FC<{
           opacity: ramp(frame, 8, 16) * (1 - ramp(frame, QUICK_ADD.parseFrom - 16, 12)),
         }}
       >
-        {beats.quickAdd.syntax}
+        {quickAdd.syntax}
       </div>
 
       {/* What each sigil turned into, under the sigil that turned into it. */}
