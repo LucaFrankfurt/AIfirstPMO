@@ -1498,6 +1498,7 @@ export const fr: Catalogue = {
   'page.archivedCount_one': '{count} archivée',
   'page.archivedCount_other': '{count} archivées',
   'page.trail': 'Où se trouve cette page',
+  'page.backToList': 'Toutes les pages',
   'page.outline': 'Sur cette page',
   'page.graph': 'Graphe',
   'page.embedLoop': 'Déjà affichée plus haut :',

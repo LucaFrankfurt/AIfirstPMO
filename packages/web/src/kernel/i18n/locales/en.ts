@@ -1499,6 +1499,7 @@ export const en = {
   'page.archivedCount_one': '{count} archived',
   'page.archivedCount_other': '{count} archived',
   'page.trail': 'Where this page sits',
+  'page.backToList': 'All pages',
   'page.outline': 'On this page',
   'page.graph': 'Graph',
   'page.embedLoop': 'Already shown above:',

@@ -478,7 +478,13 @@ export function PageDetail() {
     return (
       <>
         <Header title={t('page.title')} />
-        <Empty emoji="🕳️" title={t('page.notFound')} />
+        {/* A deleted page still opens from a bookmark or from somebody else's
+            link, and this screen used to be a dead end: no trail, because there
+            is no page to have one, and nothing else to press. */}
+        <Empty
+          emoji="🕳️" title={t('page.notFound')}
+          action={<Button onClick={() => navigate('/pages')}>{t('page.backToList')}</Button>}
+        />
       </>
     );
   }
@@ -588,23 +594,32 @@ export function PageDetail() {
             )}
           </div>
         )}
-        {/* Where this page sits in the tree. Without it a page opened from a
-            search, a link or a bookmark said nothing at all about its place —
-            which is the difference between a folder structure and a pile of
-            documents that happen to have parents. */}
-        {trail.length > 0 && (
-          <nav className="page-trail" aria-label={t('page.trail')}>
-            {trail.map((parent, at) => (
-              <span key={parent.id} className="contents">
-                {at > 0 && <span className="sep" aria-hidden="true">/</span>}
-                <Link to={`/pages/${parent.id}`}>
-                  <span aria-hidden="true">{parent.icon ?? '📄'}</span>
-                  <span className="truncate">{parent.title || t('common.untitled')}</span>
-                </Link>
-              </span>
-            ))}
-          </nav>
-        )}
+        {/* Where this page sits, and the way back out of it.
+
+            The trail started at the outermost *page*, which left a top-level
+            page with no crumbs at all and every page with no way back to the
+            wiki itself — the only route out was the sidebar, which on a phone
+            means opening the menu to leave a document. A breadcrumb that stops
+            before the section it is in is a breadcrumb missing its first crumb,
+            so Pages is always the first one and the trail is always drawn.
+
+            One affordance rather than two: a back arrow in the header would do
+            the same job and say nothing, where this also answers "where am I". */}
+        <nav className="page-trail" aria-label={t('page.trail')}>
+          <Link to="/pages">
+            <Icon name="page" size={13} />
+            <span className="truncate">{t('page.listTitle')}</span>
+          </Link>
+          {trail.map((parent) => (
+            <span key={parent.id} className="contents">
+              <span className="sep" aria-hidden="true">/</span>
+              <Link to={`/pages/${parent.id}`}>
+                <span aria-hidden="true">{parent.icon ?? '📄'}</span>
+                <span className="truncate">{parent.title || t('common.untitled')}</span>
+              </Link>
+            </span>
+          ))}
+        </nav>
         <PageCover page={page} />
         {cover.input}
         {editing ? (

@@ -1494,6 +1494,7 @@ export const de: Catalogue = {
   'page.archivedCount_one': '{count} archiviert',
   'page.archivedCount_other': '{count} archiviert',
   'page.trail': 'Wo diese Seite liegt',
+  'page.backToList': 'Alle Seiten',
   'page.outline': 'Auf dieser Seite',
   'page.graph': 'Graph',
   'page.embedLoop': 'Weiter oben schon gezeigt:',
