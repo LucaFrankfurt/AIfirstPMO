@@ -35,10 +35,13 @@ export const Rise: React.FC<{
 };
 
 /** Small, spaced, indigo. It names the claim; the headline makes it. */
-export const Kicker: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const Kicker: React.FC<{ children: React.ReactNode; size?: number }> = ({
+  children,
+  size = 22,
+}) => (
   <div
     style={{
-      font: `600 22px/1 ${font.sans}`,
+      font: `600 ${size}px/1 ${font.sans}`,
       letterSpacing: '0.16em',
       textTransform: 'uppercase',
       color: colour.accentText,
@@ -65,15 +68,16 @@ export const Headline: React.FC<{ children: React.ReactNode; size?: number }> = 
   </h1>
 );
 
-export const Sub: React.FC<{ children: React.ReactNode; width?: number }> = ({
+export const Sub: React.FC<{ children: React.ReactNode; width?: number; size?: number }> = ({
   children,
   width,
+  size = 25,
 }) => (
   <p
     style={{
       margin: 0,
       maxWidth: width,
-      font: `400 25px/1.5 ${font.sans}`,
+      font: `400 ${size}px/1.5 ${font.sans}`,
       letterSpacing: '-0.004em',
       color: colour.fgSoft,
       textWrap: 'pretty',

@@ -55,3 +55,49 @@ export const TextBand: React.FC<{
     {children}
   </div>
 );
+
+/**
+ * The vertical cut's one arrangement: everything stacked, centred, inside a
+ * frame that stops well above the bottom edge.
+ *
+ * `BOTTOM` is not slack — it is the strip a phone puts a caption, a handle and
+ * three buttons over. Reserving it here rather than per beat is what stops the
+ * spot from having six different ideas about where its floor is, and is why the
+ * beats look like they were composed for 9:16 rather than cropped into it.
+ */
+export const TALL = { top: 200, bottom: 280, width: 960 } as const;
+
+export const TallStack: React.FC<{ children: React.ReactNode; gap?: number }> = ({
+  children,
+  gap = 70,
+}) => (
+  <div
+    style={{
+      position: 'absolute',
+      left: 0,
+      right: 0,
+      top: TALL.top,
+      bottom: TALL.bottom,
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center',
+      gap,
+    }}
+  >
+    {children}
+  </div>
+);
+
+/**
+ * A hole of a known size in a flex column, for the widgets that place
+ * themselves absolutely. They take `{ left: 0, top: 0 }` and fill it.
+ */
+export const Slot: React.FC<{
+  width: number;
+  height: number;
+  children: React.ReactNode;
+}> = ({ width, height, children }) => (
+  <div style={{ position: 'relative', width, height, flex: 'none' }}>{children}</div>
+);

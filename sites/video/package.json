@@ -11,7 +11,9 @@
   "scripts": {
     "dev": "remotion studio src/index.ts",
     "build": "remotion render src/index.ts KolibriThirty out/kolibri-30s.mp4",
+    "build:vertical": "remotion render src/index.ts KolibriThirtyVertical out/kolibri-30s-vertical.mp4",
     "poster": "remotion still src/index.ts KolibriThirty out/poster.jpg --frame=870 --jpeg-quality=92",
+    "poster:vertical": "remotion still src/index.ts KolibriThirtyVertical out/poster-vertical.jpg --frame=870 --jpeg-quality=92",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

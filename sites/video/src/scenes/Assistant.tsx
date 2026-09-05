@@ -1,39 +1,16 @@
 /**
- * A tool call, arriving the way a tool call actually arrives.
- *
- * The arguments are not invented: `project`, `title`, `priority` and `labels`
- * are four of the properties `create_task` declares in
- * `packages/server/src/adapters/mcp/tools/tasks.ts`, and the task it files is
- * WEB-4 — the same WEB-4 that is sitting in the In Progress column two beats
- * earlier. A spot that showed a plausible-looking tool call would be showing a
- * mock-up of an integration; this one can be typed into a real instance.
+ * The MCP beat: a tool call on the right, and the task it files under it. The
+ * console and its arguments live in `components/ToolCall.tsx`.
  */
 import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { beats } from '../copy';
-import { colour, font } from '../theme';
-import { presence, ramp, span, stagger } from '../components/anim';
+import { colour } from '../theme';
+import { presence, ramp, span } from '../components/anim';
 import { Headline, Kicker, Rise, Sub } from '../components/Type';
 import { TextColumn } from '../components/Layout';
+import { ToolCall, TOOL_CALL } from '../components/ToolCall';
 import { TaskCard } from '../components/ui';
-
-const CARD = { left: 806, top: 224, width: 1014 };
-
-/** Light enough to read as a string on `#08090d`; `--ok` itself is too dark for type. */
-const STRING = '#79d4ab';
-
-const ARGS = [
-  { key: 'project', value: '"WEB"' },
-  { key: 'title', value: '"Cut largest-contentful-paint below 1.5s"' },
-  { key: 'priority', value: '"high"' },
-  { key: 'labels', value: '["performance"]' },
-] as const;
-
-const CALL_AT = 12;
-const RESULT_AT = 58;
-const FILED_AT = 74;
-
-const MONO = `400 22px/1.7 ${font.mono}`;
 
 export const Assistant: React.FC<{ life: number }> = ({ life }) => {
   const frame = useCurrentFrame();
@@ -52,91 +29,15 @@ export const Assistant: React.FC<{ life: number }> = ({ life }) => {
         </Rise>
       </TextColumn>
 
-      <div
-        style={{
-          position: 'absolute',
-          left: CARD.left,
-          top: CARD.top,
-          width: CARD.width,
-          boxSizing: 'border-box',
-          borderRadius: 16,
-          background: colour.bgRaised,
-          border: `1px solid ${colour.lineStrong}`,
-          boxShadow: '0 40px 90px -38px rgba(0,0,0,0.92)',
-          overflow: 'hidden',
-          opacity: ramp(frame, 2, 18),
-          transform: `translateY(${span(frame, 2, 24, 20, 0)}px)`,
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '18px 26px',
-            borderBottom: `1px solid ${colour.line}`,
-            background: 'rgba(255,255,255,0.02)',
-          }}
-        >
-          <span style={{ font: `500 20px/1 ${font.mono}`, color: colour.fgSoft }}>
-            kolibri · mcp
-          </span>
-          <span
-            style={{
-              marginLeft: 'auto',
-              font: `400 19px/1 ${font.sans}`,
-              color: colour.fgMuted,
-            }}
-          >
-            stdio and http
-          </span>
-        </div>
-
-        <div style={{ padding: '22px 26px 26px' }}>
-          <div style={{ opacity: ramp(frame, CALL_AT, 10), font: MONO }}>
-            <span style={{ color: colour.accentText }}>→ </span>
-            <span style={{ color: colour.fg, fontWeight: 700 }}>create_task</span>
-          </div>
-          {ARGS.map((arg, i) => {
-            const at = stagger(i, 7, CALL_AT + 9);
-            return (
-              <div
-                key={arg.key}
-                style={{
-                  font: MONO,
-                  paddingLeft: 34,
-                  whiteSpace: 'pre',
-                  opacity: ramp(frame, at, 10),
-                  transform: `translateX(${span(frame, at, 12, -10, 0)}px)`,
-                }}
-              >
-                <span style={{ color: colour.fgMuted }}>{arg.key.padEnd(10)}</span>
-                <span style={{ color: STRING }}>{arg.value}</span>
-              </div>
-            );
-          })}
-          <div
-            style={{
-              marginTop: 16,
-              paddingTop: 16,
-              borderTop: `1px solid ${colour.line}`,
-              font: MONO,
-              opacity: ramp(frame, RESULT_AT, 12),
-            }}
-          >
-            <span style={{ color: colour.ok, fontWeight: 700 }}>✓ </span>
-            <span style={{ color: colour.fg }}>WEB-4</span>
-            <span style={{ color: colour.fgMuted }}> created · Backlog</span>
-          </div>
-        </div>
-      </div>
+      <ToolCall frame={frame} width={1014} size={22} style={{ left: 806, top: 224 }} />
 
       <div
         style={{
           position: 'absolute',
-          left: CARD.left,
+          left: 806,
           top: 664,
-          opacity: ramp(frame, FILED_AT, 16),
-          transform: `translateY(${span(frame, FILED_AT, 22, 24, 0)}px)`,
+          opacity: ramp(frame, TOOL_CALL.filed, 16),
+          transform: `translateY(${span(frame, TOOL_CALL.filed, 22, 24, 0)}px)`,
         }}
       >
         <TaskCard

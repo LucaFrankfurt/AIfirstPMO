@@ -134,6 +134,7 @@ export const TaskCard: React.FC<{
     style={{
       width,
       boxSizing: 'border-box',
+      textAlign: 'left',
       padding: '20px 22px 22px',
       borderRadius: 14,
       background: colour.bgRaised,
