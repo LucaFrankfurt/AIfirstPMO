@@ -2807,9 +2807,10 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-size: 13px;
 }
 
-/* The path from the root of the tree down to this page. Small and quiet: it is
-   orientation, not content, and it sits above a cover image that may be loud. */
-.page-trail {
+/* Where you are, on any detail screen. Small and quiet: it is orientation
+   rather than content, and on a page it sits above a cover image that may be
+   loud. */
+.trail {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2818,12 +2819,12 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-size: 12.5px;
   color: var(--fg-muted);
 }
-.page-trail a { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: inherit; }
-.page-trail a:hover { color: var(--fg); }
+.trail a { display: inline-flex; align-items: center; gap: 4px; min-width: 0; color: inherit; }
+.trail a:hover { color: var(--fg); }
 /* The separator is an element rather than a `content:` string, because a
    generated string is read out by some screen readers and there is no reason
    for anybody to hear "handbook slash onboarding". The markup hides it. */
-.page-trail .sep { color: var(--line-strong); }
+.trail .sep { color: var(--line-strong); }
 
 /* The headings of a page, collapsed. Quiet furniture: it sits above the text
    and must not be the first thing the eye lands on. */

@@ -290,6 +290,28 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       would do the same job and say nothing, where this also answers "where am I". A page that is
       gone has no trail to carry it, having no page, so that screen offers the way back as a button
       instead — it used to be a dead end reachable from any stale bookmark.
+      **Six screens had the same hole, so it was one missing piece of furniture.**
+      A project, a cycle, a milestone, a KPI, a budget and a page can each be opened from a link, a
+      search result or a bookmark, and not one of them said where it sat or offered a way back to
+      its list — the only route out was the sidebar, which on a phone means opening the menu to
+      leave a document. `Trail` is in the design system now and all six render it: a project shows
+      the projects it is nested under, a cycle and a milestone show the project *and the tab* they
+      came from (`?tab=cycles`, which is the address the tab strip already writes), and a KPI or a
+      budget shows its list. A cycle several projects run has no single project to go back to — the
+      same fact both screens already state about scoping a view — so those get the project list
+      rather than one project picked and called the parent.
+      Deliberately a trail and not a back arrow: an arrow does one job and says nothing, where this
+      does the same job and answers "where am I". It sits above the tab strip on the screens that
+      have one, because the tabs are places *inside* the thing and the trail is the way out of it.
+      **And every "it is gone" screen was a dead end.** An emoji, a sentence, nothing to press —
+      reachable from any stale bookmark. Two of them, the cycle and the milestone, rendered no
+      `Header` at all, so the screen lost the app's chrome along with its way out. All six carry
+      the trail and a button now.
+      The fix is held in place rather than promised: `reachable.test.ts` has asked "can a phone get
+      there?" since chat shipped desktop-only, and it asks the mirror question too now — every
+      `/x/:id` route the router registers either renders a `Trail` or is named with the way it is
+      left, and every empty screen for a missing thing carries an action. Proven to bite by taking
+      the trail off the KPI screen and watching it fail.
       **Still not built: a link table.** Not an omission but the design — a link lives in the text
       that spells it, and a row saying the same thing is a second thing to keep true, one that goes
       stale the first time a body is written by a path that forgot about it. The graph is built from

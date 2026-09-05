@@ -55,6 +55,8 @@ export const fr: Catalogue = {
   'nav.chat': 'Discussion',
   'nav.pages': 'Pages',
   'nav.teams': 'Équipes',
+  'nav.trail': 'Où vous êtes',
+  'nav.backToList': 'Retour à la liste',
   'nav.projects': 'Projets',
   'nav.more': 'Plus',
   /* Les mots de la barre du bas : plus courts que ceux de la barre
@@ -1497,8 +1499,6 @@ export const fr: Catalogue = {
   'page.toggleTree': 'Déplier',
   'page.archivedCount_one': '{count} archivée',
   'page.archivedCount_other': '{count} archivées',
-  'page.trail': 'Où se trouve cette page',
-  'page.backToList': 'Toutes les pages',
   'page.outline': 'Sur cette page',
   'page.graph': 'Graphe',
   'page.embedLoop': 'Déjà affichée plus haut :',

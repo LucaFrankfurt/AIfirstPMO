@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { compareOrder, excerpt, outlineOf, pageResolver, type Anchor, type Page } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/chrome';
+import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
   ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems, movePage,
@@ -479,17 +479,30 @@ export function PageDetail() {
       <>
         <Header title={t('page.title')} />
         {/* A deleted page still opens from a bookmark or from somebody else's
-            link, and this screen used to be a dead end: no trail, because there
-            is no page to have one, and nothing else to press. */}
+            link, and this screen used to be a dead end. The trail says where
+            you still are; the button is for the middle of the screen, which is
+            where the eye goes when there is nothing else on it. */}
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> }]} />
+        </div>
         <Empty
           emoji="🕳️" title={t('page.notFound')}
-          action={<Button onClick={() => navigate('/pages')}>{t('page.backToList')}</Button>}
+          action={<Button onClick={() => navigate('/pages')}>{t('nav.backToList')}</Button>}
         />
       </>
     );
   }
 
   const author = members.get(page.created_by);
+
+  const crumbs: Crumb[] = [
+    { to: '/pages', label: t('page.listTitle'), icon: <Icon name="page" size={13} /> },
+    ...trail.map((parent) => ({
+      to: `/pages/${parent.id}`,
+      label: parent.title || t('common.untitled'),
+      icon: parent.icon ?? '📄',
+    })),
+  ];
 
   /**
    * Commit the title, and take the links to it along.
@@ -594,32 +607,10 @@ export function PageDetail() {
             )}
           </div>
         )}
-        {/* Where this page sits, and the way back out of it.
-
-            The trail started at the outermost *page*, which left a top-level
-            page with no crumbs at all and every page with no way back to the
-            wiki itself — the only route out was the sidebar, which on a phone
-            means opening the menu to leave a document. A breadcrumb that stops
-            before the section it is in is a breadcrumb missing its first crumb,
-            so Pages is always the first one and the trail is always drawn.
-
-            One affordance rather than two: a back arrow in the header would do
-            the same job and say nothing, where this also answers "where am I". */}
-        <nav className="page-trail" aria-label={t('page.trail')}>
-          <Link to="/pages">
-            <Icon name="page" size={13} />
-            <span className="truncate">{t('page.listTitle')}</span>
-          </Link>
-          {trail.map((parent) => (
-            <span key={parent.id} className="contents">
-              <span className="sep" aria-hidden="true">/</span>
-              <Link to={`/pages/${parent.id}`}>
-                <span aria-hidden="true">{parent.icon ?? '📄'}</span>
-                <span className="truncate">{parent.title || t('common.untitled')}</span>
-              </Link>
-            </span>
-          ))}
-        </nav>
+        {/* The wiki itself is the first crumb, then the pages this one is
+            nested under. Without the first one a top-level page had no trail at
+            all, and no route back to the wiki except the sidebar. */}
+        <Trail parts={crumbs} />
         <PageCover page={page} />
         {cover.input}
         {editing ? (

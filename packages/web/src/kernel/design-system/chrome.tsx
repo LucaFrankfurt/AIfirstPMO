@@ -8,6 +8,7 @@
  * what was actually shared.
  */
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { pull, subscribeSync, type SyncStatus } from '../sync/sync';
 import { currentLocale, useT, type TranslationKey } from '../i18n/i18n';
 import { chipDot } from './ui/chip';
@@ -67,6 +68,53 @@ export function useTheme(): [Theme, (theme: Theme) => void] {
   const [theme, setTheme] = useState<Theme>(() => (localStorage.getItem('kolibri.theme') as Theme) ?? 'system');
   useEffect(() => applyTheme(theme), [theme]);
   return [theme, setTheme];
+}
+
+/** One step on the way to here: where it goes, and what it is called. */
+export interface Crumb {
+  to: string;
+  label: string;
+  /** Drawn before the label and hidden from assistive tech: an emoji or an `Icon`. */
+  icon?: React.ReactNode;
+}
+
+/**
+ * Where you are, and therefore the way back out.
+ *
+ * Every detail screen in the app had the same hole: a project, a cycle, a
+ * milestone, a KPI, a budget and a page could all be opened from a link, a
+ * search result or a bookmark, and none of them said where it sat or offered a
+ * route back to its list. The only way out was the sidebar — which on a phone
+ * means opening the menu to leave a document. Six screens with the same gap is
+ * one missing piece of furniture, not six oversights.
+ *
+ * Deliberately a trail rather than a back arrow. An arrow does one job and says
+ * nothing; this does the same job and also answers "where am I", which is the
+ * question somebody arriving from a search actually has. And it is real links,
+ * so the keyboard reaches them and a middle click opens a tab.
+ *
+ * Drawn even when there is one crumb. A trail that appears only for nested
+ * things is a trail nobody learns to look for.
+ */
+export function Trail({ parts }: { parts: Crumb[] }) {
+  const t = useT();
+  if (!parts.length) return null;
+  return (
+    <nav className="trail" aria-label={t('nav.trail')}>
+      {parts.map((crumb, at) => (
+        <span key={`${crumb.to}-${at}`} className="contents">
+          {/* The separator is an element rather than a `content:` string,
+              because a generated string is read out by some screen readers and
+              nobody needs to hear "handbook slash onboarding". */}
+          {at > 0 && <span className="sep" aria-hidden="true">/</span>}
+          <Link to={crumb.to}>
+            {crumb.icon && <span aria-hidden="true">{crumb.icon}</span>}
+            <span className="truncate">{crumb.label}</span>
+          </Link>
+        </span>
+      ))}
+    </nav>
+  );
 }
 
 /** Page header used by every route. */

@@ -23,7 +23,7 @@ import {
   type Allocation, type Budget, type BudgetActual, type BudgetLine, type BudgetScenario,
   type CostCategory, type Minor, type PlannedForMonth, type ScenarioAdjustment, type SpendStage,
 } from '@kolibri/shared';
-import { Header } from '../../../kernel/design-system/chrome';
+import { Header, Trail } from '../../../kernel/design-system/chrome';
 import {
   AllocationChips, AllocationEditor, BurnChart, Health, PlanVsActual, SplitBars,
   Variance, categoryKey, confidenceKey, recurrenceKey, stageKey,
@@ -299,6 +299,7 @@ export function BudgetDetail() {
   const { id = '' } = useParams();
   const enabled = useFeature('budget');
   const budget = useRow('budget', id);
+  const navigate = useNavigate();
   const [search, setSearch] = useSearchParams();
   const asked = search.get('tab');
   const [tab, setTab] = useState<Tab>(TABS.includes(asked as Tab) ? asked as Tab : 'dashboard');
@@ -314,7 +315,13 @@ export function BudgetDetail() {
     return (
       <>
         <Header title={t('budget.title')} />
-        <Empty emoji="🕳️" title={t('project.notFound')} hint={t('project.notFoundHint')} />
+        <div className="px-3 pt-4 sm:px-6 sm:pt-5">
+          <Trail parts={[{ to: '/budgets', label: t('budget.title'), icon: <Icon name="wallet" size={13} /> }]} />
+        </div>
+        <Empty
+          emoji="🕳️" title={t('project.notFound')} hint={t('project.notFoundHint')}
+          action={<Button onClick={() => navigate('/budgets')}>{t('nav.backToList')}</Button>}
+        />
       </>
     );
   }
@@ -325,6 +332,13 @@ export function BudgetDetail() {
         <Chip>{budget.currency}</Chip>
         <Health totals={totals} />
       </Header>
+
+      {/* Above the tabs, for the reason the project and KPI screens put it
+          there: the tabs are places inside this budget and the trail is the way
+          out of it. */}
+      <div className="px-3 pt-3 sm:px-6">
+        <Trail parts={[{ to: '/budgets', label: t('budget.title'), icon: <Icon name="wallet" size={13} /> }]} />
+      </div>
 
       <div ref={strip} className="tabs" style={{ padding: '0 12px' }}>
         {TABS.map((name) => (
