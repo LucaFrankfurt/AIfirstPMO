@@ -26,6 +26,40 @@ on-call rota, the decision log.
 in the sidebar tree, so a section is a page with pages under it rather than a separate kind of
 object.
 
+## Linking pages to each other
+
+Type `[[` and the pages of the workspace are offered by title. Pick one and you get
+`[[Onboarding]]`, which renders as a link to that page.
+
+- **`[[Onboarding|how we start]]`** shows your words and links the page. A rename keeps them.
+- **A link to a page nobody has written yet** is drawn faintly with a `+`. Following it creates
+  that page, titled what you typed. This is how a wiki actually gets written: you say what is
+  missing while you are writing about it, not later from a blank New page button.
+- **The wiki index lists those**, under *Linked to, not written yet*, with how many pages want
+  each one. It is the only to-do list here that writes itself.
+- **Backlinks.** Every page shows what points at it, with the sentence the link was written in.
+  Sub-pages are what a page contains; backlinks are what it is part of, and a wiki without them
+  can only be read downwards.
+- **Renaming carries the links.** Rename a page and every `[[…]]` that pointed at it is rewritten
+  to follow, and the app says how many pages it touched. Each of those keeps its previous
+  revision in its own [version history](/pages/history/).
+
+Links resolve by title, so they work anywhere prose does — a chat message about the handbook
+links to it the same way the handbook does. Two pages may share a title; the older one wins, so a
+link that resolved yesterday still resolves to the same page today.
+
+A [shared link](/pages/sharing/) carries the page and its children, so a `[[…]]` naming one of
+those jumps to it inside the shared document. Anything else stays as written: a stranger following
+a link into an app they cannot sign into is worse than seeing the brackets.
+
+## Finding your way around
+
+**The breadcrumb** above a page shows where it sits in the tree, from the top down. A page opened
+from a search, a link or a bookmark used to say nothing at all about its place.
+
+**Drag a page onto another** in the tree to nest it, or onto the gap between two to reorder. The
+page menu has the same four moves for a keyboard — in, out, up, down.
+
 ## The editor
 
 The same editor as comments and the chat composer, so everything here works in all three:
@@ -34,6 +68,7 @@ The same editor as comments and the chat composer, so everything here works in a
 - **`@mentions`** with autocomplete. Only a newly added handle notifies — see
   [comments and mentions](/tasks/comments/).
 - **Task and project references.** `WEB-42` becomes a link; `#` offers projects and tasks.
+- **Page links.** `[[` offers the pages of the workspace by title.
 - **Images**, dragged or pasted. They downscale in your browser before upload.
 - <kbd>Tab</kbd> indents by two spaces.
 - **Mermaid diagrams** in a fenced ` ```mermaid ` block.

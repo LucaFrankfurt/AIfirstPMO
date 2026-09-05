@@ -354,9 +354,9 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">271</span><span class="k">source files</span></div>
+    <div><span class="v num">273</span><span class="k">source files</span></div>
     <div><span class="v num">40</span><span class="k">modules</span></div>
-    <div><span class="v num">77 116</span><span class="k">lines</span></div>
+    <div><span class="v num">78 080</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">43</span><span class="k">entities</span></div>
     <div><span class="v num">134</span><span class="k">endpoints</span></div>
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 271 files, sorted</span>
+  <span class="eyebrow">02 — All 273 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 21 957 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 35 908 lines, 47%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 295 lines, 22%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 956 lines, 3%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 21 990 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 36 656 lines, 47%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 473 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 961 lines, 3%</span>
 <!-- end -->
     </div>
 
@@ -457,7 +457,7 @@ footer {
       into five adapters. It is <strong>296 lines</strong> now, and the growth is the fix: the
       meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
       delivery stayed in the adapters but through a port they register with. And
-      <code>adapter/mcp</code> is <strong>6 216</strong>: the assistant's view of the product is
+      <code>adapter/mcp</code> is <strong>6 361</strong>: the assistant's view of the product is
       larger than the largest thing the product actually does. Fifteen files rather than three, now,
       which makes it readable — not smaller. Finding 7 is why.
     </p>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 809 lines is three
-      catalogues of 2 321 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 7 842 lines is three
+      catalogues of 2 332 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1409,7 +1409,7 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7809,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2455},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":7842,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2466},
 {"ring":"kernel","name":"registry","flag":"","files":5,"lines":2494,"biggest":"kernel/registry/types.ts","biggestLines":1656},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2172,"biggest":"kernel/identity/routes/auth.ts","biggestLines":521},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":1907,"biggest":"kernel/write-path/repo.ts","biggestLines":858},
@@ -1420,8 +1420,8 @@ const MODULES = [
 {"ring":"kernel","name":"files","flag":"","files":6,"lines":700,"biggest":"kernel/files/zip.ts","biggestLines":315},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"work","flag":"","files":25,"lines":6119,"biggest":"modules/work/views.tsx","biggestLines":996},
+{"ring":"capability","name":"pages","flag":"","files":15,"lines":4489,"biggest":"modules/pages/Markdown.tsx","biggestLines":778},
 {"ring":"capability","name":"planning","flag":"","files":11,"lines":4260,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1491},
-{"ring":"capability","name":"pages","flag":"","files":13,"lines":3741,"biggest":"modules/pages/Markdown.tsx","biggestLines":672},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3239,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1669},
 {"ring":"capability","name":"mail","flag":"mail","files":15,"lines":3188,"biggest":"modules/mail/settings.tsx","biggestLines":549},
 {"ring":"capability","name":"operations","flag":"","files":10,"lines":3163,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1016},
@@ -1436,19 +1436,19 @@ const MODULES = [
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":296,"biggest":"modules/notifications/effects.ts","biggestLines":219},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":227,"biggest":"modules/intake/intake.tsx","biggestLines":227},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
-{"ring":"adapter","name":"mcp","flag":"","files":15,"lines":6216,"biggest":"adapters/mcp/kit.ts","biggestLines":1151},
+{"ring":"adapter","name":"mcp","flag":"","files":15,"lines":6361,"biggest":"adapters/mcp/kit.ts","biggestLines":1151},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3337,"biggest":"adapters/transfer/transfer.ts","biggestLines":793},
 {"ring":"adapter","name":"webhooks","flag":"","files":6,"lines":1920,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1187,"biggest":"adapters/imap/imap.ts","biggestLines":364},
 {"ring":"adapter","name":"mail","flag":"","files":6,"lines":1114,"biggest":"adapters/mail/mail.ts","biggestLines":426},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":950,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":497},
 {"ring":"adapter","name":"telegram","flag":"","files":5,"lines":756,"biggest":"adapters/telegram/telegram.ts","biggestLines":460},
-{"ring":"adapter","name":"share","flag":"","files":1,"lines":479,"biggest":"adapters/share/routes/share.ts","biggestLines":479},
+{"ring":"adapter","name":"share","flag":"","files":1,"lines":512,"biggest":"adapters/share/routes/share.ts","biggestLines":512},
 {"ring":"adapter","name":"push","flag":"","files":4,"lines":383,"biggest":"adapters/push/push.ts","biggestLines":209},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":344,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":340,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":195},
 {"ring":"adapter","name":"s3","flag":"","files":2,"lines":269,"biggest":"adapters/s3/s3.ts","biggestLines":227},
-{"ring":"shell","name":"shell","flag":"","files":14,"lines":1956,"biggest":"AppShell.tsx","biggestLines":478}
+{"ring":"shell","name":"shell","flag":"","files":14,"lines":1961,"biggest":"AppShell.tsx","biggestLines":478}
 ];
 /* end */
 

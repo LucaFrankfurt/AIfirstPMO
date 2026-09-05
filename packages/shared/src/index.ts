@@ -13,6 +13,7 @@ export * from './modules/kpis/kpi.ts';
 export * from './modules/planning/schedule.ts';
 export * from './modules/work/risk.ts';
 export * from './modules/pages/markdown.ts';
+export * from './modules/pages/links.ts';
 export * from './modules/pages/editor.ts';
 export * from './modules/pages/anchor.ts';
 export * from './adapters/webhooks/foreign.ts';

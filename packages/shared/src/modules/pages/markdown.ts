@@ -51,10 +51,56 @@ export interface MarkdownOptions {
    * each other.
    */
   interactiveTasks?: boolean;
+  /**
+   * Where `[[Onboarding]]` points, and whether that page exists yet.
+   *
+   * The same shape of contract as `keys` above and for the same reason: the
+   * renderer cannot know which pages a reader may see, so it asks. Answering
+   * `undefined` leaves the brackets as the author typed them, which is what the
+   * server wants when it renders a shared page for somebody with no workspace
+   * to link into — a link nobody can follow is worse than visible syntax.
+   *
+   * `missing` is a target no page answers to. Drawn differently rather than
+   * left as text, because a wiki is written by linking to pages before they
+   * exist: the broken link *is* the invitation to write one.
+   */
+  pageHref?: (target: string) => { href: string; missing?: boolean } | undefined;
 }
 
 
 const KEY_SHAPE = /^[A-Z][A-Z0-9]{0,9}$/;
+
+/**
+ * `[[Title]]` and `[[Title|what to call it]]`, as a link to that page.
+ *
+ * The finished anchor is stashed the way `references` stashes one, and for a
+ * sharper reason than nesting: a page may be called `Q1_targets` or `#done`,
+ * and the emphasis and tag rules further down would happily eat a title they
+ * find in the open. Held as a placeholder, the label comes out as the page is
+ * named.
+ *
+ * The target arrives HTML-escaped, because everything does — so it is turned
+ * back into the five characters `escapeHtml` produced before it is looked up.
+ * Skipping that made `[[Tools & toys]]` a link to a page nobody has.
+ */
+function pageLinks(html: string, refs: MarkdownOptions, stash: string[]): string {
+  return html.replace(/\[\[([^[\]|\n]+)(?:\|([^[\]\n]*))?\]\]/g, (match, raw: string, alias: string | undefined) => {
+    const target = raw.trim();
+    if (!target) return match;
+    const found = refs.pageHref!(unescapeHtml(target));
+    if (!found) return match;
+    const label = (alias ?? '').trim() || target;
+    stash.push(
+      `<a class="md-page${found.missing ? ' md-page-new' : ''}" href="${escapeHtml(found.href)}">${label}</a>`,
+    );
+    return `${stash.length - 1}`;
+  });
+}
+
+/** The exact inverse of `escapeHtml`, for text that has to be read back. */
+const unescapeHtml = (text: string): string =>
+  text.replace(/&(amp|lt|gt|quot|#39);/g, (_, name: string) =>
+    ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[name] ?? name));
 
 /**
  * Turn `WEB-42` into a link to that task, and `#WEB` into a link to that
@@ -117,6 +163,12 @@ function inline(text: string, refs?: MarkdownOptions): string {
   // backslash is code rather than a request for a line break.
   out = out.replace(/(?: {2,}|\\)\n/g, BREAK);
 
+  // Wiki links before the link rules and everything after them. `[[…]]` is its
+  // own syntax, not a bracketed label looking for a URL, and a title is allowed
+  // to contain the characters emphasis is spelled with.
+  const pages: string[] = [];
+  if (refs?.pageHref) out = pageLinks(out, refs, pages);
+
   // The optional title is written `&quot;…&quot;` and not `"…"` because the
   // whole string was escaped on the way in, several rules above. Spelled with a
   // literal quote — which is how it read for a long time — the group simply
@@ -151,6 +203,9 @@ function inline(text: string, refs?: MarkdownOptions): string {
   out = out.replace(/(^|\s)(#[a-z0-9][\w-]*)/gi, '$1<span class="md-tag">$2</span>');
 
   return out
+    // Pages first: a label may hold a code span, and that placeholder is only
+    // put back on the next line.
+    .replace(/(\d+)/g, (_, index: string) => pages[Number(index)])
     .replace(/(\d+)/g, (_, index: string) => `<code>${codes[Number(index)]}</code>`)
     .replace(new RegExp(BREAK, 'g'), '<br />');
 }
@@ -465,6 +520,11 @@ export function excerpt(source: string, max = 140): string {
   const text = String(source ?? '')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
+    // A page link reads as what it is called. Before the markdown-link rule,
+    // whose `\[([^\]]*)\]` would otherwise take `[[Onboarding]]` apart into a
+    // stray bracket and leave the card saying `[Onboarding]`.
+    .replace(/\[\[([^[\]|\n]+)(?:\|([^[\]\n]*))?\]\]/g, (_, title: string, alias: string | undefined) =>
+      (alias?.trim() || title.trim()))
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/[#>*_`~|-]/g, ' ')
     .replace(/\s+/g, ' ')
