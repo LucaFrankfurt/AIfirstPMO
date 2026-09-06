@@ -13,6 +13,7 @@ import { open, close } from './copy';
 import { Backdrop, Corner, type Mood } from '../../components/Backdrop';
 import { Opening, Closing } from '../../components/Bookend';
 import { type Shape } from '../../components/Beat';
+import { STACKED, type Stacked } from '../../components/Layout';
 import { Switcher } from './scenes/Switcher';
 import { Roles } from './scenes/Roles';
 import { Features } from './scenes/Features';
@@ -47,11 +48,17 @@ export const WorkspaceSpot: React.FC<{ shape: Shape }> = ({ shape }) => (
     <Corner
       from={beatWindow.switcher.from + 16}
       until={beatWindow.close.from - 14}
-      top={shape === 'tall' ? 84 : 62}
-      centred={shape === 'tall'}
+      top={shape === 'wide' ? 62 : STACKED[shape as Stacked].lockup}
+      centred={shape !== 'wide'}
     />
   </AbsoluteFill>
 );
 
+/*
+ * Named rather than inlined at the registration site: Remotion remounts a
+ * composition whose component identity changes, and an arrow function written
+ * into JSX is a new identity on every render.
+ */
 export const WorkspaceWide: React.FC = () => <WorkspaceSpot shape="wide" />;
 export const WorkspaceTall: React.FC = () => <WorkspaceSpot shape="tall" />;
+export const WorkspaceFeed: React.FC = () => <WorkspaceSpot shape="feed" />;

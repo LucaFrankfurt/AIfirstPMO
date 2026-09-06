@@ -18,24 +18,39 @@ import { presence, ramp, span, stagger } from '../../../../components/anim';
 import { Chip } from '../../../../components/Type';
 import { Screenshot } from '../../../../components/Screenshot';
 import { Wordmark } from '../../../../components/Wordmark';
-import { TALL } from '../../../../components/Layout';
+import { STACKED, type Stacked } from '../../../../components/Layout';
 
-const COLLAGE = [
-  { key: 'pages', screen: screen.pages, left: -230, top: 110, w: 830, h: 500, away: -1 },
-  { key: 'chat', screen: screen.chat, left: 520, top: 470, w: 810, h: 488, away: 1 },
-  { key: 'insights', screen: screen.insights, left: -200, top: 1090, w: 800, h: 482, away: -1 },
-  { key: 'myWork', screen: screen.myWork, left: 490, top: 1430, w: 830, h: 500, away: 1 },
-] as const;
+/*
+ * Down the sides in both stacked shapes, but not at the same heights: a 4:5
+ * frame is 570px shorter, and the same four `top` values would put two of the
+ * windows below the bottom edge and leave the middle bare.
+ */
+const COLLAGE = {
+  tall: [
+    { key: 'pages', screen: screen.pages, left: -230, top: 110, w: 830, h: 500, away: -1 },
+    { key: 'chat', screen: screen.chat, left: 520, top: 470, w: 810, h: 488, away: 1 },
+    { key: 'insights', screen: screen.insights, left: -200, top: 1090, w: 800, h: 482, away: -1 },
+    { key: 'myWork', screen: screen.myWork, left: 490, top: 1430, w: 830, h: 500, away: 1 },
+  ],
+  feed: [
+    { key: 'pages', screen: screen.pages, left: -220, top: 30, w: 760, h: 458, away: -1 },
+    { key: 'chat', screen: screen.chat, left: 520, top: 300, w: 740, h: 446, away: 1 },
+    { key: 'insights', screen: screen.insights, left: -190, top: 700, w: 730, h: 440, away: -1 },
+    { key: 'myWork', screen: screen.myWork, left: 500, top: 960, w: 760, h: 458, away: 1 },
+  ],
+} as const;
 
 const CROP = { x: 0, y: 0, w: 2720, h: 1400 };
 
-export const CloseTall: React.FC<{ life: number }> = ({ life }) => {
+export const CloseTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
+  const box = STACKED[shape];
+  const feed = shape === 'feed';
   const frame = useCurrentFrame();
   const drift = span(frame, 0, life, 0, 26);
 
   return (
     <AbsoluteFill style={{ opacity: presence(frame, life, 18, 1) }}>
-      {COLLAGE.map((one, i) => (
+      {COLLAGE[shape].map((one, i) => (
         <Screenshot
           key={one.key}
           screen={one.screen}
@@ -82,15 +97,15 @@ export const CloseTall: React.FC<{ life: number }> = ({ life }) => {
               transform: `scale(${span(frame, 4, 30, 0.95, 1)})`,
             }}
           >
-            <Wordmark size={100} />
+            <Wordmark size={feed ? 84 : 100} />
           </div>
 
           <div
             style={{
               opacity: ramp(frame, 14, 18),
-              width: TALL.width,
+              width: box.width,
               textAlign: 'center',
-              font: `400 33px/1.4 ${font.sans}`,
+              font: `400 ${feed ? 27 : 33}px/1.4 ${font.sans}`,
               letterSpacing: '-0.012em',
               color: colour.fgSoft,
             }}
@@ -124,7 +139,7 @@ export const CloseTall: React.FC<{ life: number }> = ({ life }) => {
               borderRadius: 12,
               background: colour.bgRaised,
               border: `1px solid ${colour.line}`,
-              font: `400 25px/1 ${font.mono}`,
+              font: `400 ${feed ? 22 : 25}px/1 ${font.mono}`,
               color: colour.fgSoft,
             }}
           >
@@ -147,7 +162,7 @@ export const CloseTall: React.FC<{ life: number }> = ({ life }) => {
               alignItems: 'center',
               gap: 12,
               opacity: ramp(frame, 58, 16),
-              font: `500 25px/1 ${font.mono}`,
+              font: `500 ${feed ? 22 : 25}px/1 ${font.mono}`,
             }}
           >
             <span style={{ color: colour.accentText }}>{url.demo}</span>

@@ -1,8 +1,14 @@
 # The spots
 
-Six thirty-second films, each rendered in two shapes — twelve masters. All of them are 30fps and
-**exactly 900 frames** — 30.00s — because that is what a social upload cuts at and what a
+Six thirty-second films, each rendered in three shapes — eighteen masters. All of them are 30fps
+and **exactly 900 frames** — 30.00s — because that is what a social upload cuts at and what a
 landing-page loop can hold.
+
+| shape | | |
+|---|---|---|
+| 16:9 | 1920×1080 | a landing page, YouTube, a slide |
+| 9:16 | 1080×1920 | a story, a reel, a short |
+| 4:5 | 1080×1350 | the feed post — the tallest thing Instagram and LinkedIn will show without cropping |
 
 | spot | composition | output | |
 |---|---|---|---|
@@ -13,18 +19,17 @@ landing-page loop can hold.
 | workspace | `WorkspaceThirty` | `workspace-30s.mp4` | what a workspace is, roles, feature switches, teams |
 | hierarchy | `HierarchyThirty` | `hierarchy-30s.mp4` | workspace → team → project → task, and the two rules |
 
-Each has a `…Vertical` sibling at 1080×1920, and a `build:…:vertical` script beside its own.
+Each has a `…Vertical` and a `…Feed` sibling, and a `build:…:vertical` and `build:…:feed` script
+beside its own.
 
 ```bash
 npm install
 npm run dev                # the studio, on http://localhost:3000
 npm run build              # → out/kolibri-30s.mp4
-npm run build:vertical
-npm run build:tasks        #   :vertical
-npm run build:pages        #   :vertical
-npm run build:signup       #   :vertical
-npm run build:workspace    #   :vertical
-npm run build:hierarchy    #   :vertical
+npm run build:vertical     # → out/kolibri-30s-vertical.mp4
+npm run build:feed         # → out/kolibri-30s-feed.mp4
+npm run build:tasks        # and :pages, :signup, :workspace, :hierarchy —
+                           # each with :vertical and :feed beside it
 npm run poster             # the frame a <video> shows before it plays
 ```
 
@@ -153,23 +158,31 @@ properties `create_task` declares in `packages/server/src/adapters/mcp/tools/tas
 anchor, diff and link beats each say what their module's docblock says. The tasks in the query
 beat are the seeded workspace's own, and Ada is `me`.
 
-## Two shapes
+## Three shapes, two arrangements
 
-The flagship spot has a wide layout and a tall layout written out separately — `src/spots/kolibri/scenes/`
-against `scenes/tall/` — because half its beats are screenshots whose crops genuinely differ. The
-two explainers do not: every beat is words plus one widget, so `components/Beat.tsx` holds both
-arrangements and a scene says only how big the widget is in each.
+**4:5 is not a third layout.** It is the same 1080 pixels across as 9:16, so every screenshot crop,
+every widget and every measurement holds unchanged; what differs is 570 pixels of height. That is
+expressed as a budget in `STACKED` (`src/components/Layout.tsx`): how much room the words may take,
+how far apart things sit, and where the floor is. Two places genuinely could not absorb it and say
+so in their own files — the board window in the offline beat, and the collage in the close.
 
-Three things the vertical cuts decide for themselves:
+The flagship spot has a wide layout and a stacked layout written out separately —
+`src/spots/kolibri/scenes/` against `scenes/tall/` — because half its beats are screenshots whose
+crops genuinely differ from a wide frame's. The five explainers do not: every beat is words plus one
+widget, so `components/Beat.tsx` holds both arrangements and a scene says only how big the widget is.
 
-- **A safe area.** `TALL` in `src/components/Layout.tsx` reserves the bottom of the frame — the strip
-  a phone puts a caption, a handle and three buttons over. Reserving it once is what stops seven
-  beats from having seven ideas about where the floor is.
+Three things the stacked cuts decide for themselves:
+
+- **A safe area.** `STACKED` reserves the bottom of the frame — in 9:16 the strip a phone puts a
+  caption, a handle and three buttons over; in 4:5 a smaller reserve, because a feed post is shown
+  whole but a stack that runs to the last pixel still reads as one that ran out of room. Reserving
+  it once is what stops seven beats from having seven ideas about where the floor is.
 - **Bleed, deliberately.** The board and the layout deck are *wider* than the frame and hang off one
   edge, because a desktop UI letterboxed politely inside a vertical frame reads as a screenshot of a
   screenshot. Which edge is not arbitrary: the layouts beat hangs off the left so the view switcher
   in the top-right corner stays on screen, since its walk from the first icon to the fifth is the
-  point of the beat.
+  point of the beat. The crops are anchored at a corner rather than centred for the same reason: a
+  centred crop keeps the board's column headers at 9:16's height and loses them at 4:5's.
 - **Its own grid, not a scaled one.** The gantt is rebuilt from `day` and `rowHeight` rather than
   shrunk, which is why those are props. Scaled down, its four-day drag would have been four days of
   eleven pixels each.

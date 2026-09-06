@@ -11,7 +11,7 @@ import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { beats } from '../../copy';
 import { presence } from '../../../../components/anim';
-import { Slot, TallStack } from '../../../../components/Layout';
+import { Slot, TallStack, type Stacked } from '../../../../components/Layout';
 import { Gantt } from '../../../../components/Gantt';
 import { Words } from './Words';
 
@@ -27,13 +27,13 @@ const SIZE = {
   height: GRID.headHeight + 4 * GRID.rowHeight + GRID.rowHeight * 0.24,
 };
 
-export const DependenciesTall: React.FC<{ life: number }> = ({ life }) => {
+export const DependenciesTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
   const frame = useCurrentFrame();
 
   return (
     <AbsoluteFill style={{ opacity: presence(frame, life) }}>
-      <TallStack gap={96}>
-        <Words {...beats.timeline} />
+      <TallStack shape={shape} gap={96}>
+        <Words shape={shape} {...beats.timeline} />
 
         <Slot width={SIZE.width} height={SIZE.height}>
           <Gantt frame={frame} {...GRID} style={{ left: 0, top: 0 }} />

@@ -11,18 +11,18 @@ import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { beats } from '../../copy';
 import { colour } from '../../../../theme';
 import { presence, ramp, span } from '../../../../components/anim';
-import { Slot, TallStack } from '../../../../components/Layout';
+import { Slot, TallStack, type Stacked } from '../../../../components/Layout';
 import { QuickAddField, QUICK_ADD } from '../../../../components/QuickAddField';
 import { TaskCard } from '../../../../components/ui';
 import { Words } from './Words';
 
-export const QuickAddTall: React.FC<{ life: number }> = ({ life }) => {
+export const QuickAddTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
   const frame = useCurrentFrame();
 
   return (
     <AbsoluteFill style={{ opacity: presence(frame, life) }}>
-      <TallStack gap={72}>
-        <Words {...beats.quickAdd} />
+      <TallStack shape={shape} gap={72}>
+        <Words shape={shape} {...beats.quickAdd} />
 
         <Slot width={1000} height={140}>
           <QuickAddField frame={frame} width={1000} size={22} style={{ left: 0, top: 0 }} />

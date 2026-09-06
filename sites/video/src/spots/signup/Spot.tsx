@@ -13,6 +13,7 @@ import { open, close } from './copy';
 import { Backdrop, Corner, type Mood } from '../../components/Backdrop';
 import { Opening, Closing } from '../../components/Bookend';
 import { type Shape } from '../../components/Beat';
+import { STACKED, type Stacked } from '../../components/Layout';
 import { Account } from './scenes/Account';
 import { Invite } from './scenes/Invite';
 import { Sso } from './scenes/Sso';
@@ -51,11 +52,17 @@ export const SignupSpot: React.FC<{ shape: Shape }> = ({ shape }) => (
     <Corner
       from={beatWindow.account.from + 16}
       until={beatWindow.close.from - 14}
-      top={shape === 'tall' ? 84 : 62}
-      centred={shape === 'tall'}
+      top={shape === 'wide' ? 62 : STACKED[shape as Stacked].lockup}
+      centred={shape !== 'wide'}
     />
   </AbsoluteFill>
 );
 
-export const SignupWide: React.FC = () => <SignupSpot shape="wide" />;
-export const SignupTall: React.FC = () => <SignupSpot shape="tall" />;
+/*
+ * Named rather than inlined at the registration site: Remotion remounts a
+ * composition whose component identity changes, and an arrow function written
+ * into JSX is a new identity on every render.
+ */
+export const SignUpWide: React.FC = () => <SignupSpot shape="wide" />;
+export const SignUpTall: React.FC = () => <SignupSpot shape="tall" />;
+export const SignUpFeed: React.FC = () => <SignupSpot shape="feed" />;

@@ -13,7 +13,7 @@ import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { screen } from '../../../../assets';
 import { beats } from '../../copy';
 import { presence, ramp, span } from '../../../../components/anim';
-import { Slot, TallStack } from '../../../../components/Layout';
+import { Slot, TallStack, type Stacked } from '../../../../components/Layout';
 import { ScreenshotStack } from '../../../../components/Screenshot';
 import { Words } from './Words';
 
@@ -25,8 +25,8 @@ import { Words } from './Words';
  * fifth was off screen and the walk stopped being visible three shots in.
  */
 const CROP = { x: 420, y: 0, w: 1600, h: 1020 };
-const BOX = { width: 1240, height: Math.round((1240 * CROP.h) / CROP.w) };
-const BLEED = BOX.width - 1080;
+/* Narrower in 4:5, because the height it would need is height 4:5 does not have. */
+const WIDTH = { tall: 1240, feed: 1120 } as const;
 
 /** When each layout takes over. The timeline is last because it is the surprise. */
 const SHOTS = [
@@ -37,21 +37,24 @@ const SHOTS = [
 
 const CROSS = 15;
 
-export const LayoutsTall: React.FC<{ life: number }> = ({ life }) => {
+export const LayoutsTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
+  const width = WIDTH[shape];
+  const height = Math.round((width * CROP.h) / CROP.w);
+  const bleed = width - 1080;
   const frame = useCurrentFrame();
 
   return (
     <AbsoluteFill style={{ opacity: presence(frame, life) }}>
-      <TallStack gap={86}>
-        <Words {...beats.layouts} />
+      <TallStack shape={shape} gap={shape === 'feed' ? 56 : 86}>
+        <Words shape={shape} {...beats.layouts} />
 
-        <Slot width={1080} height={BOX.height}>
+        <Slot width={1080} height={height}>
           <ScreenshotStack
             crop={CROP}
-            width={BOX.width}
-            height={BOX.height}
+            width={width}
+            height={height}
             style={{
-              left: -BLEED,
+              left: -bleed,
               top: 0,
               opacity: ramp(frame, 0, 18),
               transform: `translateY(${span(frame, 0, 26, 20, 0)}px) scale(${span(

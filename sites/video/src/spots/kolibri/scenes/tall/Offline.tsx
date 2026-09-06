@@ -15,7 +15,7 @@ import { beats } from '../../copy';
 import { colour } from '../../../../theme';
 import { presence, ramp, span } from '../../../../components/anim';
 import { Rise } from '../../../../components/Type';
-import { Slot, TallStack } from '../../../../components/Layout';
+import { Slot, TallStack, type Stacked } from '../../../../components/Layout';
 import { Screenshot } from '../../../../components/Screenshot';
 import { Outbox, connection } from '../../../../components/Outbox';
 import { StatusPill } from '../../../../components/ui';
@@ -27,19 +27,31 @@ import { Words } from './Words';
  * visible border halfway through a card — the same bleed the 16:9 cut gets for
  * free by putting the window at x=880 of 1920.
  */
-const BOX = { width: 1240, height: 950 };
-const ASPECT = BOX.width / BOX.height;
+/*
+ * 4:5 has 570 fewer pixels of height than 9:16 and the words, the pill and the
+ * gaps take the same room in both, so the window is what gives. The crop
+ * follows the box rather than the other way round, which is why the aspect is
+ * derived here and not written down twice.
+ */
+const BOX = { tall: { width: 1240, height: 950 }, feed: { width: 1240, height: 740 } } as const;
 
-export const OfflineTall: React.FC<{ life: number }> = ({ life }) => {
+export const OfflineTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
   const frame = useCurrentFrame();
+  const box = BOX[shape];
+  const aspect = box.width / box.height;
   const w = span(frame, 0, life, 1560, 1430);
-  const crop = { x: 480, y: 780 - w / ASPECT / 2, w, h: w / ASPECT };
+  /*
+   * Anchored at the top-left corner of the columns, not centred on them. A
+   * centred crop happens to keep the column headers at 9:16's height and loses
+   * them at 4:5's — a board whose first visible row is half a card.
+   */
+  const crop = { x: 480, y: 190, w, h: w / aspect };
   const offline = connection(frame);
 
   return (
     <AbsoluteFill style={{ opacity: presence(frame, life) }}>
-      <TallStack gap={54}>
-        <Words {...beats.offline} />
+      <TallStack shape={shape} gap={shape === 'feed' ? 34 : 54}>
+        <Words shape={shape} {...beats.offline} />
 
         <Rise at={30} style={{ position: 'relative', height: 56 }}>
           <div style={{ position: 'absolute', inset: 0, opacity: 1 - offline }}>
@@ -50,12 +62,12 @@ export const OfflineTall: React.FC<{ life: number }> = ({ life }) => {
           </div>
         </Rise>
 
-        <Slot width={1080} height={BOX.height}>
+        <Slot width={1080} height={box.height}>
           <Screenshot
             screen={screen.board}
             crop={crop}
-            width={BOX.width}
-            height={BOX.height}
+            width={box.width}
+            height={box.height}
             style={{
               left: 0,
               top: 0,

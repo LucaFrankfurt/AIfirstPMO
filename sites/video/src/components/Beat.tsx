@@ -17,9 +17,14 @@ import React from 'react';
 import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { presence } from './anim';
 import { Headline, Kicker, Rise, Sub } from './Type';
-import { Slot, TALL, TextColumn } from './Layout';
+import { STACKED, Slot, TextColumn, type Stacked } from './Layout';
 
-export type Shape = 'wide' | 'tall';
+/**
+ * Three shapes, two arrangements. 4:5 stacks exactly as 9:16 does — same width,
+ * same widgets, same order — on a shorter budget, which is why it is a shape
+ * here rather than a third set of layouts.
+ */
+export type Shape = 'wide' | 'tall' | 'feed';
 
 export interface Words {
   kicker: string;
@@ -76,6 +81,7 @@ export const Beat: React.FC<{
     );
   }
 
+  const box = STACKED[shape as Stacked];
   return (
     <AbsoluteFill style={{ opacity: fade }}>
       <div
@@ -83,14 +89,14 @@ export const Beat: React.FC<{
           position: 'absolute',
           left: 0,
           right: 0,
-          top: TALL.top,
-          bottom: TALL.bottom,
+          top: box.top,
+          bottom: box.bottom,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
           textAlign: 'center',
-          gap: tall.gap ?? 78,
+          gap: tall.gap ?? box.gap,
         }}
       >
         <div
@@ -98,24 +104,28 @@ export const Beat: React.FC<{
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: 26,
-            width: TALL.width,
+            gap: box.kicker,
+            width: box.width,
           }}
         >
           <Rise at={4}>
-            <Kicker size={26}>{words.kicker}</Kicker>
+            <Kicker size={box.kicker}>{words.kicker}</Kicker>
           </Rise>
           <Rise at={9}>
-            <Headline size={66}>{words.headline}</Headline>
+            <Headline size={box.headline}>{words.headline}</Headline>
           </Rise>
           {words.sub ? (
             <Rise at={16}>
-              <Sub size={30} width={TALL.width}>
+              <Sub size={box.sub} width={box.width}>
                 {words.sub}
               </Sub>
             </Rise>
           ) : null}
         </div>
+        {/*
+         * The widget keeps the size the scene asked for: 4:5 and 9:16 are both
+         * 1080 across, so only the words and the spacing have to give.
+         */}
         <Slot width={tall.width} height={tall.height}>
           {children}
         </Slot>

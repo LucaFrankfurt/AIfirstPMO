@@ -1,9 +1,9 @@
 /**
- * The Tasks explainer, in either shape.
+ * The Tasks explainer, in any of the three shapes.
  *
- * One component for both, unlike the flagship spot: every beat here is words
- * plus one animated widget, so the whole difference between 16:9 and 9:16 lives
- * inside `<Beat>` and the scenes only have to say how big the widget is.
+ * One component for all of them, unlike the flagship spot: every beat here is
+ * words plus one animated widget, so the whole difference lives inside `<Beat>`
+ * and the scenes only have to say how big the widget is.
  */
 import React from 'react';
 import { AbsoluteFill, Sequence } from 'remotion';
@@ -14,6 +14,7 @@ import { open, close } from './copy';
 import { Backdrop, Corner, type Mood } from '../../components/Backdrop';
 import { Opening, Closing } from '../../components/Bookend';
 import { type Shape } from '../../components/Beat';
+import { STACKED, type Stacked } from '../../components/Layout';
 import { QuickAdd } from './scenes/QuickAdd';
 import { Fields } from './scenes/Fields';
 import { SubTasksBeat } from './scenes/SubTasksBeat';
@@ -52,11 +53,17 @@ export const TasksSpot: React.FC<{ shape: Shape }> = ({ shape }) => (
     <Corner
       from={beatWindow.quickAdd.from + 16}
       until={beatWindow.close.from - 14}
-      top={shape === 'tall' ? 84 : 62}
-      centred={shape === 'tall'}
+      top={shape === 'wide' ? 62 : STACKED[shape as Stacked].lockup}
+      centred={shape !== 'wide'}
     />
   </AbsoluteFill>
 );
 
+/*
+ * Named rather than inlined at the registration site: Remotion remounts a
+ * composition whose component identity changes, and an arrow function written
+ * into JSX is a new identity on every render.
+ */
 export const TasksWide: React.FC = () => <TasksSpot shape="wide" />;
 export const TasksTall: React.FC = () => <TasksSpot shape="tall" />;
+export const TasksFeed: React.FC = () => <TasksSpot shape="feed" />;
