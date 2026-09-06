@@ -1,0 +1,42 @@
+{
+  "name": "@kolibri/video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The 30-second Kolibri spot, as a Remotion composition.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "dev": "remotion studio src/index.ts",
+    "build": "remotion render src/index.ts KolibriThirty out/kolibri-30s.mp4",
+    "build:vertical": "remotion render src/index.ts KolibriThirtyVertical out/kolibri-30s-vertical.mp4",
+    "build:tasks": "remotion render src/index.ts TasksThirty out/tasks-30s.mp4",
+    "build:tasks:vertical": "remotion render src/index.ts TasksThirtyVertical out/tasks-30s-vertical.mp4",
+    "build:pages": "remotion render src/index.ts PagesThirty out/pages-30s.mp4",
+    "build:pages:vertical": "remotion render src/index.ts PagesThirtyVertical out/pages-30s-vertical.mp4",
+    "build:signup": "remotion render src/index.ts SignUpThirty out/signup-30s.mp4",
+    "build:signup:vertical": "remotion render src/index.ts SignUpThirtyVertical out/signup-30s-vertical.mp4",
+    "build:workspace": "remotion render src/index.ts WorkspaceThirty out/workspace-30s.mp4",
+    "build:workspace:vertical": "remotion render src/index.ts WorkspaceThirtyVertical out/workspace-30s-vertical.mp4",
+    "build:hierarchy": "remotion render src/index.ts HierarchyThirty out/hierarchy-30s.mp4",
+    "build:hierarchy:vertical": "remotion render src/index.ts HierarchyThirtyVertical out/hierarchy-30s-vertical.mp4",
+    "poster": "remotion still src/index.ts KolibriThirty out/poster.jpg --frame=870 --jpeg-quality=92",
+    "poster:vertical": "remotion still src/index.ts KolibriThirtyVertical out/poster-vertical.jpg --frame=870 --jpeg-quality=92",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fontsource/inter": "^5.2.5",
+    "@fontsource/jetbrains-mono": "^5.2.5",
+    "@remotion/cli": "^4.0.521",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "remotion": "^4.0.521"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "typescript": "^5.9.2"
+  }
+}
