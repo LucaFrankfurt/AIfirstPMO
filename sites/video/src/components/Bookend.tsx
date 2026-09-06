@@ -17,6 +17,7 @@ import { presence, ramp, span, stagger } from './anim';
 import { Chip } from './Type';
 import { Mark, Wordmark } from './Wordmark';
 import { type Shape } from './Beat';
+import { STACKED, type Stacked } from './Layout';
 
 export const Opening: React.FC<{
   shape: Shape;
@@ -26,9 +27,11 @@ export const Opening: React.FC<{
   tagline: string;
 }> = ({ shape, life, section, tagline }) => {
   const frame = useCurrentFrame();
-  const tall = shape === 'tall';
+  /* Stacked in both portrait shapes; 4:5 simply has less room to do it in. */
+  const tall = shape !== 'wide';
+  const box = tall ? STACKED[shape as Stacked] : null;
   const scale = span(frame, 2, 34, 0.92, 1);
-  const markSize = tall ? 150 : 112;
+  const markSize = shape === 'tall' ? 150 : shape === 'feed' ? 124 : 112;
 
   return (
     <AbsoluteFill
@@ -38,7 +41,7 @@ export const Opening: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: tall ? 150 : 0,
+        paddingBottom: box?.lift ?? 0,
       }}
     >
       <div
@@ -46,7 +49,7 @@ export const Opening: React.FC<{
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: tall ? 40 : 34,
+          gap: tall ? (shape === 'feed' ? 30 : 40) : 34,
           transform: `scale(${scale}) translateY(${span(frame, life - 26, 26, 0, -34)}px)`,
         }}
       >
@@ -97,9 +100,9 @@ export const Opening: React.FC<{
           style={{
             opacity: ramp(frame, 26, 24),
             transform: `translateY(${span(frame, 26, 24, 16, 0)}px)`,
-            maxWidth: tall ? 960 : 1180,
+            maxWidth: box?.width ?? 1180,
             textAlign: 'center',
-            font: `400 ${tall ? 36 : 34}px/1.4 ${font.sans}`,
+            font: `400 ${shape === 'feed' ? 30 : tall ? 36 : 34}px/1.4 ${font.sans}`,
             letterSpacing: '-0.012em',
             color: colour.fgSoft,
           }}
@@ -117,7 +120,8 @@ export const Closing: React.FC<{
   headline: string;
 }> = ({ shape, life, headline }) => {
   const frame = useCurrentFrame();
-  const tall = shape === 'tall';
+  const tall = shape !== 'wide';
+  const box = tall ? STACKED[shape as Stacked] : null;
 
   return (
     <AbsoluteFill
@@ -127,11 +131,16 @@ export const Closing: React.FC<{
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingBottom: tall ? 150 : 0,
+        paddingBottom: box?.lift ?? 0,
       }}
     >
       <div
-        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: tall ? 32 : 30 }}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: shape === 'feed' ? 24 : tall ? 32 : 30,
+        }}
       >
         <div
           style={{
@@ -139,15 +148,15 @@ export const Closing: React.FC<{
             transform: `scale(${span(frame, 4, 30, 0.95, 1)})`,
           }}
         >
-          <Wordmark size={tall ? 100 : 104} />
+          <Wordmark size={shape === 'feed' ? 84 : tall ? 100 : 104} />
         </div>
 
         <div
           style={{
             opacity: ramp(frame, 14, 18),
-            maxWidth: tall ? 960 : 1200,
+            maxWidth: box?.width ?? 1200,
             textAlign: 'center',
-            font: `400 ${tall ? 33 : 31}px/1.4 ${font.sans}`,
+            font: `400 ${shape === 'feed' ? 27 : tall ? 33 : 31}px/1.4 ${font.sans}`,
             letterSpacing: '-0.012em',
             color: colour.fgSoft,
           }}
@@ -174,14 +183,14 @@ export const Closing: React.FC<{
 
         <div
           style={{
-            marginTop: tall ? 14 : 10,
+            marginTop: shape === 'feed' ? 8 : tall ? 14 : 10,
             opacity: ramp(frame, 46, 16),
             transform: `translateY(${span(frame, 46, 18, 10, 0)}px)`,
-            padding: tall ? '16px 26px' : '15px 26px',
+            padding: shape === 'feed' ? '13px 22px' : tall ? '16px 26px' : '15px 26px',
             borderRadius: 12,
             background: colour.bgRaised,
             border: `1px solid ${colour.line}`,
-            font: `400 ${tall ? 25 : 26}px/1 ${font.mono}`,
+            font: `400 ${shape === 'feed' ? 22 : tall ? 25 : 26}px/1 ${font.mono}`,
             color: colour.fgSoft,
           }}
         >
@@ -196,13 +205,13 @@ export const Closing: React.FC<{
          */}
         <div
           style={{
-            marginTop: tall ? 12 : 6,
+            marginTop: shape === 'feed' ? 8 : tall ? 12 : 6,
             display: 'flex',
             flexDirection: tall ? 'column' : 'row',
             alignItems: 'center',
             gap: tall ? 12 : 22,
             opacity: ramp(frame, 58, 16),
-            font: `500 ${tall ? 25 : 26}px/1 ${font.mono}`,
+            font: `500 ${shape === 'feed' ? 22 : tall ? 25 : 26}px/1 ${font.mono}`,
           }}
         >
           <span style={{ color: colour.accentText }}>{url.demo}</span>

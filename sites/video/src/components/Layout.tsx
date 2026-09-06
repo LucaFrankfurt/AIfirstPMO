@@ -57,38 +57,76 @@ export const TextBand: React.FC<{
 );
 
 /**
- * The vertical cut's one arrangement: everything stacked, centred, inside a
- * frame that stops well above the bottom edge.
+ * The two stacked arrangements, and the one number that separates them.
  *
- * `BOTTOM` is not slack — it is the strip a phone puts a caption, a handle and
- * three buttons over. Reserving it here rather than per beat is what stops the
- * spot from having six different ideas about where its floor is, and is why the
- * beats look like they were composed for 9:16 rather than cropped into it.
+ * 9:16 and 4:5 are the same 1080 pixels across, so every widget written for one
+ * fits the other untouched. What differs is the height — 1920 against 1350 — and
+ * a stack composed for the taller frame simply does not fit the shorter one. So
+ * the difference is expressed as a *budget*: how much room the words may take,
+ * how far apart things sit, and where the floor is.
+ *
+ * `bottom` is not slack in either. In 9:16 it is the strip a phone puts a
+ * caption, a handle and three buttons over; in 4:5 the frame is a feed post and
+ * the reserve is smaller, but a stack that runs to the last pixel still reads
+ * as one that ran out of room.
  */
-export const TALL = { top: 200, bottom: 280, width: 960 } as const;
+export const STACKED = {
+  tall: {
+    top: 200,
+    bottom: 280,
+    width: 960,
+    gap: 78,
+    kicker: 26,
+    headline: 66,
+    sub: 30,
+    /** Where the corner lockup sits, and how far a brand beat rides above centre. */
+    lockup: 84,
+    lift: 150,
+  },
+  feed: {
+    top: 150,
+    bottom: 150,
+    width: 940,
+    gap: 52,
+    kicker: 22,
+    headline: 54,
+    sub: 25,
+    lockup: 60,
+    lift: 96,
+  },
+} as const;
 
-export const TallStack: React.FC<{ children: React.ReactNode; gap?: number }> = ({
-  children,
-  gap = 70,
-}) => (
-  <div
-    style={{
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      top: TALL.top,
-      bottom: TALL.bottom,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      textAlign: 'center',
-      gap,
-    }}
-  >
-    {children}
-  </div>
-);
+export type Stacked = keyof typeof STACKED;
+
+/** The 9:16 numbers, for the few places that were written before 4:5 existed. */
+export const TALL = STACKED.tall;
+
+export const TallStack: React.FC<{
+  children: React.ReactNode;
+  shape?: Stacked;
+  gap?: number;
+}> = ({ children, shape = 'tall', gap }) => {
+  const box = STACKED[shape];
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        top: box.top,
+        bottom: box.bottom,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        textAlign: 'center',
+        gap: gap ?? box.gap,
+      }}
+    >
+      {children}
+    </div>
+  );
+};
 
 /**
  * A hole of a known size in a flex column, for the widgets that place

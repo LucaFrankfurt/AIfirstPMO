@@ -20,7 +20,7 @@ import { Stage } from './Stage';
 import { Mark } from './Wordmark';
 
 export type Mood = 'brand' | 'right' | 'left' | 'high';
-export type Shape = 'wide' | 'tall';
+export type Shape = 'wide' | 'tall' | 'feed';
 
 /**
  * The vertical cut stacks everything down the middle, so left and right have no
@@ -38,6 +38,13 @@ const MOODS: Record<Shape, Record<Mood, { x: number; y: number; strength: number
     right: { x: 0.5, y: 0.26, strength: 0.7 },
     left: { x: 0.5, y: 0.26, strength: 0.7 },
     high: { x: 0.5, y: 0.22, strength: 0.66 },
+  },
+  /* 4:5 stacks like 9:16 but is shorter, so the light sits a little lower. */
+  feed: {
+    brand: { x: 0.5, y: 0.46, strength: 1 },
+    right: { x: 0.5, y: 0.3, strength: 0.7 },
+    left: { x: 0.5, y: 0.3, strength: 0.7 },
+    high: { x: 0.5, y: 0.26, strength: 0.66 },
   },
 };
 

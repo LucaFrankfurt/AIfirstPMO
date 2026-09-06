@@ -12,7 +12,12 @@ import { Beat, type Shape } from '../../../components/Beat';
 import { QuickAddField, QUICK_ADD } from '../../../components/QuickAddField';
 import { TaskCard } from '../../../components/ui';
 
-const SIZE = { wide: { field: 1000, type: 26, card: 700, drop: 210 }, tall: { field: 1000, type: 22, card: 880, drop: 180 } };
+/* 4:5 is the same 1080 across as 9:16, so it takes the stacked numbers unchanged. */
+const SIZE = {
+  wide: { field: 1000, type: 26, card: 700, drop: 210 },
+  tall: { field: 1000, type: 22, card: 880, drop: 180 },
+  feed: { field: 1000, type: 22, card: 880, drop: 180 },
+};
 
 export const QuickAdd: React.FC<{ shape: Shape; life: number }> = ({ shape, life }) => {
   const frame = useCurrentFrame();

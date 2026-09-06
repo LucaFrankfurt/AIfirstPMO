@@ -11,18 +11,18 @@ import { AbsoluteFill, useCurrentFrame } from 'remotion';
 import { beats } from '../../copy';
 import { colour } from '../../../../theme';
 import { presence, ramp, span } from '../../../../components/anim';
-import { Slot, TallStack } from '../../../../components/Layout';
+import { Slot, TallStack, type Stacked } from '../../../../components/Layout';
 import { ToolCall, TOOL_CALL } from '../../../../components/ToolCall';
 import { TaskCard } from '../../../../components/ui';
 import { Words } from './Words';
 
-export const AssistantTall: React.FC<{ life: number }> = ({ life }) => {
+export const AssistantTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
   const frame = useCurrentFrame();
 
   return (
     <AbsoluteFill style={{ opacity: presence(frame, life) }}>
-      <TallStack gap={64}>
-        <Words {...beats.assistant} />
+      <TallStack shape={shape} gap={64}>
+        <Words shape={shape} {...beats.assistant} />
 
         <Slot width={1000} height={334}>
           <ToolCall frame={frame} width={1000} size={20} style={{ left: 0, top: 0 }} />

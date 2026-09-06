@@ -12,9 +12,11 @@ import { open } from '../../copy';
 import { colour, font } from '../../../../theme';
 import { presence, ramp, span } from '../../../../components/anim';
 import { Mark } from '../../../../components/Wordmark';
-import { TALL } from '../../../../components/Layout';
+import { STACKED, type Stacked } from '../../../../components/Layout';
 
-export const OpenTall: React.FC<{ life: number }> = ({ life }) => {
+export const OpenTall: React.FC<{ shape: Stacked; life: number }> = ({ shape, life }) => {
+  const box = STACKED[shape];
+  const feed = shape === 'feed';
   const frame = useCurrentFrame();
   const scale = span(frame, 2, 34, 0.92, 1);
 
@@ -27,7 +29,7 @@ export const OpenTall: React.FC<{ life: number }> = ({ life }) => {
         alignItems: 'center',
         justifyContent: 'center',
         /* A touch above centre: a lockup sitting dead centre reads as low. */
-        paddingBottom: 150,
+        paddingBottom: box.lift,
       }}
     >
       <div
@@ -35,14 +37,14 @@ export const OpenTall: React.FC<{ life: number }> = ({ life }) => {
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          gap: 44,
+          gap: feed ? 32 : 44,
           transform: `scale(${scale}) translateY(${span(frame, life - 26, 26, 0, -34)}px)`,
         }}
       >
-        <Mark size={190} />
+        <Mark size={feed ? 150 : 190} />
         <span
           style={{
-            font: `700 124px/1 ${font.sans}`,
+            font: `700 ${feed ? 98 : 124}px/1 ${font.sans}`,
             letterSpacing: '-0.035em',
             color: colour.fg,
           }}
@@ -53,9 +55,9 @@ export const OpenTall: React.FC<{ life: number }> = ({ life }) => {
           style={{
             opacity: ramp(frame, 24, 24),
             transform: `translateY(${span(frame, 24, 24, 16, 0)}px)`,
-            width: TALL.width,
+            width: box.width,
             textAlign: 'center',
-            font: `400 36px/1.4 ${font.sans}`,
+            font: `400 ${feed ? 30 : 36}px/1.4 ${font.sans}`,
             letterSpacing: '-0.012em',
             color: colour.fgSoft,
           }}

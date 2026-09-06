@@ -11,17 +11,17 @@ import React from 'react';
 import { Composition } from 'remotion';
 import { FPS, TOTAL } from './plan';
 import { Spot } from './spots/kolibri/Wide';
-import { SpotTall } from './spots/kolibri/Tall';
-import { TasksWide, TasksTall } from './spots/tasks/Spot';
-import { PagesWide, PagesTall } from './spots/pages/Spot';
-import { SignupWide, SignupTall } from './spots/signup/Spot';
-import { WorkspaceWide, WorkspaceTall } from './spots/workspace/Spot';
-import { HierarchyWide, HierarchyTall } from './spots/hierarchy/Spot';
+import { SpotTall, SpotFeed } from './spots/kolibri/Stacked';
+import { TasksWide, TasksTall, TasksFeed } from './spots/tasks/Spot';
+import { PagesWide, PagesTall, PagesFeed } from './spots/pages/Spot';
+import { SignUpWide, SignUpTall, SignUpFeed } from './spots/signup/Spot';
+import { WorkspaceWide, WorkspaceTall, WorkspaceFeed } from './spots/workspace/Spot';
+import { HierarchyWide, HierarchyTall, HierarchyFeed } from './spots/hierarchy/Spot';
 
 /**
- * Two shapes of the same thirty seconds. They share the beat table, so a beat
- * that is re-timed is re-timed in both — which is the only way the two stay the
- * same film rather than becoming two films with the same words.
+ * Six spots in three shapes. Each spot's three cuts share one beat table, so a
+ * beat that is re-timed is re-timed in all of them — which is the only way they
+ * stay one film rather than becoming three films with the same words.
  */
 export const RemotionRoot: React.FC = () => (
   <>
@@ -42,6 +42,14 @@ export const RemotionRoot: React.FC = () => (
       height={1920}
     />
     <Composition
+      id="KolibriThirtyFeed"
+      component={SpotFeed}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1350}
+    />
+    <Composition
       id="TasksThirty"
       component={TasksWide}
       durationInFrames={TOTAL}
@@ -56,6 +64,14 @@ export const RemotionRoot: React.FC = () => (
       fps={FPS}
       width={1080}
       height={1920}
+    />
+    <Composition
+      id="TasksThirtyFeed"
+      component={TasksFeed}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1350}
     />
     <Composition
       id="PagesThirty"
@@ -74,8 +90,16 @@ export const RemotionRoot: React.FC = () => (
       height={1920}
     />
     <Composition
+      id="PagesThirtyFeed"
+      component={PagesFeed}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1350}
+    />
+    <Composition
       id="SignUpThirty"
-      component={SignupWide}
+      component={SignUpWide}
       durationInFrames={TOTAL}
       fps={FPS}
       width={1920}
@@ -83,11 +107,19 @@ export const RemotionRoot: React.FC = () => (
     />
     <Composition
       id="SignUpThirtyVertical"
-      component={SignupTall}
+      component={SignUpTall}
       durationInFrames={TOTAL}
       fps={FPS}
       width={1080}
       height={1920}
+    />
+    <Composition
+      id="SignUpThirtyFeed"
+      component={SignUpFeed}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1350}
     />
     <Composition
       id="WorkspaceThirty"
@@ -106,6 +138,14 @@ export const RemotionRoot: React.FC = () => (
       height={1920}
     />
     <Composition
+      id="WorkspaceThirtyFeed"
+      component={WorkspaceFeed}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1350}
+    />
+    <Composition
       id="HierarchyThirty"
       component={HierarchyWide}
       durationInFrames={TOTAL}
@@ -120,6 +160,14 @@ export const RemotionRoot: React.FC = () => (
       fps={FPS}
       width={1080}
       height={1920}
+    />
+    <Composition
+      id="HierarchyThirtyFeed"
+      component={HierarchyFeed}
+      durationInFrames={TOTAL}
+      fps={FPS}
+      width={1080}
+      height={1350}
     />
   </>
 );

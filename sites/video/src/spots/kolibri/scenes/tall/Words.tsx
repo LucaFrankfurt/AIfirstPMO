@@ -9,34 +9,38 @@
  */
 import React from 'react';
 import { Headline, Kicker, Rise, Sub } from '../../../../components/Type';
-import { TALL } from '../../../../components/Layout';
+import { STACKED, type Stacked } from '../../../../components/Layout';
 
-export const Words: React.FC<{ kicker: string; headline: string; sub?: string }> = ({
-  kicker,
-  headline,
-  sub,
-}) => (
+export const Words: React.FC<{
+  shape: Stacked;
+  kicker: string;
+  headline: string;
+  sub?: string;
+}> = ({ shape, kicker, headline, sub }) => {
+  const box = STACKED[shape];
+  return (
   <div
     style={{
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: 26,
-      width: TALL.width,
+      gap: box.kicker,
+      width: box.width,
     }}
   >
     <Rise at={4}>
-      <Kicker size={26}>{kicker}</Kicker>
+      <Kicker size={box.kicker}>{kicker}</Kicker>
     </Rise>
     <Rise at={9}>
-      <Headline size={66}>{headline}</Headline>
+      <Headline size={box.headline}>{headline}</Headline>
     </Rise>
     {sub ? (
       <Rise at={16}>
-        <Sub size={30} width={TALL.width}>
+        <Sub size={box.sub} width={box.width}>
           {sub}
         </Sub>
       </Rise>
     ) : null}
   </div>
-);
+  );
+};
