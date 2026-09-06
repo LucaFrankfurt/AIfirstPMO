@@ -17,6 +17,25 @@ import { PagesWide, PagesTall, PagesFeed } from './spots/pages/Spot';
 import { SignUpWide, SignUpTall, SignUpFeed } from './spots/signup/Spot';
 import { WorkspaceWide, WorkspaceTall, WorkspaceFeed } from './spots/workspace/Spot';
 import { HierarchyWide, HierarchyTall, HierarchyFeed } from './spots/hierarchy/Spot';
+import { carousel } from './social/Carousel';
+import { proof, proofSize } from './social/Proof';
+import { carousels } from './social/sets';
+import { POST } from './social/sheet';
+
+/**
+ * The carousels, built once here rather than inside the JSX below.
+ *
+ * A composition whose component identity changes between renders is remounted,
+ * so an arrow function in the `<Composition>` call would rebuild the deck — and
+ * re-decode the fonts — on every frame. `carousel()` is called once, at module
+ * scope, and the array it produces is the same array for the life of the process.
+ */
+const DECKS = carousels.map((set) => ({
+  set,
+  Deck: carousel(set.slides, set.series ?? true),
+  Proof: proof(set.slides, set.series ?? true),
+  size: proofSize(set.slides.length),
+}));
 
 /**
  * Six spots in three shapes. Each spot's three cuts share one beat table, so a
@@ -169,5 +188,31 @@ export const RemotionRoot: React.FC = () => (
       width={1080}
       height={1350}
     />
+    {/*
+     * One composition per carousel, one frame per slide, one frame a second —
+     * so `remotion render <id> <dir> --sequence` writes the whole Bilderreihe
+     * as numbered PNGs in a single bundle.
+     */}
+    {DECKS.map(({ set, Deck, Proof, size }) => (
+      <React.Fragment key={set.id}>
+        <Composition
+          id={set.id}
+          component={Deck}
+          durationInFrames={set.slides.length}
+          fps={1}
+          width={POST.width}
+          height={POST.height}
+        />
+        {/* The contact sheet. Rendered on demand, never published. */}
+        <Composition
+          id={`${set.id}Proof`}
+          component={Proof}
+          durationInFrames={1}
+          fps={1}
+          width={size.width}
+          height={size.height}
+        />
+      </React.Fragment>
+    ))}
   </>
 );

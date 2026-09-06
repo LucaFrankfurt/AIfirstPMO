@@ -17,7 +17,7 @@ const TEAMS = [
     name: 'Web',
     people: [
       { initials: 'AL', tint: '#26a27c' },
-      { initials: 'GH', tint: '#4aa3df' },
+      { initials: 'GH', tint: colour.info },
     ],
     projects: ['Website', 'Public API'],
   },

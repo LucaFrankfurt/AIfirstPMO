@@ -28,6 +28,16 @@ export const colour = {
   danger: '#e06d6e',
 
   /**
+   * The second person's blue.
+   *
+   * Grace's avatar, the team row in the tree, the row the query drops because
+   * it is not assigned to me — everywhere the spot needs "somebody who is not
+   * you" it is this, and it was six copies of `#4aa3df` in six files until the
+   * social sheets wanted a seventh.
+   */
+  info: '#4aa3df',
+
+  /**
    * The mark's teal, lifted two steps. The bird's own `#3f8f8b` is a fill colour
    * and all but vanishes as 16px type on `#08090d`, which is what the `*design`
    * caption in the quick-add beat is.

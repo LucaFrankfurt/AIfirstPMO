@@ -59,7 +59,7 @@ const ROWS = [
   { id: 'WEB-6', title: 'Replace the cookie banner with a consent flow', who: 'AL', tint: '#26a27c', p: 3 as const, dies: Infinity },
   { id: 'WEB-2', title: 'Redraw the empty state', who: 'AL', tint: '#26a27c', p: 2 as const, dies: CLAUSE.priority },
   { id: 'WEB-7', title: 'Fix layout shift on the changelog', who: 'AL', tint: '#26a27c', p: 3 as const, dies: CLAUSE.state },
-  { id: 'WEB-3', title: 'Ship dark mode across the marketing site', who: 'GH', tint: '#4aa3df', p: 2 as const, dies: CLAUSE.assignee },
+  { id: 'WEB-3', title: 'Ship dark mode across the marketing site', who: 'GH', tint: colour.info, p: 2 as const, dies: CLAUSE.assignee },
   { id: 'WEB-8', title: 'Add customer logos to the landing page', who: 'AT', tint: '#26a27c', p: 2 as const, dies: CLAUSE.assignee },
   { id: 'WEB-5', title: 'Rewrite the onboarding copy', who: 'MH', tint: '#c98a3e', p: 1 as const, dies: CLAUSE.assignee },
 ];
