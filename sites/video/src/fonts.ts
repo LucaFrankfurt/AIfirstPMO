@@ -37,7 +37,7 @@ import '@fontsource/jetbrains-mono/700.css';
  */
 const GLYPHS =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789' +
-  ' .,:;!?@#*/\\|()[]{}<>+-—–·×✓→←"\'&%$';
+  ' .,:;!?@#*/\\|()[]{}<>+-=_~—–·×✓→←"\'&%$';
 
 const SPECS = [
   '400 1em Inter',

@@ -18,7 +18,7 @@ import { Avatar } from './ui';
 
 const BASE = ['The consent flow ships in Cycle 2026-8', '.'];
 const ADA = { at: 3, text: ' first-party', tint: '#26a27c', who: 'AL', name: 'Ada' };
-const GRACE = { at: 1, text: ' behind a flag', tint: '#4aa3df', who: 'GH', name: 'Grace' };
+const GRACE = { at: 1, text: ' behind a flag', tint: colour.info, who: 'GH', name: 'Grace' };
 
 export const COLLAB = { typeFrom: 20, typeTo: 96, merged: 116 };
 

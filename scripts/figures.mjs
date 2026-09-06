@@ -333,6 +333,8 @@ const FIGURES = [
       { file: 'README.md', pattern: prose('with (\\d+) tools, \\d+ prompts') },
       { file: 'TODO.md', pattern: prose('MCP exposes (\\d+) tools') },
       { file: 'docs/module-map.html', pattern: prose('<span class="v num">(\\d+)</span><span class="k">MCP tools</span>') },
+      /* On a marketing slide, which is where a stale count survives longest. */
+      { file: 'sites/video/src/product.ts', pattern: prose('count: (\\d+), prompts: \\d+') },
     ],
   },
   {
@@ -341,6 +343,7 @@ const FIGURES = [
     claims: [
       { file: 'README.md', pattern: prose('\\*\\*(\\d+) prompts\\*\\*') },
       { file: 'README.md', pattern: prose('with \\d+ tools, (\\d+) prompts') },
+      { file: 'sites/video/src/product.ts', pattern: prose('count: \\d+, prompts: (\\d+)') },
     ],
   },
   {

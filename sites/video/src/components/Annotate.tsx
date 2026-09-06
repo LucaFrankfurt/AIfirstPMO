@@ -98,7 +98,7 @@ export const Annotate: React.FC<{
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: size * 0.5 }}>
-          <Avatar initials="GH" fill="#4aa3df" size={size * 1.2} />
+          <Avatar initials="GH" fill={colour.info} size={size * 1.2} />
           <span style={{ font: `600 ${size * 0.92}px/1 ${font.sans}`, color: colour.fg }}>
             Grace Hopper
           </span>

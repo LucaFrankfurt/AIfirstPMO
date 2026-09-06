@@ -26,7 +26,7 @@ interface Node {
 
 const NODES: Node[] = [
   { depth: 0, icon: '◈', text: 'Kolibri', kind: 'workspace', tint: '#7c7cf0' },
-  { depth: 1, icon: '▣', text: 'Web', badge: 'WEB', kind: 'team', tint: '#4aa3df' },
+  { depth: 1, icon: '▣', text: 'Web', badge: 'WEB', kind: 'team', tint: colour.info },
   { depth: 2, icon: '●', text: 'Website', badge: 'WEB', kind: 'project', tint: '#26a27c' },
   { depth: 3, icon: '○', text: 'Backlog · Todo · In Progress · Done', kind: 'states' },
   { depth: 3, icon: '↻', text: 'Cycle 2026-8', kind: 'cycle' },

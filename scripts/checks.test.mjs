@@ -45,6 +45,7 @@ after(() => made.forEach((dir) => rmSync(dir, { recursive: true, force: true }))
  * omissions were found, one failure at a time.
  */
 const SKIP = /[/\\](node_modules|dist|data|public)([/\\]|$)/;
+const SITES_SKIP = /[/\\](node_modules|dist|out|assets)([/\\]|$)/;
 
 function tree() {
   const dir = mkdtempSync(join(tmpdir(), 'kolibri-checks-'));
@@ -59,6 +60,12 @@ function tree() {
     cpSync(join(ROOT, entry), join(dir, entry), { recursive: true });
   }
   cpSync(join(ROOT, 'packages'), join(dir, 'packages'), { recursive: true, filter: (src) => !SKIP.test(src) });
+  // `sites` is here for one file: `figures.mjs` grew a claim against
+  // `sites/video/src/product.ts`, which is where the MCP tool count reaches a
+  // marketing slide. Its own filter rather than `SKIP`, because the three sites
+  // together are 540 MB of rendered video, screen captures and dependencies on
+  // top of 1.9 MB of source, and these cases build the tree a few dozen times.
+  cpSync(join(ROOT, 'sites'), join(dir, 'sites'), { recursive: true, filter: (src) => !SITES_SKIP.test(src) });
   // Linked rather than copied: `openapi.mjs` reads the tree with the TypeScript
   // compiler, so a copy that cannot resolve `typescript` fails on the import
   // instead of on the thing the case is about. A link costs nothing and lets
@@ -256,6 +263,12 @@ const BREAKS = [
     script: 'figures.mjs',
     break: (t) => t.write('packages/server/src/adapters/mcp/tools/telepathy.ts', 'export const TOOLS = [];\n'),
     says: /MCP tool files still under the adapter — says 12, is 13/,
+  },
+  {
+    what: 'a figure that reached a rendered slide and was left behind',
+    script: 'figures.mjs',
+    break: (t) => t.edit('sites/video/src/product.ts', 'count: 81, prompts: 6', 'count: 74, prompts: 6'),
+    says: /STALE +sites\/video\/src\/product\.ts: MCP tools — says 74, is 81/,
   },
   {
     what: 'a bolded number that is neither claimed nor recorded',

@@ -125,7 +125,7 @@ export const InviteLink: React.FC<{
           transform: `translateY(${span(frame, INVITE.accepted, 18, 14, 0)}px)`,
         }}
       >
-        <Avatar initials="GH" fill="#4aa3df" size={size * 1.5} />
+        <Avatar initials="GH" fill={colour.info} size={size * 1.5} />
         <span style={{ font: `600 ${size * 0.98}px/1 ${font.sans}`, color: colour.fg }}>
           Grace Hopper
         </span>

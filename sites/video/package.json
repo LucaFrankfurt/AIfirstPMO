@@ -31,6 +31,15 @@
     "poster": "remotion still src/index.ts KolibriThirty out/poster.jpg --frame=870 --jpeg-quality=92",
     "poster:vertical": "remotion still src/index.ts KolibriThirtyVertical out/poster-vertical.jpg --frame=870 --jpeg-quality=92",
     "poster:feed": "remotion still src/index.ts KolibriThirtyFeed out/poster-feed.jpg --frame=870 --jpeg-quality=92",
+    "social": "node scripts/social.mjs",
+    "social:pitch": "node scripts/social.mjs pitch",
+    "social:quickadd": "node scripts/social.mjs quickadd",
+    "social:offline": "node scripts/social.mjs offline",
+    "social:hierarchy": "node scripts/social.mjs hierarchy",
+    "social:assistant": "node scripts/social.mjs assistant",
+    "social:selfhost": "node scripts/social.mjs selfhost",
+    "social:singles": "node scripts/social.mjs singles",
+    "social:proof": "remotion still src/index.ts SocialPitchProof out/social/proof-pitch.png && remotion still src/index.ts SocialQuickAddProof out/social/proof-quickadd.png && remotion still src/index.ts SocialOfflineProof out/social/proof-offline.png && remotion still src/index.ts SocialHierarchyProof out/social/proof-hierarchy.png && remotion still src/index.ts SocialAssistantProof out/social/proof-assistant.png && remotion still src/index.ts SocialSelfHostProof out/social/proof-selfhost.png && remotion still src/index.ts SocialSinglesProof out/social/proof-singles.png",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

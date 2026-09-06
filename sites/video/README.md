@@ -1,4 +1,8 @@
-# The spots
+# The spots, and the sheets
+
+Eighteen films and fifty-eight stills, out of one folder. Everything below the fold is about the
+films; [**the stills**](#the-stills) — the Instagram carousels — are at the end, because they are
+made of the films' own parts.
 
 Six thirty-second films, each rendered in three shapes — eighteen masters. All of them are 30fps
 and **exactly 900 frames** — 30.00s — because that is what a social upload cuts at and what a
@@ -34,7 +38,8 @@ npm run poster             # the frame a <video> shows before it plays
 ```
 
 `out/` is a build directory and is not committed. The rendered masters that ship live in
-[`assets/video/`](../../assets/video); copy them over after a change that is meant to go out.
+[`assets/video/`](../../assets/video) and [`assets/social/`](../../assets/social); copy them over
+after a change that is meant to go out.
 
 Like `sites/docs` and `sites/demo`, this is **not** a workspace of the root project. It has its own
 dependency tree, and nothing in the root `npm test` knows about it — Remotion brings React, a
@@ -58,6 +63,7 @@ src/
     signup/      how somebody gets in, and who decides
     workspace/   what a workspace is, and what it has switched on
     hierarchy/   the six levels, and the two rules that keep them honest
+  social/        the stills: seven sets of 4:5 sheets, made of the same widgets
 ```
 
 **A widget is where the behaviour lives; a scene only says how big it is.** The outbox knows when
@@ -208,3 +214,65 @@ variable `scripts/responsive.mjs` and its neighbours read:
 ```bash
 CHROMIUM_PATH=/path/to/headless_shell npm run build
 ```
+
+
+## The stills
+
+Seven sets of **1080×1350** PNGs — six Instagram carousels and one folder of standalone posts, 58
+sheets in all. They render out of `src/social/`, they ship in
+[`assets/social/`](../../assets/social), and they are made of the films' own parts: the same
+palette, the same fonts, the same product facts, and the same eleven animated widgets.
+
+| set | slides | |
+|---|---|---|
+| `pitch` | 8 | what Kolibri is |
+| `quickadd` | 10 | the syntax, one sigil to a slide |
+| `offline` | 8 | the mirror, the queue, the clock, the per-field merge |
+| `hierarchy` | 8 | the six levels and the two rules |
+| `assistant` | 8 | MCP: the tools, the transports, the token |
+| `selfhost` | 7 | one command, one process, one file, one directory |
+| `singles` | 9 | not a carousel — nine posts for the days between |
+
+```bash
+npm run social            # all seven → out/social/<set>/<set>-01.png …
+npm run social:quickadd   # or one
+npm run social:proof      # a contact sheet per set, for looking before posting
+```
+
+### A widget handed a number
+
+**Every widget in `components/` takes `frame` as a prop rather than calling `useCurrentFrame()`.**
+That was written for the spots, so that one animation could appear in two of them without being
+written twice — and it is the whole reason this folder was cheap. A still is one of those widgets
+handed a number: `<QuickAddField frame={140} …>` is the line after it has been parsed and filed, and
+it is the same pixels the film draws at second 4.7. Nothing had to be rewritten to hold still.
+
+Which number is the one thing to tune when a sheet looks wrong, so it is written at the call site in
+the set and never behind a helper.
+
+### A carousel is a filmstrip
+
+Each set is one composition of *n* frames at 1fps, and frame *n* is slide *n*. That buys two things.
+`npm run social:pitch` is one render — one bundle, one browser — that writes the whole deck; and the
+studio scrubs it, which is the same gesture the reader's thumb will make.
+
+### Three rules the sheets keep
+
+- **The words are at the ceiling; the picture is centred in what is left.** Not for the look: it is
+  so the kicker lands on the same line on every slide of a set. Two earlier versions were worse in
+  instructive ways — centring the whole column moved the headline by fifty pixels between a one-line
+  sub and a two-line one, and pinning the picture to the floor instead opened a four-hundred-pixel
+  hole in the middle of any slide whose widget was short.
+- **The cover is composed inside the square.** Instagram shows a post whole in the feed and
+  centre-cropped to 1:1 on the profile grid, so 135 pixels come off the top and bottom of the
+  thumbnail — and the thumbnail is the cover. The inner slides spend the full height; `SQUARE` in
+  `social/sheet.ts` is the budget the cover keeps to.
+- **Basic latin only, in anything that has to line up.** `@fontsource` splits JetBrains Mono by
+  unicode range, and the box-drawing characters are in no subset this build loads. The clock slide's
+  first diagram used `└──┘`, got them from whatever mono the renderer had, and did not line up.
+
+### And one thing they deliberately do not have
+
+**A story format.** 9:16 is the shape this folder already covers properly — six spots are rendered
+in it, and a story is where a *video* plays. A still card in that slot would be a worse version of a
+file that already exists, and a second thing to remember to re-render.
