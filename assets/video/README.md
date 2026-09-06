@@ -31,17 +31,43 @@ Each of those is 1920×1080. Beside each sits a `…-vertical.mp4` at 1080×1920
 | 9:16 | 1080×1920 | a story, a reel, a short |
 | 4:5 | 1080×1350 | the feed post — the tallest thing Instagram and LinkedIn show without cropping |
 
-To regenerate after changing a composition:
+## Putting them back
+
+Nothing here is edited; all of it is rendered. Delete the lot and this brings it back — the
+compositions take no input but the repository, so the frames are the same ones. (The bytes of the
+file are the encoder's business, and a different Chromium or ffmpeg build may spell them
+differently.)
 
 ```bash
 cd sites/video
-npm install
-npm run build              # → out/kolibri-30s.mp4
-npm run build:tasks        # and :pages, :signup, :workspace, :hierarchy
-npm run build:vertical     # and every :…:vertical and :…:feed beside it
-npm run poster             # and :vertical, :feed
+npm install                     # Remotion, React, Inter and JetBrains Mono
+
+# Six spots × three shapes. Every spot has a plain, a :vertical and a :feed script.
+npm run build                   npm run build:vertical                   npm run build:feed
+npm run build:tasks             npm run build:tasks:vertical             npm run build:tasks:feed
+npm run build:pages             npm run build:pages:vertical             npm run build:pages:feed
+npm run build:signup            npm run build:signup:vertical            npm run build:signup:feed
+npm run build:workspace         npm run build:workspace:vertical         npm run build:workspace:feed
+npm run build:hierarchy         npm run build:hierarchy:vertical         npm run build:hierarchy:feed
+
+npm run poster                  npm run poster:vertical                  npm run poster:feed
+
 cp out/*.mp4 out/*.jpg ../../assets/video/
 ```
 
-`sites/video/README.md` has the three storyboards, what is a real screenshot and what is drawn, and
+Each render takes about two minutes and needs a Chromium. Remotion downloads its own on the first
+one; where that download cannot reach `remotion.media`, point `CHROMIUM_PATH` at a Chromium already
+on disk — the same variable `scripts/responsive.mjs` and its neighbours read:
+
+```bash
+CHROMIUM_PATH=/path/to/headless_shell npm run build
+```
+
+To see one before committing to a full render, `npm run dev` opens the Remotion studio with all
+eighteen compositions in it, scrubbable frame by frame.
+
+This folder is in the root `.dockerignore`: no image stage copies it, and fifty megabytes of H.264
+in every build context is a cost with nothing on the other side of it.
+
+`sites/video/README.md` has the six storyboards, what is a real screenshot and what is drawn, and
 why none of them has a soundtrack.

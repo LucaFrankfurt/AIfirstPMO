@@ -15,3 +15,10 @@ smoke.mjs
 # Xcode project or a Gradle wrapper, and they are the largest thing in the tree.
 packages/web/ios
 packages/web/android
+
+# The rendered marketing spots — fifty megabytes of H.264 that no image stage
+# copies, but that every build would otherwise ship to the daemon before the
+# first layer. They are *generated*: `sites/video` is the source, and
+# `assets/video/README.md` gives the `npm run build:…` lines that put them back. Excluded here rather than deleted because a person posting one should
+# not have to install a renderer to get it.
+assets/video
