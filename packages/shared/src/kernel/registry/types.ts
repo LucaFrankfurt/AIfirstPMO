@@ -1355,6 +1355,21 @@ export type HookFormat = (typeof HOOK_FORMATS)[number];
  */
 export const WEBHOOK_EVENTS = [
   'task.created', 'task.updated', 'task.moved', 'task.completed', 'task.deleted',
+  /*
+   * The only project event, and it is here rather than beside a
+   * `project.created` because of the second rule above: a receiver can fetch a
+   * new or a renamed project over the API whenever it likes, and a deleted one
+   * is precisely what the API stops answering about. `findProject` refuses it
+   * and `list_projects` does not show it, so what a receiver would go back and
+   * read is a tombstone.
+   *
+   * Nor can it be reconstructed from the `task.deleted` burst that accompanies
+   * it: a run of deletions sharing a `project_id` looks identical to somebody
+   * clearing out a project that is still there. The burst says what happened
+   * to each row; this says what happened to all of them at once, and carries
+   * the counts so a receiver can reconcile rather than assume.
+   */
+  'project.deleted',
   'comment.created',
   'page.created', 'page.updated',
   'cycle.created', 'cycle.updated',

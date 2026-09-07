@@ -164,14 +164,24 @@ row deleted in the same millisecond as the project, which comes back with it:
 a bounded and harmless mistake, next to keeping a separate list of what was
 taken and having to keep *that* in sync too.
 
-Two consequences worth stating rather than discovering. The per-row webhooks
-are **not** suppressed: there is no `project.deleted` event a receiver could
-infer the rest from, so a mirror that heard nothing would keep five hundred
-tasks that no longer exist — deleting a large project is a burst of
-`task.deleted` calls, and that is the honest signal. And rows orphaned by a
-deletion from *before* this existed are still orphaned; nothing sweeps them up
-on upgrade, because a migration that silently mass-deleted historical content
-is worse than the inconsistency it tidies.
+Two consequences worth stating rather than discovering.
+
+**A cascade is silent to webhooks, and this paragraph said the opposite until
+it was measured.** It claimed that deleting a large project fires a burst of
+`task.deleted` calls, "and that is the honest signal". It fires none. The
+cascade writes with `system: true`, so the server's own deletions are not
+refused by guards written for people, and `afterWrite` returns before the
+committed listeners on a system write — the reading that produced the wrong
+sentence stopped at `fireWebhooks` and never reached that line. Deleting a
+project with two tasks, a page and a nested project produces exactly one event.
+So a receiver that mirrors tasks must subscribe to **`project.deleted`**, which
+carries the counts for that reason; `task.deleted` will not tell it. See
+[`api.md`](api.md#integrations).
+
+**Rows orphaned by a deletion from before the cascade existed are still
+orphaned.** Nothing sweeps them up on upgrade, because a migration that
+silently mass-deleted historical content is worse than the inconsistency it
+tidies.
 
 
 ## Testing it
