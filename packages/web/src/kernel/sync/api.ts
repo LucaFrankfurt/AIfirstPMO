@@ -165,4 +165,24 @@ export const api = {
   pageVersions: (pageId: string) => request<any[]>(`/api/pages/${pageId}/versions`),
   pageVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions/${versionId}`),
   restoreVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions`, json({ restore: versionId })),
+
+  /*
+   * The three calls a value takes, and the reason they are here rather than in
+   * the store: a secret's value is the one thing in this application that is
+   * never mirrored. The store holds rows; this holds requests.
+   */
+  /*
+   * Creating one is a server call rather than an optimistic write, and it is
+   * the only entity here for which that is true. A value has to be sealed with
+   * a key the browser does not have, so a secret cannot be born offline — and
+   * the version that created the row locally and then asked the server to seal
+   * a value for it asked about a row the server had never seen.
+   */
+  createSecret: (workspaceId: string, body: Record<string, unknown>) =>
+    request<{ id: string; preview: string }>(`/api/workspaces/${workspaceId}/secrets`, json(body)),
+  secretValue: (id: string, value: string) =>
+    request<{ preview: string; rotated_at: number }>(`/api/secrets/${id}/value`, { method: 'PUT', body: JSON.stringify({ value }) }),
+  revealSecret: (id: string) => request<{ value: string }>(`/api/secrets/${id}/reveal`, json({})),
+  secretHistory: (id: string) =>
+    request<{ entries: { id: string; verb: string; actor_name: string | null; created_at: number }[] }>(`/api/secrets/${id}/history`),
 };

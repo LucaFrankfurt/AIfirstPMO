@@ -545,6 +545,27 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* Independent of everything else, and the only switch here that is a
+          promise rather than a preference: a half-adopted vault — three keys in
+          it and eleven still in the handbook — is worse than none, because it
+          makes people believe the handbook has been cleaned up. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.secrets}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { secrets: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureSecrets')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureSecretsHint')}</span>
+        </span>
+      </label>
+
       {/* Independent of the other three. A team measuring lead time is not
           thereby costing servers; the only thing KPIs borrow from elsewhere is
           the milestone, which every workspace already has. */}

@@ -47,6 +47,11 @@ export const WORKSPACE_DESTINATIONS: readonly Destination[] = [
   { to: '/pages', icon: 'page', label: 'nav.pages' },
   { to: '/teams', icon: 'users', label: 'nav.teams' },
   { to: '/mail', icon: 'mail', label: 'nav.mail', feature: 'mail' },
+  // Beside the pages rather than under planning, because it answers the same
+  // question they do — "where is the thing I need to do my work" — and because
+  // the whole point of it is to be somewhere people already look, instead of a
+  // corner of the settings that nobody visits and everybody works around.
+  { to: '/secrets', icon: 'shield', label: 'nav.secrets', feature: 'secrets' },
   { to: '/guide', icon: 'help', label: 'nav.guide' },
 ];
 

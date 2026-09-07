@@ -3,6 +3,7 @@ import type { CrdtState } from '../../modules/pages/text-crdt.ts';
 import type { HLC } from './hlc.ts';
 import type { Anchor } from '../../modules/pages/anchor.ts';
 import type { ChannelKind, ChannelNotify, InvitePolicy } from '../../modules/chat/chat.ts';
+import type { SecretAccess, SecretKind } from '../../modules/secrets/secret.ts';
 
 export type ID = string;
 export type ISODate = string;
@@ -368,6 +369,16 @@ export interface Member extends Base {
  * will go looking.
  */
 export interface WorkspaceFeatures {
+  /**
+   * A place to keep credentials that is not a page and not a chat message.
+   *
+   * Off by default, and for a reason the other flags do not have: switching it
+   * on is a promise about where the team's keys live, and a half-adopted vault
+   * — three secrets in it and eleven still pasted into the handbook — is worse
+   * than none, because it makes people believe the handbook has been cleaned
+   * up. Turn it on when somebody has decided to move them.
+   */
+  secrets?: boolean;
   /**
    * Logging time on a task, the timer, and the totals that come with them.
    *
@@ -743,6 +754,33 @@ export interface Page extends Base {
   is_template: number;
   created_by: ID;
   cover_url: string | null;
+}
+
+/**
+ * A credential the team keeps.
+ *
+ * The value is not on this type, and that is the point rather than an
+ * omission: it never leaves the server, so no client type should offer a field
+ * a client can never hold. Revealing one is a request with an answer, not a
+ * property of a row — see `docs/secrets.md`.
+ */
+export interface Secret extends Base {
+  workspace_id: ID;
+  project_id: ID | null;
+  name: string;
+  description: string | null;
+  kind: SecretKind;
+  /** Who it is for. `private` means its author and nobody else, ever. */
+  access: SecretAccess;
+  created_by: ID;
+  /** 0 or null for a secret nobody has undertaken to rotate. */
+  rotate_after_days: number | null;
+  /** When the value was last written. Null on one nobody has changed since. */
+  rotated_at: number | null;
+  /** When somebody last revealed it, and who — the two facts a vault owes you. */
+  last_used_at: number | null;
+  last_used_by: ID | null;
+  archived: number;
 }
 
 export interface Comment extends Base {
@@ -1405,6 +1443,7 @@ export interface EntityMap {
   message: Message;
   channelRead: ChannelRead;
   mailbox: Mailbox;
+  secret: Secret;
   purge: Purge;
 }
 

@@ -709,6 +709,44 @@ CREATE TABLE IF NOT EXISTS pages (
 CREATE INDEX IF NOT EXISTS pages_seq ON pages (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS pages_parent ON pages (parent_id);
 
+-- A credential the team keeps somewhere better than a page.
+--
+-- `value` is the one column in this database that is encrypted rather than
+-- stored: AES-256-GCM under a key derived from the instance secret, which lives
+-- in `.secret` beside this file and not in it. That buys exactly one thing and
+-- it is worth being precise about it — a copied database is not a copied set of
+-- credentials. It buys nothing at all against an operator who has the whole
+-- data directory, which is the honest shape of self-hosting.
+--
+-- It is also absent from every row a client is sent: `ENTITIES.secret` lists it
+-- under `secret`, so `serialize` cannot emit it, sync never carries it, and the
+-- only way out is one route that writes an audit row on the way.
+CREATE TABLE IF NOT EXISTS secrets (
+  id                TEXT PRIMARY KEY,
+  workspace_id      TEXT NOT NULL,
+  project_id        TEXT,
+  name              TEXT NOT NULL,
+  description       TEXT,
+  kind              TEXT NOT NULL DEFAULT 'password',
+  -- Sealed. Never selected into anything a client can see.
+  value             TEXT NOT NULL DEFAULT '',
+  -- 'workspace', 'project' or 'private' — the same three words a page uses.
+  access            TEXT NOT NULL DEFAULT 'workspace',
+  created_by        TEXT,
+  -- 0 means nobody has undertaken to rotate it, which is a state and not a fault.
+  rotate_after_days INTEGER NOT NULL DEFAULT 0,
+  rotated_at        INTEGER,
+  last_used_at      INTEGER,
+  last_used_by      TEXT,
+  archived          INTEGER NOT NULL DEFAULT 0,
+  created_at        INTEGER NOT NULL,
+  updated_at        INTEGER NOT NULL,
+  deleted_at        INTEGER,
+  seq               INTEGER NOT NULL DEFAULT 0,
+  clocks            TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS secrets_seq ON secrets (workspace_id, seq);
+
 CREATE TABLE IF NOT EXISTS page_versions (
   id         TEXT PRIMARY KEY,
   page_id    TEXT NOT NULL,
@@ -1146,6 +1184,10 @@ CREATE TABLE IF NOT EXISTS activities (
   project_id   TEXT,
   task_id      TEXT,
   page_id      TEXT,
+  -- Which secret was read, set, rotated. The only entry kind that records a
+  -- *read*: everything else here is a write, and for a credential the read is
+  -- the event worth keeping.
+  secret_id    TEXT,
   actor_id     TEXT,
   verb         TEXT NOT NULL,
   field        TEXT,

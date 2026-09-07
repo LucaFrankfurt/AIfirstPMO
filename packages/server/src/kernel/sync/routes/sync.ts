@@ -37,6 +37,25 @@ const IS_ADMIN = `
            WHERE wm.workspace_id = ?1 AND wm.user_id = ?2
              AND wm.role IN ('owner', 'admin') AND wm.deleted_at IS NULL)`;
 
+/**
+ * Whether the caller is a member rather than a guest. Used by exactly one
+ * entity, and for a sharper reason than the admin clause above.
+ *
+ * A guest is an outside collaborator on a project — a client, a contractor's
+ * designer. `canSeeProject` will happily let one see a project they were added
+ * to, and a workspace-level secret is scoped to no project at all, so without
+ * this a guest's device would mirror the *names* of everything in the vault.
+ * `Stripe live key` is a sentence about the company, not just a label.
+ *
+ * Not a role check on the reveal route — that one already refuses a guest.
+ * This is the list, which is the disclosure that happens without anybody
+ * pressing anything.
+ */
+const IS_MEMBER = `
+  EXISTS (SELECT 1 FROM workspace_members wm
+           WHERE wm.workspace_id = ?1 AND wm.user_id = ?2
+             AND wm.role IN ('owner', 'admin', 'member') AND wm.deleted_at IS NULL)`;
+
 const VISIBLE_PROJECTS = `
   SELECT p.id FROM projects p
    WHERE p.workspace_id = ?1
@@ -197,6 +216,20 @@ function filterFor(entity: EntityName): string {
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
     case 'page':
       return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
+              AND (${table}.access <> 'private' OR ${table}.created_by = ?2)`;
+    /*
+     * A secret answers the same two questions as a page, and it is the same
+     * clause on purpose: one rule about who a thing is for, applied to the row
+     * that matters most.
+     *
+     * What travels here is only the *label* — `serialize` cannot emit `value`,
+     * which the registry lists under `secret`. So a device mirrors what exists
+     * and never a credential: the list works on a train, and a stolen laptop
+     * yields a list of names.
+     */
+    case 'secret':
+      return `AND ${IS_MEMBER}
+              AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
               AND (${table}.access <> 'private' OR ${table}.created_by = ?2)`;
     // A conversation is visible when it is not private, or when the person is
     // named in it. A channel tied to a project follows that project as well:
