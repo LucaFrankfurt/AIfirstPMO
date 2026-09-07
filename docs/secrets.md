@@ -27,7 +27,7 @@ out of one table cannot be opened as a value from another.
 | A **synced device**, or its IndexedDB | carries labels and never a value |
 | An **API token**, however broad | reaches values only through one route, which logs every use |
 | The **search index** | never sees a value, and never a name |
-| **MCP** | has no secret tool at all, and no report that carries the vault's log rows |
+| **MCP** | carries labels and nothing else — no value, no mask, and no tool that asks for one |
 | The **operator** of this server | **can read everything.** They have the database and the key file beside it |
 
 That last row is the honest one and it is on the screen too, not only here.
@@ -134,25 +134,59 @@ Everything *after* birth is ordinary: renaming it, moving it, changing who it
 is for and deleting it are optimistic writes that merge per field and work with
 no network, like any other row.
 
+## What an assistant is told
+
+This section said *no MCP surface, not even a list of names* — an assistant
+that can name your secrets is an assistant whose transcript names your secrets,
+easy to relax later and impossible to un-leak. That was the right default to
+ship and it is not the right permanent answer, because the question a vault
+exists for is one no screen can answer for somebody who is not looking at a
+screen: **which of our credentials has nobody rotated since the contractor
+left.**
+
+So there is exactly one tool. `list_secrets` returns labels — a name, a kind,
+who each is for, when it was last rotated and whether that is overdue — sorted
+with what is late first, and counted. It takes the same `canSeeSecret` the REST
+listing takes, so a private secret reaches its author and nobody else, and it
+refuses a guest with the same sentence rather than showing them an empty vault.
+
+What it does not return is the interesting half:
+
+- **No value.** The query does not select the column, so the sealed bytes are
+  not read out of SQLite at all. The seal is the second line of defence here
+  and the missing column is the first.
+- **No mask.** `maskSecret` shows the last four characters, which is how a
+  provider's console lets you tell four keys apart. The REST listing does not
+  carry it either — only the two write routes echo it, to the person who has
+  just typed the value in.
+- **No writing.** Rotating a credential from a chat window should require the
+  screen it is kept on.
+
+### The surface that was there while the paragraph said there was none
+
+Worth writing down, because absent tools were not enough. The vault records
+every set and every reveal in `activities`, which is an ordinary table, and two
+report tools were reading it without knowing whose rows they were:
+`changes_since` answered "what did we get done last week" with
+`revealed:secret: 2`, counted against the person who did it, and
+`project_status`, for a secret kept under a project, listed its **name** among
+the project's last twenty changes. No value in either, and still exactly the
+thing the document promised there was no way to ask for.
+
+Both queries now skip rows carrying a `secret_id`. The test beside them asks
+*every* read-only tool the same question and names `list_secrets` as the one
+exception — so the third tool to join that table fails a case rather than a
+promise.
+
 ## What is deliberately not here
 
 - **No sharing outside the workspace.** A share link renders a page for a
   stranger; there is no version of that for a credential.
-- **No MCP surface**, not even a list of names. An assistant that can name your
-  secrets is an assistant whose transcript names your secrets. Easy to relax
-  later, impossible to un-leak.
-
-  Absent tools were not enough to make that true, which is worth writing down
-  because the sentence above was already here while it was false. The vault
-  records every set and every reveal in `activities`, and two report tools read
-  that table without knowing whose rows they were: `changes_since` answered
-  "what did we get done last week" with `revealed:secret: 2` counted against
-  the person who did it, and `project_status`, for a secret kept under a
-  project, listed its **name** among the project's last twenty changes. No
-  value in either, and still exactly the surface this paragraph promises there
-  is none of. Both queries now skip rows that carry a `secret_id`, and the test
-  beside them asks *every* read-only tool the same question — so the third one
-  to join that table fails a test rather than a promise.
+- **No value over MCP, and no mask either.** There is one vault tool,
+  `list_secrets`, it is read-only, and what it returns is labels — see below.
+  A value has no tool, no argument and no route; `maskSecret`'s last four
+  characters are four characters of a credential and do not go into a
+  transcript either.
 - **No end-to-end encryption.** It would mean a key derived from a password,
   which means losing every secret when somebody resets one, and it would still
   not protect against an operator who serves the JavaScript. The honest version

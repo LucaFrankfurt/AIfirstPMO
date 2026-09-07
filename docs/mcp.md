@@ -263,7 +263,29 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `find_documents` | messages ranked by how likely they are to carry an invoice, receipt or statement, each with the evidence behind it |
 | `list_mail_attachments` | files across the mailboxes as one flat list — "every PDF from the Steuerberater in 2024" in one call |
 | `mail_stats` | volume by mailbox, month and weekday, top senders and domains, and reply times — with the window the copy actually covers |
+| `list_secrets` | the vault as labels: what credentials exist, who each is for, and which are overdue for rotation. Never a value and never a mask — see below |
 | `sync_mailbox` | poll one mailbox now rather than waiting for the next round, and say what it brought in |
+
+### The vault, and the one thing it will answer
+
+`list_secrets` is the only tool that touches the vault, it is read-only, and what it returns is
+labels: a name, a kind, who each is for, when it was last rotated, and whether that is overdue.
+Overdue first, with a count, because the order is the answer — *which of our credentials has
+nobody rotated since the contractor left* is the question a vault exists for, and it is the one
+question no screen answers for somebody who is not looking at a screen.
+
+Narrow it with `project`, `kind`, `access` or `rotation` (`overdue`, `due`, `stale` for both,
+`fresh`, `unset`). A private secret is listed to the person who kept it and to nobody else, on the
+same rule the REST listing uses. A guest is refused rather than shown an empty vault, because they
+are *in* the workspace and an empty list would read as a fact about it.
+
+**A value never comes back — not from this tool, not from any other, and not from an argument.**
+The query does not select the column, so the sealed bytes are not read out of the database at all.
+Neither does the four-character mask the interface shows beside a name: four characters of a
+credential in a transcript is four characters of a credential in a transcript. There is no tool
+that rotates, sets or reveals one; that lives on the screen the credential is kept on, behind a
+route that writes an audit row for every read. See [the vault](secrets.md).
+
 
 ### Reports
 

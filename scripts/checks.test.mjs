@@ -262,13 +262,13 @@ const BREAKS = [
     what: 'a "remaining" note about files, when a file joins them',
     script: 'figures.mjs',
     break: (t) => t.write('packages/server/src/adapters/mcp/tools/telepathy.ts', 'export const TOOLS = [];\n'),
-    says: /MCP tool files still under the adapter — says 12, is 13/,
+    says: /MCP tool files still under the adapter — says 13, is 14/,
   },
   {
     what: 'a figure that reached a rendered slide and was left behind',
     script: 'figures.mjs',
-    break: (t) => t.edit('sites/video/src/product.ts', 'count: 81, prompts: 6', 'count: 74, prompts: 6'),
-    says: /STALE +sites\/video\/src\/product\.ts: MCP tools — says 74, is 81/,
+    break: (t) => t.edit('sites/video/src/product.ts', 'count: 82, prompts: 6', 'count: 74, prompts: 6'),
+    says: /STALE +sites\/video\/src\/product\.ts: MCP tools — says 74, is 82/,
   },
   {
     what: 'a bolded number that is neither claimed nor recorded',
