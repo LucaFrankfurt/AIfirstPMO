@@ -238,6 +238,54 @@ describe('htmlToMarkdown', () => {
   });
 });
 
+describe('a wiki link inside an HTML page', () => {
+  /*
+   * `linkGraph` reads `[[…]]` out of any page's text whatever it is written in,
+   * so a link in an HTML page counted in the graph, showed up in the backlinks
+   * of the page it named and appeared under "linked to, not written yet" — and
+   * the page itself drew four literal brackets. The graph claimed a link the
+   * reader could not follow.
+   */
+  const href = (target: string) =>
+    (target.toLowerCase() === 'runbook' ? { href: '/pages/b' } : { href: `/pages/new?title=${target}`, missing: true });
+
+  it('becomes a link, the way it does in markdown', () => {
+    assert.equal(
+      sanitizeHtml('<p>See [[Runbook]] for the steps.</p>', { pageHref: href }),
+      '<p>See <a class="md-page" href="/pages/b">Runbook</a> for the steps.</p>',
+    );
+  });
+
+  it('is drawn as an invitation when nobody has written it', () => {
+    assert.match(sanitizeHtml('<p>[[Not yet]]</p>', { pageHref: href }), /md-page md-page-new/);
+  });
+
+  it('takes the alias the author gave it', () => {
+    assert.match(sanitizeHtml('<p>[[Runbook|the steps]]</p>', { pageHref: href }), />the steps</);
+  });
+
+  it('is left alone inside code and inside a link', () => {
+    // Nesting an anchor swallows the one around it, and inside `<code>` the
+    // brackets are the point.
+    assert.match(sanitizeHtml('<p><code>[[Runbook]]</code></p>', { pageHref: href }), /<code>\[\[Runbook\]\]<\/code>/);
+    assert.match(sanitizeHtml('<a href="/x">[[Runbook]]</a>', { pageHref: href }), />\[\[Runbook\]\]</);
+  });
+
+  it('stays as the author typed it when nothing can resolve it', () => {
+    // Which is what the server wants for a reader with no workspace to link
+    // into: a link nobody can follow is worse than visible syntax.
+    assert.equal(sanitizeHtml('<p>See [[Runbook]].</p>'), '<p>See [[Runbook]].</p>');
+  });
+
+  it('looks the target up decoded, not escaped', () => {
+    // `[[Tools &amp; toys]]` is the page called `Tools & toys`; skipping the
+    // decode made it a link to a page nobody has.
+    const seen: string[] = [];
+    sanitizeHtml('<p>[[Tools &amp; toys]]</p>', { pageHref: (target) => { seen.push(target); return undefined; } });
+    assert.deepEqual(seen, ['Tools & toys']);
+  });
+});
+
 describe('reading a document', () => {
   it('says what it is called', () => {
     assert.equal(htmlTitle('<html><head><title> Handbook </title></head><body><h1>Other</h1>'), 'Handbook');

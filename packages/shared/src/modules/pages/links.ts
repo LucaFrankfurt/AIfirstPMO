@@ -81,7 +81,7 @@ export const linkableTitle = (title: string): boolean => !/[[\]|\n]/.test(title)
  * Four-space indented code is not a code block here for the same reason it is
  * not one there.
  */
-function withoutCode(source: string): string {
+export function withoutCode(source: string): string {
   const lines = source.split('\n');
   let fence: string | null = null;
   const kept = lines.map((line) => {
@@ -331,23 +331,42 @@ export interface Heading {
  * the renderer treats it as a heading and an outline that disagreed with the
  * page would be worse than no outline.
  */
+/**
+ * Whether the line at `at` opens a section, and how many lines it takes.
+ *
+ * `lines` must be the source with its code blanked out — `withoutCode` — or a
+ * `# comment` in a shell example is a chapter.
+ *
+ * Extracted because two callers ask the same question and got two answers:
+ * `outlineOf` read the `Setext` form and `splitByHeadings` did not, so a
+ * document written that way drew a full outline and imported as a single page.
+ * A rule that two functions apply is a rule that will drift; asked once, it
+ * cannot.
+ *
+ * `spans` is 2 for the underlined form, because its second line belongs to the
+ * heading and a caller slicing the document has to know not to leave it behind.
+ */
+export function headingAt(lines: readonly string[], at: number): { level: number; text: string; spans: number } | null {
+  const line = lines[at] ?? '';
+  const hash = /^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(line);
+  if (hash) return { level: hash[1].length, text: hash[2].trim(), spans: 1 };
+
+  const under = /^ {0,3}(=+|-+)\s*$/.exec(lines[at + 1] ?? '');
+  // A row of dashes under a blank line is a rule, and under a list item it is
+  // that item — the renderer only reads it as an underline for a paragraph.
+  if (!under || !line.trim() || /^\s*([-*+]|\d+[.)])\s/.test(line) || /^\s*>/.test(line)) return null;
+  return { level: under[1][0] === '=' ? 1 : 2, text: line.trim(), spans: 2 };
+}
+
 export function outlineOf(source: string): Heading[] {
   const lines = withoutCode(String(source ?? '')).split('\n');
   const slug = slugCounter();
   const out: Heading[] = [];
   for (let at = 0; at < lines.length; at += 1) {
-    const hash = /^ {0,3}(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/.exec(lines[at]);
-    if (hash) {
-      out.push({ level: hash[1].length, text: hash[2].trim(), slug: slug(hash[2]) });
-      continue;
-    }
-    const under = /^ {0,3}(=+|-+)\s*$/.exec(lines[at + 1] ?? '');
-    // A row of dashes under a blank line is a rule, and under a list item it is
-    // that item — the renderer only reads it as an underline for a paragraph.
-    if (under && lines[at].trim() && !/^\s*([-*+]|\d+[.)])\s/.test(lines[at]) && !/^\s*>/.test(lines[at])) {
-      out.push({ level: under[1][0] === '=' ? 1 : 2, text: lines[at].trim(), slug: slug(lines[at]) });
-      at += 1;
-    }
+    const found = headingAt(lines, at);
+    if (!found) continue;
+    out.push({ level: found.level, text: found.text, slug: slug(found.text) });
+    at += found.spans - 1;
   }
   return out;
 }

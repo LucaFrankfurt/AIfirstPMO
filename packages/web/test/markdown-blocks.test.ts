@@ -291,3 +291,34 @@ describe('a link or an image with a title', () => {
     assert.match(renderMarkdown('she said "hello"'), /<p>she said &quot;hello&quot;<\/p>/);
   });
 });
+
+
+describe('embedding a page that is HTML', () => {
+  /*
+   * An embed is a *view* of a page, so it has to look like the page. Every
+   * embed used to be read as markdown, so `![[Support hours]]` naming an
+   * imported page drew a wall of escaped tags where the table should have been.
+   */
+  const spec = (format: string) => ({
+    pageHref: () => ({ href: '/pages/1' }),
+    pageBody: () => ({ id: '1', title: 'Spec', href: '/pages/1', format, content: '<h2>Hours</h2><p>30 min</p>' }),
+  });
+
+  it('draws it through the allowlist rather than as markdown', () => {
+    const html = renderMarkdown('![[Spec]]', spec('html'));
+    assert.match(html, /<h2[^>]*>Hours<\/h2>/);
+    assert.doesNotMatch(html, /&lt;h2&gt;/, 'the tags were escaped as text');
+  });
+
+  it('still reads a markdown page as markdown', () => {
+    const html = renderMarkdown('![[Spec]]', {
+      pageHref: () => ({ href: '/pages/1' }),
+      pageBody: () => ({ id: '1', title: 'Spec', href: '/pages/1', format: 'markdown', content: '## Hours' }),
+    });
+    assert.match(html, /<h2[^>]*>Hours<\/h2>/);
+  });
+
+  it('keeps the caption that says where it came from', () => {
+    assert.match(renderMarkdown('![[Spec]]', spec('html')), /<figcaption><a class="md-page" href="\/pages\/1">Spec<\/a><\/figcaption>/);
+  });
+});

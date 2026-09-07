@@ -269,7 +269,11 @@ disagree: the list you are looking at is the array the button walks.
 
 Splitting skips fenced code, for the reason every other counter in this codebase
 skips it: a `# rebuild the index` inside a shell example is not a chapter, and
-cutting a runbook in half at its own example is a bug only its author finds.
+cutting a runbook in half at its own example is a bug only its author finds. It
+reads the underlined form of a heading as well — `Title` over a row of `=` — by
+asking `headingAt`, the same function the outline beside a page asks. It did
+not, for a while, so a document written that way drew a full outline and
+imported as one long page.
 
 What is **not** here is a ZIP or a folder. A browser hands a dropped folder over
 one file at a time with no reliable tree, and a half-honoured hierarchy is worse

@@ -11,7 +11,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { excerpt, type Task } from '@kolibri/shared';
+import { excerpt, pageExcerpt, type Task } from '@kolibri/shared';
 import { Header } from '../../design-system/chrome';
 import { TaskRow } from '../../../modules/work/task-parts';
 import { Avatar, Empty, Icon, useToast } from '../../design-system/ui';
@@ -376,7 +376,7 @@ export function Search() {
       && (!projects.length || projects.every((set) => set.has(project.id)))
       && matchesTerms(`${project.key} ${project.name}`, words)).slice(0, 8);
     return [
-      ...pages.map((page) => ({ kind: 'page', id: page.id, title: page.title, snippet: excerpt(page.content, 90), projectId: page.project_id ?? null })),
+      ...pages.map((page) => ({ kind: 'page', id: page.id, title: page.title, snippet: pageExcerpt(page.content, page.format, 90), projectId: page.project_id ?? null })),
       ...found.map((project) => ({ kind: 'project', id: project.id, title: `${project.icon ?? ''} ${project.name}`.trim(), snippet: excerpt(project.description ?? '', 90), projectId: project.id })),
     ];
   }, [workspaceId, wordKey, facetKey, workOnly]);

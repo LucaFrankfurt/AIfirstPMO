@@ -28,7 +28,7 @@
  */
 
 import { escapeHtml, safeUrl } from './escape.ts';
-import { slugCounter, type Heading } from './links.ts';
+import { slugCounter, splitTarget, type Heading } from './links.ts';
 
 /* --------------------------------------------------------------- the tree */
 
@@ -303,6 +303,23 @@ export interface SanitizeOptions {
    * is an outline that works on some pages.
    */
   headingPrefix?: string;
+  /**
+   * Where `[[Onboarding]]` points, when a page wants its wiki links resolved.
+   *
+   * The same contract `renderMarkdown` takes, and here for the same reason it
+   * is there: `[[…]]` is meant to answer everywhere prose is rendered, and a
+   * syntax that works in one box and not the next is a syntax nobody trusts.
+   *
+   * It was not only inconsistent, it was *wrong*: `linkGraph` reads `[[…]]` out
+   * of any page's text, so a link written inside an HTML page counted in the
+   * graph, appeared in the backlinks of the page it named, and showed up under
+   * "linked to, not written yet" — while the page itself rendered it as four
+   * literal brackets. The graph claimed a link that did not exist on screen.
+   *
+   * Left out, the brackets stay as the author typed them, which is what the
+   * server wants when it renders for somebody with no workspace to link into.
+   */
+  pageHref?: (target: string, heading: string | null) => { href: string; missing?: boolean } | undefined;
   /** Whether an off-site link opens in a new tab. On by default. */
   externalLinks?: boolean;
   /** Block-level tags start on their own line — for a source editor to show. */
@@ -376,6 +393,41 @@ const escapeText = (text: string): string =>
     .replace(/>/g, '&gt;');
 
 /**
+ * Elements whose text is quoted rather than written.
+ *
+ * Inside an `<a>` a second link cannot be nested; inside `<code>` and `<pre>`
+ * the brackets are the point. Everywhere else a `[[…]]` in a text run is what
+ * somebody meant.
+ */
+const LITERAL = new Set(['a', 'code', 'pre', 'kbd', 'samp']);
+
+const WIKI_LINK = /\[\[([^[\]|\n]*)(?:\|([^[\]\n]*))?\]\]/g;
+
+/**
+ * A text run, escaped, with its `[[…]]` turned into links.
+ *
+ * Applied to text runs only — never to an attribute, never to markup — so
+ * there is nothing here that can reach outside the text it was given. The
+ * target arrives escaped, because escaping happens first, so it is decoded
+ * before it is looked up: `[[Tools &amp; toys]]` is a link to the page called
+ * `Tools & toys`, and skipping that step made it a link to a page nobody has.
+ */
+function textRun(text: string, opts: SanitizeOptions): string {
+  const escaped = escapeText(text);
+  if (!opts.pageHref) return escaped;
+  return escaped.replace(WIKI_LINK, (match, raw: string, alias: string | undefined) => {
+    const { target, heading } = splitTarget(unescapeEntities(raw));
+    if (!target && !heading) return match;
+    const found = opts.pageHref!(target, heading);
+    if (!found) return match;
+    // What it is called, when the author did not say: the section if the link
+    // named one, otherwise the page — the same reading markdown gives it.
+    const label = (alias ?? '').trim() || escapeText(heading || target);
+    return `<a class="md-page${found.missing ? ' md-page-new' : ''}" href="${escapeHtml(found.href)}">${label}</a>`;
+  });
+}
+
+/**
  * The document, written back out through the allowlist.
  *
  * Idempotent by construction — sanitising sanitised HTML changes nothing —
@@ -399,10 +451,13 @@ export function sanitizeHtml(source: string, options: SanitizeOptions = {}): str
     if (out.length && !out[out.length - 1].endsWith('\n')) out.push('\n');
   };
 
+  /** How deep inside an `<a>`, `<code>` or `<pre>` the walk currently is. */
+  let literal = 0;
+
   const write = (nodes: HtmlNode[]): void => {
     for (const node of nodes) {
       if (!isElement(node)) {
-        out.push(escapeText(node));
+        out.push(literal ? escapeText(node) : textRun(node, opts));
         continue;
       }
       if (DROPPED.has(node.tag)) continue;
@@ -436,7 +491,9 @@ export function sanitizeHtml(source: string, options: SanitizeOptions = {}): str
       if (breaks) newline();
       out.push(`<${node.tag}${attrs.length ? ` ${attrs.join(' ')}` : ''}>`);
       if (VOID.has(node.tag)) continue;
+      if (LITERAL.has(node.tag)) literal += 1;
       write(node.children);
+      if (LITERAL.has(node.tag)) literal -= 1;
       out.push(`</${node.tag}>`);
       if (breaks) newline();
     }

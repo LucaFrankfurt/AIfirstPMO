@@ -38,7 +38,7 @@ Everything above is stored as **markdown text**, never as HTML. That is the poin
 this application.
 
 The **one exception is a page**, which may be written in HTML instead — one column, `pages.format`,
-and the page says which it is. Everything else on the list has no such switch and never will: a
+and the page says which it is. `[[Onboarding]]` still works there; nothing else of this dialect does. Everything else on the list has no such switch and never will: a
 chat message is a sentence, and a sentence does not need a `<table>`. See
 [When a page is HTML instead](#when-a-page-is-html-instead).
 
@@ -388,7 +388,9 @@ from before, so it is one **Restore** away either way.
 |---|---|
 | **Search** | Indexes what the page *says*. Indexed raw, one imported page would make the workspace answer searches for `div` |
 | **The outline** | `htmlOutline` reads the `<h1…h3>`, and the renderer gives them the same slugs a markdown page's headings get — so the control is the same control |
-| **A card or a search snippet** | `pageExcerpt` takes the tags out, the way `excerpt` takes the markup out of markdown |
+| **A card or a search snippet** | `pageExcerpt` takes the tags out, the way `excerpt` takes the markup out of markdown — on the card, in a search result and in the command palette, which for a while all read the raw markup and matched on `div` |
+| **`[[Onboarding]]`** | resolves inside an HTML page too, in text runs only — never inside `<a>`, `<code>` or `<pre>`. It has to: `linkGraph` reads those links out of any page's text, so one that rendered as four literal brackets was a link the wiki counted and the reader could not follow |
+| **`![[Onboarding]]`** | embedding an HTML page draws the page, through the allowlist. Read as markdown it drew a wall of escaped tags |
 | **Export as markdown** | An HTML page is converted on the way out, so a markdown bundle is markdown all the way through |
 | **A share link** | The server renders it through the same allowlist. A stranger on a URL is the one audience that cannot be assumed to be a colleague |
 | **MCP** | `create_page` and `update_page` take `format`. `update_page` changes the flag and does **not** convert the text — an assistant that means to change the language should send the body in it |

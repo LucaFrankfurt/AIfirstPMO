@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { excerpt } from '@kolibri/shared';
+import { pageExcerpt } from '@kolibri/shared';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { list, useQuery } from './kernel/sync/store';
@@ -79,7 +79,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       }));
 
     const pageCommands = pages
-      .filter((page) => match(`${page.title} ${excerpt(page.content, 200)}`))
+      // `pageExcerpt` and not `excerpt`: an HTML page read raw makes the palette
+      // match on `div` and `colspan` rather than on what the page says.
+      .filter((page) => match(`${page.title} ${pageExcerpt(page.content, page.format, 200)}`))
       .slice(0, 8)
       .map((page) => ({
         id: page.id,

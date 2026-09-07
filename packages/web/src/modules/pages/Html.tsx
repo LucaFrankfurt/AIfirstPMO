@@ -29,7 +29,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { escapeHtml, formatHtml, sanitizeHtml } from '@kolibri/shared';
 
 import { useInAppLinks, useUploads } from './Markdown';
-import { HEADING_PREFIX } from './page-links';
+import { HEADING_PREFIX, usePageHref } from './page-links';
 import { cn } from '../../kernel/design-system/cn';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { Input, Textarea } from '../../kernel/design-system/ui/field';
@@ -53,9 +53,14 @@ export function HtmlView({ source, className = '', asPage }: {
   /** Headings get ids to link to, the way `Markdown` gives them on a page. */
   asPage?: boolean;
 }) {
+  // `[[Onboarding]]` resolves here the way it does in markdown, from the same
+  // cache: the graph reads those links out of any page's text, so one that
+  // rendered as four literal brackets was a link the wiki counted and the
+  // reader could not follow.
+  const pageHref = usePageHref();
   const html = useMemo(
-    () => sanitizeHtml(source ?? '', asPage ? { headingPrefix: HEADING_PREFIX, idPrefix: 'u-' } : {}),
-    [source, asPage],
+    () => sanitizeHtml(source ?? '', asPage ? { headingPrefix: HEADING_PREFIX, idPrefix: 'u-', pageHref } : { pageHref }),
+    [source, asPage, pageHref],
   );
   // Memoised for the reason `Markdown` memoises it: a fresh object makes React
   // rewrite `innerHTML` unconditionally, which throws away the reader's

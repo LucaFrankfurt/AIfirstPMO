@@ -194,7 +194,10 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
    */
   const written = (row: Row): string =>
     (row.format === 'html'
-      ? sanitizeHtml(String(row.content ?? ''), { idPrefix: `u-${row.id}-` })
+      // `refs.pageHref` here too, so a `[[…]]` written inside an HTML page
+      // resolves to the section further down exactly as one in a markdown page
+      // does — the rule is about the syntax, not about the format around it.
+      ? sanitizeHtml(String(row.content ?? ''), { idPrefix: `u-${row.id}-`, pageHref: refs.pageHref })
       : renderMarkdown(String(row.content ?? ''), refs));
 
   const section = (row: Row, level: number): string => target(row, level) + written(row);

@@ -13,7 +13,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { pageExcerpt, splitByHeadings } from '@kolibri/shared';
+import { outlineOf, pageExcerpt, splitByHeadings } from '@kolibri/shared';
 
 describe('splitByHeadings', () => {
   it('cuts a document at its top-level headings', () => {
@@ -55,6 +55,38 @@ describe('splitByHeadings', () => {
 
   it('drops a section that is nothing but whitespace', () => {
     assert.deepEqual(splitByHeadings('\n\n   \n').length, 0);
+  });
+
+  /*
+   * The underlined form, which `outlineOf` read all along and this did not — so
+   * a document written that way drew a full outline and imported as one page.
+   * Both ask `headingAt` now, which is the only way two functions stay agreed
+   * about what a heading is.
+   */
+  it('cuts at an underlined heading too', () => {
+    const parts = splitByHeadings('One\n===\n\nfirst\n\nTwo\n===\n\nsecond\n');
+    assert.deepEqual(parts.map((one) => one.title), ['One', 'Two']);
+    assert.match(parts[0].content, /^One\n===/, 'and keeps both of its lines');
+    assert.match(parts[1].content, /second/);
+  });
+
+  it('does not mistake a rule or a list item for one', () => {
+    // `---` under a blank line is a horizontal rule; under a list item it is
+    // that item. Only a paragraph gets underlined.
+    assert.equal(splitByHeadings('text\n\n---\n\nmore', 2).length, 1);
+    assert.equal(splitByHeadings('- an item\n---\n\nmore', 2).length, 1);
+  });
+
+  it('agrees with outlineOf about what is a heading', () => {
+    for (const source of [
+      '# Hash\n\ntext\n\n# Second\n',
+      'Setext\n======\n\ntext\n\nAnother\n=======\n',
+      '# One\n\n```\n# not a chapter\n```\n\n# Two\n',
+    ]) {
+      const outlined = outlineOf(source).filter((one) => one.level === 1).map((one) => one.text);
+      const split = splitByHeadings(source).map((one) => one.title).filter(Boolean);
+      assert.deepEqual(split, outlined, JSON.stringify(source));
+    }
   });
 });
 

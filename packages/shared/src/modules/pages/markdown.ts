@@ -14,8 +14,8 @@
  */
 
 import { escapeHtml, safeUrl, unescapeHtml } from './escape.ts';
-import { htmlText } from './html.ts';
-import { slugCounter, splitTarget } from './links.ts';
+import { htmlText, sanitizeHtml } from './html.ts';
+import { headingAt, slugCounter, splitTarget, withoutCode } from './links.ts';
 
 /**
  * What this workspace's work is called, so a reference can be recognised.
@@ -70,7 +70,17 @@ export interface MarkdownOptions {
    * counter: a page already open on the path is drawn as a link instead, which
    * says what happened where a truncation would only look like a bug.
    */
-  pageBody?: (target: string) => { id: string; title: string; href: string; content: string } | undefined;
+  pageBody?: (target: string) => {
+    id: string; title: string; href: string; content: string;
+    /**
+     * What the embedded page is written in.
+     *
+     * Without it every embed was read as markdown, so `![[Support hours]]`
+     * naming an HTML page drew a wall of escaped tags where the table should
+     * have been. An embed is a *view* of a page and has to look like the page.
+     */
+    format?: string;
+  } | undefined;
   /**
    * What to say where an embed would repeat a page already open above it.
    *
@@ -414,16 +424,23 @@ function embed(target: string, refs: MarkdownOptions, state: Render): string {
    * link landing on somebody else's paragraph. An embedded copy is a *view* of
    * a page; the anchors for it live on the page itself.
    */
-  const inner = blocks(String(found.content ?? '').replace(/\r\n?/g, '\n').split('\n'), {
-    ...refs, headingPrefix: undefined,
-  }, {
-    // The embedded page's checkboxes are drawn inert: `toggleTask` counts over
-    // the *host* page's source and has never seen this text, so a box that
-    // ticked here would tick a line somewhere else.
-    tasks: null,
-    slug: state.slug,
-    embedded: new Set([...state.embedded, found.id]),
-  });
+  const inner = found.format === 'html'
+    // An HTML page is put through the allowlist, exactly as it is on its own
+    // screen — with no `headingPrefix`, for the reason above, and with the
+    // host's `pageHref` so a `[[…]]` inside it still resolves. It cannot
+    // contain a further `![[…]]` to recurse into: the sanitiser has no embed
+    // syntax, which is why the cycle guard above is enough on its own.
+    ? sanitizeHtml(String(found.content ?? ''), { pageHref: refs.pageHref, idPrefix: `u-${found.id}-` })
+    : blocks(String(found.content ?? '').replace(/\r\n?/g, '\n').split('\n'), {
+      ...refs, headingPrefix: undefined,
+    }, {
+      // The embedded page's checkboxes are drawn inert: `toggleTask` counts over
+      // the *host* page's source and has never seen this text, so a box that
+      // ticked here would tick a line somewhere else.
+      tasks: null,
+      slug: state.slug,
+      embedded: new Set([...state.embedded, found.id]),
+    });
   return `<figure class="md-embed">\n${inner}\n<figcaption>${link}</figcaption>\n</figure>`;
 }
 
@@ -676,11 +693,14 @@ export interface Section {
  * everything nested under it and cannot be put back together.
  */
 export function splitByHeadings(source: string, level = 1): Section[] {
-  const lines = String(source ?? '').split('\n');
+  const raw = String(source ?? '').split('\n');
+  // The same lines with code blanked out, so the cut is decided by `headingAt`
+  // over a document where a `# rebuild the index` inside a shell block is not a
+  // chapter — while what is *emitted* is still the author's own text.
+  const seen = withoutCode(String(source ?? '')).split('\n');
   const out: Section[] = [];
   let current: Section = { title: null, content: '' };
   let buffer: string[] = [];
-  let fence = '';
 
   const close = (): void => {
     const content = buffer.join('\n').trim();
@@ -688,20 +708,19 @@ export function splitByHeadings(source: string, level = 1): Section[] {
     buffer = [];
   };
 
-  for (const line of lines) {
-    const mark = /^\s*(`{3,}|~{3,})/.exec(line);
-    if (mark) {
-      if (!fence) fence = mark[1][0];
-      else if (mark[1][0] === fence) fence = '';
-      buffer.push(line);
-      continue;
-    }
-    const heading = fence ? null : new RegExp(`^ {0,3}#{${level}}\\s+(.*?)(?:\\s+#+)?\\s*$`).exec(line);
-    if (heading) {
+  for (let at = 0; at < raw.length; at += 1) {
+    const heading = headingAt(seen, at);
+    if (heading && heading.level === level) {
       close();
-      current = { title: heading[1].trim() || null, content: '' };
+      current = { title: heading.text || null, content: '' };
     }
-    buffer.push(line);
+    buffer.push(raw[at]);
+    // An underlined heading is two lines and both belong to the section it
+    // opens; taking only the first would leave a row of `=` on the one before.
+    if (heading && heading.spans === 2) {
+      buffer.push(raw[at + 1] ?? '');
+      at += 1;
+    }
   }
   close();
   return out;
