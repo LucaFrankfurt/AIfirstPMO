@@ -15,8 +15,8 @@
  */
 import { type EntityName } from '@kolibri/shared';
 import { all, type Row } from '../../kernel/platform/db/index.ts';
-import { read } from '../../kernel/write-path/repo.ts';
-import { holes, type McpCtx, McpError, type ToolDef } from './kit.ts';
+import { canSeeProject, read } from '../../kernel/write-path/repo.ts';
+import { canSeePage, holes, type McpCtx, McpError, type ToolDef, visiblePagesSql } from './kit.ts';
 import { workspaceTools } from './tools/workspace.ts';
 import { taskTools } from './tools/tasks.ts';
 import { attachmentTools } from './tools/attachments.ts';
@@ -193,9 +193,9 @@ function resourceList(ctx: McpCtx) {
   const pages = all<Row>(
     `SELECT p.id, p.title, p.icon, w.name AS workspace FROM pages p JOIN workspaces w ON w.id = p.workspace_id
       WHERE p.workspace_id IN (${holes(workspaces.length)}) AND p.deleted_at IS NULL AND p.archived = 0
-        AND (p.access <> 'private' OR p.created_by = ?)
+        ${visiblePagesSql('p')}
       ORDER BY p.updated_at DESC LIMIT 100`,
-    ...workspaces, ctx.auth.userId,
+    ...workspaces, ctx.auth.userId, ctx.auth.userId,
   );
   // The workspace named only when there is more than one to confuse: two pages
   // called "Notes" in a flat list are otherwise the same row twice.
@@ -208,6 +208,19 @@ function resourceList(ctx: McpCtx) {
   }));
 }
 
+/**
+ * A resource, read back by its URI.
+ *
+ * Membership in the workspace used to be the whole check, on both branches, and
+ * it is not enough for either: a row id is not a capability. Anybody in the
+ * workspace could read a colleague's `private` page, or a page and a task out
+ * of a project they had never been added to, by naming its id — and an id is
+ * something people see in a URL, a paste, a backlink or an export.
+ *
+ * So the same two questions the listing above asks, asked again here. The
+ * listing is what an assistant is *offered*; this is what it can *take*, and
+ * only the second one is load-bearing.
+ */
 function readResource(uri: string, ctx: McpCtx) {
   const match = /^kolibri:\/\/(page|task)\/(.+)$/.exec(uri);
   if (!match) throw new McpError(`Unsupported resource ${uri}`);
@@ -215,10 +228,13 @@ function readResource(uri: string, ctx: McpCtx) {
   if (kind === 'page') {
     const page = read('page', id);
     if (!page || !ctx.auth.memberships.has(page.workspace_id as string)) throw new McpError('Page not found');
+    if (!canSeePage(page, ctx)) throw new McpError('Page not found');
     return [{ uri, mimeType: 'text/markdown', text: `# ${page.title}\n\n${page.content}` }];
   }
   const task = read('task', id);
   if (!task || !ctx.auth.memberships.has(task.workspace_id as string)) throw new McpError('Task not found');
+  // A task has no `access` of its own; its project is the whole of the answer.
+  if (!canSeeProject(ctx.auth.userId, task.project_id as string | null)) throw new McpError('Task not found');
   return [{ uri, mimeType: 'text/markdown', text: `# ${task.identifier} ${task.title}\n\n${task.description ?? ''}` }];
 }
 

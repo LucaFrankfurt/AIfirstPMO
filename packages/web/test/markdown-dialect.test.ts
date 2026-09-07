@@ -40,6 +40,30 @@ describe('what may become a link', () => {
     }
   });
 
+  /*
+   * The same refusal, spelled the way a URL parser reads it rather than the way
+   * it is written. `new URL('/\\evil.example', 'https://kolibri.test/p')` is
+   * `https://evil.example/`: for a special scheme the WHATWG parser reads `\`
+   * as `/`, and it strips every tab and newline before it looks at anything.
+   *
+   * These got through for a long time, and they are worse than a plain external
+   * link because they wear an internal one's clothes — no `target="_blank"`, no
+   * `rel="noopener"`, and on a share page or in an exported file no router to
+   * intercept the click. `//evil.example` was refused all along, which is the
+   * proof the intent was there and the spelling was the gap.
+   */
+  it('refuses a path that a browser would read as another origin', () => {
+    for (const href of ['/\\evil.example', '/\\/evil.example', '/\\\\evil.example']) {
+      const html = md(`[x](${href})`);
+      assert.doesNotMatch(html, /href=/, `${JSON.stringify(href)} reached an attribute`);
+    }
+  });
+
+  it('still takes an ordinary path', () => {
+    assert.match(md('[x](/pages/abc)'), /href="\/pages\/abc"/);
+    assert.match(md('[x](/files/a%20b.png)'), /href="\/files\/a%20b\.png"/);
+  });
+
   it('applies the same rule to an image source', () => {
     assert.doesNotMatch(md('![x](javascript:alert(1))'), /<img/);
     assert.doesNotMatch(md('![x](data:image/svg+xml,<svg onload=alert(1)>)'), /<img/);

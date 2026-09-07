@@ -29,11 +29,27 @@ export const unescapeHtml = (text: string): string =>
  * `data:` is refused along with everything else. It is tempting for an imported
  * document that carries its pictures inline, and it is also `data:text/html`,
  * which is a page of somebody else's choosing on this origin.
+ *
+ * **A path is checked as a URL parser would read it, not as it is written.**
+ * `//evil.example` was always refused; `/\evil.example` was not, and a browser
+ * resolves the two identically — for a special scheme the WHATWG parser treats
+ * `\` as `/`, and it removes every tab and newline *before* it looks at
+ * anything. So `/\evil.example`, `/\/evil.example` and `/<tab>/evil.example`
+ * were three spellings of an off-site link wearing an internal one's clothes:
+ * no `target="_blank"`, no `rel="noopener"`, and on a share page or in an
+ * exported HTML file no router to intercept the click either. The decision is
+ * taken on the parsed form; what is returned is what the author wrote, because
+ * rewriting somebody's URL is a second surprise on top of the first.
  */
 export function safeUrl(raw: string): string | null {
-  const url = String(raw ?? '').trim();
+  // The leading and trailing bytes a URL parser strips before it does anything,
+  // so a scheme cannot be spelled around the test below with a leading NUL.
+  const url = String(raw ?? '').replace(/^[\u0000-\u0020]+|[\u0000-\u0020]+$/g, '');
   if (/^(https?:|mailto:)/i.test(url)) return url;
-  if (url.startsWith('/') && !url.startsWith('//')) return url;
   if (url.startsWith('#')) return url;
-  return null;
+  if (!url.startsWith('/')) return null;
+  // What the browser will actually see: tabs and newlines gone, backslashes
+  // read as slashes. Two of those and it is an authority, not a path.
+  const parsed = url.replace(/[\t\n\r]/g, '').replace(/\\/g, '/');
+  return parsed.startsWith('//') ? null : url;
 }

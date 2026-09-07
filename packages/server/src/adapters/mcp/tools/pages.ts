@@ -8,7 +8,7 @@ import { serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/re
 import { renameFollowers } from '../../../modules/pages/rules/pages.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
-  findPage, findProject, McpError, requireWrite, str, type McpCtx, type ToolDef, workspaceOf, writeOpts,
+  findPage, findProject, McpError, requireWrite, str, type McpCtx, type ToolDef, visiblePagesSql, workspaceOf, writeOpts,
 } from '../kit.ts';
 
 /**
@@ -24,8 +24,8 @@ import {
 const linkablePages = (workspaceId: string, userId: string): LinkablePage[] =>
   all<Row>(
     `SELECT id, title, content, created_at FROM pages
-      WHERE workspace_id = ? AND deleted_at IS NULL AND (access <> 'private' OR created_by = ?)`,
-    workspaceId, userId,
+      WHERE workspace_id = ? AND deleted_at IS NULL ${visiblePagesSql()}`,
+    workspaceId, userId, userId,
   ).map((row) => ({
     id: String(row.id),
     title: String(row.title ?? ''),
@@ -111,12 +111,12 @@ export const pageTools: ToolDef[] = [
         `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, format FROM pages
           WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} ${level} AND deleted_at IS NULL AND archived = 0
             ${templates ? '' : 'AND is_template = 0'}
-            AND (access <> 'private' OR created_by = ?)
+            ${visiblePagesSql()}
           ORDER BY ${parent ? 'sort_order' : 'updated_at DESC'} LIMIT 200`,
         workspaceId,
         ...(project ? [project.id] : []),
         ...(under ? [under] : []),
-        ctx.auth.userId,
+        ctx.auth.userId, ctx.auth.userId,
       );
     },
   },
@@ -213,11 +213,12 @@ export const pageTools: ToolDef[] = [
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const page = get<Row>(
-        `SELECT * FROM pages WHERE workspace_id = ? AND (id = ? OR lower(title) = lower(?)) AND deleted_at IS NULL LIMIT 1`,
-        workspaceId, args.page, args.page,
-      );
-      if (!page) throw new McpError(`Page ${args.page} not found`);
+      // `findPage` rather than a query of its own, which is what this was: a
+      // second copy of the lookup that asked about neither the project nor
+      // `access`, so a colleague's private page could be rewritten by anybody
+      // holding a token. Being allowed to write in a workspace is not the same
+      // as being allowed to write *this*.
+      const page = findPage(String(args.page), workspaceId, ctx);
       const patch: Record<string, unknown> = {};
       /* Counted before the write, because the write is what changes the answer.
          The rewriting itself belongs to the write path — see `renameFollowers`
@@ -249,10 +250,12 @@ export const pageTools: ToolDef[] = [
       return all<Row>(
         `SELECT id, title, icon, project_id, updated_at FROM pages
           WHERE workspace_id = ? AND is_template = 1 AND deleted_at IS NULL AND archived = 0
-            AND (access <> 'private' OR created_by = ?)
+            ${visiblePagesSql()}
             ${project ? 'AND (project_id IS NULL OR project_id = ?)' : ''}
           ORDER BY title LIMIT 100`,
-        ...(project ? [workspaceId, ctx.auth.userId, project.id] : [workspaceId, ctx.auth.userId]),
+        ...(project
+          ? [workspaceId, ctx.auth.userId, ctx.auth.userId, project.id]
+          : [workspaceId, ctx.auth.userId, ctx.auth.userId]),
       ).map((row) => ({
         id: String(row.id),
         title: String(row.title),
@@ -283,8 +286,8 @@ export const pageTools: ToolDef[] = [
       requireWrite(ctx, workspaceId);
       const template = get<Row>(
         `SELECT * FROM pages WHERE workspace_id = ? AND is_template = 1 AND deleted_at IS NULL
-           AND (id = ? OR lower(title) = lower(?)) AND (access <> 'private' OR created_by = ?)`,
-        workspaceId, String(args.template), String(args.template), ctx.auth.userId,
+           AND (id = ? OR lower(title) = lower(?)) ${visiblePagesSql()}`,
+        workspaceId, String(args.template), String(args.template), ctx.auth.userId, ctx.auth.userId,
       );
       if (!template) throw new McpError(`No page template called "${args.template}" — list_page_templates has the ones there are`);
 

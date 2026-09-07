@@ -123,6 +123,19 @@ describe('sanitizeHtml refuses', () => {
     assert.equal(sanitizeHtml(once), once);
   });
 
+  /*
+   * The same rule as markdown's, and the tab is the spelling only HTML can
+   * reach: a markdown link's URL cannot hold whitespace, an attribute's can.
+   * A URL parser removes it before it reads anything, so `/<tab>/evil.example`
+   * is `//evil.example` by the time the browser has it.
+   */
+  it('refuses a path a browser would read as another origin', () => {
+    assert.equal(sanitizeHtml('<a href="/\\evil.example">x</a>'), '<a>x</a>');
+    assert.equal(sanitizeHtml('<a href="/\t/evil.example">x</a>'), '<a>x</a>');
+    assert.equal(sanitizeHtml('<img src="/\\evil.example/x.png">'), '<img>');
+    assert.equal(sanitizeHtml('<a href="/pages/1">ok</a>'), '<a href="/pages/1">ok</a>');
+  });
+
   it('sends an off-site link to a new tab and a local one nowhere', () => {
     assert.equal(
       sanitizeHtml('<a href="https://example.com">out</a>'),
