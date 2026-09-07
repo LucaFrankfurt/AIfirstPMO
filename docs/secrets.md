@@ -28,6 +28,7 @@ out of one table cannot be opened as a value from another.
 | An **API token**, however broad | reaches values only through one route, which logs every use |
 | The **search index** | never sees a value, and never a name |
 | **MCP** | carries labels and nothing else — no value, no mask, and no tool that asks for one |
+| An **environment** a member may not open | is not mirrored, not listed and not revealed to them, at any of the five doors |
 | The **operator** of this server | **can read everything.** They have the database and the key file beside it |
 
 That last row is the honest one and it is on the screen too, not only here.
@@ -133,6 +134,79 @@ honest shape.
 Everything *after* birth is ordinary: renaming it, moving it, changing who it
 is for and deleting it are optimistic writes that merge per field and work with
 no network, like any other row.
+
+## Environments
+
+The same key holds a different value in production than in development, and
+that is a row rather than a string on every secret. A workspace starts with
+four — `production`, `staging`, `development`, `shared` — which are not a new
+vocabulary: the infrastructure register has spelled an environment those four
+ways since it was written, and a product where a component sits in `production`
+while its credential sits in `prod` has taught two words for one thing. They
+are ordinary rows once seeded: rename them, delete them, put `qa` beside them.
+
+Stored untranslated, unlike everything else a workspace is seeded with. An
+environment is a word a machine will be handed — a deploy script asking for
+`--env production` — and a German workspace whose environment is called
+`Produktion` is a workspace whose deploy script does not run. The interface
+translates the four it knows for display; the row keeps the machine word.
+
+### There is no fallback, and that is the point
+
+A secret asked for in `production` that exists only in `development` is **not
+found**. The other design — a base environment, overridden per environment —
+reads as convenience and fails as a development process holding the production
+Stripe key, because the value that was right was the one nobody remembered to
+override. A "not found" is a deploy that stops; a silent fallback is a deploy
+that succeeds against the wrong database.
+
+A secret meant for every environment has **no** environment, which is a
+different statement and is spelled differently. `null` is not a wildcard: it
+neither matches a filter for `production` nor collides with a secret that has
+one.
+
+### Names are unique per project and environment
+
+`STRIPE_KEY` can exist once in production, once in development and once with no
+environment at all. A second one in the same place is refused, because a
+machine asking for a name should get an answer rather than a choice.
+
+Enforced in the write path rather than by a `UNIQUE` index: the index cannot
+express "among the rows nobody has deleted", and it would fail the migration on
+any database that already holds a pair. Rows that already collide are left
+alone until somebody writes to one.
+
+### Who may open one
+
+Each environment carries a floor — everyone in the workspace, administrators,
+or the owner. It is a **second axis**, not a fourth value of `access`:
+
+| | asks |
+|---|---|
+| `access` | who this secret is for — the workspace, a project, or its author alone |
+| the environment | which environment's value this is |
+| `min_role` | which rank may open that environment at all |
+
+A reader has to pass all three, which is the conservative direction: an
+admin-only `production` does not hand anybody somebody else's private secret,
+and a private secret does not open production to its author. The floor is
+applied at every door — the single-row read, the listing, the reveal route, the
+sync filter and `list_secrets` — from one function and one SQL clause that
+mirror each other. An environment a member may not open is not mirrored to
+their device at all, so its names are not on their laptop.
+
+Setting one up is an administrator's, and the sharp reason is not creation but
+`min_role`: lowering `production` from owner to member opens every credential
+in it at once, and a member who could do that has an admin's power spelled as
+an ordinary row edit.
+
+### Deleting one
+
+Refused while it still holds anything, with a count. The alternative is a
+secret in an environment that no longer exists: invisible in every filter and
+refused by every reader, which is a vault quietly losing rows rather than
+warning about them. Renaming is free — everything points at the id.
+
 
 ## What an assistant is told
 

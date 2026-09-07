@@ -274,10 +274,20 @@ Overdue first, with a count, because the order is the answer — *which of our c
 nobody rotated since the contractor left* is the question a vault exists for, and it is the one
 question no screen answers for somebody who is not looking at a screen.
 
-Narrow it with `project`, `kind`, `access` or `rotation` (`overdue`, `due`, `stale` for both,
-`fresh`, `unset`). A private secret is listed to the person who kept it and to nobody else, on the
-same rule the REST listing uses. A guest is refused rather than shown an empty vault, because they
-are *in* the workspace and an empty list would read as a fact about it.
+Narrow it with `project`, `kind`, `access`, `environment` or `rotation` (`overdue`, `due`, `stale`
+for both, `fresh`, `unset`). A private secret is listed to the person who kept it and to nobody
+else, on the same rule the REST listing uses. A guest is refused rather than shown an empty vault,
+because they are *in* the workspace and an empty list would read as a fact about it.
+
+**Environments are not enumerated in the schema**, because a workspace names its own. Every answer
+carries `by_environment` — a count per environment including the ones holding nothing — which is
+both the list of what exists and the answer to "is staging empty or is there no staging". A name
+that matches none of them is an error rather than an empty result: `list_secrets --environment prod`
+in a workspace whose environment is `production` would otherwise report an empty vault, and an
+assistant would repeat that as a fact. There is **no fallback** between environments, so a secret
+kept only in `development` does not answer a question about `production`; one with no environment
+answers for all of them. An environment whose floor this token's owner does not meet is not in the
+answer at all.
 
 **A value never comes back — not from this tool, not from any other, and not from an argument.**
 The query does not select the column, so the sealed bytes are not read out of the database at all.

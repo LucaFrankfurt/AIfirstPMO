@@ -18,6 +18,7 @@
  * has something to be measured against. It is idempotent, so calling it twice
  * (a test that boots the server and also seeds) is not a bug.
  */
+import { backfillEnvironments } from './kernel/write-path/bootstrap.ts';
 import { installAutomations } from './modules/automation/automation.ts';
 import { installNotifications } from './modules/notifications/effects.ts';
 import { installWebhookEvents } from './adapters/webhooks/effects.ts';
@@ -41,6 +42,7 @@ import { chatRules } from './modules/chat/rules/chat.ts';
 import { planningRules } from './modules/planning/rules/planning.ts';
 import { mailRules } from './modules/mail/rules/mail.ts';
 import { secretRules } from './modules/secrets/rules/secrets.ts';
+import { environmentRules } from './modules/secrets/rules/environments.ts';
 
 let installed = false;
 
@@ -72,6 +74,14 @@ export function installEffects(): void {
   for (const rule of [
     workRules, pageRules, chatRules, planningRules,
     budgetRules, rateRules, kpiRules, landscapeRules,
-    mailRules, secretRules,
+    mailRules, secretRules, environmentRules,
   ]) onEntity(rule);
+
+  /*
+   * Not an effect, and here because this is the one thing every entry point
+   * that can write already calls exactly once. A workspace made before
+   * environments existed gets the same four a new one is seeded with; one that
+   * already has any is left alone.
+   */
+  backfillEnvironments();
 }

@@ -1,5 +1,5 @@
-import { Clock, orderKeys, type StateGroup } from '@kolibri/shared';
-import { get, run, tx, type Row } from '../platform/db/index.ts';
+import { Clock, ENVIRONMENTS, orderKeys, type StateGroup } from '@kolibri/shared';
+import { all, get, run, tx, type Row } from '../platform/db/index.ts';
 import { conflict } from '../platform/http.ts';
 import { translatorFor, type ServerKey } from '../i18n/i18n.ts';
 import { keyFromName, slugify, uid } from '../platform/ids.ts';
@@ -46,6 +46,53 @@ const DEFAULT_LABELS: { name: ServerKey; color: string }[] = [
   { name: 'seed.labelDocumentation', color: '#14b8a6' },
 ];
 
+/**
+ * The environments a workspace starts with, and why they are those four words.
+ *
+ * `ENVIRONMENTS` is not a new list invented for the vault: the infrastructure
+ * register has spelled an environment `production`, `staging`, `development`
+ * and `shared` since it was written, and a product where a component sits in
+ * `production` while its credential sits in `prod` has taught two words for one
+ * thing. One source, seeded into rows a workspace can then rename, delete or
+ * add to.
+ *
+ * Stored untranslated, unlike `DEFAULT_STATES` beside it, and that is
+ * deliberate rather than an oversight: a state is a word people read, while an
+ * environment is a word a machine is going to be handed — see CAP-6, where a
+ * CLI asks for `--env production`. A German workspace whose environment is
+ * called `Produktion` is a workspace whose deploy script does not run. The
+ * interface translates the four it knows for display; the row keeps the
+ * machine word.
+ */
+export function seedEnvironments(workspaceId: string, actorId: string): void {
+  const orders = orderKeys(ENVIRONMENTS.length);
+  ENVIRONMENTS.forEach((name, index) => {
+    writeEntity('environment', uid(), { workspace_id: workspaceId, name, sort_order: orders[index] }, {
+      workspaceId, actorId, hlc: serverClock.now(), system: true,
+    });
+  });
+}
+
+/**
+ * The same four, for the workspaces that existed before there were any.
+ *
+ * Called from `installEffects`, which is the one thing every entry point that
+ * can write already calls exactly once — rather than from `db/index.ts`, which
+ * may not reach the write path, or from a second hook one of the two entry
+ * points would eventually forget.
+ *
+ * Additive and skippable: a workspace that already has one environment, even a
+ * single renamed one, is left alone. Somebody who deleted the lot meant to.
+ */
+export function backfillEnvironments(): void {
+  const workspaces = all<Row>(
+    `SELECT w.id, w.owner_id FROM workspaces w
+      WHERE w.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM environments e WHERE e.workspace_id = w.id)`,
+  );
+  for (const workspace of workspaces) seedEnvironments(String(workspace.id), String(workspace.owner_id ?? ''));
+}
+
 export function createWorkspace(name: string, ownerId: string, slugHint?: string): Row {
   return tx(() => {
     const id = uid();
@@ -57,6 +104,7 @@ export function createWorkspace(name: string, ownerId: string, slugHint?: string
       id, name.trim() || 'Workspace', slug, ownerId, now, now,
     );
     addMember(id, ownerId, 'owner');
+    seedEnvironments(id, ownerId);
     return get<Row>(`SELECT * FROM workspaces WHERE id = ?`, id)!;
   });
 }

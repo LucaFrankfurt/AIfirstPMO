@@ -17,6 +17,7 @@ import { badRequest, forbidden, readJson, type Ctx, type Router } from '../../pl
 import { serialize, writeEntity } from '../../write-path/repo.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
+import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 
 /** Activities are history, not state: they are read on demand, never mirrored. */
 const SYNCED: EntityName[] = ENTITY_NAMES.filter((name) => name !== 'activity');
@@ -228,9 +229,15 @@ function filterFor(entity: EntityName): string {
      * yields a list of names.
      */
     case 'secret':
+      /* The environment's floor is the third clause, and it is why a device
+         belonging to a member does not mirror the names of what is kept in an
+         admin-only production. It reads the rank out of `workspace_members`
+         itself rather than taking one passed in — see `openEnvironmentSql`,
+         which is the same rule the two read routes ask as a function. */
       return `AND ${IS_MEMBER}
               AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))
-              AND (${table}.access <> 'private' OR ${table}.created_by = ?2)`;
+              AND (${table}.access <> 'private' OR ${table}.created_by = ?2)
+              ${openEnvironmentSql(table, '?2')}`;
     // A conversation is visible when it is not private, or when the person is
     // named in it. A channel tied to a project follows that project as well:
     // an open channel inside a project people cannot see is still not theirs.

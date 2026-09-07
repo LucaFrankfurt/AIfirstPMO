@@ -16,9 +16,10 @@
  * reach the same column.
  */
 
-import { SECRET_ACCESS, SECRET_KINDS, type SecretAccess, type SecretKind } from '@kolibri/shared';
+import { SECRET_ACCESS, SECRET_KINDS, type SecretAccess, type SecretKind, type WorkspaceRole } from '@kolibri/shared';
 import type { Row } from '../../../kernel/platform/db/index.ts';
 import { canSeeProject, type EntityRule } from '../../../kernel/write-path/repo.ts';
+import { canOpenEnvironment } from './environments.ts';
 
 const KINDS = new Set<string>(SECRET_KINDS);
 const ACCESS = new Set<string>(SECRET_ACCESS);
@@ -74,13 +75,26 @@ export const secretRules = {
  * imported from the page module because a capability may not lean on another
  * capability — but it is the same rule, and it is meant to stay the same rule.
  *
+ * Three questions now, and the third is a different kind. The project and the
+ * author both ask *who this row is for*; the environment asks *which rank may
+ * open this environment at all*, which is a fact about `production` and not
+ * about any secret in it. They compose by conjunction, which is the
+ * conservative direction: an admin-only production does not hand anybody a
+ * private secret, and a private secret does not open production to its author.
+ *
+ * `role` is optional because most callers of this file are asking about a row
+ * they have already resolved a workspace for — but a caller that omits it gets
+ * `undefined`, which fails every floor above `member`. That is the safe way
+ * round: forgetting to pass the role refuses, it does not allow.
+ *
  * The difference from a page is what `private` means when the answer is no. A
  * private page an admin cannot read is a mild surprise; a private *credential*
  * an admin cannot read is the entire promise of the word, so there is no
  * override here and there is not going to be one. An owner who needs a
  * colleague's key asks the colleague.
  */
-export function canSeeSecret(secret: Row, userId: string): boolean {
+export function canSeeSecret(secret: Row, userId: string, role?: WorkspaceRole): boolean {
   if (secret.project_id && !canSeeProject(userId, String(secret.project_id))) return false;
+  if (!canOpenEnvironment(secret.environment_id, role)) return false;
   return secret.access !== 'private' || secret.created_by === userId;
 }

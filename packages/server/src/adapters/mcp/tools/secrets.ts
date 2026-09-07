@@ -36,10 +36,11 @@
  * the person who marked it private.
  */
 
-import { daysUntilRotation, rotation, SECRET_ACCESS, SECRET_KINDS } from '@kolibri/shared';
-import { all, type Row } from '../../../kernel/platform/db/index.ts';
+import { daysUntilRotation, rotation, SECRET_ACCESS, SECRET_KINDS, type WorkspaceRole } from '@kolibri/shared';
+import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { hasRole } from '../../../kernel/identity/auth.ts';
 import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
+import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 import { findProject, McpError, namesOf, projectNames, str, type McpCtx, type ToolDef, workspaceOf } from '../kit.ts';
 
 /**
@@ -51,11 +52,30 @@ import { findProject, McpError, namesOf, projectNames, str, type McpCtx, type To
  * the token's — a guest who mints themselves a token has not stopped being a
  * guest.
  */
-function requireVault(ctx: McpCtx, workspaceId: string): void {
+function requireVault(ctx: McpCtx, workspaceId: string): WorkspaceRole {
   const role = ctx.auth.memberships.get(workspaceId);
   if (!role || !hasRole(role, 'member')) {
     throw new McpError('The vault is for members of the workspace', -32000);
   }
+  return role;
+}
+
+/**
+ * An environment by name, refused rather than ignored when there is no such
+ * thing.
+ *
+ * A filter that silently matches nothing is the worst of the three possible
+ * answers: `list_secrets --environment prod` in a workspace whose environment
+ * is called `production` would report an empty vault, and an assistant would
+ * repeat that as a fact.
+ */
+function findEnvironment(ref: string, workspaceId: string): Row {
+  const row = get<Row>(
+    `SELECT * FROM environments WHERE workspace_id = ? AND (id = ? OR name = ?) AND deleted_at IS NULL`,
+    workspaceId, ref, ref.toLowerCase(),
+  );
+  if (!row) throw new McpError(`No environment in this workspace is called "${ref}"`);
+  return row;
 }
 
 /**
@@ -82,6 +102,12 @@ export const secretTools: ToolDef[] = [
         project: { type: 'string', description: "A project's key or name, for the credentials kept under it." },
         kind: { type: 'string', enum: [...SECRET_KINDS] },
         access: { type: 'string', enum: [...SECRET_ACCESS], description: 'Who a secret is for.' },
+        environment: {
+          type: 'string',
+          description:
+            'One environment by name. Not enumerated here because a workspace names its own — every answer '
+            + 'carries `by_environment`, which is the list of what exists.',
+        },
         rotation: {
           type: 'string',
           enum: ['overdue', 'due', 'stale', 'fresh', 'unset'],
@@ -93,8 +119,9 @@ export const secretTools: ToolDef[] = [
     },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
-      requireVault(ctx, workspaceId);
+      const role = requireVault(ctx, workspaceId);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      const environment = str(args.environment) ? findEnvironment(String(args.environment), workspaceId) : null;
 
       /*
        * The column list is the point of this query. `value` is not in it, so
@@ -105,30 +132,41 @@ export const secretTools: ToolDef[] = [
        * to want.
        */
       const rows = all<Row>(
-        `SELECT id, name, description, kind, access, project_id, created_by,
+        `SELECT id, name, description, kind, access, project_id, created_by, environment_id,
                 rotated_at, rotate_after_days, last_used_at, archived, created_at
            FROM secrets
           WHERE workspace_id = ? AND deleted_at IS NULL
             ${project ? 'AND project_id = ?' : ''}
+            ${environment ? 'AND environment_id = ?' : ''}
             ${args.include_archived === true ? '' : 'AND archived = 0'}
             ${str(args.kind) ? 'AND kind = ?' : ''}
             ${str(args.access) ? 'AND access = ?' : ''}
             AND (access <> 'private' OR created_by = ?)
+            ${openEnvironmentSql('secrets')}
           LIMIT 500`,
         workspaceId,
         ...(project ? [project.id] : []),
+        ...(environment ? [environment.id] : []),
         ...(str(args.kind) ? [String(args.kind)] : []),
         ...(str(args.access) ? [String(args.access)] : []),
         ctx.auth.userId,
+        ctx.auth.userId,
       )
-        // The private clause above is in SQL; the project one cannot be, and
-        // `canSeeSecret` is the function both doors ask rather than a second
-        // spelling of the same rule.
-        .filter((row) => canSeeSecret(row, ctx.auth.userId));
+        // The private clause and the environment floor are both in SQL; the
+        // project one cannot be, and `canSeeSecret` is the function every door
+        // asks rather than a second spelling of the same three rules.
+        .filter((row) => canSeeSecret(row, ctx.auth.userId, role));
 
       const wanted = str(args.rotation);
       const names = namesOf(rows.map((row) => String(row.created_by ?? '')));
       const projects = projectNames(workspaceId);
+      /* Every environment the reader may open, not only the ones in use, so an
+         empty `production` is legible as empty rather than as absent — and so
+         the caller learns the words this workspace uses without a tool of its
+         own to ask. */
+      const environments = Object.fromEntries(all<Row>(
+        `SELECT id, name FROM environments WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId,
+      ).map((row) => [String(row.id), String(row.name)]));
       const view = rows
         .map((row) => {
           const stands = rotation(row);
@@ -139,6 +177,11 @@ export const secretTools: ToolDef[] = [
             kind: row.kind,
             access: row.access,
             project: row.project_id ? projects[String(row.project_id)] ?? null : null,
+            /* Null is not a wildcard: a secret with no environment is the same
+               everywhere, and one asked for in `production` that exists only in
+               `development` is not found. There is no fallback — see
+               docs/secrets.md for why that is the safe way round. */
+            environment: row.environment_id ? environments[String(row.environment_id)] ?? null : null,
             kept_by: names[String(row.created_by ?? '')] ?? null,
             rotation: stands,
             rotate_after_days: Number(row.rotate_after_days ?? 0) || null,
@@ -156,10 +199,15 @@ export const secretTools: ToolDef[] = [
         .sort((a, b) => (URGENCY[a.rotation] ?? 9) - (URGENCY[b.rotation] ?? 9)
           || String(a.name).localeCompare(String(b.name)));
 
+      const byEnvironment: Record<string, number> = { none: 0 };
+      for (const name of Object.values(environments)) byEnvironment[name] = 0;
+      for (const one of view) byEnvironment[one.environment ?? 'none'] += 1;
+
       return {
         total: view.length,
         overdue: view.filter((one) => one.rotation === 'overdue').length,
         due: view.filter((one) => one.rotation === 'due').length,
+        by_environment: byEnvironment,
         secrets: view,
       };
     },

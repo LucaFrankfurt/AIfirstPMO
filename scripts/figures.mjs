@@ -315,8 +315,17 @@ const FIGURES = [
              { file: 'docs/modules.md', pattern: prose('It is \\*\\*([\\d ]+)\\*\\* now, in two files') }],
   },
   {
+    /*
+     * `repo.ts` by name, not "the biggest file in the write-path module",
+     * which is what this counted until a rule file grew and `entities.ts`
+     * overtook it. Both prose sites say *`repo.ts`* — "it is N lines, from
+     * 2 370" — so the module's high-water mark quietly rewrote a sentence
+     * about one file to carry another file's length, and the check reported
+     * green the whole time because it was comparing the prose against exactly
+     * what it had decided to measure.
+     */
     what: 'lines in repo.ts',
-    actual: modules['kernel/write-path'].biggestLines,
+    actual: read('packages/server/src/kernel/write-path/repo.ts').split('\n').length,
     claims: [{ file: 'docs/module-map.html', pattern: prose('It is ([\\d ]+) lines,') },
              { file: 'docs/modules.md', pattern: prose('and to \\*\\*([\\d ]+)\\*\\* later, when') }],
   },

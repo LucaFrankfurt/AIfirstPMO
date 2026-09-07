@@ -773,6 +773,13 @@ export interface Secret extends Base {
   /** Who it is for. `private` means its author and nobody else, ever. */
   access: SecretAccess;
   created_by: ID;
+  /**
+   * Which environment's value this is, or null for one that is the same
+   * everywhere. Null is not a wildcard: see `docs/secrets.md` — there is no
+   * fallback between environments, so a process asking for `production` never
+   * quietly receives the `development` value.
+   */
+  environment_id: ID | null;
   /** 0 or null for a secret nobody has undertaken to rotate. */
   rotate_after_days: number | null;
   /** When the value was last written. Null on one nobody has changed since. */
@@ -780,6 +787,33 @@ export interface Secret extends Base {
   /** When somebody last revealed it, and who — the two facts a vault owes you. */
   last_used_at: number | null;
   last_used_by: ID | null;
+  archived: number;
+}
+
+/**
+ * The rank an environment may demand before anyone reads what is in it.
+ *
+ * The workspace roles, minus `guest`: a guest is refused the vault outright,
+ * so offering it as a floor would describe a door that is already shut.
+ */
+export const ENVIRONMENT_ROLES = ['member', 'admin', 'owner'] as const;
+export type EnvironmentRole = (typeof ENVIRONMENT_ROLES)[number];
+
+/**
+ * One environment a value can differ in.
+ *
+ * `name` is the whole identity a person and a machine both use — one field
+ * rather than a handle beside a label, because `production` is already the
+ * word for both, and a second spelling is a second thing to keep in step.
+ * Renaming is therefore free: everything points at `id`.
+ */
+export interface EnvironmentRow extends Base {
+  workspace_id: ID;
+  name: string;
+  color: string | null;
+  /** The rank required to read a secret in it. `member` is no restriction. */
+  min_role: EnvironmentRole;
+  sort_order: string | null;
   archived: number;
 }
 
@@ -1444,6 +1478,7 @@ export interface EntityMap {
   channelRead: ChannelRead;
   mailbox: Mailbox;
   secret: Secret;
+  environment: EnvironmentRow;
   purge: Purge;
 }
 

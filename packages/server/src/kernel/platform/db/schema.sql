@@ -747,6 +747,28 @@ CREATE TABLE IF NOT EXISTS secrets (
 );
 CREATE INDEX IF NOT EXISTS secrets_seq ON secrets (workspace_id, seq);
 
+-- One environment a value can differ in. A row rather than a string on every
+-- secret, so a rename is free and a delete can refuse while something still
+-- points here. `min_role` is a floor on reading, not on seeing that it exists.
+CREATE TABLE IF NOT EXISTS environments (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  color        TEXT,
+  -- 'member', 'admin' or 'owner'. 'member' is no restriction: a guest is
+  -- refused the vault before this is ever asked.
+  min_role     TEXT NOT NULL DEFAULT 'member',
+  sort_order   TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS environments_seq ON environments (workspace_id, seq);
+
 CREATE TABLE IF NOT EXISTS page_versions (
   id         TEXT PRIMARY KEY,
   page_id    TEXT NOT NULL,
