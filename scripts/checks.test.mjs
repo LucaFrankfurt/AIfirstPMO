@@ -235,8 +235,8 @@ const BREAKS = [
   {
     what: 'a figure that no longer matches what it counts',
     script: 'figures.mjs',
-    break: (t) => t.edit('docs/modules.md', 'There are **17** capabilities', 'There are **14** capabilities'),
-    says: /STALE +docs\/modules\.md: capabilities — says 14, is 17/,
+    break: (t) => t.edit('docs/modules.md', 'There are **18** capabilities', 'There are **14** capabilities'),
+    says: /STALE +docs\/modules\.md: capabilities — says 14, is 18/,
   },
   {
     what: 'a spelled figure at the start of a sentence',
@@ -247,8 +247,8 @@ const BREAKS = [
   {
     what: 'a figure written with the thousands separator',
     script: 'figures.mjs',
-    break: (t) => t.edit('docs/modules.md', 'Of the **7 214** ways', 'Of the **7 215** ways'),
-    says: /says 7 215, is 7 214/,
+    break: (t) => t.edit('docs/modules.md', 'Of the **14 430** ways', 'Of the **14 431** ways'),
+    says: /says 14 431, is 14 430/,
   },
   {
     what: 'a "remaining" note whose count has quietly grown',
@@ -341,9 +341,9 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
 
 describe('--fix writes back what was there, in the form it was in', { concurrency: 4 }, () => {
   const restores = [
-    ['a plain numeral', 'There are **17** capabilities', 'There are **12** capabilities'],
+    ['a plain numeral', 'There are **18** capabilities', 'There are **12** capabilities'],
     ['a spelled figure that starts a sentence', 'Seventeen imports across', 'Twelve imports across'],
-    ['a figure with a thousands separator', 'Of the **7 214** ways', 'Of the **7 999** ways'],
+    ['a figure with a thousands separator', 'Of the **14 430** ways', 'Of the **7 999** ways'],
     ['a figure written as a word mid-sentence', 'imports across fifteen module pairs', 'imports across nine module pairs'],
   ];
   for (const [what, right, wrong] of restores) {
@@ -362,8 +362,8 @@ describe('and stay useful when something else is broken', { concurrency: 2 }, ()
   it('reflowing a paragraph does not raise a false alarm', async () => {
     const t = tree();
     t.edit('docs/modules.md',
-      'There are **17** capabilities and **15** edges\nbetween them.',
-      'There are **17**\ncapabilities and **15**\nedges between them.');
+      'There are **18** capabilities and **15** edges\nbetween them.',
+      'There are **18**\ncapabilities and **15**\nedges between them.');
     const { code, out } = await t.run('figures.mjs');
     assert.equal(code, 0, out);
   });

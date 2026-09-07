@@ -36,9 +36,14 @@ them see what everybody said about their last correction.
 
 ## Exporting
 
-**Export as markdown** writes the page and everything nested under it as a bundle of `.md`
-files, with the tree as folders. That is a real archive: plain files, readable in any editor,
-with the links between them rewritten to relative paths.
+**⋯ → Download** offers the page and everything nested under it two ways:
+
+- **Markdown** — one `.md` file, the nesting kept as heading levels. Plain text: readable in any
+  editor, greppable, and it outlives this application. A page written in HTML is converted on the
+  way out, so the file is markdown all the way through.
+- **HTML** — one self-contained `.html` file with the stylesheet inline, a table of contents when
+  there is more than one page, and pictures linked where they live. It opens by double-clicking,
+  which is what makes it the one to send to somebody outside.
 
 For a whole project including its tasks and comments, use *Project → Settings → Export*, which
 writes JSON another Kolibri can read. See [bringing a backlog in](/beyond/import/).

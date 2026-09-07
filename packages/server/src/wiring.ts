@@ -40,6 +40,7 @@ import { pageRules } from './modules/pages/rules/pages.ts';
 import { chatRules } from './modules/chat/rules/chat.ts';
 import { planningRules } from './modules/planning/rules/planning.ts';
 import { mailRules } from './modules/mail/rules/mail.ts';
+import { secretRules } from './modules/secrets/rules/secrets.ts';
 
 let installed = false;
 
@@ -71,6 +72,6 @@ export function installEffects(): void {
   for (const rule of [
     workRules, pageRules, chatRules, planningRules,
     budgetRules, rateRules, kpiRules, landscapeRules,
-    mailRules,
+    mailRules, secretRules,
   ]) onEntity(rule);
 }

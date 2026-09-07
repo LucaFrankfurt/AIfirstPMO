@@ -5,7 +5,7 @@
  */
 import {
   compareOrder, orderKey, relocate,
-  type EntityName, type Priority, type ProjectVocabulary, type Task,
+  type EntityName, type PageFormat, type Priority, type ProjectVocabulary, type Task,
 } from '@kolibri/shared';
 import * as idb from './idb';
 import { byId, list, patchLocal, tables } from './store';
@@ -161,12 +161,19 @@ export function toggleLabel(task: Task, labelId: string): void {
 
 /* -------------------------------------------------------------------- pages */
 
-export function createPage(input: { title?: string; project_id?: string | null; parent_id?: string | null; content?: string }, actorId: string): string {
+export function createPage(
+  input: {
+    title?: string; project_id?: string | null; parent_id?: string | null;
+    content?: string; format?: PageFormat; icon?: string;
+  },
+  actorId: string,
+): string {
   const siblings = list('page', (p) => (p.parent_id ?? null) === (input.parent_id ?? null)).sort(byOrder);
   return create('page', {
     title: input.title ?? 'Untitled',
-    icon: '📄',
+    icon: input.icon ?? '📄',
     content: input.content ?? '',
+    format: input.format ?? 'markdown',
     project_id: input.project_id ?? null,
     parent_id: input.parent_id ?? null,
     access: 'workspace',

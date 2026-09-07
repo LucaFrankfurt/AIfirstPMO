@@ -48,6 +48,7 @@ export type EntityName =
   | 'message'
   | 'channelRead'
   | 'mailbox'
+  | 'secret'
   | 'purge';
 
 export interface EntityDef {
@@ -309,7 +310,7 @@ export const ENTITIES = {
   page: {
     table: 'pages',
     fields: [
-      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'body',
+      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'format', 'body',
       'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template',
       'created_by', 'cover_url',
     ],
@@ -321,6 +322,32 @@ export const ENTITIES = {
      * plain text and knows nothing about any of this.
      */
     crdt: ['body'],
+  },
+  /**
+   * A credential the team keeps somewhere better than a page.
+   *
+   * The `secret: ['value']` below is the whole storage design in one line, and
+   * the pun is unavoidable: the column holding the secret is the one field of
+   * this entity that never leaves the server. It is not in `fields`, so no
+   * client can write it and `serialize` cannot emit it; it is sealed with the
+   * instance key on the way in, and the only way back out is one deliberate
+   * route that writes an audit row. A device therefore mirrors *what exists* —
+   * which is what makes the list work on a train — and never a value.
+   *
+   * `access` is the page vocabulary, deliberately: the question "who is this
+   * for" has one answer in this product, and teaching a second one for
+   * credentials would be teaching it at the worst possible moment.
+   */
+  secret: {
+    table: 'secrets',
+    fields: [
+      'workspace_id', 'project_id', 'name', 'description', 'kind', 'access',
+      'created_by', 'rotate_after_days', 'archived',
+    ],
+    // Written only by the routes that seal and reveal, so a client cannot
+    // backdate a rotation or claim a secret was used.
+    serverOnly: ['rotated_at', 'last_used_at', 'last_used_by'],
+    secret: ['value'],
   },
   comment: {
     table: 'comments',
@@ -615,6 +642,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   message: 'messages',
   channelRead: 'channel-reads',
   mailbox: 'mailboxes',
+  secret: 'secrets',
   activity: 'activities',
   intake: 'intakes',
   purge: 'purges',

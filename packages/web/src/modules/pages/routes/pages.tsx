@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { compareOrder, excerpt, outlineOf, pageResolver, type Anchor, type Page } from '@kolibri/shared';
+import {
+  compareOrder, formatHtml, htmlOutline, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
+  type Anchor, type Page, type PageFormat,
+} from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
@@ -11,6 +14,8 @@ import type { DropZone } from '../pagetree';
 import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
 import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
+import { HtmlEditor, HtmlView } from '../Html';
+import { ImportPages } from '../import';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../../kernel/design-system/drag';
 import { ShareSheet } from '../../share/share';
@@ -141,9 +146,14 @@ function TreeItem({ node, depth, activeId, canWrite }: {
  * Only where there is enough of a page to get lost in. An outline over two
  * headings is furniture.
  */
-function PageOutline({ source }: { source: string }) {
+function PageOutline({ source, format }: { source: string; format: PageFormat }) {
   const t = useT();
-  const headings = useMemo(() => outlineOf(source).filter((one) => one.level <= 3), [source]);
+  // Two readers, one list. The slugs come out the same because both outline
+  // functions count with the same slug maker the renderers put on the headings.
+  const headings = useMemo(
+    () => (format === 'html' ? htmlOutline(source) : outlineOf(source)).filter((one) => one.level <= 3),
+    [source, format],
+  );
   if (headings.length < 3) return null;
   return (
     <details className="page-outline">
@@ -210,6 +220,7 @@ export function PagesIndex() {
   const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
   const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
   const [filter, setFilter] = useState<string>('');
+  const [importing, setImporting] = useState(false);
   const canWrite = useCanWrite();
 
   // Archived pages had nowhere to be seen at all. Every list in the app filters
@@ -296,6 +307,11 @@ export function PagesIndex() {
           </MenuButton>
         )}
         {!viewingArchive && canWrite && (
+          <Button variant="secondary" size="sm" onClick={() => setImporting(true)}>
+            <Icon name="attach" size={14} /> <span className="hide-sm">{t('page.import')}</span>
+          </Button>
+        )}
+        {!viewingArchive && canWrite && (
           <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
           </Button>
@@ -348,7 +364,7 @@ export function PagesIndex() {
                     <span aria-hidden="true">{page.icon ?? '📄'}</span>
                     <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
                   </span>
-                  <p className="m-0 text-[12.5px] text-muted">{excerpt(page.content, 110) || t('page.emptyPage')}</p>
+                  <p className="m-0 text-[12.5px] text-muted">{pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
                   <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
                 </Link>
               ))}
@@ -399,6 +415,7 @@ export function PagesIndex() {
           </>
         )}
       </div>
+      {importing && <ImportPages onClose={() => setImporting(false)} />}
     </>
   );
 }
@@ -433,6 +450,7 @@ export function PageDetail() {
   const exportPage = useExport();
   const printPage = usePrint();
   const [sharing, setSharing] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [activeComment, setActiveComment] = useState<string | null>(null);
@@ -513,6 +531,32 @@ export function PageDetail() {
    * four other documents is the kind of surprise that ends with people not
    * trusting the feature.
    */
+  /**
+   * Change the language the page is written in, and rewrite it into that
+   * language.
+   *
+   * The conversion is the whole feature. Switching the flag alone would leave a
+   * markdown page rendering its own `##` as literal text, or an HTML page
+   * showing its tags — technically a format switch, practically a broken page,
+   * and the thing everybody would then do by hand is exactly what
+   * `renderMarkdown` and `htmlToMarkdown` already do properly.
+   *
+   * It is asked about first, because it *is* a rewrite: markdown out of HTML
+   * cannot keep what markdown has no way to say. The safety net is the one the
+   * page already has — the write puts the old text into the page's history, so
+   * a conversion somebody regrets is one Restore away.
+   */
+  const convert = async (to: PageFormat): Promise<void> => {
+    if (page.format === to) return;
+    const text = page.content ?? '';
+    if (text.trim() && !(await confirm(t(to === 'html' ? 'page.convertToHtml' : 'page.convertToMarkdown'), t('page.convertAction')))) return;
+    update('page', id, {
+      format: to,
+      content: !text.trim() ? text : to === 'html' ? formatHtml(renderMarkdown(text)) : htmlToMarkdown(text),
+    });
+    toast(t('page.converted'));
+  };
+
   const commitTitle = () => {
     const next = title.trim() || t('common.untitled');
     if (next === page.title) return;
@@ -539,14 +583,30 @@ export function PageDetail() {
           items={[
             { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
+            // Beside "add a sub-page", because that is what it does — several
+            // at once, out of files somebody already has.
+            { id: 'import', label: t('page.importHere'), icon: <Icon name="attach" size={14} />,
+              onSelect: () => setImporting(true) },
             { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
               onSelect: () => setHistory(true) },
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
-            { id: 'export', label: t('page.export'), icon: <Icon name="page" size={14} />,
-              onSelect: () => exportPage(page) },
-            { id: 'print', label: t('page.print'), icon: <Icon name="page" size={14} />,
+            { id: 'export-md', section: t('page.download'), label: t('page.export'), icon: <Icon name="page" size={14} />,
+              onSelect: () => exportPage(page, 'markdown') },
+            { id: 'export-html', section: t('page.download'), label: t('page.exportHtml'), icon: <Icon name="page" size={14} />,
+              onSelect: () => exportPage(page, 'html') },
+            { id: 'print', section: t('page.download'), label: t('page.print'), icon: <Icon name="page" size={14} />,
               onSelect: () => printPage(page) },
+            ...(['markdown', 'html'] as const).map((one) => ({
+              id: `format-${one}`,
+              section: t('page.format'),
+              label: t(one === 'html' ? 'page.formatHtml' : 'page.formatMarkdown'),
+              // Coalesced, because a page mirrored into this browser before the
+              // column existed carries no format at all, and every reader of it
+              // has to agree that means markdown.
+              hint: (page.format ?? 'markdown') === one ? '✓' : undefined,
+              onSelect: () => { void convert(one); },
+            })),
             { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
               onSelect: () => setSharing(true) },
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
@@ -627,7 +687,9 @@ export function PageDetail() {
                 onBlur={commitTitle}
               />
             </div>
-            <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} fieldRef={fieldRef} />
+            {page.format === 'html'
+              ? <HtmlEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} />
+              : <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} fieldRef={fieldRef} />}
             {/* Quiet, and only while it is true: somebody wanting to know why a
                 sentence appeared under their cursor should be able to find out,
                 and nobody else should have to look at it. */}
@@ -645,11 +707,13 @@ export function PageDetail() {
               {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
             <div className="flex items-center flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
-            <PageOutline source={page.content ?? ''} />
+            <PageOutline source={page.content ?? ''} format={page.format} />
             {page.content?.trim()
               ? (
                 <div className="annotatable" ref={setBody}>
-                  <Markdown source={page.content} asPage />
+                  {page.format === 'html'
+                    ? <HtmlView source={page.content} asPage />
+                    : <Markdown source={page.content} asPage />}
                   {bubble}
                 </div>
               )
@@ -720,6 +784,8 @@ export function PageDetail() {
           onClose={() => setSharing(false)}
         />
       )}
+
+      {importing && <ImportPages parentId={id} projectId={page.project_id ?? null} onClose={() => setImporting(false)} />}
 
       {history && (
         <PageHistory

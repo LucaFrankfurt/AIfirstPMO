@@ -51,6 +51,8 @@ for (const [table, column, definition] of [
   ['pages', 'labels', `TEXT NOT NULL DEFAULT '[]'`],
   ['pages', 'watchers', `TEXT NOT NULL DEFAULT '[]'`],
   ['pages', 'is_template', 'INTEGER NOT NULL DEFAULT 0'],
+  ['pages', 'format', `TEXT NOT NULL DEFAULT 'markdown'`],
+  ['activities', 'secret_id', 'TEXT'],
   ['projects', 'parent_id', 'TEXT'],
   ['states', 'wip_limit', 'INTEGER NOT NULL DEFAULT 0'],
   ['states', 'allowed_roles', `TEXT NOT NULL DEFAULT '[]'`],
@@ -100,6 +102,19 @@ for (const [table, column, definition] of [
 }
 
 db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calendar_token) WHERE calendar_token IS NOT NULL`);
+
+/*
+ * Here rather than in `schema.sql`, and the difference is an upgrade that boots.
+ *
+ * `schema.sql` runs first and its `CREATE TABLE IF NOT EXISTS` is a no-op on a
+ * database that already has the table — so an index over a column added by the
+ * loop above cannot live there: on a fresh database it works, and on every
+ * existing one the index runs before the column exists and the server dies at
+ * import time with `no such column`. Which is exactly what happened, and was
+ * only visible because a test reused a process id and found yesterday's
+ * database.
+ */
+db.exec(`CREATE INDEX IF NOT EXISTS activities_secret ON activities (secret_id, created_at)`);
 
 /**
  * `files` was keyed by hash alone, and a hash is not a row.

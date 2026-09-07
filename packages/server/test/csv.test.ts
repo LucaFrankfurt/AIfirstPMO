@@ -9,7 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parseCsv, parseCsvRows, sniffDelimiter } from '@kolibri/shared';
+import { parseCsv, parseCsvRows, sniffDelimiter, writeCsv } from '@kolibri/shared';
 
 describe('splitting the file', () => {
   it('keeps a quoted field together, commas and all', () => {
@@ -106,5 +106,31 @@ describe('reading it as records', () => {
 
   it('returns nothing for an empty file rather than throwing', () => {
     assert.deepEqual(parseCsv(''), { columns: [], rows: [], delimiter: ',' });
+  });
+});
+
+
+describe('a quoted field keeps its whitespace', () => {
+  /*
+   * Quoting is the only way this format has of saying "these spaces are part of
+   * the value", so a reader that trims regardless makes the writer's quoting
+   * meaningless. `writeCsv` quoted `"  leading"` exactly as the specification
+   * says and `parseCsv` handed back `leading` — an export→import round trip that
+   * silently changed the data.
+   */
+  it('survives the round trip out and back', () => {
+    for (const value of ['  leading', 'trailing  ', ' both ', 'a  b', 'with,comma', 'with"quote', 'with\nnewline']) {
+      const back = parseCsv(writeCsv(['x'], [[value]])).rows[0].x;
+      assert.equal(back, value, JSON.stringify(value));
+    }
+  });
+
+  it('still tidies an unquoted field, which is a convenience worth keeping', () => {
+    // A tool that writes `, value` after its delimiter meant `value`.
+    assert.deepEqual(parseCsv('a,b\n1, 2 \n').rows[0], { a: '1', b: '2' });
+  });
+
+  it('and trims a header either way, because a column name is not data', () => {
+    assert.deepEqual(parseCsv('" a ",b\n1,2\n').columns, ['a', 'b']);
   });
 });

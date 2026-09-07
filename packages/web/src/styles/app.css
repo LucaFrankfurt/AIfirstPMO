@@ -760,6 +760,80 @@ p { margin: 0 0 0.75em; }
 
 /* ------------------------------------------------------------- importing */
 
+/*
+ * The vault.
+ *
+ * A list of rows that must read as *labels* rather than as fields with values
+ * in them, which is why the value area is a separate block that appears rather
+ * than a column that is usually blank: an empty column reads as "nothing here",
+ * and there is very much something here.
+ */
+.secret-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--fg-soft);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.secret-notice svg { flex: none; margin-top: 1px; color: var(--fg-muted); }
+
+.secret-row {
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+.secret-row strong { display: block; }
+.secret-meta {
+  display: block;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+.secret-description {
+  margin: 4px 0 0 26px;
+  font-size: 12.5px;
+  color: var(--fg-soft);
+}
+
+/* Due and overdue, without widening the shared chip: two states that belong to
+   one screen are not a design-system variant. */
+.secret-flag {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border-radius: 999px;
+  border: 1px solid;
+  padding: 0 9px;
+  font-size: 11.5px;
+  line-height: 22px;
+}
+.secret-flag.due { border-color: var(--warn); color: var(--warn); }
+.secret-flag.overdue { border-color: var(--danger); color: var(--danger); }
+
+/* The value, while it is on screen. Monospace because every one of these is
+   read character by character by somebody checking they pasted it right. */
+.secret-value {
+  margin: 8px 0 2px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.secret-value textarea {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  resize: vertical;
+  background: var(--bg-sunken);
+}
+
+.secret-strength-weak { color: var(--danger); }
+.secret-strength-fair { color: var(--warn); }
+.secret-strength-strong { color: var(--ok); }
+
 .import-drop {
   display: flex;
   flex-direction: column;
@@ -1649,6 +1723,79 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-radius: 0 0 var(--radius-sm) var(--radius-sm);
   padding: 12px;
 }
+
+/*
+ * The visual half of the HTML editor.
+ *
+ * Deliberately built on `.editor-preview` and `.md` rather than on a set of
+ * rules of its own: the whole promise of a rich-text surface is that what is on
+ * the screen is what the page will look like, and a box with its own typography
+ * would be breaking that promise in the one place it is being made. So this
+ * adds exactly three things — a caret to click into, a floor to click *below*,
+ * and a line telling an empty page what to do.
+ */
+.editor-visual {
+  border: 1px solid var(--line-strong);
+  border-top: none;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  padding: 14px 16px;
+  overflow-y: auto;
+  outline: none;
+}
+.editor-visual:focus-visible { border-color: var(--accent); }
+.editor-visual:empty::before,
+.editor-visual > p:only-child:empty::before {
+  content: attr(data-placeholder);
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+/* A table typed into an HTML page has no borders of its own; the reader's copy
+   gets them from `.md table`, and the editor should not be the one screen where
+   the cells are invisible. */
+.editor-visual table { border-collapse: collapse; width: 100%; }
+.editor-visual :is(td, th) { border: 1px solid var(--line); padding: 5px 8px; min-width: 40px; }
+
+/* The link bar, between the toolbar and the text it is about to change. */
+.editor-linkbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border-inline: 1px solid var(--line-strong);
+  background: var(--bg-sunken);
+}
+.editor-linkbar input { flex: 1; min-width: 0; }
+
+/* One glyph, one width — so the menu's labels line up whether the command's
+   mark is `B`, `1.` or `</>`. */
+.slash-icon {
+  width: 24px;
+  text-align: center;
+  font-size: 11.5px;
+  color: var(--fg-muted);
+  font-family: var(--mono);
+}
+
+/*
+ * Where files are dropped to become pages.
+ *
+ * Dashed, because a dashed border is the one shape on a screen that reads as
+ * "put something here" without a word — and there is a word too, because it
+ * reads as nothing at all to somebody using a keyboard.
+ */
+.import-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 22px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--fg-muted);
+  text-align: center;
+}
+.import-drop.dropping { border-color: var(--accent); background: var(--accent-soft); color: var(--fg); }
 
 /*
  * The message-box shape.

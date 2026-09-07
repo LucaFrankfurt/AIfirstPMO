@@ -59,28 +59,49 @@ function countOutsideQuotes(line: string, delimiter: string): number {
 
 const stripBom = (text: string): string => (text.charCodeAt(0) === 0xfeff ? text.slice(1) : text);
 
+/** One field, and whether any of it arrived inside quotes. */
+interface Cell {
+  text: string;
+  /**
+   * Set once the field contains a quoted section.
+   *
+   * It is what decides whether the whitespace around it is significant, which
+   * is the difference between reading a CSV and reading it back correctly:
+   * quoting is the only way the format has of saying "these spaces are part of
+   * the value", and a reader that trims regardless makes the writer's quoting
+   * meaningless. `parseCsv` used to, so `writeCsv` quoted `"  leading"` exactly
+   * as the specification says and `parseCsv` handed back `leading`.
+   *
+   * A field with quotes *and* stray whitespace outside them — `  "x"  ` — keeps
+   * everything, which is the rarer case answered the safer way.
+   */
+  quoted: boolean;
+}
+
 /**
- * Parse into rows of raw strings. No header handling — that is `parseCsv`.
+ * The single pass, keeping what `parseCsvRows` throws away.
  *
  * A single pass over the characters rather than a split, because a field may
  * legitimately contain the delimiter and the line ending.
  */
-export function parseCsvRows(text: string, delimiter: string = ','): string[][] {
+function scanCsv(text: string, delimiter: string): Cell[][] {
   const source = stripBom(text);
-  const rows: string[][] = [];
-  let row: string[] = [];
+  const rows: Cell[][] = [];
+  let row: Cell[] = [];
   let field = '';
+  let wasQuoted = false;
   let quoted = false;
   let hadContent = false;
 
   const endField = () => {
-    row.push(field);
+    row.push({ text: field, quoted: wasQuoted });
     field = '';
+    wasQuoted = false;
   };
   const endRow = () => {
     endField();
     // A trailing newline is not an empty last record.
-    if (hadContent || row.length > 1 || row[0] !== '') rows.push(row);
+    if (hadContent || row.length > 1 || row[0].text !== '') rows.push(row);
     row = [];
     hadContent = false;
   };
@@ -105,6 +126,7 @@ export function parseCsvRows(text: string, delimiter: string = ','): string[][] 
 
     if (char === '"') {
       quoted = true;
+      wasQuoted = true;
       hadContent = true;
     } else if (char === delimiter) {
       endField();
@@ -125,6 +147,17 @@ export function parseCsvRows(text: string, delimiter: string = ','): string[][] 
   return rows;
 }
 
+/**
+ * Parse into rows of raw strings. No header handling — that is `parseCsv`.
+ *
+ * The quoting is dropped here on purpose: a caller asking for rows of strings
+ * has said it wants the values, and only the table builder below needs to know
+ * which of them said their whitespace mattered.
+ */
+export function parseCsvRows(text: string, delimiter: string = ','): string[][] {
+  return scanCsv(text, delimiter).map((row) => row.map((cell) => cell.text));
+}
+
 export interface CsvTable {
   /** Header names, trimmed, in file order. Duplicates are suffixed. */
   columns: string[];
@@ -142,12 +175,12 @@ export interface CsvTable {
  */
 export function parseCsv(text: string, delimiter?: string): CsvTable {
   const chosen = delimiter ?? sniffDelimiter(text);
-  const raw = parseCsvRows(text, chosen);
+  const raw = scanCsv(text, chosen);
   if (!raw.length) return { columns: [], rows: [], delimiter: chosen };
 
   const seen = new Map<string, number>();
-  const columns = raw[0].map((name, index) => {
-    const base = name.trim() || `column_${index + 1}`;
+  const columns = raw[0].map((cell, index) => {
+    const base = cell.text.trim() || `column_${index + 1}`;
     const count = seen.get(base) ?? 0;
     seen.set(base, count + 1);
     return count ? `${base}_${count + 1}` : base;
@@ -156,10 +189,13 @@ export function parseCsv(text: string, delimiter?: string): CsvTable {
   const rows: Record<string, string>[] = [];
   for (const record of raw.slice(1)) {
     // A row of nothing but empty fields is a blank line, not a record.
-    if (record.every((value) => value.trim() === '')) continue;
+    if (record.every((cell) => cell.text.trim() === '')) continue;
     const row: Record<string, string> = {};
-    record.forEach((value, index) => {
-      row[columns[index] ?? `column_${index + 1}`] = value.trim();
+    record.forEach((cell, index) => {
+      // Trimmed only where nothing said otherwise. A `, value` written by a
+      // tool that puts a space after its delimiter is a convenience worth
+      // keeping; `"  value"` is somebody's data.
+      row[columns[index] ?? `column_${index + 1}`] = cell.quoted ? cell.text : cell.text.trim();
     });
     for (const column of columns) if (!(column in row)) row[column] = '';
     rows.push(row);

@@ -29,8 +29,19 @@ export function duration(minutes?: number | null): string {
  * Returns null when there is no number in it at all.
  */
 export function parseDuration(input: string): number | null {
-  const text = input.trim().toLowerCase();
+  const text = String(input ?? '').trim().toLowerCase();
   if (!text) return null;
+  /*
+   * A minus sign anywhere means no.
+   *
+   * The scanner below reads digits and units and has no opinion about a sign,
+   * so `-5h` was five hours and `1h -30m` was ninety minutes — a negative
+   * duration read as a positive one, silently, in the box where somebody
+   * records how long they worked. There is no reading of a negative duration
+   * that is useful here, so it is refused rather than guessed at: an empty
+   * field says "type it again", and 300 minutes does not.
+   */
+  if (/[-−]/.test(text)) return null;
 
   const clock = text.match(/^(\d+):([0-5]?\d)$/);
   if (clock) return Number(clock[1]) * 60 + Number(clock[2]);

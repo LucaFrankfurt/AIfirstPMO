@@ -11,6 +11,7 @@ import { uid } from '../../platform/ids.ts';
 import { automationRuns, instantiateTemplate } from '../../../modules/automation/automation.ts';
 import { importCsv } from '../../../adapters/transfer/import.ts';
 import { copyProject, type CopyOptions } from '../../../modules/planning/copy.ts';
+import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, parseIds, serialize, writeEntity } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
@@ -54,6 +55,22 @@ function guardProject(userId: string, entity: EntityName, row: Row): void {
 function guardPage(userId: string, entity: EntityName, row: Row): void {
   if (entity !== 'page') return;
   if (row.access === 'private' && row.created_by !== userId) throw forbidden('That page is private');
+}
+
+/**
+ * A secret guards itself the way a page does, and one step further.
+ *
+ * `canSeeSecret` is the same two-part rule — the project, then the author — but
+ * the *label* is all this protects, because the value is not in any row these
+ * routes serialise. That is what makes this guard cheap to get right and easy
+ * to under-estimate: the interesting refusal lives on the reveal route, and
+ * this one only keeps a name and a description from being read by somebody the
+ * secret was not written for. A name is a disclosure too — `Stripe live key`
+ * tells you what a team has and where.
+ */
+function guardSecret(userId: string, entity: EntityName, row: Row): void {
+  if (entity !== 'secret') return;
+  if (!canSeeSecret(row, userId)) throw forbidden('That secret is not yours');
 }
 
 /**
@@ -507,8 +524,12 @@ export function registerEntityRoutes(router: Router): void {
 
   router.get('/api/workspaces/:ws/:collection', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
-    requireWorkspace(ctx, ctx.params.ws);
+    const role = requireWorkspace(ctx, ctx.params.ws);
     const entity = resolve(ctx.params.collection);
+    // The vault is not for a guest, and an empty list would be a lie rather
+    // than a refusal: they are in the workspace, so "there is nothing here"
+    // would read as a fact about the workspace.
+    if (entity === 'secret' && !hasRole(role, 'member')) throw forbidden('The vault is for members of the workspace');
     guardRate(ctx, entity, ctx.params.ws);
     const def = ENTITIES[entity];
     // A direct conversation belongs to no workspace, so listing this one has
@@ -537,6 +558,21 @@ export function registerEntityRoutes(router: Router): void {
     // how much is left.
     if (entity === 'channel') {
       filters.push(`(is_private = 0 OR EXISTS (SELECT 1 FROM json_each(channels.members) WHERE json_each.value = ?))`);
+      params.push(auth.userId);
+    }
+    /*
+     * A private secret is not listed to anybody but its author, and a private
+     * *page* is not either — which this route did not say until a secret needed
+     * the same sentence. `guardPage` closed the single-row read; the collection
+     * beside it went on answering `GET /api/workspaces/:ws/pages` with every
+     * private page in the workspace, which is the same disclosure with a
+     * different verb.
+     *
+     * In SQL rather than in the filter below for the reason the channel clause
+     * above gives: `limit` should count rows the caller may actually have.
+     */
+    if (entity === 'page' || entity === 'secret') {
+      filters.push(`(access <> 'private' OR created_by = ?)`);
       params.push(auth.userId);
     }
     if (entity === 'message') {
@@ -628,6 +664,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
+    guardSecret(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
@@ -645,6 +682,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
+    guardSecret(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
@@ -667,6 +705,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
+    guardSecret(auth.userId, entity, row);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
     deleteEntity(entity, ctx.params.id, {

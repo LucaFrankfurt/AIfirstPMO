@@ -466,6 +466,44 @@ export function findState(id: string, workspaceId: string, ctx: McpCtx): Row {
 }
 
 /**
+ * Whether this caller may read this page.
+ *
+ * **Two halves, and both of them.** A page is hidden when it belongs to a
+ * project the caller is not in, *and* when it is somebody else's `private` one
+ * — the same rule `projectFilter` applies in `sync.ts` and `guardPage` applies
+ * on the REST route.
+ *
+ * It exists because MCP only ever asked the second half. `findPage` was the one
+ * `find*` helper in this file that never called `canSeeProject`, so
+ * `get_page`, `list_pages`, `update_page` and `list_attachments` all handed a
+ * private project's pages — titles and full bodies — to any workspace member
+ * who could mint a token, which is every member. A token is not a second class
+ * of member: it acts as the person it belongs to and sees exactly what they
+ * see, and that sentence is only true if it is written down once.
+ */
+export function canSeePage(page: Row, ctx: McpCtx): boolean {
+  if (page.project_id && !canSeeProject(ctx.auth.userId, String(page.project_id))) return false;
+  return page.access !== 'private' || page.created_by === ctx.auth.userId;
+}
+
+/**
+ * The same rule as SQL, for the queries that list rather than fetch.
+ *
+ * Two `?` in it, both the caller's user id, in that order. Written as a clause
+ * to append rather than as a filter applied afterwards, because a `LIMIT` over
+ * an unfiltered query returns two hundred rows and then hides some of them —
+ * which is a listing that silently gets shorter the more private work a
+ * workspace does.
+ */
+export const visiblePagesSql = (table = 'pages'): string =>
+  `AND (${table}.access <> 'private' OR ${table}.created_by = ?)
+   AND (${table}.project_id IS NULL OR ${table}.project_id IN (
+         SELECT vp.id FROM projects vp
+          WHERE vp.visibility = 'public'
+             OR EXISTS (SELECT 1 FROM project_members vm
+                         WHERE vm.project_id = vp.id AND vm.user_id = ? AND vm.deleted_at IS NULL)))`;
+
+/**
  * A page the caller may see, by id or exact title.
  *
  * The same rule `get_page` applies, in one place, because `list_attachments`
@@ -479,6 +517,9 @@ export function findPage(ref: string, workspaceId: string, ctx: McpCtx): Row {
     workspaceId, ref, ref,
   );
   if (!page) throw new McpError(`Page ${ref} not found`);
+  // Refused as "not found" where the project is the reason: telling somebody
+  // that a page called `Deal terms` exists is most of what they wanted.
+  if (page.project_id && !canSeeProject(ctx.auth.userId, String(page.project_id))) throw new McpError(`Page ${ref} not found`);
   if (page.access === 'private' && page.created_by !== ctx.auth.userId) throw new McpError('That page is private');
   return page;
 }

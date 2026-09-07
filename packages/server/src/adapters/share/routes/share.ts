@@ -10,7 +10,7 @@
  * The token in the URL is the whole of the authorisation, so this file is
  * deliberately narrow: it reads one row, renders it, and offers nothing else.
  */
-import { isDoneGroup, pageResolver, renderMarkdown } from '@kolibri/shared';
+import { escapeHtml, htmlOutline, isDoneGroup, pageResolver, renderMarkdown, sanitizeHtml } from '@kolibri/shared';
 import { all, get, nextSeq, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { translatorFor } from '../../../kernel/i18n/i18n.ts';
 import { createNotification } from '../../../modules/notifications/notify.ts';
@@ -20,8 +20,8 @@ import { byAddress, enforce, LIMITS } from '../../../kernel/identity/ratelimit.t
 import { readBody, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { readFilters, tasksMatching } from '../../../modules/work/viewquery.ts';
 
-const escape = (text: unknown): string =>
-  String(text ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
+/** The shared rule, taking whatever a `Row` column turns out to hold. */
+const escape = (text: unknown): string => escapeHtml(String(text ?? ''));
 
 /**
  * The page a share renders into.
@@ -134,10 +134,16 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
     page.id, page.workspace_id,
   );
   // A page whose body already opens with its own title does not get a second
-  // one bolted on top — which is most pages people actually write.
-  const ownTitle = (row: Row): boolean =>
-    new RegExp(`^\\s*#\\s+${String(row.title ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm')
+  // one bolted on top — which is most pages people actually write. Asked of
+  // both formats: an imported page opening with `<h1>Spec</h1>` repeats itself
+  // exactly as a markdown one opening with `# Spec` does.
+  const ownTitle = (row: Row): boolean => {
+    const title = String(row.title ?? '').trim();
+    if (!title) return false;
+    if (row.format === 'html') return htmlOutline(String(row.content ?? ''))[0]?.text.trim() === title;
+    return new RegExp(`^\\s*#\\s+${title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`, 'm')
       .test(String(row.content ?? '').split('\n', 3).join('\n'));
+  };
 
   /*
    * `[[Onboarding]]`, for a reader with no workspace to link into.
@@ -173,13 +179,33 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
       ? `<span id="page-${escape(String(row.id))}"></span>`
       : `<h${level} id="page-${escape(String(row.id))}">${escape(row.icon ?? '')} ${escape(row.title)}</h${level}>`);
 
-  const section = (row: Row, level: number): string =>
-    target(row, level) + renderMarkdown(String(row.content ?? ''), refs);
+  /*
+   * A page in whichever of the two languages it is written in.
+   *
+   * `sanitizeHtml` is the same function the client renders an HTML page
+   * through, which is the whole argument for having written it in `shared`: the
+   * reader here is a stranger holding a URL, and a page cannot be safe on one
+   * side of the wire and not on the other.
+   *
+   * The document keeps its own ids for the `[[…]]` links between sections, so a
+   * page's own ids are prefixed rather than dropped: two of them called
+   * `summary` would otherwise be one anchor, and either could be the one that
+   * shadows a `page-…` target.
+   */
+  const written = (row: Row): string =>
+    (row.format === 'html'
+      // `refs.pageHref` here too, so a `[[…]]` written inside an HTML page
+      // resolves to the section further down exactly as one in a markdown page
+      // does — the rule is about the syntax, not about the format around it.
+      ? sanitizeHtml(String(row.content ?? ''), { idPrefix: `u-${row.id}-`, pageHref: refs.pageHref })
+      : renderMarkdown(String(row.content ?? ''), refs));
+
+  const section = (row: Row, level: number): string => target(row, level) + written(row);
 
   return [
     target(page, 1),
     `<p class="meta">Updated ${new Date(Number(page.updated_at)).toISOString().slice(0, 10)}</p>`,
-    renderMarkdown(String(page.content ?? ''), refs),
+    written(page),
     ...children.map((child) => section(child, 2)),
     noteBox(share, notice),
   ].filter(Boolean).join('\n');

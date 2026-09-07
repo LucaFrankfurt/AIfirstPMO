@@ -23,6 +23,7 @@ import { registerTelegramRoutes } from './adapters/telegram/routes/telegram.ts';
 import { registerPushRoutes } from './adapters/push/routes/push.ts';
 import { registerEntityRoutes } from './kernel/write-path/routes/entities.ts';
 import { registerExportRoutes } from './adapters/transfer/routes/export.ts';
+import { registerSecretRoutes } from './modules/secrets/routes/secrets.ts';
 import { registerFileRoutes } from './kernel/files/routes/files.ts';
 import { registerMcpRoutes } from './adapters/mcp/routes/mcp.ts';
 import { registerOAuthRoutes } from './adapters/oauth/routes/oauth.ts';
@@ -67,6 +68,10 @@ registerSearchRoutes(router);
 // happens to a task, not a collection called `tasks` with a member `review`.
 registerAiRoutes(router);
 registerFileRoutes(router);
+// Before the generic routes as well: `/api/secrets/:id/reveal` is something
+// that happens to a secret, not a row in a collection called `reveal`. The
+// label's own five routes are the generic ones — only the value has its own.
+registerSecretRoutes(router);
 // Before the generic routes too: `/api/workspaces/:ws/export` is not a
 // collection called "export", and `/api/import/archive` is not a row in one
 // called "import".

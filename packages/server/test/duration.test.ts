@@ -57,3 +57,25 @@ describe('writing a duration', () => {
     }
   });
 });
+
+
+describe('a negative duration', () => {
+  /*
+   * The scanner reads digits and units and has no opinion about a sign, so
+   * `-5h` was five hours and `1h -30m` was ninety minutes — a negative duration
+   * read as a positive one, silently, in the box where somebody records how
+   * long they worked. There is no useful reading of a negative duration here.
+   */
+  it('is refused rather than read as a positive one', () => {
+    assert.equal(parseDuration('-5h'), null);
+    assert.equal(parseDuration('1h -30m'), null);
+    assert.equal(parseDuration('\u22122h'), null, 'including the real minus sign');
+  });
+
+  it('does not take the ordinary forms away with it', () => {
+    assert.equal(parseDuration('1h'), 60);
+    assert.equal(parseDuration('1h 30m'), 90);
+    assert.equal(parseDuration('1:30'), 90);
+    assert.equal(parseDuration('90'), 90);
+  });
+});

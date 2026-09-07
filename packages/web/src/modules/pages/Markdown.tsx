@@ -1,6 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { enterInList, indentList, renderMarkdown, toggleTask, type Edit, type MarkdownOptions } from '@kolibri/shared';
+import {
+  enterInList, htmlToMarkdown, indentList, looksLikeHtml, renderMarkdown, toggleTask,
+  type Edit, type MarkdownOptions,
+} from '@kolibri/shared';
 
 import { api } from '../../kernel/sync/api';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -55,6 +58,33 @@ export function useMarkdownRefs(asPage = false): MarkdownOptions {
   }, [projects, pageHref, pageBody, asPage, t]);
 }
 
+/**
+ * Follow a link to somewhere in this app without reloading it.
+ *
+ * Both renderers produce plain anchors — the markdown one because it emits
+ * strings, the HTML one because a page's own `<a>` survives the allowlist — and
+ * a plain anchor to `/t/WEB-42` is a full page load, which on an offline-first
+ * app means throwing away the cache and the socket to arrive at a screen the
+ * router could have drawn. Modified clicks are left alone: opening a task in a
+ * new tab is a reasonable thing to want, and taking that away to be clever is
+ * not.
+ */
+export function useInAppLinks(): (event: React.MouseEvent<HTMLElement>) => void {
+  const navigate = useNavigate();
+  const location = useLocation();
+  return (event) => {
+    const anchor = (event.target as HTMLElement).closest?.('a');
+    const href = anchor?.getAttribute('href');
+    if (!anchor || !href?.startsWith('/') || anchor.target === '_blank') return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+    event.preventDefault();
+    // A task opens as a sheet over what you were reading, the way every other
+    // task link in the app does.
+    const background = href.startsWith('/t/') ? { state: { background: backgroundOf(location) ?? location } } : undefined;
+    navigate(href, background);
+  };
+}
+
 export function Markdown({ source, className = '', onChange, asPage }: {
   source?: string | null;
   className?: string;
@@ -107,21 +137,11 @@ export function Markdown({ source, className = '', onChange, asPage }: {
   // Click-to-enlarge is delegated: the renderer produces plain HTML, so there
   // are no image components to hand a handler to.
   const { open, lightbox } = useLightbox();
-  const navigate = useNavigate();
-  const location = useLocation();
   // ...and diagrams are upgraded the same way, for the same reason.
   const host = useRef<HTMLDivElement>(null);
   useMermaid(host, html);
 
-  /**
-   * Follow a link to somewhere in this app without reloading it.
-   *
-   * The renderer produces plain anchors, and a plain anchor to `/t/WEB-42` is a
-   * full page load — which on an offline-first app means throwing away the
-   * cache and the socket to arrive at a screen the router could have drawn.
-   * Modified clicks are left alone: opening a task in a new tab is a reasonable
-   * thing to want, and taking that away to be clever is not.
-   */
+  const follow = useInAppLinks();
   const click = (event: React.MouseEvent<HTMLDivElement>) => {
     open(event);
     // A checkbox does not open a lightbox and is not a link: it is answered
@@ -134,15 +154,7 @@ export function Markdown({ source, className = '', onChange, asPage }: {
       onChange(toggleTask(source ?? '', Number(box.getAttribute('data-task'))));
       return;
     }
-    const anchor = (event.target as HTMLElement).closest?.('a');
-    const href = anchor?.getAttribute('href');
-    if (!anchor || !href?.startsWith('/') || anchor.target === '_blank') return;
-    if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
-    event.preventDefault();
-    // A task opens as a sheet over what you were reading, the way every other
-    // task link in the app does.
-    const background = href.startsWith('/t/') ? { state: { background: backgroundOf(location) ?? location } } : undefined;
-    navigate(href, background);
+    follow(event);
   };
 
   if (!source?.trim()) return null;
@@ -152,6 +164,46 @@ export function Markdown({ source, className = '', onChange, asPage }: {
       {lightbox}
     </>
   );
+}
+
+/**
+ * Putting a file into the workspace, wherever an editor wants one.
+ *
+ * Shared by the markdown editor and the HTML one, which need the same three
+ * things — downscale a photograph so a phone does not push twelve megabytes
+ * through a mobile connection, upload it against the page or task it belongs
+ * to, and say so when it fails — and differ only in what they write afterwards.
+ * Whatever succeeded is returned even when a later file fails, because losing
+ * four uploads to the fifth one's timeout is worse than an incomplete paste.
+ */
+export function useUploads(attachTo?: { task_id?: string; page_id?: string }): {
+  busy: boolean;
+  take: (files: File[]) => Promise<{ url: string; name: string; image: boolean }[]>;
+} {
+  const t = useT();
+  const toast = useToast();
+  const { workspaceId } = useSession();
+  const [busy, setBusy] = useState(false);
+
+  const take = async (files: File[]) => {
+    const done: { url: string; name: string; image: boolean }[] = [];
+    if (!files.length || !workspaceId) return done;
+    setBusy(true);
+    try {
+      for (const file of files) {
+        const image = file.type.startsWith('image/');
+        const result = await api.upload(workspaceId, image ? await downscale(file) : file, file.name, attachTo);
+        done.push({ url: result.url, name: file.name, image });
+      }
+    } catch (err) {
+      toast(err instanceof Error ? t('editor.uploadFailedReason', { reason: err.message }) : t('editor.uploadFailed'));
+    } finally {
+      setBusy(false);
+    }
+    return done;
+  };
+
+  return { busy, take };
 }
 
 interface EditorProps {
@@ -217,6 +269,44 @@ const SNIPPETS: { icon: string; title: TranslationKey; wrap: [string, string] }[
 ];
 
 /**
+ * What `/` at the start of a line offers.
+ *
+ * The one convention people arrive with from every other editor, and the reason
+ * it is worth having is not novelty: the toolbar has room for seven buttons and
+ * a document has more shapes than that. A table, a fenced block, a diagram and
+ * a horizontal rule were all things you could only write here by remembering
+ * the syntax — which meant, in practice, that people wrote paragraphs.
+ *
+ * `caret` is where the cursor ends up, counted from the start of what is
+ * inserted; without it a table drops you after the last pipe rather than in the
+ * first cell, which is the difference between a shortcut and a party trick.
+ */
+interface Command {
+  id: string;
+  title: TranslationKey;
+  hint: TranslationKey;
+  icon: string;
+  text: string;
+  caret?: number;
+}
+
+const COMMANDS: Command[] = [
+  { id: 'h2', title: 'editor.cmdHeading', hint: 'editor.cmdHeadingHint', icon: 'H', text: '## ' },
+  { id: 'h3', title: 'editor.cmdSubheading', hint: 'editor.cmdSubheadingHint', icon: 'h', text: '### ' },
+  { id: 'ul', title: 'editor.bulletList', hint: 'editor.cmdListHint', icon: '•', text: '- ' },
+  { id: 'ol', title: 'editor.cmdNumbered', hint: 'editor.cmdNumberedHint', icon: '1.', text: '1. ' },
+  { id: 'todo', title: 'editor.checklist', hint: 'editor.cmdTodoHint', icon: '☑', text: '- [ ] ' },
+  { id: 'quote', title: 'editor.quote', hint: 'editor.cmdQuoteHint', icon: '❝', text: '> ' },
+  { id: 'code', title: 'editor.cmdCode', hint: 'editor.cmdCodeHint', icon: '</>', text: '```\n\n```\n', caret: 4 },
+  { id: 'table', title: 'editor.cmdTable', hint: 'editor.cmdTableHint', icon: '▦', text: '| | |\n| --- | --- |\n| | |\n', caret: 2 },
+  { id: 'divider', title: 'editor.cmdDivider', hint: 'editor.cmdDividerHint', icon: '—', text: '---\n' },
+  { id: 'diagram', title: 'editor.cmdDiagram', hint: 'editor.cmdDiagramHint', icon: '◇', text: '```mermaid\nflowchart LR\n  A[Start] --> B[Ende]\n```\n', caret: 11 },
+  // `![[` and no more: the `[[` tracker takes over from the next keystroke and
+  // offers the pages, which is a better answer than a second list of titles.
+  { id: 'embed', title: 'editor.cmdEmbed', hint: 'editor.cmdEmbedHint', icon: '❏', text: '![[' },
+];
+
+/**
  * Markdown editor with a live preview toggle. Images can be pasted or dropped;
  * they are downscaled in the browser first so a phone photo does not push a
  * 12 MB original through a mobile connection.
@@ -231,16 +321,17 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   /** Where the caret belongs after the next render, set by `rewrite`. */
   const pending = useRef<[number, number] | null>(null);
   const [dropping, setDropping] = useState(false);
-  const [busy, setBusy] = useState(false);
+  const { busy, take } = useUploads(attachTo);
   const { workspaceId } = useSession();
   const members = useMembers();
-  const toast = useToast();
   // The `@` menu: which handles match, and which of them is highlighted.
   const [mention, setMention] = useState<{ query: string; at: number; index: number } | null>(null);
   // ...and the `#` menu, which offers work rather than people.
   const [hash, setHash] = useState<{ query: string; at: number; index: number } | null>(null);
   // ...and the `[[` menu, which offers pages.
   const [wiki, setWiki] = useState<{ query: string; at: number; index: number } | null>(null);
+  // ...and the `/` menu, which offers block shapes rather than anything named.
+  const [slash, setSlash] = useState<{ query: string; at: number; index: number } | null>(null);
 
   const matches = mention
     ? members
@@ -455,6 +546,41 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   };
 
   /**
+   * Notice a `/` at the start of a line and offer the shapes a block can take.
+   *
+   * Only at the start of a line, and that is the whole of the rule that keeps
+   * this out of the way: a slash anywhere else is a date, a path, a fraction or
+   * a URL, and a menu opening over every one of those would be a menu people
+   * learn to dismiss. `/` after a list marker counts as a line start, because
+   * inside a list is exactly where somebody reaches for a table.
+   */
+  const trackSlash = (text: string, caret: number) => {
+    const found = text.slice(0, caret).match(/(?:^|\n)(?:\s*(?:[-*+]|\d+[.)])\s+)?\/([\w-]*)$/);
+    setSlash(found ? { query: found[1], at: caret - found[1].length - 1, index: 0 } : null);
+  };
+
+  const commands = useMemo(() => {
+    if (!slash) return [] as Command[];
+    const query = slash.query.toLowerCase();
+    if (!query) return COMMANDS;
+    // Matched on the command's own id and on what it is called in the reader's
+    // language, so `/tab` and `/tabelle` both find the table.
+    return COMMANDS.filter((one) => `${one.id} ${t(one.title)}`.toLowerCase().includes(query));
+  }, [slash?.query, t]);
+
+  /** Take the `/query` back out and put the block in its place. */
+  const pickCommand = (command: Command) => {
+    if (!slash) return;
+    const field = ref.current;
+    const caret = field?.selectionStart ?? value.length;
+    setSlash(null);
+    rewrite(
+      `${value.slice(0, slash.at)}${command.text}${value.slice(caret)}`,
+      slash.at + (command.caret ?? command.text.length),
+    );
+  };
+
+  /**
    * Replace the partial `#...` with the reference itself.
    *
    * A task goes in as its bare identifier and a project as `#KEY` — the tokens
@@ -471,21 +597,19 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
     rewrite(`${value.slice(0, hash.at)}${choice.token} ${value.slice(caret)}`, hash.at + choice.token.length + 1);
   };
 
-  async function upload(files: File[]): Promise<void> {
-    if (!files.length || !workspaceId) return;
-    setBusy(true);
-    try {
-      for (const file of files) {
-        const payload = file.type.startsWith('image/') ? await downscale(file) : file;
-        const result = await api.upload(workspaceId, payload, file.name, attachTo);
-        insert(file.type.startsWith('image/') ? `\n![${file.name}](${result.url})\n` : `\n[${file.name}](${result.url})\n`);
-      }
-    } catch (err) {
-      toast(err instanceof Error ? t('editor.uploadFailedReason', { reason: err.message }) : t('editor.uploadFailed'));
-    } finally {
-      setBusy(false);
-    }
-  }
+  /**
+   * Everything that was dropped, as one insertion.
+   *
+   * One, and that is a fix rather than a tidy-up: this used to call `insert`
+   * inside the loop, and `insert` splices into `value` — the `value` this
+   * render closed over. Dropping three screenshots at once therefore spliced
+   * three times into the same original string, and two of them vanished.
+   */
+  const upload = async (files: File[]): Promise<void> => {
+    const done = await take(files);
+    if (!done.length) return;
+    insert(`\n${done.map((one) => `${one.image ? '!' : ''}[${one.name}](${one.url})`).join('\n')}\n`);
+  };
 
   const snippets = SNIPPETS.map((snippet) => (
     <button
@@ -550,20 +674,47 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
           className={compact ? 'min-h-0 resize-none' : undefined}
           style={{ minHeight: compact ? 34 : minHeight }}
           value={value}
-          placeholder={placeholder ?? t('editor.placeholder')}
+          // The three menus are the editor's whole trick and none of them is
+          // visible until somebody types the character that opens it. The
+          // placeholder is the one piece of furniture that costs nothing —
+          // it is only there while the box is empty, which is exactly when
+          // somebody is deciding what this editor can do. A composer keeps the
+          // short one: a chat box is a sentence, not a document.
+          placeholder={placeholder ?? t(compact ? 'editor.placeholder' : 'editor.cmdHint')}
           onChange={(event) => {
             onChange(event.target.value);
             trackMention(event.target.value, event.target.selectionStart ?? 0);
             trackRef(event.target.value, event.target.selectionStart ?? 0);
             trackPage(event.target.value, event.target.selectionStart ?? 0);
+            trackSlash(event.target.value, event.target.selectionStart ?? 0);
           }}
           onBlur={() => setTimeout(() => {
             setMention(null);
             setHash(null);
             setWiki(null);
+            setSlash(null);
           }, 120)}
           onKeyDown={(event) => {
-            // Pages first: `[[#` is a page whose title starts with a hash, and
+            // The block menu first of all: it opens on a character none of the
+            // other three can be inside, so while it is up it owns the keys.
+            if (slash && commands.length) {
+              if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                event.preventDefault();
+                const step = event.key === 'ArrowDown' ? 1 : -1;
+                setSlash({ ...slash, index: (slash.index + step + commands.length) % commands.length });
+                return;
+              }
+              if (event.key === 'Enter' || event.key === 'Tab') {
+                event.preventDefault();
+                pickCommand(commands[slash.index]);
+                return;
+              }
+              if (event.key === 'Escape') {
+                setSlash(null);
+                return;
+              }
+            }
+            // Pages next: `[[#` is a page whose title starts with a hash, and
             // the `#` menu must not take the keystroke off this one.
             if (wiki && pageMatches.length) {
               if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -666,7 +817,33 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             if (files.length) {
               event.preventDefault();
               void upload(files);
+              return;
             }
+            /*
+             * A copy out of a browser, a mail or a word processor, as markdown.
+             *
+             * Every clipboard carries both flavours, and the plain-text one a
+             * page hands over is the *rendering* — headings flattened, links
+             * reduced to their words, a table become four lines of prose. So
+             * the structure was there in the clipboard all along and this
+             * editor was throwing it away, which is why pasting research into a
+             * page used to mean formatting it a second time by hand.
+             *
+             * Only where the HTML really is a document: `looksLikeHtml` wants
+             * an envelope or two different structural tags, so a copied
+             * sentence that happens to carry a `<span>` still pastes as the
+             * sentence. Cmd+Shift+V is unaffected — that hands over text only,
+             * and there is nothing here to convert.
+             */
+            const html = event.clipboardData.getData('text/html');
+            if (!html || !looksLikeHtml(html)) return;
+            const markdown = htmlToMarkdown(html);
+            if (!markdown.trim()) return;
+            event.preventDefault();
+            const field = ref.current;
+            const start = field?.selectionStart ?? value.length;
+            const end = field?.selectionEnd ?? start;
+            rewrite(`${value.slice(0, start)}${markdown}${value.slice(end)}`, start + markdown.length);
           }}
           onDragOver={(event) => {
             event.preventDefault();
@@ -679,6 +856,25 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
             void upload([...event.dataTransfer.files]);
           }}
         />
+        {slash && commands.length > 0 && (
+          <div className="mention-menu" role="listbox" aria-label={t('editor.commands')}>
+            {commands.map((command, index) => (
+              <button
+                key={command.id}
+                type="button"
+                role="option"
+                aria-selected={index === slash.index}
+                className={index === slash.index ? 'active' : ''}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => pickCommand(command)}
+              >
+                <span aria-hidden="true" className="slash-icon">{command.icon}</span>
+                <span className="flex-1 min-w-0 truncate">{t(command.title)}</span>
+                <span className="text-muted truncate text-[11.5px]">{t(command.hint)}</span>
+              </button>
+            ))}
+          </div>
+        )}
         {wiki && pageMatches.length > 0 && (
           <div className="mention-menu" role="listbox" aria-label={t('editor.mentionPage')}>
             {pageMatches.map((choice, index) => (

@@ -91,7 +91,7 @@ export function usePageHref(): (target: string, heading: string | null) => { hre
  * a document that quietly lost a section because somebody tidied up elsewhere
  * would be the worse surprise of the two.
  */
-export function usePageBody(): (target: string) => { id: string; title: string; href: string; content: string } | undefined {
+export function usePageBody(): (target: string) => { id: string; title: string; href: string; content: string; format: string } | undefined {
   const { workspaceId } = useSession();
   const pages = useQuery(() => linkable(workspaceId), [workspaceId]);
   return useMemo(() => {
@@ -99,7 +99,9 @@ export function usePageBody(): (target: string) => { id: string; title: string; 
     return (target: string) => {
       const found = resolve(target);
       return found
-        ? { id: found.id, title: found.title || target, href: `/pages/${found.id}`, content: found.content ?? '' }
+        // The format travels with the text: an embed is a view of the page, and
+        // an HTML page read as markdown draws its own tags.
+        ? { id: found.id, title: found.title || target, href: `/pages/${found.id}`, content: found.content ?? '', format: found.format ?? 'markdown' }
         : undefined;
     };
   }, [pages]);

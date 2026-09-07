@@ -14,7 +14,8 @@ client and the server so a page looks the same whether the browser drew it or a 
 [Lists and checklists](#lists-and-checklists) · [Tables](#tables) · [Links, images and files](#links-images-and-files) ·
 [Code and diagrams](#code-and-diagrams) · [Kolibri's own additions](#kolibris-own-additions) ·
 [What the editor does while you type](#what-the-editor-does-while-you-type) ·
-[What is deliberately missing](#what-is-deliberately-missing) · [Why it is safe](#why-it-is-safe)
+[What is deliberately missing](#what-is-deliberately-missing) · [Why it is safe](#why-it-is-safe) ·
+[When a page is HTML instead](#when-a-page-is-html-instead)
 
 ---
 
@@ -35,6 +36,11 @@ client and the server so a page looks the same whether the browser drew it or a 
 Everything above is stored as **markdown text**, never as HTML. That is the point of the plain
 `<textarea>`: what is in the database is what you typed, so it exports, diffs, greps and outlives
 this application.
+
+The **one exception is a page**, which may be written in HTML instead — one column, `pages.format`,
+and the page says which it is. `[[Onboarding]]` still works there; nothing else of this dialect does. Everything else on the list has no such switch and never will: a
+chat message is a sentence, and a sentence does not need a `<table>`. See
+[When a page is HTML instead](#when-a-page-is-html-instead).
 
 ### Where a description is a line rather than a document
 
@@ -257,6 +263,14 @@ pure, testable, and doing nothing at all unless the line asks for it.
 | **Tab** / **Shift-Tab** in a list | Two spaces on or off every line the selection touches |
 | **Tab** outside a list | An ordinary indent, which is what somebody writing code wants |
 | Paste or drop an image | Downscaled, uploaded, and written in as `![…](…)` |
+| **`/`** at the start of a line | A menu of blocks: heading, list, checklist, quote, code, table, divider, diagram, page embed |
+| Paste a **document** | A copy out of a browser, a mail or a word processor arrives as markdown — headings, lists, links and tables kept |
+
+The last one is worth a sentence. Every clipboard carries two flavours of what was copied, and the
+plain-text one a web page hands over is the *rendering*: headings flattened, links reduced to their
+words, a table become four lines of prose. The structure was in the clipboard all along; pasting it
+in as markdown is reading the flavour that has it. Cmd/Ctrl+Shift+V is unaffected — that hands over
+text only, and there is nothing to convert.
 
 There is a toolbar for **bold**, *italic*, `code`, a heading, a bullet, a checkbox and a quote, and a
 **Preview** toggle that renders exactly what will be stored. In chat the toolbar is collapsed until
@@ -270,7 +284,7 @@ Each of these is an omission rather than an unfinished job.
 
 | Not supported | Why |
 |---|---|
-| **Raw HTML** | Everything is escaped before any markup is produced. `<b>bold</b>` renders as text, and `<script>` cannot exist. This is the whole safety model, not a limitation on top of one |
+| **Raw HTML** | Everything is escaped before any markup is produced. `<b>bold</b>` renders as text, and `<script>` cannot exist. This is the whole safety model, not a limitation on top of one — and where a document really is HTML, the answer is [a page that says so](#when-a-page-is-html-instead) rather than a hole in this one |
 | **HTML entities** | `&copy;` stays `&copy;`. It follows from escaping first, and the alternative is a second decoder to keep safe |
 | **Four-space indented code** | Fences do this job. Indented code cannot be told from a nested list without the checkbox counter becoming a second parser, and a checkbox that ticks the wrong line is worse than a missing shorthand |
 | **Reference-style links** `[a][ref]` | Rarely written by hand, and a second pass over the document to collect definitions |
@@ -306,3 +320,77 @@ single-page navigation.
 
 The rendering is the same function on both sides. A shared page is rendered by the server with no
 project keys and no interactive checkboxes, and is otherwise byte-for-byte the page you wrote.
+
+---
+
+## When a page is HTML instead
+
+A page carries a `format`: `markdown` (the default, and what everything above describes) or `html`.
+It is a stored column rather than something sniffed per render, because a document that renders as
+markdown on one screen and as HTML on the next is a document nobody can edit with confidence.
+
+**Why it exists.** Not so that people can write HTML — almost nobody wants to. It exists for
+documents that arrive already written: a supplier's specification, a page saved out of a browser,
+an export from another wiki, a table with a `colspan` in it that markdown has no way to spell.
+The alternative was what every one of those used to become here, which is a page of angle brackets.
+
+### The safety argument, restated
+
+Markdown's argument is *escape first, so nothing dangerous is ever constructed.* That argument
+cannot be made about a page whose whole content is markup, so this one is different and has to be
+stated in full. It is an **allowlist**, in
+[`packages/shared/src/modules/pages/html.ts`](../packages/shared/src/modules/pages/html.ts):
+
+1. **Parse into a tree**, tolerantly — unclosed tags close themselves, a `<p>` ends at the next
+   block, a `<` that starts nothing is a `<`.
+2. **Write it back out through a fixed list of tags.** Anything unknown is *unwrapped* — a `<font>`
+   or Word's `<o:p>` goes and the sentence inside it stays. `script`, `style`, `iframe`, `object`,
+   `form`, `head` and their relatives are dropped **with their content**, because what is inside
+   them is not prose that lost its wrapper.
+3. **Name every attribute that may survive**, per tag. Everything else goes, which is why no rule
+   about `onclick` is needed: there is no rule admitting it.
+4. **Check every URL** with the same four-scheme allowlist markdown uses. `javascript:` and `data:`
+   are refused, and the link keeps its words rather than losing the sentence with the href.
+5. **Two attributes are narrowed further than "allowed".** `style` may say `text-align` and nothing
+   else. `class` may only be a code block's `language-…` or the renderer's own `md-…`: the app's
+   stylesheet is on the same document, so `class="fixed inset-0 z-50"` on a `<div>` is a page
+   painting itself over the interface with no script involved — the attack every sanitiser that
+   thinks only about scripts lets straight through.
+
+Sanitising happens **at render, on every path** — the reader's screen, the editor's preview, a
+downloaded HTML file, a shared link rendered by the server — and never on write. The page stores
+exactly what was typed, for two reasons: `content` has to keep saying what the CRDT says, so a
+rewrite on write would put them permanently out of step; and an editor that silently eats the tag
+you are halfway through typing is an editor people fight.
+
+### Writing one
+
+Two views, one toggle:
+
+| View | What it is |
+|---|---|
+| **Visual** | A rich-text surface. Bold, italic, headings, lists, quotes, code, a table, links, images. Ctrl/Cmd+B and +I work as usual |
+| **HTML** | The markup itself, in a monospace box, with a **Tidy** button that re-indents it and drops whatever the allowlist would drop anyway |
+
+A paste into the visual view is cleaned **as it lands** rather than afterwards, so what appears is
+what stays — no watching your paste rearrange itself a moment later.
+
+### Changing a page's mind
+
+**⋯ → Written in → Markdown / HTML** converts the page rather than only flipping the flag. Markdown
+becomes HTML by being rendered once; HTML becomes markdown by the same converter a paste uses.
+Going to markdown is lossy and says so before it runs — and the page's history holds the version
+from before, so it is one **Restore** away either way.
+
+### What the rest of Kolibri does about it
+
+| | |
+|---|---|
+| **Search** | Indexes what the page *says*. Indexed raw, one imported page would make the workspace answer searches for `div` |
+| **The outline** | `htmlOutline` reads the `<h1…h3>`, and the renderer gives them the same slugs a markdown page's headings get — so the control is the same control |
+| **A card or a search snippet** | `pageExcerpt` takes the tags out, the way `excerpt` takes the markup out of markdown — on the card, in a search result and in the command palette, which for a while all read the raw markup and matched on `div` |
+| **`[[Onboarding]]`** | resolves inside an HTML page too, in text runs only — never inside `<a>`, `<code>` or `<pre>`. It has to: `linkGraph` reads those links out of any page's text, so one that rendered as four literal brackets was a link the wiki counted and the reader could not follow |
+| **`![[Onboarding]]`** | embedding an HTML page draws the page, through the allowlist. Read as markdown it drew a wall of escaped tags |
+| **Export as markdown** | An HTML page is converted on the way out, so a markdown bundle is markdown all the way through |
+| **A share link** | The server renders it through the same allowlist. A stranger on a URL is the one audience that cannot be assumed to be a colleague |
+| **MCP** | `create_page` and `update_page` take `format`. `update_page` changes the flag and does **not** convert the text — an assistant that means to change the language should send the body in it |

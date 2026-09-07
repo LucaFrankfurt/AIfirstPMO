@@ -2375,6 +2375,14 @@
             ],
             "readOnly": true
           },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "html"
+            ],
+            "description": "Which language `content` is written in. Two, and they are read by two different renderers with two different safety arguments: markdown is escaped and re-emitted as tags this app wrote, HTML is parsed and put through an allowlist. The column exists so that decision is made once per page and stored, rather than sniffed per render — a document that renders as markdown on one screen and as HTML on the next is a document nobody can edit with confidence."
+          },
           "icon": {
             "type": [
               "string",
@@ -2679,6 +2687,7 @@
               "message",
               "channelRead",
               "mailbox",
+              "secret",
               "purge"
             ]
           },
@@ -2826,6 +2835,110 @@
           },
           "task_id": {
             "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "Secret": {
+        "type": "object",
+        "description": "A row of `secrets` (table `secrets`).",
+        "properties": {
+          "access": {
+            "type": "string",
+            "enum": [
+              "workspace",
+              "project",
+              "private"
+            ],
+            "description": "Who it is for. `private` means its author and nobody else, ever."
+          },
+          "archived": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "created_by": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "password",
+              "api_key",
+              "token",
+              "certificate",
+              "connection",
+              "note"
+            ]
+          },
+          "last_used_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "When somebody last revealed it, and who — the two facts a vault owes you.",
+            "readOnly": true
+          },
+          "last_used_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rotate_after_days": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "0 or null for a secret nobody has undertaken to rotate."
+          },
+          "rotated_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "When the value was last written. Null on one nobody has changed since.",
+            "readOnly": true
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
           },
           "updated_at": {
             "type": "number",
@@ -11367,6 +11480,304 @@
           },
           "404": {
             "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/secrets/{id}": {
+      "get": {
+        "operationId": "getSecret",
+        "summary": "Read one secret",
+        "tags": [
+          "secrets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Secret"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateSecret",
+        "summary": "Change a secret",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "secrets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Secret"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Secret"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSecret",
+        "summary": "Delete a secret",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "secrets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/secrets/{id}/history": {
+      "get": {
+        "operationId": "getSecretsHistory",
+        "summary": "GET /api/secrets/:id/history",
+        "description": "Defined in `packages/server/src/modules/secrets/routes/secrets.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/secrets/{id}/reveal": {
+      "post": {
+        "operationId": "postSecretsReveal",
+        "summary": "POST /api/secrets/:id/reveal",
+        "description": "Defined in `packages/server/src/modules/secrets/routes/secrets.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/secrets/{id}/value": {
+      "put": {
+        "operationId": "putSecretsValue",
+        "summary": "PUT /api/secrets/:id/value",
+        "description": "Defined in `packages/server/src/modules/secrets/routes/secrets.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
             "content": {
               "application/json": {
                 "schema": {
@@ -20306,6 +20717,144 @@
         "operationId": "getWorkspacesSearch",
         "summary": "GET /api/workspaces/:ws/search",
         "description": "Defined in `packages/server/src/kernel/search/routes/search.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/secrets": {
+      "get": {
+        "operationId": "listSecret",
+        "summary": "List secrets",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "secrets"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The secrets this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "secrets": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Secret"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postWorkspacesSecrets",
+        "summary": "POST /api/workspaces/:ws/secrets",
+        "description": "Defined in `packages/server/src/modules/secrets/routes/secrets.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
         "tags": [
           "hand-written"
         ],

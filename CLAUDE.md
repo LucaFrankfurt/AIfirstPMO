@@ -166,6 +166,7 @@ claim to `FIGURES`; if it is a measurement of a past state, add a `HISTORY` entr
 | `docs/architecture.md` | the layers, the request path, the process |
 | `docs/sync.md` | the offline mirror, the outbox, the cursor |
 | `docs/security.md` | sessions, permissions, what a share link is |
+| `docs/secrets.md` | the vault: what sealing buys, what it does not, and why an operator can still read it |
 | `docs/api.md`, `docs/mcp.md` | the two surfaces, in prose |
 | `docs/openapi.json` | the REST surface as a machine reads it — generated, never hand-edited |
 | `TODO.md` | what is deliberately not built, with the reason |
