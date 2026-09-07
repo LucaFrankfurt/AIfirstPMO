@@ -6,7 +6,7 @@
  * permission check and is skipped for the server's own writes.
  */
 
-import { isDoneGroup, type ProjectVocabulary, relocate } from '@kolibri/shared';
+import { ENTITIES, ENTITY_NAMES, type EntityName, isDoneGroup, type ProjectVocabulary, relocate } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import { type EntityRule, parseIds, wouldLoop, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
@@ -96,6 +96,81 @@ function tombstoneValuesOf(field: Row, opts: WriteOpts): void {
 }
 
 
+
+/**
+ * What a project contains, read from the registry rather than listed here.
+ *
+ * Every entity with a `project_id` belongs to the project that column names —
+ * that is what the column means — so the cascade is derived rather than
+ * enumerated, and an entity added later is carried without anybody
+ * remembering to come back. The alternative was a list of twenty-five names
+ * that would be twenty-four the first time somebody added one.
+ *
+ * `activity` is the one exception, and it is a real one: the log is the record
+ * that the thing existed and who did what to it. A deletion that erased its
+ * own history would be the one kind of deletion nobody could audit. It is not
+ * a collection either — the registry already keeps it out of REST for the same
+ * reason.
+ */
+const CONTAINED = ENTITY_NAMES.filter(
+  (name) => name !== 'activity' && (ENTITIES[name].fields as readonly string[]).includes('project_id'),
+);
+
+/**
+ * A deleted project takes its contents with it, and a restored one brings them
+ * back.
+ *
+ * Nothing cascaded before, and the result was not a display problem. A task's
+ * `project_id` is `NOT NULL`, so a task whose project is gone is structurally
+ * an orphan: it stayed live in every list, in every report and on every synced
+ * device, while `list_projects` and every project-scoped call refused the
+ * project it named. `DOOM-1` sat in somebody's own work with no `DOOM` to open.
+ *
+ * The worse half was invisible. `purgeable()` collects rows with a
+ * `deleted_at`, and those tasks had none — so emptying the trash removed the
+ * project and left its contents behind **permanently**, unreachable and
+ * un-purgeable, in every workspace where a project had ever been deleted.
+ *
+ * Tombstones rather than a `DELETE`, for the reason `docs/sync.md` gives and
+ * `tombstoneValuesOf` above follows: every other device holds these rows and
+ * only a tombstone tells it otherwise. `silent` keeps the live stream to one
+ * nudge instead of one per row; the webhooks are deliberately *not* silenced,
+ * because there is no `project.deleted` event a receiver could infer the rest
+ * from, and a mirror that never hears about five hundred deleted tasks is a
+ * mirror holding five hundred tasks that no longer exist.
+ *
+ * **Restoring takes back exactly what this deletion took.** Anything already
+ * in the trash before the project went stays there, which is what
+ * `deleted_at >= ` the project's own timestamp says: the cascade stamps its
+ * rows in the same transaction, so they are at or after it, and a row somebody
+ * deleted last week is before it. The one case it reads wrong is a row deleted
+ * in the same millisecond as the project, which comes back with it — a
+ * bounded, harmless mistake next to keeping a list of what was taken.
+ */
+function cascadeProject(project: Row, restoring: boolean, opts: WriteOpts): void {
+  const write = (entity: EntityName, id: string) =>
+    writeEntity(entity, id, {}, { ...opts, system: true, silent: true, ...(restoring ? {} : { op: 'delete' as const }) });
+
+  for (const entity of CONTAINED) {
+    const rows = restoring
+      ? all<Row>(
+        `SELECT id FROM ${ENTITIES[entity].table} WHERE project_id = ? AND deleted_at >= ?`,
+        project.id, Number(project.deleted_at ?? 0),
+      )
+      : all<Row>(
+        `SELECT id FROM ${ENTITIES[entity].table} WHERE project_id = ? AND deleted_at IS NULL`, project.id,
+      );
+    for (const row of rows) write(entity, String(row.id));
+  }
+
+  /* A project nests, so a container takes its children — and each child's own
+     effect takes it from there, which is why this recurses without saying so.
+     The tree cannot loop: `wouldLoop` refuses a parent that would make one. */
+  const children = restoring
+    ? all<Row>(`SELECT id FROM projects WHERE parent_id = ? AND deleted_at >= ?`, project.id, Number(project.deleted_at ?? 0))
+    : all<Row>(`SELECT id FROM projects WHERE parent_id = ? AND deleted_at IS NULL`, project.id);
+  for (const child of children) write('project', String(child.id));
+}
 
 export const workRules = {
   entities: ['task', 'project', 'comment', 'attachment', 'view', 'field'],
@@ -278,5 +353,12 @@ export const workRules = {
   },
   effects(entity, row, before, changed, opts) {
     if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
+    // The transition, not the state: an edit to an already-deleted project
+    // must not cascade a second time, and `before` is the only thing that
+    // knows which way this write went.
+    if (entity === 'project' && before) {
+      if (row.deleted_at && !before.deleted_at) cascadeProject(row, false, opts);
+      else if (!row.deleted_at && before.deleted_at) cascadeProject(before, true, opts);
+    }
   },
 } satisfies EntityRule;

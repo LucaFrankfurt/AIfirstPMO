@@ -134,6 +134,46 @@ What this does not fix, and does not claim to: a device that has been offline si
 still holds its copy. It drops it the moment it syncs. Until then the bytes are on that device —
 which is true of anything anybody has ever had a copy of.
 
+### What a project takes with it
+
+A task's `project_id` is `NOT NULL`, so a task whose project is gone is not a
+task with a missing field — it is structurally an orphan. Deleting a project
+therefore tombstones everything that points at it: tasks, pages, cycles,
+modules, states, labels, views, budgets, KPIs, secrets, share links, and a
+child project, which in turn takes its own. The list is read from the registry
+rather than written out, so an entity added later is carried without anybody
+remembering to come back for it.
+
+`activity` is the one thing left behind, deliberately: the log is the record
+that any of it existed and who did what. A deletion that erased its own history
+would be the one kind nobody could audit afterwards.
+
+None of this cascaded until it was measured, and the visible half was merely
+odd — a task stayed in every list, in every report and on every device while
+`list_projects` and every project-scoped call refused the project it named.
+The half that mattered was invisible: `purgeable()` collects rows carrying a
+`deleted_at`, and those rows had none, so **emptying the trash removed the
+project and left its contents behind permanently** — unreachable, unrestorable
+and un-purgeable, in every workspace where a project had ever been deleted.
+
+**Restoring takes back exactly what that deletion took.** The cascade stamps
+its rows in the same transaction as the project, so restoring un-deletes what
+carries a `deleted_at` at or after the project's own — and a task somebody
+binned last week, being older, stays binned. The one case it reads wrong is a
+row deleted in the same millisecond as the project, which comes back with it:
+a bounded and harmless mistake, next to keeping a separate list of what was
+taken and having to keep *that* in sync too.
+
+Two consequences worth stating rather than discovering. The per-row webhooks
+are **not** suppressed: there is no `project.deleted` event a receiver could
+infer the rest from, so a mirror that heard nothing would keep five hundred
+tasks that no longer exist — deleting a large project is a burst of
+`task.deleted` calls, and that is the honest signal. And rows orphaned by a
+deletion from *before* this existed are still orphaned; nothing sweeps them up
+on upgrade, because a migration that silently mass-deleted historical content
+is worse than the inconsistency it tidies.
+
+
 ## Testing it
 
 `packages/server/test/api.test.ts` covers the parts that are easy to get wrong:
