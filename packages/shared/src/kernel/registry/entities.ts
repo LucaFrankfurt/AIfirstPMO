@@ -309,7 +309,7 @@ export const ENTITIES = {
   page: {
     table: 'pages',
     fields: [
-      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'body',
+      'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'format', 'body',
       'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template',
       'created_by', 'cover_url',
     ],

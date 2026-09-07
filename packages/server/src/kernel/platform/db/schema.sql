@@ -683,6 +683,10 @@ CREATE TABLE IF NOT EXISTS pages (
   -- What the page says. Derived from `body` when there is one, so that search,
   -- export, sharing and the API all carry on reading plain text.
   content      TEXT NOT NULL DEFAULT '',
+  -- Which of the two languages `content` is in: 'markdown' or 'html'. Stored
+  -- rather than sniffed, so a page cannot render one way here and the other way
+  -- in the editor.
+  format       TEXT NOT NULL DEFAULT 'markdown',
   -- The same text as a CRDT. Merged rather than replaced on write, which is
   -- what makes two people typing at once a merge instead of a race.
   body         TEXT,

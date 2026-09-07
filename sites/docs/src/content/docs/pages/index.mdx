@@ -87,13 +87,32 @@ of. Only pages a link touches are in it.
 The same editor as comments and the chat composer, so everything here works in all three:
 
 - **Markdown**, with a live preview of what you have typed.
+- **`/` at the start of a line** offers the blocks: heading, list, checklist, quote, code, table,
+  divider, diagram, an embedded page.
 - **`@mentions`** with autocomplete. Only a newly added handle notifies — see
   [comments and mentions](/tasks/comments/).
 - **Task and project references.** `WEB-42` becomes a link; `#` offers projects and tasks.
 - **Page links.** `[[` offers the pages of the workspace by title; `![[` embeds the page instead.
 - **Images**, dragged or pasted. They downscale in your browser before upload.
+- **Pasting a document** — from a browser, a mail, a word processor — keeps its headings, lists,
+  links and tables instead of arriving as flattened prose.
 - <kbd>Tab</kbd> indents by two spaces.
 - **Mermaid diagrams** in a fenced ` ```mermaid ` block.
+
+## Pages that are HTML
+
+A page can be written in **HTML** instead — `⋯ → Written in`. Not because anybody wants to type
+`<strong>`, but because documents arrive already written: a supplier's specification, a page saved
+out of a browser, an export from another wiki, a table with a `colspan` that markdown cannot spell.
+
+Those pages get a **visual editor** — bold, headings, lists, tables, links, images — with an
+**HTML** view behind a toggle for when it is quicker to say it in markup. Everything is put through
+an allowlist before anybody sees it: no scripts, no styles, no page-wide classes, no `javascript:`
+links. Switching a page's format converts what is written rather than only flipping the flag, and
+the version before it stays in the history.
+
+**Pages → Import** takes markdown and HTML files and turns them into pages — one page per file, or
+one page per `#` heading for the long single-file exports other wikis produce.
 
 It saves as you type. There is no save button and no draft state, which is why the
 [version history](/pages/history/) matters — it is the undo that survives closing the tab.

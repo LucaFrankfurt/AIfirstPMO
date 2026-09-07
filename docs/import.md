@@ -1,5 +1,9 @@
 # Importing a CSV
 
+> Bringing **documents** in — markdown or HTML files that should become wiki
+> pages — is a different door: **Pages → Import**, described
+> [at the bottom of this page](#importing-documents-as-pages).
+
 **Project → Settings → Import tasks.** Pick a file, check what each column
 means, read the summary, import.
 
@@ -243,3 +247,32 @@ notice than one filed under none.
 > damaged by trying. If your export does not read, the shape is the thing to
 > compare; a bug report with the first two issues of the file in it is enough to
 > fix one of these.
+
+---
+
+## Importing documents as pages
+
+**Pages → Import**, or **⋯ → Import files under this page** on a page that
+should be their parent. Drop `.md`, `.markdown`, `.txt` or `.html` files, look
+at the list of pages that would be created, and say yes.
+
+Everything is worked out **in the browser**, from the file's own text. Nothing
+is uploaded to be parsed, which is why the preview and the result cannot
+disagree: the list you are looking at is the array the button walks.
+
+| Question | The answer, and the default |
+|---|---|
+| What is this file? | The extension first, then the content. A `.txt` full of markup is a document somebody saved out of a browser; an `.html` that is really a note reads the same either way |
+| What is the page called? | An HTML file's `<title>`, else its first heading; a markdown file's first `# heading`; else the filename, tidied |
+| Should HTML stay HTML? | **Kept** by default. Converting silently would be taking a decision you can no longer see the input to — untick *Keep HTML pages as HTML* and every file arrives as markdown instead |
+| One page or many? | One by default. **Split long documents at their `#` headings** turns a forty-chapter export back into forty pages — which is the shape those exports actually arrive in |
+
+Splitting skips fenced code, for the reason every other counter in this codebase
+skips it: a `# rebuild the index` inside a shell example is not a chapter, and
+cutting a runbook in half at its own example is a bug only its author finds.
+
+What is **not** here is a ZIP or a folder. A browser hands a dropped folder over
+one file at a time with no reliable tree, and a half-honoured hierarchy is worse
+than a flat list you can drag into shape in a minute. Pictures referenced by a
+`<img src="https://…">` keep working; ones referenced as `data:` URLs do not
+survive the allowlist and are dropped.

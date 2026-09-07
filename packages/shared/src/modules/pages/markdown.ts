@@ -13,19 +13,9 @@
  * job, and the editor's toolbar writes fences.
  */
 
+import { escapeHtml, safeUrl, unescapeHtml } from './escape.ts';
+import { htmlText } from './html.ts';
 import { slugCounter, splitTarget } from './links.ts';
-
-const escapeHtml = (text: string): string =>
-  text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
-
-/** Only same-origin uploads and plain web links survive. */
-function safeUrl(raw: string): string | null {
-  const url = raw.trim();
-  if (/^(https?:|mailto:)/i.test(url)) return url;
-  if (url.startsWith('/') && !url.startsWith('//')) return url;
-  if (url.startsWith('#')) return url;
-  return null;
-}
 
 /**
  * What this workspace's work is called, so a reference can be recognised.
@@ -135,11 +125,6 @@ function pageLinks(html: string, refs: MarkdownOptions, stash: string[]): string
     return `${stash.length - 1}`;
   });
 }
-
-/** The exact inverse of `escapeHtml`, for text that has to be read back. */
-const unescapeHtml = (text: string): string =>
-  text.replace(/&(amp|lt|gt|quot|#39);/g, (_, name: string) =>
-    ({ amp: '&', lt: '<', gt: '>', quot: '"', '#39': "'" }[name] ?? name));
 
 /**
  * Turn `WEB-42` into a link to that task, and `#WEB` into a link to that
@@ -653,4 +638,71 @@ export function excerpt(source: string, max = 140): string {
     .replace(/\s+/g, ' ')
     .trim();
   return text.length > max ? `${text.slice(0, max)}…` : text;
+}
+
+/**
+ * The preview line for a page, whichever language it is written in.
+ *
+ * One function because the callers are list rows and cards, and a card that
+ * showed `<p class="lead">Willkommen` for one page and `Willkommen` for the
+ * next would be telling the reader about the database.
+ */
+export const pageExcerpt = (content: string | null | undefined, format: string | null | undefined, max = 140): string =>
+  excerpt(format === 'html' ? htmlText(String(content ?? '')) : String(content ?? ''), max);
+
+/** A document, and what it is called — one piece of something that was split. */
+export interface Section {
+  /** The heading it was cut at, or `null` for whatever came before the first. */
+  title: string | null;
+  content: string;
+}
+
+/**
+ * One long document, cut into pages at its headings.
+ *
+ * This exists for the shape an import actually arrives in. Nobody exports a
+ * wiki as a folder of small files; they export it as one file with forty
+ * chapters in it, and importing that as a single page is importing a
+ * scroll — searchable, unlinkable, and impossible to give anybody a link into.
+ * Cutting it at `#` gives back the pages the document already had.
+ *
+ * Fenced code is skipped, for the reason every other counter here skips it: a
+ * `# comment` in a shell example is not a chapter, and one of those in the
+ * middle of a runbook would cut the runbook in half.
+ *
+ * The heading line is kept in the piece it opens. The page's title and its
+ * first line then say the same thing, which reads as a repeat — and the
+ * alternative is worse: an export that loses the heading level structure of
+ * everything nested under it and cannot be put back together.
+ */
+export function splitByHeadings(source: string, level = 1): Section[] {
+  const lines = String(source ?? '').split('\n');
+  const out: Section[] = [];
+  let current: Section = { title: null, content: '' };
+  let buffer: string[] = [];
+  let fence = '';
+
+  const close = (): void => {
+    const content = buffer.join('\n').trim();
+    if (content) out.push({ ...current, content });
+    buffer = [];
+  };
+
+  for (const line of lines) {
+    const mark = /^\s*(`{3,}|~{3,})/.exec(line);
+    if (mark) {
+      if (!fence) fence = mark[1][0];
+      else if (mark[1][0] === fence) fence = '';
+      buffer.push(line);
+      continue;
+    }
+    const heading = fence ? null : new RegExp(`^ {0,3}#{${level}}\\s+(.*?)(?:\\s+#+)?\\s*$`).exec(line);
+    if (heading) {
+      close();
+      current = { title: heading[1].trim() || null, content: '' };
+    }
+    buffer.push(line);
+  }
+  close();
+  return out;
 }

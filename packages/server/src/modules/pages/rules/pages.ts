@@ -5,7 +5,7 @@
  * merge; the snapshot is what makes the losing half findable afterwards.
  */
 
-import { crdt, linkableTitle, pageKey, renameLinks, type CrdtState } from '@kolibri/shared';
+import { crdt, linkableTitle, pageKey, renameLinks, type CrdtState, type PageFormat } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
@@ -23,7 +23,23 @@ const safeCrdt = (value: unknown): CrdtState | null => {
 const VERSION_WINDOW_MS = 10 * 60 * 1000;
 
 /**
- * Keep a page's text and its CRDT saying the same thing.
+ * Keep a page's text and its CRDT saying the same thing, and its format one of
+ * the two things it may be.
+ *
+ * The format is folded to `markdown` rather than refused, and that is a
+ * decision: `format` reaches here from an import, from MCP, from a `PATCH`
+ * typed by hand and from a sync client three versions old, and the failure mode
+ * of a rejected write is a page nobody can save. Markdown is the format that
+ * renders anything safely — an HTML page read as markdown shows its tags, which
+ * is ugly and honest — so an unknown value lands there.
+ *
+ * What is deliberately **not** here is sanitising. HTML is stored exactly as it
+ * was typed and put through the allowlist at *render*, on every path, the way
+ * markdown is escaped at render. Cleaning on write would look tidier and would
+ * be worse in two ways: `content` has to keep saying what `body` says, so a
+ * rewrite here would put the stored text and the CRDT permanently out of step —
+ * and an editor whose source view silently loses the tag you are halfway
+ * through typing is an editor people fight.
  *
  * Two directions, and which one applies is decided by what the writer sent:
  *
@@ -37,6 +53,11 @@ const VERSION_WINDOW_MS = 10 * 60 * 1000;
  *   would be the surprising reading of it.
  */
 function applyPageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
+  if (values.format !== undefined) {
+    const format: PageFormat = String(values.format) === 'html' ? 'html' : 'markdown';
+    values.format = format;
+    forced.format = format;
+  }
   if (values.body !== undefined && values.body !== null) {
     const text = crdt.textOf(safeCrdt(values.body));
     values.content = text;

@@ -7,7 +7,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '@kolibri/shared';
-import { collapse, diffLines, diffSummary, renderMarkdown, type DiffLine } from '@kolibri/shared';
+import {
+  collapse, diffLines, diffSummary, escapeHtml, htmlToMarkdown, renderMarkdown, sanitizeHtml, type DiffLine,
+} from '@kolibri/shared';
 import { api } from '../../kernel/sync/api';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -442,47 +444,137 @@ export function PageHistory({ page, onClose, onCompare }: {
 /* -------------------------------------------------------------- export */
 
 /**
- * The page and everything under it as one markdown file.
+ * The page and everything under it, as one tree of rendered sections.
  *
- * Plain text on purpose: a markdown bundle opens in anything, survives this
- * product, and needs no library. PDF would need a renderer and would be worse
- * at the one job an export has, which is not locking your writing in here.
+ * Shared by the HTML download and by printing, because they are the same
+ * document with a different destination. When they were two functions they had
+ * already drifted: printing sorted the sub-pages by their order key and the
+ * markdown export did not, so a downloaded handbook came out in whatever order
+ * the store happened to hold its rows in. One walk, one order.
+ *
+ * `seen` is the cycle guard: `parent_id` is a tree in intent and a graph in the
+ * database, and a page that has become its own ancestor should appear once
+ * rather than for as long as the browser has memory.
  */
-export function useExport(): (page: Page) => void {
+function pageTree(
+  page: Page,
+  say: { author: (page: Page) => string | null; heading: (page: Page) => string },
+): string {
+  const seen = new Set<string>();
+  const section = (current: Page, depth: number): string => {
+    if (seen.has(current.id)) return '';
+    seen.add(current.id);
+    const level = Math.min(depth + 1, 6);
+    const children = list('page', (child) => child.parent_id === current.id && !child.archived)
+      .sort(byOrder) as Page[];
+    const author = say.author(current);
+    return [
+      `<h${level} id="page-${escapeHtml(current.id)}">${escapeHtml(say.heading(current))}</h${level}>`,
+      author ? `<p class="meta">${escapeHtml(author)}</p>` : '',
+      // The one place the two page formats meet. Both end as markup this file
+      // then wraps; neither is trusted more than the other — markdown is
+      // escaped as it is rendered, HTML goes through the allowlist, and the
+      // downloaded file carries no script either way.
+      current.format === 'html'
+        ? sanitizeHtml(current.content ?? '', { idPrefix: `u-${current.id}-` })
+        : renderMarkdown(current.content ?? ''),
+      ...children.map((child) => section(child, depth + 1)),
+    ].filter(Boolean).join('\n');
+  };
+  return section(page, 0);
+}
+
+/** The pages a download will contain, in the order it will contain them. */
+function subtree(page: Page): Page[] {
+  const out: Page[] = [];
+  const seen = new Set<string>();
+  const walk = (current: Page): void => {
+    if (seen.has(current.id)) return;
+    seen.add(current.id);
+    out.push(current);
+    (list('page', (child) => child.parent_id === current.id && !child.archived).sort(byOrder) as Page[]).forEach(walk);
+  };
+  walk(page);
+  return out;
+}
+
+/** Hand a blob to the browser as a file. */
+function download(text: string, mime: string, name: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // Revoked on the next tick: revoking immediately can beat the download in
+  // some browsers and produce an empty file.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const fileName = (page: Page, extension: string): string =>
+  `${(page.title || 'page').replace(/[^\w\d -]+/g, '').trim() || 'page'}.${extension}`;
+
+/**
+ * The page and everything under it, as a file.
+ *
+ * Two formats, and the reason for each is different. **Markdown** is the one
+ * that matters: plain text opens in anything, survives this product, and needs
+ * no library — an export exists so that writing here is not a decision you
+ * cannot reverse. An HTML page is converted on the way out rather than dropped
+ * or dumped as tags, because a bundle that is markdown except for the two pages
+ * somebody imported is not a markdown bundle.
+ *
+ * **HTML** is the one people ask for: one file, no folder of images to keep
+ * beside it, opens by double-clicking, and looks like the page did. It carries
+ * the stylesheet inline and links to its pictures where they live, so it is
+ * whole on this network and readable anywhere.
+ */
+export function useExport(): (page: Page, as: 'markdown' | 'html') => void {
   const t = useT();
   const toast = useToast();
   const members = useMemberMap();
 
-  return (page: Page) => {
-    const seen = new Set<string>();
-    const write = (current: Page, depth: number): string => {
+  return (page, as) => {
+    const author = (one: Page) => {
+      const name = members.get(one.created_by)?.name;
+      return name ? `${t('page.byAuthor', { name })} · ${shortDate(one.updated_at)}` : null;
+    };
+
+    if (as === 'html') {
+      const pages = subtree(page);
+      const contents = pages.length > 1
+        ? `<nav class="toc"><h2>${escapeHtml(t('page.outline'))}</h2><ol>${pages.slice(1).map((one) =>
+          `<li><a href="#page-${escapeHtml(one.id)}">${escapeHtml(one.title || t('common.untitled'))}</a></li>`).join('')}</ol></nav>`
+        : '';
+      const heading = (one: Page) => `${one.icon ?? ''} ${one.title || t('common.untitled')}`.trim();
+      download(
+        printable(escapeHtml(page.title || t('common.untitled')), contents + pageTree(page, { author, heading })),
+        'text/html',
+        fileName(page, 'html'),
+      );
+      toast(t('page.exported'));
+      return;
+    }
+
+    const write = (current: Page, depth: number, seen: Set<string>): string => {
       if (seen.has(current.id)) return '';
       seen.add(current.id);
-      const author = members.get(current.created_by)?.name;
       const heading = '#'.repeat(Math.min(depth + 1, 6));
-      const children = list('page', (child) => child.parent_id === current.id && !child.archived);
+      const children = list('page', (child) => child.parent_id === current.id && !child.archived).sort(byOrder) as Page[];
+      const said = author(current);
       return [
         `${heading} ${current.icon ?? ''} ${current.title}`.trim(),
         '',
-        author ? `*${t('page.byAuthor', { name: author })} · ${shortDate(current.updated_at)}*` : '',
+        said ? `*${said}*` : '',
         '',
-        current.content ?? '',
+        current.format === 'html' ? htmlToMarkdown(current.content ?? '') : (current.content ?? ''),
         '',
-        ...children.map((child) => write(child as Page, depth + 1)),
+        ...children.map((child) => write(child, depth + 1, seen)),
       ].join('\n');
     };
 
-    const blob = new Blob([write(page, 0)], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${(page.title || 'page').replace(/[^\w\d -]+/g, '').trim() || 'page'}.md`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    // Revoked on the next tick: revoking immediately can beat the download in
-    // some browsers and produce an empty file.
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    download(write(page, 0, new Set()), 'text/markdown', fileName(page, 'md'));
     toast(t('page.exported'));
   };
 }
@@ -501,29 +593,21 @@ export function usePrint(): (page: Page) => void {
   const toast = useToast();
   const members = useMemberMap();
 
-  return (page: Page) => {
-    const seen = new Set<string>();
-    const section = (current: Page, depth: number): string => {
-      if (seen.has(current.id)) return '';
-      seen.add(current.id);
-      const level = Math.min(depth + 1, 6);
-      const author = members.get(current.created_by)?.name;
-      const children = list('page', (child) => child.parent_id === current.id && !child.archived)
-        .sort(byOrder) as Page[];
-      return [
-        `<h${level}>${escapeHtml(`${current.icon ?? ''} ${current.title}`.trim())}</h${level}>`,
-        author ? `<p class="meta">${escapeHtml(t('page.byAuthor', { name: author }))} · ${escapeHtml(shortDate(current.updated_at))}</p>` : '',
-        renderMarkdown(current.content ?? ''),
-        ...children.map((child) => section(child, depth + 1)),
-      ].join('\n');
-    };
+  return (page) => {
+    const body = pageTree(page, {
+      author: (one) => {
+        const name = members.get(one.created_by)?.name;
+        return name ? `${t('page.byAuthor', { name })} · ${shortDate(one.updated_at)}` : null;
+      },
+      heading: (one) => `${one.icon ?? ''} ${one.title || t('common.untitled')}`.trim(),
+    });
 
     const win = window.open('', '_blank');
     if (!win) {
       toast(t('page.printBlocked'));
       return;
     }
-    win.document.write(printable(escapeHtml(page.title || t('common.untitled')), section(page, 0)));
+    win.document.write(printable(escapeHtml(page.title || t('common.untitled')), body));
     win.document.close();
     // The images have to have arrived, or the print dialogue captures gaps.
     win.addEventListener('load', () => {
@@ -532,9 +616,6 @@ export function usePrint(): (page: Page) => void {
     });
   };
 }
-
-const escapeHtml = (text: string): string =>
-  String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 
 /** A document with nothing on it but the writing — and margins a printer likes. */
 const printable = (title: string, body: string): string => `<!doctype html>
@@ -549,6 +630,9 @@ const printable = (title: string, body: string): string => `<!doctype html>
   h1, h2, h3 { break-after: avoid; }
   p, ul, ol, pre, blockquote, table { margin: 0 0 12px; break-inside: avoid; }
   .meta { color: #6b7280; font-size: 12px; margin: 0 0 14px; }
+  .toc { margin: 0 0 22px; padding: 12px 16px; background: #f7f8fa; border-radius: 8px; }
+  .toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; color: #6b7280; }
+  .toc ol { margin: 0; padding-inline-start: 18px; }
   code { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
   pre { background: #f7f8fa; padding: 10px 12px; border-radius: 6px; overflow: hidden; white-space: pre-wrap; }
   pre code { background: none; padding: 0; }

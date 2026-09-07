@@ -233,6 +233,34 @@ Welcome to Kolibri. This page is a normal wiki page — edit it, nest pages unde
 `,
   }, { workspaceId: ws, actorId: grace, hlc: hlc(), system: true });
 
+  /*
+   * One page in the demo that is HTML rather than markdown, because the whole
+   * point of the format is the documents that arrive from somewhere else — a
+   * supplier's specification, a page saved out of a browser, a table with a
+   * colspan in it that markdown has no way to spell. A demo where every page is
+   * markdown says the feature exists; a demo with one imported page in it shows
+   * what it is for.
+   */
+  writeEntity('page', uid(), {
+    workspace_id: ws, parent_id: handbook, title: 'Support hours (from the supplier)', icon: '📄',
+    created_by: grace, format: 'html',
+    content: `<h2>Support hours</h2>
+<p>Imported from the supplier's own document, kept as it was written.</p>
+<table>
+  <thead>
+    <tr><th>Severity</th><th colspan="2">Response</th></tr>
+    <tr><th></th><th>Office hours</th><th>Out of hours</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Service down</td><td style="text-align:right">30 min</td><td style="text-align:right">1 h</td></tr>
+    <tr><td>Degraded</td><td style="text-align:right">4 h</td><td style="text-align:right">next working day</td></tr>
+    <tr><td>Question</td><td style="text-align:right">2 working days</td><td style="text-align:right">—</td></tr>
+  </tbody>
+</table>
+<p>Escalation goes through the duty rota, <em>not</em> through the shared mailbox.</p>
+`,
+  }, { workspaceId: ws, actorId: grace, hlc: hlc(), system: true });
+
   writeEntity('page', uid(), {
     workspace_id: ws, project_id: projects[1].id, title: 'API design principles', icon: '🔌', created_by: grace,
     content: `# API design principles

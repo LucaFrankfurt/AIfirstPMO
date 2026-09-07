@@ -12,6 +12,12 @@
  * selects what they can see. The source offset is recovered by finding the
  * selected text in the source — which is the same search the anchor itself
  * uses, so a passage that cannot be located is simply not offered a comment.
+ *
+ * That last sentence is also the whole of what happens on an **HTML page**: a
+ * selection inside one run of text is found in the markup and anchors normally,
+ * and one that crosses a tag is not offered. Exactly the rule a markdown page
+ * already lives by — selecting across a `**bold**` fails there for the same
+ * reason — so nothing here needed a second case for the second format.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { findAnchor, makeAnchor, type Anchor, type Comment } from '@kolibri/shared';

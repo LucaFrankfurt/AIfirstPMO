@@ -4,6 +4,7 @@ import {
   entityDef,
   findMentions as mentionsIn,
   hlcGreater,
+  htmlText,
   type CrdtState,
   type EntityName,
 } from '@kolibri/shared';
@@ -568,7 +569,16 @@ function mergeCrdt(stored: unknown, incoming: unknown): string | null {
 
 export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: string; body: string }>> = {
   task: (row) => ({ title: `${row.identifier ?? ''} ${row.title ?? ''}`.trim(), body: row.description ?? '' }),
-  page: (row) => ({ title: row.title ?? '', body: row.content ?? '' }),
+  /*
+   * An HTML page is indexed as what it says, not as what it is made of. Left
+   * raw, `stripMarkdown` takes the angle brackets off and leaves every tag name
+   * and every class behind as words — so a workspace with one imported page in
+   * it starts answering searches for "div" and "colspan".
+   */
+  page: (row) => ({
+    title: row.title ?? '',
+    body: row.format === 'html' ? htmlText(String(row.content ?? '')) : (row.content ?? ''),
+  }),
   project: (row) => ({ title: `${row.key ?? ''} ${row.name ?? ''}`.trim(), body: row.description ?? '' }),
   comment: (row) => ({ title: '', body: row.body ?? '' }),
   cycle: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),

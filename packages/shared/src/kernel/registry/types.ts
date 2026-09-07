@@ -701,6 +701,9 @@ export interface Module extends Base {
   sort_order: string;
 }
 
+/** What a page's text is written in. Anything else is refused on the way in. */
+export type PageFormat = 'markdown' | 'html';
+
 export interface Page extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -713,6 +716,17 @@ export interface Page extends Base {
    * renderer, the API — carries on reading plain text.
    */
   content: string;
+  /**
+   * Which language `content` is written in.
+   *
+   * Two, and they are read by two different renderers with two different safety
+   * arguments: markdown is escaped and re-emitted as tags this app wrote, HTML
+   * is parsed and put through an allowlist. The column exists so that decision
+   * is made once per page and stored, rather than sniffed per render — a
+   * document that renders as markdown on one screen and as HTML on the next is
+   * a document nobody can edit with confidence.
+   */
+  format: PageFormat;
   /**
    * The same text as a CRDT, which is what makes two people typing at once a
    * merge rather than a race. Merged rather than replaced on write; see

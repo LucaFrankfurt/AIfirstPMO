@@ -2375,6 +2375,14 @@
             ],
             "readOnly": true
           },
+          "format": {
+            "type": "string",
+            "enum": [
+              "markdown",
+              "html"
+            ],
+            "description": "Which language `content` is written in. Two, and they are read by two different renderers with two different safety arguments: markdown is escaped and re-emitted as tags this app wrote, HTML is parsed and put through an allowlist. The column exists so that decision is made once per page and stored, rather than sniffed per render — a document that renders as markdown on one screen and as HTML on the next is a document nobody can edit with confidence."
+          },
           "icon": {
             "type": [
               "string",

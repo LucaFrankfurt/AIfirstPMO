@@ -51,6 +51,7 @@ for (const [table, column, definition] of [
   ['pages', 'labels', `TEXT NOT NULL DEFAULT '[]'`],
   ['pages', 'watchers', `TEXT NOT NULL DEFAULT '[]'`],
   ['pages', 'is_template', 'INTEGER NOT NULL DEFAULT 0'],
+  ['pages', 'format', `TEXT NOT NULL DEFAULT 'markdown'`],
   ['projects', 'parent_id', 'TEXT'],
   ['states', 'wip_limit', 'INTEGER NOT NULL DEFAULT 0'],
   ['states', 'allowed_roles', `TEXT NOT NULL DEFAULT '[]'`],

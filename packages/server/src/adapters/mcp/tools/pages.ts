@@ -108,7 +108,7 @@ export const pageTools: ToolDef[] = [
       const under = parent && parent !== 'root' ? findPage(parent, workspaceId, ctx).id : null;
       const level = parent ? (under ? 'AND parent_id = ?' : 'AND parent_id IS NULL') : '';
       return all<Row>(
-        `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template FROM pages
+        `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, format FROM pages
           WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} ${level} AND deleted_at IS NULL AND archived = 0
             ${templates ? '' : 'AND is_template = 0'}
             AND (access <> 'private' OR created_by = ?)
@@ -158,13 +158,17 @@ export const pageTools: ToolDef[] = [
   {
     name: 'create_page',
     title: 'Create page',
-    description: 'Create a wiki page from markdown.',
+    description: 'Create a wiki page from markdown, or from HTML with `format: "html"`.',
     schema: {
       type: 'object',
       required: ['title'],
       properties: {
         title: { type: 'string' }, content: { type: 'string' }, project: { type: 'string' },
         parent: { type: 'string' }, icon: { type: 'string' }, workspace_id: { type: 'string' },
+        format: {
+          type: 'string', enum: ['markdown', 'html'],
+          description: 'What `content` is written in. Markdown unless said otherwise; HTML is rendered through an allowlist, so a script or a style block in it is dropped rather than stored and refused.',
+        },
       },
     },
     run: (args, ctx) => {
@@ -178,6 +182,7 @@ export const pageTools: ToolDef[] = [
         title: String(args.title),
         icon: str(args.icon) ?? '📄',
         content: String(args.content ?? ''),
+        format: str(args.format) === 'html' ? 'html' : 'markdown',
         created_by: ctx.auth.userId,
       }, writeOpts(workspaceId, ctx));
       return serialize('page', row);
@@ -194,6 +199,10 @@ export const pageTools: ToolDef[] = [
         page: { type: 'string' }, title: { type: 'string' }, content: { type: 'string' },
         append: { type: 'string', description: 'Markdown appended to the end instead of replacing' },
         icon: { type: 'string' },
+        format: {
+          type: 'string', enum: ['markdown', 'html'],
+          description: 'Change what the body is read as. The text is not converted — send `content` in the new language in the same call, or the page will render its old body through the new renderer.',
+        },
         parent: {
           type: 'string',
           description: "Move it under this page — id or exact title. `root` takes it back to the top level.",
@@ -220,6 +229,7 @@ export const pageTools: ToolDef[] = [
       if (args.content !== undefined) patch.content = String(args.content);
       if (args.append) patch.content = `${page.content ?? ''}\n\n${args.append}`;
       if (args.icon !== undefined) patch.icon = str(args.icon) ?? null;
+      if (args.format !== undefined) patch.format = str(args.format) === 'html' ? 'html' : 'markdown';
       if (args.parent !== undefined) Object.assign(patch, reparent(page, String(args.parent), workspaceId, ctx));
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       // Said in the answer, because rewriting other people's pages is a real
@@ -289,6 +299,9 @@ export const pageTools: ToolDef[] = [
         // The body is a CRDT elsewhere; a fresh page starts from the text and
         // grows its own history rather than inheriting the template's.
         content: String(template.content ?? ''),
+        // ...and in the language the template is written in, which is the one
+        // thing about a copy that must not be decided by a default.
+        format: template.format === 'html' ? 'html' : 'markdown',
         icon: template.icon ?? null,
         created_by: ctx.auth.userId,
         // Never a template itself. Copying one is how somebody ends up with

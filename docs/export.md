@@ -136,6 +136,20 @@ takes a snapshot of whatever it is about to replace. See
 [`deployment.md`](deployment.md#restoring) for what it does and why it does not
 need the server stopped.
 
+## A page, and everything under it
+
+**A page → ⋯ → Download.** Three, and the difference is what you are going to do
+with it:
+
+| | What comes out |
+|---|---|
+| **Markdown** | The page and every page nested under it, as one `.md` file. Plain text: opens in anything, survives this product, needs no library. A page written in HTML is converted on the way out, so the bundle is markdown all the way through |
+| **HTML** | One self-contained `.html` file — stylesheet inline, a table of contents when there is more than one page, pictures linked where they live. Opens by double-clicking |
+| **Print** | The same document handed to the browser's own print dialogue, which is how you get a PDF without this project carrying a PDF engine |
+
+The markdown one is the one that matters. An export exists so that writing here
+is not a decision you cannot reverse.
+
 ## Snapshots
 
 The exact copy. See [`deployment.md`](deployment.md#backups) — how to schedule
