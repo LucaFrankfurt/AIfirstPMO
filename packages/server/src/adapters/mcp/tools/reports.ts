@@ -6,6 +6,29 @@ import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { visibleProjectIds } from '../../../kernel/write-path/repo.ts';
 import { assigneeNames, brief, findProject, holes, McpError, namesOf, perProject, reportScope, safeList, str, taskView, type ToolDef, windowDays, workspaceOf } from '../kit.ts';
 
+/*
+ * The vault's entries are audit rows, not work — and both of the queries below
+ * read the table it writes them to.
+ *
+ * `changes_since` answers "what did we get done last week", and reading a
+ * credential is not work getting done; without this clause it came back with
+ * `revealed:secret: 2`, filed beside the tasks somebody finished. Worse was
+ * `project_status`, which shows a project's last twenty changes: a secret kept
+ * under a project put its *name* there — `revealed · secret · Stripe live key
+ * · Ada`. No value, and still an assistant that can name your credentials and
+ * say who reads them, which is the one thing docs/secrets.md promises there is
+ * no way to ask for.
+ *
+ * The clause is on `secret_id` and not on `field = 'secret'` because the
+ * column is what makes a row the vault's: it is set by the only function that
+ * writes them, and it stays true if that field is ever renamed.
+ *
+ * The workspace audit log keeps every one of these. That is an admin's screen,
+ * it names who read what, and it is where "who has our production key" is
+ * meant to be asked.
+ */
+const NOT_THE_VAULT = `a.secret_id IS NULL`;
+
 export const reportTools: ToolDef[] = [
   {
     name: 'project_status',
@@ -48,7 +71,7 @@ export const reportTools: ToolDef[] = [
         recent_activity: all<Row>(
           `SELECT a.verb, a.field, a.new_value, a.created_at, u.name AS actor FROM activities a
             LEFT JOIN users u ON u.id = a.actor_id
-            WHERE a.project_id = ? ORDER BY a.created_at DESC LIMIT 20`,
+            WHERE a.project_id = ? AND ${NOT_THE_VAULT} ORDER BY a.created_at DESC LIMIT 20`,
           project.id,
         ),
       };
@@ -93,7 +116,7 @@ export const reportTools: ToolDef[] = [
       const rows = all<Row>(
         `SELECT a.verb, a.field, a.actor_id, a.task_id, a.created_at
            FROM activities a
-          WHERE a.workspace_id = ? AND a.created_at >= ? AND ${scope.clause}
+          WHERE a.workspace_id = ? AND a.created_at >= ? AND ${scope.clause} AND ${NOT_THE_VAULT}
           ORDER BY a.created_at DESC
           LIMIT 5000`,
         workspaceId, since, ...scope.params,

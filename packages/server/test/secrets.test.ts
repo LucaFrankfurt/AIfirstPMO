@@ -9,6 +9,10 @@
  * and quietly stops holding two features later.
  *
  * So each one is a test. They read like paranoia and they are the specification.
+ *
+ * The seventh was found by asking rather than by reading, and it is not about
+ * the value at all: the log the vault keeps of who read what is an ordinary
+ * table, and two report tools were reading it. See the block at the bottom.
  */
 process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-secrets-${process.pid}`;
@@ -42,6 +46,14 @@ async function api<T = any>(who: string, path: string, options: { method?: strin
   if (!response.ok) throw new Error(`${response.status} ${path}: ${payload?.message ?? text}`);
   return payload as T;
 }
+
+let rpc = 0;
+const tool = (token: string, name: string, args: Record<string, unknown> = {}) =>
+  api('mcp', '/mcp', { token, body: { jsonrpc: '2.0', id: ++rpc, method: 'tools/call', params: { name, arguments: args } } })
+    .then((response) => {
+      if (response.error) throw new Error(response.error.message);
+      return response.result.structuredContent;
+    });
 
 const VALUE = 'sk-live-4f2a-do-not-paste-this-anywhere';
 const PERSONAL = 'my-own-recovery-code-9911';
@@ -207,6 +219,84 @@ describe('the six places a value must not be', () => {
     });
     const names = response.result.tools.map((tool: any) => tool.name);
     assert.equal(names.some((name: string) => /secret/i.test(name)), false, 'MCP grew a secret tool');
+  });
+});
+
+describe('the seventh place, which is not about the value at all', () => {
+  /*
+   * Every absence above is about the value, and no value ever reached MCP.
+   * What reached it was the *log*: the vault records each set and each reveal
+   * in `activities`, and two report tools read that table without knowing
+   * whose rows they were.
+   *
+   * `changes_since` answered "what did we get done last week" with
+   * `revealed:secret: 2`, counted against the person who did it. `project_status`
+   * was worse — a secret kept under a project put its name in the project's
+   * last twenty changes: `revealed · secret · Stripe live key · Ada`.
+   *
+   * Nothing there was decryptable and it was still the surface docs/secrets.md
+   * says there is none of. An assistant that can name your credentials is a
+   * transcript that names your credentials.
+   *
+   * The two tools are the ones that read `activities` today. The clause they
+   * share is on `secret_id`, so a third that joins the table is the thing to
+   * watch — which is what the last case here is for.
+   */
+  let projectId = '';
+
+  it('has a project with a secret of its own, read once', async () => {
+    const project = await api('ada', `/api/workspaces/${workspaceId}/projects`, { body: { name: 'Payments', key: 'PAY' } });
+    projectId = project.id;
+    const scoped = await api('ada', `/api/workspaces/${workspaceId}/secrets`, {
+      body: { name: 'Stripe live key', kind: 'api_key', access: 'project', project_id: projectId, value: VALUE },
+    });
+    assert.equal(scoped.project_id, projectId, 'the secret is filed under the project');
+    await api('ada', `/api/secrets/${scoped.id}/reveal`, { body: {} });
+  });
+
+  it('is not in a project status report', async () => {
+    const status = await tool(adaToken, 'project_status', { project: 'PAY' });
+    const text = JSON.stringify(status.recent_activity);
+    assert.doesNotMatch(text, /Stripe live key/, 'a report named a secret');
+    assert.doesNotMatch(text, /"secret"/, 'a report carried a vault entry');
+  });
+
+  it('is not counted in what changed', async () => {
+    // The tool returns early when the workspace has no project at all, so this
+    // is only worth anything with the one above created: a null result that
+    // never ran the query proves nothing.
+    const changed = await tool(adaToken, 'changes_since');
+    assert.equal(changed.scope, 'workspace');
+    assert.deepEqual(Object.keys(changed.by_kind).filter((kind) => /secret/i.test(kind)), []);
+    assert.doesNotMatch(JSON.stringify(changed), /Stripe live key/);
+  });
+
+  it('is in the audit log, which is where it belongs', async () => {
+    const log = await api('ada', `/api/workspaces/${workspaceId}/audit`);
+    const reveals = log.entries.filter((row: any) => row.verb === 'revealed');
+    assert.ok(reveals.length >= 3, 'the admin log lost the reveals it is for');
+    assert.ok(reveals.some((row: any) => row.new_value === 'Stripe live key'));
+  });
+
+  it('leaves no vault row reachable through any read-only tool', async () => {
+    /*
+     * The two above are the queries known to have leaked. This one asks every
+     * read-only tool the same question at once, because the next one will not
+     * be a query somebody remembered to come back and test.
+     */
+    const listed = await api('mcp', '/mcp', { token: adaToken, body: { jsonrpc: '2.0', id: 0, method: 'tools/list', params: {} } });
+    // `readOnly` is not a field of the wire shape — it is `annotations.readOnlyHint`,
+    // and reading the wrong one is how the first sweep of this came back clean.
+    const readOnly = listed.result.tools.filter((one: any) => one.annotations?.readOnlyHint).map((one: any) => one.name);
+    assert.ok(readOnly.length > 10, 'the tool list came back empty, so this proved nothing');
+    for (const name of readOnly) {
+      let answer = '';
+      // A tool that needs an argument we have not got is not a surface.
+      try { answer = JSON.stringify(await tool(adaToken, name, name === 'project_status' ? { project: 'PAY' } : {})); } catch { continue; }
+      assert.doesNotMatch(answer, /sk-live/, `${name} answered with a value`);
+      assert.doesNotMatch(answer, /Stripe live key|Recovery codes/, `${name} named a secret`);
+      assert.doesNotMatch(answer, /"(set|revealed|rotated):?secret"|:secret\b/, `${name} carried a vault entry`);
+    }
   });
 });
 

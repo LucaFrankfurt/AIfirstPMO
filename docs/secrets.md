@@ -27,7 +27,7 @@ out of one table cannot be opened as a value from another.
 | A **synced device**, or its IndexedDB | carries labels and never a value |
 | An **API token**, however broad | reaches values only through one route, which logs every use |
 | The **search index** | never sees a value, and never a name |
-| **MCP** | has no secret tool at all. An assistant cannot list them, read them or write them |
+| **MCP** | has no secret tool at all, and no report that carries the vault's log rows |
 | The **operator** of this server | **can read everything.** They have the database and the key file beside it |
 
 That last row is the honest one and it is on the screen too, not only here.
@@ -141,6 +141,18 @@ no network, like any other row.
 - **No MCP surface**, not even a list of names. An assistant that can name your
   secrets is an assistant whose transcript names your secrets. Easy to relax
   later, impossible to un-leak.
+
+  Absent tools were not enough to make that true, which is worth writing down
+  because the sentence above was already here while it was false. The vault
+  records every set and every reveal in `activities`, and two report tools read
+  that table without knowing whose rows they were: `changes_since` answered
+  "what did we get done last week" with `revealed:secret: 2` counted against
+  the person who did it, and `project_status`, for a secret kept under a
+  project, listed its **name** among the project's last twenty changes. No
+  value in either, and still exactly the surface this paragraph promises there
+  is none of. Both queries now skip rows that carry a `secret_id`, and the test
+  beside them asks *every* read-only tool the same question — so the third one
+  to join that table fails a test rather than a promise.
 - **No end-to-end encryption.** It would mean a key derived from a password,
   which means losing every secret when somebody resets one, and it would still
   not protect against an operator who serves the JavaScript. The honest version
