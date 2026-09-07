@@ -35,6 +35,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { EnvironmentsSheet } from '../environments';
 
 /** One word per kind, and one glyph, so a list of twenty is scannable. */
 const KIND_KEY: Record<SecretKind, TranslationKey> = {
@@ -142,12 +143,21 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
   const toast = useToast();
   const { workspaceId } = useSession();
   const projects = useQuery(() => list('project', (project) => !project.archived), []);
+  /* Only the ones this device has: an environment a member may not open is not
+     mirrored to them at all, so the picker cannot offer a floor they would be
+     refused at. */
+  const environments = useQuery(
+    () => list('environment', (row) => row.workspace_id === workspaceId && !row.archived)
+      .sort((a, b) => (a.sort_order ?? '').localeCompare(b.sort_order ?? '') || a.name.localeCompare(b.name)),
+    [workspaceId],
+  );
 
   const [name, setName] = useState(secret?.name ?? '');
   const [description, setDescription] = useState(secret?.description ?? '');
   const [kind, setKind] = useState<SecretKind>(secret?.kind ?? 'password');
   const [access, setAccess] = useState<SecretAccess>(secret?.access ?? 'workspace');
   const [projectId, setProjectId] = useState(secret?.project_id ?? '');
+  const [environmentId, setEnvironmentId] = useState(secret?.environment_id ?? '');
   const [days, setDays] = useState(String(secret?.rotate_after_days ?? 0));
   const [value, setValue] = useState('');
   const [busy, setBusy] = useState(false);
@@ -166,6 +176,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
         kind,
         access,
         project_id: access === 'project' ? (projectId || null) : (projectId || null),
+        environment_id: environmentId || null,
         rotate_after_days: Math.max(0, Number(days) || 0),
       };
       if (secret) {
@@ -257,6 +268,15 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
       )}
 
       <label className="field-row">
+        <span>{t('secret.environment')}</span>
+        <Select value={environmentId ?? ''} onChange={(event) => setEnvironmentId(event.target.value)}>
+          <option value="">{t('secret.everywhere')}</option>
+          {environments.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
+        </Select>
+      </label>
+      <p className="text-[12px] text-muted mb-2">{t('secret.environmentHint')}</p>
+
+      <label className="field-row">
         <span>{t('secret.rotateEvery')}</span>
         <Input type="number" min={0} max={3650} value={days} onChange={(event) => setDays(event.target.value)} />
       </label>
@@ -289,13 +309,33 @@ export function SecretsIndex() {
   );
 
   const [scope, setScope] = useState<'all' | SecretAccess>('all');
+  const [where, setWhere] = useState('all');
+  const [managing, setManaging] = useState(false);
   const [editing, setEditing] = useState<Secret | null>(null);
   const [creating, setCreating] = useState(false);
   /** The one row currently showing its value, and the value. Never more than one. */
   const [open, setOpen] = useState<{ id: string; value: string } | null>(null);
   const [opening, setOpening] = useState('');
 
-  const shown = useMemo(() => (scope === 'all' ? secrets : secrets.filter((row) => row.access === scope)), [secrets, scope]);
+  const environments = useQuery(
+    () => list('environment', (row) => row.workspace_id === workspaceId && !row.archived)
+      .sort((a, b) => (a.sort_order ?? '').localeCompare(b.sort_order ?? '') || a.name.localeCompare(b.name)),
+    [workspaceId],
+  );
+  const environmentName = useMemo(
+    () => new Map(environments.map((one) => [one.id, one.name])),
+    [environments],
+  );
+
+  const shown = useMemo(
+    () => secrets
+      .filter((row) => scope === 'all' || row.access === scope)
+      /* `none` is its own choice rather than part of "every environment",
+         because "which of these is not environment-specific" is a real
+         question when a value is about to be moved into one. */
+      .filter((row) => where === 'all' || (where === 'none' ? !row.environment_id : row.environment_id === where)),
+    [secrets, scope, where],
+  );
   const stale = useMemo(() => secrets.filter((row) => rotation(row) === 'overdue').length, [secrets]);
 
   const reveal = async (secret: Secret) => {
@@ -316,6 +356,11 @@ export function SecretsIndex() {
   return (
     <>
       <Header title={t('secret.title')}>
+        {canWrite && (
+          <Button size="sm" onClick={() => setManaging(true)}>
+            <Icon name="settings" size={14} /> <span className="hide-sm">{t('secret.manageEnvironments')}</span>
+          </Button>
+        )}
         {canWrite && (
           <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('secret.new')}</span>
@@ -343,6 +388,13 @@ export function SecretsIndex() {
                 {one === 'all' ? t('secret.scopeAll') : t(ACCESS_KEY[one])}
               </Button>
             ))}
+            {environments.length > 0 && (
+              <Select value={where} aria-label={t('secret.environment')} onChange={(event) => setWhere(event.target.value)}>
+                <option value="all">{t('secret.scopeAllEnvironments')}</option>
+                <option value="none">{t('secret.everywhere')}</option>
+                {environments.map((one) => <option key={one.id} value={one.id}>{one.name}</option>)}
+              </Select>
+            )}
             <span className="flex-1 min-w-0" />
             {stale > 0 && <span className="secret-flag overdue">{t('secret.overdueCount', { count: stale })}</span>}
           </div>
@@ -369,6 +421,7 @@ export function SecretsIndex() {
                       {t(KIND_KEY[secret.kind] ?? 'secret.kindPassword')}
                       {' · '}
                       {secret.access === 'project' && project ? project.name : t(ACCESS_KEY[secret.access] ?? 'secret.accessWorkspace')}
+                      {secret.environment_id ? ` · ${environmentName.get(secret.environment_id) ?? '—'}` : ''}
                       {secret.rotated_at ? ` · ${t('secret.rotatedAgo', { time: relativeTime(secret.rotated_at) })}` : ` · ${t('secret.neverSet')}`}
                       {secret.last_used_at ? ` · ${t('secret.usedAgo', { time: relativeTime(secret.last_used_at) })}` : ''}
                       {author ? ` · ${t('secret.byAuthor', { name: author.name })}` : ''}
@@ -408,6 +461,7 @@ export function SecretsIndex() {
       {(creating || editing) && (
         <SecretSheet secret={editing} onClose={() => { setCreating(false); setEditing(null); }} />
       )}
+      {managing && <EnvironmentsSheet onClose={() => setManaging(false)} />}
       {dialog}
     </>
   );

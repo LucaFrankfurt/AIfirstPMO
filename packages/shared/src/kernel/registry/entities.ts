@@ -49,6 +49,7 @@ export type EntityName =
   | 'channelRead'
   | 'mailbox'
   | 'secret'
+  | 'environment'
   | 'purge';
 
 export interface EntityDef {
@@ -342,12 +343,42 @@ export const ENTITIES = {
     table: 'secrets',
     fields: [
       'workspace_id', 'project_id', 'name', 'description', 'kind', 'access',
-      'created_by', 'rotate_after_days', 'archived',
+      'created_by', 'environment_id', 'rotate_after_days', 'archived',
     ],
     // Written only by the routes that seal and reveal, so a client cannot
     // backdate a rotation or claim a secret was used.
     serverOnly: ['rotated_at', 'last_used_at', 'last_used_by'],
     secret: ['value'],
+  },
+  /**
+   * One environment a value can differ in: `production`, `staging`, and
+   * whatever else a workspace decides it runs.
+   *
+   * A row rather than a column, and the reason is the one CAP-5 asks about
+   * last: *rename and delete semantics for an environment that still holds
+   * secrets*. With a row, a rename is free — everything points at the id — and
+   * a delete is a refusal listing what still points there. With a string on
+   * every secret, both are a migration somebody runs by hand at the moment
+   * they are least careful.
+   *
+   * The four a workspace starts with are `ENVIRONMENTS`, which is not a new
+   * vocabulary: the infrastructure register has spelled an environment those
+   * four ways since it was written, and a product where a component is in
+   * `production` while a credential is in `prod` has taught its users two
+   * words for one thing. Those rows are ordinary once seeded — rename them,
+   * delete them, add `qa` beside them.
+   *
+   * `min_role` is the per-environment access control, and it is a *second*
+   * axis rather than a fourth value of `access`. `access` answers who a secret
+   * is for; the environment answers which value this is; `min_role` answers
+   * which rank may read that environment at all. A reader has to pass both,
+   * which is the conservative direction: an admin-only `production` does not
+   * widen a private secret, and a private secret does not narrow production
+   * for anybody else.
+   */
+  environment: {
+    table: 'environments',
+    fields: ['workspace_id', 'name', 'color', 'min_role', 'sort_order', 'archived'],
   },
   comment: {
     table: 'comments',
@@ -643,6 +674,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   channelRead: 'channel-reads',
   mailbox: 'mailboxes',
   secret: 'secrets',
+  environment: 'environments',
   activity: 'activities',
   intake: 'intakes',
   purge: 'purges',

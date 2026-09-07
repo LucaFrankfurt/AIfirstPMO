@@ -1,7 +1,7 @@
 import {
   ENTITIES, IMPORT_FIELDS, REST_ENTITIES, canReadMailbox, convert, detectFormat, guessMapping, isCrossWorkspace,
   isGuestWritable, parseCsv,
-  type EntityName, type ImportField, type Mapping,
+  type EntityName, type ImportField, type Mapping, type WorkspaceRole,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
@@ -12,6 +12,7 @@ import { automationRuns, instantiateTemplate } from '../../../modules/automation
 import { importCsv } from '../../../adapters/transfer/import.ts';
 import { copyProject, type CopyOptions } from '../../../modules/planning/copy.ts';
 import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
+import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, parseIds, serialize, writeEntity } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
@@ -68,9 +69,9 @@ function guardPage(userId: string, entity: EntityName, row: Row): void {
  * secret was not written for. A name is a disclosure too — `Stripe live key`
  * tells you what a team has and where.
  */
-function guardSecret(userId: string, entity: EntityName, row: Row): void {
+function guardSecret(userId: string, entity: EntityName, row: Row, role: WorkspaceRole): void {
   if (entity !== 'secret') return;
-  if (!canSeeSecret(row, userId)) throw forbidden('That secret is not yours');
+  if (!canSeeSecret(row, userId, role)) throw forbidden('That secret is not yours');
 }
 
 /**
@@ -575,6 +576,18 @@ export function registerEntityRoutes(router: Router): void {
       filters.push(`(access <> 'private' OR created_by = ?)`);
       params.push(auth.userId);
     }
+    /*
+     * And the environment's own floor, which is the second axis: the clause
+     * above said who the secret is for, this says which rank may open the
+     * environment it sits in at all. In SQL for the reason that one is — a
+     * `limit` should count rows the caller may actually have — and read from
+     * the module the single-row guard reads, so a listing and a read cannot
+     * come to disagree about production.
+     */
+    if (entity === 'secret') {
+      filters.push(openEnvironmentSql(def.table).replace(/^\s*AND\s+/, ''));
+      params.push(auth.userId);
+    }
     if (entity === 'message') {
       filters.push(`EXISTS (SELECT 1 FROM channels c
                              WHERE c.id = messages.channel_id AND c.deleted_at IS NULL
@@ -659,12 +672,12 @@ export function registerEntityRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     const entity = resolve(ctx.params.collection);
     const row = workspaceOf(entity, ctx.params.id);
-    requireWorkspace(ctx, row.workspace_id);
+    const role = requireWorkspace(ctx, row.workspace_id);
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
     guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
-    guardSecret(auth.userId, entity, row);
+    guardSecret(auth.userId, entity, row, role);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
@@ -682,7 +695,7 @@ export function registerEntityRoutes(router: Router): void {
     guardChat(auth.userId, entity, row);
     guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
-    guardSecret(auth.userId, entity, row);
+    guardSecret(auth.userId, entity, row, role);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
@@ -699,13 +712,13 @@ export function registerEntityRoutes(router: Router): void {
     const auth = requireAuth(ctx);
     const entity = resolve(ctx.params.collection);
     const row = workspaceOf(entity, ctx.params.id);
-    requireWorkspace(ctx, row.workspace_id, 'member');
+    const role = requireWorkspace(ctx, row.workspace_id, 'member');
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     guardProject(auth.userId, entity, row);
     guardChat(auth.userId, entity, row);
     guardMailbox(auth.userId, entity, row);
     guardPage(auth.userId, entity, row);
-    guardSecret(auth.userId, entity, row);
+    guardSecret(auth.userId, entity, row, role);
     guardBudget(auth.userId, entity, row);
     guardRate(ctx, entity, String(row.workspace_id));
     deleteEntity(entity, ctx.params.id, {

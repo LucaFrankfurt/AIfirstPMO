@@ -87,7 +87,7 @@ const RING_OF_DIR = { kernel: 'kernel', modules: 'capability', adapters: 'adapte
 const ABOUT = {
   'i18n': ['Catalogues, plurals, and the locale a person reads in.'],
   'design-system': ['The shell, the palette, and the parts every screen is built from.'],
-  'registry': ['The 44 entities: fields, merge rules, visibility, and what the client mirrors.'],
+  'registry': ['The 45 entities: fields, merge rules, visibility, and what the client mirrors.'],
   'write-path': ['One way in for every write: defaults, invariants, guards, effects, tombstones.'],
   'identity': ['Accounts, sessions, two-factor, workspaces, members and invites.'],
   'platform': ['Configuration, the database handle, the router, ids, the bus.'],

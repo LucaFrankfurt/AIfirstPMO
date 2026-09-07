@@ -28,6 +28,7 @@ import { budgetTools } from './tools/budgets.ts';
 import { rateTools } from './tools/rates.ts';
 import { infrastructureTools } from './tools/infrastructure.ts';
 import { reportTools } from './tools/reports.ts';
+import { secretTools } from './tools/secrets.ts';
 import { mailTools } from './tools/mail.ts';
 
 /** The route and the stdio bridge both hand one of these to `handleRpc`. */
@@ -70,6 +71,7 @@ const TOOLS: ToolDef[] = [
   ...infrastructureTools,
   ...mailTools,
   ...reportTools,
+  ...secretTools,
 ];
 
 /* ---------------------------------------------------------------- prompts */

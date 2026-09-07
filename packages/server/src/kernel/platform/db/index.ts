@@ -53,6 +53,7 @@ for (const [table, column, definition] of [
   ['pages', 'is_template', 'INTEGER NOT NULL DEFAULT 0'],
   ['pages', 'format', `TEXT NOT NULL DEFAULT 'markdown'`],
   ['activities', 'secret_id', 'TEXT'],
+  ['secrets', 'environment_id', 'TEXT'],
   ['projects', 'parent_id', 'TEXT'],
   ['states', 'wip_limit', 'INTEGER NOT NULL DEFAULT 0'],
   ['states', 'allowed_roles', `TEXT NOT NULL DEFAULT '[]'`],

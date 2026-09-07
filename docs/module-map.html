@@ -354,13 +354,13 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">285</span><span class="k">source files</span></div>
+    <div><span class="v num">288</span><span class="k">source files</span></div>
     <div><span class="v num">41</span><span class="k">modules</span></div>
-    <div><span class="v num">82 806</span><span class="k">lines</span></div>
+    <div><span class="v num">83 733</span><span class="k">lines</span></div>
 <!-- end -->
-    <div><span class="v num">44</span><span class="k">entities</span></div>
+    <div><span class="v num">45</span><span class="k">entities</span></div>
     <div><span class="v num">138</span><span class="k">endpoints</span></div>
-    <div><span class="v num">81</span><span class="k">MCP tools</span></div>
+    <div><span class="v num">82</span><span class="k">MCP tools</span></div>
   </div>
 
   <p class="provenance">
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 285 files, sorted</span>
+  <span class="eyebrow">02 — All 288 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 22 812 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 40 438 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 581 lines, 21%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 975 lines, 2%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 23 014 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 40 909 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 17 825 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 985 lines, 2%</span>
 <!-- end -->
     </div>
 
@@ -457,7 +457,7 @@ footer {
       into five adapters. It is <strong>296 lines</strong> now, and the growth is the fix: the
       meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
       delivery stayed in the adapters but through a port they register with. And
-      <code>adapter/mcp</code> is <strong>6 407</strong>: the assistant's view of the product is
+      <code>adapter/mcp</code> is <strong>6 651</strong>: the assistant's view of the product is
       larger than the largest thing the product actually does. Fifteen files rather than three, now,
       which makes it readable — not smaller. Finding 7 is why.
     </p>
@@ -508,7 +508,7 @@ footer {
           route and the MCP tool are equal callers of one implementation. There are now no layering
           exceptions at all, which is worth more than two — nothing is left to cite as precedent.
         </p>
-        <p class="fix"><strong>Remaining.</strong> The <strong>twelve</strong> files sit under the
+        <p class="fix"><strong>Remaining.</strong> The <strong>thirteen</strong> files sit under the
           adapter rather than beside the capability whose product they expose, and the module map
           says so. This note used to call moving <code>tools/budgets.ts</code> next to
           <code>budgets</code> step 10's job; step 10 came and went, put every file under
@@ -948,7 +948,7 @@ footer {
     <div class="step done">
       <span class="i num">6</span>
       <span class="what">Split <code>lib/mcp.ts</code> into eleven tool files
-        <em>The adapter is 15 files now, the largest 1 192 lines, and a group is a file</em></span>
+        <em>The adapter is 16 files now, the largest 1 192 lines, and a group is a file</em></span>
       <span class="risk" data-r="none">Shipped</span>
     </div>
     <div class="step done">
@@ -1015,7 +1015,7 @@ footer {
   <h2>What this won't fix</h2>
   <ul class="plain">
     <li>
-      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 874 lines,
+      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 868 lines,
       from 2 370. This entry used to promise a floor around 1 300 — the merge, the transaction, the
       tombstones, the search index and the generic effects, said to belong together. Two of them did
       not: the notification copy and the webhook payloads were a capability and an adapter sitting in
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 8 220 lines is three
-      catalogues of 2 454 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 8 286 lines is three
+      catalogues of 2 475 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1146,7 +1146,7 @@ footer {
           <tr><td>kernel → an adapter</td><td class="n">3</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → an adapter</td><td class="n">12</td><td class="n"><b>0</b></td></tr>
           <tr><td>capability → another capability</td><td class="n">14</td><td class="n">17</td></tr>
-          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">17</td></tr>
+          <tr><td>adapter → a capability <span class="dim">(inward — allowed)</span></td><td class="n">1</td><td class="n">19</td></tr>
 <!-- end -->
         </tbody>
       </table>
@@ -1155,7 +1155,7 @@ footer {
       <strong>Nothing points outward any more. <code>KNOWN_OUTWARD</code> is empty, and rule 5
       keeps it that way.</strong>
       The last row moves the other way on purpose: an adapter is <em>supposed</em> to lean on a
-      capability, and it does so 17 times now precisely because the outward edges were turned
+      capability, and it does so 19 times now precisely because the outward edges were turned
       round.
       The way out was the same every time — the inner ring says what it needs, the outer one
       registers. There are <strong>11 ports</strong> across <strong>9 modules</strong> now, and
@@ -1410,13 +1410,13 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":8220,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2592},
-{"ring":"kernel","name":"registry","flag":"","files":5,"lines":2575,"biggest":"kernel/registry/types.ts","biggestLines":1709},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":8286,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2614},
+{"ring":"kernel","name":"registry","flag":"","files":5,"lines":2642,"biggest":"kernel/registry/types.ts","biggestLines":1744},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2172,"biggest":"kernel/identity/routes/auth.ts","biggestLines":521},
 {"ring":"kernel","name":"design-system","flag":"","files":25,"lines":2071,"biggest":"kernel/design-system/ui.tsx","biggestLines":525},
-{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":1956,"biggest":"kernel/write-path/routes/entities.ts","biggestLines":874},
-{"ring":"kernel","name":"sync","flag":"","files":7,"lines":1823,"biggest":"kernel/sync/routes/sync.ts","biggestLines":500},
-{"ring":"kernel","name":"platform","flag":"","files":11,"lines":1813,"biggest":"kernel/platform/env.ts","biggestLines":537},
+{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2017,"biggest":"kernel/write-path/routes/entities.ts","biggestLines":887},
+{"ring":"kernel","name":"sync","flag":"","files":7,"lines":1830,"biggest":"kernel/sync/routes/sync.ts","biggestLines":507},
+{"ring":"kernel","name":"platform","flag":"","files":11,"lines":1814,"biggest":"kernel/platform/env.ts","biggestLines":537},
 {"ring":"kernel","name":"search","flag":"","files":5,"lines":1158,"biggest":"kernel/search/routes/search.tsx","biggestLines":586},
 {"ring":"kernel","name":"files","flag":"","files":6,"lines":700,"biggest":"kernel/files/zip.ts","biggestLines":315},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
@@ -1432,13 +1432,13 @@ const MODULES = [
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1625,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1492,"biggest":"modules/automation/settings.tsx","biggestLines":736},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1490,"biggest":"modules/time/rates.tsx","biggestLines":581},
-{"ring":"capability","name":"secrets","flag":"secrets","files":4,"lines":889,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":438},
+{"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1360,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":492},
 {"ring":"capability","name":"ai-review","flag":"ai","files":4,"lines":535,"biggest":"modules/ai-review/task-review.tsx","biggestLines":204},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":433,"biggest":"modules/trash/trash.tsx","biggestLines":217},
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":296,"biggest":"modules/notifications/effects.ts","biggestLines":219},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":227,"biggest":"modules/intake/intake.tsx","biggestLines":227},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
-{"ring":"adapter","name":"mcp","flag":"","files":15,"lines":6407,"biggest":"adapters/mcp/kit.ts","biggestLines":1192},
+{"ring":"adapter","name":"mcp","flag":"","files":16,"lines":6651,"biggest":"adapters/mcp/kit.ts","biggestLines":1192},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3373,"biggest":"adapters/transfer/transfer.ts","biggestLines":793},
 {"ring":"adapter","name":"webhooks","flag":"","files":6,"lines":1920,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1187,"biggest":"adapters/imap/imap.ts","biggestLines":364},
@@ -1450,7 +1450,7 @@ const MODULES = [
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":344,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":340,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":195},
 {"ring":"adapter","name":"s3","flag":"","files":2,"lines":269,"biggest":"adapters/s3/s3.ts","biggestLines":227},
-{"ring":"shell","name":"shell","flag":"","files":14,"lines":1975,"biggest":"AppShell.tsx","biggestLines":478}
+{"ring":"shell","name":"shell","flag":"","files":14,"lines":1985,"biggest":"AppShell.tsx","biggestLines":478}
 ];
 /* end */
 

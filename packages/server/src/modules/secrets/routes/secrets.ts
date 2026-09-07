@@ -60,8 +60,8 @@ const MAX_VALUE = 64 * 1024;
 function reachable(ctx: Ctx, userId: string): Row {
   const row = get<Row>(`SELECT * FROM secrets WHERE id = ? AND deleted_at IS NULL`, ctx.params.id);
   if (!row) throw notFound('Secret not found');
-  requireWorkspace(ctx, String(row.workspace_id), 'member');
-  if (!canSeeSecret(row, userId)) throw notFound('Secret not found');
+  const role = requireWorkspace(ctx, String(row.workspace_id), 'member');
+  if (!canSeeSecret(row, userId, role)) throw notFound('Secret not found');
   return row;
 }
 
@@ -120,25 +120,41 @@ export function registerSecretRoutes(router: Router): void {
     if (value.length > MAX_VALUE) throw badRequest('That value is too long to keep here');
 
     const id = uid();
-    const { row } = writeEntity('secret', id, {
+    /*
+     * Two writes, and the split is the whole of what this comment is for.
+     *
+     * The label is an ordinary write, so the rules see it: a name that
+     * collides with another in the same project and environment is refused,
+     * and so is an environment the writer may not open. This was one write
+     * with `system: true` — needed so `rotated_at` could be set, since it is
+     * `serverOnly` — and `system` skips the `guards` hook by design. Which
+     * meant the one route that creates secrets was the one route no guard ran
+     * on, and every rule written for a secret only ever fired on edits.
+     *
+     * The rotation stamp is the second write, and that one is genuinely the
+     * server's: a client that could backdate it could make an overdue
+     * credential look fresh, which is the one number on this screen anybody
+     * would want to lie about. The rotate route beside this one has always
+     * been shaped that way.
+     */
+    writeEntity('secret', id, {
       workspace_id: ctx.params.ws,
       project_id: body.project_id ?? null,
+      environment_id: body.environment_id ?? null,
       name: String(body.name).trim(),
       description: body.description ?? null,
       kind: body.kind ?? 'password',
       access: body.access ?? 'workspace',
       rotate_after_days: body.rotate_after_days ?? 0,
       created_by: auth.userId,
-      rotated_at: Date.now(),
       archived: 0,
-      // `system` so the `serverOnly` fields are writable: `rotated_at` is one,
-      // deliberately, because a client that could backdate a rotation could
-      // make an overdue credential look fresh — which is the one number on
-      // this screen anybody would want to lie about.
-    }, { workspaceId: ctx.params.ws, actorId: auth.userId, hlc: serverClock.now(), system: true });
+    }, { workspaceId: ctx.params.ws, actorId: auth.userId, hlc: serverClock.now() });
     // After the row exists, so a failure here cannot leave a sealed value
     // hanging off nothing.
     run(`UPDATE secrets SET value = ? WHERE id = ?`, seal(PURPOSE, value), id);
+    const { row } = writeEntity('secret', id, { rotated_at: Date.now() }, {
+      workspaceId: ctx.params.ws, actorId: auth.userId, hlc: serverClock.now(), system: true,
+    });
     audit(row, auth.userId, 'set');
     return { ...serialize('secret', row), preview: maskSecret(value) };
   });
