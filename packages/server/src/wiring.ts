@@ -34,6 +34,7 @@ import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
+import { decisionRules } from './modules/decisions/rules/decisions.ts';
 import { landscapeRules } from './modules/infrastructure/rules/infrastructure.ts';
 import { rateRules } from './modules/time/rules/rates.ts';
 import { workRules } from './modules/work/rules/work.ts';
@@ -74,7 +75,7 @@ export function installEffects(): void {
   for (const rule of [
     workRules, pageRules, chatRules, planningRules,
     budgetRules, rateRules, kpiRules, landscapeRules,
-    mailRules, secretRules, environmentRules,
+    mailRules, secretRules, environmentRules, decisionRules,
   ]) onEntity(rule);
 
   /*

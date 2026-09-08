@@ -47,7 +47,7 @@ export const wikiLink = { open: '[[', close: ']]' } as const;
  * downstream of it compiles, and the file that carries it is a PNG. So the
  * source is checked, and re-rendering is what a change to it costs.
  */
-export const tools = { count: 82, prompts: 6 } as const;
+export const tools = { count: 87, prompts: 6 } as const;
 
 /**
  * What the README's one-line description claims, split so each half can land on

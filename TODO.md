@@ -1138,7 +1138,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 82 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 87 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
@@ -1164,6 +1164,53 @@ confused later.
       rule (know the exact email address, no browsable list) is a small change to one endpoint and
       one sheet; an instance setting would be a slightly larger one. Worth revisiting the first time
       somebody runs this with sign-up left open.
+
+## Voting: what was decided, and what is left open
+
+Built as its own capability behind the `decisions` switch — the question, the options, the votes, one
+screen, a panel on a task, and five MCP tools. See [`docs/decisions.md`](docs/decisions.md). What
+follows is what was deliberately *not* built, and why, so that none of it is re-argued from scratch.
+
+- [x] **Anonymity is a clause in the sync filter, not a hidden column.** A secret ballot's votes go
+      to the voter and to nobody else, the way a rate goes only to owners and admins. The cheaper
+      version — send every vote and hide the names on the screen — was rejected for the reason that
+      one always is: the rows would be in every member's IndexedDB and coming back from the REST
+      collection. It costs a count the device cannot compute, which is why `decision.voters` and
+      `decision_options.tally` exist and are recounted rather than incremented.
+- [x] **A closed vote refuses rather than corrects.** Every other invariant in this codebase tidies
+      up what arrived — the budget clamps, the KPI settles an enum. A vote does not: silently
+      dropping one tells the person they voted. Withdrawing is refused too, because a result somebody
+      can still shrink after it is quoted is not a result.
+- [ ] **Ranked and weighted ballots.** Order your five; spread ten points across them. Both were
+      considered and left out of the first version, and it is not the input control that is the work
+      — it is that each needs a different count, a different bar, and a different sentence about who
+      won. Dot-voting is the more useful of the two for a PMO backlog and is the one to build first
+      if either is. The entity shape already allows it: a vote is a row per option, so a `weight`
+      column is the smallest version of the change. What is *not* already there is any of the
+      reporting.
+- [ ] **A quorum.** Nothing says how many people had to vote for a result to stand, because nothing
+      here knows who was asked — a workspace is not an electorate, and a decision scoped to a project
+      is not asked of everybody in it either. The turnout is reported and the reader decides. Doing
+      this properly means an invited set per decision, which is a feature about *people* rather than
+      about counting, and would be the largest single addition to this area.
+- [ ] **Nothing happens when a deadline passes.** No notification, no automatic close, no digest
+      entry — the deadline is evaluated on reading and that is the whole of it. A reminder the
+      evening before a vote closes is the obvious next thing and the one people will ask for first;
+      it wants the scheduler, which already runs, and one notification kind. The reason it is not
+      here is that a scheduled *close* was rejected first (a timezone this code does not know, and an
+      instance switched off over the weekend), and a reminder was not separated from it at the time.
+- [ ] **A vote is not a decision record.** Closing a ballot records what people picked, not what was
+      decided — and those differ often enough that conflating them would make the honest half
+      untrustworthy. Today the answer is to write the decision on a page and link the ballot from it.
+      A first-class "outcome" field on the decision, saying what was actually settled and by whom,
+      is a small change and a real one; it is left out until somebody has used the ballots long
+      enough to say whether the page is already doing the job.
+- [ ] **The secrecy is from the workspace, not from the operator.** `decision_votes` holds a voter id
+      and an option id in plain columns, so whoever runs the server can read a secret ballot. That is
+      the same boundary the vault draws and it is documented in both places, but a vote is the first
+      feature here where somebody might be *punished* for what the database says. Sealing the column
+      would not fix it either — the server has to count, so it has to be able to read. Named rather
+      than solved.
 
 ## The UI port, and what is left of it
 

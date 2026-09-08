@@ -33,6 +33,9 @@ export type EntityName =
   | 'kpi'
   | 'kpiTarget'
   | 'kpiReading'
+  | 'decision'
+  | 'decisionOption'
+  | 'decisionVote'
   | 'page'
   | 'comment'
   | 'attachment'
@@ -299,6 +302,43 @@ export const ENTITIES = {
   kpiReading: {
     table: 'kpi_readings',
     fields: ['workspace_id', 'kpi_id', 'measured_on', 'value', 'source', 'note'],
+  },
+  /**
+   * A question with options on it.
+   *
+   * `voters` is `serverOnly` for the reason `budgetActual.recorded_by` is: it
+   * is the write path's own count of the rows underneath, and a client that
+   * could set it could report a turnout that never happened. The same goes for
+   * `created_by` — who asked the question is the one line of provenance a
+   * ballot has.
+   */
+  decision: {
+    table: 'decisions',
+    fields: [
+      'workspace_id', 'project_id', 'task_id', 'question', 'description',
+      'mode', 'visibility', 'status', 'closes_at', 'sort_order',
+    ],
+    serverOnly: ['created_by', 'voters'],
+  },
+  /** One thing that can be chosen. `tally` is counted by the write path. */
+  decisionOption: {
+    table: 'decision_options',
+    fields: ['workspace_id', 'decision_id', 'label', 'description', 'sort_order'],
+    serverOnly: ['tally'],
+  },
+  /**
+   * One person's vote for one option.
+   *
+   * `voter_id` never comes off the wire: it is whoever the write arrived as,
+   * the way `channelRead.user_id` is. A vote a client could file under somebody
+   * else's name is not a vote, and the id is derived from it — see `voteId` —
+   * so letting one through would also let a client overwrite a row that is not
+   * theirs.
+   */
+  decisionVote: {
+    table: 'decision_votes',
+    fields: ['workspace_id', 'decision_id', 'option_id'],
+    serverOnly: ['voter_id'],
   },
   module: {
     table: 'modules',
@@ -659,6 +699,9 @@ export const COLLECTIONS: Record<EntityName, string> = {
   kpi: 'kpis',
   kpiTarget: 'kpi-targets',
   kpiReading: 'kpi-readings',
+  decision: 'decisions',
+  decisionOption: 'decision-options',
+  decisionVote: 'decision-votes',
   module: 'modules',
   page: 'pages',
   comment: 'comments',

@@ -3424,6 +3424,75 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   border-top: 1px solid var(--line);
 }
 
+/* -------------------------------------------------------------- decisions */
+
+/*
+ * A ballot: one row per option, the mark on the left and the count on the
+ * right, with the bar under both.
+ *
+ * The whole row is the control rather than a checkbox with a label beside it,
+ * because the target on a phone is otherwise 14px of tick — and a vote that is
+ * hard to cast is a vote somebody casts for the option they hit first.
+ */
+.ballot-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.ballot-pick {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  /* WCAG 2.2 wants 24px, and the whole row is the control precisely so that
+     there is room for it: the mark is 17px and padding it out on its own would
+     have made a 24px tick beside a label that still does nothing. */
+  min-height: 26px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.ballot-pick:disabled { cursor: default; }
+.ballot-pick:hover:not(:disabled) .ballot-mark { border-color: var(--line-strong); }
+
+/*
+ * Round for one choice, square for several — the convention every radio and
+ * checkbox already teaches, so how many you may hold is legible before you
+ * have found out by clicking.
+ */
+.ballot-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 17px;
+  height: 17px;
+  border: 1.5px solid var(--line);
+  border-radius: 4px;
+  color: var(--bg);
+}
+.ballot-mark-one { border-radius: 50%; }
+.ballot-pick[aria-pressed='true'] .ballot-mark { border-color: var(--accent); background: var(--accent); }
+
+.ballot-label { overflow-wrap: anywhere; font-size: 13.5px; }
+/* The card's title is how you open the decision, so it is a target rather than
+   a heading that happens to be a link — 24px tall, the same floor as the row. */
+.ballot-question {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+.ballot-count { flex: none; font-size: 12.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.ballot-note { margin: 0; font-size: 12px; color: var(--fg-muted); }
+
 /* ------------------------------------------------------------------- KPIs */
 
 /*

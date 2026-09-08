@@ -10,6 +10,7 @@ export * from './modules/budgets/budget.ts';
 export * from './modules/time/rates.ts';
 export * from './modules/infrastructure/landscape.ts';
 export * from './modules/kpis/kpi.ts';
+export * from './modules/decisions/decision.ts';
 export * from './modules/planning/schedule.ts';
 export * from './modules/work/risk.ts';
 export * from './modules/secrets/secret.ts';

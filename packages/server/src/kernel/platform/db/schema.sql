@@ -615,6 +615,76 @@ CREATE TABLE IF NOT EXISTS kpi_readings (
 CREATE INDEX IF NOT EXISTS kpi_readings_seq ON kpi_readings (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS kpi_readings_kpi ON kpi_readings (kpi_id, measured_on);
 
+-- A question the team is being asked. `status` is what somebody set and
+-- `closes_at` is what they promised; nothing runs when the second passes, and
+-- `isOpen` in @kolibri/shared is the only place that combines them.
+--
+-- `voters` is the count of people with at least one live vote, recounted inside
+-- the transaction that changes one. It is the denominator of every share, and
+-- the one figure a secret ballot cannot be read without: a device holding only
+-- its own vote would otherwise report a turnout of one.
+CREATE TABLE IF NOT EXISTS decisions (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  project_id   TEXT,
+  task_id      TEXT,
+  question     TEXT NOT NULL DEFAULT '',
+  description  TEXT,
+  mode         TEXT NOT NULL DEFAULT 'single',
+  visibility   TEXT NOT NULL DEFAULT 'open',
+  status       TEXT NOT NULL DEFAULT 'open',
+  closes_at    INTEGER,
+  created_by   TEXT,
+  voters       INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS decisions_seq ON decisions (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS decisions_project ON decisions (project_id);
+CREATE INDEX IF NOT EXISTS decisions_task ON decisions (task_id);
+
+-- One thing that can be chosen. `tally` is its live votes, counted by the write
+-- path for the reason `decisions.voters` is.
+CREATE TABLE IF NOT EXISTS decision_options (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  decision_id  TEXT NOT NULL,
+  label        TEXT NOT NULL DEFAULT '',
+  description  TEXT,
+  tally        INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS decision_options_seq ON decision_options (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS decision_options_decision ON decision_options (decision_id);
+
+-- One person's vote for one option. The id is `decision.option.voter` — see
+-- `voteId` — so the same vote cast from two devices is one row rather than two
+-- that both count. Withdrawing is a tombstone on that same id.
+CREATE TABLE IF NOT EXISTS decision_votes (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  decision_id  TEXT NOT NULL,
+  option_id    TEXT NOT NULL,
+  voter_id     TEXT NOT NULL DEFAULT '',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS decision_votes_seq ON decision_votes (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS decision_votes_decision ON decision_votes (decision_id, option_id);
+CREATE INDEX IF NOT EXISTS decision_votes_voter ON decision_votes (decision_id, voter_id);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,

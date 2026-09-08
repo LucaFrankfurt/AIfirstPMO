@@ -239,6 +239,119 @@ export interface KpiReading extends Base {
   note: string | null;
 }
 
+/* --------------------------------------------------------------- decisions */
+
+/**
+ * How many options one person may hold.
+ *
+ * Two, and deliberately no third. Ranked and weighted ballots — order your
+ * five, spend ten points across them — answer a different question and need a
+ * different count, a different bar and a different explanation of who won; see
+ * `TODO.md`. A vote nobody can read the result of is worse than no vote.
+ */
+export const DECISION_MODES = ['single', 'multiple'] as const;
+export type DecisionMode = (typeof DECISION_MODES)[number];
+
+/**
+ * Whether it is known who voted how.
+ *
+ * `open` is the default because it is the honest one for a team decision: a
+ * vote you have to defend is a vote worth having, and the trail is what makes
+ * a decision reviewable six months later.
+ *
+ * `anonymous` is not the same feature with a checkbox. It is a promise about
+ * where the rows go: a secret ballot's votes are not sent to anybody's device
+ * but the voter's own, so the count comes off the server's counters and no
+ * client can reconstruct who chose what. Drawn at the pull, exactly where
+ * `rate` draws its line — hiding a column on the screen would leave the answer
+ * sitting in IndexedDB.
+ */
+export const DECISION_VISIBILITY = ['open', 'anonymous'] as const;
+export type DecisionVisibility = (typeof DECISION_VISIBILITY)[number];
+
+/** Whether it is still being taken. See `isOpen` — the deadline is the other half. */
+export const DECISION_STATUS = ['open', 'closed'] as const;
+export type DecisionStatus = (typeof DECISION_STATUS)[number];
+
+/**
+ * A question the team is being asked, with the options on the ballot.
+ *
+ * Scoped by one project rather than by the `projects` list a budget or a cycle
+ * carries: a decision is taken *somewhere*, and a vote that half a workspace
+ * can see and half cannot is a result nobody can quote. `project_id` null is
+ * the workspace's own — the same rule a page follows, and the same clause in
+ * the sync filter.
+ *
+ * `task_id` is the ordinary case rather than the exotic one, which is why it is
+ * a column and not a link in the description: "which of these three do we do"
+ * is a question about a piece of work, and a decision that cannot be reached
+ * from the work is a decision nobody finds again.
+ */
+export interface Decision extends Base {
+  workspace_id: ID;
+  /** Where it is taken. Null is the whole workspace. */
+  project_id: ID | null;
+  /** The work it is about, if it is about one. Its project wins over `project_id`. */
+  task_id: ID | null;
+  question: string;
+  description: string | null;
+  mode: DecisionMode;
+  visibility: DecisionVisibility;
+  status: DecisionStatus;
+  /**
+   * When it stops taking votes, as epoch milliseconds. Null is "until somebody
+   * closes it". Nothing runs at that moment — see `isOpen`.
+   */
+  closes_at: number | null;
+  created_by: ID | null;
+  /**
+   * People with at least one live vote, maintained by the write path.
+   *
+   * The denominator of every share, and the one figure a secret ballot cannot
+   * be counted without: a device holding only its own vote would otherwise
+   * report a turnout of one. Recounted inside the transaction that changes a
+   * vote, so it cannot drift from the rows it counts.
+   */
+  voters: number;
+  sort_order: string;
+}
+
+/**
+ * One thing that can be chosen.
+ *
+ * Its own row rather than a list on the decision, for the reason a budget line
+ * is a row: two people adding two options from two devices should end up with
+ * both, and a JSON array would leave whichever synced second holding the whole
+ * ballot.
+ */
+export interface DecisionOption extends Base {
+  workspace_id: ID;
+  decision_id: ID;
+  label: string;
+  description: string | null;
+  /** Live votes for it, maintained by the write path. See `Decision.voters`. */
+  tally: number;
+  sort_order: string;
+}
+
+/**
+ * One person's vote for one option.
+ *
+ * A row per option rather than a list per person, so two devices ticking two
+ * different options in a multiple-choice vote merge instead of one of them
+ * winning the whole ballot. Its id is derived from the three ids it names —
+ * see `voteId` — so the same vote cast twice is one row.
+ *
+ * `voter_id` is the server's to set and nobody else's: a vote a client could
+ * file under another name is not a vote.
+ */
+export interface DecisionVote extends Base {
+  workspace_id: ID;
+  decision_id: ID;
+  option_id: ID;
+  voter_id: ID;
+}
+
 /**
  * What an hour is worth, in the two senses a team needs at once.
  *
@@ -428,6 +541,17 @@ export interface WorkspaceFeatures {
    * module, which every workspace already has.
    */
   kpi?: boolean;
+  /**
+   * Decisions: a question with options on it, and who picked what.
+   *
+   * Off by default like the rest. Worth its own switch rather than being always
+   * on, because a vote is a social instrument before it is a feature: a team
+   * that has not decided *how* it decides will use it to avoid a conversation,
+   * and the screens are then a record of an argument nobody had. Switching it
+   * off hides them and makes MCP refuse; the rows are untouched, so a workspace
+   * that turns it back on finds its ballots where it left them.
+   */
+  decisions?: boolean;
   /**
    * Connected mailboxes: shared inboxes, searchable from one place and from an
    * assistant.
@@ -1477,6 +1601,9 @@ export interface EntityMap {
   kpi: Kpi;
   kpiTarget: KpiTarget;
   kpiReading: KpiReading;
+  decision: Decision;
+  decisionOption: DecisionOption;
+  decisionVote: DecisionVote;
   page: Page;
   comment: Comment;
   attachment: Attachment;

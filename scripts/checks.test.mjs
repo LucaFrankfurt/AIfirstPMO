@@ -87,6 +87,30 @@ function tree() {
       assert.ok(text.includes(from), `${file} no longer contains:\n${from}`);
       write(file, text.replace(from, to));
     },
+    /**
+     * Put a different number inside a claim, without naming what it says today.
+     *
+     * A case that spells out "There are **18** capabilities" is itself a figure
+     * in prose, and it rots exactly the way `figures.mjs` exists to stop prose
+     * rotting: the eighteenth capability made five of these cases fail on the
+     * literal rather than on the rule they were written for. So the words
+     * around the number are the fixture and the number is *found* — the case
+     * proves that a wrong figure is reported, which is a fact about the checker
+     * rather than about this month's module count.
+     *
+     * `pattern` must capture the figure and nothing else; `wrong` is handed
+     * what is there and returns something that is not.
+     */
+    restate(file, pattern, wrong) {
+      const text = read(file);
+      const found = text.match(pattern);
+      assert.ok(found, `${file} no longer contains anything matching ${pattern}`);
+      const [whole, was] = found;
+      const now = wrong(was);
+      assert.notEqual(now, was, `${pattern} was already ${was}`);
+      write(file, text.replace(whole, whole.replace(was, now)));
+      return { was, now };
+    },
     prepend(file, text) {
       write(file, text + read(file));
     },
@@ -101,6 +125,27 @@ function tree() {
     },
   };
 }
+
+/*
+ * A figure that is not the one in the document, written the way that one was.
+ *
+ * `figures.mjs` reads a claim spelled or in digits, spaced over a thousand or
+ * not, and writes the correction back in the same form. A case that broke a
+ * spelled figure with digits would therefore be testing the wrong half of it.
+ */
+const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+  'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen',
+  'nineteen', 'twenty'];
+const spaced = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+const otherNumeral = (was) => {
+  const next = Number(was.replace(/\s/g, '')) + 1;
+  return /\s/.test(was) ? spaced(next) : String(next);
+};
+const otherWord = (was) => {
+  const at = WORDS.indexOf(was.toLowerCase());
+  const next = WORDS[(at + 1) % WORDS.length];
+  return was[0] === was[0].toUpperCase() ? next[0].toUpperCase() + next.slice(1) : next;
+};
 
 const STRAY = 'packages/server/src/stray.ts';
 const S3 = 'packages/server/src/adapters/s3/backend.ts';
@@ -235,40 +280,51 @@ const BREAKS = [
   {
     what: 'a figure that no longer matches what it counts',
     script: 'figures.mjs',
-    break: (t) => t.edit('docs/modules.md', 'There are **18** capabilities', 'There are **14** capabilities'),
-    says: /STALE +docs\/modules\.md: capabilities — says 14, is 18/,
+    break: (t) => t.restate('docs/modules.md', /There are \*\*(\d+)\*\* capabilities/, otherNumeral),
+    says: ({ was, now }) => new RegExp(`STALE +docs/modules\\.md: capabilities — says ${now}, is ${was}`),
   },
   {
     what: 'a spelled figure at the start of a sentence',
     script: 'figures.mjs',
-    break: (t) => t.edit('docs/modules.md', 'Seventeen imports across', 'Twelve imports across'),
-    says: /imports from one capability to another — says Twelve, is Seventeen/,
+    break: (t) => t.restate('docs/modules.md', /([A-Z][a-z]+) imports across/, otherWord),
+    says: ({ was, now }) =>
+      new RegExp(`imports from one capability to another — says ${now}, is ${was}`),
   },
   {
     what: 'a figure written with the thousands separator',
     script: 'figures.mjs',
-    break: (t) => t.edit('docs/modules.md', 'Of the **14 430** ways', 'Of the **14 431** ways'),
-    says: /says 14 431, is 14 430/,
+    break: (t) => t.restate('docs/modules.md', /Of the \*\*(\d{1,3}(?: \d{3})+)\*\* ways/, otherNumeral),
+    says: ({ was, now }) => new RegExp(`says ${now}, is ${was}`),
   },
   {
     what: 'a "remaining" note whose count has quietly grown',
     script: 'figures.mjs',
-    break: (t) => t.edit('packages/server/src/adapters/webhooks/effects.ts',
-      "  if (entity === 'budget') {",
-      "  if (entity === 'label') { void 0; }\n  if (entity === 'budget') {"),
-    says: /branches left in the three effects — says 17, is 18/,
+    break: (t) => {
+      const said = Number(t.read('docs/modules.md').match(/\*\*(\d+)\*\* `if \(entity === …\)` branches are left/)[1]);
+      t.edit('packages/server/src/adapters/webhooks/effects.ts',
+        "  if (entity === 'budget') {",
+        "  if (entity === 'label') { void 0; }\n  if (entity === 'budget') {");
+      return { was: said, now: said + 1 };
+    },
+    says: ({ was, now }) => new RegExp(`branches left in the three effects — says ${was}, is ${now}`),
   },
   {
     what: 'a "remaining" note about files, when a file joins them',
     script: 'figures.mjs',
-    break: (t) => t.write('packages/server/src/adapters/mcp/tools/telepathy.ts', 'export const TOOLS = [];\n'),
-    says: /MCP tool files still under the adapter — says 13, is 14/,
+    break: (t) => {
+      const said = Number(t.read('docs/modules.md').match(/The \*\*(\d+)\*\* files sit under the adapter/)[1]);
+      t.write('packages/server/src/adapters/mcp/tools/telepathy.ts', 'export const TOOLS = [];\n');
+      return { was: said, now: said + 1 };
+    },
+    says: ({ was, now }) =>
+      new RegExp(`MCP tool files still under the adapter — says ${was}, is ${now}`),
   },
   {
     what: 'a figure that reached a rendered slide and was left behind',
     script: 'figures.mjs',
-    break: (t) => t.edit('sites/video/src/product.ts', 'count: 82, prompts: 6', 'count: 74, prompts: 6'),
-    says: /STALE +sites\/video\/src\/product\.ts: MCP tools — says 74, is 82/,
+    break: (t) => t.restate('sites/video/src/product.ts', /count: (\d+), prompts/, otherNumeral),
+    says: ({ was, now }) =>
+      new RegExp(`STALE +sites/video/src/product\\.ts: MCP tools — says ${now}, is ${was}`),
   },
   {
     what: 'a bolded number that is neither claimed nor recorded',
@@ -317,9 +373,11 @@ describe('the checks catch what they were written to catch', { concurrency: 8 },
   for (const broken of BREAKS) {
     it(broken.what, async () => {
       const t = tree();
-      broken.break(t);
+      // What the break did, for a case whose message quotes the figure it
+      // found rather than one typed here. See `restate`.
+      const found = broken.break(t);
       const { code, out } = await t.run(broken.script);
-      assert.match(out, broken.says);
+      assert.match(out, typeof broken.says === 'function' ? broken.says(found) : broken.says);
       assert.equal(code, 1, `${broken.script} reported it and then exited 0:\n${out}`);
     });
   }
@@ -341,16 +399,16 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
 
 describe('--fix writes back what was there, in the form it was in', { concurrency: 4 }, () => {
   const restores = [
-    ['a plain numeral', 'There are **18** capabilities', 'There are **12** capabilities'],
-    ['a spelled figure that starts a sentence', 'Seventeen imports across', 'Twelve imports across'],
-    ['a figure with a thousands separator', 'Of the **14 430** ways', 'Of the **7 999** ways'],
-    ['a figure written as a word mid-sentence', 'imports across fifteen module pairs', 'imports across nine module pairs'],
+    ['a plain numeral', /There are \*\*(\d+)\*\* capabilities/, otherNumeral],
+    ['a spelled figure that starts a sentence', /([A-Z][a-z]+) imports across/, otherWord],
+    ['a figure with a thousands separator', /Of the \*\*(\d{1,3}(?: \d{3})+)\*\* ways/, otherNumeral],
+    ['a figure written as a word mid-sentence', /imports across ([a-z]+) module pairs/, otherWord],
   ];
-  for (const [what, right, wrong] of restores) {
+  for (const [what, pattern, wrong] of restores) {
     it(what, async () => {
       const t = tree();
       const before = t.read('docs/modules.md');
-      t.edit('docs/modules.md', right, wrong);
+      t.restate('docs/modules.md', pattern, wrong);
       assert.equal((await t.run('figures.mjs')).code, 1, 'the wrong figure was not reported');
       await t.run('figures.mjs', '--fix');
       assert.equal(t.read('docs/modules.md'), before, 'the document did not come back byte for byte');
@@ -361,9 +419,14 @@ describe('--fix writes back what was there, in the form it was in', { concurrenc
 describe('and stay useful when something else is broken', { concurrency: 2 }, () => {
   it('reflowing a paragraph does not raise a false alarm', async () => {
     const t = tree();
-    t.edit('docs/modules.md',
-      'There are **18** capabilities and **15** edges\nbetween them.',
-      'There are **18**\ncapabilities and **15**\nedges between them.');
+    // The sentence as it stands, rewrapped rather than retyped: the two figures
+    // in it are counted, so naming them here would make this case go stale
+    // every time a capability lands. What is under test is the line break.
+    const sentence = t.read('docs/modules.md').match(/There are \*\*\d+\*\* capabilities and \*\*\d+\*\* edges\nbetween them\./);
+    assert.ok(sentence, 'the sentence this case rewraps has moved');
+    t.edit('docs/modules.md', sentence[0],
+      sentence[0].replace(/ /g, '\u0000').replace(/\n/g, ' ').replace(/\u0000/g, ' ')
+        .replace('capabilities', '\ncapabilities').replace('edges', '\nedges'));
     const { code, out } = await t.run('figures.mjs');
     assert.equal(code, 0, out);
   });
