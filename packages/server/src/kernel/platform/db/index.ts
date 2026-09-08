@@ -95,6 +95,25 @@ for (const [table, column, definition] of [
   ['mailbox_credentials', 'provider', `TEXT NOT NULL DEFAULT ''`],
   ['mailbox_credentials', 'access_token', 'TEXT'],
   ['mailbox_credentials', 'expires_at', 'INTEGER'],
+  /*
+   * The two columns decisions added, and the reason they are worth a comment.
+   *
+   * Both were written into `schema.sql` and nowhere else, which is correct for
+   * a fresh database and does nothing at all for one that already exists — the
+   * note at the top of this list says so, and it was still missed. What that
+   * cost is worth recording: `notifications.decision_id` is written by the
+   * announcement that fires when a ballot becomes answerable, which is the
+   * moment its *second* option lands. So on every upgraded instance the second
+   * option's write threw inside its own transaction, the push rejected it, and
+   * the client — correctly, for a row the server 404s — forgot it. Every ballot
+   * came out with exactly one option and nothing said why.
+   *
+   * `decisions.announced_at` is the same class one step less obvious: the table
+   * was created by one commit and the column added by the next, so only an
+   * instance that deployed between the two is missing it.
+   */
+  ['notifications', 'decision_id', 'TEXT'],
+  ['decisions', 'announced_at', 'INTEGER'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

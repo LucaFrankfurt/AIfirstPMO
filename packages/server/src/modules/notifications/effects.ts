@@ -168,7 +168,28 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
   // A ballot is the one thing here that tells the whole workspace, and it is
   // written apart from the rest for that reason — see `announce`.
   if (entity === 'decision' || entity === 'decisionOption') {
-    announce(String(entity === 'decision' ? row.id : row.decision_id), opts);
+    /*
+     * Never fatal, and this is the scar rather than caution.
+     *
+     * `afterWrite` runs inside the write's own transaction when nothing has
+     * opened a deferral window, so a throw in here does not merely skip the
+     * notification — it rolls back the row that caused it. An upgraded
+     * instance was missing `notifications.decision_id`, the announcement fires
+     * on the write that makes a ballot answerable, and that is its *second*
+     * option: so every second option was written, rejected, and then forgotten
+     * by the client, which is correct behaviour for a row the server 404s.
+     * Every ballot came out with one option and nothing anywhere said why.
+     *
+     * The column is in the upgrade list now, so this particular cause is gone.
+     * The trade it protects is the one `reclaimFiles` already takes: losing
+     * somebody's option because telling the team about it failed is the worse
+     * half by a distance, and a server log is where a failure like this belongs.
+     */
+    try {
+      announce(String(entity === 'decision' ? row.id : row.decision_id), opts);
+    } catch (error) {
+      console.error('[notify] could not announce a decision', error);
+    }
   }
 
   for (const [userId, payload] of targets) {
