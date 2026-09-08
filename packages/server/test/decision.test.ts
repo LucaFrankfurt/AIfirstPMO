@@ -12,7 +12,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  afterPicking, chosenBy, closedBecause, isOpen, tallyOf, voteId,
+  afterPicking, byBallotOrder, chosenBy, closedBecause, isOpen, orderKey, tallyOf, voteId,
   type Decision, type DecisionOption, type DecisionVote,
 } from '@kolibri/shared';
 
@@ -166,6 +166,54 @@ describe('closed is decided on reading, not by a clock', () => {
   /* Somebody closing it by hand outranks a deadline that has not arrived. */
   it('reports a hand-closed vote as closed even before its deadline', () => {
     assert.equal(closedBecause(decision({ status: 'closed', closes_at: now + 5000 }), now), 'closed');
+  });
+});
+
+describe('the order the options are on the ballot', () => {
+  /*
+   * The case that shipped broken. `orderKey(null, null)` is `V` and everything
+   * appended after it is lowercase, so a ballot's *first* option is the one
+   * locale collation puts last — `k` before `V`, letters first and case second.
+   * Two options came back reversed and nobody had touched the data.
+   */
+  it('reads a key as a base-62 fraction and not as a word', () => {
+    const first = { ...option('first'), sort_order: orderKey(null, null), created_at: 1 };
+    const second = { ...option('second'), sort_order: orderKey(first.sort_order, null), created_at: 2 };
+    const third = { ...option('third'), sort_order: orderKey(second.sort_order, null), created_at: 3 };
+
+    assert.equal(first.sort_order, 'V');
+    assert.deepEqual(
+      [third, first, second].sort(byBallotOrder).map((row) => row.id),
+      ['first', 'second', 'third'],
+    );
+    // The comparison that was there, kept as the thing this asserts *against*.
+    assert.ok('V'.localeCompare('k') > 0, 'locale collation no longer inverts these');
+  });
+
+  /*
+   * Options written before the fix share a key: the screen that appends one
+   * asked the wrongly sorted list for its highest and kept being handed `V`,
+   * so every option added one at a time got `k`. They are still in the
+   * database, and the tie-break is what puts them back in the order somebody
+   * typed them without a migration.
+   */
+  it('falls back on when it was written, for the keys that already collided', () => {
+    const rows = [
+      { ...option('fourth'), sort_order: 'k', created_at: 4 },
+      { ...option('second'), sort_order: 'k', created_at: 2 },
+      { ...option('third'), sort_order: 'k', created_at: 3 },
+      { ...option('first'), sort_order: 'V', created_at: 1 },
+    ];
+    assert.deepEqual(rows.sort(byBallotOrder).map((row) => row.id), ['first', 'second', 'third', 'fourth']);
+  });
+
+  it('puts the options a tally reports in that same order', () => {
+    const options = [
+      { ...option('b'), sort_order: 'k', created_at: 2 },
+      { ...option('a'), sort_order: 'V', created_at: 1 },
+    ].sort(byBallotOrder);
+    const result = tallyOf(decision(), options, [], null);
+    assert.deepEqual(result.options.map((row) => row.option.id), ['a', 'b']);
   });
 });
 

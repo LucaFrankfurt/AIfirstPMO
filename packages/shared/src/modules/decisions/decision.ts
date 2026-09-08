@@ -27,9 +27,38 @@
  * which, and `visibility` is the whole of the condition — a caller never has to
  * say what it can see.
  */
+import { compareOrder } from '../../kernel/registry/order.ts';
 import type {
   Decision, DecisionOption, DecisionVote, ID,
 } from '../../kernel/registry/types.ts';
+
+/**
+ * The order the options are on the ballot.
+ *
+ * Here rather than in each of the two places that sort — the screen and the
+ * MCP report — because they have to agree: a result read back over MCP that
+ * lists the options in a different order from the ballot somebody voted on is
+ * a report about a different question.
+ *
+ * `compareOrder` and not `localeCompare`, and that is the whole of this
+ * function. A `sort_order` is a base-62 fraction, so it is only meaningful
+ * compared byte for byte: locale collation sorts letters first and case
+ * second, which puts `k` *before* `V` — and since `orderKey(null, null)` is
+ * `V` and everything appended after it is lowercase, that read every ballot
+ * back with its first option last. Worse, the screen that appends an option
+ * asks the sorted list for its highest key, so it kept getting `V` and handing
+ * out `k` again: five options added one at a time landed on two distinct keys
+ * between them.
+ *
+ * The tie-break on `created_at` is kept for the rows that already have those
+ * duplicated keys. It cannot be reached by anything written since, and it puts
+ * the ones written before back in the order somebody typed them, which is a
+ * repair without a migration.
+ */
+export const byBallotOrder = (
+  a: Pick<DecisionOption, 'sort_order' | 'created_at'>,
+  b: Pick<DecisionOption, 'sort_order' | 'created_at'>,
+): number => compareOrder(a.sort_order, b.sort_order) || a.created_at - b.created_at;
 
 /**
  * The id of the row holding one person's vote for one option.

@@ -10,7 +10,7 @@
  * tool somebody adds.
  */
 import {
-  DECISION_MODES, DECISION_VISIBILITY, closedBecause, isOpen, orderKey, tallyOf, voteId,
+  DECISION_MODES, DECISION_VISIBILITY, byBallotOrder, closedBecause, isOpen, orderKey, tallyOf, voteId,
   type Decision, type DecisionOption, type DecisionVote,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
@@ -41,7 +41,7 @@ function findDecision(ref: string, workspaceId: string, ctx: McpCtx): Row {
 const optionsOf = (decisionId: string): DecisionOption[] =>
   all<Row>(`SELECT * FROM decision_options WHERE decision_id = ? AND deleted_at IS NULL`, decisionId)
     .map(asOption)
-    .sort((a, b) => a.sort_order.localeCompare(b.sort_order) || a.created_at - b.created_at);
+    .sort(byBallotOrder);
 
 const votesOf = (decisionId: string): DecisionVote[] =>
   all<Row>(`SELECT * FROM decision_votes WHERE decision_id = ? AND deleted_at IS NULL`, decisionId).map(asVote);
