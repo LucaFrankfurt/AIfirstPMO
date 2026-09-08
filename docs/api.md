@@ -107,7 +107,8 @@ the checkboxes in *Settings → Integrations* are built from:
 |---|---|---|
 | `task.created` · `task.updated` · `task.completed` | a task is filed, changed, or reaches a Done column | one of the three, on every write |
 | `task.moved` | its state changed | *also* fires, alongside whichever of the three above did. Carries `from` and `to`, each with the state's `id`, `name` and `group` |
-| `task.deleted` | a task is deleted | the only event whose row cannot be read back afterwards |
+| `task.deleted` | a task is deleted | the only event whose row cannot be read back afterwards. **Not** fired for a task the cascade below took |
+| `project.deleted` | a project is deleted | one message per project, nested ones included, with `deleted: { tasks, pages }` — the counts that deletion took |
 | `comment.created` | somebody comments | body trimmed at 500 characters |
 | `page.created` · `page.updated` | a page is written or its text changes | moving a page in the tree is not an update |
 | `cycle.created` · `cycle.updated` · `module.created` · `module.updated` | a sprint or a milestone | `changed` lists which fields did |
@@ -118,6 +119,15 @@ A task payload carries the state's name beside its group, the project's name, la
 dates, the estimate, the cycle and the module — enough to build a report without calling back. Names
 of people are not in it: `assignee_ids` and `actor_id` resolve through
 `GET /api/workspaces/:id/members`.
+
+**If you mirror tasks, subscribe to `project.deleted` as well as `task.deleted`.** Deleting a
+project takes its tasks and pages with it, and none of them fire an event of their own: the cascade
+writes as the server rather than as a person, and the write path stops before the outgoing effects
+for that kind of write. A receiver hearing only `task.deleted` therefore keeps every task of a
+deleted project forever. `project.deleted` is what says otherwise, one message per project — nested
+ones each get their own, so a hook scoped to a sub-project hears about itself — and the `deleted`
+counts are there so you can reconcile what you drop against what the server says went, rather than
+trusting your own bookkeeping.
 
 **Deliveries.** Every call out is a row, retried five times over about half an hour when the far end
 has a bad moment — 429 and 5xx — and given up on immediately when the request itself is the problem.

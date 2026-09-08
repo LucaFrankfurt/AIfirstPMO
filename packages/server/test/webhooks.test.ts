@@ -341,6 +341,53 @@ describe('calling out', () => {
     assert.equal(gone[0].body.data.identifier, task.identifier);
   });
 
+  it('says when a project is deleted, and what went with it', async () => {
+    /*
+     * The burst its cascade fires is not enough on its own: a run of
+     * `task.deleted` sharing a `project_id` looks exactly like somebody
+     * clearing out a project that is still there. This is the message that
+     * says which of the two happened.
+     */
+    const [hook] = await api(`/api/workspaces/${workspaceId}/webhooks`);
+    await api(`/api/webhooks/${hook.id}`, { events: 'task.deleted,project.deleted' }, 'PATCH');
+    const doomed = await api(`/api/workspaces/${workspaceId}/projects`, { name: 'Doomed', key: 'DM' });
+    const child = await api(`/api/workspaces/${workspaceId}/projects`, { name: 'Doomed child', key: 'DMC', parent_id: doomed.id });
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: doomed.id, title: 'One' });
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: doomed.id, title: 'Two' });
+    await api(`/api/workspaces/${workspaceId}/pages`, { project_id: doomed.id, title: 'A page', content: 'x' });
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: child.id, title: 'In the child' });
+    received.length = 0;
+
+    await api(`/api/projects/${doomed.id}`, undefined, 'DELETE');
+    await settle();
+
+    const projects = received.filter((entry) => entry.event === 'project.deleted');
+    const parent = projects.find((entry) => entry.body.data.id === doomed.id);
+    assert.ok(parent, 'no project.deleted for the project that was deleted');
+    assert.equal(parent.body.data.key, 'DM');
+    assert.equal(parent.body.data.name, 'Doomed');
+    // What this deletion took, not what the trash happens to hold — and each
+    // project counts its own, so the child's task is not in the parent's tally.
+    assert.deepEqual(parent.body.data.deleted, { tasks: 2, pages: 1 });
+
+    // A cascade that reaches a nested project is news of its own.
+    assert.ok(projects.some((entry) => entry.body.data.id === child.id), 'the child project was deleted in silence');
+
+    /*
+     * And the reason this event has to exist at all, asserted rather than
+     * assumed: **no `task.deleted` fires for a cascaded task.** The cascade
+     * writes with `system: true` so the server's own deletions are not refused
+     * by guards written for people, and `afterWrite` returns before the
+     * committed listeners on a system write. A receiver mirroring tasks that
+     * subscribes only to `task.deleted` keeps all four of these forever.
+     *
+     * If this ever goes red because the burst arrived, that is not a broken
+     * test — it is the write path having changed its mind, and the paragraph
+     * in docs/api.md that tells receivers to subscribe here is then wrong.
+     */
+    assert.deepEqual(received.filter((entry) => entry.event === 'task.deleted'), []);
+  });
+
   /**
    * The log, and the retries.
    *

@@ -47,6 +47,55 @@ function fireWebhooks(
         ...who(opts),
       });
     }
+    /*
+     * The only news a receiver gets that a project's contents are gone — and
+     * that is not a design choice, it is what the write path does.
+     *
+     * A cascade writes with `system: true`, because the server deleting rows
+     * on its own behalf must not be refused by guards written for people. And
+     * `afterWrite` returns before the committed listeners for a system write,
+     * so **not one `task.deleted` fires for a cascaded task**. Measured, after
+     * this was first documented the other way round: deleting a project with
+     * two tasks, a page and a nested project produced exactly one event.
+     *
+     * A receiver that mirrors tasks and subscribes only to `task.deleted`
+     * therefore keeps every task of a deleted project forever. Subscribing to
+     * this is how it finds out, which is why the counts are on it: a receiver
+     * can reconcile what it drops against what the server says went.
+     *
+     * One message per project, including every nested one the cascade reached,
+     * rather than a list of children on the parent's. Each is then a
+     * self-contained piece of news — and a hook scoped to a child project
+     * hears about its own project rather than about its parent's.
+     */
+    if (entity === 'project' && !before?.deleted_at) {
+      const since = Number(row.deleted_at ?? 0);
+      const nested = all<Row>(
+        `WITH RECURSIVE sub(id) AS (
+             SELECT id FROM projects WHERE parent_id = ?1 AND deleted_at >= ?2
+              UNION
+             SELECT p.id FROM projects p JOIN sub ON p.parent_id = sub.id WHERE p.deleted_at >= ?2)
+         SELECT p.id, p.key, p.name FROM projects p JOIN sub ON sub.id = p.id`,
+        row.id, since,
+      );
+      for (const project of [row, ...nested]) {
+        // What this deletion took, counted with the predicate the restore uses
+        // — deleted at or after the project itself — so the tally is this
+        // deletion's rather than everything the trash happens to hold.
+        const took = (table: string) => Number(get<Row>(
+          `SELECT count(*) AS n FROM ${table} WHERE project_id = ? AND deleted_at >= ?`, project.id, since,
+        )?.n ?? 0);
+        dispatch(workspaceId, 'project.deleted', {
+          id: project.id,
+          key: project.key,
+          name: project.name,
+          // Its own id, so a hook scoped to this project hears that it is gone.
+          project_id: project.id,
+          deleted: { tasks: took('tasks'), pages: took('pages') },
+          ...who(opts),
+        });
+      }
+    }
     return;
   }
 

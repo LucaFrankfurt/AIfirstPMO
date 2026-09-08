@@ -32,7 +32,9 @@ thing to hand a workflow. The body is:
 Which events exist, and what each payload carries, is the table in
 [`api.md`](api.md#integrations). Two of them are the reason this is a trigger and not a poll:
 `task.moved` says which state a task *left*, which no amount of polling reconstructs, and
-`task.deleted` is the only news about a row that will not be there when you go looking.
+`task.deleted` is the only news about a row that will not be there when you go looking. Take
+`project.deleted` with it: a project's deletion takes its tasks and fires no `task.deleted` for
+any of them, so a workflow keeping its own copy needs both.
 
 **On the same Docker network.** Kolibri refuses to post to a private address unless it is told to —
 otherwise anybody who can save a webhook can make the server call whatever is listening beside it.
