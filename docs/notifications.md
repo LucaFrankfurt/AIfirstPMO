@@ -15,6 +15,7 @@ every channel off never means missing something — it just means you have to lo
 | `due_soon` | A task you are on is due within two days, or is already past due | yes |
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
 | `message` | Somebody wrote to you directly, or named you in a channel | instant channels only |
+| `decision` | A ballot was opened that you can vote in | no |
 
 "Important" is what a channel falls back to when somebody chooses "only what needs me". The in-app
 inbox always gets everything — it is the source of truth, not a channel.
@@ -35,6 +36,30 @@ first keystroke; editing the paragraph around a mention says nothing new.
 A page has no assignees, so its audience is the people who have shown up: whoever wrote it, and
 whoever has commented on it. Everyone who *can* see a page is the whole workspace, and notifying
 them all would teach people to ignore the bell.
+
+A **ballot is the one thing here that does tell the whole workspace**, and the paragraph above is
+not being ignored. It is about a page: something that changes many times a day, where telling
+everybody about each change is what teaches people to ignore the bell. A ballot happens once, it is
+a question addressed to the room by construction, and a vote nobody was told about collects no
+votes — silence there is not restraint, it is a broken feature.
+
+Three things narrow it, and each is a rule rather than a preference:
+
+- **Once it can be answered**, not once it exists. A decision and its options arrive in separate
+  writes — the form does it that way and so does `create_decision` — so announcing on creation would
+  send everybody to a question with nothing under it. The test is the state: open, not past its
+  deadline, and with at least two options. `decisions.announced_at` is what stops a third option
+  announcing it again.
+- **Only people who could open it.** A ballot taken in a private project reaches the people on that
+  project and nobody else, or its question would appear in the inbox of people who cannot see what
+  it is about.
+- **Not guests.** A guest cannot vote at all, and asking somebody for an answer they are not allowed
+  to give is worse than saying nothing.
+
+It counts as *not* important, so somebody on "only what needs me" finds it in their inbox and is not
+pushed or emailed about it. That is one entry in `IMPORTANT_KINDS` away from the other answer, and
+it is written this way round because a ballot goes to everybody — the shape that makes a phone worth
+silencing.
 
 A due-date reminder is sent **once per task per due date**. Moving a deadline is a new deadline and
 earns a new reminder; missing one does not earn a daily repeat of the same sentence.

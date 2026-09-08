@@ -1193,12 +1193,27 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       is not asked of everybody in it either. The turnout is reported and the reader decides. Doing
       this properly means an invited set per decision, which is a feature about *people* rather than
       about counting, and would be the largest single addition to this area.
-- [ ] **Nothing happens when a deadline passes.** No notification, no automatic close, no digest
-      entry — the deadline is evaluated on reading and that is the whole of it. A reminder the
-      evening before a vote closes is the obvious next thing and the one people will ask for first;
-      it wants the scheduler, which already runs, and one notification kind. The reason it is not
-      here is that a scheduled *close* was rejected first (a timezone this code does not know, and an
+- [x] **Opening a ballot tells the workspace.** Every member who could answer it — not the author,
+      not a guest, not somebody who cannot see the project it was taken in. It fires when the
+      question becomes *answerable* rather than when the row appears, because a decision and its
+      options are separate writes and announcing on creation sends people to an empty screen;
+      `decisions.announced_at` is what stops a third option asking the room again. Deliberately not
+      in `IMPORTANT_KINDS`: it reaches everybody, which is the shape that makes a phone worth
+      silencing, so it is in the inbox for all and pushed only to people on "everything".
+- [ ] **Nothing happens when a deadline passes.** No reminder, no automatic close, no digest entry —
+      the deadline is evaluated on reading and that is the whole of it. A reminder the evening before
+      a vote closes is the obvious next thing now that the announcement exists; it wants the
+      scheduler, which already runs, and the same notification kind. The reason it is not here is
+      that a scheduled *close* was rejected first (a timezone this code does not know, and an
       instance switched off over the weekend), and a reminder was not separated from it at the time.
+- [ ] **Four places turn a notification into a link.** The web inbox, the Telegram deep link, the
+      email digest and `/api/notifications/latest` each carry their own if-chain over `task_id`,
+      `page_id`, `channel_id`, `decision_id` and `project_id` — and the *order* matters in all four,
+      because a ballot carries a project too and the project branch would answer with an intake
+      queue. Adding `decision_id` meant editing four lists that nothing keeps in step; the fifth
+      entity will mean four more. Three of them build an absolute URL and one opens a sheet in
+      place, so it is not one function — but the path half could be, and should be before the next
+      one is added.
 - [ ] **A vote is not a decision record.** Closing a ballot records what people picked, not what was
       decided — and those differ often enough that conflating them would make the honest half
       untrustworthy. Today the answer is to write the decision on a page and link the ballot from it.

@@ -305,6 +305,14 @@ export interface Decision extends Base {
   closes_at: number | null;
   created_by: ID | null;
   /**
+   * When the workspace was told this ballot exists, or null while it has not
+   * been. Set by the write path once the question is answerable — open, and
+   * with something to choose between — because a ballot announced before its
+   * options arrive sends people to an empty screen. It is a *marker* rather
+   * than a date anybody reads: what it prevents is a second announcement.
+   */
+  announced_at: number | null;
+  /**
    * People with at least one live vote, maintained by the write path.
    *
    * The denominator of every share, and the one figure a secret ballot cannot
@@ -1540,6 +1548,8 @@ export interface Notification extends Base {
   project_id: ID | null;
   /** The conversation, when it is about something somebody said in one. */
   channel_id: ID | null;
+  /** The ballot, when it is a question the workspace is being asked. */
+  decision_id: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;

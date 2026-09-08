@@ -75,6 +75,24 @@ from the other people in the workspace, not from whoever runs the server. That
 is the same boundary [`secrets.md`](secrets.md) draws, and it is worth knowing
 before a workspace uses one for something a person could be punished for.
 
+## Everybody who can vote is told, once
+
+A ballot nobody was told about collects no votes, so opening one notifies every member of the
+workspace who could answer it — not the author, not a guest, and not somebody who cannot see the
+project it was taken in.
+
+It fires when the question becomes *answerable* rather than when the row appears: open, not already
+past its deadline, and with at least two options. A decision and its options are separate writes, so
+announcing on creation would send people to an empty screen. `announced_at` records that it has
+happened, which is what keeps a third option from asking the room a second time.
+
+It is delivered like anything else — the in-app inbox always, email, Web Push and Telegram if the
+person has them and is on "everything". A ballot is deliberately **not** in the "important" set that
+reaches somebody on "only what needs me": it goes to the whole workspace, which is the shape that
+makes people silence a phone. See [`notifications.md`](notifications.md).
+
+Nothing else notifies. Closing a ballot is silent, and so is a deadline passing — see below.
+
 ## The share is of the people, not of the ticks
 
 Three of four voters tick both options in a multiple-choice ballot: six ticks,
@@ -146,8 +164,9 @@ facts, and an empty array says the first one.
 - **Not a quorum.** Nothing says how many people had to vote for the result to
   stand, because nothing here knows who was asked — a workspace is not an
   electorate. The turnout is reported and the reader decides.
-- **Not a notification.** A deadline passing sends nothing, for the reason
-  nothing runs when it passes at all.
+- **Not a reminder.** Opening a ballot notifies the workspace once. A deadline
+  approaching or passing sends nothing, for the reason nothing runs when it
+  passes at all.
 - **Not a governance record.** Closing a vote records what people picked, not
   what was decided. Those differ often enough that conflating them would make
   the honest half untrustworthy; write the decision down on a page and link the

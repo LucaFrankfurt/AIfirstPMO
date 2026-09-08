@@ -254,6 +254,11 @@ export function Inbox() {
                   // in. Without this the row announces a message and then does
                   // nothing when pressed, which is worse than not sending it.
                   else if (notification.channel_id) navigate(`/chat/${notification.channel_id}`);
+                  // Before the project, and that order is the whole of it: a
+                  // ballot carries a project as well, so the branch below would
+                  // take somebody to an intake queue instead of to the question
+                  // they were asked.
+                  else if (notification.decision_id) navigate(`/decisions/${notification.decision_id}`);
                   // A report from outside is about a project's queue rather
                   // than a row, so it opens the tab that holds it.
                   else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);

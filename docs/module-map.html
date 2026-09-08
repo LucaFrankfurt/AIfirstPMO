@@ -356,7 +356,7 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">294</span><span class="k">source files</span></div>
     <div><span class="v num">42</span><span class="k">modules</span></div>
-    <div><span class="v num">85 642</span><span class="k">lines</span></div>
+    <div><span class="v num">85 756</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">48</span><span class="k">entities</span></div>
     <div><span class="v num">138</span><span class="k">endpoints</span></div>
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 23 372 lines, 27%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 42 113 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 18 165 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 23 390 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 42 201 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 18 173 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 1 992 lines, 2%</span>
 <!-- end -->
     </div>
@@ -454,7 +454,7 @@ footer {
       Two rows were the whole diagnosis a second time. <code>notifications</code> was
       <strong>58 lines</strong> — writing a notification is one small function, because everything it
       <em>meant</em> had been distributed into <code>repo.ts</code> and everything it <em>did</em>
-      into five adapters. It is <strong>296 lines</strong> now, and the growth is the fix: the
+      into five adapters. It is <strong>379 lines</strong> now, and the growth is the fix: the
       meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
       delivery stayed in the adapters but through a port they register with. And
       <code>adapter/mcp</code> is <strong>6 942</strong>: the assistant's view of the product is
@@ -566,7 +566,7 @@ footer {
           over code that had gone. Losing the reasoning is the damage nothing fails on, so the check
           is to compare every comment line in the old file against the new set and require the
           difference to be empty.</p>
-        <p class="fix"><strong>Remaining.</strong> <strong>Seventeen</strong> branches, in
+        <p class="fix"><strong>Remaining.</strong> <strong>Eighteen</strong> branches, in
           <code>notify</code>, <code>fireWebhooks</code> and <code>applyCreateDefaults</code> — which
           are <code>modules/notifications/effects.ts</code>, <code>adapters/webhooks/effects.ts</code>
           and <code>repo.ts</code> since the write path handed the first two out. A different thing
@@ -1028,7 +1028,7 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 8 421 lines is three
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 8 424 lines is three
       catalogues of 2 518 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
@@ -1411,18 +1411,18 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":8421,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2659},
-{"ring":"kernel","name":"registry","flag":"","files":5,"lines":2827,"biggest":"kernel/registry/types.ts","biggestLines":1886},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":8424,"biggest":"kernel/i18n/locales/en.ts","biggestLines":2659},
+{"ring":"kernel","name":"registry","flag":"","files":5,"lines":2837,"biggest":"kernel/registry/types.ts","biggestLines":1896},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2172,"biggest":"kernel/identity/routes/auth.ts","biggestLines":521},
 {"ring":"kernel","name":"design-system","flag":"","files":25,"lines":2072,"biggest":"kernel/design-system/ui.tsx","biggestLines":525},
-{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2019,"biggest":"kernel/write-path/routes/entities.ts","biggestLines":887},
+{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2024,"biggest":"kernel/write-path/routes/entities.ts","biggestLines":892},
 {"ring":"kernel","name":"sync","flag":"","files":7,"lines":1865,"biggest":"kernel/sync/routes/sync.ts","biggestLines":542},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":1814,"biggest":"kernel/platform/env.ts","biggestLines":537},
 {"ring":"kernel","name":"search","flag":"","files":5,"lines":1158,"biggest":"kernel/search/routes/search.tsx","biggestLines":586},
 {"ring":"kernel","name":"files","flag":"","files":6,"lines":700,"biggest":"kernel/files/zip.ts","biggestLines":315},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"pages","flag":"","files":21,"lines":7190,"biggest":"modules/pages/Markdown.tsx","biggestLines":987},
-{"ring":"capability","name":"work","flag":"","files":25,"lines":6218,"biggest":"modules/work/views.tsx","biggestLines":996},
+{"ring":"capability","name":"work","flag":"","files":25,"lines":6223,"biggest":"modules/work/views.tsx","biggestLines":996},
 {"ring":"capability","name":"planning","flag":"","files":11,"lines":4352,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1583},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3253,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1683},
 {"ring":"capability","name":"operations","flag":"","files":10,"lines":3233,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1058},
@@ -1437,16 +1437,16 @@ const MODULES = [
 {"ring":"capability","name":"decisions","flag":"decisions","files":5,"lines":1095,"biggest":"modules/decisions/decision-parts.tsx","biggestLines":282},
 {"ring":"capability","name":"ai-review","flag":"ai","files":4,"lines":535,"biggest":"modules/ai-review/task-review.tsx","biggestLines":204},
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":433,"biggest":"modules/trash/trash.tsx","biggestLines":217},
-{"ring":"capability","name":"notifications","flag":"","files":2,"lines":296,"biggest":"modules/notifications/effects.ts","biggestLines":219},
+{"ring":"capability","name":"notifications","flag":"","files":2,"lines":379,"biggest":"modules/notifications/effects.ts","biggestLines":301},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":227,"biggest":"modules/intake/intake.tsx","biggestLines":227},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
 {"ring":"adapter","name":"mcp","flag":"","files":17,"lines":6942,"biggest":"adapters/mcp/kit.ts","biggestLines":1193},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3373,"biggest":"adapters/transfer/transfer.ts","biggestLines":793},
 {"ring":"adapter","name":"webhooks","flag":"","files":6,"lines":1969,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1187,"biggest":"adapters/imap/imap.ts","biggestLines":364},
-{"ring":"adapter","name":"mail","flag":"","files":6,"lines":1114,"biggest":"adapters/mail/mail.ts","biggestLines":426},
+{"ring":"adapter","name":"mail","flag":"","files":6,"lines":1118,"biggest":"adapters/mail/mail.ts","biggestLines":430},
 {"ring":"adapter","name":"oauth","flag":"","files":4,"lines":950,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":497},
-{"ring":"adapter","name":"telegram","flag":"","files":5,"lines":756,"biggest":"adapters/telegram/telegram.ts","biggestLines":460},
+{"ring":"adapter","name":"telegram","flag":"","files":5,"lines":760,"biggest":"adapters/telegram/telegram.ts","biggestLines":464},
 {"ring":"adapter","name":"share","flag":"","files":1,"lines":538,"biggest":"adapters/share/routes/share.ts","biggestLines":538},
 {"ring":"adapter","name":"push","flag":"","files":4,"lines":383,"biggest":"adapters/push/push.ts","biggestLines":209},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":344,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},

@@ -31,6 +31,7 @@ const decision = (over: Partial<Decision> = {}): Decision => ({
   status: 'open',
   closes_at: null,
   created_by: 'ada',
+  announced_at: null,
   voters: 0,
   sort_order: 'V',
   ...over,

@@ -1305,6 +1305,14 @@
         "type": "object",
         "description": "A row of `decisions` (table `decisions`).",
         "properties": {
+          "announced_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "When the workspace was told this ballot exists, or null while it has not been. Set by the write path once the question is answerable — open, and with something to choose between — because a ballot announced before its options arrive sends people to an empty screen. It is a *marker* rather than a date anybody reads: what it prevents is a second announcement.",
+            "readOnly": true
+          },
           "closes_at": {
             "type": [
               "number",
@@ -2461,6 +2469,14 @@
           },
           "created_at": {
             "type": "number",
+            "readOnly": true
+          },
+          "decision_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The ballot, when it is a question the workspace is being asked.",
             "readOnly": true
           },
           "deleted_at": {

@@ -635,6 +635,11 @@ CREATE TABLE IF NOT EXISTS decisions (
   status       TEXT NOT NULL DEFAULT 'open',
   closes_at    INTEGER,
   created_by   TEXT,
+  -- When the workspace was told this ballot exists. A marker rather than a date
+  -- anybody reads: what it prevents is a second announcement when a third
+  -- option is added. Null until the question is answerable — see `announce` in
+  -- `notifications/effects.ts` for why it is not stamped on creation.
+  announced_at INTEGER,
   voters       INTEGER NOT NULL DEFAULT 0,
   sort_order   TEXT NOT NULL DEFAULT 'V',
   created_at   INTEGER NOT NULL,
@@ -1209,6 +1214,11 @@ CREATE TABLE IF NOT EXISTS notifications (
   -- about a conversation.
   project_id   TEXT,
   channel_id   TEXT,
+  -- ...or about a ballot, which is neither. Note that a notification carrying
+  -- this must be read *before* `project_id` by whatever turns one into a link:
+  -- a decision has a project too, and the project branch would take somebody to
+  -- an intake queue instead of to the question they were asked.
+  decision_id  TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,

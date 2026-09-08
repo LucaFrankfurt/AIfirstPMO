@@ -23,7 +23,7 @@ import type { AddressInfo } from 'node:net';
 import { voteId } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
-const { get } = await import('../src/kernel/platform/db/index.ts');
+const { get, all } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
@@ -82,10 +82,10 @@ async function register(email: string): Promise<{ person: Person; workspace: str
 }
 
 /** A second person, in the same workspace. */
-async function join(email: string, workspace: string, owner: Person): Promise<Person> {
+async function join(email: string, workspace: string, owner: Person, role = 'member'): Promise<Person> {
   const { person } = await register(email);
   const invite = await ok(`/api/workspaces/${workspace}/invites`, {
-    cookie: owner.cookie, body: { email, role: 'member' },
+    cookie: owner.cookie, body: { email, role },
   });
   await ok(`/api/invites/${invite.code}/accept`, { cookie: person.cookie, body: {} });
   return person;
@@ -380,6 +380,109 @@ describe('a secret ballot is secret at the pull', () => {
 
     const shown = await tool(owner.token, 'decision_result', { decision: open.decision.id });
     assert.deepEqual(shown.options[0].voters, ['vote-secret']);
+  });
+});
+
+describe('a new ballot tells the workspace', () => {
+  let owner: Person;
+  let lin: Person;
+  let sam: Person;
+  let workspace = '';
+
+  before(async () => {
+    const made = await register('vote-notify@example.com');
+    owner = made.person;
+    workspace = made.workspace;
+    await switchOn(workspace, owner);
+    lin = await join('vote-notify-lin@example.com', workspace, owner);
+    sam = await join('vote-notify-sam@example.com', workspace, owner, 'guest');
+  });
+
+  const inbox = (who: Person) =>
+    all<any>(`SELECT * FROM notifications WHERE user_id = ? AND kind = 'decision' ORDER BY created_at`, who.id);
+
+  it('says nothing while there is nothing to choose between', async () => {
+    const decision = await ok(`/api/workspaces/${workspace}/decisions`, {
+      cookie: owner.cookie, body: { question: 'Half a question' },
+    });
+    await ok(`/api/workspaces/${workspace}/decision-options`, {
+      cookie: owner.cookie, body: { decision_id: decision.id, label: 'Only one' },
+    });
+    assert.equal(inbox(lin).length, 0, 'a ballot with one option was announced');
+    assert.equal((await reread(decision.id, owner)).announced_at, null);
+  });
+
+  /*
+   * The second option is what makes the question answerable, and the decision
+   * and its options arrive in separate writes — the form and `create_decision`
+   * both do it that way. Announcing on the decision's own creation would send
+   * everybody to an empty screen.
+   */
+  it('tells every member who can see it, once the second option lands', async () => {
+    const { decision } = await ballot(workspace, owner, { question: 'Which office?' });
+    const theirs = inbox(lin);
+    assert.equal(theirs.length, 1);
+    assert.match(String(theirs[0].title), /Which office\?/);
+    assert.equal(theirs[0].decision_id, decision.id);
+    assert.equal(theirs[0].actor_id, owner.id);
+    assert.ok((await reread(decision.id, owner)).announced_at);
+  });
+
+  it('does not tell whoever asked the question', () => {
+    assert.equal(inbox(owner).length, 0, 'the author was told about their own ballot');
+  });
+
+  it('does not tell a guest, who cannot vote at all', () => {
+    // The role is asserted as well as the silence: a `join` that quietly filed
+    // this person as a member would make the line below pass for the wrong
+    // reason and prove nothing at all.
+    const role = get<any>(
+      `SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, workspace, sam.id,
+    )?.role;
+    assert.equal(role, 'guest');
+    assert.equal(inbox(sam).length, 0, 'a guest was asked for an answer they cannot give');
+  });
+
+  it('does not tell anybody a second time when a third option is added', async () => {
+    const before = inbox(lin).length;
+    const decision = all<any>(`SELECT id FROM decisions WHERE question = 'Which office?'`)[0];
+    await ok(`/api/workspaces/${workspace}/decision-options`, {
+      cookie: owner.cookie, body: { decision_id: decision.id, label: 'A third' },
+    });
+    assert.equal(inbox(lin).length, before, 'a third option announced the ballot again');
+  });
+
+  it('says nothing about one that was opened already closed', async () => {
+    const before = inbox(lin).length;
+    await ballot(workspace, owner, { question: 'Settled already', status: 'closed' });
+    assert.equal(inbox(lin).length, before);
+  });
+
+  /* ...and says it when somebody opens that one. */
+  it('tells them when a closed one is opened', async () => {
+    const before = inbox(lin).length;
+    const { decision } = await ballot(workspace, owner, { question: 'Not yet', status: 'closed' });
+    assert.equal(inbox(lin).length, before);
+    await ok(`/api/decisions/${decision.id}`, { cookie: owner.cookie, method: 'PATCH', body: { status: 'open' } });
+    assert.equal(inbox(lin).length, before + 1);
+  });
+
+  it('says nothing about one whose deadline is already behind it', async () => {
+    const before = inbox(lin).length;
+    await ballot(workspace, owner, { question: 'Too late to ask', closes_at: Date.now() - 60_000 });
+    assert.equal(inbox(lin).length, before, 'people were asked a question they could not have answered');
+  });
+
+  it('keeps a ballot in a private project off the inbox of somebody who cannot see it', async () => {
+    const project = await ok(`/api/workspaces/${workspace}/projects`, {
+      cookie: owner.cookie, body: { name: 'Closed doors', key: 'CLD', visibility: 'private' },
+    });
+    const before = inbox(lin).length;
+    const { decision } = await ballot(workspace, owner, { question: 'Behind the door', project_id: project.id });
+    assert.equal(inbox(lin).length, before, 'a private project’s question reached somebody who cannot open it');
+    // ...and it is still marked as announced, so it is not re-asked on every
+    // later write to it.
+    assert.ok((await reread(decision.id, owner)).announced_at);
   });
 });
 
