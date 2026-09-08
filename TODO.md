@@ -1200,6 +1200,24 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       `decisions.announced_at` is what stops a third option asking the room again. Deliberately not
       in `IMPORTANT_KINDS`: it reaches everybody, which is the shape that makes a phone worth
       silencing, so it is in the inbox for all and pushed only to people on "everything".
+- [x] **A column in `schema.sql` and nowhere else reaches no instance that already exists.** Decisions
+      shipped two of them. `CREATE TABLE IF NOT EXISTS` cannot add a column to an existing database,
+      and the list at the top of `db/index.ts` that does was not touched — so on every upgraded
+      instance `notifications.decision_id` was missing, the announcement that fires when a ballot
+      becomes answerable threw inside the write's own transaction, and the *second* option of every
+      ballot was written, rejected and then correctly forgotten by the client. One option, no error,
+      nothing in the interface saying why. Both columns are in the list now, `upgrade.test.ts` ages a
+      database and asserts they come back, and the announcement is no longer allowed to roll back the
+      row it describes.
+- [ ] **Nothing catches the *next* forgotten column.** `upgrade.test.ts` proves every entry in the
+      list works and names the two that were missing, which is a regression test rather than a rule:
+      a column added to `schema.sql` tomorrow without a list entry still passes everything, because
+      nothing here knows which tables are new. Two ways out, both real work. Compare `schema.sql`
+      against its state at the last release — accurate, and it makes a check depend on git history in
+      CI. Or invert the ownership: make the list the source and *generate* the `CREATE TABLE`
+      statements from it plus a base schema, so a column that is not in the list does not exist at
+      all. The second is the one that cannot rot, and it is a day's work on the file every other
+      test loads.
 - [ ] **Nothing happens when a deadline passes.** No reminder, no automatic close, no digest entry —
       the deadline is evaluated on reading and that is the whole of it. A reminder the evening before
       a vote closes is the obvious next thing now that the announcement exists; it wants the
