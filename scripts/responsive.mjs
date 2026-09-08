@@ -24,6 +24,7 @@
  */
 import { chromium } from 'playwright';
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
+import { switchOnDecisions } from './ballot-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const STEP = Number(process.env.KOLIBRI_STEP ?? 20);
@@ -50,6 +51,7 @@ const project = await page.evaluate(async () => {
 // Mail is off in a seeded workspace, so its two screens are not merely
 // unchecked without this — they do not exist. See `mail-fixture.mjs`.
 await switchOnMail(page);
+await switchOnDecisions(page);
 
 const SCREENS = [
   ['my work', '/'],
@@ -76,6 +78,11 @@ const SCREENS = [
   // nothing about the thing that broke.
   ['mail', '/mail'],
   ['settings: mailboxes', '/settings?tab=mailboxes', openMailboxEditor],
+  // Behind the decisions switch, and reached only because the fixture above
+  // turned it on. The ballot is a row that has to hold a mark, a label that can
+  // wrap, and a count — at 340px, where a label of any length is the thing that
+  // pushes the count off the edge.
+  ['decisions', '/decisions'],
   ['guide', '/guide'],
 ];
 

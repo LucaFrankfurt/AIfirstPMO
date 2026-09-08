@@ -511,11 +511,16 @@ export function registerEntityRoutes(router: Router): void {
     return {
       title: row.title,
       body: row.body,
+      // The fourth place that turns a notification into a link — the others are
+      // the web inbox, the Telegram deep link and the email digest — and the
+      // ordering is load-bearing in all four: a ballot carries a project as
+      // well, so the project branch would answer with an intake queue.
       url: row.task_id ? `/t/${row.task_id}`
         : row.page_id ? `/pages/${row.page_id}`
           : row.channel_id ? `/chat/${row.channel_id}`
-            : row.project_id ? `/projects/${row.project_id}?tab=intake`
-              : '/inbox',
+            : row.decision_id ? `/decisions/${row.decision_id}`
+              : row.project_id ? `/projects/${row.project_id}?tab=intake`
+                : '/inbox',
       unread: Number(get<Row>(
         `SELECT count(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND deleted_at IS NULL`,
         auth.userId,

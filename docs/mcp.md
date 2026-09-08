@@ -248,6 +248,8 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `budget_status` | one budget in full: plan against actual, forecast, variance, broken down by category, project and month. Optionally under a saved scenario, and optionally as it stood on an earlier date |
 | `list_kpis` | every KPI with where it stands, worst first. The three states that are not judgements — nothing measured, nothing promised, a reading too old to stand for today — are counted as themselves rather than as green |
 | `kpi_status` | one KPI in full: readings, targets, and both `achieved_pct` and `expected_pct`, so the judgement can be quoted rather than asserted |
+| `list_decisions` | what is being asked, with `state` — open, closed, or **expired**, which is a deadline nobody wrote up rather than a decision nobody made |
+| `decision_result` | one decision in full: counts, shares of the people who voted, and who is leading. `voters` on an option is `null` rather than empty on a secret ballot — a fact you may not have, not an option nobody wanted |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
 | `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
@@ -499,6 +501,9 @@ is inclusive to the end of the day it names.
 | `create_kpi` | define a number to watch. `decimals` fixes the scale for every value on it; `cadence` is what lets a reading be reported as stale rather than quoted as current |
 | `record_measurement` | what a KPI reads today, or on a given day. `source` is where the number came from, and a measurement nobody can trace is one nobody can defend |
 | `set_kpi_target` | what it has to reach. Give `milestone` instead of `due_on` and the deadline moves when that milestone moves |
+| `create_decision` | a question with at least two options. `visibility: anonymous` is a promise about where the rows go and cannot be taken back once anybody has voted |
+| `cast_vote` | vote, or withdraw by voting for what you already hold. A closed or expired ballot refuses rather than quietly dropping it — including a withdrawal |
+| `close_decision` | turn a ballot into a record, or take it up again. Reopening one the clock closed clears the deadline, or it reopens for as long as it takes to read the answer back |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
 | `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |

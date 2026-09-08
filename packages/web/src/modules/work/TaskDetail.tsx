@@ -8,6 +8,7 @@ import { byId, list, useQuery, useRow } from '../../kernel/sync/store';
 import { createTask, remove, update } from '../../kernel/sync/mutations';
 import { useCanWrite, useFeature, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { TaskReviewPanel } from '../ai-review/task-review';
+import { TaskDecisions } from '../decisions/decision-parts';
 import { Markdown, MarkdownEditor, downscale } from '../pages/Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
@@ -308,6 +309,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             ))}
           </div>
         </section>
+
+        {/* What is being decided about this task. Under the sub-tasks and above
+            the discussion, because a ballot is a question that has already been
+            framed — the comments are where it was still being argued. */}
+        <TaskDecisions taskId={task.id} projectId={task.project_id} />
 
         {/* discussion */}
         <section>

@@ -26,6 +26,7 @@ const en = {
   'notify.sharedNote': 'A note on the shared “{title}”',
   'notify.message': '{name} in {channel}',
   'notify.directMessage': '{name} sent you a message',
+  'notify.decision': 'The team is being asked: {question}',
 
   /* Telegram. Short on purpose: these are read on a phone, in a chat, next to
      messages from actual people. */
@@ -99,6 +100,7 @@ const de: Catalogue = {
   'notify.sharedNote': 'Eine Notiz zur geteilten Seite „{title}“',
   'notify.message': '{name} in {channel}',
   'notify.directMessage': '{name} hat dir geschrieben',
+  'notify.decision': 'Das Team wird gefragt: {question}',
 
   'telegram.open': 'In Kolibri öffnen',
   'telegram.connected': 'Verbunden. Kolibri schickt deine Benachrichtigungen hierher. Zum Trennen /stop senden.',
@@ -172,6 +174,7 @@ const fr: Catalogue = {
   'notify.sharedNote': 'Une note sur la page partagée « {title} »',
   'notify.message': '{name} dans {channel}',
   'notify.directMessage': '{name} vous a envoyé un message',
+  'notify.decision': 'L’équipe est consultée : {question}',
 
   'telegram.open': 'Ouvrir dans Kolibri',
   'telegram.connected': 'Connecté. Kolibri enverra vos notifications ici. Envoyez /stop pour vous déconnecter.',

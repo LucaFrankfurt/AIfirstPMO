@@ -702,13 +702,14 @@ export function requireWrite(ctx: McpCtx, workspaceId: string): void {
  * done something worse than refuse: the row exists, the person who asked
  * believes it was recorded, and no screen will ever show it.
  */
-export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'infrastructure' | 'kpi' | 'mail'): void {
+export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'infrastructure' | 'kpi' | 'decisions' | 'mail'): void {
   if (!hasFeature(workspaceId, name)) {
     const what = {
       time: 'Time tracking',
       budget: 'Budgets',
       infrastructure: 'The infrastructure register',
       kpi: 'KPIs',
+      decisions: 'Decisions',
       mail: 'Connected mailboxes',
     }[name];
     throw new McpError(`${what} is switched off in this workspace (Settings → Workspace)`, -32000);

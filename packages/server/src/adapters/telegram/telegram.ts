@@ -241,6 +241,10 @@ function deepLink(row: Row): string | null {
   if (row.task_id) return `${env.publicUrl}/t/${row.task_id}`;
   if (row.page_id) return `${env.publicUrl}/pages/${row.page_id}`;
   if (row.channel_id) return `${env.publicUrl}/chat/${row.channel_id}`;
+  // Before the project: a ballot carries one too, and the project link would
+  // land somebody on a board rather than on the question. See the same ordering
+  // in the web inbox and in the email digest — the three lists have to agree.
+  if (row.decision_id) return `${env.publicUrl}/decisions/${row.decision_id}`;
   if (row.project_id) return `${env.publicUrl}/projects/${row.project_id}`;
   return `${env.publicUrl}/inbox`;
 }

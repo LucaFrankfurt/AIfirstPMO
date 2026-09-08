@@ -313,7 +313,11 @@ function renderDigest(user: Row, notifications: Row[]): { subject: string; text:
   const rows = notifications.map((notification) => {
     const href = notification.task_id
       ? link(`/t/${notification.task_id}`)
-      : notification.page_id ? link(`/pages/${notification.page_id}`) : link('/inbox');
+      : notification.page_id ? link(`/pages/${notification.page_id}`)
+      // A ballot, which has nowhere else useful to point: the inbox would show
+      // the same line the reader is already looking at.
+      : notification.decision_id ? link(`/decisions/${notification.decision_id}`)
+      : link('/inbox');
     const actor = notification.actor_id
       ? get<Row>(`SELECT name FROM users WHERE id = ?`, notification.actor_id)?.name
       : null;

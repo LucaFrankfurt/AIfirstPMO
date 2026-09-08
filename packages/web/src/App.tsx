@@ -36,6 +36,8 @@ const MailScreen = lazy(() => import('./modules/mail/routes/mail').then((m) => (
 const SecretsIndex = lazy(() => import('./modules/secrets/routes/secrets').then((m) => ({ default: m.SecretsIndex })));
 const KpiIndex = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiIndex })));
 const KpiDetail = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiDetail })));
+const DecisionIndex = lazy(() => import('./modules/decisions/routes/decisions').then((m) => ({ default: m.DecisionIndex })));
+const DecisionDetail = lazy(() => import('./modules/decisions/routes/decisions').then((m) => ({ default: m.DecisionDetail })));
 const BudgetIndex = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetIndex })));
 const BudgetDetail = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetDetail })));
 const Help = lazy(() => import('./modules/guide/routes/help').then((m) => ({ default: m.Help })));
@@ -152,6 +154,7 @@ export default function App() {
       if (has('infrastructure')) fetchQuietly(() => import('./modules/infrastructure/routes/infrastructure'));
       if (has('mail')) fetchQuietly(() => import('./modules/mail/routes/mail'));
       if (has('kpi')) fetchQuietly(() => import('./modules/kpis/routes/kpis'));
+      if (has('decisions')) fetchQuietly(() => import('./modules/decisions/routes/decisions'));
       if (has('secrets')) fetchQuietly(() => import('./modules/secrets/routes/secrets'));
       if (has('budget')) fetchQuietly(() => import('./modules/budgets/routes/budgets'));
     };
@@ -242,6 +245,8 @@ export default function App() {
           <Route path="/secrets" element={<SecretsIndex />} />
           <Route path="/kpis" element={<KpiIndex />} />
           <Route path="/kpis/:id" element={<KpiDetail />} />
+          <Route path="/decisions" element={<DecisionIndex />} />
+          <Route path="/decisions/:id" element={<DecisionDetail />} />
           <Route path="/budgets" element={<BudgetIndex />} />
           <Route path="/budgets/:id" element={<BudgetDetail />} />
           <Route path="/pages" element={<PagesIndex />} />

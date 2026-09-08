@@ -18,7 +18,7 @@ import { translatorFor } from '../../kernel/i18n/i18n.ts';
 
 type Translator = ReturnType<typeof translatorFor>;
 import {
-  displayName, findMentions, onCommitted, parseIds, type WriteOpts,
+  canSeeProject, displayName, findMentions, onCommitted, parseIds, writeEntity, type WriteOpts,
 } from '../../kernel/write-path/repo.ts';
 import { createNotification } from './notify.ts';
 
@@ -165,6 +165,12 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
+  // A ballot is the one thing here that tells the whole workspace, and it is
+  // written apart from the rest for that reason — see `announce`.
+  if (entity === 'decision' || entity === 'decisionOption') {
+    announce(String(entity === 'decision' ? row.id : row.decision_id), opts);
+  }
+
   for (const [userId, payload] of targets) {
     createNotification({
       // A notification about a direct message has to reach somebody who may
@@ -184,6 +190,82 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
       actorId: opts.actorId,
     });
   }
+}
+
+/**
+ * A new ballot tells everybody who may see it — once, and only once it can be
+ * answered.
+ *
+ * This is the one rule in this file that notifies a whole workspace, and the
+ * two paragraphs above arguing *against* exactly that are not being ignored.
+ * They are about a page and a chat channel: things that change many times a
+ * day, where telling everybody about each change is what teaches people to
+ * ignore the bell. A ballot is the opposite shape. It happens once, it is a
+ * question addressed to the room by construction, and a vote nobody was told
+ * about collects no votes — which makes silence here not restraint but a
+ * broken feature.
+ *
+ * **Once it can be answered**, not once it exists. A decision is created and
+ * its options are written immediately afterwards, in separate writes: the web
+ * form does it, and so does `create_decision` over MCP. Announcing on creation
+ * would therefore send people to a question with nothing under it. So the test
+ * is the state rather than the event — open, and with at least two options —
+ * and `announced_at` is what keeps a third option from announcing it again.
+ *
+ * **Who** is every member who could open it, which is not the same as every
+ * member: a decision taken in a private project would otherwise put its
+ * question in the inbox of people who cannot see what it is about. Guests are
+ * left out because they cannot vote at all, and a request for an answer
+ * somebody is not allowed to give is worse than no notification.
+ */
+function announce(decisionId: string, opts: WriteOpts): void {
+  if (!decisionId) return;
+  const decision = get<Row>(`SELECT * FROM decisions WHERE id = ?`, decisionId);
+  if (!decision || decision.deleted_at || decision.announced_at) return;
+  // The status alone, not `isOpen`: a ballot with a deadline already behind it
+  // is somebody typing dates rather than asking a question, and the people who
+  // could not have answered it should not be told they failed to.
+  if (String(decision.status) !== 'open') return;
+  if (decision.closes_at !== null && Number(decision.closes_at) <= Date.now()) return;
+
+  const options = all<Row>(
+    `SELECT id FROM decision_options WHERE decision_id = ? AND deleted_at IS NULL`, decisionId,
+  );
+  if (options.length < 2) return;
+
+  const audience = all<Row>(
+    `SELECT user_id FROM workspace_members
+      WHERE workspace_id = ? AND role <> 'guest' AND deleted_at IS NULL`,
+    decision.workspace_id,
+  );
+  for (const member of audience) {
+    const userId = String(member.user_id);
+    if (userId === opts.actorId) continue;
+    if (decision.project_id && !canSeeProject(userId, String(decision.project_id))) continue;
+    createNotification({
+      workspaceId: String(decision.workspace_id),
+      userId,
+      kind: 'decision',
+      title: translatorFor(userId)('notify.decision', { question: String(decision.question) }),
+      body: (decision.description as string | null) ?? null,
+      projectId: (decision.project_id as string | null) ?? null,
+      decisionId,
+      actorId: opts.actorId,
+    });
+  }
+
+  /*
+   * Stamped even when the audience was empty — a workspace of one, or a private
+   * project nobody else is on. "Nobody was told" is an answer, and leaving it
+   * null would re-ask the question on every subsequent write to the ballot.
+   *
+   * Through the write path rather than an UPDATE, so the column reaches every
+   * device the way anything else does. It re-enters this function once, finds
+   * the stamp, and stops.
+   */
+  writeEntity('decision', decisionId, { announced_at: Date.now() }, {
+    ...opts, op: undefined, system: true, silent: true,
+  });
 }
 
 /** People who asked to hear about everything in this channel. */

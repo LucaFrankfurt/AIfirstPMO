@@ -586,6 +586,27 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* A vote is a social instrument before it is a feature, which is why it
+          gets a switch of its own rather than arriving with the tasks: a team
+          that has not decided how it decides will use one to avoid a
+          conversation. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.decisions}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { decisions: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureDecisions')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureDecisionsHint')}</span>
+        </span>
+      </label>
+
       {/* The switch with the most behind it: turning it on means this instance
           holds a credential to somebody else's mail server and a copy of what
           is in it. Switching it off hides the screens and stops MCP reading;

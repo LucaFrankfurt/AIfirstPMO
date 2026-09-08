@@ -178,6 +178,41 @@ function filterFor(entity: EntityName): string {
                         OR EXISTS (SELECT 1 FROM json_each(k.projects)
                                     WHERE json_each.value IN (${VISIBLE_PROJECTS}))))`;
     /*
+     * A decision follows the project it is taken in, the way a page and a
+     * timesheet entry do: one with no project is the workspace's own.
+     */
+    case 'decision':
+      return `AND (${table}.project_id IS NULL OR ${table}.project_id IN (${VISIBLE_PROJECTS}))`;
+    /* Options inherit their decision's answer, `deleted_at` included. */
+    case 'decisionOption':
+      return `AND EXISTS (
+                SELECT 1 FROM decisions d
+                 WHERE d.id = ${table}.decision_id
+                   AND d.deleted_at IS NULL
+                   AND (d.project_id IS NULL OR d.project_id IN (${VISIBLE_PROJECTS})))`;
+    /*
+     * A secret ballot's votes go to the voter and to nobody else.
+     *
+     * This clause **is** the anonymity, in the way `rate`'s is: hiding the
+     * names on the screen would leave every vote sitting in every device's
+     * IndexedDB and coming back from the REST collection, which is not a secret
+     * ballot — it is a secret ballot's user interface. So the line is drawn
+     * here, at the pull, and the count a device shows instead comes off
+     * `decision.voters` and `decision_options.tally`, which the write path
+     * maintains. See `tallyOf` in @kolibri/shared, which is the only place that
+     * knows which of the two it is reading.
+     *
+     * An open vote sends every row, because knowing who argued for what is the
+     * whole point of one.
+     */
+    case 'decisionVote':
+      return `AND EXISTS (
+                SELECT 1 FROM decisions d
+                 WHERE d.id = ${table}.decision_id
+                   AND d.deleted_at IS NULL
+                   AND (d.project_id IS NULL OR d.project_id IN (${VISIBLE_PROJECTS}))
+                   AND (d.visibility <> 'anonymous' OR ${table}.voter_id = ?2))`;
+    /*
      * Rates go to owners and admins, and to nobody else.
      *
      * The only entity in the registry with a *role* in its filter, and it is
