@@ -13,7 +13,7 @@
  * screen rather than showing a number that is quietly one behind.
  */
 import {
-  afterPicking, chosenBy, closedBecause, isOpen, tallyOf, voteId,
+  afterPicking, byBallotOrder, chosenBy, closedBecause, isOpen, tallyOf, voteId,
   type Decision, type DecisionOption, type DecisionVote, type OptionCount,
 } from '@kolibri/shared';
 import { Avatar, Icon, Progress } from '../../kernel/design-system/ui';
@@ -31,9 +31,6 @@ export function useBallot(decisionId: string) {
   const votes = useQuery(() => list('decisionVote', (row) => row.decision_id === decisionId), [decisionId]);
   return { options, votes };
 }
-
-const byBallotOrder = (a: DecisionOption, b: DecisionOption) =>
-  a.sort_order.localeCompare(b.sort_order) || a.created_at - b.created_at;
 
 /**
  * Cast or withdraw, and keep single choice single on the way.

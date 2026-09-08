@@ -596,6 +596,23 @@ describe('the tools an assistant has', () => {
     assert.equal(reopened.closes_at, null);
   });
 
+  /*
+   * The order they were given, and not the one locale collation would read
+   * back: `orderKey` starts at `V` and appends lowercase, so a report that
+   * compared these as words listed the first option last. A result that names
+   * the options in a different order from the ballot somebody voted on is a
+   * report about a different question.
+   */
+  it('reports the options in ballot order, first one first', async () => {
+    const made = await tool(owner.token, 'create_decision', {
+      question: 'In which order?', options: ['Alpha', 'Beta', 'Gamma', 'Delta'],
+    });
+    assert.deepEqual(made.options.map((row: any) => row.label), ['Alpha', 'Beta', 'Gamma', 'Delta']);
+
+    const read = await tool(owner.token, 'decision_result', { decision: made.id });
+    assert.deepEqual(read.options.map((row: any) => row.label), ['Alpha', 'Beta', 'Gamma', 'Delta']);
+  });
+
   it('lists what is open and says how many', async () => {
     const listed = await tool(owner.token, 'list_decisions', { state: 'open' });
     assert.ok(listed.decisions.every((row: any) => row.state === 'open'));
