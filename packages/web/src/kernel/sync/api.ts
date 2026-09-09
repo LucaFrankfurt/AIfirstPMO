@@ -154,7 +154,8 @@ export const api = {
   startTwoFactor: () => request<{ secret: string; uri: string }>('/api/me/2fa', json({})),
   confirmTwoFactor: (code: string) => request<{ recovery_codes: string[] }>('/api/me/2fa/confirm', json({ code })),
   disableTwoFactor: (password: string) => request<{ ok: boolean }>('/api/me/2fa/off', json({ password })),
-  createToken: (body: { name: string; workspaceId?: string; scopes?: string }) => request<{ token: string; id: string }>('/api/tokens', json(body)),
+  createToken: (body: { name: string; workspaceId?: string; scopes?: string; confined?: boolean }) =>
+    request<{ token: string; id: string }>('/api/tokens', json(body)),
   revokeToken: (id: string) => request<{ ok: boolean }>(`/api/tokens/${id}`, { method: 'DELETE' }),
   invites: (workspaceId: string) => request<any[]>(`/api/workspaces/${workspaceId}/invites`),
   createInvite: (workspaceId: string, role: string) => request<{ code: string; url: string }>(`/api/workspaces/${workspaceId}/invites`, json({ role })),

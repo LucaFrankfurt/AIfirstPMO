@@ -63,6 +63,25 @@ describe('the settings page says it', () => {
   });
 
   it('says where a new token will be bound before it is created', () => {
-    assert.ok(source.includes("t('api.tokenBoundTo'"), 'the create form names the workspace');
+    // Both wordings, because the sentence now depends on the checkbox beside
+    // it: a pin is a default, a confinement is a boundary, and a screen that
+    // said "default" over a ticked "confine" box would be telling the reader
+    // the opposite of what the token will do.
+    assert.ok(source.includes('api.tokenBoundTo'), 'the create form names the workspace a token defaults to');
+    assert.ok(source.includes('api.tokenConfinedTo'), 'and says what it means when the token is confined instead');
+    assert.match(
+      source, /confined \? 'api\.tokenConfinedTo' : 'api\.tokenBoundTo'/,
+      'the two sentences are not tied to the checkbox that decides between them',
+    );
+  });
+
+  it('offers the confinement, and distinguishes the two on every row', () => {
+    // `workspace_id` alone has always been a default. The row has to say which
+    // of the two a given token is, or the list is back to the ambiguity at the
+    // top of this file with a new name.
+    assert.ok(source.includes("t('api.tokenConfine'"), 'there is no way to ask for a confined token');
+    const row = source.slice(source.indexOf('{tokens.map((token) => ('));
+    assert.ok(row.includes('api.tokenScopeConfined'), 'a confined token is not marked as one in the list');
+    assert.ok(row.includes('api.tokenScopeDefault'), 'nor is a merely pinned one');
   });
 });

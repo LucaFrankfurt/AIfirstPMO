@@ -15,7 +15,7 @@ import { env } from '../../platform/env.ts';
 import { overTls } from '../../platform/origin.ts';
 import { leave } from '../../../modules/chat/presence.ts';
 import {
-  createSession, destroySession, hashPassword, hashToken, requireAuth, requireWorkspace,
+  createSession, destroySession, hashPassword, hashToken, requireAuth, requireWorkspace, requireWrite,
   sessionInfo, SESSION_COOKIE, verifyPassword,
 } from '../auth.ts';
 import { acceptInvite } from './workspaces.ts';
@@ -352,7 +352,10 @@ export function registerAuthRoutes(router: Router): void {
     return { ok: true };
   });
 
-  router.get('/api/session', (ctx) => sessionInfo(requireAuth(ctx).userId));
+  router.get('/api/session', (ctx) => {
+    const auth = requireAuth(ctx);
+    return sessionInfo(auth.userId, auth.confinedTo);
+  });
 
   /**
    * The devices signed in as you.
@@ -489,27 +492,62 @@ export function registerAuthRoutes(router: Router): void {
   router.get('/api/tokens', (ctx) => {
     const auth = requireAuth(ctx);
     return all<Row>(
-      `SELECT id, name, prefix, scopes, workspace_id, created_at, last_used_at, expires_at, revoked_at
+      `SELECT id, name, prefix, scopes, workspace_id, confined, created_at, last_used_at, expires_at, revoked_at
          FROM api_tokens WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`,
       auth.userId,
     );
   });
 
-  /** The plaintext token is returned exactly once — we only store its hash. */
+  /**
+   * Mint one. The plaintext is returned exactly once — we only store its hash.
+   *
+   * Minting is a write, and it used to ask only for a session. So a `read`
+   * token could hand itself a `read,write` one, which made "read-only" a note
+   * about intent rather than a limit — measured, not theorised. Two lines close
+   * it: this is `requireWrite` now, and the scopes asked for are cut down to the
+   * scopes the caller actually holds. A credential can copy itself; it cannot
+   * promote itself.
+   *
+   * A confined token mints nothing at all. Anything else is a rule about what
+   * the new token may carry, and the honest version of that rule is that a
+   * credential bounded to one workspace should not be in the business of
+   * issuing credentials.
+   */
   router.post('/api/tokens', async (ctx) => {
-    const auth = requireAuth(ctx);
-    const body = await readJson<{ name?: string; workspaceId?: string; scopes?: string; expiresInDays?: number }>(ctx);
+    const auth = requireWrite(ctx);
+    if (auth.confinedTo) throw forbidden('A workspace-confined token cannot create tokens');
+    const body = await readJson<{
+      name?: string; workspaceId?: string; scopes?: string | string[]; expiresInDays?: number; confined?: boolean;
+    }>(ctx);
     if (body.workspaceId) requireWorkspace(ctx, body.workspaceId);
+    // Confinement without a workspace to be confined to is not a stricter
+    // token, it is a token with an empty membership map — refused rather than
+    // silently made useless.
+    if (body.confined && !body.workspaceId) throw badRequest('`confined` needs a `workspaceId` to confine to');
+
+    /*
+     * A string or a list. Both have always arrived here: the column is a
+     * comma-separated string and the documented field is one, but callers pass
+     * `['read']` too, and the old line stored whatever it was given — an array
+     * came out as the literal `["read"]`, which then matched no scope at all
+     * and was read-only by accident. Reading both properly is the same length
+     * as reading one and stops that being load-bearing.
+     */
+    const asked = body.scopes ?? 'read,write';
+    const wanted = (Array.isArray(asked) ? asked : String(asked).split(','))
+      .map((scope) => String(scope).trim()).filter(Boolean);
+    const granted = wanted.filter((scope) => scope === 'read' || auth.scopes.has(scope));
     const raw = `kol_${token(24)}`;
     const id = uid();
     run(
-      `INSERT INTO api_tokens (id, user_id, workspace_id, name, token_hash, prefix, scopes, created_at, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      id, auth.userId, body.workspaceId ?? null, body.name?.trim() || 'API token', hashToken(raw), raw.slice(0, 12),
-      (body.scopes ?? 'read,write'), Date.now(),
+      `INSERT INTO api_tokens (id, user_id, workspace_id, confined, name, token_hash, prefix, scopes, created_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      id, auth.userId, body.workspaceId ?? null, body.confined ? 1 : 0,
+      body.name?.trim() || 'API token', hashToken(raw), raw.slice(0, 12),
+      granted.join(','), Date.now(),
       body.expiresInDays ? Date.now() + body.expiresInDays * 86_400_000 : null,
     );
-    return { id, token: raw, name: body.name ?? 'API token' };
+    return { id, token: raw, name: body.name ?? 'API token', scopes: granted.join(','), confined: !!body.confined };
   });
 
   router.delete('/api/tokens/:id', (ctx) => {

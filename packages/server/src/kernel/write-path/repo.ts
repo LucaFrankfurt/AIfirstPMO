@@ -867,3 +867,109 @@ export function canSeeProject(userId: string, projectId: string | null | undefin
   if (project.visibility === 'public') return true;
   return !!get(`SELECT 1 FROM project_members WHERE project_id = ? AND user_id = ? AND deleted_at IS NULL`, projectId, userId);
 }
+
+/**
+ * The projects this person may see, as a subquery.
+ *
+ * The same rule as `canSeeProject` above, said in SQL — and it lives next to
+ * it rather than in whichever file needed it first, so that changing one
+ * without seeing the other takes deliberate effort. `openEnvironmentSql` in
+ * the secrets rules is the same idea for the same reason.
+ *
+ * The placeholders are the caller's to name because the two callers bind
+ * differently: a pull is one prepared statement with numbered parameters, a
+ * REST listing appends `?` in the order it pushes them.
+ */
+export const visibleProjectsSql = (workspace = '?', user = '?'): string => `
+  SELECT p.id FROM projects p
+   WHERE p.workspace_id = ${workspace}
+     AND (p.visibility = 'public'
+          OR EXISTS (SELECT 1 FROM project_members m
+                      WHERE m.project_id = p.id AND m.user_id = ${user} AND m.deleted_at IS NULL))`;
+
+/**
+ * Whether somebody may see a task, and therefore everything hanging off it.
+ *
+ * Three rows hang off a task and carry no `project_id` of their own — a
+ * comment, an attachment and a relation. Every guard that asks "which project
+ * is this in" read `row.project_id` on them, got `undefined`, and handed
+ * `canSeeProject` a null it answers `true` to. So the guard on those three ran
+ * and refused nobody: a workspace member could list, read, patch and delete
+ * the comments and attachments of a project they are not on — and fetch the
+ * bytes behind them, which for a screenshot is the whole of the disclosure.
+ *
+ * The pull filter had the rule right the entire time (`filterFor` in
+ * `sync/routes/sync.ts`), which is what makes this a gap rather than a
+ * decision: the same question was answered two ways depending on which door
+ * you came through.
+ *
+ * A task that is not there answers `false`, matching that filter: a row
+ * pointing at nothing is nobody's, and it is not a reason to hand it over.
+ * Deletion is deliberately not asked about — a deleted task's comments still
+ * have to reach the devices that hold them.
+ */
+export function canSeeTask(userId: string, taskId: string | null | undefined): boolean {
+  if (!taskId) return false;
+  const task = get<Row>(`SELECT project_id FROM tasks WHERE id = ?`, taskId);
+  if (!task) return false;
+  return canSeeProject(userId, String(task.project_id));
+}
+
+/**
+ * The same question in SQL, for a listing that has to stay one query.
+ *
+ * Asked as a clause rather than as `canSeeTask` per row because `limit` should
+ * count rows the caller may actually have — the reason the channel, page and
+ * secret clauses in `routes/entities.ts` are SQL too. A page trimmed
+ * afterwards is a page that lies about how much is left, and on a comment list
+ * bounded at a thousand it would also be a thousand lookups.
+ */
+export const visibleTaskSql = (column: string, workspace = '?', user = '?'): string => `
+  EXISTS (SELECT 1 FROM tasks t
+           WHERE t.id = ${column}
+             AND t.project_id IN (${visibleProjectsSql(workspace, user)}))`;
+
+/**
+ * Whether somebody may fetch the bytes behind a hash.
+ *
+ * The file route asked only whether the hash had a row in a workspace of
+ * theirs, which is how a member who could not open a private project could
+ * still download every screenshot attached to it. A blob is shared — the store
+ * is content-addressed, so one hash can hang off several things in several
+ * workspaces — so the question is whether **any** of the places it hangs is
+ * one they may have, exactly the shape the workspace check above already had.
+ *
+ * **Bytes nobody has attached stay the workspace's.** An avatar, a workspace
+ * logo, an image pasted into a chat message: `storeFile` writes those with no
+ * attachment row at all, and there is no narrower rule available for them than
+ * the one that was there before. Requiring an attachment row would have made
+ * every avatar on the instance a 403.
+ *
+ * **A page-bound attachment is deliberately still open**, which is what the
+ * pull filter does with it too — a page carries its own `access` column and
+ * answers for itself, and wiring that in here is a second question this change
+ * does not answer. It is written down rather than quietly handled.
+ *
+ * The join is `checksum` and never `url`. A client may write `url` — it is a
+ * registry field — so a member could otherwise mint an attachment row on a
+ * task they *can* see, point its URL at a hash they cannot, and be let
+ * through. `checksum` is not a registry field, so the write path drops it from
+ * anything a client sends and only `storeFile`, which has the bytes in hand,
+ * ever sets it.
+ */
+export function canSeeFile(userId: string, hash: string): boolean {
+  const rows = all<Row>(
+    `SELECT task_id, page_id, comment_id FROM attachments WHERE checksum = ? AND deleted_at IS NULL`,
+    hash,
+  );
+  if (!rows.length) return true;
+  return rows.some((row) => {
+    if (row.task_id) return canSeeTask(userId, String(row.task_id));
+    if (row.comment_id) {
+      const comment = get<Row>(`SELECT task_id FROM comments WHERE id = ?`, row.comment_id);
+      // A comment on a page is the page's business, like the page itself.
+      return comment?.task_id ? canSeeTask(userId, String(comment.task_id)) : true;
+    }
+    return true;
+  });
+}

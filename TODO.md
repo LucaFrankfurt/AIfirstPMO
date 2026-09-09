@@ -57,6 +57,24 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       to a competence it does not have.
 - [x] **Workspace-wide audit log**, admins only, paged backwards. Private projects an admin is not
       a member of stay out of it: being an admin is not the same as being invited.
+- [x] **A private project is a boundary for what hangs off its tasks**, not only for the tasks.
+      A comment, an attachment and a relation carry no `project_id`, so the guard that asks which
+      project a row is in was handed a null and refused nobody — on the listing, the single read,
+      the patch and the delete alike. The bytes went the same way: the file route asked only about
+      the workspace. The pull filter had the rule right the whole time, which is what made it a
+      gap rather than a decision, so both now read one helper in `repo.ts`. See `canSeeTask` and
+      `canSeeFile`.
+- [x] **A token can be confined to one workspace**, rather than merely pointed at one.
+      `api_tokens.workspace_id` has always been a default and stays one; `confined` is the opt-in
+      that makes it a boundary, so nothing existing changes behaviour. Enforced by narrowing
+      `auth.memberships` — the map every gate reads — rather than by a check in `requireWorkspace`,
+      which would have left `GET /files/:hash/*` open, since that route reads the map itself.
+- [ ] **An attachment on a *page* is still only workspace-scoped.** The task-bound case above is
+      closed; a page carries its own `access` column and answers for itself, and the pull filter
+      leaves page-bound attachments alone for that reason. So `canSeeFile` does too — deliberately,
+      and it is written down here rather than left as a silence. Closing it means teaching that
+      function what `guardPage` knows, which is a second rule about a second column and wants its
+      own thinking rather than being carried along by this one.
 
 ### Operations
 
