@@ -90,6 +90,12 @@ CREATE TABLE IF NOT EXISTS api_tokens (
   token_hash   TEXT NOT NULL UNIQUE,
   prefix       TEXT NOT NULL,
   scopes       TEXT NOT NULL DEFAULT 'read,write',
+  -- Whether `workspace_id` above is a boundary or only a default. It has always
+  -- been a default: a call naming another workspace is answered for that one,
+  -- and the settings screen says so. Off keeps every token that predates this
+  -- reaching exactly what it did; on cuts the membership map down to that one
+  -- workspace, which is what every gate in the server reads.
+  confined     INTEGER NOT NULL DEFAULT 0,
   created_at   INTEGER NOT NULL,
   last_used_at INTEGER,
   expires_at   INTEGER,

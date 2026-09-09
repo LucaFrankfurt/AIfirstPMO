@@ -188,11 +188,22 @@ const toolList = () =>
  * and readable disagreeing is the part that made this a bug rather than a
  * default.
  *
- * A token pinned to one workspace still sees only that one — that pin is a
- * boundary somebody set on purpose, not a default to widen.
+ * A token pinned to one workspace still sees only that one — that pin is where
+ * its owner pointed it, and a resource list is a menu rather than a query, so
+ * widening it would be answering a question nobody asked.
+ *
+ * The pin is intersected with the membership map rather than trusted on its
+ * own, which matters for exactly one case and matters completely there: a
+ * *confined* token whose membership has since been withdrawn keeps the pin —
+ * it is a column on the token — and has an empty map. Taking the pin at its
+ * word would list that workspace's pages to a credential that may no longer
+ * read a single one of them, and `readResource` beside it already refuses
+ * them. Listed and readable disagreeing is what made this function wrong once
+ * already, in the other direction.
  */
 function resourceList(ctx: McpCtx) {
-  const workspaces = ctx.defaultWorkspace ? [ctx.defaultWorkspace] : [...ctx.auth.memberships.keys()];
+  const pinned = ctx.defaultWorkspace ? [ctx.defaultWorkspace] : [...ctx.auth.memberships.keys()];
+  const workspaces = pinned.filter((workspace) => ctx.auth.memberships.has(workspace));
   if (!workspaces.length) return [];
   const pages = all<Row>(
     `SELECT p.id, p.title, p.icon, w.name AS workspace FROM pages p JOIN workspaces w ON w.id = p.workspace_id

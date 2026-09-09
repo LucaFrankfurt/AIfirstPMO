@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
-import { close, currentSeq, run } from './kernel/platform/db/index.ts';
+import { close, constraintFailure, currentSeq, run } from './kernel/platform/db/index.ts';
 import { ROOT, env } from './kernel/platform/env.ts';
 import { authenticate } from './kernel/identity/auth.ts';
 import { startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
@@ -248,6 +248,16 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     }
     if (err instanceof HttpError) {
       send(res, err.status, { error: err.code ?? 'error', message: err.message });
+      return;
+    }
+    // A constraint the database refused is a bad request that happens to
+    // arrive as an exception — see `constraintFailure`. Logged all the same,
+    // because a constraint failing on a path that should never produce one is
+    // still worth seeing in the log; it is the *status* that was wrong.
+    const refused = constraintFailure(err);
+    if (refused) {
+      log('warn', `${req.method} ${url.pathname} refused by the database: ${refused}`);
+      send(res, 400, { error: 'bad_request', message: refused });
       return;
     }
     log('error', `${req.method} ${url.pathname} failed`, err);

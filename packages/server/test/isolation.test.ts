@@ -245,3 +245,177 @@ describe('a colleague who is not the author', () => {
     assert.equal(status, 403, 'a write path is a read path with consequences');
   });
 });
+
+/**
+ * A colleague who is in the workspace but not on the project.
+ *
+ * The task itself was always refused. Three rows hanging off it were not: a
+ * comment, an attachment and a relation carry no `project_id`, so the guard
+ * that asks "which project is this in" got `undefined`, handed `canSeeProject`
+ * a null it answers `true` to, and refused nobody. The bytes behind an
+ * attachment went the same way for a different reason — the file route asked
+ * only about the workspace.
+ *
+ * Written from the outside, because that is the only place the difference
+ * shows: every one of these is a plain request with a member's own cookie.
+ */
+describe('a colleague outside a private project', () => {
+  let outsider: { cookie: string };
+  let insider: { cookie: string };
+  let privateProject = '';
+  let privateTask = '';
+  let publicTask = '';
+  let comment = '';
+  let relation = '';
+  let attachment = '';
+  let hash = '';
+
+  /** The upload route takes a raw body, so it does not go through `call`. */
+  const upload = async (cookie: string, ws: string, query: string, bytes: Buffer, name: string) => {
+    const response = await fetch(`${base}/api/workspaces/${ws}/files?${query}`, {
+      method: 'POST',
+      headers: { cookie, 'content-type': 'image/webp', 'x-filename': name },
+      body: new Uint8Array(bytes),
+    });
+    return { status: response.status, body: await response.json() as any };
+  };
+
+  before(async () => {
+    const join = async (email: string) => {
+      const { body: invite } = await call(`/api/workspaces/${ada.workspace}/invites`, {
+        cookie: ada.cookie, body: { role: 'member' },
+      });
+      const person = await register(email);
+      await call(`/api/invites/${invite.code}/accept`, { cookie: person.cookie, body: {} });
+      return person;
+    };
+    outsider = await join('outsider@example.com');
+    insider = await join('insider@example.com');
+
+    privateProject = (await call(`/api/workspaces/${ada.workspace}/projects`, {
+      cookie: ada.cookie, body: { name: 'Pay review', key: 'PAY', visibility: 'private' },
+    })).body.id;
+    // The insider is on the project; the outsider is only in the workspace.
+    const { body: people } = await call(`/api/workspaces/${ada.workspace}/members`, { cookie: ada.cookie });
+    const insiderId = people.find((person: any) => person.email === 'insider@example.com')?.user_id;
+    assert.ok(insiderId, 'the insider has to be a member before they can be put on the project');
+    await call(`/api/workspaces/${ada.workspace}/project-members`, {
+      cookie: ada.cookie, body: { project_id: privateProject, user_id: insiderId },
+    });
+
+    privateTask = (await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: ada.cookie, body: { project_id: privateProject, title: 'Next quarter salaries' },
+    })).body.id;
+    publicTask = taskId;
+
+    comment = (await call(`/api/workspaces/${ada.workspace}/comments`, {
+      cookie: ada.cookie, body: { task_id: privateTask, body: 'the number is in the screenshot' },
+    })).body.id;
+    relation = (await call(`/api/workspaces/${ada.workspace}/relations`, {
+      cookie: ada.cookie, body: { task_id: privateTask, related_task_id: publicTask, kind: 'relates_to' },
+    })).body.id;
+
+    const bytes = Buffer.from('RIFF....WEBPthese bytes are a payslip screenshot');
+    const { body: stored } = await upload(ada.cookie, ada.workspace, `task_id=${privateTask}`, bytes, 'salaries.webp');
+    attachment = stored.attachment.id;
+    hash = stored.hash;
+    assert.ok(attachment && hash, 'the upload has to have produced a row to test against');
+  });
+
+  it('is genuinely in the workspace', async () => {
+    const { status } = await call(`/api/workspaces/${ada.workspace}/tasks`, { cookie: outsider.cookie });
+    assert.equal(status, 200, 'a guard that refuses everybody is not a fix');
+  });
+
+  it('does not get the task, its comment, its attachment or its relation in a listing', async () => {
+    for (const [collection, id] of [
+      ['tasks', privateTask], ['comments', comment], ['attachments', attachment], ['relations', relation],
+    ] as const) {
+      const { body } = await call(`/api/workspaces/${ada.workspace}/${collection}`, { cookie: outsider.cookie });
+      assert.equal(
+        body.some((row: any) => row.id === id), false,
+        `${collection} listed a row from a project they are not on`,
+      );
+    }
+  });
+
+  it('cannot read, patch or delete any of the three by id', async () => {
+    for (const [collection, id] of [
+      ['comments', comment], ['attachments', attachment], ['relations', relation],
+    ] as const) {
+      const read = await call(`/api/${collection}/${id}`, { cookie: outsider.cookie });
+      assert.equal(read.status, 403, `GET /api/${collection}/:id answered a row that is not theirs`);
+
+      const patch = await call(`/api/${collection}/${id}`, {
+        cookie: outsider.cookie, method: 'PATCH', body: { name: 'renamed' },
+      });
+      assert.equal(patch.status, 403, `PATCH /api/${collection}/:id changed a row that is not theirs`);
+
+      const remove = await call(`/api/${collection}/${id}`, { cookie: outsider.cookie, method: 'DELETE' });
+      assert.equal(remove.status, 403, `DELETE /api/${collection}/:id removed a row that is not theirs`);
+    }
+  });
+
+  it('cannot fetch the bytes, or find the hash to try', async () => {
+    const bytes = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { cookie: outsider.cookie } });
+    assert.equal(bytes.status, 403, 'the file route handed over a screenshot from a private project');
+
+    const { body: listed } = await call(`/api/workspaces/${ada.workspace}/files`, { cookie: outsider.cookie });
+    assert.equal(
+      listed.some((row: any) => row.hash === hash), false,
+      'the workspace file listing is the way around the check above',
+    );
+  });
+
+  it('cannot reach it over MCP either', async () => {
+    const token = (await call('/api/tokens', {
+      cookie: outsider.cookie, body: { name: 'mcp', workspaceId: ada.workspace },
+    })).body.token;
+    const { body } = await call('/mcp', {
+      token,
+      body: {
+        jsonrpc: '2.0', id: 1, method: 'tools/call',
+        params: { name: 'list_attachments', arguments: { task: privateTask, workspace_id: ada.workspace } },
+      },
+    });
+    const text = JSON.stringify(body);
+    assert.ok(!text.includes(hash), `list_attachments handed out a private project's file: ${text.slice(0, 300)}`);
+  });
+
+  it('still works for somebody who is on the project', async () => {
+    const { status: readable } = await call(`/api/attachments/${attachment}`, { cookie: insider.cookie });
+    assert.equal(readable, 200, 'a project member lost access — the fix refuses too much');
+
+    const { body: comments } = await call(`/api/workspaces/${ada.workspace}/comments`, { cookie: insider.cookie });
+    assert.ok(comments.some((row: any) => row.id === comment), 'a project member stopped seeing the comment');
+
+    const bytes = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { cookie: insider.cookie } });
+    assert.equal(bytes.status, 200, 'a project member cannot fetch the file they are allowed to see');
+  });
+
+  it('leaves a file nobody has attached alone', async () => {
+    // An avatar, a workspace logo, an image pasted into a chat message: stored
+    // with no attachment row, and there is no narrower rule for them than the
+    // workspace. Requiring one would have made every avatar a 403.
+    const bare = Buffer.from('RIFF....WEBPan avatar, attached to nothing');
+    const { body: stored } = await upload(ada.cookie, ada.workspace, '', bare, 'avatar.webp');
+    const response = await fetch(`${base}/files/${stored.hash}/avatar.webp`, {
+      headers: { cookie: outsider.cookie },
+    });
+    assert.equal(response.status, 200, 'an unattached file stopped being the workspace’s');
+  });
+
+  it('cannot mint its way in with an attachment row of its own', async () => {
+    // `url` is a registry field, so a member can write one. If reachability
+    // were decided by the URL rather than by `checksum`, pointing a row on a
+    // task they *can* see at a hash they cannot would be the whole exploit.
+    const { status } = await call(`/api/workspaces/${ada.workspace}/attachments`, {
+      cookie: outsider.cookie,
+      body: { task_id: publicTask, name: 'borrowed.webp', url: `/files/${hash}/borrowed.webp` },
+    });
+    assert.equal(status, 200, 'writing the row is allowed — it is what it buys that must not be access');
+
+    const bytes = await fetch(`${base}/files/${hash}/borrowed.webp`, { headers: { cookie: outsider.cookie } });
+    assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
+  });
+});

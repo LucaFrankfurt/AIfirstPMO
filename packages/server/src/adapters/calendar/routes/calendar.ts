@@ -82,6 +82,21 @@ function entriesFor(tasks: Row[], origin: string): CalendarEntry[] {
     }));
 }
 
+/**
+ * A calendar feed is a credential that covers every workspace, so a token
+ * bounded to one may not obtain or replace it.
+ *
+ * The feed at `/calendar/:token` deliberately carries "everything with a due
+ * date that is on this person, across every workspace they are in", and it
+ * authenticates on the URL alone. Without this a confined token could ask for
+ * that URL and read straight past its own boundary — the confinement would
+ * hold on every route that reads the membership map and be handed away by the
+ * one route that mints a second credential.
+ */
+const refuseConfined = (auth: { confinedTo: string | null }): void => {
+  if (auth.confinedTo) throw forbidden('A workspace-confined token cannot use the calendar feed');
+};
+
 export function registerCalendarRoutes(router: Router): void {
   /**
    * The URL to paste into a calendar, and the button that revokes it.
@@ -93,6 +108,7 @@ export function registerCalendarRoutes(router: Router): void {
   router.post('/api/me/calendar', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    refuseConfined(auth);
     const existing = get<Row>(`SELECT calendar_token FROM users WHERE id = ?`, auth.userId)?.calendar_token;
     const token = existing ? String(existing) : randomToken(24);
     if (!existing) run(`UPDATE users SET calendar_token = ? WHERE id = ?`, token, auth.userId);
@@ -102,6 +118,7 @@ export function registerCalendarRoutes(router: Router): void {
   router.post('/api/me/calendar/rotate', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    refuseConfined(auth);
     const token = randomToken(24);
     run(`UPDATE users SET calendar_token = ? WHERE id = ?`, token, auth.userId);
     return { url: `${publicOrigin(ctx)}/calendar/${token}.ics` };
@@ -117,6 +134,7 @@ export function registerCalendarRoutes(router: Router): void {
   /** Whether there is one, for the settings screen — without minting one. */
   router.get('/api/me/calendar', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
+    refuseConfined(auth);
     const existing = get<Row>(`SELECT calendar_token FROM users WHERE id = ?`, auth.userId)?.calendar_token;
     return { url: existing ? `${publicOrigin(ctx)}/calendar/${existing}.ics` : null };
   });

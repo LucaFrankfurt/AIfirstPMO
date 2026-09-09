@@ -14,7 +14,10 @@ import { copyProject, type CopyOptions } from '../../../modules/planning/copy.ts
 import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
-import { canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, deleteEntity, parseIds, serialize, writeEntity } from '../repo.ts';
+import {
+  canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, canSeeTask, deleteEntity, parseIds, serialize,
+  visibleTaskSql, writeEntity,
+} from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
 
@@ -34,8 +37,34 @@ const workspaceOf = (entity: EntityName, id: string): Row => {
 const projectOf = (entity: EntityName, row: Row): string | null =>
   (entity === 'project' ? row.id : row.project_id) ?? null;
 
+/**
+ * The three rows that hang off a task and carry no `project_id` of their own.
+ *
+ * `projectOf` above asked them for a column they do not have, so the guard
+ * below refused nobody on them — see `canSeeTask` in `repo.ts` for what that
+ * opened and why the pull filter had it right all along. Named here rather
+ * than derived, because "has `task_id` and no `project_id`" is a fact about
+ * three tables and a list of three is easier to check than a predicate.
+ */
+const TASK_BOUND = new Set<EntityName>(['comment', 'attachment', 'relation']);
+
+/**
+ * Whether this row is one this person may have at all.
+ *
+ * The single-row guard and the listing filter both go through here so that a
+ * read and a listing cannot come to disagree — which is the shape of the bug
+ * this replaced, one door answering differently from another.
+ */
+function visibleRow(userId: string, entity: EntityName, row: Row): boolean {
+  // A comment or an attachment with no task hangs off a page, whose own access
+  // rule is `guardPage`; a relation always has a task. Exactly the pull
+  // filter's reading of the same three tables.
+  if (TASK_BOUND.has(entity)) return row.task_id == null || canSeeTask(userId, String(row.task_id));
+  return canSeeProject(userId, projectOf(entity, row));
+}
+
 function guardProject(userId: string, entity: EntityName, row: Row): void {
-  if (!canSeeProject(userId, projectOf(entity, row))) throw forbidden('Project is private');
+  if (!visibleRow(userId, entity, row)) throw forbidden('Project is private');
 }
 
 /**
@@ -501,11 +530,15 @@ export function registerEntityRoutes(router: Router): void {
    */
   router.get('/api/notifications/latest', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
+    // Notifications are the person's, not a workspace's, so this route never
+    // named one — which makes it another way past a confined token's boundary:
+    // the title and body of the newest unread thing name a task somewhere.
     const row = get<Row>(
       `SELECT * FROM notifications
-        WHERE user_id = ? AND read_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL
+        WHERE user_id = ?1 AND read_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL
+          AND (?2 IS NULL OR workspace_id = ?2)
         ORDER BY created_at DESC LIMIT 1`,
-      auth.userId,
+      auth.userId, auth.confinedTo,
     );
     if (!row) return null;
     return {
@@ -522,8 +555,10 @@ export function registerEntityRoutes(router: Router): void {
               : row.project_id ? `/projects/${row.project_id}?tab=intake`
                 : '/inbox',
       unread: Number(get<Row>(
-        `SELECT count(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND deleted_at IS NULL`,
-        auth.userId,
+        `SELECT count(*) AS n FROM notifications
+          WHERE user_id = ?1 AND read_at IS NULL AND deleted_at IS NULL
+            AND (?2 IS NULL OR workspace_id = ?2)`,
+        auth.userId, auth.confinedTo,
       )?.n ?? 0),
     };
   });
@@ -593,6 +628,17 @@ export function registerEntityRoutes(router: Router): void {
       filters.push(openEnvironmentSql(def.table).replace(/^\s*AND\s+/, ''));
       params.push(auth.userId);
     }
+    /*
+     * A comment, an attachment or a relation reaches only somebody who may see
+     * the task it hangs off. In SQL for the reason the two clauses above give
+     * — a `limit` should count rows the caller may actually have — and out of
+     * the same helper the pull filter uses, so the two cannot drift.
+     */
+    if (TASK_BOUND.has(entity)) {
+      const clause = visibleTaskSql(`${def.table}.task_id`);
+      filters.push(entity === 'relation' ? clause : `(${def.table}.task_id IS NULL OR ${clause})`);
+      params.push(ctx.params.ws, auth.userId);
+    }
     if (entity === 'message') {
       filters.push(`EXISTS (SELECT 1 FROM channels c
                              WHERE c.id = messages.channel_id AND c.deleted_at IS NULL
@@ -613,7 +659,9 @@ export function registerEntityRoutes(router: Router): void {
       ...params, limit, offset,
     );
     return rows
-      .filter((row) => canSeeProject(auth.userId, projectOf(entity, row)))
+      // The task-bound three are already gone in SQL above; this is the same
+      // question for everything that carries a project of its own.
+      .filter((row) => visibleRow(auth.userId, entity, row))
       // A message carries no project of its own, so its project answer is its
       // channel's. Asked here rather than folded into the SQL above because it
       // is the same question `canSeeChannel` already answers for every write.
