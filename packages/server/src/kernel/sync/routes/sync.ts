@@ -14,7 +14,7 @@ import {
 import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, readJson, type Ctx, type Router } from '../../platform/http.ts';
-import { serialize, writeEntity } from '../../write-path/repo.ts';
+import { serialize, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
@@ -57,12 +57,12 @@ const IS_MEMBER = `
            WHERE wm.workspace_id = ?1 AND wm.user_id = ?2
              AND wm.role IN ('owner', 'admin', 'member') AND wm.deleted_at IS NULL)`;
 
-const VISIBLE_PROJECTS = `
-  SELECT p.id FROM projects p
-   WHERE p.workspace_id = ?1
-     AND (p.visibility = 'public'
-          OR EXISTS (SELECT 1 FROM project_members m
-                      WHERE m.project_id = p.id AND m.user_id = ?2 AND m.deleted_at IS NULL))`;
+/*
+ * Read from `repo.ts` rather than written here, because REST asks the same
+ * question and the two used to disagree — see `canSeeTask` there for what that
+ * cost. The numbered placeholders are this file's binding convention.
+ */
+const VISIBLE_PROJECTS = visibleProjectsSql('?1', '?2');
 
 interface Scope {
   workspaceId: string;
@@ -312,12 +312,14 @@ function filterFor(entity: EntityName): string {
     case 'mailbox':
       return `AND (${table}.access = 'workspace'
                    OR EXISTS (SELECT 1 FROM json_each(${table}.members) WHERE json_each.value = ?2))`;
+    // A comment or an attachment on a *page* answers to the page's own access
+    // rule above and not to this one, so no task is not this clause's business.
+    // A relation always has a task — the column is `NOT NULL`.
     case 'comment':
     case 'attachment':
-      return `AND (${table}.task_id IS NULL OR EXISTS (
-                SELECT 1 FROM tasks t WHERE t.id = ${table}.task_id AND t.project_id IN (${VISIBLE_PROJECTS})))`;
+      return `AND (${table}.task_id IS NULL OR ${visibleTaskSql(`${table}.task_id`, '?1', '?2')})`;
     case 'relation':
-      return `AND EXISTS (SELECT 1 FROM tasks t WHERE t.id = ${table}.task_id AND t.project_id IN (${VISIBLE_PROJECTS}))`;
+      return `AND ${visibleTaskSql(`${table}.task_id`, '?1', '?2')}`;
     default:
       return '';
   }

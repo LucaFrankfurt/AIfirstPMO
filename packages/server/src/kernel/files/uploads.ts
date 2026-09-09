@@ -88,6 +88,19 @@ export async function storeFile(input: StoreFile): Promise<Record<string, unknow
       width: size?.width ?? null, height: size?.height ?? null,
       uploaded_by: input.userId,
     }, { workspaceId: input.workspaceId, actorId: input.userId, hlc: serverClock.now() });
+    /*
+     * Which bytes this row is about, recorded where a client cannot reach it.
+     *
+     * `checksum` has been a column since the table was written and was never
+     * filled in. It is what `canSeeFile` joins on to decide whether somebody
+     * may fetch a blob, and that is exactly why it is written here with a
+     * plain `UPDATE` rather than passed to `writeEntity` above: it is not a
+     * registry field, so the write path drops it from anything a client sends,
+     * and only this function — which is holding the bytes — can set it. Going
+     * through the registry would make it forgeable, and a forgeable answer to
+     * "may I have this file" is not an answer.
+     */
+    run(`UPDATE attachments SET checksum = ? WHERE id = ?`, hash, row.id);
     return { url, hash, name, mime: input.mime, size: input.body.length, ...size, attachment: serialize('attachment', row) };
   }
 

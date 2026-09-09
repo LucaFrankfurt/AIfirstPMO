@@ -136,6 +136,34 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calend
  */
 db.exec(`CREATE INDEX IF NOT EXISTS activities_secret ON activities (secret_id, created_at)`);
 
+/*
+ * `attachments.checksum`, filled in for the rows that pre-date it being used.
+ *
+ * The column has existed since the table was written and nothing ever wrote
+ * it. `canSeeFile` now joins on it to decide who may fetch a blob, so an
+ * instance whose attachments all carry `NULL` would answer that question with
+ * "nobody has attached this" for every file it already holds — which is the
+ * old, open behaviour, silently.
+ *
+ * `url` is the source because on every row this can apply to it was written by
+ * `storeFile` as `/files/<hash>/<name>`, and the sixty-four hex characters
+ * between the two slashes *are* the checksum. The pattern is deliberately
+ * exact: a row whose URL is anything else — a hand-written one, an import —
+ * keeps `NULL` and grants nothing, which is the safe direction to be wrong in.
+ *
+ * `substr` rather than a regex because SQLite has no regex; the `GLOB` fixes
+ * the shape and the length fixes the rest.
+ */
+db.exec(`
+  UPDATE attachments
+     SET checksum = substr(url, 8, 64)
+   WHERE checksum IS NULL
+     AND url GLOB '/files/[0-9a-f]*'
+     AND substr(url, 72, 1) = '/'
+     AND substr(url, 8, 64) GLOB '[0-9a-f][0-9a-f]*'
+     AND length(replace(substr(url, 8, 64), '/', '')) = 64`);
+db.exec(`CREATE INDEX IF NOT EXISTS attachments_checksum ON attachments (checksum)`);
+
 /**
  * `files` was keyed by hash alone, and a hash is not a row.
  *

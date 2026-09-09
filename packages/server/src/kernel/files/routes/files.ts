@@ -4,6 +4,7 @@ import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
 import { disposition } from '../mime.ts';
 import * as storage from '../storage.ts';
+import { canSeeFile } from '../../write-path/repo.ts';
 import { safeName, storeFile } from '../uploads.ts';
 
 export function registerFileRoutes(router: Router): void {
@@ -41,6 +42,11 @@ export function registerFileRoutes(router: Router): void {
     if (!rows.length) throw notFound('File not found');
     const file = rows.find((row) => auth.memberships.has(String(row.workspace_id)));
     if (!file) throw forbidden('Not your workspace');
+    // And the same question one floor down, which this route did not ask. The
+    // workspace was the only gate here, so a member who could not open a
+    // private project could still fetch the bytes of every screenshot hanging
+    // off it — the row was refused and the file was not.
+    if (!canSeeFile(auth.userId, ctx.params.hash)) throw forbidden('Not your project');
 
     const key = storage.keyFor(file.hash, file.mime);
     const backend = (file.storage ?? 'disk') as storage.StorageKind;
@@ -72,12 +78,23 @@ export function registerFileRoutes(router: Router): void {
     return undefined;
   });
 
+  /**
+   * Everything this workspace holds — filtered by the same rule as the bytes.
+   *
+   * Without that filter this listing was the way around the fix above: it
+   * hands out the name and the hash of every file, and a URL is a hash with a
+   * name on the end. Closing one door and leaving the key beside the other is
+   * not closing a door.
+   */
   router.get('/api/workspaces/:ws/files', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws);
     return all<Row>(
       `SELECT hash, name, mime, size, width, height, storage, created_at, created_by FROM files
         WHERE workspace_id = ? ORDER BY created_at DESC LIMIT ?`,
       ctx.params.ws, Math.min(Number(ctx.query.get('limit') ?? 100) || 100, 500),
-    ).map((row) => ({ ...row, url: `/files/${row.hash}/${encodeURIComponent(row.name)}` }));
+    )
+      .filter((row) => canSeeFile(auth.userId, String(row.hash)))
+      .map((row) => ({ ...row, url: `/files/${row.hash}/${encodeURIComponent(row.name)}` }));
   });
 }
