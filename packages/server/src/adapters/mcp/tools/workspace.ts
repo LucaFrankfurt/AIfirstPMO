@@ -15,12 +15,18 @@ export const workspaceTools: ToolDef[] = [
     description: 'List the workspaces this account can access, with the caller\'s role.',
     readOnly: true,
     schema: { type: 'object', properties: {} },
+    // Filtered through the map rather than trusted to the query: this asks the
+    // database directly, so a confined token would otherwise read back every
+    // workspace its owner belongs to — with `role: undefined` beside each one,
+    // which is the shape of an answer nobody meant to give.
     run: (_args, ctx) =>
       all<Row>(
         `SELECT w.id, w.name, w.slug FROM workspaces w JOIN workspace_members m ON m.workspace_id = w.id
           WHERE m.user_id = ? AND m.deleted_at IS NULL AND w.deleted_at IS NULL`,
         ctx.auth.userId,
-      ).map((w) => ({ ...w, role: ctx.auth.memberships.get(w.id) })),
+      )
+        .filter((w) => ctx.auth.memberships.has(String(w.id)))
+        .map((w) => ({ ...w, role: ctx.auth.memberships.get(String(w.id)) })),
   },
   {
     name: 'list_projects',

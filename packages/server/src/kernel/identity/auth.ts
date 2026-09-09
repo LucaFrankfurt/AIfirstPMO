@@ -79,6 +79,16 @@ export interface Auth {
   isAdmin: boolean;
   /** Present for API-token requests. */
   tokenId?: string;
+  /**
+   * The one workspace this credential may touch, or null for all of them.
+   *
+   * Set only by an API token created with `confined`. It is not itself a gate
+   * — `memberships` below is already cut down to match, which is what makes
+   * every gate honour it — but the routes that answer about the *account*
+   * rather than about a workspace have to read it, because they never look at
+   * the map at all. See `confine`.
+   */
+  confinedTo: string | null;
   scopes: Set<string>;
   memberships: Map<string, WorkspaceRole>;
 }
@@ -101,16 +111,25 @@ const publicUser = (row: Row | undefined) => (row ? serialize('user', row) : nul
  * signing in, and creating or joining a workspace, which changes the list below
  * and therefore has to hand back the new one.
  */
-export function sessionInfo(userId: string): SessionInfo {
+export function sessionInfo(userId: string, confinedTo: string | null = null): SessionInfo {
   const user = get<Row>(`SELECT * FROM users WHERE id = ?`, userId);
   if (!user) throw unauthorized();
   const memberships = loadMemberships(userId);
+  /*
+   * The one place that asks the database instead of the map, which is why the
+   * confinement has to be passed in rather than inherited. Left out, a confined
+   * token still listed every workspace its owner belongs to: no way into their
+   * contents, but their names, and a client reading this list to report "this
+   * token reaches more than one workspace" would have reported the opposite of
+   * the truth.
+   */
   const workspaces = all<Row>(
     `SELECT w.* FROM workspaces w
       JOIN workspace_members m ON m.workspace_id = w.id
-     WHERE m.user_id = ? AND m.deleted_at IS NULL AND w.deleted_at IS NULL
+     WHERE m.user_id = ?1 AND m.deleted_at IS NULL AND w.deleted_at IS NULL
+       AND (?2 IS NULL OR w.id = ?2)
      ORDER BY w.created_at`,
-    userId,
+    userId, confinedTo,
   ).map((w) => ({
     id: w.id, name: w.name, slug: w.slug, logo_url: w.logo_url ?? null, created_at: w.created_at,
     features: featuresOf(w),
@@ -137,12 +156,20 @@ export function authenticate(ctx: Ctx): Auth | null {
   if (raw) {
     const hash = hashToken(raw);
     const now = Date.now();
-    const apiToken = get<{ id: string; user_id: string; scopes: string; expires_at: number | null; revoked_at: number | null }>(
-      `SELECT id, user_id, scopes, expires_at, revoked_at FROM api_tokens WHERE token_hash = ?`, hash,
+    const apiToken = get<{
+      id: string; user_id: string; scopes: string; workspace_id: string | null;
+      confined: number; expires_at: number | null; revoked_at: number | null;
+    }>(
+      `SELECT id, user_id, scopes, workspace_id, confined, expires_at, revoked_at
+         FROM api_tokens WHERE token_hash = ?`, hash,
     );
     if (apiToken && !apiToken.revoked_at && (!apiToken.expires_at || apiToken.expires_at > now)) {
       run(`UPDATE api_tokens SET last_used_at = ? WHERE id = ?`, now, apiToken.id);
-      return build(apiToken.user_id, apiToken.scopes.split(','), apiToken.id);
+      // `workspace_id` alone has always been a default and stays one — see
+      // `tokenScope` on the client. Only `confined` turns it into a boundary,
+      // so a token created before this existed reaches exactly what it did.
+      const confinedTo = apiToken.confined ? apiToken.workspace_id ?? null : null;
+      return build(apiToken.user_id, apiToken.scopes.split(','), apiToken.id, confinedTo);
     }
     const session = get<{ id: string; user_id: string; expires_at: number }>(
       `SELECT id, user_id, expires_at FROM sessions WHERE token_hash = ?`, hash,
@@ -163,18 +190,47 @@ export function authenticate(ctx: Ctx): Auth | null {
   return build(session.user_id, ['read', 'write']);
 }
 
-function build(userId: string, scopes: string[], tokenId?: string): Auth | null {
+/**
+ * The map, cut down to the one workspace a confined token may touch.
+ *
+ * Cutting the *map* rather than adding a check to `requireWorkspace` is the
+ * whole design. `memberships` is not one gate — it is what every gate reads,
+ * and twelve of them read it: the REST guard, the file route that hands out
+ * the bytes, five MCP call sites, the mail routes. A check inside
+ * `requireWorkspace` would have left `files/routes/files.ts` open, because
+ * that route asks the map directly, and it is precisely the route that serves
+ * the screenshots. One narrowing here is fail-closed at all twelve.
+ *
+ * A membership that has since been withdrawn leaves an empty map, never the
+ * full one. "Confined to a workspace this account is no longer in" means no
+ * access, not all access; a fallback would make revoking somebody's membership
+ * *widen* their token.
+ */
+const confine = (
+  memberships: Map<string, WorkspaceRole>, workspaceId: string,
+): Map<string, WorkspaceRole> => {
+  const role = memberships.get(workspaceId);
+  return role ? new Map([[workspaceId, role]]) : new Map();
+};
+
+function build(userId: string, scopes: string[], tokenId?: string, confinedTo: string | null = null): Auth | null {
   const user = get<{ id: string; is_admin: number; deleted_at: number | null }>(
     `SELECT id, is_admin, deleted_at FROM users WHERE id = ?`, userId,
   );
   if (!user || user.deleted_at) return null;
   run(`UPDATE users SET last_seen_at = ? WHERE id = ?`, Date.now(), userId);
+  const memberships = loadMemberships(userId);
   return {
     userId,
-    isAdmin: !!user.is_admin,
+    // Instance administration is about the server — the relay, the bot token,
+    // the model key — and a credential that was handed one workspace has no
+    // business there. Nothing breaks by being strict: `confined` is new, so no
+    // existing token loses anything.
+    isAdmin: !!user.is_admin && !confinedTo,
     tokenId,
+    confinedTo,
     scopes: new Set(scopes.map((s) => s.trim()).filter(Boolean)),
-    memberships: loadMemberships(userId),
+    memberships: confinedTo ? confine(memberships, confinedTo) : memberships,
   };
 }
 

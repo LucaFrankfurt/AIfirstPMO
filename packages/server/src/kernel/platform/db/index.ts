@@ -84,6 +84,11 @@ for (const [table, column, definition] of [
   // that mints the next one.
   ['api_tokens', 'client_id', 'TEXT'],
   ['api_tokens', 'refresh_hash', 'TEXT'],
+  // Whether this token's `workspace_id` binds it or merely points it. Defaulting
+  // to 0 is the whole migration story: every token that predates the column goes
+  // on reaching what it always reached, and only a token asked to be confined is
+  // confined. See `confine` in `identity/auth.ts`.
+  ['api_tokens', 'confined', 'INTEGER NOT NULL DEFAULT 0'],
   // Added without UNIQUE, because SQLite cannot add a unique column to a table
   // that already has rows. The index below is the constraint instead, and it
   // is the same constraint — it is how SQLite implements UNIQUE anyway.

@@ -530,11 +530,15 @@ export function registerEntityRoutes(router: Router): void {
    */
   router.get('/api/notifications/latest', (ctx: Ctx) => {
     const auth = requireAuth(ctx);
+    // Notifications are the person's, not a workspace's, so this route never
+    // named one — which makes it another way past a confined token's boundary:
+    // the title and body of the newest unread thing name a task somewhere.
     const row = get<Row>(
       `SELECT * FROM notifications
-        WHERE user_id = ? AND read_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL
+        WHERE user_id = ?1 AND read_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL
+          AND (?2 IS NULL OR workspace_id = ?2)
         ORDER BY created_at DESC LIMIT 1`,
-      auth.userId,
+      auth.userId, auth.confinedTo,
     );
     if (!row) return null;
     return {
@@ -551,8 +555,10 @@ export function registerEntityRoutes(router: Router): void {
               : row.project_id ? `/projects/${row.project_id}?tab=intake`
                 : '/inbox',
       unread: Number(get<Row>(
-        `SELECT count(*) AS n FROM notifications WHERE user_id = ? AND read_at IS NULL AND deleted_at IS NULL`,
-        auth.userId,
+        `SELECT count(*) AS n FROM notifications
+          WHERE user_id = ?1 AND read_at IS NULL AND deleted_at IS NULL
+            AND (?2 IS NULL OR workspace_id = ?2)`,
+        auth.userId, auth.confinedTo,
       )?.n ?? 0),
     };
   });

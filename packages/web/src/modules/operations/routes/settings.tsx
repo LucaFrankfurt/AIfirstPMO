@@ -861,6 +861,7 @@ function ApiSettings() {
   const toast = useToast();
   const [tokens, setTokens] = useState<any[]>([]);
   const [name, setName] = useState('Claude');
+  const [confined, setConfined] = useState(false);
   const [created, setCreated] = useState<string | null>(null);
 
   const workspaces = session?.workspaces ?? [];
@@ -899,7 +900,7 @@ function ApiSettings() {
         <Input placeholder={t('api.tokenName')} value={name} onChange={(event) => setName(event.target.value)} />
         <Button variant="primary"
           onClick={async () => {
-            const token = await api.createToken({ name, workspaceId });
+            const token = await api.createToken({ name, workspaceId, confined });
             setCreated(token.token);
             load();
           }}
@@ -909,9 +910,15 @@ function ApiSettings() {
       </div>
       {/* Wo das neue Token landet, bevor es angelegt wird: `createToken` bindet
           es an den gerade offenen Workspace, und danach steht das nirgends mehr
-          zur Wahl. */}
+          zur Wahl. Das Häkchen entscheidet, ob diese Bindung eine Voreinstellung
+          ist oder eine Grenze — zwei verschiedene Dinge, die vorher nur eines
+          sein konnten. */}
+      <label className="check-row">
+        <input type="checkbox" checked={confined} onChange={(event) => setConfined(event.target.checked)} />
+        <span>{t('api.tokenConfine', { workspace: scopeLabel(workspaceId) })}</span>
+      </label>
       <p className="text-muted text-[12.5px] mb-3">
-        {t('api.tokenBoundTo', { workspace: scopeLabel(workspaceId) })}
+        {t(confined ? 'api.tokenConfinedTo' : 'api.tokenBoundTo', { workspace: scopeLabel(workspaceId) })}
       </p>
 
       {tokens.map((token) => (
@@ -919,7 +926,11 @@ function ApiSettings() {
           <div className="flex-1 min-w-0">
             <div className="truncate">{token.name}</div>
             <div className="text-muted truncate" title={token.workspace_id ?? undefined}>
-              <span className="mono">{token.prefix}… · {token.scopes}</span> · {scopeLabel(token.workspace_id)}
+              <span className="mono">{token.prefix}… · {token.scopes}</span>
+              {' · '}
+              {t(token.confined ? 'api.tokenScopeConfined' : 'api.tokenScopeDefault', {
+                workspace: scopeLabel(token.workspace_id),
+              })}
             </div>
           </div>
           <span className="text-muted text-[11.5px]">
