@@ -307,6 +307,41 @@ if (rebuilt) {
   }
 }
 
+/**
+ * Whether this is the database refusing the request rather than failing.
+ *
+ * A `NOT NULL`, `UNIQUE` or `CHECK` violation is a bad request wearing an
+ * exception: no amount of retrying fixes a body that left out a column the
+ * schema requires. It reached the client as `500 internal_error`, which is the
+ * most expensive thing an error can be misread as — a client with a retry
+ * budget spends all of it, and one that files reports for a living either
+ * spends it or throws the report away.
+ *
+ * The test is the low byte and not the extended code. SQLite's constraint
+ * codes are `19 | (n << 8)` — 1299 for `NOT NULL`, 1555 for `UNIQUE`, 275 for
+ * `CHECK`, measured under this Node — so masking catches the next one somebody
+ * adds a constraint for, where a list of three would quietly not.
+ *
+ * `errcode 1` is deliberately outside it: `no such column` is the server
+ * asking for something that is not there, which is a bug here and has to stay
+ * a 500. That is the half worth a test.
+ */
+const SQLITE_CONSTRAINT = 19;
+
+export function constraintFailure(err: unknown): string | null {
+  const error = err as { code?: string; errcode?: number; message?: string };
+  if (error?.code !== 'ERR_SQLITE_ERROR' || typeof error.errcode !== 'number') return null;
+  if ((error.errcode & 0xff) !== SQLITE_CONSTRAINT) return null;
+  /*
+   * SQLite names the column — "NOT NULL constraint failed: attachments.url" —
+   * and that is handed on rather than swallowed. It is the difference between
+   * a client that can fix its request and one that can only guess, and it
+   * discloses nothing: every table and column name in here is already in
+   * `docs/openapi.json`, which this server serves unauthenticated on purpose.
+   */
+  return error.message ?? 'The database refused this row';
+}
+
 const stmtCache = new Map<string, StatementSync>();
 
 function prepare(sql: string): StatementSync {
