@@ -161,3 +161,117 @@ describe('the signed URL an object store hands out', () => {
     assert.ok(url.searchParams.toString().includes('response-content-type'));
   });
 });
+
+/**
+ * Uploading the same file to the same place twice.
+ *
+ * The blob was already deduplicated and the `files` row with it; the
+ * attachment was not, so a retried upload left the same picture in a task's
+ * Files section twice. It matters because of where clients repeat: a task
+ * create is an upsert on an id the caller chooses, so a retried report finds
+ * its task and then hangs a second screenshot on it — and the only way around
+ * that was an extra request per report asking whether the first one had
+ * landed.
+ *
+ * The delete-and-upload-again case is the one to get right. Matching a
+ * tombstone would make removing a file permanent for those exact bytes, which
+ * is a worse bug than the duplicate this replaces.
+ */
+describe('uploading the same file to the same task twice', () => {
+  let taskId = '';
+  const BYTES = 'RIFF....WEBPthe very same screenshot';
+
+  const attach = (who: Person, name: string, bytes = BYTES) =>
+    fetch(`${base}/api/workspaces/${who.workspace}/files?task_id=${taskId}`, {
+      method: 'POST',
+      headers: { cookie: who.cookie, 'content-type': 'image/webp', 'x-filename': name },
+      body: bytes,
+    }).then((response) => response.json() as any);
+
+  const attachments = async (who: Person) => {
+    const response = await fetch(`${base}/api/workspaces/${who.workspace}/attachments?task_id=${taskId}`, {
+      headers: { cookie: who.cookie },
+    });
+    return (await response.json() as any[]).filter((row) => !row.deleted_at);
+  };
+
+  before(async () => {
+    const project = await fetch(`${base}/api/workspaces/${ada.workspace}/projects`, {
+      method: 'POST',
+      headers: { cookie: ada.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Retries', key: 'RET' }),
+    }).then((r) => r.json() as any);
+    taskId = await fetch(`${base}/api/workspaces/${ada.workspace}/tasks`, {
+      method: 'POST',
+      headers: { cookie: ada.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ project_id: project.id, title: 'a report that gets retried' }),
+    }).then(async (r) => (await r.json() as any).id);
+  });
+
+  it('produces one attachment, not two', async () => {
+    const first = await attach(ada, 'screenshot.webp');
+    const second = await attach(ada, 'screenshot.webp');
+    assert.equal(second.attachment.id, first.attachment.id, 'the retry made a second row');
+    assert.equal((await attachments(ada)).length, 1, 'the task lists the same picture twice');
+  });
+
+  it('answers the retry as though it had done the work', async () => {
+    // The caller cannot tell, and should not have to: same shape, same id, a
+    // usable URL. Anything less and a client still needs a special case.
+    const again = await attach(ada, 'screenshot.webp');
+    assert.ok(again.attachment?.id, 'the retry came back without an attachment to point at');
+    assert.equal(again.hash, (await attach(ada, 'screenshot.webp')).hash);
+    assert.match(String(again.url), /^\/files\//);
+  });
+
+  it('still adds a row for different bytes under the same name', async () => {
+    // The match is on the checksum, so the name is not what makes two uploads
+    // the same upload — two files are very often both `screenshot.webp`.
+    await attach(ada, 'screenshot.webp', 'RIFF....WEBPa different screenshot entirely');
+    assert.equal((await attachments(ada)).length, 2, 'a genuinely different file was swallowed as a duplicate');
+  });
+
+  it('adds a row again after the first was detached', async () => {
+    const [existing] = await attachments(ada);
+    await fetch(`${base}/api/attachments/${existing.id}`, { method: 'DELETE', headers: { cookie: ada.cookie } });
+    const before = (await attachments(ada)).length;
+
+    const restored = await attach(ada, existing.name, BYTES);
+    assert.notEqual(restored.attachment.id, existing.id, 'the deleted row came back instead of a new one');
+    assert.equal(
+      (await attachments(ada)).length, before + 1,
+      'deleting a file made re-uploading it impossible — the worse half of this trade',
+    );
+  });
+
+  it('does not reach across tasks, or across no task at all', async () => {
+    // Same bytes, same workspace, a different target: a genuinely new
+    // attachment. The match is on where the file hangs, not only on what it is.
+    const project = await fetch(`${base}/api/workspaces/${ada.workspace}/projects`, {
+      method: 'POST',
+      headers: { cookie: ada.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Elsewhere', key: 'ELS' }),
+    }).then((r) => r.json() as any);
+    const elsewhere = await fetch(`${base}/api/workspaces/${ada.workspace}/tasks`, {
+      method: 'POST',
+      headers: { cookie: ada.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ project_id: project.id, title: 'another report' }),
+    }).then(async (r) => (await r.json() as any).id);
+
+    const attached = await fetch(`${base}/api/workspaces/${ada.workspace}/files?task_id=${elsewhere}`, {
+      method: 'POST',
+      headers: { cookie: ada.cookie, 'content-type': 'image/webp', 'x-filename': 'screenshot.webp' },
+      body: BYTES,
+    }).then((r) => r.json() as any);
+    assert.ok(attached.attachment?.id, 'the same bytes on a different task got no row of their own');
+    assert.equal(
+      attached.attachment.task_id, elsewhere,
+      'the second task was handed the first task’s attachment',
+    );
+
+    // And a bare upload still creates none, which is what makes an avatar an
+    // avatar rather than an attachment to nothing.
+    const bare = await upload(ada, 'loose.webp', 'image/webp', BYTES).then((r) => r.json() as any);
+    assert.equal(bare.attachment, undefined, 'an upload with no target grew an attachment row');
+  });
+});

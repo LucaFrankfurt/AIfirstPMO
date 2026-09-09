@@ -80,6 +80,46 @@ export async function storeFile(input: StoreFile): Promise<Record<string, unknow
   // Linking the blob to a task/page creates the attachment row that shows up
   // in the UI; a bare upload (e.g. an inline image) just returns the URL.
   if (input.taskId || input.pageId || input.commentId) {
+    /*
+     * The third question, and it is the same shape as the two above.
+     *
+     * *Are these bytes stored* decides whether to write the blob; *does this
+     * workspace have a row for them* decides whether to write the `files` row.
+     * Neither answered *is this file already on this task*, so uploading the
+     * same screenshot twice produced one blob, one `files` row and two
+     * attachments — the same picture listed twice in the task's Files section.
+     *
+     * It reads as cosmetic and it lands where clients repeat: the task create
+     * is an upsert on an id the caller chooses, so a retried report finds its
+     * task, and then hangs a second copy of its screenshot on it. A client
+     * that cared had to ask first, which is a request per report whose only
+     * purpose was to work around this line.
+     *
+     * `checksum` and not `name`: two different files are often called
+     * `screenshot.webp`, and the same file renamed is still the same file. It
+     * is also the column a client cannot write, so this cannot be steered from
+     * outside — the same property `canSeeFile` needs from it.
+     *
+     * `deleted_at IS NULL` is the part worth stating plainly. Detaching a file
+     * and uploading it again has to produce a row; matching a tombstone would
+     * make deletion permanent for those exact bytes, and "I removed it and now
+     * it will not come back" is a worse bug than the duplicate this fixes.
+     */
+    const existing = get<Row>(
+      `SELECT * FROM attachments
+        WHERE workspace_id = ? AND checksum = ? AND deleted_at IS NULL
+          AND task_id IS ? AND page_id IS ? AND comment_id IS ?`,
+      input.workspaceId, hash,
+      input.taskId ?? null, input.pageId ?? null, input.commentId ?? null,
+    );
+    if (existing) {
+      return {
+        url: String(existing.url ?? url), hash, name: String(existing.name ?? name),
+        mime: input.mime, size: input.body.length, ...size,
+        attachment: serialize('attachment', existing),
+      };
+    }
+
     const { row } = writeEntity('attachment', uid(), {
       workspace_id: input.workspaceId,
       task_id: input.taskId ?? null, page_id: input.pageId ?? null, comment_id: input.commentId ?? null,
