@@ -1209,6 +1209,16 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       nothing in the interface saying why. Both columns are in the list now, `upgrade.test.ts` ages a
       database and asserts they come back, and the announcement is no longer allowed to roll back the
       row it describes.
+- [ ] **Nothing stops the third `localeCompare` on a `sort_order`.** It has now been wrong twice in
+      one day, in code written years apart: a ballot read its first option last, and the vault listed
+      `development, production, shared, staging` because a workspace is seeded with `C O b n` and
+      locale collation sorts letters first and case second. Both are fixed and both have a test, and
+      a test only covers the call site it names. The cheap check is a grep, in the shape
+      `unstyled.mjs` already has: a `sort_order` compared with anything but `compareOrder` is a
+      finding, with the two comparators in `@kolibri/shared` as the named exceptions. Perhaps thirty
+      lines, plus an entry in `package.json`, a line in the CI job and a case in `checks.test.mjs`
+      — left out of the fix itself to keep that reviewable, and worth doing before somebody adds a
+      fourth list.
 - [ ] **Nothing catches the *next* forgotten column.** `upgrade.test.ts` proves every entry in the
       list works and names the two that were missing, which is a regression test rather than a rule:
       a column added to `schema.sql` tomorrow without a list entry still passes everything, because

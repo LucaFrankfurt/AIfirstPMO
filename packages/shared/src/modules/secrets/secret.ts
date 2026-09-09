@@ -17,6 +17,35 @@
  * detail screen and the count on the nav all have to agree.
  */
 
+import { compareOrder } from '../../kernel/registry/order.ts';
+
+/**
+ * The order the environments are listed in, everywhere they are listed.
+ *
+ * One definition rather than the three identical expressions it replaces —
+ * the sheet that manages them, the picker on a secret, and the filter on the
+ * vault — because the order was *chosen*: `production` first, because it is the
+ * one that matters, then `staging`, `development` and `shared`. Three copies of
+ * a chosen order are three chances for one screen to disagree with the next
+ * about which environment somebody is looking at.
+ *
+ * `compareOrder` and not `localeCompare`, which is what all three did. A
+ * `sort_order` is a base-62 fraction and is only meaningful compared byte for
+ * byte; locale collation sorts letters first and case second, so it reads `b`
+ * before `C`. A fresh workspace is seeded with `C O b n`, which came back as
+ * `development, production, shared, staging` — alphabetical by accident, and
+ * production buried in the middle of a list it is supposed to head. The same
+ * mistake put a ballot's first option last; see `byBallotOrder`.
+ *
+ * The tie-break on the name stays `localeCompare`, which is correct there: a
+ * name is a word, and two environments that share a key are two somebody added
+ * without dragging either.
+ */
+export const byEnvironmentOrder = (
+  a: { sort_order?: string | null; name: string },
+  b: { sort_order?: string | null; name: string },
+): number => compareOrder(a.sort_order ?? '', b.sort_order ?? '') || a.name.localeCompare(b.name);
+
 /**
  * What a secret is, as a fixed list.
  *

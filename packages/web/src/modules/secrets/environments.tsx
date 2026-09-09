@@ -21,7 +21,7 @@
  * a second later with a message in the corner.
  */
 import { useState } from 'react';
-import { ENVIRONMENT_ROLES, type EnvironmentRole, type EnvironmentRow } from '@kolibri/shared';
+import { ENVIRONMENT_ROLES, byEnvironmentOrder, type EnvironmentRole, type EnvironmentRow } from '@kolibri/shared';
 
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -57,7 +57,7 @@ export function EnvironmentsSheet({ onClose }: { onClose: () => void }) {
 
   const environments = useQuery(
     () => list('environment', (row) => row.workspace_id === workspaceId)
-      .sort((a, b) => (a.sort_order ?? '').localeCompare(b.sort_order ?? '') || a.name.localeCompare(b.name)),
+      .sort(byEnvironmentOrder),
     [workspaceId],
   );
   const secrets = useQuery(() => list('secret', (row) => row.workspace_id === workspaceId), [workspaceId]);

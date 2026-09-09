@@ -20,7 +20,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import {
-  SECRET_ACCESS, SECRET_KINDS, daysUntilRotation, rotation, strength,
+  SECRET_ACCESS, SECRET_KINDS, byEnvironmentOrder, daysUntilRotation, rotation, strength,
   type Secret, type SecretAccess, type SecretKind, type Strength,
 } from '@kolibri/shared';
 
@@ -148,7 +148,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
      refused at. */
   const environments = useQuery(
     () => list('environment', (row) => row.workspace_id === workspaceId && !row.archived)
-      .sort((a, b) => (a.sort_order ?? '').localeCompare(b.sort_order ?? '') || a.name.localeCompare(b.name)),
+      .sort(byEnvironmentOrder),
     [workspaceId],
   );
 
@@ -319,7 +319,7 @@ export function SecretsIndex() {
 
   const environments = useQuery(
     () => list('environment', (row) => row.workspace_id === workspaceId && !row.archived)
-      .sort((a, b) => (a.sort_order ?? '').localeCompare(b.sort_order ?? '') || a.name.localeCompare(b.name)),
+      .sort(byEnvironmentOrder),
     [workspaceId],
   );
   const environmentName = useMemo(

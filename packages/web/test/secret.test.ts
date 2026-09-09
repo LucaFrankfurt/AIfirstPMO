@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { daysUntilRotation, maskSecret, rotation, strength } from '@kolibri/shared';
+import { byEnvironmentOrder, daysUntilRotation, maskSecret, orderKeys, rotation, strength } from '@kolibri/shared';
 
 const DAY = 24 * 60 * 60 * 1000;
 const NOW = Date.parse('2026-09-07T12:00:00Z');
@@ -58,5 +58,40 @@ describe('strength', () => {
     assert.equal(strength('correct horse battery staple'), 'strong');
     assert.equal(strength('P@ss1!'), 'weak');
     assert.equal(strength('Tr0ub4dor&3xyz'), 'fair');
+  });
+});
+
+describe('byEnvironmentOrder', () => {
+  /*
+   * The case that was live. A workspace is seeded with `production, staging,
+   * development, shared` and `orderKeys(4)` gives them `C O b n` — so locale
+   * collation, which sorts letters first and case second, read them back as
+   * `development, production, shared, staging`: alphabetical by accident, with
+   * production buried in the middle of a list it is meant to head. Three
+   * screens did it, identically, in three places.
+   */
+  it('reads a key as a base-62 fraction and not as a word', () => {
+    const names = ['production', 'staging', 'development', 'shared'];
+    const keys = orderKeys(names.length);
+    assert.deepEqual(keys, ['C', 'O', 'b', 'n'], 'the seeded keys have changed — this case rests on their case');
+
+    const rows = names.map((name, index) => ({ name, sort_order: keys[index] }));
+    assert.deepEqual([...rows].reverse().sort(byEnvironmentOrder).map((row) => row.name), names);
+    // The comparison that was there, kept as what this asserts against.
+    assert.ok('C'.localeCompare('b') > 0, 'locale collation no longer inverts these');
+  });
+
+  it('falls back on the name, which is a word and compares like one', () => {
+    const rows = [
+      { name: 'Zurich', sort_order: 'V' },
+      { name: 'Ärger', sort_order: 'V' },
+      { name: 'amber', sort_order: 'V' },
+    ];
+    assert.deepEqual(rows.sort(byEnvironmentOrder).map((row) => row.name), ['amber', 'Ärger', 'Zurich']);
+  });
+
+  it('puts an environment with no key at the front rather than throwing', () => {
+    const rows = [{ name: 'has one', sort_order: 'V' }, { name: 'has none', sort_order: null }];
+    assert.deepEqual(rows.sort(byEnvironmentOrder).map((row) => row.name), ['has none', 'has one']);
   });
 });
