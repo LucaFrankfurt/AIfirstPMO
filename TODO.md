@@ -1262,6 +1262,14 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       **58** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach.
+- [ ] **`check:schema` compares names, not types.** Changing an existing column's type or its
+      default in `schema.sql` passes silently — proved by making `users.bio` an
+      `INTEGER NOT NULL DEFAULT 7` and watching the check stay green — and it should not, because a
+      fresh database then has one type and an upgraded one another, forever, with nothing anywhere
+      saying so. `ALTER TABLE` cannot change a type at all, so the fix is not a list entry but a
+      table rewrite, which is the migration mechanism this repository has so far managed without.
+      The reason this is a `[ ]` and not a bug is that nothing has needed it yet; the reason it is
+      written down is that the last thing nobody had needed yet cost every ballot its second option.
 - [ ] **Nothing happens when a deadline passes.** No reminder, no automatic close, no digest entry —
       the deadline is evaluated on reading and that is the whole of it. A reminder the evening before
       a vote closes is the obvious next thing now that the announcement exists; it wants the
