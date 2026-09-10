@@ -349,6 +349,24 @@ const BREAKS = [
     says: /docs\/openapi\.json no longer matches the tree/,
   },
   {
+    what: 'a fractional index compared as a word',
+    script: 'ordering.mjs',
+    break: (t) => t.edit('packages/web/src/modules/secrets/environments.tsx',
+      '.sort(byEnvironmentOrder),',
+      ".sort((a, b) => (a.sort_order ?? '').localeCompare(b.sort_order ?? '')),"),
+    says: /compare a fractional index with localeCompare/,
+  },
+  {
+    what: 'the same mistake hidden behind a name the allowlist does not know',
+    script: 'ordering.mjs',
+    // The allowlist is names, not shapes, so a comparator of one's own has to
+    // be caught on the expression rather than waved through on the identifier.
+    break: (t) => t.edit('packages/web/src/modules/secrets/environments.tsx',
+      '.sort(byEnvironmentOrder),',
+      ".sort((a, b) => myOwnOrder(a.sort_order ?? '').localeCompare(b.sort_order ?? '')),"),
+    says: /compare a fractional index with localeCompare/,
+  },
+  {
     what: 'a route whose path is built rather than written, which cannot be documented',
     script: 'openapi.mjs',
     break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',
@@ -394,6 +412,12 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
     const { code, out } = await tree().run('figures.mjs');
     assert.equal(code, 0, out);
     assert.match(out, /figures across \d+ files, all matching what they count/);
+  });
+
+  it('ordering.mjs', async () => {
+    const { code, out } = await tree().run('ordering.mjs');
+    assert.equal(code, 0, out);
+    assert.match(out, /no fractional index is compared as a word/);
   });
 });
 

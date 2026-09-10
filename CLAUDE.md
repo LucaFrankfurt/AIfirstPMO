@@ -71,6 +71,7 @@ npm run typecheck        # strict; noUnusedLocals is on
 npm run check:modules    # the seven rules and the generated tables
 npm run check:figures    # every number in prose, against the tree
 npm run check:openapi    # docs/openapi.json, against the registry and the routes
+npm run check:ordering   # no fractional index compared as a word
 npm test                 # server, web, and the checks' own suite
 npm run check:css        # every class the source uses is defined
 npm run check:compose    # every documented env var is reachable
