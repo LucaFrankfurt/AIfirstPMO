@@ -326,7 +326,7 @@ KOLIBRI_LOCALE=fr node scripts/smoke.mjs  # and the French one
 
 npm run check:openapi     # docs/openapi.json, against the registry and every route file
 npm run check:css         # every class the source uses is actually defined — no build needed
-npm run check:responsive  # 19 screens, 340px to 1600px in 20px steps, looking for overflow
+npm run check:responsive  # 20 screens, 340px to 1600px in 20px steps, looking for overflow
 npm run check:contrast    # WCAG ratios for every element that renders text, light and dark
 npm run check:a11y        # names, keyboard reach, focus rings, landmarks, 24px targets
 npm run test:checks       # the checks above, against a broken copy of the tree

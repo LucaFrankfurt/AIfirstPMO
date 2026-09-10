@@ -29,6 +29,11 @@ import type { AddressInfo } from 'node:net';
 const DATA = process.env.KOLIBRI_DATA_DIR!;
 const DB = join(DATA, 'kolibri.sqlite');
 const SCHEMA = new URL('../src/kernel/platform/db/schema.sql', import.meta.url).pathname;
+/**
+ * The schema as it stood when this check was written — an exact copy, refreshed
+ * deliberately and never automatically. See the case at the foot of this file.
+ */
+const RELEASED = new URL('./released.sql', import.meta.url).pathname;
 const SOURCE = new URL('../src/kernel/platform/db/index.ts', import.meta.url).pathname;
 
 /**
@@ -184,5 +189,90 @@ describe('a ballot on an upgraded database keeps every option', () => {
       options.filter((row: any) => row.decision_id === decision).map((row: any) => row.label).sort(),
       ['Opt1', 'Opt2'],
     );
+  });
+});
+
+/**
+ * Every column in `schema.sql` reaches a database that already exists.
+ *
+ * The two cases above prove the upgrade list *works*. Neither can prove it is
+ * *complete*, and that was the actual bug: `notifications.decision_id` went
+ * into `schema.sql` and nowhere else, which is correct for a fresh database and
+ * does nothing at all for one that is being upgraded. Nothing here knew the
+ * column was new, because nothing here knew what old looked like.
+ *
+ * `released.sql` is what old looks like: a copy of `schema.sql` frozen at a
+ * moment somebody chose. A column added to an existing table since then is not
+ * in it, so the only way that column can reach an upgraded instance is the
+ * list — and this asserts exactly that, by building the frozen schema, applying
+ * the list to it, and comparing what comes out against the schema as it now
+ * stands.
+ *
+ * The gap it does not close, named rather than papered over: a table created
+ * *after* the freeze is not in `released.sql`, so a column added to it later is
+ * not covered until somebody refreshes the copy. That is precisely how
+ * `decisions.announced_at` slipped — the table arrived in one commit and the
+ * column in the next. Refreshing is one `cp`, and the failure message says so.
+ */
+describe('every column in schema.sql reaches a database that already exists', () => {
+  const columnsIn = (sql: string, apply: readonly [string, string, string][] = []) => {
+    const db = new DatabaseSync(':memory:');
+    db.exec(sql);
+    for (const [table, column, definition] of apply) {
+      const held = (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name);
+      // A table the frozen schema does not have yet: the upgrade list may name
+      // it, and on a real instance `CREATE TABLE` will have made it already.
+      if (!held.length || held.includes(column)) continue;
+      db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    }
+    const tables = (db.prepare(`SELECT name FROM sqlite_master WHERE type = 'table'`).all() as { name: string }[])
+      .map((row) => row.name)
+      .filter((name) => !name.startsWith('sqlite_'));
+    const out = new Map<string, string[]>();
+    for (const table of tables) {
+      out.set(table, (db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[]).map((c) => c.name).sort());
+    }
+    db.close();
+    return out;
+  };
+
+  /** The list as `db/index.ts` writes it, definitions included. */
+  const upgrades = (): [string, string, string][] => {
+    const text = readFileSync(SOURCE, 'utf8');
+    const start = text.indexOf('for (const [table, column, definition] of [');
+    const end = text.indexOf('] as const) {', start);
+    return [...text.slice(start, end).matchAll(/^\s*\['([a-z_]+)', '([a-z_]+)', (`[^`]*`|'[^']*')\],/gm)]
+      .map((m) => [m[1], m[2], m[3].slice(1, -1)] as [string, string, string]);
+  };
+
+  it('has something to prove: the frozen copy is missing what the list adds', () => {
+    const frozen = columnsIn(readFileSync(RELEASED, 'utf8'));
+    const list = upgrades();
+    assert.ok(list.length > 40, `only ${list.length} upgrade entries were parsed out of db/index.ts`);
+    // Not an assertion about any one column — just that the two files are not
+    // the same thing, which would make the case below vacuous.
+    assert.ok(frozen.size > 30, `the frozen schema has only ${frozen.size} tables`);
+  });
+
+  it('leaves no column that only a fresh database would have', () => {
+    const upgraded = columnsIn(readFileSync(RELEASED, 'utf8'), upgrades());
+    const fresh = columnsIn(readFileSync(SCHEMA, 'utf8'));
+
+    const missing: string[] = [];
+    for (const [table, columns] of fresh) {
+      const had = upgraded.get(table);
+      // A table added since the freeze is created whole by `CREATE TABLE IF NOT
+      // EXISTS` on every instance, so it needs no entry.
+      if (!had) continue;
+      for (const column of columns) if (!had.includes(column)) missing.push(`${table}.${column}`);
+    }
+
+    assert.deepEqual(missing, [], [
+      `these columns exist only on a database created from scratch: ${missing.join(', ')}.`,
+      'Add each to the list at the top of `db/index.ts` — `CREATE TABLE IF NOT EXISTS`',
+      'cannot add a column to a database that already exists.',
+      'If the column is genuinely on a table younger than the frozen copy, refresh it:',
+      '  cp packages/server/src/kernel/platform/db/schema.sql packages/server/test/released.sql',
+    ].join('\n'));
   });
 });
