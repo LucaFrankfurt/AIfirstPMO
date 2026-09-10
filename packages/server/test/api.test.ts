@@ -714,6 +714,98 @@ describe('kolibri api', () => {
     assert.match(JSON.stringify(await callTool('list_attachments', {})), /Pass `task` or `page`/);
   });
 
+  /**
+   * A one-pixel PNG, written out rather than read from a fixture so the bytes
+   * that go in are visibly the bytes that come back.
+   */
+  const onePixelPng = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+
+  it('hands an image back as an image, and a text file back as text', async () => {
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Has a mockup' })).result.structuredContent;
+    const shot = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'mockup.png', content_base64: onePixelPng.toString('base64'),
+    })).result.structuredContent;
+
+    // The point of the whole feature: an `image` block, not base64 in the JSON.
+    // A model reads a string; it looks at a picture.
+    const answer = (await callTool('get_attachment', { attachment: shot.attachment.id })).result;
+    assert.equal(answer.content.length, 2, 'the metadata, and then the file');
+    assert.equal(answer.content[0].type, 'text');
+    assert.equal(answer.content[1].type, 'image');
+    assert.equal(answer.content[1].mimeType, 'image/png');
+    assert.deepEqual(
+      Buffer.from(answer.content[1].data, 'base64'), onePixelPng,
+      'the bytes that came back are not the bytes that went in',
+    );
+
+    // structuredContent is the metadata and never the bytes — a client reading
+    // only that half still gets a usable answer, and nobody pays twice.
+    assert.equal(answer.structuredContent.name, 'mockup.png');
+    assert.equal(answer.structuredContent.size, onePixelPng.length);
+    assert.equal(answer.structuredContent.width, 1);
+    assert.ok(!JSON.stringify(answer.structuredContent).includes('iVBOR'), 'the base64 is in the answer twice');
+
+    // The URL an image in a description points at addresses the same file, so
+    // a caller holding one does not have to map it back through the listing.
+    const byUrl = (await callTool('get_attachment', { file: shot.url })).result;
+    assert.equal(byUrl.content[1].type, 'image');
+    assert.deepEqual(Buffer.from(byUrl.content[1].data, 'base64'), onePixelPng);
+
+    // Text comes back as text, which is what makes a CSV this same tool group
+    // uploaded readable by the assistant that wrote it.
+    const csv = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'rows.csv', content_base64: Buffer.from('a,b\n1,2\n').toString('base64'),
+    })).result.structuredContent;
+    const read = (await callTool('get_attachment', { attachment: csv.attachment.id })).result;
+    assert.equal(read.content[1].type, 'text');
+    assert.equal(read.content[1].text, 'a,b\n1,2\n');
+    assert.equal(read.structuredContent.mime, 'text/csv');
+
+    // And get_task names them, which is how anybody learns there is an image.
+    const detail = (await callTool('get_task', { task: task.identifier })).result.structuredContent;
+    assert.deepEqual(detail.attachments.map((a: any) => a.name), ['mockup.png', 'rows.csv']);
+    assert.equal(detail.attachments[0].id, shot.attachment.id);
+  });
+
+  it('refuses what it cannot carry, and says where the file still is', async () => {
+    const task = (await callTool('create_task', { project: 'WEB', title: 'Has an archive' })).result.structuredContent;
+    const zip = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'export.zip', content_base64: Buffer.from('PK\u0003\u0004not really').toString('base64'),
+    })).result.structuredContent;
+
+    // A zip in a tool answer helps nobody. The refusal carries the URL, which
+    // is a real answer: the file is still there for a person to open.
+    const refused = JSON.stringify(await callTool('get_attachment', { attachment: zip.attachment.id }));
+    assert.match(refused, /application\/zip/);
+    assert.match(refused, /\/files\//, 'the refusal has to say where the file still is');
+
+    // An SVG is an image to the interface and is not one to a model, so handing
+    // it over as an image block would be an error in the client rather than a
+    // picture. It is also the type mime.ts will not render in place.
+    const svg = (await callTool('upload_attachment', {
+      task: task.identifier, name: 'diagram.svg', content_base64: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>').toString('base64'),
+    })).result.structuredContent;
+    assert.match(
+      JSON.stringify(await callTool('get_attachment', { attachment: svg.attachment.id })),
+      /cannot look at/,
+    );
+
+    assert.match(JSON.stringify(await callTool('get_attachment', {})), /Pass `attachment` or `file`/);
+    assert.match(
+      JSON.stringify(await callTool('get_attachment', { file: 'mockup.png' })),
+      /should be a \/files\/<hash>\/<name> URL/,
+    );
+    // A hash is not a capability: one that is nowhere in this workspace is a
+    // refusal rather than a lookup somewhere else.
+    assert.match(
+      JSON.stringify(await callTool('get_attachment', { file: `/files/${'0'.repeat(64)}/ghost.png` })),
+      /No such file in this workspace/,
+    );
+  });
+
   it('creates and edits labels, refusing one that already exists in scope', async () => {
     const made = (await callTool('create_label', {
       name: 'needs-design', color: '#A855F7', description: 'Waiting on a mock',

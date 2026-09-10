@@ -49,7 +49,7 @@ Forty-odd tools, covering the same ground as the interface:
 
 | | |
 |---|---|
-| **Read** | `list_workspaces` `list_projects` `list_tasks` `get_task` `search` `list_pages` `get_page` `list_members` `list_states` `list_labels` `list_cycles` `list_templates` `list_attachments` `list_time` `project_status` `my_work` |
+| **Read** | `list_workspaces` `list_projects` `list_tasks` `get_task` `search` `list_pages` `get_page` `list_members` `list_states` `list_labels` `list_cycles` `list_templates` `list_attachments` `get_attachment` `list_time` `project_status` `my_work` |
 | **Reports** | `changes_since` `deadlines_at_risk` `workload` `blocked_tasks` `stale_tasks` `cycle_review` |
 | **Write** | `create_task` `create_tasks_batch` `update_task` `delete_task` `comment_task` `create_task_relation` `create_project` `update_project` `create_page` `update_page` `create_cycle` `update_cycle` `delete_cycle` `create_state` `update_state` `create_label` `update_label` `apply_template` `upload_attachment` `delete_attachment` `log_time` |
 

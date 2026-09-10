@@ -16,7 +16,7 @@
 import { type EntityName } from '@kolibri/shared';
 import { all, type Row } from '../../kernel/platform/db/index.ts';
 import { canSeeProject, read } from '../../kernel/write-path/repo.ts';
-import { canSeePage, holes, type McpCtx, McpError, type ToolDef, visiblePagesSql } from './kit.ts';
+import { canSeePage, holes, type McpCtx, McpError, ToolAnswer, type ToolDef, visiblePagesSql } from './kit.ts';
 import { workspaceTools } from './tools/workspace.ts';
 import { taskTools } from './tools/tasks.ts';
 import { attachmentTools } from './tools/attachments.ts';
@@ -280,6 +280,17 @@ export async function handleRpc(request: RpcRequest, ctx: McpCtx): Promise<Recor
         const tool = TOOLS.find((t) => t.name === params.name);
         if (!tool) throw new McpError(`Unknown tool ${params.name}`);
         const result = await tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
+        /*
+         * A tool that has content of its own says so by what it returns.
+         *
+         * JSON in one text block is the right default and is what every tool
+         * but one still answers with. `get_attachment` is the exception the
+         * default cannot serve: a screenshot is a picture, and a picture handed
+         * over as a base64 string inside a text block is a string — the model
+         * reads the characters instead of looking at the image, which is the
+         * whole of what asking for it was for.
+         */
+        if (result instanceof ToolAnswer) return ok({ content: result.content, structuredContent: result.structured });
         return ok({
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
           structuredContent: result && typeof result === 'object' && !Array.isArray(result) ? result : { result },

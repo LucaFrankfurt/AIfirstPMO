@@ -154,7 +154,7 @@ are the manual for running and extending it.
 | **Files** | Content-addressed uploads with de-duplication, client-side image downscaling and offline caching; on the data volume by default, or in any S3-compatible bucket (MinIO, Ceph, R2, AWS) with pre-signed downloads. [Storage](docs/storage.md) |
 | **The vault** | Credentials kept somewhere better than a page: per person or per workspace, sealed with a key that lives beside the database rather than in it. A copied database, a backup, a workspace export, a synced device and an over-broad API token all come away with labels and no values — the value leaves the server through exactly one route, which writes an audit row naming who read what. A rotation cadence per secret, and the list says which have gone stale. An assistant gets the labels and never a value. The operator of your own server can read everything, which is what self-hosting means and is said on the screen too. [The vault](docs/secrets.md) |
 | **Calendar** | A subscribable `.ics` link per person or per saved view — Google, Apple, Outlook, Thunderbird, DAVx5. The link does not exist until you ask for it, and one button makes every copy of the old one stop working. [Details](docs/calendar.md) |
-| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 87 tools, 6 prompts and page resources. [API](docs/api.md) · [OpenAPI](docs/openapi.json) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
+| **Integration** | A REST API for every entity, scoped API tokens, signed outgoing webhooks with a delivery log, retries and a replay button (Slack and Discord shapes too) and incoming ones that link a commit to the task it names, plus an MCP server over HTTP and stdio with 88 tools, 6 prompts and page resources. [API](docs/api.md) · [OpenAPI](docs/openapi.json) · [MCP](docs/mcp.md) · [n8n](docs/n8n.md) |
 | **Task reviews** | Optional, manual and off by default: a button asks a model to read a task back and suggest clearer wording, with the replacement already written and applied only by a click. Anthropic, Gemini or OpenRouter, chosen by an environment variable. [What leaves the instance](docs/ai.md) |
 | **Languages** | English, German and French throughout — interface, notifications and emails, each in the recipient's own language. French is machine-written and says so under the language picker, because an unchecked translation is worth having and worth admitting to. [Adding one](docs/i18n.md) |
 | **Learning it** | A first-run tour that sets the instance up as it goes, a checklist ticked from your actual data, and a guide with animated, narrated diagrams of each area. A screen with nothing on it yet links to the card explaining what goes there. Press `?`. |
@@ -180,13 +180,13 @@ it grants is an ordinary token you can revoke in Settings.
 A read-only token (`scopes: "read"`) is refused for every write tool, so you can hand an assistant a
 view of the backlog without handing it a pen.
 
-**87 tools**, in thirteen groups:
+**88 tools**, in thirteen groups:
 
 | | |
 |---|---|
 | Workspace | `list_workspaces`, `list_projects`, `create_project`, `update_project`, `list_members`, `search` |
 | Tasks | `list_tasks`, `get_task`, `create_task`, `create_tasks_batch`, `update_task`, `delete_task`, `comment_task`, `create_task_relation`, `my_work` |
-| Attachments | `upload_attachment`, `list_attachments`, `delete_attachment` |
+| Attachments | `upload_attachment`, `list_attachments`, `get_attachment`, `delete_attachment` |
 | Planning | `list_cycles`, `create_cycle`, `update_cycle`, `delete_cycle`, `list_modules`, `create_module`, `update_module`, `delete_module`, `log_time`, `list_time`, `list_templates`, `apply_template` |
 | Configuration | `list_states`, `create_state`, `update_state`, `list_labels`, `create_label`, `update_label` |
 | Pages | `list_pages`, `get_page`, `create_page`, `update_page`, `list_page_templates`, `create_page_from_template` |

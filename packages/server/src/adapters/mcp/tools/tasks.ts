@@ -149,6 +149,24 @@ export const taskTools: ToolDef[] = [
           `SELECT c.id, c.body, c.created_at, u.name AS author FROM comments c LEFT JOIN users u ON u.id = c.author_id
             WHERE c.task_id = ? AND c.deleted_at IS NULL ORDER BY c.created_at`, task.id,
         ),
+        /*
+         * What is attached, which is how anybody learns there is an image here.
+         *
+         * `get_attachment` can hand over the picture, and a tool nothing points
+         * at is a tool nobody calls: this said "full detail for one task" and
+         * left the files out, so an assistant reading a task saw a description
+         * mentioning "the mockup" and no reason to believe there was one. Four
+         * columns and a URL, not the bytes — asking for those is a second call
+         * on purpose, since most tasks are read without anybody wanting them.
+         *
+         * `task_id` only, which is the same set `list_attachments` answers for
+         * a task. The two disagreeing about what is on a task would be worse
+         * than either being incomplete.
+         */
+        attachments: all<Row>(
+          `SELECT id, name, mime, size, width, height, url FROM attachments
+            WHERE task_id = ? AND deleted_at IS NULL ORDER BY created_at`, task.id,
+        ),
         activity: all<Row>(
           `SELECT verb, field, old_value, new_value, created_at, actor_id FROM activities
             WHERE task_id = ? ORDER BY created_at DESC LIMIT 20`, task.id,

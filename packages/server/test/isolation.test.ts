@@ -380,6 +380,30 @@ describe('a colleague outside a private project', () => {
     });
     const text = JSON.stringify(body);
     assert.ok(!text.includes(hash), `list_attachments handed out a private project's file: ${text.slice(0, 300)}`);
+
+    /*
+     * And the tool that hands over the bytes, addressed both ways.
+     *
+     * `get_attachment` takes a `/files/…` URL as well as an attachment id, and
+     * a URL is a hash with a name on the end — exactly the shape that got past
+     * the file route once already. Knowing the id or the hash has to stay a
+     * different thing from being allowed to have the file, or the listing above
+     * refusing to name it is decoration.
+     */
+    for (const args of [{ attachment }, { file: `/files/${hash}/salaries.webp` }, { file: hash }]) {
+      const { body: answer } = await call('/mcp', {
+        token,
+        body: {
+          jsonrpc: '2.0', id: 2, method: 'tools/call',
+          params: { name: 'get_attachment', arguments: { ...args, workspace_id: ada.workspace } },
+        },
+      });
+      assert.ok(answer.error, `get_attachment answered for ${JSON.stringify(args)} instead of refusing`);
+      assert.ok(
+        !JSON.stringify(answer).includes('UklGR'),
+        'get_attachment handed over the bytes of a private project\'s screenshot',
+      );
+    }
   });
 
   it('still works for somebody who is on the project', async () => {
@@ -391,6 +415,21 @@ describe('a colleague outside a private project', () => {
 
     const bytes = await fetch(`${base}/files/${hash}/salaries.webp`, { headers: { cookie: insider.cookie } });
     assert.equal(bytes.status, 200, 'a project member cannot fetch the file they are allowed to see');
+
+    // Over MCP too, which is the half a guard written for the file route does
+    // not cover. A rule that refuses everybody is not a fix.
+    const token = (await call('/api/tokens', {
+      cookie: insider.cookie, body: { name: 'mcp', workspaceId: ada.workspace },
+    })).body.token;
+    const { body: answer } = await call('/mcp', {
+      token,
+      body: {
+        jsonrpc: '2.0', id: 3, method: 'tools/call',
+        params: { name: 'get_attachment', arguments: { attachment, workspace_id: ada.workspace } },
+      },
+    });
+    assert.ok(!answer.error, `a project member was refused their own file: ${JSON.stringify(answer.error)}`);
+    assert.equal(answer.result.structuredContent.name, 'salaries.webp');
   });
 
   it('leaves a file nobody has attached alone', async () => {
