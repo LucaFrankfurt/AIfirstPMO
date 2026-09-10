@@ -28,6 +28,7 @@
 import { chromium, devices } from 'playwright';
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
+import { switchOnVault } from './vault-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 
@@ -155,6 +156,7 @@ for (const [label, options] of MODES) {
   // rather than merely unchecked. See `mail-fixture.mjs`.
   await switchOnMail(page);
   await switchOnDecisions(page);
+  await switchOnVault(page);
 
   /*
    * A screen is a path, or a path and what to do once it has loaded.
@@ -165,7 +167,7 @@ for (const [label, options] of MODES) {
    */
   const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search?q=design', '/chat', '/pages', '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
-    '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/decisions', '/guide'];
+    '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/decisions', '/secrets', '/guide'];
 
   const found = new Map();
   for (const screen of SCREENS) {

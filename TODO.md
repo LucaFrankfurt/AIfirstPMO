@@ -1227,25 +1227,32 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       nothing in the interface saying why. Both columns are in the list now, `upgrade.test.ts` ages a
       database and asserts they come back, and the announcement is no longer allowed to roll back the
       row it describes.
-- [ ] **Nothing stops the third `localeCompare` on a `sort_order`.** It has now been wrong twice in
-      one day, in code written years apart: a ballot read its first option last, and the vault listed
-      `development, production, shared, staging` because a workspace is seeded with `C O b n` and
-      locale collation sorts letters first and case second. Both are fixed and both have a test, and
-      a test only covers the call site it names. The cheap check is a grep, in the shape
-      `unstyled.mjs` already has: a `sort_order` compared with anything but `compareOrder` is a
-      finding, with the two comparators in `@kolibri/shared` as the named exceptions. Perhaps thirty
-      lines, plus an entry in `package.json`, a line in the CI job and a case in `checks.test.mjs`
-      — left out of the fix itself to keep that reviewable, and worth doing before somebody adds a
-      fourth list.
-- [ ] **Nothing catches the *next* forgotten column.** `upgrade.test.ts` proves every entry in the
-      list works and names the two that were missing, which is a regression test rather than a rule:
-      a column added to `schema.sql` tomorrow without a list entry still passes everything, because
-      nothing here knows which tables are new. Two ways out, both real work. Compare `schema.sql`
-      against its state at the last release — accurate, and it makes a check depend on git history in
-      CI. Or invert the ownership: make the list the source and *generate* the `CREATE TABLE`
-      statements from it plus a base schema, so a column that is not in the list does not exist at
-      all. The second is the one that cannot rot, and it is a day's work on the file every other
-      test loads.
+- [x] **`/secrets` is walked by the browser checks.** It never had been: `vault-fixture.mjs` switches
+      the vault on and leaves four secrets in it, one per environment and deliberately not all the
+      same shape, so the strength pill and the overdue rotation state are both on screen. It passes
+      all three. That the screen is genuinely examined rather than skipped was proved by putting a
+      12×12 unnamed button on it and watching `check:a11y` name both faults and the screen — which
+      is the same doubt `mail-fixture.mjs` was written to answer, and the reason `/mail` was
+      unreachable for as long as it was.
+- [x] **The third `localeCompare` on a `sort_order` is caught before it ships.** `check:ordering` is
+      a grep in the shape `unstyled.mjs` has: a line naming a fractional index and calling
+      `localeCompare` is a finding, unless the comparison is one of the four comparators built on
+      `compareOrder`. Two cases in `checks.test.mjs` — the plain expression, and the same mistake
+      wrapped in a name the allowlist does not know, because the allowlist is names and the rule is
+      about the expression.
+- [x] **A column that only a fresh database would have now fails a test.** `packages/server/test/released.sql`
+      is a frozen copy of `schema.sql` — what *old* looks like — and `upgrade.test.ts` builds it,
+      applies the upgrade list, and compares the result against the schema as it now stands. A
+      column added to an existing table without a list entry is missing from the frozen copy and
+      unreachable through the list, so it is named and the test says which file to edit. Proved both
+      ways: the same column fails without an entry and passes with one.
+- [ ] **The freeze has one gap, and it is the one that bit.** A table created *after* the copy was
+      taken is not in it, so a column added to that table later is not covered — which is exactly how
+      `decisions.announced_at` slipped, the table arriving in one commit and the column in the next.
+      Refreshing is one `cp` and the failure message says so, but nothing makes anybody do it. The
+      version without the gap is the one this entry used to propose: make the list the sole source
+      and let a column that is not in it not exist at all. That is still a day's work on the file
+      every other test loads, and it is still the right answer eventually.
 - [ ] **Nothing happens when a deadline passes.** No reminder, no automatic close, no digest entry —
       the deadline is evaluated on reading and that is the whole of it. A reminder the evening before
       a vote closes is the obvious next thing now that the announcement exists; it wants the
