@@ -25,6 +25,7 @@
 import { chromium } from 'playwright';
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
+import { switchOnVault } from './vault-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const STEP = Number(process.env.KOLIBRI_STEP ?? 20);
@@ -52,6 +53,7 @@ const project = await page.evaluate(async () => {
 // unchecked without this — they do not exist. See `mail-fixture.mjs`.
 await switchOnMail(page);
 await switchOnDecisions(page);
+await switchOnVault(page);
 
 const SCREENS = [
   ['my work', '/'],
@@ -83,6 +85,10 @@ const SCREENS = [
   // wrap, and a count — at 340px, where a label of any length is the thing that
   // pushes the count off the edge.
   ['decisions', '/decisions'],
+  // Behind the secrets switch, and the widest row on any screen: a name, an
+  // environment, a strength pill, a rotation state and two icon buttons, which
+  // at 340px is the case that decides whether a table folds or overflows.
+  ['secrets', '/secrets'],
   ['guide', '/guide'],
 ];
 
