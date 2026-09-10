@@ -1240,19 +1240,28 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       `compareOrder`. Two cases in `checks.test.mjs` — the plain expression, and the same mistake
       wrapped in a name the allowlist does not know, because the allowlist is names and the rule is
       about the expression.
-- [x] **A column that only a fresh database would have now fails a test.** `packages/server/test/released.sql`
-      is a frozen copy of `schema.sql` — what *old* looks like — and `upgrade.test.ts` builds it,
-      applies the upgrade list, and compares the result against the schema as it now stands. A
-      column added to an existing table without a list entry is missing from the frozen copy and
-      unreachable through the list, so it is named and the test says which file to edit. Proved both
-      ways: the same column fails without an entry and passes with one.
-- [ ] **The freeze has one gap, and it is the one that bit.** A table created *after* the copy was
-      taken is not in it, so a column added to that table later is not covered — which is exactly how
-      `decisions.announced_at` slipped, the table arriving in one commit and the column in the next.
-      Refreshing is one `cp` and the failure message says so, but nothing makes anybody do it. The
-      version without the gap is the one this entry used to propose: make the list the sole source
-      and let a column that is not in it not exist at all. That is still a day's work on the file
-      every other test loads, and it is still the right answer eventually.
+- [x] **A column can only reach an existing database through the upgrade list.** `check:schema`
+      builds two databases in memory — one from `db/origin.sql`, each table as it was first
+      created, plus the upgrade list applied to it; one from `schema.sql` — and every column on the
+      second has to be on the first. A column added to an existing table without a list entry is on
+      neither side of the list and is named, with the file to edit. This replaced the frozen copy of
+      `schema.sql` that came before it, which had a gap and an escape hatch: a table created after
+      the copy was taken was not in it, so `decisions.announced_at` — table in one commit, column in
+      the next — was exactly the case it could not see, and refreshing the copy was one `cp` that
+      also erased every claim it had been making. `origin.sql` is append-only instead: `npm run
+      schema -- --fix` adds tables it has never seen and will not re-record one, so a column on a
+      table already in it has no route in but the list. That property is the one the design rests on
+      and it is a case in `checks.test.mjs` — the column fails, `--fix` is run, and it still fails.
+- [ ] **One column is recorded as original that is not: `users.calendar_token`.** Reconstructing a
+      table's first shape means dropping the columns the list added, and SQLite refuses to drop a
+      column a UNIQUE constraint holds. So it sits in `origin.sql` as though the table had always
+      had it, which is conservative in the safe direction — the check can miss a missing entry for
+      that one column and can never invent one — and both the terminal and a comment above the table
+      say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
+      instead of altering it, in a generator that so far only ever adds. It is one column out of the
+      **58** the list carries; the other undroppable-looking eight turned out to be something else
+      entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
+      everything here is trying to reach.
 - [ ] **Nothing happens when a deadline passes.** No reminder, no automatic close, no digest entry —
       the deadline is evaluated on reading and that is the whole of it. A reminder the evening before
       a vote closes is the obvious next thing now that the announcement exists; it wants the

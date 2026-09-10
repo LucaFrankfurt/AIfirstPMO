@@ -367,6 +367,31 @@ const BREAKS = [
     says: /compare a fractional index with localeCompare/,
   },
   {
+    what: 'a column added to an existing table with no upgrade entry',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  archived_at  INTEGER,', '  archived_at  INTEGER,\n  forgotten_id TEXT,'),
+    says: /notifications\.forgotten_id/,
+  },
+  {
+    what: 'the same column, and `--fix` cannot record its way out of it',
+    script: 'schema.mjs',
+    /*
+     * The property the whole design rests on. A whole-file copy of the schema
+     * would silence any finding by taking a new photograph of the crime scene;
+     * `--fix` only ever records a table it has *never seen*, so a column
+     * arriving on a table already in the file — which is exactly what is being
+     * looked for — cannot be recorded away.
+     */
+    break: async (t) => {
+      t.edit('packages/server/src/kernel/platform/db/schema.sql',
+        '  archived_at  INTEGER,', '  archived_at  INTEGER,\n  forgotten_id TEXT,');
+      const fixed = await t.run('schema.mjs', '--fix');
+      assert.equal(fixed.code, 1, `--fix silenced it:\n${fixed.out}`);
+    },
+    says: /notifications\.forgotten_id/,
+  },
+  {
     what: 'a route whose path is built rather than written, which cannot be documented',
     script: 'openapi.mjs',
     break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',
@@ -392,8 +417,10 @@ describe('the checks catch what they were written to catch', { concurrency: 8 },
     it(broken.what, async () => {
       const t = tree();
       // What the break did, for a case whose message quotes the figure it
-      // found rather than one typed here. See `restate`.
-      const found = broken.break(t);
+      // found rather than one typed here. See `restate`. Awaited, because a
+      // case may have to run the script once itself before the run under test —
+      // see the one that tries to record its way out of a finding.
+      const found = await broken.break(t);
       const { code, out } = await t.run(broken.script);
       assert.match(out, typeof broken.says === 'function' ? broken.says(found) : broken.says);
       assert.equal(code, 1, `${broken.script} reported it and then exited 0:\n${out}`);
@@ -418,6 +445,12 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
     const { code, out } = await tree().run('ordering.mjs');
     assert.equal(code, 0, out);
     assert.match(out, /no fractional index is compared as a word/);
+  });
+
+  it('schema.mjs', async () => {
+    const { code, out } = await tree().run('schema.mjs');
+    assert.equal(code, 0, out);
+    assert.match(out, /every column reaches a database that already exists/);
   });
 });
 

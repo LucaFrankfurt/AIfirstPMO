@@ -89,7 +89,13 @@ jobs:
       # and it is what anybody generating a client reads. A route added without
       # regenerating it is a client that cannot call the thing that was added.
       - run: npm run check:openapi
+      # A fractional index is base-62, so `localeCompare` puts 'k' before 'V'
+      # and a ballot's options come back in an order nobody chose.
       - run: npm run check:ordering
+      # `CREATE TABLE IF NOT EXISTS` does nothing to a database that exists, so
+      # a column added to `schema.sql` and nowhere else is a column no upgraded
+      # instance has. That shipped once, and cost every ballot its second option.
+      - run: npm run check:schema
       - run: npm test
       - run: npm run build
 

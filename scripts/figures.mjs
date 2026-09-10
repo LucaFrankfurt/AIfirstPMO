@@ -356,6 +356,19 @@ const FIGURES = [
     ],
   },
   {
+    /*
+     * The list at the top of `db/index.ts`, which since `check:schema` is the
+     * only way a column reaches a table that already exists. Counted here
+     * because TODO.md states how much of it the one recorded exception covers,
+     * and a fraction whose denominator drifts says nothing at all.
+     */
+    what: 'upgrade-list entries',
+    actual: between(read('packages/server/src/kernel/platform/db/index.ts'),
+                    'for (const [table, column, definition] of [', '] as const) {')
+      .split('\n').filter((line) => /^\s*\['/.test(line)).length,
+    claims: [{ file: 'TODO.md', pattern: prose('one column out of the \\*\\*(\\d+)\\*\\* the list carries') }],
+  },
+  {
     what: 'custom field kinds',
     actual: between(read('packages/shared/src/kernel/registry/types.ts'), 'FIELD_KINDS = [', ']').split(',').length,
     claims: [{ file: 'README.md', pattern: prose('custom fields in (nine|\\d+) kinds') }],
