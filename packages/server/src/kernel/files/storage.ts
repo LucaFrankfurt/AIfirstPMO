@@ -114,6 +114,36 @@ export const exists = (key: string, kind: StorageKind = activeKind): Promise<boo
 export const read = (key: string, kind: StorageKind = activeKind): Promise<ReadResult | null> =>
   backendFor(kind).read(key);
 
+/**
+ * The whole blob in memory, or null when the store does not hold it.
+ *
+ * Everything that *serves* a file pipes the stream straight at a socket and
+ * never holds it, which is right and is why this is a second function rather
+ * than a flag on the first. MCP cannot pipe: a tool answer is one JSON
+ * document, so the bytes have to be complete before the response begins.
+ *
+ * `limit` is therefore required rather than optional politeness. A caller
+ * checks the size recorded in the `files` row, and a row can disagree with what
+ * the store actually holds — a truncated upload, a blob replaced underneath a
+ * migration — so the number the caller checked is not the number it is about to
+ * allocate. This one is.
+ */
+export async function readAll(key: string, limit: number, kind: StorageKind = activeKind): Promise<Buffer | null> {
+  const result = await read(key, kind);
+  if (!result) return null;
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for await (const chunk of result.stream as AsyncIterable<Buffer>) {
+    total += chunk.length;
+    if (total > limit) {
+      result.stream.destroy();
+      throw new Error(`storage: ${key} is bigger than the ${limit} bytes asked for`);
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks);
+}
+
 export const remove = (key: string, kind: StorageKind = activeKind): Promise<void> =>
   backendFor(kind).remove(key);
 

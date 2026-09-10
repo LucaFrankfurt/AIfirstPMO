@@ -229,7 +229,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_workspaces` | workspaces this token can reach, with the caller's role |
 | `list_projects` | projects with open/done task counts |
 | `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
-| `get_task` | one task with description, sub-tasks, relations, comments and recent activity |
+| `get_task` | one task with description, sub-tasks, relations, comments, attachments and recent activity |
 | `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
@@ -242,6 +242,7 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `list_labels` | labels with the count of open tasks carrying each; `project` narrows to that project's own plus the workspace-wide ones |
 | `list_states` | a project's workflow states in board order, each with its `group`, colour, task count, and which one is the default |
 | `list_attachments` | files on a task or a page, with the URL to fetch each |
+| `get_attachment` | the file itself — **an image comes back as an image**, so a screenshot on a task can actually be looked at |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 | `list_budgets` | budgets with approved, planned, actual, forecast, variance and whether each is on track |
@@ -714,6 +715,51 @@ object-store deployment they become short-lived signed URLs at the moment they a
 bytes**. Storage is content-addressed and shared: the same file uploaded to two workspaces is one
 blob with two rows, so deleting the blob would take it out from under somebody else. Sweeping blobs
 that nothing points at any more is a separate job.
+
+### Attachments, read back
+
+`get_attachment` is the half that was missing for a long time. An assistant could put a file on a
+task and could list what was there, and everything it got back for a screenshot was a name and a
+URL it has no way to follow — the URL needs the same credentials as the MCP call, and the stdio
+bridge forwards JSON-RPC rather than proxying HTTP. So an image on a task was visible to every
+person in the workspace and to nothing on this surface: *"look at the mockup on WEB-12"* was a
+request Kolibri could not answer.
+
+**An image comes back as MCP's own `image` block**, not as base64 inside the JSON. That is the whole
+point of the tool rather than a detail of it: base64 in a text block is a string a model reads, and
+an `image` block is a picture a model sees. Text files come back as text — a CSV `upload_attachment`
+wrote should be readable by the assistant that wrote it. Everything else is refused **with its URL**,
+which is a real answer rather than a shrug: a zip in a tool answer helps nobody, and the file is
+still there for a person to open.
+
+The types that come back as a picture are `png`, `jpeg`, `gif` and `webp`, which is narrower than
+what Kolibri stores and narrower than what a browser renders. AVIF and SVG are images to the
+interface and are not images to a model, so handing one over as an `image` block would produce an
+error in the client rather than a picture; SVG is also the type `mime.ts` refuses to render in place,
+because a document that can carry script is a document whether or not it admits to being one.
+
+An answer carries at most **5 MB**, and that limit is a constant rather than a setting.
+`KOLIBRI_MAX_UPLOAD_MB` says what an operator is willing to *store*, and 25 MB of screenshot is a
+perfectly reasonable thing to keep; it is not a reasonable thing to put in a model's context, and
+the ceiling that actually applies belongs to the client rather than to the deployment. An operator
+raising a number in their environment cannot make their assistant read a 20 MB photograph, and a
+setting that looks like it might is worse than no setting at all.
+
+Two ways to name one file. `attachment` is the id `list_attachments` and `get_task` hand out.
+`file` is the `/files/<hash>/<name>` URL that an image pasted into a task's description points at —
+which is the thing being asked about when somebody says "the diagram in the description", and making
+the caller map it back through a listing to find the id of a row whose URL it already has would be
+a request whose only purpose is to work around the argument.
+
+Neither is a capability, and the two doors give the same answer. The `attachment` branch runs the
+walk that refuses a private task's or a private page's file; the `file` branch runs it over every
+attachment carrying those bytes, because a URL is a hash with a name on the end and one tool saying
+"no" to the id and "here you are" to the URL would be worse than either rule alone. That is
+deliberately **stricter than `GET /files/:hash/*`**, which asks `canSeeFile` — a rule that answers
+for the task half of the question and, as recorded in `TODO.md`, not yet for the page half. A hash
+with no attachment row at all falls back to exactly what the route does, which is the case that must
+not get stricter: an avatar, a workspace logo and an image pasted into a chat message are stored with
+no row, and requiring one would make every avatar a refusal.
 
 ### Labels and project metadata
 

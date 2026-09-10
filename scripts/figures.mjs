@@ -347,6 +347,22 @@ const FIGURES = [
     ],
   },
   {
+    /*
+     * The ceiling `get_attachment` answers under, read out of the constant that
+     * enforces it.
+     *
+     * It is a number in two places — the tool and the prose beside it — which is
+     * exactly the shape that rots, and it rots quietly here: a document saying
+     * 5 MB against a tool refusing at 2 would send somebody hunting for a
+     * failure in their client. The constant is the source; this is the claim.
+     */
+    what: 'the megabytes one MCP answer carries',
+    actual: Number(
+      /const MAX_INLINE_BYTES = (\d+) \* 1024 \* 1024/.exec(read('packages/server/src/adapters/mcp/tools/attachments.ts'))?.[1],
+    ),
+    claims: [{ file: 'docs/mcp.md', pattern: prose('An answer carries at most \\*\\*(\\d+) MB\\*\\*') }],
+  },
+  {
     what: 'MCP prompts',
     actual: promptNames.length,
     claims: [

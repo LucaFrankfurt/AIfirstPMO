@@ -75,6 +75,11 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       and it is written down here rather than left as a silence. Closing it means teaching that
       function what `guardPage` knows, which is a second rule about a second column and wants its
       own thinking rather than being carried along by this one.
+      What is left of it is `GET /files/:hash/*` and the sync filter. MCP's `get_attachment` asks the
+      narrower question itself — it walks the attachment rows with the same helper that refuses a
+      private page by id — because that tool takes a URL as well as an id, and inheriting the gap
+      would have made one tool answer two different things about the same bytes. That is a fix in the
+      caller rather than in the rule, which is the wrong shape and is why this stays open.
 
 ### Operations
 
@@ -1156,7 +1161,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 87 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 88 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

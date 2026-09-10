@@ -58,6 +58,16 @@ async function call(token: string, method: string, params: Record<string, unknow
 const tool = (token: string, name: string, args: Record<string, unknown> = {}) =>
   call(token, 'tools/call', { name, arguments: args }).then((r) => r.structuredContent);
 
+/** The upload route takes a raw body, so it does not go through `api`. */
+async function upload(who: string, ws: string, query: string, bytes: Buffer, name: string, mime: string): Promise<any> {
+  const response = await fetch(`${base}/api/workspaces/${ws}/files?${query}`, {
+    method: 'POST',
+    headers: { cookie: cookies[who], 'content-type': mime, 'x-filename': name },
+    body: new Uint8Array(bytes),
+  });
+  return response.json();
+}
+
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
@@ -73,10 +83,13 @@ describe('what a token may read', () => {
   let hidden = '';
   let personal = '';
   let hiddenTask = '';
+  let personalFile = '';
   let outsider = '';
 
   const SECRET = 'We are paying 4.2 million';
   const PERSONAL = 'The pay review draft';
+  /** A one-pixel GIF, so the bytes on the private page are a real image. */
+  const PIXEL = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
 
   it('is set up: Ada has a private project and a private page; Lin is in neither', async () => {
     resetRateLimits();
@@ -98,6 +111,11 @@ describe('what a token may read', () => {
     personal = (await api('ada', `/api/workspaces/${workspaceId}/pages`, {
       body: { title: 'Pay review', content: PERSONAL, access: 'private' },
     })).id;
+
+    // And a picture on that private page, which is the thing `get_attachment`
+    // hands over — a page's file is the page's content with a download URL on it.
+    const stored = await upload('ada', workspaceId, `page_id=${personal}`, Buffer.from(PIXEL), 'salaries.gif', 'image/gif');
+    personalFile = stored.url;
 
     const invite = await api('ada', `/api/workspaces/${workspaceId}/invites`, { body: { role: 'member' } });
     resetRateLimits();
@@ -148,6 +166,27 @@ describe('what a token may read', () => {
     assert.deepEqual(seen.links_unwritten, ['Deal terms']);
   });
 
+  /**
+   * The bytes on a private page, by both of the names that reach them.
+   *
+   * `get_attachment` takes an attachment id *or* the `/files/…` URL an image in
+   * a page renders from, and the second is the one worth a case: a URL is a
+   * hash with a name on the end, and `canSeeFile` — the rule the plain HTTP
+   * route applies — answers `true` for a page-bound file without looking at the
+   * page at all. That gap is recorded in TODO.md and is the file route's; a tool
+   * that inherited it would answer "no" to the id and "here you are" to the URL
+   * for the same bytes, which is the shape of every access bug this has had.
+   */
+  it('will not hand over a file on somebody else’s private page, by id or by URL', async () => {
+    const listed = await tool(outsider, 'list_attachments', { page: personal }).catch((err: Error) => err.message);
+    assert.match(String(listed), /private|not found/i, 'the listing named a private page’s files');
+
+    await assert.rejects(() => tool(outsider, 'get_attachment', { file: personalFile }));
+    const attempt = await call(outsider, 'tools/call', { name: 'get_attachment', arguments: { file: personalFile } })
+      .then(() => 'answered', (err: Error) => err.message);
+    assert.notEqual(attempt, 'answered');
+  });
+
   /* --------------------------------------------------------- the resources */
 
   it('does not offer them as resources', async () => {
@@ -175,5 +214,12 @@ describe('what a token may read', () => {
     assert.match((await tool(mine, 'get_page', { page: 'Pay review' })).content, /pay review draft/i);
     const read = await call(mine, 'resources/read', { uri: `kolibri://page/${hidden}` });
     assert.match(JSON.stringify(read), /4\.2 million/);
+
+    // Including the picture on it, as a picture. A rule that refuses everybody
+    // is not a rule.
+    const file = await call(mine, 'tools/call', { name: 'get_attachment', arguments: { file: personalFile } });
+    assert.equal(file.content[1].type, 'image');
+    assert.equal(file.content[1].mimeType, 'image/gif');
+    assert.deepEqual(Buffer.from(file.content[1].data, 'base64'), PIXEL);
   });
 });

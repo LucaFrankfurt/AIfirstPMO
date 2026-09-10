@@ -38,6 +38,51 @@ export interface ToolDef {
   run: (args: Record<string, any>, ctx: McpCtx) => unknown | Promise<unknown>;
 }
 
+/**
+ * A content block, in MCP's own vocabulary.
+ *
+ * The protocol has always carried more than text — this is the subset Kolibri
+ * has anything to put in.
+ */
+export interface ContentBlock {
+  type: 'text' | 'image';
+  /** On `text`. */
+  text?: string;
+  /** On `image`: the bytes, base64. */
+  data?: string;
+  /** On `image`: what those bytes are. */
+  mimeType?: string;
+}
+
+/**
+ * A tool answer that is not only JSON.
+ *
+ * Every tool returns a value and the envelope in `index.ts` turns it into one
+ * `text` block of pretty-printed JSON. That is the right default and was the
+ * only shape for as long as every answer was made of rows. An image is not made
+ * of rows: MCP carries a picture as its own block, and a model handed
+ * `{"data":"iVBORw0…"}` inside a text block sees a very long string rather than
+ * the screenshot somebody attached to the task.
+ *
+ * So a tool with something else to say returns one of these and the envelope
+ * passes `content` through untouched. `structured` is what `structuredContent`
+ * becomes, and is the metadata rather than the bytes: repeating a base64
+ * megabyte in a second field would double the response to say nothing new.
+ *
+ * A class and not a shape with a marker field, because `instanceof` is a
+ * question with one answer. Sniffing for a `content` key would mean any tool
+ * that ever returns a row with that column name changes what its answer is.
+ */
+export class ToolAnswer {
+  content: ContentBlock[];
+  structured: Record<string, unknown>;
+
+  constructor(content: ContentBlock[], structured: Record<string, unknown>) {
+    this.content = content;
+    this.structured = structured;
+  }
+}
+
 export interface McpCtx {
   auth: Auth;
   /** Workspace the token is pinned to, if any. */
