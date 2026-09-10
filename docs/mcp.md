@@ -217,6 +217,32 @@ curl -is $URL/mcp -H "Authorization: Bearer $TOKEN" -H 'Accept: text/event-strea
 # allow: POST
 ```
 
+### A tool added by an upgrade needs the client to reconnect
+
+The same statelessness has one consequence a person meets rather than a program, and it is worth
+knowing before it costs an afternoon. `initialize` declares `tools.listChanged: false`, which is
+honest: that flag promises to *send* `notifications/tools/list_changed`, sending anything unprompted
+needs the server-to-client stream, and this server does not open one.
+
+So **a client fetches the tool list once, when it connects, and keeps it.** Upgrade the server, and
+a client that was already connected goes on offering exactly the tools it learned about — a tool
+added by the upgrade is simply not there, on a server that has had it since the deploy. Nothing is
+broken and nothing says anything; the tools that were already there keep working, which is what
+makes it confusing.
+
+Reconnecting is the whole remedy: a new session, or disconnecting and re-adding the connector.
+`GET /mcp` answers with the names the server really has, so the question can be settled rather than
+guessed at:
+
+```bash
+curl -s $URL/mcp -H "Authorization: Bearer $TOKEN" | jq -r '.tools[]' | grep get_attachment
+```
+
+Two things keep this small. The list is fixed at build time — it changes when somebody deploys and
+never on its own — and re-fetching `tools/list` on a timer is something a client may do whenever it
+likes, with or without a notification. This is a property of the transport rather than a bug in it;
+`TODO.md` says what closing it would cost.
+
 ## Tools
 
 Tasks are addressed by id or by the identifier humans use (`WEB-42`). Projects accept id, key or

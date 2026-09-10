@@ -83,6 +83,22 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ### Operations
 
+- [ ] **A tool added by an upgrade does not reach a client that is already connected.** `initialize`
+      declares `tools.listChanged: false`, and that is honest rather than lazy: the flag promises to
+      *send* `notifications/tools/list_changed`, sending anything unprompted needs the
+      server-to-client stream, and this transport deliberately opens none — it is a POST and its
+      answer, with no session on either side, which is the same decision the `GET /mcp` 405 rests on.
+      So a client fetches `tools/list` once and keeps it, and after a deploy it goes on offering
+      exactly the tools it learned about while the server has had the new one for hours. Nothing
+      errors and nothing says anything, which is what makes it cost an afternoon rather than a
+      minute; it was found by watching `get_task` return a field that only the new build writes,
+      from a session whose tool list did not have the new tool in it.
+      Reconnecting is the whole remedy and `GET /mcp` lists what the server really has, so this is
+      documented in [`docs/mcp.md`](docs/mcp.md) rather than worked around. Closing it properly means
+      sessions and a held-open stream per client — the statelessness is load-bearing, and trading it
+      for a notification that fires on the days somebody deploys is the wrong trade. The cheaper half
+      is a client that re-fetches on a timer, and that is the client's to decide, not this server's.
+
 - [x] **Verified the deployment on a real daemon.** This carried the honest caveat for a long time
       that the Dockerfile and the compose files had been written and reviewed but never executed —
       there was no Docker daemon in the environment they were authored in. The CI `deploy` job has

@@ -263,6 +263,27 @@ export async function handleRpc(request: RpcRequest, ctx: McpCtx): Promise<Recor
       case 'initialize':
         return ok({
           protocolVersion: typeof params.protocolVersion === 'string' ? params.protocolVersion : PROTOCOL_VERSION,
+          /*
+           * `listChanged: false` is honest, and it has a cost worth naming.
+           *
+           * The flag promises to *send* `notifications/tools/list_changed`, and
+           * sending anything unprompted needs a server-to-client channel. This
+           * transport has none on purpose — it is a POST and its answer, with no
+           * session either side, which is why the GET returns 405 rather than
+           * opening a stream. So the promise would be a lie.
+           *
+           * What it costs: a client fetches `tools/list` once, at `initialize`,
+           * and keeps it. Nothing tells it otherwise, so **a tool added by an
+           * upgrade does not reach a client that was already connected** — it
+           * goes on calling the tools it learned about, and a person watching
+           * one wonder where the new tool went will find it missing from a
+           * server that has had it for hours. Reconnecting is the whole remedy,
+           * and `GET /mcp` lists the names the server really has, so the two can
+           * be compared rather than guessed at. See `docs/mcp.md`.
+           *
+           * This is small here because the list is fixed at build time: it
+           * changes when somebody deploys, and never on its own.
+           */
           capabilities: { tools: { listChanged: false }, resources: { subscribe: false }, prompts: {} },
           serverInfo: SERVER_INFO,
           instructions:
