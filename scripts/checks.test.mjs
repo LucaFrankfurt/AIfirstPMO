@@ -367,6 +367,84 @@ const BREAKS = [
     says: /compare a fractional index with localeCompare/,
   },
   {
+    what: 'a column added to an existing table with no upgrade entry',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  archived_at  INTEGER,', '  archived_at  INTEGER,\n  forgotten_id TEXT,'),
+    says: /notifications\.forgotten_id/,
+  },
+  {
+    what: 'the same column, and `--fix` cannot record its way out of it',
+    script: 'schema.mjs',
+    /*
+     * The property the whole design rests on. A whole-file copy of the schema
+     * would silence any finding by taking a new photograph of the crime scene;
+     * `--fix` only ever records a table it has *never seen*, so a column
+     * arriving on a table already in the file — which is exactly what is being
+     * looked for — cannot be recorded away.
+     */
+    break: async (t) => {
+      t.edit('packages/server/src/kernel/platform/db/schema.sql',
+        '  archived_at  INTEGER,', '  archived_at  INTEGER,\n  forgotten_id TEXT,');
+      const fixed = await t.run('schema.mjs', '--fix');
+      assert.equal(fixed.code, 1, `--fix silenced it:\n${fixed.out}`);
+    },
+    says: /notifications\.forgotten_id/,
+  },
+  {
+    /*
+     * `ALTER TABLE` adds a column and does nothing else, so an existing
+     * column's type edited in `schema.sql` reaches new instances and no other
+     * — for good, with the two halves of the estate quietly disagreeing. The
+     * name check could not see this: the column is on both sides.
+     */
+    what: 'an existing column whose type changed, which no upgrade entry can carry',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  bio           TEXT,', '  bio           INTEGER,'),
+    says: /users\.bio[\s\S]*it needs a table rewrite/,
+  },
+  {
+    /*
+     * The cheap half of the same fault, and the one with a real remedy: the
+     * list is what an upgrade applies, so a definition there that is weaker
+     * than the declaration in `schema.sql` is a column that exists on both
+     * kinds of database and means something different on each.
+     */
+    what: 'an upgrade entry whose definition disagrees with the schema',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/index.ts',
+      "['notifications', 'telegram_attempts', 'INTEGER NOT NULL DEFAULT 0'],",
+      "['notifications', 'telegram_attempts', 'INTEGER'],"),
+    says: /telegram_attempts[\s\S]*make its definition match/,
+  },
+  {
+    /*
+     * A constraint is not a column: `ALTER TABLE` cannot add one at all. The
+     * remedy is the separate `CREATE UNIQUE INDEX IF NOT EXISTS`, which does
+     * reach a database that already exists — which is why the indexes in
+     * `schema.sql` are not a problem and an inline `UNIQUE` is.
+     */
+    what: 'a UNIQUE declared inline on a table that already exists',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  bio           TEXT,', '  bio           TEXT UNIQUE,'),
+    says: /users UNIQUE \(bio\)[\s\S]*CREATE UNIQUE INDEX IF NOT EXISTS/,
+  },
+  {
+    /*
+     * No pragma reports a CHECK, so it is read off the statement text — with
+     * literals blanked and parentheses counted, because a CHECK body is an
+     * expression that nests. This case is here for the extraction as much as
+     * for the rule.
+     */
+    what: 'a CHECK added to a table that already exists',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  bio           TEXT,', '  bio           TEXT CHECK (length(bio) < (5 + 5)),'),
+    says: /users CHECK \(length\(bio\) < \(5 \+ 5\)\)[\s\S]*needs a table rewrite/,
+  },
+  {
     what: 'a route whose path is built rather than written, which cannot be documented',
     script: 'openapi.mjs',
     break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',
@@ -392,8 +470,10 @@ describe('the checks catch what they were written to catch', { concurrency: 8 },
     it(broken.what, async () => {
       const t = tree();
       // What the break did, for a case whose message quotes the figure it
-      // found rather than one typed here. See `restate`.
-      const found = broken.break(t);
+      // found rather than one typed here. See `restate`. Awaited, because a
+      // case may have to run the script once itself before the run under test —
+      // see the one that tries to record its way out of a finding.
+      const found = await broken.break(t);
       const { code, out } = await t.run(broken.script);
       assert.match(out, typeof broken.says === 'function' ? broken.says(found) : broken.says);
       assert.equal(code, 1, `${broken.script} reported it and then exited 0:\n${out}`);
@@ -418,6 +498,12 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
     const { code, out } = await tree().run('ordering.mjs');
     assert.equal(code, 0, out);
     assert.match(out, /no fractional index is compared as a word/);
+  });
+
+  it('schema.mjs', async () => {
+    const { code, out } = await tree().run('schema.mjs');
+    assert.equal(code, 0, out);
+    assert.match(out, /every column reaches a database that already exists/);
   });
 });
 
