@@ -36,10 +36,70 @@ const SOURCE = join(DB, 'index.ts');
 
 const fix = process.argv.includes('--fix');
 
-/** Every ordinary table in a database built from this SQL, with its columns. */
-function tablesIn(sql) {
+/**
+ * The `CHECK` and `COLLATE` clauses a `CREATE TABLE` declares.
+ *
+ * No pragma reports either, so they are read off the statement SQLite kept —
+ * with quoted strings and comments blanked first, so a literal that happens to
+ * contain the word does not become a clause. `ALTER TABLE` can attach both to a
+ * column it is adding and to nothing that is already there, which puts them in
+ * the same family as a type: edited in place, they reach new instances only.
+ */
+function clausesIn(create) {
+  let out = '';
+  for (let i = 0; i < create.length; i++) {
+    if (create[i] === "'") {
+      // Blank the literal, keeping the length so nothing shifts.
+      out += ' ';
+      while (++i < create.length && create[i] !== "'") out += ' ';
+      out += ' ';
+      continue;
+    }
+    if (create[i] === '-' && create[i + 1] === '-') {
+      while (i < create.length && create[i] !== '\n') { out += ' '; i++; }
+      out += '\n';
+      continue;
+    }
+    out += create[i];
+  }
+
+  const found = [];
+  for (const match of out.matchAll(/\bCHECK\s*\(/gi)) {
+    // Balanced from the opening paren: a CHECK body is an expression and can
+    // nest, so counting is the only honest way to find where it ends.
+    let depth = 0;
+    let end = match.index + match[0].length - 1;
+    for (; end < out.length; end++) {
+      if (out[end] === '(') depth++;
+      else if (out[end] === ')' && --depth === 0) break;
+    }
+    found.push(`CHECK ${out.slice(match.index + match[0].length - 1, end + 1).replace(/\s+/g, ' ')}`);
+  }
+  for (const match of out.matchAll(/\bCOLLATE\s+([A-Za-z_][A-Za-z0-9_]*)/gi)) found.push(`COLLATE ${match[1].toUpperCase()}`);
+  return found.sort();
+}
+
+/**
+ * Every ordinary table in a database built from this SQL, as declared.
+ *
+ * `apply` is the upgrade list, and passing it is what turns `origin.sql` into
+ * the database an existing instance actually ends up with. A column's shape is
+ * read from `PRAGMA table_info` rather than from the DDL text, so alignment and
+ * column order cannot make two identical tables look different; the constraints
+ * a `CREATE TABLE` declares inline come from `PRAGMA index_list` with the
+ * indexes `CREATE INDEX` made (`origin === 'c'`) left out, because those are
+ * `IF NOT EXISTS` in `schema.sql` and do reach an existing database.
+ */
+function tablesIn(sql, apply = []) {
   const db = new DatabaseSync(':memory:');
   db.exec(sql);
+  for (const { table, column, definition } of apply) {
+    const held = db.prepare(`PRAGMA table_info(${table})`).all().map((c) => c.name);
+    // A table the recorded schema does not have yet: on a real instance
+    // `CREATE TABLE` will have made it whole, column and all.
+    if (!held.length || held.includes(column)) continue;
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
   const rows = db.prepare(
     `SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name`,
   ).all();
@@ -60,8 +120,17 @@ function tablesIn(sql) {
   const out = new Map();
   for (const { name, sql: create } of rows) {
     if (shadow(String(name))) continue;
-    const columns = db.prepare(`PRAGMA table_info(${name})`).all().map((c) => c.name);
-    out.set(String(name), { create: String(create ?? ''), columns });
+    const shape = new Map(db.prepare(`PRAGMA table_info(${name})`).all().map((c) => [
+      String(c.name),
+      `${c.type}${c.notnull ? ' NOT NULL' : ''}${c.dflt_value === null ? '' : ` DEFAULT ${c.dflt_value}`}${c.pk ? ' PRIMARY KEY' : ''}`,
+    ]));
+    const constraints = db.prepare(`PRAGMA index_list(${name})`).all()
+      .filter((idx) => idx.origin !== 'c')
+      .map((idx) => `${idx.unique ? 'UNIQUE' : 'INDEX'} (${db.prepare(`PRAGMA index_info(${idx.name})`).all().map((c) => c.name).join(', ')})`)
+      .sort();
+    out.set(String(name), {
+      create: String(create ?? ''), columns: [...shape.keys()], shape, constraints, clauses: clausesIn(String(create ?? '')),
+    });
   }
   db.close();
   return out;
@@ -159,19 +228,70 @@ if (unseen.length && fix) {
 
 /* --------------------------------------------------------------- the check itself */
 
-const recorded = existsSync(ORIGIN) ? tablesIn(readFileSync(ORIGIN, 'utf8')) : new Map();
+/*
+ * Two databases, compared column by column.
+ *
+ * `upgraded` is what an instance that already existed ends up with: the tables
+ * as first created, plus the list. `fresh` is `schema.sql`. They have to agree
+ * on every column that is in both, not merely on which columns exist — because
+ * `ALTER TABLE` can add a column and can do nothing else. It cannot change a
+ * type, cannot add a NOT NULL or a DEFAULT to a column that is already there,
+ * and cannot add a UNIQUE constraint at all. So a declaration edited in
+ * `schema.sql` takes effect on new instances and on no other, permanently, and
+ * the two halves of the estate drift apart with nothing anywhere saying so.
+ * Comparing names alone let that through, which is why this compares shape.
+ */
+const upgraded = existsSync(ORIGIN) ? tablesIn(readFileSync(ORIGIN, 'utf8'), list) : new Map();
 const missing = [];
 const unrecorded = [];
+/** A column that is on both but not the same on both, with what would fix it. */
+const divergent = [];
 
-for (const [name, { columns }] of schema) {
-  const first = recorded.get(name);
-  if (!first) { unrecorded.push(name); continue; }
-  const reachable = new Set([...first.columns, ...list.filter((e) => e.table === name).map((e) => e.column)]);
-  for (const column of columns) if (!reachable.has(column)) missing.push(`${name}.${column}`);
+const listed = (table, column) => list.some((e) => e.table === table && e.column === column);
+
+for (const [name, table] of schema) {
+  const now = upgraded.get(name);
+  if (!now) { unrecorded.push(name); continue; }
+
+  for (const [column, declared] of table.shape) {
+    const applied = now.shape.get(column);
+    if (applied === undefined) { missing.push(`${name}.${column}`); continue; }
+    if (applied === declared) continue;
+    divergent.push({
+      what: `${name}.${column}`,
+      fresh: declared,
+      upgraded: applied,
+      // Which of the two remedies applies is not a detail: one is editing a
+      // string, the other is a migration mechanism this repository does not have.
+      remedy: listed(name, column)
+        ? 'the list entry adds this column — make its definition match `schema.sql`'
+        : 'this column predates the list, so no entry can reach it — it needs a table rewrite',
+    });
+  }
+
+  for (const constraint of table.constraints) {
+    if (now.constraints.includes(constraint)) continue;
+    divergent.push({
+      what: `${name} ${constraint}`,
+      fresh: 'declared',
+      upgraded: 'absent',
+      remedy: '`ALTER TABLE` cannot add a constraint — declare it as a `CREATE UNIQUE INDEX IF NOT EXISTS`, which does reach an existing database',
+    });
+  }
+
+  for (const clause of table.clauses) {
+    if (now.clauses.includes(clause)) continue;
+    divergent.push({
+      what: `${name} ${clause}`,
+      fresh: 'declared',
+      upgraded: 'absent',
+      remedy: 'a CHECK or a COLLATE can be attached to a column being added and to nothing already there — this one needs a table rewrite',
+    });
+  }
 }
 
-if (!missing.length && !unrecorded.length) {
-  console.log(`origin.sql: ${recorded.size} tables recorded, ${list.length} upgrades — every column reaches a database that already exists.`);
+if (!missing.length && !unrecorded.length && !divergent.length) {
+  console.log(`origin.sql: ${upgraded.size} tables recorded, ${list.length} upgrades — every column reaches a database that already exists, in the shape schema.sql declares.`);
   process.exit(0);
 }
 
@@ -184,5 +304,17 @@ if (missing.length) {
   for (const column of missing) console.log(`  ${column}`);
   console.log('\n  `CREATE TABLE IF NOT EXISTS` cannot add a column to a database that already');
   console.log('  exists. Add each to the list at the top of `db/index.ts`.');
+}
+if (divergent.length) {
+  console.log(`\n${divergent.length} column(s) would not have the same shape on an upgraded database:\n`);
+  for (const d of divergent) {
+    console.log(`  ${d.what}`);
+    console.log(`    schema.sql   ${d.fresh}`);
+    console.log(`    an upgrade   ${d.upgraded}`);
+    console.log(`    ${d.remedy}`);
+  }
+  console.log('\n  `ALTER TABLE` adds a column and does nothing else — no type change, no');
+  console.log('  NOT NULL or DEFAULT on a column already there, no constraint. A');
+  console.log('  declaration edited in `schema.sql` alone reaches new instances only.');
 }
 process.exit(1);

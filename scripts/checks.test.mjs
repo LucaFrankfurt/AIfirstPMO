@@ -392,6 +392,59 @@ const BREAKS = [
     says: /notifications\.forgotten_id/,
   },
   {
+    /*
+     * `ALTER TABLE` adds a column and does nothing else, so an existing
+     * column's type edited in `schema.sql` reaches new instances and no other
+     * — for good, with the two halves of the estate quietly disagreeing. The
+     * name check could not see this: the column is on both sides.
+     */
+    what: 'an existing column whose type changed, which no upgrade entry can carry',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  bio           TEXT,', '  bio           INTEGER,'),
+    says: /users\.bio[\s\S]*it needs a table rewrite/,
+  },
+  {
+    /*
+     * The cheap half of the same fault, and the one with a real remedy: the
+     * list is what an upgrade applies, so a definition there that is weaker
+     * than the declaration in `schema.sql` is a column that exists on both
+     * kinds of database and means something different on each.
+     */
+    what: 'an upgrade entry whose definition disagrees with the schema',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/index.ts',
+      "['notifications', 'telegram_attempts', 'INTEGER NOT NULL DEFAULT 0'],",
+      "['notifications', 'telegram_attempts', 'INTEGER'],"),
+    says: /telegram_attempts[\s\S]*make its definition match/,
+  },
+  {
+    /*
+     * A constraint is not a column: `ALTER TABLE` cannot add one at all. The
+     * remedy is the separate `CREATE UNIQUE INDEX IF NOT EXISTS`, which does
+     * reach a database that already exists — which is why the indexes in
+     * `schema.sql` are not a problem and an inline `UNIQUE` is.
+     */
+    what: 'a UNIQUE declared inline on a table that already exists',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  bio           TEXT,', '  bio           TEXT UNIQUE,'),
+    says: /users UNIQUE \(bio\)[\s\S]*CREATE UNIQUE INDEX IF NOT EXISTS/,
+  },
+  {
+    /*
+     * No pragma reports a CHECK, so it is read off the statement text — with
+     * literals blanked and parentheses counted, because a CHECK body is an
+     * expression that nests. This case is here for the extraction as much as
+     * for the rule.
+     */
+    what: 'a CHECK added to a table that already exists',
+    script: 'schema.mjs',
+    break: (t) => t.edit('packages/server/src/kernel/platform/db/schema.sql',
+      '  bio           TEXT,', '  bio           TEXT CHECK (length(bio) < (5 + 5)),'),
+    says: /users CHECK \(length\(bio\) < \(5 \+ 5\)\)[\s\S]*needs a table rewrite/,
+  },
+  {
     what: 'a route whose path is built rather than written, which cannot be documented',
     script: 'openapi.mjs',
     break: (t) => t.edit('packages/server/src/kernel/search/routes/search.ts',

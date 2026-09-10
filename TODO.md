@@ -1261,15 +1261,27 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
       **58** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
-      everything here is trying to reach.
-- [ ] **`check:schema` compares names, not types.** Changing an existing column's type or its
-      default in `schema.sql` passes silently — proved by making `users.bio` an
-      `INTEGER NOT NULL DEFAULT 7` and watching the check stay green — and it should not, because a
-      fresh database then has one type and an upgraded one another, forever, with nothing anywhere
-      saying so. `ALTER TABLE` cannot change a type at all, so the fix is not a list entry but a
-      table rewrite, which is the migration mechanism this repository has so far managed without.
-      The reason this is a `[ ]` and not a bug is that nothing has needed it yet; the reason it is
-      written down is that the last thing nobody had needed yet cost every ballot its second option.
+      everything here is trying to reach. The shape comparison inherits the same blind spot: the
+      recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
+      a real one gets the column as plain `TEXT` from the list and its uniqueness from the separate
+      `CREATE UNIQUE INDEX IF NOT EXISTS` in `db/index.ts`. Right by accident rather than by
+      construction, which is the part that is open.
+- [x] **`check:schema` compares shape, not just names.** It compared names for exactly one commit,
+      and that was already a hole: `ALTER TABLE` adds a column and does nothing else, so a type, a
+      `NOT NULL`, a `DEFAULT`, a `UNIQUE`, a `CHECK` or a `COLLATE` edited on a column that already
+      exists reaches new instances and no others, permanently. It now builds the database an upgrade
+      actually produces — `origin.sql` with the list applied — and compares every column's declared
+      shape against `schema.sql`, plus the constraints `PRAGMA index_list` reports and the `CHECK`
+      and `COLLATE` clauses read off the statement text, where literals are blanked and parentheses
+      counted because a `CHECK` body nests. Two remedies, and the message says which: a column the
+      list adds wants its definition corrected, a column older than the list wants a table rewrite.
+      Five cases in `checks.test.mjs`; neutering the two comparisons turns exactly those five red
+      and nothing else.
+- [ ] **A column removed from `schema.sql` stays on every upgraded instance.** The check walks the
+      columns `schema.sql` declares, so one deleted from it is not looked for and not missed —
+      measured, green. Nothing breaks: the row keeps a column no code reads. But the two halves of
+      the estate differ again, and the honest fix is a drop list beside the upgrade list, which is
+      destructive DDL run at startup and wants more thought than an afternoon.
 - [ ] **Nothing happens when a deadline passes.** No reminder, no automatic close, no digest entry —
       the deadline is evaluated on reading and that is the whole of it. A reminder the evening before
       a vote closes is the obvious next thing now that the announcement exists; it wants the
