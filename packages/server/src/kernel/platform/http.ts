@@ -1,3 +1,4 @@
+import { CLOCK_HEADER } from '@kolibri/shared';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export class HttpError extends Error {
@@ -129,9 +130,24 @@ export async function readJson<T = unknown>(ctx: Ctx, limit = 8 * 1024 * 1024): 
   }
 }
 
+/**
+ * Every JSON answer carries this server's clock, in milliseconds.
+ *
+ * Every instant in the database is stamped here, and a browser that reads them
+ * against its own clock shows the difference between the two machines on every
+ * relative time at once — a task saved a second ago reading "5 minutes ago" is
+ * not a rounding bug, it is a five-minute disagreement about what time it is.
+ * The client cannot correct for a difference it cannot see, so it is told.
+ *
+ * The standard `Date` header is not enough for this: it has one-second
+ * granularity, it is rewritten by some proxies, and it is not on the CORS
+ * safelist anyway — the packaged app would have to be granted one by name
+ * regardless. See `packages/web/src/kernel/sync/clock.ts` for the other half.
+ */
 export function send(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
+  const clock = { [CLOCK_HEADER]: String(Date.now()) };
   if (body === undefined || body === null) {
-    res.writeHead(status, headers);
+    res.writeHead(status, { ...clock, ...headers });
     res.end();
     return;
   }
@@ -139,6 +155,7 @@ export function send(res: ServerResponse, status: number, body: unknown, headers
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'content-length': String(payload.length),
+    ...clock,
     ...headers,
   });
   res.end(payload);

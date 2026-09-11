@@ -26,6 +26,7 @@ import { cn } from '../../kernel/design-system/cn';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Empty, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /** Everything reported to this project, newest first. */
 export const useIntakes = (projectId: string, status?: Intake['status']) =>
@@ -39,6 +40,7 @@ export const useIntakes = (projectId: string, status?: Intake['status']) =>
 export const useNewIntakeCount = (projectId: string): number => useIntakes(projectId, 'new').length;
 
 export function Triage({ projectId }: { projectId: string }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const canWrite = useCanWrite();

@@ -1386,5 +1386,9 @@ Things nobody has measured yet, so treat any claim about them as a guess:
 - Real MinIO/AWS — the S3 client is verified by an independent signature implementation and the CI
   deploy job runs it against a real MinIO, but no one has yet run it against AWS, R2 or Ceph.
 - Automatic HTTPS (the `tls` profile) needs a public domain, so it cannot be exercised in CI.
-- Long-running clock skew between clients (the HLC converges after one exchange, but that path
-  has not been exercised against a device with a badly wrong clock).
+- Long-running clock skew between clients — *no longer unmeasured*. `scripts/clocks.mjs` runs two
+  real browsers against one server with five minutes between their system clocks, and CI runs it:
+  the fast device edits a field first, the correct one edits it three seconds later, and the later
+  edit has to win. It fails against the code as it was, on that claim and on the age the fast device
+  reads for its own change. What is still untried is a device that is wrong by *days* rather than
+  minutes, and two devices wrong in opposite directions at once.

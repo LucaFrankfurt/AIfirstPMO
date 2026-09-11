@@ -31,6 +31,7 @@ import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
 import { EmojiPicker } from '../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useMembers, useSession } from '../../kernel/identity/session';
+import { useMinute } from '../../kernel/design-system/minute';
 
 const KIND_KEY: Record<TemplateKind, TranslationKey> = {
   feedback: 'tpl.kindFeedback', review: 'tpl.kindReview', task: 'tpl.kindTask',
@@ -696,6 +697,7 @@ function Toggle({
 /* --------------------------------------------------------------- run log */
 
 function RunLog({ automationId, onClose }: { automationId: string; onClose: () => void }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const [runs, setRuns] = useState<any[] | null>(null);
   const members = useMembers();

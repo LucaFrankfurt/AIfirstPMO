@@ -218,6 +218,16 @@ jobs:
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
 
+      # The one question a single process cannot answer: what happens when two
+      # machines disagree about what time it is. Everything else about the
+      # clock is unit-tested, and all of it runs against one `Date.now()` —
+      # while the bug being guarded against only exists when there are two. So
+      # this one opens a second browser and moves its clock five minutes.
+      - name: Two clocks, five minutes apart
+        run: npm run check:clocks
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+
       - name: What the server thought, if anything went wrong
         if: failure()
         run: cat /tmp/kolibri-server.log || true

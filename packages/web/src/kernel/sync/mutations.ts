@@ -7,6 +7,7 @@ import {
   compareOrder, orderKey, relocate,
   type EntityName, type PageFormat, type Priority, type ProjectVocabulary, type Task,
 } from '@kolibri/shared';
+import { now } from './clock';
 import * as idb from './idb';
 import { byId, list, patchLocal, tables } from './store';
 import { currentWorkspace, enqueue } from './sync';
@@ -23,14 +24,14 @@ export function update(entity: EntityName, id: string, patch: Record<string, unk
 }
 
 export function create(entity: EntityName, patch: Record<string, unknown>, id: string = crypto.randomUUID()): string {
-  const full = { workspace_id: currentWorkspace(), created_at: Date.now(), deleted_at: null, ...patch, id };
+  const full = { workspace_id: currentWorkspace(), created_at: now(), deleted_at: null, ...patch, id };
   persistLocal(entity, id, full);
   enqueue(entity, id, full);
   return id;
 }
 
 export function remove(entity: EntityName, id: string): void {
-  persistLocal(entity, id, { deleted_at: Date.now() });
+  persistLocal(entity, id, { deleted_at: now() });
   enqueue(entity, id, {}, 'delete');
 }
 
@@ -204,7 +205,7 @@ export function comment(
 /* ------------------------------------------------------------ notifications */
 
 export function markNotificationRead(id: string, read = true): void {
-  update('notification', id, { read_at: read ? Date.now() : null });
+  update('notification', id, { read_at: read ? now() : null });
 }
 
 export function markAllRead(userId: string): void {

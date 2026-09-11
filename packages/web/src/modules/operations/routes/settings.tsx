@@ -26,6 +26,7 @@ import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { TelegramConnection } from '../../../adapters/telegram/telegram';
 import { InstanceSettings } from '../instance';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { useMinute } from '../../../kernel/design-system/minute';
 
 type Tab = 'profile' | 'notifications' | 'workspace' | 'members' | 'rates' | 'mailboxes' | 'automation' | 'api' | 'data' | 'instance';
 
@@ -685,6 +686,7 @@ function WorkspaceSettings() {
 /* --------------------------------------------------------------- members */
 
 function Members() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const { workspaceId, role } = useSession();
   const toast = useToast();
@@ -856,6 +858,7 @@ function CalendarFeed() {
 }
 
 function ApiSettings() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const { workspaceId, session } = useSession();
   const toast = useToast();

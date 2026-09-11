@@ -28,8 +28,61 @@ string comparison is the correct ordering.
 ```
 
 The counter breaks ties inside the same millisecond; the node id breaks ties between clients whose
-clocks agree exactly. Observing a remote stamp advances the local clock, so a device with a wrong
-system time cannot permanently win or lose — it converges after the first exchange.
+clocks agree exactly. Observing a remote stamp advances a local clock that is *behind*, so such a
+device converges after the first exchange — but nothing walks back one that is *ahead*, and a
+browser five minutes fast would win every merge for as long as its clock stayed wrong. Which is why
+the wall clock in a stamp is not the browser's own; see below.
+
+## One clock, and it is the server's
+
+Every instant Kolibri stores is stamped by the server: `created_at`, `updated_at`, an activity line,
+a notification. The browser used to render them against its own clock, and where the two machines
+disagreed the difference appeared on every relative time in the interface at once — with a server
+five minutes behind, a task saved a second ago read "vor 5 Minuten", and so did the comment under it
+and the page beside it. It was reported as a formatting bug, and no amount of rounding could have
+fixed it: two clocks were being subtracted from each other.
+
+So the client measures the difference rather than assuming it away:
+
+- every JSON response carries the server's own `Date.now()` in `x-kolibri-now` — `send()` in
+  `kernel/platform/http.ts`, exposed to other origins so the packaged app can read it too;
+- `api.ts` hands it to `kernel/sync/clock.ts` along with the moments the request left and its answer
+  came back. The server read its clock somewhere between the two, so the midpoint is the estimate
+  and half the round trip is the error — milliseconds, against labels that speak in minutes. The
+  requests that carry a file are left out, being the only ones whose round trip is the transfer;
+- `now()` is that corrected clock. Everything that asks *how long ago* reads it, everything this
+  device stamps optimistically is written on it — `updated_at` in the store, `created_at`,
+  `started_at` on a running timer — and so is the HLC above;
+- absolute times deliberately do not. "14:32" and "Tuesday" are read off the wall behind the person
+  reading them, and that wall is the device's own clock.
+
+The offset is remembered in `localStorage`, because an app that starts offline has no response to
+measure and the device clock is the one in question. The first response replaces it.
+
+Which of the two clocks is *wrong* is not decidable from either end and does not have to be: the
+rows are stamped on the server's, so that is the one they are read on. A server whose clock is
+actually wrong is still worth fixing — it is in the logs, the sessions and the certificates as well
+— so the sync pill says what the difference is, once it is a minute or more. On the pill rather than
+in the instance settings because it is a fact about *that device*: the admin reading those settings
+would be shown their own laptop's error as if it were the server's.
+
+### An age has to keep being true
+
+The other half of a relative time, and it was wrong for a plainer reason: it is worked out once,
+while the component renders, and never again. It is right when it is drawn and starts lying
+immediately afterwards — a notification list opened before lunch still says "vor 2 Minuten" when
+somebody comes back to it, and nothing about that looks broken enough to report.
+
+`kernel/design-system/minute.ts` is one interval for the whole app. A component that renders an age
+calls `useMinute()` once at the top and ignores the value; the subscription re-renders it every
+minute, and the timer only exists while something is subscribed. A backgrounded tab gets a tick of
+its own when it comes back, because every browser throttles timers in one — which is exactly the tab
+whose ages are furthest out of date and about to be read.
+
+`packages/web/test/stale-labels.test.ts` holds every file that renders an age to it. That is worth a
+test rather than a convention because the failure is invisible while anybody is looking at it:
+nothing throws, nothing is misaligned, and no review catches it, because reviewing a screen means
+looking at it for a minute rather than leaving it open for an hour.
 
 ## Merging: last writer wins, per field
 

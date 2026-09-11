@@ -9,9 +9,12 @@
  */
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { duration } from '@kolibri/shared';
 import { pull, subscribeSync, type SyncStatus } from '../sync/sync';
+import { clockOffset, NOTICEABLE } from '../sync/clock';
 import { currentLocale, useT, type TranslationKey } from '../i18n/i18n';
 import { chipDot } from './ui/chip';
+import { useMinute } from './minute';
 
 /* ------------------------------------------------------------ sync status */
 
@@ -19,6 +22,25 @@ function SyncPill() {
   const t = useT();
   const [status, setStatus] = useState<SyncStatus>({ state: 'starting', pending: 0, lastSyncedAt: null });
   useEffect(() => subscribeSync(setStatus), []);
+  useMinute(); // so a reading that lands after this rendered still reaches the tooltip
+
+  /*
+   * What the two clocks disagree by, where somebody can find it.
+   *
+   * The app is correct under a wrong clock now — every age is counted on the
+   * server's — and that is exactly why this has to be said out loud somewhere:
+   * a difference of five minutes used to be visible as nonsense under every
+   * task, and silently correcting it would hide a machine that needs winding.
+   * It belongs on this pill rather than in the instance settings because it is
+   * a fact about *this device*, not about the server: the admin reading those
+   * settings would see their own laptop's error presented as the instance's.
+   */
+  const drift = clockOffset();
+  const clock = Math.abs(drift) >= NOTICEABLE
+    // A negative offset is a server behind this device, which is to say a
+    // device that is ahead — the sentence is written from the reader's side.
+    ? t(drift < 0 ? 'sync.clockAhead' : 'sync.clockBehind', { amount: duration(Math.round(Math.abs(drift) / 60_000)) })
+    : '';
 
   const label =
     status.state === 'offline'
@@ -34,9 +56,12 @@ function SyncPill() {
       // The word beside the dot is `hide-sm`, so on a phone this button is a
       // coloured dot and nothing else. The name has to come from somewhere.
       aria-label={`${label} — ${t('sync.now')}`}
-      title={status.message ?? (status.lastSyncedAt
-        ? t('sync.lastSynced', { time: new Date(status.lastSyncedAt).toLocaleTimeString(currentLocale()) })
-        : t('sync.now'))}
+      title={[
+        status.message ?? (status.lastSyncedAt
+          ? t('sync.lastSynced', { time: new Date(status.lastSyncedAt).toLocaleTimeString(currentLocale()) })
+          : t('sync.now')),
+        clock,
+      ].filter(Boolean).join('\n')}
     >
       {/* `dot` as well as the utilities: every colour this indicator has —
           green for synced, amber for offline, red for a failure, and the

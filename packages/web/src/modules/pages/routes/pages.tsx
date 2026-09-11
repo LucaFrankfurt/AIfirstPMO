@@ -33,6 +33,7 @@ import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { navItem } from '../../../kernel/design-system/ui/nav';
 import { chipDot } from '../../../kernel/design-system/ui/chip';
 import { useT } from '../../../kernel/i18n/i18n';
+import { useMinute } from '../../../kernel/design-system/minute';
 
 /* ------------------------------------------------------------------- tree */
 
@@ -213,6 +214,7 @@ export function PageFromLink() {
 }
 
 export function PagesIndex() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const { workspaceId } = useSession();
   const me = useMe();
@@ -423,6 +425,7 @@ export function PagesIndex() {
 /* ------------------------------------------------------------------- page */
 
 export function PageDetail() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const { id = '' } = useParams();
   const navigate = useNavigate();

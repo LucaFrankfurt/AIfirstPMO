@@ -17,6 +17,7 @@ import {
 } from '@kolibri/shared';
 import { shortDate, today } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
+import { now } from '../../kernel/sync/clock';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { create, update } from '../../kernel/sync/mutations';
 import { useCanWrite } from '../../kernel/identity/session';
@@ -238,7 +239,7 @@ export function GanttView({ tasks, onOpen, projectId }: {
       if (task.start_date || task.due_date) entries[task.id] = [task.start_date, task.due_date];
     }
     const name = t('baseline.defaultName', { date: shortDate(today()) });
-    const id = create('baseline', { project_id: projectId, name, taken_at: Date.now(), entries });
+    const id = create('baseline', { project_id: projectId, name, taken_at: now(), entries });
     setBaselineId(id);
     toast(t('baseline.saved', { name }));
   }

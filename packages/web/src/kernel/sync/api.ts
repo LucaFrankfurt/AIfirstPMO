@@ -1,5 +1,6 @@
-import type { ImportResult, SessionInfo, TaskReview } from '@kolibri/shared';
+import { CLOCK_HEADER, type ImportResult, type SessionInfo, type TaskReview } from '@kolibri/shared';
 import { currentLocale, translate } from '../i18n/i18n';
+import { observeServerTime } from './clock';
 import { authHeaders, clientHeaders, serverUrl, useSessionToken } from './server';
 
 export class ApiError extends Error {
@@ -27,8 +28,21 @@ export const isOffline = (err: unknown): boolean => err instanceof TypeError || 
  */
 const ISSUES_SESSION = new Set(['/api/auth/login', '/api/auth/register', '/api/me/password']);
 
+/**
+ * A request that carries a file is not a clock reading.
+ *
+ * The offset is guessed from the middle of the round trip, so the guess is only
+ * as good as the round trip is short — and half of a thirty-second upload is
+ * not a measurement of anything. Deciding it from the body rather than from a
+ * flag at the two call sites means the next thing that streams a blob is left
+ * out by itself.
+ */
+const carriesFile = (body: BodyInit | null | undefined): boolean =>
+  body instanceof Blob || body instanceof ArrayBuffer || ArrayBuffer.isView(body);
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let response: Response;
+  const sentAt = Date.now();
   try {
     response = await fetch(serverUrl(path), {
       credentials: 'include',
@@ -44,6 +58,15 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     });
   } catch (err) {
     throw new ApiError(0, err instanceof Error ? err.message : translate(currentLocale(), 'common.networkUnavailable'), 'offline');
+  }
+
+  // Here rather than after the body, and before the status is looked at. The
+  // headers have arrived by now and the body may not have, so this is the
+  // shortest round trip the reading can be taken over; and a 401 is as good a
+  // reading as a 200, on a screen somebody reaches before signing in.
+  if (!carriesFile(init.body)) {
+    const stamp = Number(response.headers.get(CLOCK_HEADER));
+    if (stamp) observeServerTime(stamp, sentAt, Date.now());
   }
 
   const text = await response.text();

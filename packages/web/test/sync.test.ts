@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { Clock, timestampOf } from '@kolibri/shared';
 import { directFetch, installBrowser, net, settle } from './browser.ts';
 
 // Before anything from `src/lib` is loaded: those modules read `localStorage`
@@ -25,6 +26,7 @@ const store = await import('../src/kernel/sync/store');
 const sync = await import('../src/kernel/sync/sync');
 const mutations = await import('../src/kernel/sync/mutations');
 const idb = await import('../src/kernel/sync/idb');
+const clock = await import('../src/kernel/sync/clock');
 
 let workspaceId = '';
 let projectId = '';
@@ -41,6 +43,13 @@ async function otherDevice(path: string, body?: unknown, method?: string): Promi
   if (response.status >= 400) throw new Error(`${response.status} ${path}: ${text}`);
   return text ? JSON.parse(text) : null;
 }
+
+/** Another device's write, carrying a stamp it made itself. */
+const pushAs = (clientId: string, entityId: string, patch: Record<string, unknown>, hlc: string) =>
+  otherDevice('/api/sync/push', {
+    workspaceId, clientId,
+    mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId, op: 'upsert', patch, hlc }],
+  });
 
 before(async () => {
   await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
@@ -61,6 +70,26 @@ after(() => {
   sync.stop();
   server.close();
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
+});
+
+describe('the clock, learned from ordinary traffic', () => {
+  /*
+   * The unit tests either side of this one prove that the server sends its
+   * clock and that the formatter uses it. Only this can prove the wire between
+   * them: that a real response, through the real `api.ts`, actually leaves a
+   * reading behind. It is the half that was missing when every relative
+   * timestamp in the app was five minutes old.
+   */
+  it('is measured from the real responses, not left at this device', async () => {
+    const clock = await import('../src/kernel/sync/clock');
+    const sample = clock.lastSample();
+    assert.ok(sample, 'signing in and pulling should have left a reading');
+    assert.ok(sample.rtt >= 0 && sample.rtt < 10_000, `a local round trip, not a guess (${sample.rtt}ms)`);
+    // This server *is* this process, so the two clocks are the same one and the
+    // offset has to come out at nothing. A reading that drifts here is the
+    // arithmetic being wrong, not the machines disagreeing.
+    assert.ok(Math.abs(clock.clockOffset()) < 1000, `offset ${clock.clockOffset()}ms against our own clock`);
+  });
 });
 
 describe('the first load', () => {
@@ -139,6 +168,60 @@ describe('two devices editing one task', () => {
     const onServer = await otherDevice(`/api/tasks/${taskId}`);
     assert.equal(onServer.priority, 'urgent', 'and the server agrees with both');
     assert.equal(onServer.title, 'Write it down properly');
+  });
+
+  /**
+   * The contest the hybrid logical clock exists for, between machines that
+   * disagree about what time it is.
+   *
+   * A stamp is `<wall clock>-<counter>-<device>`, so whoever's wall clock reads
+   * highest wins the field — and `observe` only ever drags a clock *forward*.
+   * A browser five minutes fast therefore won every field it touched, and went
+   * on winning for five minutes against everybody who edited afterwards. That
+   * is the same disagreement that made "geändert vor 5 Minuten" appear under a
+   * task saved a second ago, seen from the write path instead of the screen.
+   *
+   * Both halves are here because the first is what the second fixes: a device
+   * stamping on its own wrong clock takes the field from a later writer, and
+   * one stamping on the workspace's does not. This client is the corrected one
+   * in both — its stamp comes out of the real outbox, not out of the test.
+   */
+  it('loses a field to a device whose clock is five minutes fast, if that device stamps its own', async () => {
+    const taskId = mutations.createTask({ project_id: projectId, title: 'Whose turn' }, userId);
+    await sync.flush();
+    await settle(20);
+
+    // What the client used to send: a stamp off a browser clock that is wrong.
+    const fast = new Clock('fast-device', () => Date.now() + 5 * 60_000);
+    await pushAs('fast-device', taskId, { title: 'From the fast device' }, fast.now());
+
+    // This client edits the same field afterwards, on the server's clock.
+    mutations.update('task', taskId, { title: 'From here, later' });
+    await sync.flush();
+    await settle(20);
+
+    const onServer = await otherDevice(`/api/tasks/${taskId}`);
+    assert.equal(onServer.title, 'From the fast device', 'the wrong clock takes the field from the later writer — the bug, still reachable from outside');
+  });
+
+  it('settles it by who wrote last, once both stamp on the workspace clock', async () => {
+    const taskId = mutations.createTask({ project_id: projectId, title: 'Whose turn again' }, userId);
+    await sync.flush();
+    await settle(20);
+
+    // The same device with the same wrong clock, reading the offset it measured
+    // from the server instead of trusting itself — which is exactly what
+    // `sync.ts` hands its HLC now.
+    const corrected = new Clock('fast-device', clock.now);
+    await pushAs('fast-device', taskId, { title: 'From the fast device' }, corrected.now());
+    await settle(20);
+
+    mutations.update('task', taskId, { title: 'From here, later' });
+    await sync.flush();
+    await settle(20);
+
+    const onServer = await otherDevice(`/api/tasks/${taskId}`);
+    assert.equal(onServer.title, 'From here, later', 'the later edit wins, whatever the other device thinks the time is');
   });
 
   it('does not resurrect a task somebody else deleted', async () => {
@@ -265,5 +348,32 @@ describe('the store itself', () => {
     assert.equal(row.title, 'From the server');
     assert.equal(row.description, 'typed here', 'a field the response left out is not a field that was cleared');
     store.tables.task.delete(id);
+  });
+});
+
+/*
+ * Last in the file, and it has to be.
+ *
+ * An HLC stamp may never go backwards — that is what the counter beside the
+ * wall clock is for — so a device told that the workspace is a minute ahead
+ * keeps stamping a minute ahead until real time catches up, and there is no
+ * walking it back. Proving the stamp follows the measured clock therefore
+ * costs a minute of this client's future, which is free here only because
+ * nothing runs after it.
+ */
+describe('what a stamp is made from, in the real engine', () => {
+  it('is the clock measured from the server, not the browser\'s own', async () => {
+    const sentAt = Date.now();
+    clock.observeServerTime(sentAt + 60_000, sentAt, sentAt);
+
+    const stamped = timestampOf(sync.clock.now());
+    assert.ok(
+      Math.abs(stamped - (Date.now() + 60_000)) < 1000,
+      `stamped ${stamped - Date.now()}ms from now, expected about +60000 — the HLC is reading Date.now() directly`,
+    );
+
+    // One real response is all it takes to put the measurement back.
+    await (await import('../src/kernel/sync/api')).api.get('/api/session');
+    assert.ok(Math.abs(clock.clockOffset()) < 1000, 'and the lie does not outlive the next request');
   });
 });

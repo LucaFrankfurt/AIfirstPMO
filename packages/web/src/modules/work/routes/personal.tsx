@@ -24,6 +24,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
 import { SetupChecklist } from '../../guide/tour';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { useMinute } from '../../../kernel/design-system/minute';
 
 /* --------------------------------------------------------------- my work */
 
@@ -204,6 +205,7 @@ export function MyWork() {
 /* ----------------------------------------------------------------- inbox */
 
 export function Inbox() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const me = useMe();
   const navigate = useNavigate();

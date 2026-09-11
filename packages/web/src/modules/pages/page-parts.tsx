@@ -22,6 +22,7 @@ import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
 import { downscale } from './Markdown';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /* -------------------------------------------------------------- labels */
 
@@ -348,6 +349,7 @@ export function PageHistory({ page, onClose, onCompare }: {
   onClose: () => void;
   onCompare: (versionId: string) => void;
 }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const members = useMemberMap();
