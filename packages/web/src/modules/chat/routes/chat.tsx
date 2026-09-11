@@ -29,6 +29,7 @@ import {
 } from '@kolibri/shared';
 import { api } from '../../../kernel/sync/api';
 import { now } from '../../../kernel/sync/clock';
+import { useMinute } from '../../../kernel/design-system/minute';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, byId, useQuery } from '../../../kernel/sync/store';
 import { useT } from '../../../kernel/i18n/i18n';
@@ -98,37 +99,6 @@ const ACTION_SIZE = 'size-[26px]';
 
 /** How many messages a conversation draws at once, and grows by. */
 const PAGE = 60;
-
-/**
- * A clock that ticks once a minute, for everything that says "3 minutes ago".
- *
- * Those were worked out once, when the message was drawn, and then never
- * again — so a conversation left open said "now" about something said an hour
- * ago. One interval for the whole screen rather than one per message, and it
- * only exists while something is watching it.
- */
-const minute = {
-  at: 0,
-  listeners: new Set<() => void>(),
-  timer: undefined as ReturnType<typeof setInterval> | undefined,
-};
-
-function subscribeMinute(listener: () => void): () => void {
-  minute.listeners.add(listener);
-  minute.timer ??= setInterval(() => {
-    minute.at = Date.now();
-    for (const each of minute.listeners) each();
-  }, 60_000);
-  return () => {
-    minute.listeners.delete(listener);
-    if (!minute.listeners.size) {
-      clearInterval(minute.timer);
-      minute.timer = undefined;
-    }
-  };
-}
-
-const useMinute = (): number => useSyncExternalStore(subscribeMinute, () => minute.at, () => 0);
 
 /**
  * The day a line was said, as a person would say it.
@@ -472,10 +442,7 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   /** How many lines the last layout pass had, so the next one knows the delta. */
   const counted = useRef(0);
 
-  // Not a value, a heartbeat: it re-renders this screen once a minute so the
-  // "3 minutes ago" stamps below are worked out again instead of standing
-  // still at whatever they said when the message was drawn.
-  useMinute();
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
 
   const setDraft = (next: string) => {
     setDraftState(next);

@@ -24,6 +24,7 @@ import { Input } from '../../kernel/design-system/ui/field';
 
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { cn } from '../../kernel/design-system/cn';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /**
  * A download the browser streams straight to disk.
@@ -273,6 +274,7 @@ interface BackupStatus {
  * routes enforce it anyway.
  */
 export function Backups() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();

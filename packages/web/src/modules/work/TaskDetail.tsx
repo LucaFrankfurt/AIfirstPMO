@@ -21,8 +21,10 @@ import {
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { Button } from '../../kernel/design-system/ui/button';
+import { useMinute } from '../../kernel/design-system/minute';
 
 export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClose: () => void; onOpen: (task: Task) => void }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const time = useFeature('time');
   const canWrite = useCanWrite();
   const t = useT();

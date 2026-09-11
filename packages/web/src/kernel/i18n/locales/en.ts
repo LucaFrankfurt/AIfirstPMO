@@ -91,6 +91,10 @@ export const en = {
   'sync.issue': 'Sync issue',
   'sync.now': 'Sync now',
   'sync.lastSynced': 'Last synced {time}',
+  // Only said when the two clocks are a minute or more apart, which is the
+  // point at which the difference could have changed a word on screen.
+  'sync.clockAhead': 'This device’s clock is {amount} ahead of the server’s. Times are counted on the server’s.',
+  'sync.clockBehind': 'This device’s clock is {amount} behind the server’s. Times are counted on the server’s.',
   'sync.sessionExpired': 'Session expired — please sign in again',
   'sync.failed': 'Sync failed',
 

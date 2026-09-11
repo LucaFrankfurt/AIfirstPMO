@@ -70,6 +70,18 @@ export const now = (): number => Date.now() + offset;
 /** How far this device's clock is from the server's, in milliseconds. */
 export const clockOffset = (): number => offset;
 
+/**
+ * The difference at which it is worth telling somebody, in milliseconds.
+ *
+ * Not a tolerance: the offset is applied however small it is, and a hundred
+ * milliseconds is corrected as surely as five minutes. It is the point below
+ * which a difference cannot change a word on screen — the coarsest thing any
+ * label says is "vor 1 Minute" — so under it there is nothing to report, and
+ * over it is precisely what somebody used to report as a bug. The sync pill's
+ * tooltip in `design-system/chrome.tsx` is where it is said.
+ */
+export const NOTICEABLE = 60_000;
+
 /** The last measurement, or null if nothing has been measured this session. */
 export const lastSample = (): Sample | null => sample;
 

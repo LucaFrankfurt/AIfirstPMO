@@ -36,6 +36,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { EnvironmentsSheet } from '../environments';
+import { useMinute } from '../../../kernel/design-system/minute';
 
 /** One word per kind, and one glyph, so a list of twenty is scannable. */
 const KIND_KEY: Record<SecretKind, TranslationKey> = {
@@ -295,6 +296,7 @@ function SecretSheet({ secret, onClose }: { secret: Secret | null; onClose: () =
 /* -------------------------------------------------------------------- list */
 
 export function SecretsIndex() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const members = useMemberMap();

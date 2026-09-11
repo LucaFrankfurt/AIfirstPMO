@@ -92,6 +92,8 @@ export const de: Catalogue = {
   'sync.issue': 'Sync-Problem',
   'sync.now': 'Jetzt synchronisieren',
   'sync.lastSynced': 'Zuletzt synchronisiert {time}',
+  'sync.clockAhead': 'Die Uhr dieses Geräts geht {amount} vor der des Servers. Zeitangaben zählen nach der des Servers.',
+  'sync.clockBehind': 'Die Uhr dieses Geräts geht {amount} nach der des Servers. Zeitangaben zählen nach der des Servers.',
   'sync.sessionExpired': 'Sitzung abgelaufen — bitte erneut anmelden',
   'sync.failed': 'Synchronisierung fehlgeschlagen',
 

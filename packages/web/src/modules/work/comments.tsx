@@ -18,6 +18,7 @@ import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Avatar, Icon, useConfirm } from '../../kernel/design-system/ui';
 import { Reactions, ReactionPicker } from './reactions';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /** Exactly one of the two, which is also how the row is stored. */
 export type CommentTarget = { task_id: string; page_id?: never } | { page_id: string; task_id?: never };
@@ -33,6 +34,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   active?: string | null;
   onPick?: (id: string) => void;
 }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const me = useMe();
   const canWrite = useCanWrite();

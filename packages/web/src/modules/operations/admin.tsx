@@ -16,10 +16,12 @@ import { Input, Select } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { chipVariants } from '../../kernel/design-system/ui/chip';
 import { useMemberMap } from '../../kernel/identity/session';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /* ------------------------------------------------------------ audit log */
 
 export function AuditLog() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const { workspaceId } = useSession();
   const members = useMemberMap();
@@ -147,6 +149,7 @@ export function Webhooks() {
 const looksLikeUrl = (value: string): boolean => /^https?:\/\/\S+$/i.test(value.trim());
 
 function Hook({ hook, onRemove }: { hook: Webhook; onRemove: (id: string, name: string) => void }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const chosen = new Set(String(hook.events ?? '').split(',').map((name) => name.trim()));
@@ -335,6 +338,7 @@ interface Delivery {
  * that gets the button.
  */
 function Deliveries({ hookId }: { hookId: string }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const [open, setOpen] = useState(false);

@@ -43,7 +43,8 @@
     "check:css": "node scripts/unstyled.mjs",
     "check:responsive": "node scripts/responsive.mjs",
     "check:contrast": "node scripts/contrast.mjs",
-    "check:a11y": "node scripts/a11y.mjs"
+    "check:a11y": "node scripts/a11y.mjs",
+    "check:clocks": "node scripts/clocks.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

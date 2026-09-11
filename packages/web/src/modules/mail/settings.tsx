@@ -41,6 +41,7 @@ import { useT } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
 import { useMembers, useSession } from '../../kernel/identity/session';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /**
  * The API's answer: a synced row with the credential fields alongside.
@@ -517,6 +518,7 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
 
 /** The one-glance answer: is this mailbox actually working. */
 function MailboxStatus({ mailbox, auth }: { mailbox: Mailbox; auth: 'none' | 'password' | 'oauth' }) {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   if (auth === 'none') return <Chip>{t('mailbox.passwordUnset')}</Chip>;
   if (mailbox.last_status === 'failing') {

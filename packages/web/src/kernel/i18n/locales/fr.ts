@@ -99,6 +99,8 @@ export const fr: Catalogue = {
   'sync.issue': 'Problème de synchronisation',
   'sync.now': 'Synchroniser maintenant',
   'sync.lastSynced': 'Dernière synchronisation {time}',
+  'sync.clockAhead': 'L’horloge de cet appareil avance de {amount} sur celle du serveur. Les dates sont comptées sur celle du serveur.',
+  'sync.clockBehind': 'L’horloge de cet appareil retarde de {amount} sur celle du serveur. Les dates sont comptées sur celle du serveur.',
   'sync.sessionExpired': 'Session expirée — veuillez vous reconnecter',
   'sync.failed': 'Échec de la synchronisation',
 

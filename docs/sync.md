@@ -62,7 +62,27 @@ measure and the device clock is the one in question. The first response replaces
 Which of the two clocks is *wrong* is not decidable from either end and does not have to be: the
 rows are stamped on the server's, so that is the one they are read on. A server whose clock is
 actually wrong is still worth fixing — it is in the logs, the sessions and the certificates as well
-— but it is no longer a bug in the interface.
+— so the sync pill says what the difference is, once it is a minute or more. On the pill rather than
+in the instance settings because it is a fact about *that device*: the admin reading those settings
+would be shown their own laptop's error as if it were the server's.
+
+### An age has to keep being true
+
+The other half of a relative time, and it was wrong for a plainer reason: it is worked out once,
+while the component renders, and never again. It is right when it is drawn and starts lying
+immediately afterwards — a notification list opened before lunch still says "vor 2 Minuten" when
+somebody comes back to it, and nothing about that looks broken enough to report.
+
+`kernel/design-system/minute.ts` is one interval for the whole app. A component that renders an age
+calls `useMinute()` once at the top and ignores the value; the subscription re-renders it every
+minute, and the timer only exists while something is subscribed. A backgrounded tab gets a tick of
+its own when it comes back, because every browser throttles timers in one — which is exactly the tab
+whose ages are furthest out of date and about to be read.
+
+`packages/web/test/stale-labels.test.ts` holds every file that renders an age to it. That is worth a
+test rather than a convention because the failure is invisible while anybody is looking at it:
+nothing throws, nothing is misaligned, and no review catches it, because reviewing a screen means
+looking at it for a minute rather than leaving it open for an hour.
 
 ## Merging: last writer wins, per field
 

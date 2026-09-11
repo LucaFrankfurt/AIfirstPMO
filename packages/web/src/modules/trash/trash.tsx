@@ -27,6 +27,7 @@ import { cn } from '../../kernel/design-system/cn';
 import { Input } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { Empty, Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { useMinute } from '../../kernel/design-system/minute';
 
 /** What can end up in here, and what to call it. */
 const KINDS: { entity: EntityName; label: TranslationKey; icon: string }[] = [
@@ -90,6 +91,7 @@ function useRecoverable(workspaceId: string, mode: 'deleted' | 'archived'): Entr
 }
 
 export function Trash() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const { workspaceId, role } = useSession();
   const toast = useToast();

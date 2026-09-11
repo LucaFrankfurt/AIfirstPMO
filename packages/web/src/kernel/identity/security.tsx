@@ -16,6 +16,7 @@ import { Input } from '../design-system/ui/field';
 import { SectionHeading } from '../design-system/ui/section';
 import { Chip } from '../design-system/ui/chip';
 import { Icon, useConfirm, useToast } from '../design-system/ui';
+import { useMinute } from '../design-system/minute';
 
 /* ------------------------------------------------------------ two factor */
 
@@ -134,6 +135,7 @@ export function TwoFactor() {
 /* --------------------------------------------------------------- devices */
 
 export function Sessions() {
+  useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
   const toast = useToast();
   const [rows, setRows] = useState<any[] | null>(null);
