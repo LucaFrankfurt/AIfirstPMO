@@ -1,5 +1,6 @@
 import { dueTone, type Priority } from '@kolibri/shared';
 import { currentLocale } from '../i18n/i18n';
+import { now } from '../sync/clock';
 
 export const PRIORITY_COLOR: Record<Priority, string> = {
   urgent: '#ef4444',
@@ -17,8 +18,9 @@ export function shortDate(value?: string | number | null): string {
   if (!value) return '';
   const date = typeof value === 'number' ? new Date(value) : new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return '';
-  const now = new Date();
-  const sameYear = date.getFullYear() === now.getFullYear();
+  // The reader's own calendar decides what "this year" is, the way it does in
+  // `longDate` — a year is read off the wall, not off the server.
+  const sameYear = date.getFullYear() === new Date().getFullYear();
   return date.toLocaleDateString(currentLocale(), { day: 'numeric', month: 'short', ...(sameYear ? {} : { year: 'numeric' }) });
 }
 
@@ -84,9 +86,21 @@ export function longDate(timestamp?: number | null): string {
   });
 }
 
+/**
+ * How long ago, in words — counted on the clock the timestamp was stamped on.
+ *
+ * `now()` rather than `Date.now()`, and that is the whole of what used to be
+ * wrong here: every instant this renders was stamped by the server, and the
+ * browser was measuring them against itself. Where the two machines disagreed
+ * by five minutes — a container whose host had suspended, a laptop nobody had
+ * pointed at NTP — a task saved a second ago read "vor 5 Minuten", and so did
+ * everything else on the screen, because the difference is the same everywhere.
+ * The arithmetic below was never the bug and changing it could not have fixed
+ * one; see `kernel/sync/clock.ts`.
+ */
 export function relativeTime(timestamp?: number | null): string {
   if (!timestamp) return '';
-  const diff = timestamp - Date.now();
+  const diff = timestamp - now();
   const units: [Intl.RelativeTimeFormatUnit, number][] = [
     ['year', 31_536_000_000], ['month', 2_592_000_000], ['week', 604_800_000],
     ['day', 86_400_000], ['hour', 3_600_000], ['minute', 60_000],

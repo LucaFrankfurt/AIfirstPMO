@@ -3,6 +3,12 @@
 Base URL is your instance, e.g. `https://kolibri.example.com`. All responses are JSON; errors look
 like `{ "error": "forbidden", "message": "Project is private" }` with a matching HTTP status.
 
+Every JSON response also carries `x-kolibri-now`: this server's own clock, in milliseconds. Every
+timestamp in every payload was stamped by that clock, so a client that renders them as "3 minutes
+ago" should measure against it rather than against its own — see
+[`sync.md`](sync.md#one-clock-and-it-is-the-servers). It is exposed to cross-origin callers, so a
+browser client can read it too.
+
 ## The document
 
 The instance hands out its own description, unauthenticated:

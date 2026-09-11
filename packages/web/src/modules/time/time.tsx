@@ -15,6 +15,7 @@ import { duration, parseDuration } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { shortDate, today } from '../../kernel/design-system/format';
 import { create, remove, update } from '../../kernel/sync/mutations';
+import { now } from '../../kernel/sync/clock';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -22,9 +23,17 @@ import { Input } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Avatar, Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
 
-/** Minutes on the clock right now, for a row that is still running. */
-export const runningMinutes = (entry: TimeEntry, now: number): number =>
-  entry.started_at ? Math.floor((now - entry.started_at) / 60_000) : 0;
+/**
+ * Minutes on the clock right now, for a row that is still running.
+ *
+ * `at` is passed in rather than read here because the two callers want
+ * different moments: the row on screen wants the tick it last re-rendered on,
+ * and stopping a timer wants the moment the button was pressed. Both are on the
+ * server's clock — `started_at` was stamped there, and subtracting this
+ * device's own clock from it is how a timer started a minute ago reads six.
+ */
+export const runningMinutes = (entry: TimeEntry, at: number): number =>
+  entry.started_at ? Math.floor((at - entry.started_at) / 60_000) : 0;
 
 /**
  * A clock that ticks once a minute, so a running timer counts up on screen.
@@ -33,14 +42,14 @@ export const runningMinutes = (entry: TimeEntry, now: number): number =>
  * counter would be a re-render a second for a number that does not change.
  */
 function useMinuteTick(active: boolean): number {
-  const [now, setNow] = useState(() => Date.now());
+  const [tick, setTick] = useState(() => now());
   useEffect(() => {
     if (!active) return;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    setTick(now());
+    const timer = setInterval(() => setTick(now()), 30_000);
     return () => clearInterval(timer);
   }, [active]);
-  return now;
+  return tick;
 }
 
 /** The one entry this person has running, anywhere. */
@@ -73,8 +82,8 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
   const { entries, total } = useTaskTime(taskId);
   const running = useRunningEntry();
   const runningHere = running?.task_id === taskId ? running : undefined;
-  const now = useMinuteTick(!!runningHere);
-  const elapsed = runningHere ? runningMinutes(runningHere, now) : 0;
+  const tick = useMinuteTick(!!runningHere);
+  const elapsed = runningHere ? runningMinutes(runningHere, tick) : 0;
 
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
@@ -93,13 +102,13 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
       minutes: 0,
       spent_on: today(),
       note: null,
-      started_at: Date.now(),
+      started_at: now(),
       billable: 1,
     });
   };
 
   const stop = (entry: TimeEntry) => {
-    const minutes = Math.max(1, runningMinutes(entry, Date.now()));
+    const minutes = Math.max(1, runningMinutes(entry, now()));
     update('timeEntry', entry.id, { minutes, started_at: null });
     toast(t('time.stopped', { amount: duration(minutes) }));
   };
@@ -186,7 +195,7 @@ export function TaskTime({ taskId, projectId }: { taskId: string; projectId: str
         <div className="flex items-center gap-2" key={entry.id} style={{ gap: 8, fontSize: 12.5, padding: '5px 0', borderTop: '1px solid var(--line)' }}>
           <Avatar user={members.get(entry.user_id)} size={18} />
           <span style={{ minWidth: 62 }}>
-            {entry.started_at ? `${duration(runningMinutes(entry, now))} ${t('time.running')}` : duration(entry.minutes)}
+            {entry.started_at ? `${duration(runningMinutes(entry, tick))} ${t('time.running')}` : duration(entry.minutes)}
           </span>
           <span className="text-muted">{shortDate(entry.spent_on)}</span>
           <span className="flex-1 min-w-0 truncate">{entry.note ?? ''}</span>

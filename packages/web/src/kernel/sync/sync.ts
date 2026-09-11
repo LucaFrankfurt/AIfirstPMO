@@ -11,6 +11,7 @@ import {
   type ChangeSet, type EntityName, type Mutation, type PullResponse, type PushResponse,
 } from '@kolibri/shared';
 import { api, ApiError } from './api';
+import { now } from './clock';
 import { serverUrl, sessionToken } from './server';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
@@ -67,7 +68,16 @@ if (!clientId) {
   localStorage.setItem(CLIENT_KEY, clientId);
 }
 
-export const clock = new Clock(clientId);
+/**
+ * The stamp that decides which of two concurrent edits wins.
+ *
+ * It is handed `now` — this device's reading of the *server's* clock — rather
+ * than left to read its own. A browser five minutes fast would otherwise stamp
+ * every write five minutes into the future, and last-writer-wins would mean
+ * that browser always wins for as long as its clock stays wrong. `observe`
+ * catches a clock that is behind; nothing catches one that is ahead.
+ */
+export const clock = new Clock(clientId, now);
 
 /**
  * This device's identity, as the text CRDT uses it.

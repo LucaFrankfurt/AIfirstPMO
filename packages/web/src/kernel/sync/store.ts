@@ -7,6 +7,7 @@
  */
 import { useCallback, useSyncExternalStore } from 'react';
 import { ENTITY_NAMES, crdt, entityDef, type ChangeSet, type EntityMap, type EntityName } from '@kolibri/shared';
+import { now } from './clock';
 
 type Tables = { [K in EntityName]: Map<string, any> };
 
@@ -235,7 +236,7 @@ export function forgetLocal(entity: EntityName, id: string): void {
 export function patchLocal(entity: EntityName, id: string, patch: Record<string, unknown>): Record<string, any> {
   const table = tables[entity];
   const existing = table.get(id) ?? { id };
-  const next = { ...existing, ...patch, updated_at: Date.now() };
+  const next = { ...existing, ...patch, updated_at: now() };
   table.set(id, next);
   bump(entity);
   emit();

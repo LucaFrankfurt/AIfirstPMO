@@ -63,6 +63,26 @@ after(() => {
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
 });
 
+describe('the clock, learned from ordinary traffic', () => {
+  /*
+   * The unit tests either side of this one prove that the server sends its
+   * clock and that the formatter uses it. Only this can prove the wire between
+   * them: that a real response, through the real `api.ts`, actually leaves a
+   * reading behind. It is the half that was missing when every relative
+   * timestamp in the app was five minutes old.
+   */
+  it('is measured from the real responses, not left at this device', async () => {
+    const clock = await import('../src/kernel/sync/clock');
+    const sample = clock.lastSample();
+    assert.ok(sample, 'signing in and pulling should have left a reading');
+    assert.ok(sample.rtt >= 0 && sample.rtt < 10_000, `a local round trip, not a guess (${sample.rtt}ms)`);
+    // This server *is* this process, so the two clocks are the same one and the
+    // offset has to come out at nothing. A reading that drifts here is the
+    // arithmetic being wrong, not the machines disagreeing.
+    assert.ok(Math.abs(clock.clockOffset()) < 1000, `offset ${clock.clockOffset()}ms against our own clock`);
+  });
+});
+
 describe('the first load', () => {
   it('fills the store from the server and writes it all to IndexedDB', async () => {
     assert.equal(store.byId('project', projectId)?.name, 'Client', 'the project the other device made');

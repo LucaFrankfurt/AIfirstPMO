@@ -1386,5 +1386,9 @@ Things nobody has measured yet, so treat any claim about them as a guess:
 - Real MinIO/AWS — the S3 client is verified by an independent signature implementation and the CI
   deploy job runs it against a real MinIO, but no one has yet run it against AWS, R2 or Ceph.
 - Automatic HTTPS (the `tls` profile) needs a public domain, so it cannot be exercised in CI.
-- Long-running clock skew between clients (the HLC converges after one exchange, but that path
-  has not been exercised against a device with a badly wrong clock).
+- Long-running clock skew between clients. A device that disagrees with the server no longer shows
+  it — every relative time is now read on the server's clock, measured per response (`sync.md`), and
+  both halves of that are tested. What is still unexercised is the *merge* under skew: stamps are
+  written on the corrected clock now, so a browser five minutes fast should no longer win every
+  field it touches, and nobody has run two devices with badly wrong clocks against each other to
+  watch it.

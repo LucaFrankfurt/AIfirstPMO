@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve } from 'node:path';
+import { CLOCK_HEADER } from '@kolibri/shared';
 import { close, constraintFailure, currentSeq, run } from './kernel/platform/db/index.ts';
 import { ROOT, env } from './kernel/platform/env.ts';
 import { authenticate } from './kernel/identity/auth.ts';
@@ -199,6 +200,11 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
   if (origin) {
     res.setHeader('access-control-allow-origin', origin);
     res.setHeader('access-control-allow-credentials', 'true');
+    // A response header a cross-origin caller may not read might as well not
+    // have been sent: the packaged app loads from `capacitor://localhost`, so
+    // without this the clock `send` puts on every answer is invisible to
+    // exactly the clients most likely to have a wrong one of their own.
+    res.setHeader('access-control-expose-headers', CLOCK_HEADER);
     res.setHeader('vary', 'Origin');
   }
   if (req.method === 'OPTIONS') {

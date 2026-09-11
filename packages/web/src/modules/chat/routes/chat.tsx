@@ -28,6 +28,7 @@ import {
   type Message,
 } from '@kolibri/shared';
 import { api } from '../../../kernel/sync/api';
+import { now } from '../../../kernel/sync/clock';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, byId, useQuery } from '../../../kernel/sync/store';
 import { useT } from '../../../kernel/i18n/i18n';
@@ -1208,7 +1209,7 @@ function ChannelSettings({ channel, me, onClose, onGone }: {
       <div className="flex items-center flex-wrap gap-1.5">
         <Button size="sm"
           onClick={() => {
-            update('channel', channel.id, { archived_at: Date.now() });
+            update('channel', channel.id, { archived_at: now() });
             toast(t('chat.archived'));
             onClose();
             onGone();
