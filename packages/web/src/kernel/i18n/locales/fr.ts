@@ -190,6 +190,7 @@ export const fr: Catalogue = {
   'task.goneHint': 'Elle a peut-être été supprimée sur un autre appareil.',
   'task.deleteConfirm': 'Supprimer {identifier} ? Cela masque aussi ses sous-tâches.',
   'task.delete': 'Supprimer la tâche',
+  'task.createdByUpdated': 'Créée par {by} le {created} · modifiée {updated}',
   'task.createdUpdated': 'Créée {created} · modifiée {updated}',
   'task.moveTo': 'Déplacer vers',
   'task.subtaskCount': '{done}/{total}',

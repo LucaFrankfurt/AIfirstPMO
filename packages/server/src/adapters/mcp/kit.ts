@@ -785,6 +785,11 @@ export const taskView = (row: Row) => ({
   module_id: row.module_id,
   parent_id: row.parent_id,
   project_id: row.project_id,
+  // Who filed it. Answerable before this only by reading the activity trail
+  // back to its first entry, which an assistant asked "who wrote this ticket"
+  // should not have to do — and which fails once the trail is longer than the
+  // window it comes back in.
+  created_by: row.created_by,
   updated_at: row.updated_at,
   url: `${env.publicUrl}/t/${row.id}`,
 });
