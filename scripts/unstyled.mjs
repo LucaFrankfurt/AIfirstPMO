@@ -41,7 +41,7 @@ const MARKERS = new Set([
   'menu',         // the palette borrows the name; the Radix menu carries the styles
   // Table columns name themselves so a column-visibility setting can address
   // them. The widths come from `.narrow` and from the table, not from these.
-  'type', 'state', 'assignees', 'priority', 'due_date', 'estimate', 'labels', 'updated_at',
+  'type', 'state', 'assignees', 'priority', 'due_date', 'estimate', 'labels', 'created_by', 'updated_at',
   'auto-recipient',
 ]);
 

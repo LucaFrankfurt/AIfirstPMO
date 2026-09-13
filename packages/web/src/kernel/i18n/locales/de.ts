@@ -289,6 +289,7 @@ export const de: Catalogue = {
   'table.due': 'Fällig',
   'table.estimate': 'Schätz.',
   'table.labels': 'Labels',
+  'table.createdBy': 'Angelegt von',
   'table.updated': 'Geändert',
   'insights.tab': 'Auswertung',
   'insights.open': 'Offen',
