@@ -292,6 +292,7 @@ export const en = {
   'table.due': 'Due',
   'table.estimate': 'Est.',
   'table.labels': 'Labels',
+  'table.createdBy': 'Created by',
   'table.updated': 'Updated',
   'insights.tab': 'Insights',
   'insights.open': 'Open',

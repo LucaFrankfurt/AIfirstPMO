@@ -295,6 +295,7 @@ export const fr: Catalogue = {
   'table.due': 'Échéance',
   'table.estimate': 'Est.',
   'table.labels': 'Étiquettes',
+  'table.createdBy': 'Créée par',
   'table.updated': 'Modifiée',
   'insights.tab': 'Analyses',
   'insights.open': 'Ouvertes',

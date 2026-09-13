@@ -17,7 +17,7 @@ import {
   type BaseGroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
-import { AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from '../../kernel/design-system/ui';
 import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from './selection';
@@ -814,6 +814,11 @@ const COLUMNS = [
   { id: 'due_date', label: 'table.due' as const, orderBy: 'due_date' as const, narrow: false },
   { id: 'estimate', label: 'table.estimate' as const, orderBy: null, narrow: true },
   { id: 'labels', label: 'table.labels' as const, orderBy: null, narrow: true },
+  // Who and when, side by side at the end. Not sortable, the way the other
+  // two people columns are not: sorting by a name means sorting by the
+  // member list's idea of it, and `orderBy` is a saved view's field —
+  // a new value there has to round-trip through every stored view.
+  { id: 'created_by', label: 'table.createdBy' as const, orderBy: null, narrow: true },
   { id: 'updated_at', label: 'table.updated' as const, orderBy: 'updated_at' as const, narrow: true },
 ];
 
@@ -912,6 +917,7 @@ export function TableView({
               const state = byId('state', task.state_id);
               const done = isDoneGroup(state?.group_key);
               const people = (task.assignees ?? []).map((id) => memberMap.get(id)).filter(Boolean) as any[];
+              const author = memberMap.get(String(task.created_by ?? ''));
               return (
                 <tr
                   key={task.id}
@@ -935,6 +941,12 @@ export function TableView({
                   <td className="due_date">{task.due_date ? shortDate(task.due_date) : ''}</td>
                   <td className="estimate narrow">{task.estimate ?? ''}</td>
                   <td className="labels narrow"><LabelChips ids={task.labels ?? []} projectId={task.project_id} /></td>
+                  {/* An avatar rather than a name: the table already says
+                      "person" that way in the assignees column, and the name is
+                      on the hover and spelled out in the detail. Empty rather
+                      than a "?" bubble where the creator has left the
+                      workspace — a row of question marks is not information. */}
+                  <td className="created_by narrow">{author ? <Avatar user={author} size={20} /> : null}</td>
                   <td className="updated_at narrow">{shortDate(task.updated_at)}</td>
                   {extra.map((field) => (
                     <td className="custom narrow" key={field.id}>
