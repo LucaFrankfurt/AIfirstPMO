@@ -72,6 +72,9 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
     );
   }
 
+  /** Who filed it — absent for somebody who has since left the workspace. */
+  const author = members.get(String(task.created_by ?? ''));
+
   const saveTitle = () => {
     const next = title.trim();
     if (next && next !== task.title) update('task', task.id, { title: next });
@@ -348,7 +351,16 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         </section>
 
         <div className="text-muted text-[11.5px] mt-[18px]">
-          {t('task.createdUpdated', { created: shortDate(task.created_at), updated: relativeTime(task.updated_at) })}
+          {/* Who filed it, where the line already says when. The trail under
+              "Protokoll" has said it all along — behind a tab, in the past
+              tense, and only for as long as the entry is still in the last
+              fifty. `created_by` is forced on every task the write path makes,
+              so this is the same fact without the digging. A creator who has
+              left the workspace is not in `members`, and then the line reads
+              as it always did rather than "Angelegt von Jemand". */}
+          {author
+            ? t('task.createdByUpdated', { by: author.name, created: shortDate(task.created_at), updated: relativeTime(task.updated_at) })
+            : t('task.createdUpdated', { created: shortDate(task.created_at), updated: relativeTime(task.updated_at) })}
           {task.labels?.length ? <span className="flex items-center gap-2 flex-wrap mt-1.5"><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
         </div>
       </Sheet>

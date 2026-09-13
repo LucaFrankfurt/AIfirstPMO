@@ -184,6 +184,9 @@ export const en = {
   'task.goneHint': 'It may have been deleted on another device.',
   'task.deleteConfirm': 'Delete {identifier}? This also hides its sub-tasks.',
   'task.delete': 'Delete task',
+  // Said with the person where one is known; `task.createdUpdated` is what
+  // is left when the creator has left the workspace.
+  'task.createdByUpdated': 'Created by {by} on {created} · updated {updated}',
   'task.createdUpdated': 'Created {created} · updated {updated}',
   'task.moveTo': 'Move to',
   'task.subtaskCount': '{done}/{total}',

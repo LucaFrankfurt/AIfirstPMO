@@ -183,6 +183,7 @@ export const de: Catalogue = {
   'task.goneHint': 'Sie wurde vermutlich auf einem anderen Gerät gelöscht.',
   'task.deleteConfirm': '{identifier} löschen? Die Teilaufgaben werden dadurch ebenfalls ausgeblendet.',
   'task.delete': 'Aufgabe löschen',
+  'task.createdByUpdated': 'Angelegt von {by} am {created} · geändert {updated}',
   'task.createdUpdated': 'Angelegt {created} · geändert {updated}',
   'task.moveTo': 'Verschieben nach',
   'task.subtaskCount': '{done}/{total}',
