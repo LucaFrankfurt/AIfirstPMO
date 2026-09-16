@@ -9,18 +9,21 @@
  *   - paint the anchored passages back onto the rendered HTML afterwards.
  *
  * Both go through the rendered text rather than the markup, because a person
- * selects what they can see. The source offset is recovered by finding the
- * selected text in the source — which is the same search the anchor itself
- * uses, so a passage that cannot be located is simply not offered a comment.
+ * selects what they can see. Both are also the same question — the same copy of
+ * the same passage, in the other spelling of the text — so both are `sameQuote`,
+ * once in each direction. That matters for more than tidiness: the two used to
+ * disagree, and a comment left on the second "Ask Grace" on a page was painted
+ * under the first one, because the paint searched for the quote and took
+ * whatever it hit first.
  *
- * That last sentence is also the whole of what happens on an **HTML page**: a
- * selection inside one run of text is found in the markup and anchors normally,
- * and one that crosses a tag is not offered. Exactly the rule a markdown page
- * already lives by — selecting across a `**bold**` fails there for the same
- * reason — so nothing here needed a second case for the second format.
+ * What is still refused is a selection that crosses *markup*: half of it bold,
+ * or a word that is a link. The rendered text of such a passage is not in the
+ * source at all — `**important**` reads as `important` — and no amount of
+ * searching finds it. Whitespace, which used to fail the same way and looked
+ * like a length limit, does not: see `flatten` in `anchor.ts`.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { findAnchor, makeAnchor, type Anchor, type Comment } from '@kolibri/shared';
+import { findAnchor, makeAnchor, sameQuote, type Anchor, type Comment, type Found } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { Icon } from '../../kernel/design-system/ui';
 
@@ -31,38 +34,33 @@ export interface Pending {
   y: number;
 }
 
-/** The plain text of an element, as the reader sees it. */
-const textOf = (node: Node): string => node.textContent ?? '';
-
 /**
- * Where the selection sits in the *source*, not in the rendering.
+ * The page as a string, and the text nodes it was read out of.
  *
- * The rendered text and the markdown differ — `**bold**` is four characters
- * longer — so rather than mapping character by character through the renderer,
- * the selected string is located in the source. Formatting inside the selection
- * makes that fail, and failing is the right answer: an anchor that cannot be
- * found now will not be findable later either.
+ * The string is every text node's data end to end, which is exactly what a
+ * `Range` spanning the same nodes stringifies to — so an offset into one is an
+ * offset into the other, and the selection needs no second measurement. The
+ * runs are the way back: a passage that has to be underlined is a span of this
+ * string, and underlining it means finding the nodes that span sits in.
  */
-function sourceRange(source: string, selected: string, before: string): { start: number; end: number } | null {
-  const needle = selected.trim();
-  if (needle.length < 3) return null;
-
-  const hits: number[] = [];
-  let at = source.indexOf(needle);
-  while (at !== -1 && hits.length < 200) {
-    hits.push(at);
-    at = source.indexOf(needle, at + 1);
-  }
-  if (!hits.length) return null;
-  if (hits.length === 1) return { start: hits[0], end: hits[0] + needle.length };
-
-  // Several matches: the one whose position in the document is closest to how
-  // far through the rendered text the selection was.
-  const ratio = before.length / Math.max(1, before.length + needle.length);
-  const target = ratio * source.length;
-  const best = hits.reduce((a, b) => (Math.abs(a - target) <= Math.abs(b - target) ? a : b));
-  return { start: best, end: best + needle.length };
+interface Reading {
+  raw: string;
+  runs: { node: Text; at: number }[];
 }
+
+function readPage(container: HTMLElement): Reading {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  const runs: { node: Text; at: number }[] = [];
+  let raw = '';
+  for (let node = walker.nextNode() as Text | null; node; node = walker.nextNode() as Text | null) {
+    runs.push({ node, at: raw.length });
+    raw += node.data;
+  }
+  return { raw, runs };
+}
+
+/** The shortest selection worth treating as one: below this it is a mis-click. */
+const MIN_SELECTION = 3;
 
 /**
  * Watch for a selection inside `container` and offer to comment on it.
@@ -94,17 +92,23 @@ export function useSelectionAnchor(
           setPending(null);
           return;
         }
-        const selected = selection.toString();
-        const upto = range.cloneRange();
-        upto.selectNodeContents(container);
-        upto.setEnd(range.startContainer, range.startOffset);
 
-        const found = sourceRange(source, selected, textOf(upto.cloneContents()));
-        if (!found) {
+        // `range.toString()` rather than `selection.toString()`: the first is
+        // the text nodes' data verbatim, which is what `readPage` reads, and
+        // the second is a browser's idea of how that renders.
+        const picked = range.toString();
+        const needle = picked.trim();
+        if (needle.replace(/\s+/g, ' ').length < MIN_SELECTION) {
           setPending(null);
           return;
         }
-        const anchor = makeAnchor(source, found.start, found.end);
+        const upto = range.cloneRange();
+        upto.selectNodeContents(container);
+        upto.setEnd(range.startContainer, range.startOffset);
+        const at = upto.toString().length + (picked.length - picked.trimStart().length);
+
+        const found = sameQuote({ text: readPage(container).raw, at }, source, needle);
+        const anchor = found && makeAnchor(source, found.start, found.end);
         if (!anchor) {
           setPending(null);
           return;
@@ -158,8 +162,15 @@ export function useHighlights(
   const anchored = useMemo(
     () => comments
       .filter((comment) => comment.anchor?.quote)
-      .map((comment) => ({ id: comment.id, found: findAnchor(source, comment.anchor), quote: comment.anchor!.quote }))
-      .filter((entry) => entry.found),
+      .map((comment) => ({
+        id: comment.id,
+        anchor: comment.anchor as Anchor,
+        // Which copy the comment is *about*, decided in the source, where the
+        // prefix and suffix it recorded are also expressed. The page only has
+        // to be told where that copy reads.
+        meant: findAnchor(source, comment.anchor),
+      }))
+      .filter((entry): entry is { id: string; anchor: Anchor; meant: Found } => entry.meant !== null),
     [comments, source],
   );
 
@@ -173,10 +184,24 @@ export function useHighlights(
 
     // Longest first, so a comment on a sentence does not get cut in half by a
     // comment on one word inside it.
-    for (const entry of [...anchored].sort((a, b) => b.quote.length - a.quote.length)) {
-      wrapFirst(container, entry.quote, entry.id, entry.id === active, onPick);
+    for (const entry of [...anchored].sort((a, b) => b.anchor.quote.length - a.anchor.quote.length)) {
+      // Read the page again for each passage: underlining one splits the very
+      // text nodes the next one would have been measured against.
+      const page = readPage(container);
+      const here = sameQuote({ text: source, at: entry.meant.start }, page.raw, entry.anchor.quote);
+      if (!here) continue;
+      underline(page, here, () => {
+        const mark = document.createElement('mark');
+        mark.className = `anchor${entry.id === active ? ' active' : ''}`;
+        mark.dataset.comment = entry.id;
+        mark.addEventListener('click', (event) => {
+          event.stopPropagation();
+          onPick(entry.id);
+        });
+        return mark;
+      });
     }
-  }, [container, anchored, active, onPick]);
+  }, [container, anchored, source, active, onPick]);
 
   /**
    * Repaint when the highlights change — and not while somebody is selecting.
@@ -217,40 +242,30 @@ function selecting(container: HTMLElement): boolean {
   return container.contains(selection.getRangeAt(0).commonAncestorContainer);
 }
 
-/** Wrap the first occurrence of `quote` in the container's text nodes. */
-function wrapFirst(
-  container: HTMLElement,
-  quote: string,
-  id: string,
-  isActive: boolean,
-  onPick: (id: string) => void,
-): void {
-  const needle = quote.replace(/\s+/g, ' ').trim();
-  if (!needle) return;
-  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-  let node = walker.nextNode() as Text | null;
-  while (node) {
-    const at = node.data.indexOf(needle);
-    if (at !== -1) {
-      const range = document.createRange();
-      range.setStart(node, at);
-      range.setEnd(node, at + needle.length);
-      const mark = document.createElement('mark');
-      mark.className = `anchor${isActive ? ' active' : ''}`;
-      mark.dataset.comment = id;
-      mark.addEventListener('click', (event) => {
-        event.stopPropagation();
-        onPick(id);
-      });
-      try {
-        range.surroundContents(mark);
-      } catch {
-        // The passage runs across an element boundary (half of it is bold, or
-        // it spans two paragraphs). The comment still exists and still lists
-        // its quote; it simply is not painted.
-      }
-      return;
-    }
-    node = walker.nextNode() as Text | null;
+/**
+ * Underline `[found.start, found.end)` of the reading, node by node.
+ *
+ * A passage that crosses an element boundary — half of it bold, or a sentence
+ * running into the next paragraph — cannot be wrapped in one element, and
+ * `Range.surroundContents` says so by throwing. It used to be caught and the
+ * passage simply went unpainted. A mark per node it crosses is what the browser
+ * would have drawn anyway, and it is the same mark: the click, the id and the
+ * active class are on each piece, so the comment behaves as one thing.
+ */
+function underline(page: Reading, found: Found, mark: () => HTMLElement): void {
+  for (const run of page.runs) {
+    const from = Math.max(found.start, run.at) - run.at;
+    const to = Math.min(found.end, run.at + run.node.data.length) - run.at;
+    if (to <= from) continue;
+    // The newline between `</p>` and `<p>` is a character of the reading and
+    // nothing on the page; a mark around it draws a stray rule between blocks.
+    if (!run.node.data.slice(from, to).trim()) continue;
+
+    let part = run.node;
+    if (to < part.data.length) part.splitText(to);
+    if (from > 0) part = part.splitText(from);
+    const box = mark();
+    part.before(box);
+    box.append(part);
   }
 }
