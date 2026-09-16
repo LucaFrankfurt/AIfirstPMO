@@ -743,6 +743,145 @@ await step('selecting a passage in a page keeps it selected', async () => {
   console.log('     body nodes replaced:', result.replaced);
 });
 
+/**
+ * An inline comment lands on the passage it was made from.
+ *
+ * Two bugs, one root, and neither is visible to a unit test: the browser holds
+ * the page as it *reads* and the anchor is expressed against the *source*, and
+ * the two were being compared character for character.
+ *
+ * - A paragraph written over two lines renders as one sentence. Selecting
+ *   across that join could not be found in the source, so the comment button
+ *   was not offered — which from the outside looks exactly like a cap on how
+ *   many characters one is allowed to select, because it is a cap: the rest of
+ *   the source line.
+ * - The highlight was painted on the first copy of the quote in the page,
+ *   whichever copy the comment was actually about. On a page that says the
+ *   same sentence twice, a comment on the second underlined the first.
+ *
+ * The fixture is made here rather than found in the seed: both cases need text
+ * that is exactly this shape, and a demo page that happens to have it today is
+ * a test that stops testing when somebody rewrites the demo.
+ */
+await step('a comment anchors to the passage it was made from', async () => {
+  const workspace = await page.evaluate(() => localStorage.getItem('kolibri.workspace'));
+  // Line two continues the sentence on line one, and the last line says the
+  // same thing as line two — the two shapes the bugs needed.
+  const content = [
+    'We ship on Friday and the API is frozen until then.',
+    'Ask Grace if you are unsure about anything at all.',
+    '',
+    'A second paragraph, so the sentence below is not the first one.',
+    '',
+    'Ask Grace if you are unsure about anything at all.',
+  ].join('\n');
+  const made = await (await page.request.post(`${base}/api/workspaces/${workspace}/pages`, {
+    data: { title: `smoke anchors ${locale} ${Date.now()}`, content },
+  })).json();
+  const id = made.page?.id ?? made.id;
+  if (!id) throw new Error(`the fixture page reached no server row: ${JSON.stringify(made).slice(0, 120)}`);
+
+  await page.goto(`${base}/pages/${id}`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.annotatable', { timeout: 8000 });
+
+  /**
+   * Select the nth copy of a phrase, reading the page the way a person does.
+   *
+   * Flattened, because the phrase has to be allowed to run from one text node
+   * into the next — that is the case being tested — and because the whitespace
+   * between two nodes is one space to the eye and whatever the markup left
+   * behind to `data`.
+   */
+  const select = (text, nth) => page.evaluate(({ text, nth }) => {
+    const body = document.querySelector('.annotatable');
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    const runs = [];
+    let raw = '';
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      runs.push({ node, at: raw.length });
+      raw += node.data;
+    }
+    // Flat text, and the raw offset each of its characters came from.
+    let flat = '';
+    const from = [];
+    let run = -1;
+    for (let at = 0; at < raw.length; at++) {
+      if (/\s/.test(raw[at])) { if (run < 0) { run = at; flat += ' '; from.push(at); } continue; }
+      run = -1;
+      flat += raw[at];
+      from.push(at);
+    }
+    const hits = [];
+    for (let at = flat.indexOf(text); at !== -1; at = flat.indexOf(text, at + 1)) hits.push(at);
+    if (hits.length <= nth) return { error: `wanted copy ${nth + 1} of "${text}", the page has ${hits.length}` };
+
+    const spot = (index) => {
+      const run = [...runs].reverse().find((candidate) => candidate.at <= index) ?? runs[0];
+      return { node: run.node, offset: index - run.at };
+    };
+    const head = spot(from[hits[nth]]);
+    const tail = spot(from[hits[nth] + text.length - 1]);
+    const range = document.createRange();
+    range.setStart(head.node, head.offset);
+    range.setEnd(tail.node, tail.offset + 1);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+    return { copies: hits.length, selected: range.toString() };
+  }, { text, nth });
+
+  // One: a selection that crosses the line break the source has and the page
+  // does not.
+  const across = 'until then. Ask Grace if you are unsure';
+  const crossed = await select(across, 0);
+  if (crossed.error) throw new Error(crossed.error);
+  if (!(await page.waitForSelector('.anchor-bubble', { timeout: 4000 }).then(() => true, () => false))) {
+    throw new Error(`no comment offered for ${across.length} characters across a line break in the source`);
+  }
+  console.log('     offered a comment on:', JSON.stringify(crossed.selected));
+
+  // Two: the copy that was commented on is the copy that gets underlined.
+  const twice = 'Ask Grace if you are unsure about anything at all.';
+  const second = await select(twice, 1);
+  if (second.error) throw new Error(second.error);
+  if (second.copies !== 2) throw new Error(`the fixture should say it twice, the page says it ${second.copies} times`);
+  await page.click('.anchor-bubble');
+  await page.fill('.comment-thread textarea, textarea', 'This is about the second one.');
+  await page.keyboard.press('Control+Enter');
+  await page.waitForSelector('mark.anchor', { timeout: 8000 });
+
+  const painted = await page.evaluate((text) => {
+    const body = document.querySelector('.annotatable');
+    const marks = [...body.querySelectorAll('mark.anchor')];
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+    let raw = '';
+    let at = -1;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (at < 0 && marks.some((mark) => mark.contains(node))) at = raw.length;
+      raw += node.data;
+    }
+    const flat = raw.replace(/\s+/g, ' ');
+    const hits = [];
+    for (let i = flat.indexOf(text); i !== -1; i = flat.indexOf(text, i + 1)) hits.push(i);
+    const before = raw.slice(0, at).replace(/\s+/g, ' ').length;
+    return {
+      nth: hits.findIndex((hit) => Math.abs(hit - before) <= 1),
+      of: hits.length,
+      under: marks.map((mark) => mark.textContent).join('').replace(/\s+/g, ' ').trim(),
+    };
+  }, twice);
+
+  if (painted.nth !== 1) {
+    throw new Error(`the highlight sits on copy ${painted.nth + 1} of ${painted.of}, the comment was made on copy 2`);
+  }
+  if (painted.under !== twice) {
+    throw new Error(`the highlight covers "${painted.under}" rather than the sentence`);
+  }
+  console.log('     underlined copy', painted.nth + 1, 'of', painted.of);
+});
+
 await step('chat: a channel, a message, and a badge that clears', async () => {
   await page.goto(`${base}/chat`, { waitUntil: 'networkidle' });
   await closeTour(page);

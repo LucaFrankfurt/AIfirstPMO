@@ -8,7 +8,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { anchorLabel, findAnchor, makeAnchor } from '@kolibri/shared';
+import { anchorLabel, findAnchor, makeAnchor, sameQuote } from '@kolibri/shared';
 
 const TEXT = 'We ship on Friday. The API is frozen until then. Ask Grace if unsure.';
 
@@ -69,5 +69,82 @@ describe('the label above a comment', () => {
     assert.equal(long.length, 90);
     assert.ok(long.endsWith('…'));
     assert.equal(anchorLabel(null), '');
+  });
+});
+
+/**
+ * The two halves of a page, which say the same thing differently.
+ *
+ * Both bugs these pin down were reported as one sentence each, and both came
+ * from the same place: the source and the page on screen were compared
+ * character for character, and they are never quite equal.
+ */
+describe('a passage across the source and the page', () => {
+  // A paragraph written over two lines, which is how every imported document
+  // and half of the hand-typed ones arrive.
+  const SOURCE = [
+    '# Release notes',
+    '',
+    'We ship on Friday and the API is frozen until then.',
+    'Ask Grace if you are unsure about anything at all.',
+    '',
+    'Ask Grace if you are unsure about anything at all.',
+  ].join('\n');
+
+  /**
+   * The page as the browser holds it: every text node end to end. The renderer
+   * joins a paragraph's lines with a space and puts a newline between blocks,
+   * so this is the source with its markup gone and its whitespace moved.
+   */
+  const PAGE = 'Release notes\nWe ship on Friday and the API is frozen until then.'
+    + ' Ask Grace if you are unsure about anything at all.\n'
+    + 'Ask Grace if you are unsure about anything at all.';
+
+  it('anchors a selection that runs over a line break in the source', () => {
+    // The bug: this reads as one sentence on screen, is two lines in the
+    // source, and used to be refused — which looked like a limit on how many
+    // characters one is allowed to select.
+    const quote = 'until then. Ask Grace';
+    const found = sameQuote({ text: PAGE, at: PAGE.indexOf(quote) }, SOURCE, quote)!;
+    assert.ok(found, 'the selection is offered a comment at all');
+    assert.equal(SOURCE.slice(found.start, found.end), 'until then.\nAsk Grace');
+
+    // And the anchor made from it finds its way back, both to the source and
+    // to the page, which is what the comment and its highlight each need.
+    const anchor = makeAnchor(SOURCE, found.start, found.end)!;
+    assert.ok(findAnchor(SOURCE, anchor), 'the comment is not orphaned by its own newline');
+    assert.ok(findAnchor(PAGE, anchor), 'and the highlight finds it on screen');
+  });
+
+  it('follows a quote whose paragraph is later rewrapped', () => {
+    const at = SOURCE.indexOf('the API is frozen');
+    const anchor = makeAnchor(SOURCE, at, at + 'the API is frozen'.length)!;
+    const rewrapped = SOURCE.replace('until then.\nAsk Grace', 'until then. Ask Grace');
+    const found = findAnchor(rewrapped, anchor)!;
+    assert.equal(rewrapped.slice(found.start, found.end), 'the API is frozen');
+  });
+
+  it('paints the copy that was commented on, not the first one that reads the same', () => {
+    // The bug: the page says the same sentence twice, the comment is on the
+    // second, and the highlight landed on the first.
+    const second = SOURCE.lastIndexOf('Ask Grace');
+    const anchor = makeAnchor(SOURCE, second, second + 'Ask Grace if you are unsure about anything at all.'.length)!;
+
+    const meant = findAnchor(SOURCE, anchor)!;
+    assert.equal(meant.start, second, 'the source knows which copy, from the neighbours it kept');
+
+    const here = sameQuote({ text: SOURCE, at: meant.start }, PAGE, anchor.quote)!;
+    assert.equal(here.start, PAGE.lastIndexOf('Ask Grace'), 'and the page underlines that one');
+  });
+
+  it('goes the other way too: the second copy selected is the second copy anchored', () => {
+    const quote = 'Ask Grace if you are unsure';
+    const found = sameQuote({ text: PAGE, at: PAGE.lastIndexOf(quote) }, SOURCE, quote)!;
+    assert.equal(found.start, SOURCE.lastIndexOf(quote));
+  });
+
+  it('still refuses a passage that is not on the page at all', () => {
+    assert.equal(sameQuote({ text: PAGE, at: 0 }, SOURCE, 'a sentence nobody wrote'), null);
+    assert.equal(sameQuote({ text: PAGE, at: 0 }, SOURCE, '   '), null);
   });
 });
