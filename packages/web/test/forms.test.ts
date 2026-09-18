@@ -294,3 +294,41 @@ describe('a project made and a project changed', () => {
     assert.deepEqual(stuck, [], `set once at creation and never again: ${stuck.join(', ')}`);
   });
 });
+
+describe('a product made', () => {
+  const source = readFileSync(join(SRC, 'modules/products/routes/products.tsx'), 'utf8');
+
+  /**
+   * What the create call is allowed to decide on the form's behalf.
+   *
+   * A new record needs two things nobody should be asked about: it is not
+   * archived, and it goes at the end. Everything else pinned beside the form's
+   * own patch is a field the form is missing.
+   *
+   * That is not hypothetical. `kind: 'single'` sat in this list, so **every
+   * product made in the interface was a single one** — and the one screen that
+   * says otherwise was reached by opening a tab that read "this is not a
+   * package" and pressing a button inside its empty state. Nothing threw,
+   * nothing logged, the form looked complete, and the conclusion a person drew
+   * was that packages could not be modelled at all.
+   *
+   * Named exceptions rather than a count, because a count is a budget somebody
+   * will spend on the next field they forget.
+   */
+  const BOOKKEEPING = ['archived', 'sort_order'];
+
+  const pinned = (() => {
+    const match = source.match(/create\('product', \{ \.\.\.patch,([^}]*)\}/);
+    assert.ok(match, "no create('product', { ...patch, … }) call found — this rule now checks nothing");
+    return [...match[1]!.matchAll(/(\w+):/g)].map((entry) => entry[1]!);
+  })();
+
+  it('reads the call at all — a scan that finds nothing passes everything', () => {
+    assert.ok(pinned.length >= 2, `only found ${pinned.length} pinned field(s)`);
+  });
+
+  it('decides nothing the form should have asked', () => {
+    const decided = pinned.filter((field) => !BOOKKEEPING.includes(field));
+    assert.deepEqual(decided, [], `pinned at creation instead of asked: ${decided.join(', ')}`);
+  });
+});

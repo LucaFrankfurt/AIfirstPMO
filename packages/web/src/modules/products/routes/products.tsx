@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS, PRICE_KINDS,
-  PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
+  PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
   assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, dayBefore, expectedMonths, orderKey,
   overlappingPrices, priceChangeRefusal, priceFor, priceHistory, raisePrice,
   promotionPhase, retentionCurve, retentionOf, simulate,
@@ -2073,6 +2073,11 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
   const navigate = useNavigate();
   const groups = useQuery(() => list('productGroup', (row) => !row.archived), []);
   const capabilities = useQuery(() => list('productCapability', (row) => !row.archived), []);
+  /* What it already contains, because a product holding parts cannot honestly
+     go back to being a single one — `unitCosts` recurses through them whatever
+     the kind says, so the catalogue would carry a package's costs under a
+     single product's name. */
+  const parts = useQuery(() => (product ? list('productPart', (row) => row.product_id === product.id) : []), [product?.id]);
   const [form, setForm] = useState({
     name: product?.name ?? '',
     code: product?.code ?? '',
@@ -2082,6 +2087,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
     currency: product?.currency ?? 'EUR',
     unit_label: product?.unit_label ?? '',
     scope_amount: product?.scope_amount ?? 0,
+    kind: product?.kind ?? ('single' as Product['kind']),
     scope_unit: product?.scope_unit ?? '',
     capacity: product?.capacity ?? null,
     term_months: product?.term_months ?? 0,
@@ -2108,6 +2114,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
               description: form.description.trim() || null,
               group_id: form.group_id || null,
               status: form.status,
+              kind: form.kind,
               currency: form.currency.trim().toUpperCase() || 'EUR',
               unit_label: form.unit_label.trim() || null,
               scope_amount: form.scope_amount,
@@ -2123,9 +2130,13 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
               update('product', product.id, patch);
               toast(t('product.saved'));
             } else {
-              const id = create('product', { ...patch, kind: 'single', archived: 0, sort_order: orderKey() });
+              const id = create('product', { ...patch, archived: 0, sort_order: orderKey() });
               toast(t('product.saved'));
-              navigate(`/products/${id}`);
+              /* A new package opens on the tab where its parts are chosen. It
+                 used to land on the overview, and the only way on was a tab
+                 that said "this is not a package" — which is how somebody
+                 concluded the product could not be one. */
+              navigate(form.kind === 'bundle' ? `/products/${id}?tab=package` : `/products/${id}`);
             }
             onClose();
           }}
@@ -2161,6 +2172,25 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
           <Select id="p-status" value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as Product['status'] })}>
             {PRODUCT_STATUS.map((status) => <option key={status} value={status}>{t(statusKey(status))}</option>)}
           </Select>
+        </div>
+        {/* Asked here rather than discovered later. `kind` used to be written
+            as `single` on every create and changed only by a button inside the
+            package tab's empty state — so the one screen that names packages
+            was the one you reached by opening a tab that said this is not one. */}
+        <div className="field flex-1 min-w-0">
+          <label htmlFor="p-kind">{t('product.kindLabel')}</label>
+          <Select id="p-kind" value={form.kind} onChange={(event) => setForm({ ...form, kind: event.target.value as Product['kind'] })}>
+            {PRODUCT_KINDS.map((kind) => (
+              <option key={kind} value={kind} disabled={kind === 'single' && parts.length > 0}>
+                {t(kind === 'bundle' ? 'product.kindBundle' : 'product.kindSingle')}
+              </option>
+            ))}
+          </Select>
+          <span className="text-[12px] text-muted">
+            {parts.length > 0
+              ? t('product.kindLocked', { count: String(parts.length) })
+              : t(form.kind === 'bundle' ? 'product.kindBundleHint' : 'product.kindSingleHint')}
+          </span>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-currency">{t('product.currency')}</label>
