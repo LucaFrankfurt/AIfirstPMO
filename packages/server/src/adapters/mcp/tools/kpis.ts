@@ -18,6 +18,7 @@ export const kpiTools: ToolDef[] = [
       + '"no_data" is nothing measured, "no_target" is nothing promised, and "stale" is a reading '
       + 'too old to stand for today. None of those is a KPI doing well, and a report that treats '
       + 'them as green is the thing this feature exists to prevent.',
+    readOnly: true,
     schema: {
       type: 'object',
       properties: {
@@ -62,6 +63,7 @@ export const kpiTools: ToolDef[] = [
       + 'says it should be by now — comparing those two is the judgement, and both are returned so '
       + 'the reasoning can be quoted rather than asserted. A target due by a milestone takes the '
       + "milestone's date, so a slipped release moves the deadline here too.",
+    readOnly: true,
     schema: {
       type: 'object',
       required: ['kpi'],

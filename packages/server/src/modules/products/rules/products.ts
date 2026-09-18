@@ -90,7 +90,6 @@ function applyProductInvariants(entity: EntityName, values: Record<string, unkno
   if (entity === 'product') {
     oneOf('kind', PRODUCT_KINDS, 'single');
     oneOf('status', PRODUCT_STATUS, 'draft');
-    oneOf('billing', COST_RECURRENCES, 'once');
     oneOf('renewal', RENEWALS, 'none');
     currency('currency');
     money('acquisition_cost');

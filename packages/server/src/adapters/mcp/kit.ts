@@ -20,7 +20,7 @@ import { env } from '../../kernel/platform/env.ts';
 import { type Auth } from '../../kernel/identity/auth.ts';
 import { serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { hasFeature } from '../../kernel/platform/features.ts';
-import { canSeeBudget, canSeeKpi, canSeeProject, serialize, visibleProjectIds, writeEntity } from '../../kernel/write-path/repo.ts';
+import { canSeeBudget, canSeeKpi, canSeeProject, pageIsVisible, serialize, visibleProjectIds, writeEntity } from '../../kernel/write-path/repo.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 
 export interface ToolDef {
@@ -527,8 +527,11 @@ export function findState(id: string, workspaceId: string, ctx: McpCtx): Row {
  * see, and that sentence is only true if it is written down once.
  */
 export function canSeePage(page: Row, ctx: McpCtx): boolean {
-  if (page.project_id && !canSeeProject(ctx.auth.userId, String(page.project_id))) return false;
-  return page.access !== 'private' || page.created_by === ctx.auth.userId;
+  // The rule itself is in `repo.ts`, beside `canSeeTask` and `canSeeBudget`.
+  // This keeps its own name and signature because it is handed a row it already
+  // has — asking by id would be a second query per page in a listing — but it
+  // no longer restates the rule, which is how the fourth door came to disagree.
+  return pageIsVisible(ctx.auth.userId, page);
 }
 
 /**
@@ -1274,7 +1277,10 @@ export function productView(entry: CatalogueEntry): Record<string, unknown> {
     unit: product.unit_label,
     scope: product.scope_amount ? `${product.scope_amount} ${product.scope_unit ?? ''}`.trim() : null,
     capacity: product.capacity,
-    billing: product.billing,
+    // The periods it is actually sold in, read off the prices. A product has
+    // several and a single `billing` field used to claim it had one.
+    periods: entry.periods,
+    mixed_periods: entry.mixed,
     ...money(currency, {
       price: economics.price ?? 0,
       unit_cost: economics.unitCost,

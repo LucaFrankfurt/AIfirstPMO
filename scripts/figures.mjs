@@ -38,6 +38,19 @@ const toolsDir = 'packages/server/src/adapters/mcp/tools';
 const tools = readdirSync(join(ROOT, toolsDir))
   .filter((name) => name.endsWith('.ts'))
   .flatMap((name) => [...read(join(toolsDir, name)).matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]));
+/**
+ * The tools that write, counted the way the surface itself decides it.
+ *
+ * `readOnly` is per tool and the rest write, so this is the total less the
+ * annotated ones rather than a list somebody keeps. It is a figure because it
+ * was wrong: `docs/security.md` and `docs/comparison.md` both said "all nine
+ * that write" long after there were forty-six, in two documents whose whole
+ * premise is that they are checked against this tree rather than remembered.
+ */
+const readOnlyTools = readdirSync(join(ROOT, toolsDir))
+  .filter((name) => name.endsWith('.ts'))
+  .reduce((count, name) => count + [...read(join(toolsDir, name)).matchAll(/^\s+readOnly: true/gm)].length, 0);
+
 const promptNames = [...read('packages/server/src/adapters/mcp/index.ts')
   .matchAll(/^    name: '([a-z_]+)'/gm)].map((m) => m[1]);
 
@@ -344,6 +357,28 @@ const FIGURES = [
       { file: 'docs/module-map.html', pattern: prose('<span class="v num">(\\d+)</span><span class="k">MCP tools</span>') },
       /* On a marketing slide, which is where a stale count survives longest. */
       { file: 'sites/video/src/product.ts', pattern: prose('count: (\\d+), prompts: \\d+') },
+      /*
+       * The gap analysis, which says of itself that the Kolibri column is
+       * verified against this codebase rather than remembered — and which said
+       * 23 when there were 99. A document that claims to be checked and is not
+       * is worse than one that claims nothing.
+       */
+      { file: 'docs/comparison.md', pattern: prose('chat sidebar\\. (\\d+)\\s+tools over the same permissions') },
+    ],
+  },
+  {
+    what: 'MCP tools that write',
+    actual: tools.length - readOnlyTools,
+    claims: [
+      /*
+       * `(nine|\\d+)` rather than digits alone, and the spelled alternative is
+       * the number this sentence actually carried for months. Without it a
+       * regression back to "all nine" is reported as a *missing* claim — which
+       * fails the build either way, but says the sentence moved when what
+       * happened is that the figure went stale, and `--fix` cannot mend it.
+       */
+      { file: 'docs/security.md', pattern: prose('including all (nine|\\d+) writing MCP tools') },
+      { file: 'docs/comparison.md', pattern: prose('refused by all (nine|\\d+) that\\s+write') },
     ],
   },
   {

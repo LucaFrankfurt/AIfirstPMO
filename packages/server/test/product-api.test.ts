@@ -123,12 +123,25 @@ describe('what the server settles', () => {
     // an older build spelled differently must not take twenty other rows down.
     const made = await ok(`/api/workspaces/${workspace}/products`, {
       cookie: me.cookie,
-      body: { name: 'From the future', kind: 'bundleish', status: 'pending', billing: 'fortnightly', renewal: 'someday' },
+      body: { name: 'From the future', kind: 'bundleish', status: 'pending', renewal: 'someday' },
     });
     assert.equal(made.kind, 'single');
     assert.equal(made.status, 'draft');
-    assert.equal(made.billing, 'once');
     assert.equal(made.renewal, 'none');
+  });
+
+  it('no longer carries a billing period, because the price does', async () => {
+    /*
+     * The column is gone, and a client that still sends one is not refused —
+     * it is a registry field nobody lists, so the write path drops it. The same
+     * product is sold monthly, yearly and two-yearly at once, which is exactly
+     * what one column on the product could not say.
+     */
+    const made = await ok(`/api/workspaces/${workspace}/products`, {
+      cookie: me.cookie, body: { name: 'Old client', billing: 'monthly' },
+    });
+    assert.equal(made.billing, undefined);
+    assert.equal(made.name, 'Old client', 'and the rest of the row still lands');
   });
 
   it('upper-cases a currency, so eur and EUR are not two totals', async () => {
@@ -347,6 +360,21 @@ describe('the tools an assistant gets', () => {
     const status = await tool(me.token, 'product_status', { product: 'Komplettpaket' });
     assert.equal(status.unit_cost, 9_000, 'two seats of handouts at 45,00 €');
     assert.notEqual(status.health, 'no_costs');
+  });
+
+  it('quotes the period a price is charged in rather than one on the product', async () => {
+    // Luca's case: the same product sold monthly and yearly. The catalogue used
+    // to pick by the raw number and call 49,00 € a month cheaper than 490,00 €
+    // a year, which per month it is not.
+    const made = await tool(me.token, 'create_product', { name: 'Calenoora SaaS', code: 'SAAS' });
+    await tool(me.token, 'set_product_price', { product: 'SAAS', name: 'Monatlich', amount: '49', recurrence: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'SAAS', name: 'Jährlich', amount: '490', recurrence: 'yearly' });
+
+    const status = await tool(me.token, 'product_status', { product: 'SAAS' });
+    assert.deepEqual(status.periods, ['monthly', 'yearly']);
+    assert.equal(status.mixed_periods, false);
+    assert.equal(status.price, 49_000, 'the yearly one, which is 40,83 € a month');
+    assert.ok(made.id);
   });
 
   it('simulates without writing anything', async () => {

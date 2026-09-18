@@ -470,9 +470,12 @@ CREATE TABLE IF NOT EXISTS products (
   -- Units one delivery can take. NULL is no ceiling, which is honest — a very
   -- large number standing in for "does not apply" is not.
   capacity     INTEGER,
-  billing      TEXT NOT NULL DEFAULT 'once',
-  -- Retention, in three columns and no more. See `TODO.md` for the customer
-  -- register that is deliberately not here.
+  -- How often the customer is charged is deliberately NOT here: it is on the
+  -- price, because the same product is sold monthly, yearly and two-yearly at
+  -- once and a column here would force one answer to a question with several.
+  -- Retention, in four columns and no more. `term_months` is a floor — inside
+  -- it a customer cannot leave, so the churn does not get to say they did. See
+  -- `TODO.md` for the customer register that is deliberately not here.
   term_months  INTEGER NOT NULL DEFAULT 0,
   renewal      TEXT NOT NULL DEFAULT 'none',
   -- Basis points a month. An assumption, always: nothing here counts customers.

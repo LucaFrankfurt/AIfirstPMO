@@ -1454,21 +1454,31 @@ export interface Product extends Base {
   scope_amount: number;
   scope_unit: string | null;
   /**
-   * How many units one delivery can take. Null is no ceiling.
+   * How many units **one delivery** can take. Null is no ceiling.
    *
    * A seminar with twelve seats cannot sell thirteen, and a simulation that
    * does not know that will happily forecast a number the business cannot
    * deliver. Null means the question does not apply — software, mostly — and
    * is honest rather than a very large number standing in for it.
+   *
+   * It is a ceiling per delivery and therefore no ceiling at all for a product
+   * that is not delivered. A licence with `capacity: 1` is not a licence sold
+   * once a month; it is somebody filling in a field that should not have been
+   * on their screen, which is why the form now asks it only where deliveries
+   * exist. See `simulate`.
    */
   capacity: number | null;
-  /** How often the customer is charged. `once` is a sale, the rest a subscription. */
-  billing: CostRecurrence;
   /**
    * The minimum a customer commits to, in months. `0` is no commitment.
    *
+   * A **floor**, not a decoration: inside the term a customer cannot leave, so
+   * a churn that would have them gone sooner does not get to say so. See
+   * `retentionOf`, which had this wrong and answered "stays 10 months" for a
+   * twelve-month contract.
+   *
    * Together with `renewal` and `churn_bps` this is the whole of what is stored
-   * about retention. See `lifetimeValue` for what is computed from it, and
+   * about retention — how often the customer is *charged* is on the price, not
+   * here, because the same product is sold monthly and yearly at once. See
    * `TODO.md` for the customer register that deliberately is not here.
    */
   term_months: number;

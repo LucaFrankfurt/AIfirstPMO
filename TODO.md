@@ -69,17 +69,23 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       that makes it a boundary, so nothing existing changes behaviour. Enforced by narrowing
       `auth.memberships` — the map every gate reads — rather than by a check in `requireWorkspace`,
       which would have left `GET /files/:hash/*` open, since that route reads the map itself.
-- [ ] **An attachment on a *page* is still only workspace-scoped.** The task-bound case above is
-      closed; a page carries its own `access` column and answers for itself, and the pull filter
-      leaves page-bound attachments alone for that reason. So `canSeeFile` does too — deliberately,
-      and it is written down here rather than left as a silence. Closing it means teaching that
-      function what `guardPage` knows, which is a second rule about a second column and wants its
-      own thinking rather than being carried along by this one.
-      What is left of it is `GET /files/:hash/*` and the sync filter. MCP's `get_attachment` asks the
-      narrower question itself — it walks the attachment rows with the same helper that refuses a
-      private page by id — because that tool takes a URL as well as an id, and inheriting the gap
-      would have made one tool answer two different things about the same bytes. That is a fix in the
-      caller rather than in the rule, which is the wrong shape and is why this stays open.
+- [x] **An attachment on a *page* now follows the page.** It did not, and what that opened is worth
+      recording: `canSeeFile` walked the attachment rows, answered for a task-bound one, and fell off
+      the end of its own walk with `return true` — so `GET /files/:hash/*` handed the screenshot
+      inside somebody's private page to any member of the workspace holding the hash. The hash is not
+      a secret and was never meant to carry the rule: it is a checksum, it sits in the page body, in
+      a browser cache and in an access log, and two people uploading the same image get the same one.
+      The pull filter had the matching half of it — a `comment` or `attachment` row with no `task_id`
+      fell through `IS NULL` — so the *names* of the files on a private page mirrored to every device
+      in the workspace along with the hash to try them with.
+      Closed by moving the rule down rather than by teaching a fourth function what a third one
+      knows: `pageIsVisible` and `canSeePage` now sit in `repo.ts` beside `canSeeTask` and
+      `canSeeBudget`, `visiblePageSql` beside `visibleTaskSql`, and the REST guard, MCP's
+      `canSeePage` and the pull filter all defer to them. Five spellings became one and two SQL
+      shadows of it — which is what `CLAUDE.md` means by preferring to move the shared thing down.
+      `page-files.test.ts` asks the question through the door that was wrong rather than through the
+      function, including the two cases that had to keep working: a page everybody may read, and
+      bytes that hang off no attachment row at all, which is every avatar and workspace logo.
 
 ### Operations
 
@@ -150,6 +156,20 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       offline is visible immediately, survives in IndexedDB, arrives when the network returns, and
       merges per field with an edit somebody else made meanwhile. A reload is modelled honestly — a
       second copy of the sync module over the same IndexedDB — and the queued change is still there.
+- [ ] **Every image on a shared page is broken for the visitor it was shared with.** Found while
+      checking the blast radius of the page-attachment fix above, and it is not that fix: the share
+      route renders markdown without rewriting file URLs, so the page comes out with
+      `<img src="/files/<hash>/<name>">` — and that route begins with `requireAuth`. Measured
+      against a seeded instance: the shared page answers **200** to an anonymous visitor, every
+      image inside it answers **401**, and the same URL answers 200 with a session. So a share link
+      shows the text and a column of broken images, which is the one thing a share link exists to
+      avoid. The 401 rather than a 403 is what proves it is older than the visibility rule — it
+      fails before `canSeeFile` is ever asked.
+      This is the same root cause as the packaged app's uploads, and the three ways out are already
+      written up for that case in [`docs/mobile.md`](docs/mobile.md#the-open-question-uploaded-files-do-not-load).
+      The share is the better place to solve it first, because a share already *is* a capability
+      token: the right shape is almost certainly a file URL scoped to the share rather than to the
+      session, which is the one option that does not put a session token in somebody's DOM.
 
 ---
 
@@ -617,6 +637,15 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       one, and a half-built one whose numbers cannot be reconciled with the finance system is worse
       than an assumption that admits it is one. **The honest middle step, if this is wanted, is
       recording cohort sizes month by month** — enough for a real curve, without holding a person.
+- [ ] **`products.billing` is a dead column on every instance that ran the first
+      version.** The period moved to the price, where it belonged; the column left `schema.sql` and
+      the registry, and nothing writes or reads it. On a fresh database it is simply not there. On
+      one created by the first build it stays, because a column removed from `schema.sql` reaches
+      no existing instance — the same limitation recorded further down, now with an instance of it.
+      Harmless and measured rather than assumed: a database with the column added back takes a
+      product write, a read and a sync pull without it, because the column carries
+      `NOT NULL DEFAULT 'once'` and the insert never names it. It would be tidied by whatever
+      eventually closes the removal gap; it is not worth a migration runner of its own.
 - [ ] **A product is not linked to the project that builds it.** The link is obviously useful and
       it is left out on purpose: the generic REST guard reads `project_id` off any row that has one,
       so a product naming a private project would become invisible to everybody not on it — turning
