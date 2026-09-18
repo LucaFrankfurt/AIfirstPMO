@@ -15,7 +15,7 @@ import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import {
-  canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, canSeeTask, deleteEntity, parseIds, serialize,
+  canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, canSeeTask, deleteEntity, pageIsVisible, parseIds, serialize,
   visibleTaskSql, writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
@@ -84,7 +84,11 @@ function guardProject(userId: string, entity: EntityName, row: Row): void {
  */
 function guardPage(userId: string, entity: EntityName, row: Row): void {
   if (entity !== 'page') return;
-  if (row.access === 'private' && row.created_by !== userId) throw forbidden('That page is private');
+  // `pageIsVisible` rather than the `access` half written out again. It asks
+  // the project half too, which `guardProject` has already asked a line above —
+  // redundant, and cheaper than a copy of the rule that agrees until it does
+  // not. See `repo.ts` for what the fifth copy cost.
+  if (!pageIsVisible(userId, row)) throw forbidden('That page is private');
 }
 
 /**

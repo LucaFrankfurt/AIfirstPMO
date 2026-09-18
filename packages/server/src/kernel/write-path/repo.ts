@@ -930,6 +930,70 @@ export const visibleTaskSql = (column: string, workspace = '?', user = '?'): str
              AND t.project_id IN (${visibleProjectsSql(workspace, user)}))`;
 
 /**
+ * Whether somebody may read a page, over a row somebody already holds.
+ *
+ * Two halves, and a page is the only row that needs both. It follows its
+ * project the way everything else does — and it can *also* be private inside a
+ * project everybody can see, which is what `access` means: its author and
+ * nobody else. A check that asks only the first half hands out somebody's
+ * private notes; one that asks only the second hands out a closed project's
+ * handbook.
+ *
+ * This lives here, beside `canSeeTask` and `canSeeBudget`, because it had been
+ * written down four times — the REST guard, the pull filter, MCP's `canSeePage`
+ * and `visiblePagesSql` — and the fifth door, `canSeeFile`, did not have it and
+ * served the bytes behind a private page to any member of the workspace. That
+ * is the shape this repository has been bitten by twice: the same question
+ * answered differently depending on which door you came through. Moving the
+ * rule down is what `CLAUDE.md` says to do about that, and it is cheaper than
+ * a fifth copy that agrees today.
+ *
+ * The two SQL spellings stay, for the reason `visibleTaskSql` above stays:
+ * a `LIMIT` over an unfiltered query returns rows and then hides some of them,
+ * which is a listing that silently gets shorter the more private work a
+ * workspace does. They are the same rule, and they are checked against this one
+ * by `page-files.test.ts` and `isolation.test.ts` rather than by inspection.
+ */
+export function pageIsVisible(userId: string, page: Row): boolean {
+  if (page.project_id && !canSeeProject(userId, String(page.project_id))) return false;
+  return page.access !== 'private' || page.created_by === userId;
+}
+
+/**
+ * The same question by id, for a caller holding only that.
+ *
+ * A page that is not there answers `false`, matching `canSeeTask` and the pull
+ * filter: a row pointing at nothing is nobody's, and it is not a reason to hand
+ * anything over. Deletion is deliberately not asked about — a deleted page's
+ * attachments still have to reach the devices that hold them.
+ */
+export function canSeePage(userId: string, pageId: string | null | undefined): boolean {
+  if (!pageId) return false;
+  const page = get<Row>(`SELECT project_id, access, created_by FROM pages WHERE id = ?`, pageId);
+  if (!page) return false;
+  return pageIsVisible(userId, page);
+}
+
+/**
+ * The same question in SQL, for the pull filter that has to stay one query.
+ *
+ * The third spelling of the rule and the last one, and it is here beside the
+ * other two rather than inside `sync.ts` so that a reader comparing them does
+ * not have to open three files. `visibleTaskSql` above is the same arrangement
+ * for the same reason.
+ *
+ * `user` appears twice: once for the project membership and once for the page's
+ * own author. A caller passing numbered parameters has to pass the same one
+ * both times — which is why it takes them rather than assuming `?`.
+ */
+export const visiblePageSql = (column: string, workspace = '?', user = '?'): string => `
+  EXISTS (SELECT 1 FROM pages pg
+           WHERE pg.id = ${column}
+             AND (pg.access <> 'private' OR pg.created_by = ${user})
+             AND (pg.project_id IS NULL
+                  OR pg.project_id IN (${visibleProjectsSql(workspace, user)})))`;
+
+/**
  * Whether somebody may fetch the bytes behind a hash.
  *
  * The file route asked only whether the hash had a row in a workspace of
@@ -965,10 +1029,16 @@ export function canSeeFile(userId: string, hash: string): boolean {
   if (!rows.length) return true;
   return rows.some((row) => {
     if (row.task_id) return canSeeTask(userId, String(row.task_id));
+    if (row.page_id) return canSeePage(userId, String(row.page_id));
     if (row.comment_id) {
-      const comment = get<Row>(`SELECT task_id FROM comments WHERE id = ?`, row.comment_id);
-      // A comment on a page is the page's business, like the page itself.
-      return comment?.task_id ? canSeeTask(userId, String(comment.task_id)) : true;
+      const comment = get<Row>(`SELECT task_id, page_id FROM comments WHERE id = ?`, row.comment_id);
+      if (!comment) return false;
+      // A comment on a page is the page's business, like the page itself — and
+      // that sentence used to be a comment above a `return true`, which is the
+      // whole of what went wrong.
+      if (comment.task_id) return canSeeTask(userId, String(comment.task_id));
+      if (comment.page_id) return canSeePage(userId, String(comment.page_id));
+      return true;
     }
     return true;
   });

@@ -31,7 +31,15 @@ Three questions, asked in this order, in `lib/auth.ts` and `lib/repo.ts`:
    a "public" project is public *to that workspace*, and `canSeeProject` used to answer the
    visibility question without asking the membership one.
 3. **Does the token carry the scope?** API and MCP tokens are `read` or `read,write`. A read-only
-   token is refused by every write path, including all nine writing MCP tools.
+   token is refused by every write path, including all 46 writing MCP tools.
+4. **Does the row answer for itself?** Most do not — they follow their project, and that is the
+   whole of it. Two do: a **secret**, and a **page**, which can be `access: 'private'` inside a
+   project everybody can see. `pageIsVisible` in `lib/repo.ts` asks both halves, and it is one
+   function rather than five because the fifth spelling of it did not have the second half: the
+   bytes behind a private page's screenshot were served to any member of the workspace holding the
+   hash, and the filenames mirrored to every device. A hash is a checksum, not a secret — it is in
+   the page body, in a browser cache and in an access log — so nothing may rest on nobody having it.
+   `GET /files/:hash/*`, the pull filter and MCP all defer to that one function now.
 
 A row may only reference rows in its own workspace. `parent_id`, `project_id`, `state_id` and the
 rest are checked at the write in `guardReferences` — not because a dangling reference is dangerous

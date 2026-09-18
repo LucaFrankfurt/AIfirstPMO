@@ -14,7 +14,7 @@ import {
 import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, readJson, type Ctx, type Router } from '../../platform/http.ts';
-import { serialize, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
+import { serialize, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
@@ -315,9 +315,23 @@ function filterFor(entity: EntityName): string {
     // A comment or an attachment on a *page* answers to the page's own access
     // rule above and not to this one, so no task is not this clause's business.
     // A relation always has a task — the column is `NOT NULL`.
+    /*
+     * A comment and an attachment follow whichever they hang off, and until
+     * recently only the task half was asked. A row with no `task_id` fell
+     * through the `IS NULL` and mirrored to every device in the workspace — so
+     * the *names* of the files on somebody's private page, and the hashes to
+     * fetch them with, reached people who could not open the page. The bytes
+     * were the other half of that, and `canSeeFile` in `repo.ts` is where they
+     * were answered wrongly; this is the same rule at the other door.
+     *
+     * Neither id is the one door: an attachment can hang off a task, off a page
+     * or off a comment, and one that hangs off nothing at all is an avatar or a
+     * workspace logo and belongs to everybody.
+     */
     case 'comment':
     case 'attachment':
-      return `AND (${table}.task_id IS NULL OR ${visibleTaskSql(`${table}.task_id`, '?1', '?2')})`;
+      return `AND (${table}.task_id IS NULL OR ${visibleTaskSql(`${table}.task_id`, '?1', '?2')})
+              AND (${table}.page_id IS NULL OR ${visiblePageSql(`${table}.page_id`, '?1', '?2')})`;
     case 'relation':
       return `AND ${visibleTaskSql(`${table}.task_id`, '?1', '?2')}`;
     default:
