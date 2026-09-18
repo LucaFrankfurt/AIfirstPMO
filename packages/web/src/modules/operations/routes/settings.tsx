@@ -546,6 +546,27 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* Beside budgets and independent of them: a budget is money the
+          organisation has decided to spend, a product is money it hopes to take
+          in, and a team modelling what it sells is not thereby tracking what it
+          spends. The two meet in one word — the cost category. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.products}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { products: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureProducts')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureProductsHint')}</span>
+        </span>
+      </label>
+
       {/* Independent of everything else, and the only switch here that is a
           promise rather than a preference: a half-adopted vault — three keys in
           it and eleven still in the handbook — is worse than none, because it

@@ -33,6 +33,7 @@ import { installTelegramChores } from './adapters/telegram/chores.ts';
 import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
+import { productRules } from './modules/products/rules/products.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
 import { decisionRules } from './modules/decisions/rules/decisions.ts';
 import { landscapeRules } from './modules/infrastructure/rules/infrastructure.ts';
@@ -74,7 +75,7 @@ export function installEffects(): void {
   // entities it cannot matter — one write is one entity. See `repo.onEntity`.
   for (const rule of [
     workRules, pageRules, chatRules, planningRules,
-    budgetRules, rateRules, kpiRules, landscapeRules,
+    budgetRules, productRules, rateRules, kpiRules, landscapeRules,
     mailRules, secretRules, environmentRules, decisionRules,
   ]) onEntity(rule);
 

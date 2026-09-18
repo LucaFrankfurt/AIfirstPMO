@@ -87,7 +87,7 @@ const RING_OF_DIR = { kernel: 'kernel', modules: 'capability', adapters: 'adapte
 const ABOUT = {
   'i18n': ['Catalogues, plurals, and the locale a person reads in.'],
   'design-system': ['The shell, the palette, and the parts every screen is built from.'],
-  'registry': ['The 48 entities: fields, merge rules, visibility, and what the client mirrors.'],
+  'registry': ['The 57 entities: fields, merge rules, visibility, and what the client mirrors.'],
   'write-path': ['One way in for every write: defaults, invariants, guards, effects, tombstones.'],
   'identity': ['Accounts, sessions, two-factor, workspaces, members and invites.'],
   'platform': ['Configuration, the database handle, the router, ids, the bus.'],
@@ -99,6 +99,7 @@ const ABOUT = {
   'pages': ['Documents with a CRDT under them, their tree, and what a comment anchors to.'],
   'secrets': ['Credentials the team keeps: sealed on the way in, one route out, every reading logged.', 'secrets'],
   'budgets': ['Plan, spend, variance and who is allowed to see money.', 'budget'],
+  'products': ['What is sold: prices, packages, campaigns, break-even, simulations and what a customer is worth.', 'products'],
   'operations': ['Backups, restore, maintenance, provisioning and the instance screens.'],
   'chat': ['Channels, messages, presence, reactions and unread.'],
   'kpis': ['Measures, targets, cadence and the direction that counts as good.', 'kpi'],

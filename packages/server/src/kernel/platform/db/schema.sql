@@ -439,6 +439,242 @@ CREATE TABLE IF NOT EXISTS budget_scenarios (
 CREATE INDEX IF NOT EXISTS budget_scenarios_seq ON budget_scenarios (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS budget_scenarios_budget ON budget_scenarios (budget_id);
 
+-- --------------------------------------------------------------- products --
+-- The catalogue. Workspace-scoped throughout and with no `project_id`
+-- anywhere: what a company sells is the same fact for everybody in it, and a
+-- price list that reads differently depending on which projects somebody is on
+-- is the worst possible property for the document three departments argue
+-- from. The feature switch is the control instead.
+CREATE TABLE IF NOT EXISTS products (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  group_id     TEXT,
+  name         TEXT NOT NULL,
+  -- Short, spoken, and deliberately not unique: two products may share one
+  -- while somebody is reorganising, and refusing the second write loses it.
+  code         TEXT,
+  description  TEXT,
+  -- single | bundle. A package is a product that contains other products, so
+  -- every screen and every total works on it without asking which it holds.
+  kind         TEXT NOT NULL DEFAULT 'single',
+  -- draft | active | retired. Retired is not deleted: it was still sold.
+  status       TEXT NOT NULL DEFAULT 'draft',
+  owner_id     TEXT,
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  unit_label   TEXT,
+  -- The Umfang, as a number and a word: two days, twelve months, forty hours.
+  -- A number rather than a sentence because this is what products are compared
+  -- by, and a sentence cannot be sorted.
+  scope_amount INTEGER NOT NULL DEFAULT 0,
+  scope_unit   TEXT,
+  -- Units one delivery can take. NULL is no ceiling, which is honest — a very
+  -- large number standing in for "does not apply" is not.
+  capacity     INTEGER,
+  billing      TEXT NOT NULL DEFAULT 'once',
+  -- Retention, in three columns and no more. See `TODO.md` for the customer
+  -- register that is deliberately not here.
+  term_months  INTEGER NOT NULL DEFAULT 0,
+  renewal      TEXT NOT NULL DEFAULT 'none',
+  -- Basis points a month. An assumption, always: nothing here counts customers.
+  churn_bps    INTEGER NOT NULL DEFAULT 0,
+  -- Paid once, before any revenue, which is why it is not a `unit` cost.
+  acquisition_cost INTEGER NOT NULL DEFAULT 0,
+  -- Ids into `product_capabilities`. Ids that no longer resolve are ignored on
+  -- read rather than cleaned up on write — see `capabilitiesOf`.
+  capabilities TEXT NOT NULL DEFAULT '[]',
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS products_seq ON products (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS products_group ON products (group_id);
+
+-- A family of products. Flat by design: a tree is what a catalogue grows into
+-- over five years and what nobody can navigate after three.
+CREATE TABLE IF NOT EXISTS product_groups (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  owner_id     TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_groups_seq ON product_groups (workspace_id, seq);
+
+-- One price a product can be sold at. Its own row for the reason a budget line
+-- is: a product has several and two devices edit two of them.
+CREATE TABLE IF NOT EXISTS product_prices (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id   TEXT NOT NULL,
+  name         TEXT NOT NULL DEFAULT '',
+  -- list | volume | partner | internal. `internal` never counts as revenue:
+  -- a transfer price is not a discount.
+  kind         TEXT NOT NULL DEFAULT 'list',
+  amount       INTEGER NOT NULL DEFAULT 0,
+  -- What makes a volume price computable rather than a note saying "ask sales".
+  min_quantity INTEGER NOT NULL DEFAULT 1,
+  recurrence   TEXT NOT NULL DEFAULT 'once',
+  valid_from   TEXT,
+  valid_to     TEXT,
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_prices_seq ON product_prices (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS product_prices_product ON product_prices (product_id);
+
+-- What the product costs. `category` is the budget's vocabulary on purpose;
+-- `basis` is the column a break-even is made of — period, delivery or unit.
+CREATE TABLE IF NOT EXISTS product_costs (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id   TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  category     TEXT NOT NULL DEFAULT 'other',
+  basis        TEXT NOT NULL DEFAULT 'unit',
+  amount       INTEGER NOT NULL DEFAULT 0,
+  vendor       TEXT,
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_costs_seq ON product_costs (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS product_costs_product ON product_costs (product_id);
+
+-- An external speaker or subcontractor. A row rather than a cost line named
+-- after them: a person has to be asked whether they are free in March, and
+-- folding them into the figures loses that the first time somebody tidies up.
+CREATE TABLE IF NOT EXISTS product_contributors (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id   TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  role         TEXT,
+  organisation TEXT,
+  email        TEXT,
+  fee          INTEGER NOT NULL DEFAULT 0,
+  -- The same enum a cost uses, so `unitEconomics` counts both from one place.
+  fee_basis    TEXT NOT NULL DEFAULT 'delivery',
+  note         TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_contributors_seq ON product_contributors (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS product_contributors_product ON product_contributors (product_id);
+
+-- One thing a product can do, named once for the whole workspace. A catalogue
+-- rather than free text for the reason a cost category is a fixed list: "SSO",
+-- "Single Sign-On" and "sso" are three rows in every comparison table.
+CREATE TABLE IF NOT EXISTS product_capabilities (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  archived     INTEGER NOT NULL DEFAULT 0,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_capabilities_seq ON product_capabilities (workspace_id, seq);
+
+-- One product inside a package. `quantity` is what makes the package's list
+-- value computable and therefore its discount visible.
+CREATE TABLE IF NOT EXISTS product_parts (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  product_id   TEXT NOT NULL,
+  part_id      TEXT NOT NULL,
+  quantity     INTEGER NOT NULL DEFAULT 1,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_parts_seq ON product_parts (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS product_parts_product ON product_parts (product_id);
+
+-- A campaign. Not a fourth price with dates: it applies to sets, and it has
+-- two figures a price does not — what running it costs, and what it is
+-- expected to do to volume. Without those a promotion can only be announced.
+CREATE TABLE IF NOT EXISTS promotions (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  -- percent | amount | price. Three, because people mean three different
+  -- things and converting at entry loses the intent.
+  kind         TEXT NOT NULL DEFAULT 'percent',
+  value        INTEGER NOT NULL DEFAULT 0,
+  starts_on    TEXT,
+  ends_on      TEXT,
+  -- Both empty is the whole catalogue, the way an empty `projects` list means
+  -- every project. Both filled is a union.
+  products     TEXT NOT NULL DEFAULT '[]',
+  groups       TEXT NOT NULL DEFAULT '[]',
+  spend        INTEGER NOT NULL DEFAULT 0,
+  uplift_bps   INTEGER NOT NULL DEFAULT 0,
+  -- draft | live | cancelled. Whether it is running today is derived from the
+  -- dates — see `promotionPhase` — because a stored phase is wrong by morning.
+  status       TEXT NOT NULL DEFAULT 'draft',
+  owner_id     TEXT,
+  currency     TEXT NOT NULL DEFAULT 'EUR',
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS promotions_seq ON promotions (workspace_id, seq);
+
+-- A what-if over a product. Nothing here edits a price: it is a set of
+-- assumptions applied on the way to a projection.
+CREATE TABLE IF NOT EXISTS product_scenarios (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  -- NULL is the whole catalogue.
+  product_id   TEXT,
+  name         TEXT NOT NULL,
+  description  TEXT,
+  assumptions  TEXT NOT NULL DEFAULT '{}',
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS product_scenarios_seq ON product_scenarios (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS product_scenarios_product ON product_scenarios (product_id);
+
 -- Read-only links to one page or one filtered task list. The token is the whole
 -- of the authorisation, so it is generated here and never taken from a client.
 CREATE TABLE IF NOT EXISTS shares (

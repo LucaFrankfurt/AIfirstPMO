@@ -20,6 +20,15 @@ export type EntityName =
   | 'budgetLine'
   | 'budgetActual'
   | 'budgetScenario'
+  | 'product'
+  | 'productGroup'
+  | 'productPrice'
+  | 'productCost'
+  | 'productContributor'
+  | 'productCapability'
+  | 'productPart'
+  | 'promotion'
+  | 'productScenario'
   | 'rate'
   | 'vendor'
   | 'component'
@@ -243,6 +252,78 @@ export const ENTITIES = {
       'workspace_id', 'budget_id', 'name', 'description', 'adjustments', 'weights', 'sort_order',
     ],
     json: ['adjustments', 'weights'],
+  },
+  /**
+   * The catalogue: what is sold, what it is worth, and what it costs to make.
+   *
+   * Nine tables and not one, for the reason a budget is four: a product has
+   * several prices, several costs, several people and — when it is a package —
+   * several parts, and every one of those lists is edited by two people from
+   * two devices. A `prices` array on the product merges by one device winning
+   * the whole list; rows merge row by row.
+   *
+   * Workspace-scoped throughout, with no `project_id` anywhere. See `Product`
+   * in `types.ts` for why a catalogue is the one thing here that is not about
+   * some projects.
+   */
+  product: {
+    table: 'products',
+    fields: [
+      'workspace_id', 'group_id', 'name', 'code', 'description', 'kind', 'status',
+      'owner_id', 'currency', 'unit_label', 'scope_amount', 'scope_unit', 'capacity',
+      'billing', 'term_months', 'renewal', 'churn_bps', 'acquisition_cost',
+      'capabilities', 'archived', 'sort_order',
+    ],
+    json: ['capabilities'],
+  },
+  productGroup: {
+    table: 'product_groups',
+    fields: ['workspace_id', 'name', 'description', 'owner_id', 'archived', 'sort_order'],
+  },
+  productPrice: {
+    table: 'product_prices',
+    fields: [
+      'workspace_id', 'product_id', 'name', 'kind', 'amount', 'min_quantity',
+      'recurrence', 'valid_from', 'valid_to', 'note', 'sort_order',
+    ],
+  },
+  productCost: {
+    table: 'product_costs',
+    fields: [
+      'workspace_id', 'product_id', 'name', 'category', 'basis', 'amount',
+      'vendor', 'note', 'sort_order',
+    ],
+  },
+  /** An external speaker or subcontractor. A person, not a cost line — see `types.ts`. */
+  productContributor: {
+    table: 'product_contributors',
+    fields: [
+      'workspace_id', 'product_id', 'name', 'role', 'organisation', 'email',
+      'fee', 'fee_basis', 'note', 'sort_order',
+    ],
+  },
+  productCapability: {
+    table: 'product_capabilities',
+    fields: ['workspace_id', 'name', 'description', 'archived', 'sort_order'],
+  },
+  /** One product inside a package. `part_id` is what is in it. */
+  productPart: {
+    table: 'product_parts',
+    fields: ['workspace_id', 'product_id', 'part_id', 'quantity', 'sort_order'],
+  },
+  promotion: {
+    table: 'promotions',
+    fields: [
+      'workspace_id', 'name', 'description', 'kind', 'value', 'starts_on', 'ends_on',
+      'products', 'groups', 'spend', 'uplift_bps', 'status', 'owner_id', 'currency', 'sort_order',
+    ],
+    json: ['products', 'groups'],
+  },
+  /** A what-if over the catalogue. Never edits a price; see `simulate`. */
+  productScenario: {
+    table: 'product_scenarios',
+    fields: ['workspace_id', 'product_id', 'name', 'description', 'assumptions', 'sort_order'],
+    json: ['assumptions'],
   },
   /**
    * A link that lets somebody outside the workspace read one thing.
@@ -687,6 +768,15 @@ export const COLLECTIONS: Record<EntityName, string> = {
   budgetLine: 'budget-lines',
   budgetActual: 'budget-actuals',
   budgetScenario: 'budget-scenarios',
+  product: 'products',
+  productGroup: 'product-groups',
+  productPrice: 'product-prices',
+  productCost: 'product-costs',
+  productContributor: 'product-contributors',
+  productCapability: 'product-capabilities',
+  productPart: 'product-parts',
+  promotion: 'promotions',
+  productScenario: 'product-scenarios',
   rate: 'rates',
   vendor: 'vendors',
   component: 'components',

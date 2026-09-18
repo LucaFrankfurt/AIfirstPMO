@@ -2713,6 +2713,674 @@
           }
         }
       },
+      "Product": {
+        "type": "object",
+        "description": "A row of `products` (table `products`).",
+        "properties": {
+          "acquisition_cost": {
+            "type": "number",
+            "description": "What winning one customer costs: the campaign, the sales time, the trial. Here rather than as a `unit` cost because it is not a cost of *delivering* a unit — it is paid once, before any revenue, and it belongs on the other side of the payback question. Counting it as variable cost would depress every month's margin by a cost that was only incurred in the first."
+          },
+          "archived": {
+            "type": "number"
+          },
+          "billing": {
+            "type": "string",
+            "enum": [
+              "once",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "description": "How often the customer is charged. `once` is a sale, the rest a subscription."
+          },
+          "capabilities": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What it can do: ids into the workspace's capability catalogue."
+          },
+          "capacity": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "How many units one delivery can take. Null is no ceiling. A seminar with twelve seats cannot sell thirteen, and a simulation that does not know that will happily forecast a number the business cannot deliver. Null means the question does not apply — software, mostly — and is honest rather than a very large number standing in for it."
+          },
+          "churn_bps": {
+            "type": "number",
+            "description": "Customers lost per month, in basis points. 500 is 5% a month. An assumption, always — nothing in Kolibri counts customers, so this is a number somebody types in from the system that does, and every figure derived from it says so. Basis points for the reason `Allocation.share` is in them: a percentage stored as a float is a percentage that drifts."
+          },
+          "code": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The short handle people say out loud and type into other systems. Not a key and not unique: two products may share one while somebody is reorganising, and refusing the second write would mean losing it. It is a label that happens to be short, and nothing looks a product up by it except a human reading a list."
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "currency": {
+            "type": "string",
+            "description": "ISO 4217, upper case. Nothing anywhere converts between two."
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "group_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The family it belongs to, or null. See `ProductGroup`."
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "single",
+              "bundle"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who answers for it when the margin goes the wrong way."
+          },
+          "renewal": {
+            "type": "string",
+            "enum": [
+              "none",
+              "manual",
+              "auto"
+            ]
+          },
+          "scope_amount": {
+            "type": "number",
+            "description": "The Umfang: how much of something one unit contains, and of what. Two fields rather than a sentence, because this is the number people compare products by — two days against three, twelve months against twenty-four — and a sentence cannot be sorted or added up. `scope_amount` is 0 when nobody has said, which is different from a product whose scope is genuinely nothing."
+          },
+          "scope_unit": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "draft",
+              "active",
+              "retired"
+            ]
+          },
+          "term_months": {
+            "type": "number",
+            "description": "The minimum a customer commits to, in months. `0` is no commitment. Together with `renewal` and `churn_bps` this is the whole of what is stored about retention. See `lifetimeValue` for what is computed from it, and `TODO.md` for the customer register that deliberately is not here."
+          },
+          "unit_label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What one sold unit is called: a seat, a licence, a day, a booking. A word rather than an enum, because the list is the organisation's and not ours — and unlike a cost category, nothing groups or sums across products by it, so two spellings cost nothing but a reader's eyebrow."
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductCapability": {
+        "type": "object",
+        "description": "A row of `product-capabilities` (table `product_capabilities`).",
+        "properties": {
+          "archived": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductContributor": {
+        "type": "object",
+        "description": "A row of `product-contributors` (table `product_contributors`).",
+        "properties": {
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "email": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "fee": {
+            "type": "number",
+            "description": "What they are paid, per `fee_basis`."
+          },
+          "fee_basis": {
+            "type": "string",
+            "enum": [
+              "period",
+              "delivery",
+              "unit"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "organisation": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_id": {
+            "type": "string"
+          },
+          "role": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What they do here: \"Referent\", \"Trainer\", \"Co-Autorin\"."
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductCost": {
+        "type": "object",
+        "description": "A row of `product-costs` (table `product_costs`).",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Per period, per delivery or per unit, according to `basis`."
+          },
+          "basis": {
+            "type": "string",
+            "enum": [
+              "period",
+              "delivery",
+              "unit"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "infrastructure",
+              "investment",
+              "people",
+              "licences",
+              "services",
+              "travel",
+              "training",
+              "contingency",
+              "other"
+            ]
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_id": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "vendor": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductGroup": {
+        "type": "object",
+        "description": "A row of `product-groups` (table `product_groups`).",
+        "properties": {
+          "archived": {
+            "type": "number"
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductPart": {
+        "type": "object",
+        "description": "A row of `product-parts` (table `product_parts`).",
+        "properties": {
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "part_id": {
+            "type": "string",
+            "description": "What is in it."
+          },
+          "product_id": {
+            "type": "string",
+            "description": "The package."
+          },
+          "quantity": {
+            "type": "number"
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductPrice": {
+        "type": "object",
+        "description": "A row of `product-prices` (table `product_prices`).",
+        "properties": {
+          "amount": {
+            "type": "number",
+            "description": "Per unit, per `recurrence`. See `Minor`."
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "list",
+              "volume",
+              "partner",
+              "internal"
+            ]
+          },
+          "min_quantity": {
+            "type": "number",
+            "description": "The smallest order this price applies to. 1 is the ordinary case."
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "product_id": {
+            "type": "string"
+          },
+          "recurrence": {
+            "type": "string",
+            "enum": [
+              "once",
+              "monthly",
+              "quarterly",
+              "yearly"
+            ],
+            "description": "How often it is charged. Usually the product's own `billing`."
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "valid_from": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The window it is valid in. Both null is \"until somebody changes it\"."
+          },
+          "valid_to": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
+      "ProductScenario": {
+        "type": "object",
+        "description": "A row of `product-scenarios` (table `product_scenarios`).",
+        "properties": {
+          "assumptions": {
+            "type": "object",
+            "properties": {
+              "months": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "How many months to project."
+              },
+              "units": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Units sold in the first month."
+              },
+              "growth_bps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Month-on-month change in units sold, in basis points. 500 is +5% a month."
+              },
+              "price_bps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "The price moved by this, in basis points. -1000 is 10% off."
+              },
+              "cost_bps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Every cost moved by this, in basis points."
+              },
+              "deliveries": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Deliveries a month — how often a `delivery` cost is incurred."
+              },
+              "promotions": {
+                "type": [
+                  "array",
+                  "null"
+                ],
+                "items": {
+                  "type": "string"
+                },
+                "description": "Promotions to apply, by id. Their own windows still decide when."
+              },
+              "churn_bps": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "description": "Churn to use instead of the product's own, in basis points."
+              },
+              "price_id": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "description": "Which price to start from. Null lets `priceFor` decide."
+              }
+            }
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "name": {
+            "type": "string"
+          },
+          "product_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The product it is about, or null for the whole catalogue."
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
       "Project": {
         "type": "object",
         "description": "A row of `projects` (table `projects`).",
@@ -2898,6 +3566,114 @@
           }
         }
       },
+      "Promotion": {
+        "type": "object",
+        "description": "A row of `promotions` (table `promotions`).",
+        "properties": {
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "currency": {
+            "type": "string"
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ends_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "groups": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Groups it applies to. Every product in one is covered."
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "percent",
+              "amount",
+              "price"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Products it applies to. Empty, with `groups` empty, is all of them."
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string"
+          },
+          "spend": {
+            "type": "number",
+            "description": "What running it costs: the advertising, the stand, the giveaway."
+          },
+          "starts_on": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "cancelled",
+              "draft",
+              "live"
+            ]
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "uplift_bps": {
+            "type": "number",
+            "description": "How much more is expected to sell because of it, in basis points. 2500 is a quarter again. A guess, and the screens say so — but a guess written down is a guess that can be compared with what happened."
+          },
+          "value": {
+            "type": "number",
+            "description": "Basis points off when `kind` is `percent`; minor units otherwise — off the price for `amount`, the price itself for `price`."
+          },
+          "workspace_id": {
+            "type": "string"
+          }
+        }
+      },
       "Purge": {
         "type": "object",
         "description": "A row of `purges` (table `purges`).",
@@ -2931,6 +3707,15 @@
               "budgetLine",
               "budgetActual",
               "budgetScenario",
+              "product",
+              "productGroup",
+              "productPrice",
+              "productCost",
+              "productContributor",
+              "productCapability",
+              "productPart",
+              "promotion",
+              "productScenario",
               "rate",
               "vendor",
               "component",
@@ -11502,6 +12287,1550 @@
         }
       }
     },
+    "/api/product-capabilities/{id}": {
+      "get": {
+        "operationId": "getProductCapability",
+        "summary": "Read one productCapability",
+        "tags": [
+          "product-capabilities"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCapability"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductCapability",
+        "summary": "Change a productCapability",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-capabilities"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCapability"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCapability"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductCapability",
+        "summary": "Delete a productCapability",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-capabilities"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-contributors/{id}": {
+      "get": {
+        "operationId": "getProductContributor",
+        "summary": "Read one productContributor",
+        "tags": [
+          "product-contributors"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductContributor"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductContributor",
+        "summary": "Change a productContributor",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-contributors"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductContributor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductContributor"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductContributor",
+        "summary": "Delete a productContributor",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-contributors"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-costs/{id}": {
+      "get": {
+        "operationId": "getProductCost",
+        "summary": "Read one productCost",
+        "tags": [
+          "product-costs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCost"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductCost",
+        "summary": "Change a productCost",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-costs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCost"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductCost",
+        "summary": "Delete a productCost",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-costs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-groups/{id}": {
+      "get": {
+        "operationId": "getProductGroup",
+        "summary": "Read one productGroup",
+        "tags": [
+          "product-groups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductGroup"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductGroup",
+        "summary": "Change a productGroup",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-groups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductGroup"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductGroup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductGroup",
+        "summary": "Delete a productGroup",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-groups"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-parts/{id}": {
+      "get": {
+        "operationId": "getProductPart",
+        "summary": "Read one productPart",
+        "tags": [
+          "product-parts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPart"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductPart",
+        "summary": "Change a productPart",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-parts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPart"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductPart",
+        "summary": "Delete a productPart",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-parts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-prices/{id}": {
+      "get": {
+        "operationId": "getProductPrice",
+        "summary": "Read one productPrice",
+        "tags": [
+          "product-prices"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPrice"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductPrice",
+        "summary": "Change a productPrice",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-prices"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPrice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductPrice",
+        "summary": "Delete a productPrice",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-prices"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/product-scenarios/{id}": {
+      "get": {
+        "operationId": "getProductScenario",
+        "summary": "Read one productScenario",
+        "tags": [
+          "product-scenarios"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductScenario"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProductScenario",
+        "summary": "Change a productScenario",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "product-scenarios"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductScenario"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductScenario"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProductScenario",
+        "summary": "Delete a productScenario",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "product-scenarios"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/products/{id}": {
+      "get": {
+        "operationId": "getProduct",
+        "summary": "Read one product",
+        "tags": [
+          "products"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateProduct",
+        "summary": "Change a product",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "products"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Product"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProduct",
+        "summary": "Delete a product",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "products"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/project-members/{id}": {
       "get": {
         "operationId": "getProjectMember",
@@ -11840,6 +14169,199 @@
         "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
         "tags": [
           "projects"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/promotions/{id}": {
+      "get": {
+        "operationId": "getPromotion",
+        "summary": "Read one promotion",
+        "tags": [
+          "promotions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Promotion"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updatePromotion",
+        "summary": "Change a promotion",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "promotions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Promotion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Promotion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deletePromotion",
+        "summary": "Delete a promotion",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "promotions"
         ],
         "parameters": [
           {
@@ -21464,6 +23986,1390 @@
         }
       }
     },
+    "/api/workspaces/{ws}/product-capabilities": {
+      "get": {
+        "operationId": "listProductCapability",
+        "summary": "List product-capabilities",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-capabilities"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-capabilities this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-capabilities": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductCapability"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductCapability",
+        "summary": "Create a productCapability",
+        "tags": [
+          "product-capabilities"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCapability"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCapability"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/product-contributors": {
+      "get": {
+        "operationId": "listProductContributor",
+        "summary": "List product-contributors",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-contributors"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-contributors this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-contributors": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductContributor"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductContributor",
+        "summary": "Create a productContributor",
+        "tags": [
+          "product-contributors"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductContributor"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductContributor"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/product-costs": {
+      "get": {
+        "operationId": "listProductCost",
+        "summary": "List product-costs",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-costs"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-costs this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-costs": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductCost"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductCost",
+        "summary": "Create a productCost",
+        "tags": [
+          "product-costs"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductCost"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductCost"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/product-groups": {
+      "get": {
+        "operationId": "listProductGroup",
+        "summary": "List product-groups",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-groups"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-groups this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-groups": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductGroup"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductGroup",
+        "summary": "Create a productGroup",
+        "tags": [
+          "product-groups"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductGroup"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductGroup"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/product-parts": {
+      "get": {
+        "operationId": "listProductPart",
+        "summary": "List product-parts",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-parts"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-parts this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-parts": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductPart"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductPart",
+        "summary": "Create a productPart",
+        "tags": [
+          "product-parts"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPart"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPart"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/product-prices": {
+      "get": {
+        "operationId": "listProductPrice",
+        "summary": "List product-prices",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-prices"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-prices this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-prices": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductPrice"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductPrice",
+        "summary": "Create a productPrice",
+        "tags": [
+          "product-prices"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductPrice"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductPrice"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/product-scenarios": {
+      "get": {
+        "operationId": "listProductScenario",
+        "summary": "List product-scenarios",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "product-scenarios"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The product-scenarios this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "product-scenarios": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProductScenario"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProductScenario",
+        "summary": "Create a productScenario",
+        "tags": [
+          "product-scenarios"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProductScenario"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductScenario"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/products": {
+      "get": {
+        "operationId": "listProduct",
+        "summary": "List products",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "products"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The products this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "products": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createProduct",
+        "summary": "Create a product",
+        "tags": [
+          "products"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Product"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Product"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{ws}/project-members": {
       "get": {
         "operationId": "listProjectMember",
@@ -21928,6 +25834,179 @@
           },
           "401": {
             "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/promotions": {
+      "get": {
+        "operationId": "listPromotion",
+        "summary": "List promotions",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "promotions"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The promotions this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "promotions": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Promotion"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createPromotion",
+        "summary": "Create a promotion",
+        "tags": [
+          "promotions"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Promotion"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Promotion"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
             "content": {
               "application/json": {
                 "schema": {

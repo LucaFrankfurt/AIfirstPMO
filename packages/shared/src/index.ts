@@ -7,6 +7,7 @@ export * from './adapters/transfer/import.ts';
 export * from './modules/pages/diff.ts';
 export * from './modules/work/fields.ts';
 export * from './modules/budgets/budget.ts';
+export * from './modules/products/product.ts';
 export * from './modules/time/rates.ts';
 export * from './modules/infrastructure/landscape.ts';
 export * from './modules/kpis/kpi.ts';

@@ -26,6 +26,7 @@ import { chromium } from 'playwright';
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
+import { switchOnProducts } from './catalogue-fixture.mjs';
 
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const STEP = Number(process.env.KOLIBRI_STEP ?? 20);
@@ -54,6 +55,7 @@ const project = await page.evaluate(async () => {
 await switchOnMail(page);
 await switchOnDecisions(page);
 await switchOnVault(page);
+await switchOnProducts(page);
 
 const SCREENS = [
   ['my work', '/'],
@@ -84,6 +86,14 @@ const SCREENS = [
   // turned it on. The ballot is a row that has to hold a mark, a label that can
   // wrap, and a count — at 340px, where a label of any length is the thing that
   // pushes the count off the edge.
+  // Behind the products switch, and reached only because the fixture above
+  // turned it on. The catalogue is the widest table in the app — a name, a
+  // chip, a price, a cost, a margin, a break-even and a standing pill — which
+  // at 340px is the case that decides which columns survive and which fold.
+  ['products', '/products'],
+  // And the densest form anywhere here: six numeric fields in one row, which
+  // is where a `field-row` either wraps or squeezes each box to nothing.
+  ['products: simulation', '/products?tab=scenarios'],
   ['decisions', '/decisions'],
   // Behind the secrets switch, and the widest row on any screen: a name, an
   // environment, a strength pill, a rotation state and two icon buttons, which

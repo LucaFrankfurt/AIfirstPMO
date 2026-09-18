@@ -602,6 +602,51 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ---
 
+## The product catalogue, and what it deliberately does not hold
+
+The catalogue answers what is sold, what it costs and whether selling it is worth doing. Four
+things a reader might reasonably expect from that sentence are **not** built, and each is left
+out for a reason rather than forgotten. See [`docs/products.md`](docs/products.md).
+
+- [ ] **No customer register, and therefore no real retention.** `churn_bps` is a number somebody
+      types in from the system that counts customers; nothing here counts them. That makes every
+      retention figure an assumption, which the screens say in as many words, and it makes the
+      curve geometric decay from one rate rather than a survival curve — front-loaded churn, the
+      shape real cohorts actually have, needs per-customer rows. Adding those is not a field: it is
+      a CRM, with the personal data, the retention policy and the export obligations that come with
+      one, and a half-built one whose numbers cannot be reconciled with the finance system is worse
+      than an assumption that admits it is one. **The honest middle step, if this is wanted, is
+      recording cohort sizes month by month** — enough for a real curve, without holding a person.
+- [ ] **A product is not linked to the project that builds it.** The link is obviously useful and
+      it is left out on purpose: the generic REST guard reads `project_id` off any row that has one,
+      so a product naming a private project would become invisible to everybody not on it — turning
+      the catalogue into a per-project thing through a column nobody thought of as a permission. A
+      price list that reads differently depending on which projects you are on is the worst possible
+      property for the document sales, delivery and finance argue from. Doing it properly means a
+      link that is explicitly *not* a visibility scope, which is a fourth meaning for a field that
+      already has three.
+- [ ] **No orders, no invoices, no revenue that happened.** Everything here is the plan side: a
+      price is what a product *can* be sold for and a simulation is what it *would* earn. There is
+      no counterpart to `budgetActual` — nothing records that eleven seats were actually sold in
+      March. That is the single largest gap, and it is deliberate for now: the moment real revenue
+      is recorded, this stops being a planning instrument and starts being a system somebody
+      reconciles against their accounts, with the tax, the credit notes and the partial refunds that
+      implies.
+- [ ] **No tax and no currency conversion.** An amount is net, one currency per product, and two
+      currencies are two totals — the same rule the budget follows and for the same reason: a rate
+      is a fact about a day, and a report that silently picks today's to add up last year's is worse
+      than one that declines to add them. VAT is not modelled at all; a price is what the business
+      receives.
+- [ ] **A promotion's `uplift_bps` is recorded and not used.** A simulation applies a campaign's
+      discount and charges its spend, but it does not raise the volume by the expected uplift — the
+      units in a scenario are the ones somebody typed. This is on purpose while there is nothing to
+      check the guess against: a projection that silently inflates itself by a number nobody has
+      ever been held to is exactly the kind of confident wrong figure the rest of this repository is
+      written to avoid. It becomes useful the moment real sales are recorded, which is the item
+      above.
+
+---
+
 ## P3 — bigger bets, only with a reason
 
 - [ ] **The consent screen grants everything or nothing.** A connector asks for `read` or
@@ -1177,7 +1222,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 88 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 99 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

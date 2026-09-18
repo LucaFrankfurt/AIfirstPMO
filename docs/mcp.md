@@ -273,6 +273,11 @@ name. Users accept id, email or name — so an assistant can pass what it read i
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
 | `list_budgets` | budgets with approved, planned, actual, forecast, variance and whether each is on track |
 | `budget_status` | one budget in full: plan against actual, forecast, variance, broken down by category, project and month. Optionally under a saved scenario, and optionally as it stood on an earlier date |
+| `list_products` | the catalogue with the four figures it is read for: the price, what one unit costs, the margin, and how much has to be sold to break even. A product nobody has priced comes back with `price: null` rather than zero — a model reading `0` would say the product is free |
+| `product_status` | one product in full: every price with the one that applies today marked, every cost by what it varies with, the external contributors and their fees, the capabilities, the parts if it is a package, and what the package would cost bought part by part |
+| `list_promotions` | campaigns with the phase worked out from today's date rather than read off a column, so it is never a day out |
+| `simulate_product` | a product projected month by month. Nothing is written. Capacity is a ceiling, so `turned_away` counts what the business could not have delivered; a saved `scenario` is the floor and the other arguments are laid over it |
+| `retention_outlook` | what a customer is worth net of winning them, and how long until that is back. `missing` names why a figure is null — nobody priced it, or nobody recorded a churn — because a bare null is a null somebody guesses at |
 | `list_kpis` | every KPI with where it stands, worst first. The three states that are not judgements — nothing measured, nothing promised, a reading too old to stand for today — are counted as themselves rather than as green |
 | `kpi_status` | one KPI in full: readings, targets, and both `achieved_pct` and `expected_pct`, so the judgement can be quoted rather than asserted |
 | `list_decisions` | what is being asked, with `state` — open, closed, or **expired**, which is a deadline nobody wrote up rather than a decision nobody made |
@@ -525,6 +530,12 @@ is inclusive to the end of the day it names.
 | `add_budget_line` | a planned cost. `amount` is **per occurrence**, so twelve months of hosting is one monthly line; `allocations` splits it between projects in percent |
 | `record_spend` | money that has gone, or is committed and will. `line` attaches it to a plan line; leaving it off records unplanned spend, which the reports count separately |
 | `confirm_planned` | closes a month: records that month's planned costs as actuals at the amounts the plan says. A line with anything already recorded that month is skipped and reported, not booked twice. `dry_run` shows the list without writing it |
+| `create_product` | something the organisation sells, with its list price in the same call. `scope_amount` and `scope_unit` are the Umfang; `capacity` is what stops a simulation forecasting seats a room does not have |
+| `set_product_price` | one of several. A volume price applies from `min_quantity` upward, a partner price to partners, and an internal transfer price never counts as revenue |
+| `add_product_cost` | `basis` is the field a break-even is made of: `period` every month, `delivery` every run, `unit` per unit sold — only the last comes off the price |
+| `add_product_contributor` | an external speaker or subcontractor, as a person with a fee. The fee counts as a cost of its own basis, so it is in the margin without being entered twice |
+| `add_product_part` | put a product in a package, which is what makes it one. A package cannot contain itself at any depth; that is refused rather than corrected |
+| `create_promotion` | a campaign: what it takes off, what it applies to, what running it costs and what it should sell. A product or group it cannot resolve is an error, never a silently narrower campaign |
 | `create_kpi` | define a number to watch. `decimals` fixes the scale for every value on it; `cadence` is what lets a reading be reported as stale rather than quoted as current |
 | `record_measurement` | what a KPI reads today, or on a given day. `source` is where the number came from, and a measurement nobody can trace is one nobody can defend |
 | `set_kpi_target` | what it has to reach. Give `milestone` instead of `due_on` and the deadline moves when that milestone moves |
@@ -612,6 +623,34 @@ Every figure comes from the same function the dashboard draws with, so a number 
 number on somebody's screen. The rules behind them — what `committed` means, why the forecast takes
 closed months as they happened, how a cost splits without losing a cent —
 are in [`budgets.md`](budgets.md).
+
+### The catalogue, and the two nulls in it
+
+Every product tool answers with the **derived** figures rather than with the rows, because an
+assistant handed four price rows and eleven cost rows will do the arithmetic itself and get a
+different answer from the screen. The arithmetic is one function in `@kolibri/shared` and both
+sides call it.
+
+Two fields come back `null` where a number would be easier to read, and both are on purpose:
+
+- **`price: null` is not `price: 0`.** A product nobody has priced and a product that is free look
+  identical as a number and are not the same claim, and everything derived from a price — the
+  margin, the contribution, the break-even — is null with it. `retention_outlook` goes one step
+  further and names *why* in `missing`, because a bare null is a null somebody guesses at.
+- **`break_even.units: null` with a `blocked` reason.** Three ways there is no answer: nobody has
+  priced it, every unit loses money — no volume fixes that, and `Infinity` rendered as a large
+  number reads as merely ambitious — or the arithmetic wants more seats than a delivery can take.
+  The last is the one a spreadsheet never catches, because a spreadsheet does not know about rooms.
+
+Every proportion crossing this surface is a **percentage** and every one stored is basis points,
+converted in one place. A tool that takes `5` beside a tool that takes `500` for the same 5% is a
+schema nobody can read.
+
+`simulate_product` writes nothing, and `scenario` is the floor rather than the whole answer: the
+arguments are laid over it, so "run the summer scenario but with eight deliveries" is one call.
+The rules behind the figures — what a `delivery` cost is, why acquisition lands in one month, why a
+non-renewing product lives exactly as long as its term — are in
+[`products.md`](products.md).
 
 ### Labels, and the trap in them
 
