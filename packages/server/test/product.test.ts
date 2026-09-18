@@ -20,7 +20,7 @@ import { describe, it } from 'node:test';
 import {
   applyPromotion, assumptionsOf, breakEven, bundleValue, capabilitiesOf, costStructure,
   expectedMonths, healthOfProduct, monthlyAmount, priceFor, promotedPrice, promotionCovers,
-  promotionPhase, retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
+  mixedPeriods, periodsOf, promotionPhase, retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
   type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice,
   type Promotion,
 } from '@kolibri/shared';
@@ -30,7 +30,7 @@ let seq = 0;
 const product = (over: Partial<Product> = {}): Product => ({
   id: 'p1', workspace_id: 'w', group_id: null, name: 'Seminar', code: 'SEM', description: null,
   kind: 'single', status: 'active', owner_id: null, currency: 'EUR', unit_label: 'Platz',
-  scope_amount: 2, scope_unit: 'Tage', capacity: null, billing: 'once', term_months: 0,
+  scope_amount: 2, scope_unit: 'Tage', capacity: null, term_months: 0,
   renewal: 'none', churn_bps: 0, acquisition_cost: 0, capabilities: [], archived: 0,
   sort_order: 'V', created_at: 1, updated_at: 1, deleted_at: null, seq: 1,
   ...over,
@@ -96,6 +96,44 @@ describe('which price applies', () => {
     assert.equal(priceFor(prices, { on: '2026-03-01' })?.id, 'now');
     assert.equal(priceFor(prices, { on: '2025-06-01' })?.id, 'old');
     assert.equal(priceFor(prices, { on: '2026-07-01' })?.id, 'soon');
+  });
+
+  it('ranks by what a month costs, not by the number on the row', () => {
+    /*
+     * The first product anybody modelled with more than one billing period hit
+     * this. Monthly 49,00 € and yearly 490,00 € are 4900 and 49000 on their
+     * rows, and the raw comparison called the monthly one cheaper — per month
+     * it is the dearer of the two, 49,00 € against 40,83 €.
+     */
+    const prices = [
+      price({ id: 'monat', amount: 4_900, recurrence: 'monthly' }),
+      price({ id: 'jahr', amount: 49_000, recurrence: 'yearly' }),
+    ];
+    assert.equal(priceFor(prices)?.id, 'jahr');
+  });
+
+  it('answers for one billing period when asked for one', () => {
+    // What a screen quoting "per month" needs, and what a customer who has
+    // chosen to pay yearly needs. Neither is the other's answer.
+    const prices = [
+      price({ id: 'monat', amount: 4_900, recurrence: 'monthly' }),
+      price({ id: 'jahr', amount: 49_000, recurrence: 'yearly' }),
+    ];
+    assert.equal(priceFor(prices, { recurrence: 'monthly' })?.id, 'monat');
+    assert.equal(priceFor(prices, { recurrence: 'yearly' })?.id, 'jahr');
+    assert.equal(priceFor(prices, { recurrence: 'quarterly' }), null, 'a period nobody sells in is no price');
+  });
+
+  it('lists the periods a product is really sold in, and names the mixed case', () => {
+    const subscription = [
+      price({ amount: 4_900, recurrence: 'monthly' }),
+      price({ amount: 49_000, recurrence: 'yearly' }),
+    ];
+    assert.deepEqual(periodsOf(subscription), ['monthly', 'yearly'], 'in enum order, not arrival order');
+    assert.equal(mixedPeriods(subscription), false);
+    // A licence with a one-off setup fee. Real, and no single figure describes
+    // it — which is why it is a question rather than an average.
+    assert.equal(mixedPeriods([...subscription, price({ amount: 120_000, recurrence: 'once' })]), true);
   });
 
   it('is null when nothing applies, which is not a price of zero', () => {
@@ -363,7 +401,8 @@ describe('retention', () => {
 
   it('takes the acquisition cost off the lifetime value', () => {
     const result = retentionOf({
-      product: product({ billing: 'monthly', renewal: 'auto', churn_bps: 500, acquisition_cost: 30_000 }),
+      product: product({ renewal: 'auto', churn_bps: 500, acquisition_cost: 30_000 }),
+      recurrence: 'monthly',
       contribution: 10_000,
     });
     assert.equal(result.monthly, 10_000);
@@ -373,12 +412,41 @@ describe('retention', () => {
     assert.equal(result.payback, 3);
   });
 
+  it('does not let churn undercut a contract somebody signed', () => {
+    /*
+     * Measured on the first subscription modelled here: a twelve-month minimum
+     * term with 10% monthly churn answered "stays 10 months" — a customer
+     * leaving two months before a contract they signed. Churn measures people
+     * leaving something they *could* have left.
+     */
+    const result = retentionOf({
+      product: product({ renewal: 'auto', term_months: 12, churn_bps: 1_000 }),
+      contribution: 4_900,
+      recurrence: 'monthly',
+    });
+    assert.equal(result.months, 12);
+    assert.equal(result.cappedByTerm, true, 'and it says which of the two is doing the work');
+  });
+
+  it('lets churn run past the term when the customer stays longer', () => {
+    // The floor is a floor, not a ceiling: 2% a month is fifty months, and a
+    // twelve-month minimum does not shorten that.
+    const result = retentionOf({
+      product: product({ renewal: 'auto', term_months: 12, churn_bps: 200 }),
+      contribution: 4_900,
+      recurrence: 'monthly',
+    });
+    assert.equal(result.months, 50);
+    assert.equal(result.cappedByTerm, false);
+  });
+
   it('lives exactly as long as its term when it does not renew', () => {
     // Churn measures people leaving something they could have stayed in. A
     // fixed term that ends is not churn, and the geometric model would quietly
     // carry a non-renewing product well past its own contract.
     const result = retentionOf({
-      product: product({ billing: 'monthly', renewal: 'none', term_months: 6, churn_bps: 100 }),
+      product: product({ renewal: 'none', term_months: 6, churn_bps: 100 }),
+      recurrence: 'monthly',
       contribution: 10_000,
     });
     assert.equal(result.months, 6);
@@ -400,7 +468,7 @@ describe('simulation', () => {
 
   it('charges acquisition in the month the customer arrives, so the line dips first', () => {
     const result = simulate({
-      product: product({ billing: 'monthly', renewal: 'auto', acquisition_cost: 50_000 }),
+      product: product({ renewal: 'auto', acquisition_cost: 50_000 }),
       prices: [price({ amount: 10_000, recurrence: 'monthly' })],
       costs: [],
       assumptions: { months: 12, units: 10, deliveries: 0 },
@@ -429,6 +497,24 @@ describe('simulation', () => {
     assert.equal(result.months[119].units, 10, 'the room still holds ten');
   });
 
+  it('does not treat a capacity as a ceiling for a product that is not delivered', () => {
+    /*
+     * `capacity * deliveries` with no deliveries is zero, and it turned every
+     * unit away — silently, for exactly the products that have none: a licence,
+     * a subscription, anything sold rather than run.
+     */
+    const result = simulate({
+      product: product({ capacity: 1 }),
+      prices: [price({ amount: 4_900, recurrence: 'monthly' })],
+      costs: [],
+      assumptions: { months: 3, units: 40, deliveries: 0 },
+      from: '2026-01',
+      today: '2026-01-15',
+    });
+    assert.equal(result.months[0].units, 40);
+    assert.equal(result.turnedAway, 0);
+  });
+
   it('will not forecast units the business cannot deliver', () => {
     const result = simulate({
       product: product({ capacity: 12 }),
@@ -446,7 +532,7 @@ describe('simulation', () => {
     const shared = { costs: [], assumptions: { months: 3, units: 10, deliveries: 0 }, from: '2026-01', today: '2026-01-15' } as const;
     const sub = simulate({
       ...shared,
-      product: product({ billing: 'monthly', renewal: 'auto' }),
+      product: product({ renewal: 'auto' }),
       prices: [price({ amount: 10_000, recurrence: 'monthly' })],
     });
     assert.equal(sub.months[0].active, 10);

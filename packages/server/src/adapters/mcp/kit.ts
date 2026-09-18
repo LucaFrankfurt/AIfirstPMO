@@ -1277,7 +1277,10 @@ export function productView(entry: CatalogueEntry): Record<string, unknown> {
     unit: product.unit_label,
     scope: product.scope_amount ? `${product.scope_amount} ${product.scope_unit ?? ''}`.trim() : null,
     capacity: product.capacity,
-    billing: product.billing,
+    // The periods it is actually sold in, read off the prices. A product has
+    // several and a single `billing` field used to claim it had one.
+    periods: entry.periods,
+    mixed_periods: entry.mixed,
     ...money(currency, {
       price: economics.price ?? 0,
       unit_cost: economics.unitCost,

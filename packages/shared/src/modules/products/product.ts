@@ -21,6 +21,7 @@
  * A product priced in two of them is two answers, never a sum.
  */
 import {
+  COST_RECURRENCES,
   type CostBasis, type CostCategory, type CostRecurrence, type ID, type ISODate, type Minor,
   type Product, type ProductAssumptions, type ProductContributor, type ProductCost, type ProductPart,
   type ProductPrice, type Promotion, type PromotionKind, type PromotionStatus,
@@ -72,12 +73,19 @@ const scaleBps = (amount: Minor, bps: number): Minor => Math.round((amount * bps
  */
 export function priceFor(
   prices: readonly ProductPrice[],
-  options: { quantity?: number; on?: ISODate; kind?: ProductPrice['kind'] } = {},
+  options: {
+    quantity?: number;
+    on?: ISODate;
+    kind?: ProductPrice['kind'];
+    /** Only prices charged this often. Omitted, every period is eligible. */
+    recurrence?: CostRecurrence;
+  } = {},
 ): ProductPrice | null {
   const quantity = Math.max(1, Math.round(options.quantity ?? 1));
   const on = options.on ?? null;
   const eligible = prices.filter((price) => {
     if (options.kind ? price.kind !== options.kind : price.kind === 'internal') return false;
+    if (options.recurrence && price.recurrence !== options.recurrence) return false;
     if (on && price.valid_from && price.valid_from > on) return false;
     if (on && price.valid_to && price.valid_to < on) return false;
     return Math.max(1, price.min_quantity || 1) <= quantity;
@@ -85,9 +93,53 @@ export function priceFor(
   if (!eligible.length) return null;
   return [...eligible].sort((a, b) =>
     (Math.max(1, b.min_quantity || 1) - Math.max(1, a.min_quantity || 1))
-    || (a.amount - b.amount)
+    || (comparableAmount(a) - comparableAmount(b))
     || (a.id < b.id ? -1 : 1))[0]!;
 }
+
+/**
+ * What two prices can honestly be ranked by.
+ *
+ * The tie-break above used to be `a.amount - b.amount`, and that compared
+ * numbers which do not mean the same thing. A product sold at €49.00 a month
+ * and at €490.00 a year has 4900 and 49000 on its two rows; the raw comparison
+ * calls the monthly one cheaper, and per month it is the dearer of the two —
+ * €49.00 against €40.83. The first product anybody modelled with more than one
+ * billing period hit it, because that is what a subscription business *is*.
+ *
+ * So a recurring price ranks by what it costs **per month** and a one-off ranks
+ * by itself. Mixing the two on one product is not resolved by arithmetic and is
+ * not silently averaged either: `mixedPeriods` below says so, and the screens
+ * show the sentence rather than a number that looks decided.
+ */
+export function comparableAmount(price: Pick<ProductPrice, 'amount' | 'recurrence'>): Minor {
+  const perMonth = monthlyAmount(price.amount, price.recurrence);
+  return perMonth || price.amount;
+}
+
+/**
+ * The billing periods a product is actually sold in, in a fixed order.
+ *
+ * `COST_RECURRENCES` order rather than the order the rows arrive in, so two
+ * devices holding the same prices list them the same way.
+ */
+export function periodsOf(prices: readonly ProductPrice[]): CostRecurrence[] {
+  const seen = new Set(prices.filter((price) => price.kind !== 'internal').map((price) => price.recurrence));
+  return COST_RECURRENCES.filter((every) => seen.has(every));
+}
+
+/**
+ * Whether a product is sold both as a sale and as a subscription.
+ *
+ * A real thing — a licence with a one-off setup fee — and a state no single
+ * figure describes, which is why it is a question rather than a computation.
+ * `€1 200 once` and `€49 a month` have no common denominator that is not an
+ * assumption about how long somebody stays.
+ */
+export const mixedPeriods = (prices: readonly ProductPrice[]): boolean => {
+  const periods = periodsOf(prices);
+  return periods.includes('once') && periods.length > 1;
+};
 
 /**
  * A price over one month, whatever it is charged over.
@@ -582,16 +634,34 @@ export interface Retention {
   value: Minor | null;
   /** Months until the acquisition cost is back. Null when it never is. */
   payback: number | null;
+  /**
+   * Whether the minimum term is doing the work rather than the churn.
+   *
+   * True when the churn on its own would have said a customer leaves before
+   * the contract they signed ends. Not an error — a high churn against a long
+   * term is exactly the thing somebody should look at — but the two are saying
+   * different things and only one of them can be the figure.
+   */
+  cappedByTerm: boolean;
 }
 
 export function retentionOf(input: {
-  product: Pick<Product, 'billing' | 'churn_bps' | 'acquisition_cost' | 'term_months' | 'renewal'>;
+  product: Pick<Product, 'churn_bps' | 'acquisition_cost' | 'term_months' | 'renewal'>;
   contribution: Minor | null;
-  /** How the contribution is charged. Usually the product's own `billing`. */
+  /**
+   * How the contribution is charged, which is a fact about the **price** and
+   * not about the product.
+   *
+   * It used to fall back to `product.billing`, and that column is gone: the
+   * same product is sold monthly, yearly and two-yearly at once, so a single
+   * answer on the product was a single answer to a question with several. A
+   * caller with no price has nothing to convert and says `once`, which is what
+   * an unpriced product's contribution already is — an amount, not a rate.
+   */
   recurrence?: CostRecurrence;
   churnBps?: number | null;
 }): Retention {
-  const recurrence = input.recurrence ?? input.product.billing;
+  const recurrence = input.recurrence ?? 'once';
   const contribution = input.contribution;
   const monthly = contribution === null ? null : monthlyAmount(contribution, recurrence);
   const churn = input.churnBps ?? input.product.churn_bps;
@@ -602,16 +672,37 @@ export function retentionOf(input: {
    * geometric model over it would quietly extend every non-renewing product
    * past its own contract.
    */
+  /*
+   * A minimum term is a **floor**, and it was not one.
+   *
+   * The first subscription anybody modelled here had a twelve-month minimum
+   * term and 10% monthly churn, and the screen answered "stays 10 months" —
+   * a customer leaving two months before a contract they signed. Churn measures
+   * people leaving something they *could* have left; inside the term they could
+   * not, so the term wins and the churn only decides what happens after it.
+   *
+   * Stated as a maximum of the two rather than as a warning, because a warning
+   * leaves the wrong number on the screen beside it. The two disagreeing is
+   * still worth seeing — `Retention.cappedByTerm` says so — but the figure
+   * itself is now the one the contract makes true.
+   */
   const byChurn = expectedMonths(churn);
+  const term = input.product.term_months > 0 ? input.product.term_months : null;
   const months = input.product.renewal === 'none'
-    ? (input.product.term_months > 0 ? input.product.term_months : null)
-    : byChurn;
+    ? term
+    : (byChurn === null ? term : Math.max(byChurn, term ?? 0));
   const gross = monthly === null || months === null ? null : Math.round(monthly * months);
   const value = gross === null ? null : gross - (Math.round(Number(input.product.acquisition_cost)) || 0);
   const payback = monthly === null || monthly <= 0
     ? null
     : Math.ceil((Math.round(Number(input.product.acquisition_cost)) || 0) / monthly);
-  return { monthly, months, value, payback };
+  return {
+    monthly,
+    months,
+    value,
+    payback,
+    cappedByTerm: term !== null && byChurn !== null && byChurn < term && input.product.renewal !== 'none',
+  };
 }
 
 /* ------------------------------------------------------------- simulation */
@@ -740,7 +831,7 @@ export interface Simulation {
  *   two would drift.
  */
 export function simulate(input: {
-  product: Pick<Product, 'id' | 'group_id' | 'currency' | 'capacity' | 'billing' | 'churn_bps' | 'acquisition_cost'>;
+  product: Pick<Product, 'id' | 'group_id' | 'currency' | 'capacity' | 'churn_bps' | 'acquisition_cost'>;
   prices: readonly ProductPrice[];
   costs: readonly ProductCost[];
   contributors?: readonly ProductContributor[];
@@ -761,7 +852,10 @@ export function simulate(input: {
     ? input.prices.find((price) => price.id === assumed.price_id) ?? null
     : priceFor(input.prices, { quantity: assumed.units || 1, on: input.today });
   const listPrice = chosen ? chosen.amount : null;
-  const recurrence = chosen ? chosen.recurrence : input.product.billing;
+  // The chosen price says how often it is charged. A product with no price is
+  // not a projection at all — `price` is null and every figure below with it —
+  // so the fallback only has to be something that does not divide.
+  const recurrence = chosen ? chosen.recurrence : 'once';
 
   /*
    * Only the campaigns the scenario names, and only where they cover this
@@ -823,7 +917,18 @@ export function simulate(input: {
     const month = addMonths(start, index);
     const grown = assumed.units * ((FULL_BPS + assumed.growth_bps) / FULL_BPS) ** index;
     const wanted = Math.min(MOST_UNITS, Math.max(0, Number.isFinite(grown) ? Math.round(grown) : MOST_UNITS));
-    const ceiling = capacity === null ? wanted : capacity * assumed.deliveries;
+    /*
+     * A capacity is a ceiling **per delivery**, so with no deliveries it is not
+     * a ceiling at all.
+     *
+     * It used to multiply out to `capacity * 0 = 0` and turn every unit away,
+     * silently, for exactly the products that have no deliveries: a licence, a
+     * subscription, anything sold rather than run. The first SaaS anybody
+     * modelled here had `capacity: 1` and `deliveries: 1` and forecast one sale
+     * a month against forty — which is the same trap one step along, and why
+     * the form no longer offers the field to a product that is not delivered.
+     */
+    const ceiling = capacity === null || assumed.deliveries <= 0 ? wanted : capacity * assumed.deliveries;
     const sold = Math.min(wanted, ceiling);
     turnedAway += wanted - sold;
 
@@ -885,6 +990,17 @@ export interface CatalogueEntry {
   promotions: ID[];
   /** The price after those campaigns, when any apply. */
   promoted: Minor | null;
+  /**
+   * The billing periods it is actually sold in, read off its prices.
+   *
+   * A list rather than a field on the product, which is what it was and what
+   * made the form ask for one answer to a question with several: the same
+   * product is sold monthly, yearly and two-yearly at once. Empty for a product
+   * nobody has priced.
+   */
+  periods: CostRecurrence[];
+  /** Sold both as a sale and as a subscription. See `mixedPeriods`. */
+  mixed: boolean;
 }
 
 /**
@@ -928,9 +1044,17 @@ export function catalogue(input: {
       economics,
       structure,
       breakEven: breakEven({ product, economics, structure, months: input.months, deliveries: input.deliveries }),
-      retention: retentionOf({ product, contribution: economics.contribution }),
+      retention: retentionOf({
+        product,
+        contribution: economics.contribution,
+        // The period of the price the row is quoting, not a field on the
+        // product — otherwise a yearly contribution is read as a monthly one.
+        recurrence: priceFor(prices, { on: input.today })?.recurrence,
+      }),
       promotions: running.map((promotion) => promotion.id),
       promoted: economics.price === null || !running.length ? null : promotedPrice(economics.price, running),
+      periods: periodsOf(prices),
+      mixed: mixedPeriods(prices),
     };
   });
 }

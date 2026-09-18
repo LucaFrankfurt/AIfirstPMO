@@ -286,3 +286,37 @@ export function useCapabilityNames(): Map<string, string> {
 
 /** The three bases, in the order a cost structure reads: fixed first, variable last. */
 export const BASES: readonly CostBasis[] = ['period', 'delivery', 'unit'];
+
+/**
+ * The currencies the picker offers.
+ *
+ * A short list rather than all 180 of ISO 4217: a `select` of 180 is a `select`
+ * nobody scrolls, and the ones missing are addable the day somebody asks. The
+ * product's own code is always offered alongside, so editing a product in a
+ * currency this list has never heard of does not silently blank it.
+ *
+ * Here rather than in the kernel because nothing else asks: a budget's currency
+ * and a rate's are typed on their own screens, and one shared list would be a
+ * kernel module answering a question two capabilities have not asked yet.
+ */
+export const CURRENCIES = ['EUR', 'CHF', 'GBP', 'USD', 'SEK', 'NOK', 'DKK', 'PLN', 'CZK'] as const;
+
+/**
+ * What one sold unit tends to be called, as suggestions.
+ *
+ * Offered through a `datalist`, so the common words are one keystroke away and
+ * anything else is still typeable. Nothing sums or groups across products by
+ * this word — unlike `scope_unit` next to it — so a closed list would buy
+ * nothing and cost the organisation its own vocabulary.
+ */
+export const UNIT_SUGGESTIONS = ['seat', 'licence', 'day', 'booking', 'device', 'user'] as const;
+
+/**
+ * The units a scope is measured in. Closed, deliberately.
+ *
+ * `scope_amount` exists so that two products can be compared — two days against
+ * three, twelve months against twenty-four — and that comparison is worth
+ * nothing the moment one product says "Monate" and the next says "Monat". The
+ * same argument `CostCategory` makes, at a smaller scale.
+ */
+export const SCOPE_UNITS = ['days', 'months', 'hours', 'years', 'weeks', 'gigabytes'] as const;

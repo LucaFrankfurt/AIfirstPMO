@@ -637,6 +637,15 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       one, and a half-built one whose numbers cannot be reconciled with the finance system is worse
       than an assumption that admits it is one. **The honest middle step, if this is wanted, is
       recording cohort sizes month by month** — enough for a real curve, without holding a person.
+- [ ] **`products.billing` is a dead column on every instance that ran the first
+      version.** The period moved to the price, where it belonged; the column left `schema.sql` and
+      the registry, and nothing writes or reads it. On a fresh database it is simply not there. On
+      one created by the first build it stays, because a column removed from `schema.sql` reaches
+      no existing instance — the same limitation recorded further down, now with an instance of it.
+      Harmless and measured rather than assumed: a database with the column added back takes a
+      product write, a read and a sync pull without it, because the column carries
+      `NOT NULL DEFAULT 'once'` and the insert never names it. It would be tidied by whatever
+      eventually closes the removal gap; it is not worth a migration runner of its own.
 - [ ] **A product is not linked to the project that builds it.** The link is obviously useful and
       it is left out on purpose: the generic REST guard reads `project_id` off any row that has one,
       so a product naming a private project would become invisible to everybody not on it — turning

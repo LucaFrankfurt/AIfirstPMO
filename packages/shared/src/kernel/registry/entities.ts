@@ -271,7 +271,7 @@ export const ENTITIES = {
     fields: [
       'workspace_id', 'group_id', 'name', 'code', 'description', 'kind', 'status',
       'owner_id', 'currency', 'unit_label', 'scope_amount', 'scope_unit', 'capacity',
-      'billing', 'term_months', 'renewal', 'churn_bps', 'acquisition_cost',
+      'term_months', 'renewal', 'churn_bps', 'acquisition_cost',
       'capabilities', 'archived', 'sort_order',
     ],
     json: ['capabilities'],

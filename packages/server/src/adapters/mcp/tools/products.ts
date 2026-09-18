@@ -218,7 +218,7 @@ export const productTools: ToolDef[] = [
         scope_amount: { type: 'number' },
         scope_unit: { type: 'string', description: 'Tage, Monate, Stunden' },
         capacity: { type: 'number', description: 'Units one delivery can take. Omit for no ceiling' },
-        billing: { type: 'string', enum: [...COST_RECURRENCES], description: 'once is a sale, the rest a subscription' },
+        billing: { type: 'string', enum: [...COST_RECURRENCES], description: 'How `price` is charged. once is a sale, the rest a subscription. A product sold in several periods gets a `set_product_price` per period' },
         term_months: { type: 'number', description: 'Minimum commitment. 0 is none' },
         renewal: { type: 'string', enum: [...RENEWALS] },
         churn_percent: { type: 'number', description: 'Customers lost per month, e.g. 3.5' },
@@ -239,6 +239,11 @@ export const productTools: ToolDef[] = [
         : null;
       if (wanted && !group) throw new McpError(`No product group "${args.group}" in this workspace`);
 
+      /*
+       * The period belongs to the price, not to the product — the same product
+       * is sold monthly and yearly at once. Kept as an argument here because
+       * this call also makes the first price, and that price needs one.
+       */
       const billing = (COST_RECURRENCES as readonly string[]).includes(String(args.billing)) ? String(args.billing) : 'once';
       const { row } = writeEntity('product', uid(), {
         workspace_id: workspaceId,
@@ -253,7 +258,6 @@ export const productTools: ToolDef[] = [
         scope_amount: args.scope_amount === undefined ? 0 : whole(args.scope_amount, 'scope_amount', 0, 1_000_000),
         scope_unit: str(args.scope_unit) ?? null,
         capacity: args.capacity === undefined ? null : whole(args.capacity, 'capacity', 1, 1_000_000),
-        billing,
         term_months: args.term_months === undefined ? 0 : whole(args.term_months, 'term_months', 0, 600),
         renewal: (RENEWALS as readonly string[]).includes(String(args.renewal)) ? args.renewal : 'none',
         churn_bps: args.churn_percent === undefined ? 0 : bps(args.churn_percent, 'churn_percent', 0, 100),
@@ -324,7 +328,9 @@ export const productTools: ToolDef[] = [
         min_quantity: args.min_quantity === undefined ? 1 : whole(args.min_quantity, 'min_quantity', 1, 1_000_000),
         recurrence: (COST_RECURRENCES as readonly string[]).includes(String(args.recurrence))
           ? args.recurrence
-          : product.billing,
+          // A product no longer carries a period, so a price that does not name
+          // one is a sale. Naming it is the ordinary case and the schema says so.
+          : 'once',
         valid_from: isoDay(args.valid_from, 'valid_from'),
         valid_to: isoDay(args.valid_to, 'valid_to'),
         note: str(args.note) ?? null,
@@ -765,11 +771,15 @@ export const productTools: ToolDef[] = [
       const rows = entries
         .filter((entry) => (wanted ? entry.product.id === wanted : !Number(entry.product.archived)))
         .map((entry) => {
-          const retention = retentionOf({ product: entry.product, contribution: entry.economics.contribution });
+          const retention = retentionOf({
+            product: entry.product,
+            contribution: entry.economics.contribution,
+            recurrence: entry.periods.find((every) => every !== 'once') ?? 'once',
+          });
           return {
             id: entry.product.id,
             name: entry.product.name,
-            billing: entry.product.billing,
+            periods: entry.periods,
             renewal: entry.product.renewal,
             term_months: entry.product.term_months,
             churn_percent: entry.product.churn_bps / 100,

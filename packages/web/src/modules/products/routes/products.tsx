@@ -18,7 +18,7 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS, PRICE_KINDS,
   PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
-  assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, orderKey, priceFor,
+  assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, expectedMonths, orderKey, priceFor,
   promotionPhase, retentionCurve, retentionOf, simulate,
   type CatalogueEntry, type CostBasis, type Minor, type Product, type ProductAssumptions, type ProductCapability,
   type ProductContributor, type ProductCost, type ProductGroup, type ProductPrice,
@@ -26,7 +26,7 @@ import {
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
 import {
-  BASES, Health, Margin, ProjectionChart, RetentionBars, UnitBar,
+  BASES, CURRENCIES, Health, Margin, ProjectionChart, RetentionBars, SCOPE_UNITS, UNIT_SUGGESTIONS, UnitBar,
   basisKey, billingKey, blockedKey, phaseKey, priceKindKey, promoKindKey,
   renewalKey, statusKey, useCapabilityNames, useCatalogue,
 } from '../product';
@@ -224,6 +224,12 @@ function Catalogue() {
                         {entry.promotions.length > 0 && entry.promoted !== null && (
                           <> <Chip>{asMoney(entry.promoted, entry.economics.currency, true)}</Chip></>
                         )}
+                        {/* Which periods it is actually sold in. A product with
+                            three prices used to show one number and say nothing
+                            about which of the three it was. */}
+                        {entry.periods.map((every) => (
+                          <span key={every}> <Chip>{t(billingKey(every))}</Chip></span>
+                        ))}
                       </td>
                       <td>
                         {entry.economics.price === null
@@ -870,16 +876,30 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
     () => (product.renewal === 'none' ? [] : retentionCurve(product.churn_bps, 12)),
     [product.renewal, product.churn_bps],
   );
+  /** The price row the tiles above are quoting, so they can name its period. */
+  const prices = useQuery(() => list('productPrice', (row) => row.product_id === product.id), [product.id]);
+  const quoted = useMemo(() => priceFor(prices, { on: today() }), [prices]);
 
   return (
     <div className="grid gap-3.5">
       {product.description && <p className="text-[13px] text-muted">{product.description}</p>}
 
       <div className="kpi-row">
+        {/*
+          * The period is part of the figure, not decoration.
+          *
+          * Without it the tile read "490,00 € je Lizenz" beside a lifetime value
+          * of 489,96 € and looked like a contradiction: the 490 is a *year* and
+          * the lifetime is twelve months of it. A price with no period on it is
+          * a number the reader has to guess the denominator of.
+          */}
         <Stat
           label={t('product.price')}
           value={entry.economics.price === null ? '—' : asMoney(entry.economics.price, currency)}
-          hint={product.unit_label ? t('product.perUnit', { unit: product.unit_label }) : undefined}
+          hint={[
+            product.unit_label ? t('product.perUnit', { unit: product.unit_label }) : null,
+            quoted ? t(billingKey(quoted.recurrence)).toLocaleLowerCase() : null,
+          ].filter(Boolean).join(' · ') || undefined}
         />
         <Stat label={t('product.unitCost')} value={asMoney(entry.economics.unitCost, currency)} hint={t('product.unitCostHint')} />
         <Stat
@@ -893,6 +913,13 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
           hint={product.capacity ? t('product.capacityHint', { capacity: String(product.capacity) }) : undefined}
         />
       </div>
+
+      {entry.periods.length > 0 && (
+        <p className="text-[12.5px] text-muted">
+          {t('product.periods')}: {entry.periods.map((every) => t(billingKey(every))).join(' · ')}
+        </p>
+      )}
+      {entry.mixed && <p className="notice-warn">{t('product.mixedPeriods')}</p>}
 
       <div>
         <SectionHeading>{t('product.unitPicture')}</SectionHeading>
@@ -953,6 +980,17 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
                 hint={t('product.paybackHint', { cost: asMoney(product.acquisition_cost, currency) })}
               />
             </div>
+            {/* The two disagreeing is the thing to look at, and the figure
+                above no longer hides it: a twelve-month contract against 10%
+                monthly churn used to read "stays 10 months". */}
+            {retention.cappedByTerm && (
+              <p className="notice-warn">
+                {t('product.cappedByTerm', {
+                  churn: String(Math.round(expectedMonths(product.churn_bps) ?? 0)),
+                  term: String(product.term_months),
+                })}
+              </p>
+            )}
             {curve.length > 0 && <RetentionBars curve={curve} caption={t('product.retentionCaption')} />}
           </>
         )}
@@ -1205,7 +1243,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
     kind: price?.kind ?? ('list' as ProductPrice['kind']),
     amount: price?.amount ?? 0,
     min_quantity: price?.min_quantity ?? 1,
-    recurrence: price?.recurrence ?? product.billing,
+    recurrence: price?.recurrence ?? 'once',
     valid_from: price?.valid_from ?? '',
     valid_to: price?.valid_to ?? '',
     note: price?.note ?? '',
@@ -1792,7 +1830,6 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
     scope_amount: product?.scope_amount ?? 0,
     scope_unit: product?.scope_unit ?? '',
     capacity: product?.capacity ?? null,
-    billing: product?.billing ?? ('once' as Product['billing']),
     term_months: product?.term_months ?? 0,
     renewal: product?.renewal ?? ('none' as Product['renewal']),
     churn_bps: product?.churn_bps ?? 0,
@@ -1822,7 +1859,6 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
               scope_amount: form.scope_amount,
               scope_unit: form.scope_unit.trim() || null,
               capacity: form.capacity,
-              billing: form.billing,
               term_months: form.term_months,
               renewal: form.renewal,
               churn_bps: form.churn_bps,
@@ -1874,7 +1910,16 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-currency">{t('product.currency')}</label>
-          <Input id="p-currency" value={form.currency} maxLength={3} onChange={(event) => setForm({ ...form, currency: event.target.value })} />
+          {/* A list rather than three characters somebody types. ISO 4217 is
+              closed, the server upper-cases and falls back to EUR anyway, and
+              a typed "eur" that silently becomes EUR is a field that corrects
+              you without saying so. A code this list does not carry stays
+              selectable when the product already has it — see `CURRENCIES`. */}
+          <Select id="p-currency" value={form.currency} onChange={(event) => setForm({ ...form, currency: event.target.value })}>
+            {[...new Set([...CURRENCIES, form.currency].filter(Boolean))].map((code) => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </Select>
         </div>
       </div>
 
@@ -1883,7 +1928,14 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
       <div className="field-row">
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-unit">{t('product.unitLabel')}</label>
-          <Input id="p-unit" value={form.unit_label} placeholder={t('product.unitPlaceholder')} onChange={(event) => setForm({ ...form, unit_label: event.target.value })} />
+          {/* Suggestions, not a closed list: what one unit is called is the
+              organisation's word and nothing sums across products by it. A
+              `datalist` keeps both — the common ones offered, anything typed. */}
+          <Input id="p-unit" list="p-unit-options" value={form.unit_label} placeholder={t('product.unitPlaceholder')}
+            onChange={(event) => setForm({ ...form, unit_label: event.target.value })} />
+          <datalist id="p-unit-options">
+            {UNIT_SUGGESTIONS.map((key) => <option key={key} value={t(`product.unitOption.${key}` as TranslationKey)} />)}
+          </datalist>
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-scope">{t('product.scopeAmount')}</label>
@@ -1892,30 +1944,66 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
         </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-scope-unit">{t('product.scopeUnit')}</label>
-          <Input id="p-scope-unit" value={form.scope_unit} placeholder={t('product.scopeUnitPlaceholder')} onChange={(event) => setForm({ ...form, scope_unit: event.target.value })} />
+          {/* Closed, unlike the one beside it, and for the reason a cost
+              category is closed: the whole point of `scope_amount` is that two
+              products can be compared by it, and "Monate" against "Monat"
+              against "months" is three units in every table that tries. */}
+          <Select id="p-scope-unit" value={form.scope_unit}
+            onChange={(event) => setForm({ ...form, scope_unit: event.target.value })}>
+            <option value="">{t('product.scopeUnitNone')}</option>
+            {SCOPE_UNITS.map((key) => (
+              <option key={key} value={t(`product.scopeUnit.${key}` as TranslationKey)}>
+                {t(`product.scopeUnit.${key}` as TranslationKey)}
+              </option>
+            ))}
+            {/* Whatever is already stored, so editing an older product does not
+                silently blank a unit this list has never heard of. */}
+            {form.scope_unit && !SCOPE_UNITS.some((key) => t(`product.scopeUnit.${key}` as TranslationKey) === form.scope_unit)
+              && <option value={form.scope_unit}>{form.scope_unit}</option>}
+          </Select>
         </div>
-        <div className="field flex-1 min-w-0">
+      </div>
+      {/*
+        * Capacity only where it is a ceiling.
+        *
+        * It is a ceiling *per delivery*, so for a product that is not delivered
+        * — a licence, a subscription — it means nothing, and the first SaaS
+        * anybody modelled here carried `capacity: 1` and forecast one sale a
+        * month against forty. A field nobody should fill in is better not shown
+        * than shown with a warning under it.
+        */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={form.capacity !== null}
+          onChange={(event) => setForm({ ...form, capacity: event.target.checked ? 12 : null })}
+        />
+        <span>
+          <span>{t('product.capacityApplies')}</span>
+          <span className="text-[12px] text-muted">{t('product.capacityAppliesHint')}</span>
+        </span>
+      </label>
+      {form.capacity !== null && (
+        <div className="field">
           <label htmlFor="p-capacity">{t('product.capacity')}</label>
           <Input
             id="p-capacity"
             type="number"
             min={1}
-            value={form.capacity ?? ''}
-            placeholder={t('product.capacityNone')}
-            onChange={(event) => setForm({ ...form, capacity: event.target.value === '' ? null : Math.max(1, Number(event.target.value)) })}
+            value={form.capacity}
+            onChange={(event) => setForm({ ...form, capacity: Math.max(1, Number(event.target.value) || 1) })}
           />
         </div>
-      </div>
+      )}
 
       <SectionHeading>{t('product.retention')}</SectionHeading>
       <p className="text-[12px] text-muted">{t('product.retentionHint')}</p>
+      {/* No billing period here, and the line below says where it went. The
+          same product is sold monthly, yearly and two-yearly at once, so one
+          select on the product was one answer to a question with several — it
+          is a price's business and always was. */}
+      <p className="text-[12px] text-muted">{t('product.billingMovedHint')}</p>
       <div className="field-row">
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="p-billing">{t('product.billingLabel')}</label>
-          <Select id="p-billing" value={form.billing} onChange={(event) => setForm({ ...form, billing: event.target.value as Product['billing'] })}>
-            {COST_RECURRENCES.map((every) => <option key={every} value={every}>{t(billingKey(every))}</option>)}
-          </Select>
-        </div>
         <div className="field flex-1 min-w-0">
           <label htmlFor="p-renewal">{t('product.renewalLabel')}</label>
           <Select id="p-renewal" value={form.renewal} onChange={(event) => setForm({ ...form, renewal: event.target.value as Product['renewal'] })}>

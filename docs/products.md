@@ -19,7 +19,7 @@ read side by side without a translation table.
 
 | | |
 |---|---|
-| **Product** | Something that is sold. A name, a currency, an owner, what one unit *is*, how much of something it contains, and how many of it one delivery can take. |
+| **Product** | Something that is sold. A name, a currency, an owner, what one unit *is*, how much of something it contains, and — where it is delivered — how many of it one delivery can take. **Not** how often it is charged: that is the price's. |
 | **Group** | A family of products, for the reports that ask about a line of business. Flat: a product belongs to one or to none. |
 | **Price** | One price it can be sold at. A product has several; which applies is worked out from the order size and the day. |
 | **Cost** | What it costs to have and to deliver, and — the field a break-even is made of — what that cost varies with. |
@@ -88,6 +88,34 @@ A package may not contain itself at any depth. That is the one rule in the write
 path here that **refuses** rather than corrects, because every correction
 available is a guess at what somebody meant — and the failure mode is a walk
 that never terminates, inside a write transaction, on a row a client will retry.
+
+## The billing period belongs to the price
+
+A product does not carry one, and the first real subscription modelled here is
+why. The same product is sold **monthly, yearly and two-yearly at once** — those
+are three prices, not three products — so a single field on the product was one
+answer to a question with several. It shipped as `Product.billing` and it is
+gone; `ProductPrice.recurrence` is where the period lives and always was.
+
+That had a consequence worth writing down, because it is the shape of mistake
+this whole file is written to avoid. `priceFor` ranked candidates by
+`a.amount - b.amount`, and those numbers do not mean the same thing:
+
+| | on the row | per month |
+|---|---:|---:|
+| Monthly | 4 900 | **4 900** |
+| Yearly | 49 000 | **4 083** |
+
+The raw comparison called the monthly price cheaper. Per month it is the dearer
+of the two. So a recurring price now ranks by what it costs per month
+(`comparableAmount`) and a one-off ranks by itself — and a product carrying both
+is **named rather than averaged**: `mixedPeriods` says so and the screens print
+the sentence, because a licence with a one-off setup fee has no single figure
+that is not an assumption about how long somebody stays.
+
+`priceFor` also takes a `recurrence` now. A screen quoting "per month" and a
+customer who has chosen to pay yearly are asking different questions, and
+neither is the other's answer.
 
 ## Which price applies
 
@@ -192,9 +220,13 @@ put in front of a steering committee and running it twice gives the same answer.
 Three things it does that a spreadsheet of the same shape usually does not, each
 of them the reason for a wrong number somewhere:
 
-- **Capacity is a ceiling, not a suggestion.** Units above it are counted as
-  turned away rather than sold. A forecast the business cannot deliver is not a
-  forecast.
+- **Capacity is a ceiling, not a suggestion** — and a ceiling **per delivery**,
+  so for a product that is not delivered it is no ceiling at all. `capacity ×
+  deliveries` with no deliveries is zero and turned every unit away, silently,
+  for exactly the products that have none: a licence, a subscription, anything
+  sold rather than run. The form now asks for a capacity only where deliveries
+  exist, because a field nobody should fill in is better not shown than shown
+  with a warning under it.
 - **Acquisition is charged in the month the customer arrives**, not spread. That
   is what makes the cumulative line dip before it climbs, and the dip is the
   entire question somebody is asking.
@@ -216,9 +248,15 @@ Kolibri counts customers — the churn is a number somebody types in from the sy
 that does — and a survival curve would need a customer register this deliberately
 does not keep. See [`TODO.md`](../TODO.md).
 
-- **Expected months** is `1 / churn`. Zero churn is *unmeasured*, not an immortal
-  customer: it reads as null, and every screen says "no churn recorded" rather
-  than rendering an infinity into a lifetime value.
+- **A minimum term is a floor.** Inside it a customer cannot leave, so a churn
+  that would have them gone sooner does not get to say so. This was wrong on the
+  first subscription modelled here: twelve months' minimum term against 10%
+  monthly churn read *"stays 10 months"* — a customer leaving two months before
+  a contract they signed. The two disagreeing is still worth seeing, so
+  `Retention.cappedByTerm` says which of them is doing the work.
+- **Expected months** is `1 / churn` above that floor. Zero churn is
+  *unmeasured*, not an immortal customer: it reads as null, and every screen says
+  "no churn recorded" rather than rendering an infinity into a lifetime value.
 - **A product that does not renew lives exactly as long as its term**, whatever
   its churn says. Churn measures people leaving something they could have stayed
   in; a fixed term that ends is not churn, and running the geometric model over
