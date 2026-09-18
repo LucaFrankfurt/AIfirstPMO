@@ -61,6 +61,16 @@ second set of everything. That is the shape where the catalogue total counts a
 package and its parts twice, and where somebody has to remember which of the two
 reports is the one that does not.
 
+**The form asks which it is**, and for a while it did not. `kind` was written as
+`single` on every create and changed only by a button inside the package tab's
+empty state — so the one screen that names packages was the one you reached by
+opening a tab that said *this is not a package*. Nothing threw and the form
+looked complete; the conclusion a person drew was that packages could not be
+modelled at all. A product already holding parts cannot go back to single,
+because `unitCosts` recurses through them whatever the kind says. `forms.test.ts`
+now refuses any field the create call pins on the form's behalf beyond the two
+that are bookkeeping.
+
 What the package adds is the comparison: **what it would cost bought part by
 part**, against what it actually costs. A package priced *above* its parts is a
 real thing — a managed service is worth more than its licences — and it should
