@@ -165,7 +165,7 @@ export const productTools: ToolDef[] = [
           fee_basis: person.fee_basis,
           ...money(currency, { fee: Number(person.fee) }),
         })),
-        price_history: priceHistory(own).map((change) => ({
+        price_history: priceHistory(own, Number(entry.product.term_months) || 0).map((change) => ({
           on: change.on,
           name: change.to.name || null,
           kind: change.to.kind,
@@ -175,7 +175,7 @@ export const productTools: ToolDef[] = [
         })),
         /* Two prices live at once for the same offer. Reported rather than
            resolved: which was meant is not ours to guess. */
-        overlapping_prices: overlappingPrices(own).map(([a, b]) => [a.id, b.id]),
+        overlapping_prices: overlappingPrices(own, Number(entry.product.term_months) || 0).map(([a, b]) => [a.id, b.id]),
         capabilities: (entry.product.capabilities ?? [])
           .map((id) => capabilities.find((row) => row.id === id))
           .filter((row): row is Row => !!row)
@@ -307,8 +307,9 @@ export const productTools: ToolDef[] = [
     description:
       'Add a price to a product. A product may have several: the published one, a volume price '
       + 'that applies from `min_quantity` upward, a partner price, and an internal transfer price '
-      + 'that never counts as revenue. Which one applies to an order is worked out from the '
-      + 'quantity and the day, so they can all exist at once.',
+      + 'that never counts as revenue, and the same offer on a longer commitment at a lower '
+      + 'amount. Which one applies to an order is worked out from the quantity and the day, so '
+      + 'they can all exist at once.',
     schema: {
       type: 'object',
       required: ['product', 'amount'],
@@ -319,6 +320,12 @@ export const productTools: ToolDef[] = [
         kind: { type: 'string', enum: [...PRICE_KINDS] },
         min_quantity: { type: 'number', description: 'Smallest order it applies to. Defaults to 1' },
         recurrence: { type: 'string', enum: [...COST_RECURRENCES] },
+        term_months: {
+          type: 'number',
+          description: 'What the customer commits to for THIS price, in months. Omit to use the '
+            + "product's own term. 0 is an explicit no-commitment. Use it to price one product at "
+            + 'several terms at once, e.g. 64 monthly, 59 on a year, 54 on two.',
+        },
         valid_from: { type: 'string', description: 'YYYY-MM-DD' },
         valid_to: { type: 'string', description: 'YYYY-MM-DD' },
         note: { type: 'string' },
@@ -343,6 +350,9 @@ export const productTools: ToolDef[] = [
           // A product no longer carries a period, so a price that does not name
           // one is a sale. Naming it is the ordinary case and the schema says so.
           : 'once',
+        // Null rather than the product's number: the price defers to whatever
+        // the product says today and keeps deferring when that changes.
+        term_months: args.term_months === undefined ? null : whole(args.term_months, 'term_months', 0, 600),
         valid_from: isoDay(args.valid_from, 'valid_from'),
         valid_to: isoDay(args.valid_to, 'valid_to'),
         note: str(args.note) ?? null,
@@ -355,6 +365,7 @@ export const productTools: ToolDef[] = [
         ...money(String(product.currency), { amount: Number(row.amount) }),
         kind: row.kind,
         min_quantity: row.min_quantity,
+        term_months: row.term_months ?? (Number(product.term_months) || 0),
       };
     },
   },

@@ -461,6 +461,59 @@ describe('the tools an assistant gets', () => {
     );
   });
 
+  it('prices one product at three terms at once, and calls them three offers', async () => {
+    /*
+     * Calendoora's core module, end to end: 64 EUR a month with no commitment,
+     * 59 EUR on a year, 54 EUR on two — all billed monthly. Before the term
+     * reached the price these were one lane, so `product_status` reported three
+     * overlaps and read the amounts as a price cut twice. The catalogue this
+     * was built for could not be entered without that being wrong.
+     */
+    await tool(me.token, 'create_product', { name: 'Buchung', code: 'BUCH' });
+    for (const [amount, term] of [['64', 0], ['59', 12], ['54', 24]] as const) {
+      await tool(me.token, 'set_product_price', {
+        product: 'BUCH', name: `Laufzeit ${term}`, amount, billing: 'monthly', term_months: term,
+      });
+    }
+
+    const status = await tool(me.token, 'product_status', { product: 'BUCH' });
+    assert.equal(status.prices.length, 3);
+    assert.deepEqual(status.overlapping_prices, [], 'three offers, not three collisions');
+    assert.deepEqual(status.price_history, [], 'and nothing here replaced anything');
+
+    const rows = all<any>(`SELECT amount, term_months FROM product_prices
+      WHERE product_id = (SELECT id FROM products WHERE code = 'BUCH') AND deleted_at IS NULL
+      ORDER BY amount`);
+    assert.deepEqual(rows.map((r: any) => [r.amount, r.term_months]), [[5_400, 24], [5_900, 12], [6_400, 0]]);
+  });
+
+  it('leaves a price that names no term answering to the product', async () => {
+    // Null is not zero: it defers, and keeps deferring when the product's own
+    // term changes. Writing the product's number into the price would freeze it.
+    await tool(me.token, 'create_product', { name: 'Ohne Angabe', code: 'OHNEA', term_months: 12 });
+    const set = await tool(me.token, 'set_product_price', {
+      product: 'OHNEA', amount: '30', billing: 'monthly',
+    });
+    assert.equal(set.term_months, 12, 'reported as the product\'s, so nobody reads it as no commitment');
+
+    const stored = get<any>(`SELECT term_months FROM product_prices WHERE id = ?`, set.id);
+    assert.equal(stored.term_months, null, 'but stored as nothing, which is what defers');
+  });
+
+  it('carries the commitment across a price change', async () => {
+    // A change of amount is not a change of offer: raising the two-year price
+    // must not quietly turn it into the no-commitment one.
+    await tool(me.token, 'create_product', { name: 'Zwei Jahre', code: 'ZWEI' });
+    await tool(me.token, 'set_product_price', {
+      product: 'ZWEI', name: 'Zwei Jahre', amount: '54', billing: 'monthly', term_months: 24,
+    });
+    const changed = await tool(me.token, 'change_product_price', {
+      product: 'ZWEI', amount: '58', from: '2027-01-01',
+    });
+    const stored = get<any>(`SELECT term_months FROM product_prices WHERE id = ?`, changed.new_price_id);
+    assert.equal(stored.term_months, 24);
+  });
+
   it('refuses a change dated outside the window the price already has', async () => {
     /*
      * The date arrives from a caller, so both ends are reachable. On or before

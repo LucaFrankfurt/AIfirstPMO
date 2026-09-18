@@ -1369,7 +1369,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **58** the list carries; the other undroppable-looking eight turned out to be something else
+      **59** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while

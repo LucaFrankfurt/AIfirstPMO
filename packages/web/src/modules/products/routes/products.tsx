@@ -1228,8 +1228,10 @@ function Prices({ product }: { product: Product }) {
   const [raising, setRaising] = useState<ProductPrice | null>(null);
   const day = today();
   const applied = useMemo(() => priceFor(prices, { on: day }), [prices, day]);
-  const history = useMemo(() => priceHistory(prices), [prices]);
-  const clashes = useMemo(() => overlappingPrices(prices), [prices]);
+  /* The product's own term settles what a price that states none commits to,
+     so two prices that mean the same commitment share a lane. */
+  const history = useMemo(() => priceHistory(prices, product.term_months), [prices, product.term_months]);
+  const clashes = useMemo(() => overlappingPrices(prices, product.term_months), [prices, product.term_months]);
   /** What is live now or still to come. The rest is the history below. */
   const current = useMemo(
     () => prices.filter((price) => !price.valid_to || price.valid_to >= day),
@@ -1263,6 +1265,7 @@ function Prices({ product }: { product: Product }) {
                 <th className="narrow">{t('product.amount')}</th>
                 <th className="narrow">{t('product.minQuantity')}</th>
                 <th className="narrow">{t('product.billingLabel')}</th>
+                <th className="narrow">{t('product.priceTerm')}</th>
                 <th className="narrow">{t('product.window')}</th>
                 {canWrite && <th className="narrow" />}
               </tr>
@@ -1281,6 +1284,10 @@ function Prices({ product }: { product: Product }) {
                   <td className="narrow">{asMoney(price.amount, product.currency)}</td>
                   <td className="narrow">{price.min_quantity}</td>
                   <td className="narrow">{t(billingKey(price.recurrence))}</td>
+                  {/* Without this column three prices at three terms are three
+                      identical rows at three different amounts, which is what
+                      made them look like a mistake. */}
+                  <td className="narrow">{termLabel(t, price, product)}</td>
                   <td className="narrow">
                     {price.valid_from ? shortDate(price.valid_from) : '…'}
                     {' → '}
@@ -1360,6 +1367,20 @@ function Prices({ product }: { product: Product }) {
       {dialog}
     </div>
   );
+}
+
+/**
+ * What a price's commitment reads as, and where the number came from.
+ *
+ * A price that states none is not blank: it commits to whatever the product
+ * says, and showing nothing there would make an inherited twelve months look
+ * like no commitment at all. The inherited figure is shown in the product's
+ * own words with a mark, so the column can be read down without opening a row.
+ */
+function termLabel(t: ReturnType<typeof useT>, price: ProductPrice, product: Product): string {
+  const months = price.term_months ?? product.term_months;
+  const said = months === 0 ? t('product.termNone') : t('product.termMonthsShort', { months: String(months) });
+  return price.term_months === null ? `${said} *` : said;
 }
 
 /**
@@ -1456,6 +1477,9 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
     amount: price?.amount ?? 0,
     min_quantity: price?.min_quantity ?? 1,
     recurrence: price?.recurrence ?? 'once',
+    // Empty is null is "whatever the product says", the same way the two dates
+    // in this form already work. A number here overrides it for this price.
+    term_months: price?.term_months === null || price?.term_months === undefined ? '' : String(price.term_months),
     valid_from: price?.valid_from ?? '',
     valid_to: price?.valid_to ?? '',
     note: price?.note ?? '',
@@ -1476,6 +1500,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
               amount: form.amount,
               min_quantity: form.min_quantity,
               recurrence: form.recurrence,
+              term_months: form.term_months.trim() === '' ? null : Math.max(0, Number(form.term_months)),
               valid_from: form.valid_from || null,
               valid_to: form.valid_to || null,
               note: form.note.trim() || null,
@@ -1519,6 +1544,18 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
           <Select id="pr-rec" value={form.recurrence} onChange={(event) => setForm({ ...form, recurrence: event.target.value as ProductPrice['recurrence'] })}>
             {COST_RECURRENCES.map((every) => <option key={every} value={every}>{t(billingKey(every))}</option>)}
           </Select>
+        </div>
+        {/* The field that lets one product be sold at several terms at once.
+            Beside the period on purpose: how often it is charged and how long
+            they are tied in are the two halves people confuse. */}
+        <div className="field flex-1 min-w-0">
+          <label htmlFor="pr-term">{t('product.priceTerm')}</label>
+          <Input id="pr-term" type="number" min={0} value={form.term_months}
+            placeholder={String(product.term_months)}
+            onChange={(event) => setForm({ ...form, term_months: event.target.value })} />
+          <span className="text-[12px] text-muted">
+            {t('product.priceTermHint', { term: String(product.term_months) })}
+          </span>
         </div>
       </div>
       <div className="field-row">
@@ -1896,7 +1933,12 @@ function SimulationTab({ product }: { product: Product }) {
   }), [product, prices, costs, contributors, promotions, form, day]);
 
   const settled = assumptionsOf(form);
-  const retention = retentionOf({ product, contribution: result.contribution, churnBps: settled.churn_bps });
+  /* Over the contract the projection actually ran at: picking the two-year
+     price and reading a retention figured over the product's own term is two
+     screens disagreeing about the same customer. */
+  const retention = retentionOf({
+    product, contribution: result.contribution, churnBps: settled.churn_bps, termMonths: result.termMonths,
+  });
 
   return (
     <div className="grid gap-3.5">

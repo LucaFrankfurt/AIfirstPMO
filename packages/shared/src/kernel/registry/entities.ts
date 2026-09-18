@@ -284,7 +284,7 @@ export const ENTITIES = {
     table: 'product_prices',
     fields: [
       'workspace_id', 'product_id', 'name', 'kind', 'amount', 'min_quantity',
-      'recurrence', 'valid_from', 'valid_to', 'note', 'sort_order',
+      'recurrence', 'term_months', 'valid_from', 'valid_to', 'note', 'sort_order',
     ],
   },
   productCost: {
