@@ -716,6 +716,12 @@ p { margin: 0 0 0.75em; }
 
 .task-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .task-table th, .task-table td { text-align: start; padding: 8px 10px; white-space: nowrap; }
+/* A link in a table cell, big enough to hit.
+   An inline link is as tall as its text — fifteen pixels — and WCAG 2.2 asks
+   for twenty-four. The spec exempts a link inside a sentence, and rightly:
+   padding one out would break the paragraph around it. A table cell is not a
+   sentence, so the link gets the height instead of the exemption. */
+.cell-link { display: inline-flex; align-items: center; min-height: 24px; }
 .task-table thead th {
   position: sticky;
   top: 0;

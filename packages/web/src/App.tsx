@@ -40,6 +40,8 @@ const DecisionIndex = lazy(() => import('./modules/decisions/routes/decisions').
 const DecisionDetail = lazy(() => import('./modules/decisions/routes/decisions').then((m) => ({ default: m.DecisionDetail })));
 const BudgetIndex = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetIndex })));
 const BudgetDetail = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetDetail })));
+const ProductIndex = lazy(() => import('./modules/products/routes/products').then((m) => ({ default: m.ProductIndex })));
+const ProductDetail = lazy(() => import('./modules/products/routes/products').then((m) => ({ default: m.ProductDetail })));
 const Help = lazy(() => import('./modules/guide/routes/help').then((m) => ({ default: m.Help })));
 const Settings = lazy(() => import('./modules/operations/routes/settings').then((m) => ({ default: m.Settings })));
 import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './kernel/design-system/navigation';
@@ -157,6 +159,7 @@ export default function App() {
       if (has('decisions')) fetchQuietly(() => import('./modules/decisions/routes/decisions'));
       if (has('secrets')) fetchQuietly(() => import('./modules/secrets/routes/secrets'));
       if (has('budget')) fetchQuietly(() => import('./modules/budgets/routes/budgets'));
+      if (has('products')) fetchQuietly(() => import('./modules/products/routes/products'));
     };
     const idle = window.requestIdleCallback;
     if (idle) {
@@ -249,6 +252,8 @@ export default function App() {
           <Route path="/decisions/:id" element={<DecisionDetail />} />
           <Route path="/budgets" element={<BudgetIndex />} />
           <Route path="/budgets/:id" element={<BudgetDetail />} />
+          <Route path="/products" element={<ProductIndex />} />
+          <Route path="/products/:id" element={<ProductDetail />} />
           <Route path="/pages" element={<PagesIndex />} />
           {/* Above `:id` in the file for a reader; the router ranks the literal
               segment higher either way. This is where a link to a page nobody

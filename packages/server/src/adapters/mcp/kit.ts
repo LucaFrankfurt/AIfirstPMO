@@ -14,7 +14,7 @@
  * every tool that returns one uses. Everything is exported, because the point
  * of the file is to be imported from.
  */
-import { annualCost, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
+import { annualCost, catalogue, type CatalogueEntry, DEFAULT_ASSUMPTIONS, healthOfProduct, type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Budget, type BudgetActual, type BudgetLine, type BudgetRollUp, type BudgetScenario, type Component, fieldValueId, formatMeasure, formatMoney, type Kpi, type KpiReading, type KpiTarget, type LandscapeCost, livenessOn, normaliseAllocations, oneOffCost, orderKey, parseMoney, parseQuickAdd, PRIORITIES, progressOf, projectScope, type Rate, type RelationKind, rollUp, STATE_GROUPS, type StateGroup, type TimeEntry, trendOf, type Vendor, type Vocabulary, writeFieldValue } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
 import { type Auth } from '../../kernel/identity/auth.ts';
@@ -747,11 +747,12 @@ export function requireWrite(ctx: McpCtx, workspaceId: string): void {
  * done something worse than refuse: the row exists, the person who asked
  * believes it was recorded, and no screen will ever show it.
  */
-export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'infrastructure' | 'kpi' | 'decisions' | 'mail'): void {
+export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'products' | 'infrastructure' | 'kpi' | 'decisions' | 'mail'): void {
   if (!hasFeature(workspaceId, name)) {
     const what = {
       time: 'Time tracking',
       budget: 'Budgets',
+      products: 'The product catalogue',
       infrastructure: 'The infrastructure register',
       kpi: 'KPIs',
       decisions: 'Decisions',
@@ -1162,6 +1163,156 @@ export const lastLineOrder = (budgetId: string): string | null =>
   (get<Row>(
     `SELECT sort_order FROM budget_lines WHERE budget_id = ? AND deleted_at IS NULL
       ORDER BY sort_order DESC LIMIT 1`, budgetId,
+  )?.sort_order as string | undefined) ?? null;
+
+/* ----------------------------------------------------------------- products */
+
+/**
+ * Every product in the workspace, newest first.
+ *
+ * No `canSee…` filter, and that is the whole difference from `visibleBudgets`.
+ * A catalogue is workspace-wide by design — see `Product` in the registry for
+ * why a price list that reads differently per project is the worst possible
+ * shape for it — so membership is the only test, and `workspaceOf` has already
+ * made it. A function rather than a query at nine call sites so that the *next*
+ * scoping decision has one place to be made in.
+ */
+export const productsOf = (workspaceId: string): Row[] =>
+  all<Row>(`SELECT * FROM products WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY created_at DESC`, workspaceId);
+
+export function findProduct(ref: string, workspaceId: string): Row {
+  const wanted = ref.trim().toLowerCase();
+  const found = productsOf(workspaceId).find((row) =>
+    row.id === ref
+    || String(row.name).toLowerCase() === wanted
+    || (row.code ? String(row.code).toLowerCase() === wanted : false));
+  if (!found) throw new McpError(`No product "${ref}" in this workspace`);
+  return found;
+}
+
+/** The live rows of one child table belonging to a product, already serialized. */
+export function productChildren<K extends 'productPrice' | 'productCost' | 'productContributor' | 'productPart'>(
+  entity: K, productId: string,
+): Row[] {
+  const table = { productPrice: 'product_prices', productCost: 'product_costs', productContributor: 'product_contributors', productPart: 'product_parts' }[entity];
+  return all<Row>(`SELECT * FROM ${table} WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order`, productId)
+    .map((row) => serialize(entity, row) as unknown as Row);
+}
+
+/**
+ * The whole catalogue in the shape `@kolibri/shared` computes over.
+ *
+ * Every row goes through `serialize` first, which is what turns the JSON
+ * columns back into arrays. Skipping that step is the mistake `rollUpBudget`
+ * documents and it fails the same way here: `capabilities` stays a string,
+ * which does not throw — it reads as a product that can do nothing.
+ *
+ * Assembled once and handed to `catalogue` rather than queried per product,
+ * because the alternative is four queries times however many products there
+ * are, and a catalogue tool is the one place somebody has two hundred.
+ */
+export function catalogueOf(workspaceId: string, options: { months?: number; deliveries?: number; today?: string } = {}) {
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const products = productsOf(workspaceId).map((row) => serialize('product', row) as unknown as Product);
+  const rowsOf = <T>(table: string, entity: 'productPrice' | 'productCost' | 'productContributor'): Map<string, T[]> => {
+    const out = new Map<string, T[]>();
+    for (const row of all<Row>(`SELECT * FROM ${table} WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order`, workspaceId)) {
+      const key = String(row.product_id);
+      const list = out.get(key) ?? [];
+      list.push(serialize(entity, row) as unknown as T);
+      out.set(key, list);
+    }
+    return out;
+  };
+  const prices = rowsOf<ProductPrice>('product_prices', 'productPrice');
+  const costs = rowsOf<ProductCost>('product_costs', 'productCost');
+  const people = rowsOf<ProductContributor>('product_contributors', 'productContributor');
+  // Packages too: without these a bundle of two seminars costs nothing to
+  // deliver and comes back at a hundred per cent margin.
+  const parts = new Map<string, ProductPart[]>();
+  for (const row of all<Row>(`SELECT * FROM product_parts WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order`, workspaceId)) {
+    const key = String(row.product_id);
+    const listed = parts.get(key) ?? [];
+    listed.push(serialize('productPart', row) as unknown as ProductPart);
+    parts.set(key, listed);
+  }
+  const promotions = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+    .map((row) => serialize('promotion', row) as unknown as Promotion);
+
+  const entries = catalogue({
+    products,
+    pricesOf: (id) => prices.get(id) ?? [],
+    costsOf: (id) => costs.get(id) ?? [],
+    contributorsOf: (id) => people.get(id) ?? [],
+    partsOf: (id) => parts.get(id) ?? [],
+    promotions,
+    months: options.months ?? DEFAULT_ASSUMPTIONS.months,
+    deliveries: options.deliveries ?? DEFAULT_ASSUMPTIONS.deliveries,
+    today,
+  });
+  return { today, entries, promotions, prices, costs, people, parts };
+}
+
+/**
+ * A product as every catalogue answer states it.
+ *
+ * `price` is null rather than 0 when nothing applies, all the way out to the
+ * JSON, for the reason `UnitEconomics` gives: an unpriced product and a free
+ * one are not the same thing, and a model reading `0` will say the second.
+ */
+export function productView(entry: CatalogueEntry): Record<string, unknown> {
+  const { product, economics, structure, breakEven: be, retention } = entry;
+  const currency = economics.currency;
+  return {
+    id: product.id,
+    name: product.name,
+    code: product.code,
+    kind: product.kind,
+    status: product.status,
+    group_id: product.group_id,
+    currency,
+    unit: product.unit_label,
+    scope: product.scope_amount ? `${product.scope_amount} ${product.scope_unit ?? ''}`.trim() : null,
+    capacity: product.capacity,
+    billing: product.billing,
+    ...money(currency, {
+      price: economics.price ?? 0,
+      unit_cost: economics.unitCost,
+      contribution: economics.contribution ?? 0,
+      cost_per_period: structure.period,
+      cost_per_delivery: structure.delivery,
+    }),
+    // Restated after `money` has filled them in: an unpriced product has to
+    // come out as null and not as the zero the formatter would have written.
+    ...(economics.price === null ? { price: null, price_text: null, contribution: null, contribution_text: null } : {}),
+    margin_percent: economics.marginBps === null ? null : Math.round(economics.marginBps / 100),
+    health: healthOfProduct(entry),
+    break_even: {
+      ...money(currency, { fixed: be.fixed }),
+      units: be.units,
+      units_per_delivery: be.unitsPerDelivery,
+      reachable: be.reachable,
+      blocked: be.blocked,
+    },
+    retention: {
+      expected_months: retention.months,
+      ...money(currency, { lifetime_value: retention.value ?? 0 }),
+      ...(retention.value === null ? { lifetime_value: null, lifetime_value_text: null } : {}),
+      payback_months: retention.payback,
+      churn_percent: product.churn_bps / 100,
+      renewal: product.renewal,
+    },
+    promotions: entry.promotions,
+    ...(entry.promoted === null ? {} : money(currency, { promoted_price: entry.promoted })),
+    url: `${env.publicUrl}/products/${product.id}`,
+  };
+}
+
+/** The next fractional index in a product's child table. See `orderKey`. */
+export const lastChildOrder = (table: 'product_prices' | 'product_costs' | 'product_contributors' | 'product_parts', productId: string): string | null =>
+  (get<Row>(
+    `SELECT sort_order FROM ${table} WHERE product_id = ? AND deleted_at IS NULL
+      ORDER BY sort_order DESC LIMIT 1`, productId,
   )?.sort_order as string | undefined) ?? null;
 
 /** Project ids to names, for an answer that has to say which project a row is in. */

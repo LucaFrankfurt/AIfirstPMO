@@ -101,6 +101,10 @@ const PATHS = {
   // is stacked is hardware or a subscription. Not a cloud — half this register
   // is not in one.
   stack: 'M4 6.5 12 3l8 3.5-8 3.5zM4 12l8 3.5 8-3.5M4 17.5 12 21l8-3.5',
+  // A swing ticket with its hole: a thing with a price on it. Not a shopping
+  // trolley — this is the catalogue somebody maintains, not a checkout — and
+  // not a box, which is already what `stack` says about servers.
+  tag: 'M3 12.3V5a2 2 0 0 1 2-2h7.3a2 2 0 0 1 1.4.6l6.7 6.7a2 2 0 0 1 0 2.8l-7.3 7.3a2 2 0 0 1-2.8 0l-6.7-6.7a2 2 0 0 1-.6-1.4ZM7.5 7.5h.01',
 } satisfies Record<string, string>;
 
 /**

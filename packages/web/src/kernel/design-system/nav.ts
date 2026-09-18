@@ -69,6 +69,7 @@ export const PLANNING_DESTINATIONS: readonly Destination[] = [
   { to: '/timesheet', icon: 'calendar', label: 'nav.timesheet', feature: 'time' },
   { to: '/infrastructure', icon: 'stack', label: 'nav.infrastructure', feature: 'infrastructure' },
   { to: '/budgets', icon: 'wallet', label: 'nav.budgets', feature: 'budget' },
+  { to: '/products', icon: 'tag', label: 'nav.products', feature: 'products' },
   { to: '/kpis', icon: 'target', label: 'nav.kpis', feature: 'kpi' },
   { to: '/decisions', icon: 'check', label: 'nav.decisions', feature: 'decisions' },
 ];

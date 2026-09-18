@@ -107,6 +107,110 @@ export type SpendStage = (typeof SPEND_STAGES)[number];
 export const BUDGET_STATUS = ['draft', 'active', 'closed'] as const;
 export type BudgetStatus = (typeof BUDGET_STATUS)[number];
 
+/* ---------------------------------------------------------------- products */
+
+/**
+ * What a product is: one thing, or several sold as one.
+ *
+ * A package is a product rather than a table of its own, and that is the whole
+ * design. It has an owner, a price, capabilities, costs and a break-even
+ * exactly as a single product does, so every screen, every total and every
+ * tool works on it without knowing which it is holding — and the one thing
+ * that *is* different, the parts it contains, is a list of rows hanging off it
+ * the way a budget's lines hang off the budget.
+ *
+ * The alternative was a `bundles` table with a price, a list of members and a
+ * second set of everything. That is the shape where the catalogue total counts
+ * a package and its parts twice, and where somebody has to remember which of
+ * the two reports is the one that does not.
+ */
+export const PRODUCT_KINDS = ['single', 'bundle'] as const;
+export type ProductKind = (typeof PRODUCT_KINDS)[number];
+
+/**
+ * Where a product is in its life.
+ *
+ * Three, and the third is the one people forget. `retired` is not `deleted`: a
+ * product that is no longer sold was still sold, its costs were still real, and
+ * a catalogue that loses it loses every figure that referred to it. So it stops
+ * appearing in what is on offer and keeps appearing in what happened.
+ */
+export const PRODUCT_STATUS = ['draft', 'active', 'retired'] as const;
+export type ProductStatus = (typeof PRODUCT_STATUS)[number];
+
+/**
+ * What a price *is*, when a product has several.
+ *
+ * Almost every product has more than one, and a model with a single `price`
+ * column forces the other three into a note nobody can compute with: the
+ * published one, the one for ten seats or more, the one a reseller pays, and
+ * the one an internal department is charged. Naming them is what lets
+ * `priceFor` pick the right one rather than the first one.
+ *
+ * `internal` is here because a transfer price is not a discount — it never
+ * appears in revenue — and treating it as one is how an internal cross-charge
+ * ends up in a sales forecast.
+ */
+export const PRICE_KINDS = ['list', 'volume', 'partner', 'internal'] as const;
+export type PriceKind = (typeof PRICE_KINDS)[number];
+
+/**
+ * What a cost varies with. The one distinction a break-even is made of.
+ *
+ * Three, and they are not a taxonomy of cost *types* — `CostCategory` already
+ * is that, and this reuses it. This is about behaviour, which is the only
+ * property that changes the arithmetic:
+ *
+ * - `period` is incurred as long as the product exists: a platform licence,
+ *   the tooling, somebody's retainer. It is charged per month of the horizon.
+ * - `delivery` is incurred each time the product is delivered: the room, the
+ *   catering, an external speaker's day fee. It is charged per delivery,
+ *   whether one person attends or twelve.
+ * - `unit` is incurred per unit sold: the printed handbook, the payment fee,
+ *   the licence passed through. It is the only one that comes off the price.
+ *
+ * Fixed and variable is the split every break-even formula needs, and `period`
+ * and `delivery` are both fixed — separated because a seminar run four times a
+ * year and a seminar run monthly have the same room hire per run and very
+ * different room hire per year, and one number cannot say both.
+ */
+export const COST_BASIS = ['period', 'delivery', 'unit'] as const;
+export type CostBasis = (typeof COST_BASIS)[number];
+
+/**
+ * What a promotion does to a price.
+ *
+ * Three ways of saying it, because people mean three different things and
+ * converting between them at entry loses the intent: "20% off" stays 20% when
+ * the list price changes, "€200 off" does not, and "€990 for the summer" is
+ * neither — it is a price, and it is the one a campaign is actually written
+ * around.
+ */
+export const PROMOTION_KINDS = ['percent', 'amount', 'price'] as const;
+export type PromotionKind = (typeof PROMOTION_KINDS)[number];
+
+/**
+ * Whether a promotion counts.
+ *
+ * Deliberately not a phase: `upcoming`, `running` and `ended` are facts about
+ * today and the dates, so `promotionPhase` derives them and nothing stores a
+ * value that is wrong by the next morning. What cannot be derived is whether
+ * anybody has agreed to run it, which is what this says.
+ */
+export const PROMOTION_STATUS = ['draft', 'live', 'cancelled'] as const;
+export type PromotionStatus = (typeof PROMOTION_STATUS)[number];
+
+/**
+ * What happens at the end of a term.
+ *
+ * The field that separates a subscription from a sale, and the one the whole
+ * of `Kundenbindung` — retention — rests on: a product that does not renew has
+ * no churn to speak of and no lifetime value beyond its term, and showing one
+ * for it would be inventing a number.
+ */
+export const RENEWALS = ['none', 'manual', 'auto'] as const;
+export type Renewal = (typeof RENEWALS)[number];
+
 /* --------------------------------------------------------------------- KPI */
 
 /**
@@ -560,6 +664,22 @@ export interface WorkspaceFeatures {
    * that turns it back on finds its ballots where it left them.
    */
   decisions?: boolean;
+  /**
+   * The catalogue: products, packages, campaigns, what they cost and what they
+   * earn.
+   *
+   * Off by default like the rest, and independent of `budget` on purpose. The
+   * two look adjacent and ask opposite questions: a budget is money the
+   * organisation has decided to spend, a product is money it hopes to take in,
+   * and a team modelling what it sells is not thereby tracking what it spends.
+   * Where both are on they meet in one word — `CostCategory`, which a product
+   * cost and a budget line share — so the two can be read side by side.
+   *
+   * Switching it off hides the screens and makes MCP refuse; the rows are
+   * untouched, so a workspace that turns it back on finds its prices where it
+   * left them.
+   */
+  products?: boolean;
   /**
    * Connected mailboxes: shared inboxes, searchable from one place and from an
    * assistant.
@@ -1274,6 +1394,333 @@ export interface Rate extends Base {
   note: string | null;
 }
 
+/* ---------------------------------------------------------------- products */
+
+/**
+ * Something the organisation sells, and everything needed to say whether
+ * selling it is worth doing.
+ *
+ * Workspace-wide on purpose, and it is the one scoping decision here worth
+ * defending. A budget, a cycle and a KPI carry the three-state project scope
+ * because each of them is *about* some projects; a catalogue is not. What a
+ * company sells is the same fact for everybody in it, and scoping it would
+ * mean a price list that reads differently depending on which projects you
+ * happen to be on — which is the worst possible property for the document
+ * sales, delivery and finance are meant to be arguing from. The feature switch
+ * is the control instead: a workspace that has not decided to model products
+ * does not see any of this at all.
+ *
+ * Money is `Minor`, like everywhere else, and there is one currency per
+ * product for the reason there is one per budget — see `Budget.currency`.
+ */
+export interface Product extends Base {
+  workspace_id: ID;
+  /** The family it belongs to, or null. See `ProductGroup`. */
+  group_id: ID | null;
+  name: string;
+  /**
+   * The short handle people say out loud and type into other systems.
+   *
+   * Not a key and not unique: two products may share one while somebody is
+   * reorganising, and refusing the second write would mean losing it. It is a
+   * label that happens to be short, and nothing looks a product up by it
+   * except a human reading a list.
+   */
+  code: string | null;
+  description: string | null;
+  kind: ProductKind;
+  status: ProductStatus;
+  /** Who answers for it when the margin goes the wrong way. */
+  owner_id: ID | null;
+  /** ISO 4217, upper case. Nothing anywhere converts between two. */
+  currency: string;
+  /**
+   * What one sold unit is called: a seat, a licence, a day, a booking.
+   *
+   * A word rather than an enum, because the list is the organisation's and not
+   * ours — and unlike a cost category, nothing groups or sums across products
+   * by it, so two spellings cost nothing but a reader's eyebrow.
+   */
+  unit_label: string | null;
+  /**
+   * The Umfang: how much of something one unit contains, and of what.
+   *
+   * Two fields rather than a sentence, because this is the number people
+   * compare products by — two days against three, twelve months against
+   * twenty-four — and a sentence cannot be sorted or added up. `scope_amount`
+   * is 0 when nobody has said, which is different from a product whose scope
+   * is genuinely nothing.
+   */
+  scope_amount: number;
+  scope_unit: string | null;
+  /**
+   * How many units one delivery can take. Null is no ceiling.
+   *
+   * A seminar with twelve seats cannot sell thirteen, and a simulation that
+   * does not know that will happily forecast a number the business cannot
+   * deliver. Null means the question does not apply — software, mostly — and
+   * is honest rather than a very large number standing in for it.
+   */
+  capacity: number | null;
+  /** How often the customer is charged. `once` is a sale, the rest a subscription. */
+  billing: CostRecurrence;
+  /**
+   * The minimum a customer commits to, in months. `0` is no commitment.
+   *
+   * Together with `renewal` and `churn_bps` this is the whole of what is stored
+   * about retention. See `lifetimeValue` for what is computed from it, and
+   * `TODO.md` for the customer register that deliberately is not here.
+   */
+  term_months: number;
+  renewal: Renewal;
+  /**
+   * Customers lost per month, in basis points. 500 is 5% a month.
+   *
+   * An assumption, always — nothing in Kolibri counts customers, so this is a
+   * number somebody types in from the system that does, and every figure
+   * derived from it says so. Basis points for the reason `Allocation.share` is
+   * in them: a percentage stored as a float is a percentage that drifts.
+   */
+  churn_bps: number;
+  /**
+   * What winning one customer costs: the campaign, the sales time, the trial.
+   *
+   * Here rather than as a `unit` cost because it is not a cost of *delivering*
+   * a unit — it is paid once, before any revenue, and it belongs on the other
+   * side of the payback question. Counting it as variable cost would depress
+   * every month's margin by a cost that was only incurred in the first.
+   */
+  acquisition_cost: Minor;
+  /** What it can do: ids into the workspace's capability catalogue. */
+  capabilities: ID[];
+  archived: number;
+  sort_order: string;
+}
+
+/**
+ * A family of products, for the reports that ask about a line of business.
+ *
+ * Flat, with no parent. A tree is what a catalogue grows into over five years
+ * and what nobody can navigate after three, and the question a group answers
+ * here — "how is the training business doing against the licence business" —
+ * is answered by one level. A product belongs to one or to none.
+ */
+export interface ProductGroup extends Base {
+  workspace_id: ID;
+  name: string;
+  description: string | null;
+  owner_id: ID | null;
+  archived: number;
+  sort_order: string;
+}
+
+/**
+ * One price a product can be sold at.
+ *
+ * Its own row for the reason a budget line is: a product has several, two
+ * people edit two of them from two devices, and a `prices` array on the
+ * product would merge by one of them winning the whole list.
+ *
+ * `min_quantity` is what makes a volume price a price rather than a note: ten
+ * seats at the ten-seat price is something `priceFor` can work out, and "ask
+ * sales" is not.
+ */
+export interface ProductPrice extends Base {
+  workspace_id: ID;
+  product_id: ID;
+  name: string;
+  kind: PriceKind;
+  /** Per unit, per `recurrence`. See `Minor`. */
+  amount: Minor;
+  /** The smallest order this price applies to. 1 is the ordinary case. */
+  min_quantity: number;
+  /** How often it is charged. Usually the product's own `billing`. */
+  recurrence: CostRecurrence;
+  /** The window it is valid in. Both null is "until somebody changes it". */
+  valid_from: ISODate | null;
+  valid_to: ISODate | null;
+  note: string | null;
+  sort_order: string;
+}
+
+/**
+ * What the product costs to have and to deliver.
+ *
+ * The category speaks the same vocabulary a budget line does — deliberately,
+ * so that a product's cost structure and the budget that pays for it can be
+ * read side by side without a translation table. What a budget line does not
+ * have is `basis`, and that is the field this table exists for: see
+ * `CostBasis` for why fixed and variable is the only distinction a break-even
+ * is made of.
+ */
+export interface ProductCost extends Base {
+  workspace_id: ID;
+  product_id: ID;
+  name: string;
+  category: CostCategory;
+  basis: CostBasis;
+  /** Per period, per delivery or per unit, according to `basis`. */
+  amount: Minor;
+  vendor: string | null;
+  note: string | null;
+  sort_order: string;
+}
+
+/**
+ * Somebody outside the organisation who is part of the product: the external
+ * speaker, the trainer, the subcontracted specialist.
+ *
+ * A row of its own rather than a `ProductCost` named "Referentin Müller", and
+ * the difference is not pedantry. A cost line is a number; a person has to be
+ * asked whether they are free in March, has an organisation, has an address,
+ * and is the reason the product cannot run if they are not. Folding them into
+ * the cost table loses all of that the first time somebody tidies up the
+ * figures — and the fee is *also* a cost, which is why `basis` is the same
+ * enum and `unitEconomics` counts both sides from one place.
+ */
+export interface ProductContributor extends Base {
+  workspace_id: ID;
+  product_id: ID;
+  name: string;
+  /** What they do here: "Referent", "Trainer", "Co-Autorin". */
+  role: string | null;
+  organisation: string | null;
+  email: string | null;
+  /** What they are paid, per `fee_basis`. */
+  fee: Minor;
+  fee_basis: CostBasis;
+  note: string | null;
+  sort_order: string;
+}
+
+/**
+ * One thing a product can do, named once for the whole workspace.
+ *
+ * A catalogue rather than a list of words on each product, for exactly the
+ * reason `CostCategory` is a fixed list: the point of a capability is that two
+ * products claiming the same one say it the same way, and a free-text field
+ * guarantees they will not — "SSO", "Single Sign-On" and "sso" are three rows
+ * in every comparison table that tries to line two products up.
+ */
+export interface ProductCapability extends Base {
+  workspace_id: ID;
+  name: string;
+  description: string | null;
+  archived: number;
+  sort_order: string;
+}
+
+/**
+ * One product inside a package.
+ *
+ * `quantity` is how many of it the package contains — three days of support
+ * with the licence — and it is what makes the package's list value computable
+ * and therefore its discount visible. A package priced above the sum of its
+ * parts is a real thing somebody should see on purpose rather than by
+ * accident.
+ */
+export interface ProductPart extends Base {
+  workspace_id: ID;
+  /** The package. */
+  product_id: ID;
+  /** What is in it. */
+  part_id: ID;
+  quantity: number;
+  sort_order: string;
+}
+
+/**
+ * A campaign: a price that is different for a while, and what it costs to say so.
+ *
+ * Kept away from the prices on purpose. A promotion is not a fourth
+ * `ProductPrice` with dates, because it applies to *sets* — a group, several
+ * products, the whole catalogue — and because it has two figures a price does
+ * not: what running it costs, and what it is expected to do to volume. Without
+ * those two a promotion cannot be judged, only announced.
+ *
+ * Empty `products` and empty `groups` means the whole catalogue, the same way
+ * an empty `projects` list means every project. Both non-empty is a union.
+ */
+export interface Promotion extends Base {
+  workspace_id: ID;
+  name: string;
+  description: string | null;
+  kind: PromotionKind;
+  /**
+   * Basis points off when `kind` is `percent`; minor units otherwise — off the
+   * price for `amount`, the price itself for `price`.
+   */
+  value: number;
+  starts_on: ISODate | null;
+  ends_on: ISODate | null;
+  /** Products it applies to. Empty, with `groups` empty, is all of them. */
+  products: ID[];
+  /** Groups it applies to. Every product in one is covered. */
+  groups: ID[];
+  /** What running it costs: the advertising, the stand, the giveaway. */
+  spend: Minor;
+  /**
+   * How much more is expected to sell because of it, in basis points. 2500 is
+   * a quarter again. A guess, and the screens say so — but a guess written
+   * down is a guess that can be compared with what happened.
+   */
+  uplift_bps: number;
+  status: PromotionStatus;
+  owner_id: ID | null;
+  currency: string;
+  sort_order: string;
+}
+
+/**
+ * A what-if over a product, kept beside it rather than instead of it.
+ *
+ * The same instrument `BudgetScenario` is, pointed at the other question: a
+ * budget scenario asks what the plan costs under different assumptions, this
+ * asks what the product earns. Nothing it holds edits a price or a cost — it
+ * is a set of assumptions applied on the way to a projection, so "what if we
+ * run the summer campaign and lose 3% a month" is something to show on a
+ * Tuesday and throw away on Wednesday.
+ */
+export interface ProductScenario extends Base {
+  workspace_id: ID;
+  /** The product it is about, or null for the whole catalogue. */
+  product_id: ID | null;
+  name: string;
+  description: string | null;
+  assumptions: ProductAssumptions;
+  sort_order: string;
+}
+
+/**
+ * What a simulation assumes. Every field is a number somebody chose.
+ *
+ * One JSON column rather than fourteen, because these are read together,
+ * written together and never queried across — the same call `BudgetScenario`
+ * made for `adjustments`. A missing field reads as the default in
+ * `DEFAULT_ASSUMPTIONS`, so a scenario written by an older build keeps working
+ * and a scenario written by hand over MCP need only say what it is changing.
+ */
+export interface ProductAssumptions {
+  /** How many months to project. */
+  months?: number;
+  /** Units sold in the first month. */
+  units?: number;
+  /** Month-on-month change in units sold, in basis points. 500 is +5% a month. */
+  growth_bps?: number;
+  /** The price moved by this, in basis points. -1000 is 10% off. */
+  price_bps?: number;
+  /** Every cost moved by this, in basis points. */
+  cost_bps?: number;
+  /** Deliveries a month — how often a `delivery` cost is incurred. */
+  deliveries?: number;
+  /** Promotions to apply, by id. Their own windows still decide when. */
+  promotions?: ID[];
+  /** Churn to use instead of the product's own, in basis points. */
+  churn_bps?: number | null;
+  /** Which price to start from. Null lets `priceFor` decide. */
+  price_id?: ID | null;
+}
+
 /* ------------------------------------------------------------- landscape */
 
 /** Somebody you buy from. A component names one; the register groups by it. */
@@ -1599,6 +2046,15 @@ export interface EntityMap {
   budgetLine: BudgetLine;
   budgetActual: BudgetActual;
   budgetScenario: BudgetScenario;
+  product: Product;
+  productGroup: ProductGroup;
+  productPrice: ProductPrice;
+  productCost: ProductCost;
+  productContributor: ProductContributor;
+  productCapability: ProductCapability;
+  productPart: ProductPart;
+  promotion: Promotion;
+  productScenario: ProductScenario;
   rate: Rate;
   vendor: Vendor;
   component: Component;

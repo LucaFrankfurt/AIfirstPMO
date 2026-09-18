@@ -26,6 +26,7 @@ import { pageTools } from './tools/pages.ts';
 import { kpiTools } from './tools/kpis.ts';
 import { decisionTools } from './tools/decisions.ts';
 import { budgetTools } from './tools/budgets.ts';
+import { productTools } from './tools/products.ts';
 import { rateTools } from './tools/rates.ts';
 import { infrastructureTools } from './tools/infrastructure.ts';
 import { reportTools } from './tools/reports.ts';
@@ -69,6 +70,7 @@ const TOOLS: ToolDef[] = [
   ...kpiTools,
   ...decisionTools,
   ...budgetTools,
+  ...productTools,
   ...rateTools,
   ...infrastructureTools,
   ...mailTools,

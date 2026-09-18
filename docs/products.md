@@ -1,0 +1,267 @@
+# Products
+
+What the organisation sells, what it costs to deliver, and whether selling it is
+worth doing — prices, packages, campaigns, break-even, simulations and what a
+customer is worth over their life.
+
+Off by default. A workspace admin switches products on under **Settings →
+Workspace**; until then there is no sidebar entry and MCP refuses. Turning them
+off again hides the screens and keeps the rows.
+
+**Independent of budgets, on purpose.** The two look adjacent and ask opposite
+questions: a budget is money the organisation has decided to spend, a product is
+money it hopes to take in, and a team modelling what it sells is not thereby
+tracking what it spends. Where both are on they meet in exactly one word — the
+cost category, which a product cost and a budget line share — so the two can be
+read side by side without a translation table.
+
+## The shape of it
+
+| | |
+|---|---|
+| **Product** | Something that is sold. A name, a currency, an owner, what one unit *is*, how much of something it contains, and how many of it one delivery can take. |
+| **Group** | A family of products, for the reports that ask about a line of business. Flat: a product belongs to one or to none. |
+| **Price** | One price it can be sold at. A product has several; which applies is worked out from the order size and the day. |
+| **Cost** | What it costs to have and to deliver, and — the field a break-even is made of — what that cost varies with. |
+| **Contributor** | Somebody outside the organisation who is part of it: the external speaker, the trainer, the subcontractor. A person with a fee, not a cost line named after them. |
+| **Capability** | One thing a product can do, named once for the whole workspace. |
+| **Part** | One product inside a package. |
+| **Promotion** | A campaign: a price that is different for a while, what it applies to, what running it costs and what it is expected to sell. |
+| **Scenario** | A set of assumptions kept beside the catalogue rather than instead of it. |
+
+Everything is **workspace-wide**, with no `project_id` anywhere, and that is the
+one scoping decision here worth defending. A budget, a cycle and a KPI carry the
+three-state project scope because each of them is *about* some projects; a
+catalogue is not. What a company sells is the same fact for everybody in it, and
+scoping it would mean a price list that reads differently depending on which
+projects you happen to be on — the worst possible property for the document
+sales, delivery and finance are meant to be arguing from.
+
+## Money is an integer, and so is every proportion
+
+Amounts are whole numbers of **minor units** and proportions are **basis
+points**, both borrowed from the budget rather than restated. `docs/budgets.md`
+gives the reasoning; the short version is that `0.1 + 0.2` is not `0.3` and a
+catalogue is a column of numbers that gets added up and compared to another
+column that was added up differently.
+
+One currency per product, and nothing anywhere converts between two. A catalogue
+in two currencies is two totals.
+
+## A package is a product
+
+`kind: 'bundle'`, and a `product_parts` row per thing inside it. Not a table of
+its own — which is the whole design. A package has an owner, a price,
+capabilities, costs and a break-even exactly as a single product does, so every
+screen, every total and every tool works on it without knowing which it is
+holding.
+
+The alternative was a `bundles` table with a price, a list of members and a
+second set of everything. That is the shape where the catalogue total counts a
+package and its parts twice, and where somebody has to remember which of the two
+reports is the one that does not.
+
+What the package adds is the comparison: **what it would cost bought part by
+part**, against what it actually costs. A package priced *above* its parts is a
+real thing — a managed service is worth more than its licences — and it should
+be seen on purpose rather than discovered by a customer. A part with no price of
+its own is counted and named rather than silently omitted, because a list value
+missing a component is a discount figure that is wrong in the flattering
+direction.
+
+**A package costs what its parts cost**, and only the unit half of it. Selling one
+package hands over `quantity` of each part, so `quantity ×` the part's unit cost
+is exactly what it costs to deliver — at any depth, memoised, and cycle-guarded
+because a client's mirror can hold a stale ring for the length of one sync.
+Without this a bundle of two seminars with no cost rows of its own comes out at a
+hundred per cent margin, which is the most confident wrong number the catalogue
+could produce.
+
+The fixed half deliberately does *not* roll up. A part's `period` cost is a
+monthly bill the business pays once — the platform licence does not cost twice
+because a package also references it — and adding it here would count it again in
+every total that sums both. Whose delivery a package shares is a question only
+the team can answer, so a package carries its own `delivery` rows and nothing is
+invented.
+
+A package may not contain itself at any depth. That is the one rule in the write
+path here that **refuses** rather than corrects, because every correction
+available is a guess at what somebody meant — and the failure mode is a walk
+that never terminates, inside a write transaction, on a row a client will retry.
+
+## Which price applies
+
+Three filters and one preference, in this order:
+
+1. **Kind.** `internal` is never picked unless it is asked for. A transfer price
+   is not a discount and must not land in a revenue figure.
+2. **Validity.** A window that has closed is not a price. Neither is one that has
+   not opened — which is the case somebody enters in October for January and
+   would otherwise see applied in October.
+3. **Quantity.** Only prices whose `min_quantity` the order reaches.
+
+Of what is left, the **highest `min_quantity`** wins: the most specific volume
+tier the order qualifies for. The lowest amount settles a tie, because two tiers
+at one threshold is somebody mid-edit and the customer should not pay for that;
+the id settles the last one, so two devices holding the rows in different orders
+reach the same price rather than a mergeable-looking pair of different ones.
+
+**No applicable price is `null`, never zero.** Everything derived from it is null
+as well, and every screen says "not priced". A product nobody has priced and one
+priced at nothing look identical as a number and are not the same claim.
+
+## What a cost varies with
+
+`CostCategory` says what a cost *is* — the budget's vocabulary, shared. `basis`
+says what it **varies with**, which is the only property that changes the
+arithmetic:
+
+| `basis` | Incurred | Examples |
+|---|---|---|
+| `period` | Every month the product exists | A platform licence, the tooling, a retainer |
+| `delivery` | Each time it is delivered, whoever attends | The room, the catering, a speaker's day fee |
+| `unit` | Per unit sold | The printed handbook, the payment fee, a licence passed through |
+
+`period` and `delivery` are both fixed. They are separated because a seminar run
+four times a year and one run monthly have the same room hire per run and very
+different room hire per year, and one number cannot say both.
+
+An external contributor's fee is folded in as a cost of exactly its own basis.
+That is the point of them sharing the enum: a speaker on a day fee is a delivery
+cost and has to be one *everywhere*, or the margin and the break-even disagree
+about the same product. That they are also people — with an organisation, an
+address, and a calendar somebody has to check before moving a date — is why they
+are a table of their own rather than a cost line named after them.
+
+## Break-even
+
+Contribution per unit is the price less the **unit** costs. Fixed cost over the
+horizon is the period costs by month plus the delivery costs by run. Units needed
+is the second over the first, rounded up, because half a seat does not cover half
+a room.
+
+The horizon is always explicit. A fixed cost only means something against a
+length of time — €400 a month is one break-even over a quarter and another over a
+year — and a function that quietly picked twelve months would be picking the
+answer.
+
+Three ways there is **no** answer, and each is a different sentence on the screen:
+
+- **No price.** Nothing to solve.
+- **Contribution at or below zero.** Every unit loses money; no volume fixes it.
+  Reported as such rather than as a very large number, which reads as merely
+  ambitious.
+- **Above capacity.** The arithmetic has an answer and the business cannot
+  deliver it: nineteen seats in a room that holds twelve. This is the one a
+  spreadsheet never catches, because a spreadsheet does not know about rooms.
+
+## Campaigns
+
+A promotion is not a fourth price with dates. It applies to **sets** — a group,
+several products, the whole catalogue — and it carries two figures a price does
+not: what running it costs, and what it is expected to do to volume. Without
+those a campaign cannot be judged, only announced.
+
+Empty `products` **and** empty `groups` means the whole catalogue, the same rule
+an empty `projects` list follows: writing every product into a campaign that
+means "everything" would mean keeping that list correct as products are created,
+forever, for no gain.
+
+Three kinds, because people mean three different things and converting between
+them at entry loses the intent: "20% off" stays 20% when the list price changes,
+"€200 off" does not, and "€990 for the summer" is neither — it is a price, and it
+is the one a campaign is actually written around. A price never goes below zero:
+120% off is somebody mistyping basis points, and a negative price would flow into
+a revenue projection as income the business pays out.
+
+Whether a campaign is running today is **derived from the dates**, never stored.
+A stored phase is wrong by the next morning and right again by accident, and both
+bugs it produces — a campaign that keeps discounting after it ended, and one that
+never starts because nobody ran the job — are silent. What cannot be derived is
+whether anybody agreed to run it, and that is what `status` says.
+
+Campaigns stack, deepest first: applying them in the order the rows happen to
+arrive would give two devices two prices.
+
+## Simulation
+
+`simulate` projects one product forward month by month under one set of
+assumptions. Nothing it reads is edited and nothing is written, so it is safe to
+put in front of a steering committee and running it twice gives the same answer.
+
+Three things it does that a spreadsheet of the same shape usually does not, each
+of them the reason for a wrong number somewhere:
+
+- **Capacity is a ceiling, not a suggestion.** Units above it are counted as
+  turned away rather than sold. A forecast the business cannot deliver is not a
+  forecast.
+- **Acquisition is charged in the month the customer arrives**, not spread. That
+  is what makes the cumulative line dip before it climbs, and the dip is the
+  entire question somebody is asking.
+- **A subscription keeps paying and keeps churning.** One function rather than
+  two, because two would drift: a monthly product's revenue compounds and a
+  one-off sale's does not, and the difference is `billing`, not a code path.
+
+A campaign's spend lands in the month it starts, or in the first month of the
+projection when it started before it. Spreading it would invent a schedule nobody
+entered; dropping it would make every campaign free.
+
+## Retention
+
+Three fields and no customer table: `term_months`, `renewal` and `churn_bps`,
+plus `acquisition_cost` on the other side of the payback question.
+
+Everything derived from them is an assumption and the screens say so. Nothing in
+Kolibri counts customers — the churn is a number somebody types in from the system
+that does — and a survival curve would need a customer register this deliberately
+does not keep. See [`TODO.md`](../TODO.md).
+
+- **Expected months** is `1 / churn`. Zero churn is *unmeasured*, not an immortal
+  customer: it reads as null, and every screen says "no churn recorded" rather
+  than rendering an infinity into a lifetime value.
+- **A product that does not renew lives exactly as long as its term**, whatever
+  its churn says. Churn measures people leaving something they could have stayed
+  in; a fixed term that ends is not churn, and running the geometric model over
+  it would quietly carry every non-renewing product past its own contract.
+- **Lifetime value is net.** The acquisition cost comes off it. "LTV" as a gross
+  figure is a number that makes every product look good, and leaving it out here
+  would make the payback figure beside it contradict it.
+- **The retention curve is geometric decay**, stated rather than implied and
+  honest about what it is not: real churn is front-loaded, so this understates
+  the early drop and overstates the tail.
+
+## Over MCP
+
+Ten tools. Every read answers with the *derived* figures rather than the rows,
+because an assistant handed four price rows and eleven cost rows will do the
+arithmetic itself and get a different answer from the screen. The arithmetic
+lives in `@kolibri/shared` and both sides call it.
+
+| Tool | |
+|---|---|
+| `list_products` | The catalogue with price, unit cost, margin, break-even and standing |
+| `product_status` | One product in full, packages and campaigns included |
+| `create_product` | With its list price in the same call |
+| `set_product_price` | A list, volume, partner or internal price |
+| `add_product_cost` | With the basis that decides where it lands |
+| `add_product_contributor` | An external speaker or subcontractor, with their fee |
+| `add_product_part` | Put a product in a package |
+| `list_promotions` | With the phase worked out from today |
+| `create_promotion` | Refuses a product or group it cannot resolve |
+| `simulate_product` | A saved scenario, arguments over it, or both |
+| `retention_outlook` | Lifetime value and payback, with what is missing named |
+
+Every percentage crossing that boundary is a percentage and every one stored is
+basis points, converted in one place — the alternative is a tool that takes `5`
+and a tool that takes `500` for the same 5% and no way to tell from the schema.
+
+## Where the code is
+
+| | |
+|---|---|
+| `shared/src/modules/products/product.ts` | Every figure. Pure functions over plain objects, so the server and the browser cannot disagree |
+| `server/src/modules/products/rules/products.ts` | Defaults, invariants, the cycle refusal, the two cascades |
+| `server/src/adapters/mcp/tools/products.ts` | The ten tools |
+| `web/src/modules/products/` | The screens, which compute from the local mirror and therefore work offline |
+| `server/test/product.test.ts` | The arithmetic, including every case where a plausible answer is the wrong one |
+| `server/test/product-api.test.ts` | The switch, the invariants, the cascades and the cycle |
