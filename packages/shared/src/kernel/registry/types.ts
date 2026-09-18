@@ -1546,6 +1546,16 @@ export interface ProductPrice extends Base {
   min_quantity: number;
   /** How often it is charged. Usually the product's own `billing`. */
   recurrence: CostRecurrence;
+  /**
+   * What the customer commits to for this price, in months. Null is the
+   * product's own `term_months`, and is what nearly every price means.
+   *
+   * On the price because the product can hold only one, and a catalogue that
+   * sells the same module monthly, on a year and on two years at three
+   * different monthly amounts has three. `0` here is an explicit "no
+   * commitment" and is not the same as null: one says it, the other defers.
+   */
+  term_months: number | null;
   /** The window it is valid in. Both null is "until somebody changes it". */
   valid_from: ISODate | null;
   valid_to: ISODate | null;

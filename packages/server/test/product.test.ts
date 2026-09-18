@@ -21,7 +21,7 @@ import {
   applyPromotion, assumptionsOf, breakEven, bundleValue, capabilitiesOf, costStructure,
   expectedMonths, healthOfProduct, monthlyAmount, priceFor, promotedPrice, promotionCovers,
   dayBefore, mixedPeriods, overlappingPrices, periodsOf, priceChangeRefusal, priceHistory,
-  promotionPhase, raisePrice,
+  priceLane, promotionPhase, raisePrice,
   retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
   type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice,
   type Promotion,
@@ -40,7 +40,7 @@ const product = (over: Partial<Product> = {}): Product => ({
 
 const price = (over: Partial<ProductPrice> = {}): ProductPrice => ({
   id: `pr${++seq}`, workspace_id: 'w', product_id: 'p1', name: 'List', kind: 'list',
-  amount: 100_000, min_quantity: 1, recurrence: 'once', valid_from: null, valid_to: null,
+  amount: 100_000, min_quantity: 1, recurrence: 'once', term_months: null, valid_from: null, valid_to: null,
   note: null, sort_order: 'V', created_at: seq, updated_at: seq, deleted_at: null, seq,
   ...over,
 } as ProductPrice);
@@ -213,6 +213,100 @@ describe('a price history', () => {
     assert.equal(opens.valid_from, '2026-03-01');
     assert.equal(opens.kind, 'list', 'everything else about the offer carries over');
     assert.equal(opens.recurrence, 'monthly');
+  });
+
+  it('reads one product sold at three terms as three offers, not a falling price', () => {
+    /*
+     * The case that put the term into the lane, from a real catalogue.
+     * Calendoora sells one module at 64 EUR a month with no commitment, 59 EUR
+     * on a year and 54 EUR on two — all billed monthly, all list prices, all
+     * for one seat. With the term only on the product those three were one
+     * lane: three collisions reported, and a history reading 64 -> 59 -> 54 as
+     * a price cut twice. They are three offers standing side by side, and the
+     * only thing telling them apart is what the customer signs.
+     */
+    const monthly = dated({ id: 'm', amount: 6_400, term_months: 0 });
+    const year = dated({ id: 'y', amount: 5_900, term_months: 12 });
+    const twoYears = dated({ id: 't', amount: 5_400, term_months: 24 });
+    const three = [monthly, year, twoYears];
+
+    assert.equal(new Set(three.map((p) => priceLane(p))).size, 3, 'three lanes, not one');
+    assert.deepEqual(overlappingPrices(three), [], 'and therefore no collision');
+    assert.deepEqual(priceHistory(three), [], 'and no change: nothing here replaced anything');
+
+    // And a change within one of them is still a change of that one alone.
+    const raised = dated({ id: 'y2', amount: 6_400, term_months: 12, valid_from: '2027-01-01' });
+    const history = priceHistory([...three, raised]);
+    assert.equal(history.length, 1);
+    assert.equal(history[0]!.from.id, 'y', 'the year price rose; the other two are untouched');
+    assert.equal(history[0]!.delta, 500);
+  });
+
+  it('applies the price that asks for no commitment to an order that made none', () => {
+    /*
+     * The tie-break went straight to the lowest amount, so three terms at one
+     * threshold answered 54 EUR — every margin, break-even and simulation on
+     * the product figured against the two-year price, and the screen told
+     * somebody who had signed nothing that it was what they pay.
+     */
+    const three = [
+      dated({ id: 'm', amount: 6_400, term_months: 0 }),
+      dated({ id: 'y', amount: 5_900, term_months: 12 }),
+      dated({ id: 't', amount: 5_400, term_months: 24 }),
+    ];
+    assert.equal(priceFor(three)!.id, 'm', 'the rack rate, not the cheapest');
+    assert.equal(priceFor(three, { termMonths: 12 })!.id, 'y', 'and the signed one when asked');
+    assert.equal(priceFor(three, { termMonths: 24 })!.amount, 5_400);
+    assert.equal(priceFor(three, { termMonths: 36 }), null, 'a commitment nobody offers is not a price');
+  });
+
+  it('still lets the volume tier beat the commitment, and the amount beat a tie', () => {
+    // The order the docblock claims, asserted rather than assumed: quantity is
+    // a harder fact about an order than a term, and a term than an amount.
+    const tiers = [
+      dated({ id: 'one', amount: 6_400, min_quantity: 1, term_months: 0 }),
+      dated({ id: 'ten', amount: 6_000, min_quantity: 10, term_months: 24 }),
+    ];
+    assert.equal(priceFor(tiers, { quantity: 10 })!.id, 'ten', 'the tier wins over the shorter term');
+
+    const same = [
+      dated({ id: 'a', amount: 6_400, term_months: 12 }),
+      dated({ id: 'b', amount: 5_900, term_months: 12 }),
+    ];
+    assert.equal(priceFor(same)!.id, 'b', 'equal terms, and the customer does not pay for a mid-edit');
+  });
+
+  it('reads a price that states no term as the product\'s own, not as a lane of its own', () => {
+    // Otherwise a price deferring to twelve months and a price saying twelve
+    // months would be alternatives to each other, which they are not — they
+    // are the same offer written two ways.
+    const defers = dated({ id: 'a', amount: 5_900, term_months: null });
+    const states = dated({ id: 'b', amount: 5_900, term_months: 12 });
+    assert.equal(priceLane(defers, 12), priceLane(states, 12));
+    assert.notEqual(priceLane(defers, 0), priceLane(states, 0), 'and on a product with no term they differ');
+    assert.equal(overlappingPrices([defers, states], 12).length, 1, 'so a genuine duplicate is still caught');
+  });
+
+  it('lets the price decide the commitment a retention is figured over', () => {
+    /*
+     * `term_months` is a floor on how long a customer stays. The product holds
+     * one, and a two-year price on a product whose default is none would
+     * otherwise be valued as if the customer could leave next month.
+     */
+    const sold = product({ term_months: 0, churn_bps: 1_000, renewal: 'auto', acquisition_cost: 0 });
+    const loose = retentionOf({ product: sold, contribution: 6_400, recurrence: 'monthly' });
+    const tied = retentionOf({ product: sold, contribution: 5_400, recurrence: 'monthly', termMonths: 24 });
+
+    assert.equal(loose.months, 10, '10% churn on its own');
+    assert.equal(tied.months, 24, 'the contract outlasts the churn');
+    assert.equal(tied.cappedByTerm, true, 'and says that it is the contract talking');
+    assert.ok(tied.value! > loose.value!, 'the cheaper price on a longer term is worth more');
+
+    assert.equal(
+      retentionOf({ product: sold, contribution: 6_400, recurrence: 'monthly', termMonths: null }).months,
+      10,
+      'null defers to the product, the same as leaving it out',
+    );
   });
 
   it('refuses a day the old window does not contain, either end', () => {

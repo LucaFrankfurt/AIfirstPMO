@@ -3226,6 +3226,13 @@
           "sort_order": {
             "type": "string"
           },
+          "term_months": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "What the customer commits to for this price, in months. Null is the product's own `term_months`, and is what nearly every price means. On the price because the product can hold only one, and a catalogue that sells the same module monthly, on a year and on two years at three different monthly amounts has three. `0` here is an explicit \"no commitment\" and is not the same as null: one says it, the other defers."
+          },
           "updated_at": {
             "type": "number",
             "readOnly": true

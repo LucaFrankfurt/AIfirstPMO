@@ -146,10 +146,27 @@ form greys the button out and names the end that is wrong, and `raisePrice`
 throws for a caller that asked anyway.
 
 What counts as "the same price over time" is a **lane**: same kind, same billing
-period, same threshold. A list price and a ten-seat volume price are two lanes
-and both live at once; last year's list price and this year's are one lane, one
-after the other. It is derived from the three fields rather than stored, because
-it is a fact about them and would go stale as a fourth.
+period, same threshold, same commitment. A list price and a ten-seat volume price
+are two lanes and both live at once; last year's list price and this year's are
+one lane, one after the other. It is derived from those fields rather than stored,
+because it is a fact about them and would go stale as one of them changed.
+
+**The commitment joined the lane after a real catalogue did not fit.** The first
+one modelled here sells a module at three terms at once — 64 € a month with no
+commitment, 59 € on a year, 54 € on two — all billed monthly, all list prices,
+all for one seat. Those three differ in nothing the lane knew about, so they
+landed in one: `overlappingPrices` reported three collisions and `priceHistory`
+read 64 → 59 → 54 as a price cut twice. They are three offers standing side by
+side.
+
+So `ProductPrice.term_months` sits beside `recurrence`, and for the same reason
+the billing period moved off the product before it: the product holds one number
+and the catalogue has several. Null means "whatever the product says" and is what
+nearly every price means — a price that defers and a price stating the same
+figure share a lane, because they are the same offer written two ways. `0` is an
+explicit *no commitment* and is not the same as null: one says it, the other
+defers. `retentionOf` takes the price's term when there is one, so a cheaper
+two-year price is valued over the two years the customer actually signed for.
 
 ## Which price applies
 

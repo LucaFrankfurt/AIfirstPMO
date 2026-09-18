@@ -60,11 +60,23 @@ const scaleBps = (amount: Minor, bps: number): Minor => Math.round((amount * bps
  * 3. **Quantity.** Only prices whose `min_quantity` the order reaches.
  *
  * Of what is left, the one with the **highest `min_quantity`** wins — the most
- * specific volume tier the order qualifies for — and the lowest amount settles
- * a tie, because two tiers at the same threshold is somebody mid-edit and the
- * customer should not pay for that. The id settles the last tie so that two
- * devices reach the same row rather than a mergeable-looking pair of different
- * ones.
+ * specific volume tier the order qualifies for. Then the **shortest
+ * commitment**, then the lowest amount, then the id so that two devices reach
+ * the same row rather than a mergeable-looking pair of different ones.
+ *
+ * **The commitment was not in that list and had to be.** The tie-break used to
+ * go straight to the lowest amount, justified by "two tiers at the same
+ * threshold is somebody mid-edit and the customer should not pay for that".
+ * That stopped being true the moment a price could carry its own term: a
+ * catalogue selling one module at 64 EUR with no commitment, 59 EUR on a year
+ * and 54 EUR on two has three tiers at one threshold on purpose, and the rule
+ * as written answered 54 EUR — so every margin, break-even and simulation on
+ * the product was quietly figured against the two-year price, and the screen
+ * marked it "applies today" to somebody who had signed nothing.
+ *
+ * An order that says nothing about a commitment has made none, so the price
+ * that asks for none is the one it pays. `termMonths` is how a caller that
+ * *does* know says so, the same way `recurrence` and `quantity` already do.
  *
  * Null when the product has no applicable price at all, which is a real state:
  * a draft product nobody has priced. Every caller renders it as "not priced"
@@ -79,13 +91,20 @@ export function priceFor(
     kind?: ProductPrice['kind'];
     /** Only prices charged this often. Omitted, every period is eligible. */
     recurrence?: CostRecurrence;
+    /** Only prices asking for exactly this commitment, in months. */
+    termMonths?: number;
+    /** What a price that names no term commits to. See `Product.term_months`. */
+    productTerm?: number;
   } = {},
 ): ProductPrice | null {
   const quantity = Math.max(1, Math.round(options.quantity ?? 1));
   const on = options.on ?? null;
+  const productTerm = options.productTerm ?? 0;
+  const termOf = (price: ProductPrice) => price.term_months ?? productTerm;
   const eligible = prices.filter((price) => {
     if (options.kind ? price.kind !== options.kind : price.kind === 'internal') return false;
     if (options.recurrence && price.recurrence !== options.recurrence) return false;
+    if (options.termMonths !== undefined && termOf(price) !== options.termMonths) return false;
     if (on && price.valid_from && price.valid_from > on) return false;
     if (on && price.valid_to && price.valid_to < on) return false;
     return Math.max(1, price.min_quantity || 1) <= quantity;
@@ -93,6 +112,7 @@ export function priceFor(
   if (!eligible.length) return null;
   return [...eligible].sort((a, b) =>
     (Math.max(1, b.min_quantity || 1) - Math.max(1, a.min_quantity || 1))
+    || (termOf(a) - termOf(b))
     || (comparableAmount(a) - comparableAmount(b))
     || (a.id < b.id ? -1 : 1))[0]!;
 }
@@ -145,16 +165,32 @@ export const mixedPeriods = (prices: readonly ProductPrice[]): boolean => {
  * Which prices are alternatives to one another rather than a change of one.
  *
  * Two prices are in the same **lane** when they are the same offer to the same
- * buyer: same kind, same billing period, same threshold. A list price and a
- * ten-seat volume price are two lanes and both live at once; last year's list
- * price and this year's are one lane, one after the other.
+ * buyer: same kind, same billing period, same threshold, same commitment. A
+ * list price and a ten-seat volume price are two lanes and both live at once;
+ * last year's list price and this year's are one lane, one after the other.
  *
- * The lane is what makes a history readable and an overlap detectable, and it
- * is a derived key rather than a column because it is a fact about the three
- * fields and would go stale as a fourth.
+ * **The term joined the key after a real catalogue did not fit.** Calendoora
+ * sells one module at three terms at once — 64 EUR a month with no commitment,
+ * 59 EUR on a year, 54 EUR on two — all billed monthly, all list prices, all
+ * for one seat. Without the term those three were one lane: `overlappingPrices`
+ * reported three collisions and `priceHistory` read them as a price falling
+ * twice. They are three offers standing side by side, and the only thing
+ * telling them apart is what the customer signs up to.
+ *
+ * A null term is the product's own, so it reads as that number rather than as
+ * a fourth lane — otherwise a price that defers and a price that states the
+ * same figure would be alternatives to each other, which they are not.
+ *
+ * The lane is a derived key rather than a column because it is a fact about
+ * those fields and would go stale as one of them changed.
  */
-export const priceLane = (price: Pick<ProductPrice, 'kind' | 'recurrence' | 'min_quantity'>): string =>
-  `${price.kind}|${price.recurrence}|${Math.max(1, price.min_quantity || 1)}`;
+export const priceLane = (
+  price: Pick<ProductPrice, 'kind' | 'recurrence' | 'min_quantity' | 'term_months'>,
+  productTerm = 0,
+): string => {
+  const term = price.term_months ?? productTerm;
+  return `${price.kind}|${price.recurrence}|${Math.max(1, price.min_quantity || 1)}|${term}`;
+};
 
 /** Whether a price's window is open on a day. Both dates absent is always. */
 export function priceApplies(price: Pick<ProductPrice, 'valid_from' | 'valid_to'>, on: ISODate): boolean {
@@ -190,10 +226,10 @@ export interface PriceChange {
  * — two prices starting the same day is somebody correcting a mistake, and the
  * later edit is the one that stands.
  */
-export function priceHistory(prices: readonly ProductPrice[]): PriceChange[] {
+export function priceHistory(prices: readonly ProductPrice[], productTerm = 0): PriceChange[] {
   const lanes = new Map<string, ProductPrice[]>();
   for (const price of prices) {
-    const lane = priceLane(price);
+    const lane = priceLane(price, productTerm);
     lanes.set(lane, [...(lanes.get(lane) ?? []), price]);
   }
   const out: PriceChange[] = [];
@@ -228,11 +264,11 @@ export function priceHistory(prices: readonly ProductPrice[]): PriceChange[] {
  * Compared as windows rather than on one day, so a pair that will collide in
  * March is found in January. An open end is a window that never closes.
  */
-export function overlappingPrices(prices: readonly ProductPrice[]): [ProductPrice, ProductPrice][] {
+export function overlappingPrices(prices: readonly ProductPrice[], productTerm = 0): [ProductPrice, ProductPrice][] {
   const out: [ProductPrice, ProductPrice][] = [];
   const lanes = new Map<string, ProductPrice[]>();
   for (const price of prices) {
-    const lane = priceLane(price);
+    const lane = priceLane(price, productTerm);
     lanes.set(lane, [...(lanes.get(lane) ?? []), price]);
   }
   for (const listed of lanes.values()) {
@@ -308,6 +344,7 @@ export function raisePrice(
       amount: input.amount,
       min_quantity: price.min_quantity,
       recurrence: price.recurrence,
+      term_months: price.term_months,
       valid_from: input.on,
       valid_to: price.valid_to,
       note: price.note,
@@ -841,6 +878,15 @@ export function retentionOf(input: {
    * an unpriced product's contribution already is — an amount, not a rate.
    */
   recurrence?: CostRecurrence;
+  /**
+   * The commitment behind that contribution, when the **price** states one.
+   *
+   * Same move as `recurrence` above and for the same reason: the product holds
+   * one term and a catalogue selling one module monthly, on a year and on two
+   * has three. Undefined and null both mean the product's own — so a caller
+   * that knows nothing about terms keeps the answer it always got.
+   */
+  termMonths?: number | null;
   churnBps?: number | null;
 }): Retention {
   const recurrence = input.recurrence ?? 'once';
@@ -869,7 +915,8 @@ export function retentionOf(input: {
    * itself is now the one the contract makes true.
    */
   const byChurn = expectedMonths(churn);
-  const term = input.product.term_months > 0 ? input.product.term_months : null;
+  const committed = input.termMonths ?? input.product.term_months;
+  const term = committed > 0 ? committed : null;
   const months = input.product.renewal === 'none'
     ? term
     : (byChurn === null ? term : Math.max(byChurn, term ?? 0));
@@ -977,6 +1024,14 @@ export interface Simulation {
   price: Minor | null;
   /** The list price before them, for the screen that shows both. */
   listPrice: Minor | null;
+  /**
+   * What the customer commits to at the price this ran at, in months.
+   *
+   * On the result because the caller cannot work it out: the price may have
+   * been chosen by `price_id` or found by `priceFor`, and a retention figured
+   * beside a projection has to be figured over the same contract it did.
+   */
+  termMonths: number;
   unitCost: Minor;
   contribution: Minor | null;
   revenue: Minor;
@@ -1013,7 +1068,7 @@ export interface Simulation {
  *   two would drift.
  */
 export function simulate(input: {
-  product: Pick<Product, 'id' | 'group_id' | 'currency' | 'capacity' | 'churn_bps' | 'acquisition_cost'>;
+  product: Pick<Product, 'id' | 'group_id' | 'currency' | 'capacity' | 'churn_bps' | 'acquisition_cost' | 'term_months'>;
   prices: readonly ProductPrice[];
   costs: readonly ProductCost[];
   contributors?: readonly ProductContributor[];
@@ -1032,7 +1087,11 @@ export function simulate(input: {
 
   const chosen = assumed.price_id
     ? input.prices.find((price) => price.id === assumed.price_id) ?? null
-    : priceFor(input.prices, { quantity: assumed.units || 1, on: input.today });
+    : priceFor(input.prices, {
+      quantity: assumed.units || 1,
+      on: input.today,
+      productTerm: input.product.term_months,
+    });
   const listPrice = chosen ? chosen.amount : null;
   // The chosen price says how often it is charged. A product with no price is
   // not a projection at all — `price` is null and every figure below with it —
@@ -1148,6 +1207,7 @@ export function simulate(input: {
     months,
     price,
     listPrice,
+    termMonths: chosen?.term_months ?? input.product.term_months,
     unitCost: structure.unit,
     contribution,
     revenue: revenueTotal,
@@ -1221,6 +1281,9 @@ export function catalogue(input: {
     const economics = unitEconomics({ product, prices, costs, contributors, parts, unitCostOfPart, on: input.today });
     const structure = costStructure({ costs, contributors, parts, unitCostOfPart });
     const running = promotionsFor(input.promotions ?? [], product, input.today);
+    /* One lookup for the row's period and its commitment: the price the row
+       quotes is the contract the retention beside it has to be figured over. */
+    const quoted = priceFor(prices, { on: input.today, productTerm: product.term_months });
     return {
       product,
       economics,
@@ -1229,9 +1292,12 @@ export function catalogue(input: {
       retention: retentionOf({
         product,
         contribution: economics.contribution,
-        // The period of the price the row is quoting, not a field on the
-        // product — otherwise a yearly contribution is read as a monthly one.
-        recurrence: priceFor(prices, { on: input.today })?.recurrence,
+        // The period *and* the commitment of the price the row is quoting,
+        // not fields on the product — otherwise a yearly contribution is read
+        // as a monthly one, and a two-year price is valued over whatever term
+        // the product happens to name.
+        recurrence: quoted?.recurrence,
+        termMonths: quoted?.term_months,
       }),
       promotions: running.map((promotion) => promotion.id),
       promoted: economics.price === null || !running.length ? null : promotedPrice(economics.price, running),

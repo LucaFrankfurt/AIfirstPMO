@@ -119,6 +119,18 @@ for (const [table, column, definition] of [
    */
   ['notifications', 'decision_id', 'TEXT'],
   ['decisions', 'announced_at', 'INTEGER'],
+  /*
+   * A price's own minimum term, which the product could not hold.
+   *
+   * `products.term_months` is one number, and the first real catalogue modelled
+   * here sells one module at three terms at once — 64 EUR monthly, 59 EUR on a
+   * year, 54 EUR on two — all billed monthly. Those are three offers, not a
+   * price falling twice, and with the term only on the product they landed in
+   * one `priceLane` and were reported as an overlap. NULL keeps every price
+   * that predates the column answering to the product, which is what they all
+   * meant.
+   */
+  ['product_prices', 'term_months', 'INTEGER'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

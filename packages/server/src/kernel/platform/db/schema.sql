@@ -528,6 +528,11 @@ CREATE TABLE IF NOT EXISTS product_prices (
   -- What makes a volume price computable rather than a note saying "ask sales".
   min_quantity INTEGER NOT NULL DEFAULT 1,
   recurrence   TEXT NOT NULL DEFAULT 'once',
+  -- What the customer commits to for THIS price, in months. NULL is "whatever
+  -- the product says" and is the ordinary case; a number overrides it, because
+  -- the same product is sold at three terms at once and the product can only
+  -- hold one. See `priceLane`.
+  term_months  INTEGER,
   valid_from   TEXT,
   valid_to     TEXT,
   note         TEXT,
