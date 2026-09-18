@@ -42,6 +42,11 @@ const KINDS: { entity: EntityName; label: TranslationKey; icon: string }[] = [
   // a message somebody deleted should stay deleted, and a list of them would
   // be a way to read what was withdrawn.
   { entity: 'channel', label: 'trash.kindChannel', icon: 'chat' },
+  // A deleted product takes its prices, costs, people and parts with it — see
+  // `tombstoneProductChildren` — so putting it back puts the whole catalogue
+  // entry back. Listed for the same reason a project is: it is the row somebody
+  // deletes by mistake and the one they most want to undo.
+  { entity: 'product', label: 'trash.kindProduct', icon: 'tag' },
 ];
 
 interface Entry {

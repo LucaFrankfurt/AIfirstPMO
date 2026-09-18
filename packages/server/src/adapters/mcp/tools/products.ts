@@ -9,8 +9,9 @@
  */
 import {
   assumptionsOf, bundleValue, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
-  formatMoney, orderKey, PRICE_KINDS, PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS,
-  priceFor, PROMOTION_STATUS, promotionPhase, RENEWALS, retentionOf, simulate, unitCosts, type ProductAssumptions,
+  formatMoney, orderKey, overlappingPrices, PRICE_KINDS, priceChangeRefusal, priceFor, priceHistory,
+  PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, promotionPhase, raisePrice, RENEWALS,
+  retentionOf, simulate, unitCosts, type ProductAssumptions,
   type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Product,
 } from '@kolibri/shared';
 import { all, type Row } from '../../../kernel/platform/db/index.ts';
@@ -164,6 +165,17 @@ export const productTools: ToolDef[] = [
           fee_basis: person.fee_basis,
           ...money(currency, { fee: Number(person.fee) }),
         })),
+        price_history: priceHistory(own).map((change) => ({
+          on: change.on,
+          name: change.to.name || null,
+          kind: change.to.kind,
+          recurrence: change.to.recurrence,
+          ...money(currency, { was: change.from.amount, now: change.to.amount, change: change.delta }),
+          change_percent: change.deltaBps === null ? null : Math.round(change.deltaBps / 100),
+        })),
+        /* Two prices live at once for the same offer. Reported rather than
+           resolved: which was meant is not ours to guess. */
+        overlapping_prices: overlappingPrices(own).map(([a, b]) => [a.id, b.id]),
         capabilities: (entry.product.capabilities ?? [])
           .map((id) => capabilities.find((row) => row.id === id))
           .filter((row): row is Row => !!row)
@@ -343,6 +355,72 @@ export const productTools: ToolDef[] = [
         ...money(String(product.currency), { amount: Number(row.amount) }),
         kind: row.kind,
         min_quantity: row.min_quantity,
+      };
+    },
+  },
+  {
+    name: 'change_product_price',
+    title: 'Change a price, keeping the old one as history',
+    description:
+      'Raise or cut a price from a given day. Two rows in one step: the current price stops the '
+      + 'day before the new one starts, so the old amount stays readable as history and no two '
+      + 'prices are ever live at once for the same offer. Use this rather than editing an amount '
+      + 'in place — an edited price loses what it used to be, and a second `set_product_price` '
+      + 'without closing the first leaves both applicable.',
+    schema: {
+      type: 'object',
+      required: ['product', 'amount'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code' },
+        amount: { type: 'string', description: 'The new amount, e.g. "59" or "1.450,00"' },
+        from: { type: 'string', description: 'YYYY-MM-DD the new price starts. Defaults to today' },
+        price: { type: 'string', description: 'Which price, by id or name. Defaults to the one that applies today' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product), workspaceId);
+      const today = new Date().toISOString().slice(0, 10);
+      const on = isoDay(args.from, 'from') ?? today;
+
+      const prices = productChildren('productPrice', String(product.id)) as unknown as ProductPrice[];
+      const wanted = str(args.price)?.toLowerCase();
+      const current = wanted
+        ? prices.find((row) => row.id === args.price || row.name.toLowerCase() === wanted)
+        : priceFor(prices, { on: today });
+      if (!current) {
+        throw new McpError(wanted
+          ? `No price "${args.price}" on ${product.name}`
+          : `${product.name} has no price that applies today — use set_product_price to give it one`);
+      }
+
+      /* `raisePrice` throws on a day outside the old window; ask first so the
+         answer names which end rather than arriving as an internal error. */
+      const refusal = priceChangeRefusal(current, on);
+      if (refusal === 'before-start') {
+        throw new McpError(`"${current.name || product.name}" only starts on ${current.valid_from} — a change has to take effect after that`);
+      }
+      if (refusal === 'after-end') {
+        throw new McpError(`"${current.name || product.name}" already ends on ${current.valid_to} — use set_product_price for a new one rather than changing a price that has stopped`);
+      }
+
+      const { closes, opens } = raisePrice(current, { amount: requireMoney(args.amount, 'amount'), on });
+      writeEntity('productPrice', closes.id, { valid_to: closes.valid_to }, writeOpts(workspaceId, ctx));
+      const { row } = writeEntity('productPrice', uid(), {
+        ...opens,
+        sort_order: orderKey(lastChildOrder('product_prices', String(product.id)), null),
+      }, writeOpts(workspaceId, ctx));
+
+      return {
+        product: product.name,
+        ...money(String(product.currency), { was: current.amount, now: Number(row.amount), change: Number(row.amount) - current.amount }),
+        change_percent: current.amount === 0 ? null : Math.round(((Number(row.amount) - current.amount) * 100) / current.amount),
+        old_price_ends: closes.valid_to,
+        new_price_starts: on,
+        new_price_id: row.id,
       };
     },
   },

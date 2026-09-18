@@ -22,7 +22,7 @@
  */
 import {
   COST_RECURRENCES,
-  type CostBasis, type CostCategory, type CostRecurrence, type ID, type ISODate, type Minor,
+  type Base, type CostBasis, type CostCategory, type CostRecurrence, type ID, type ISODate, type Minor,
   type Product, type ProductAssumptions, type ProductContributor, type ProductCost, type ProductPart,
   type ProductPrice, type Promotion, type PromotionKind, type PromotionStatus,
 } from '../../kernel/registry/types.ts';
@@ -140,6 +140,188 @@ export const mixedPeriods = (prices: readonly ProductPrice[]): boolean => {
   const periods = periodsOf(prices);
   return periods.includes('once') && periods.length > 1;
 };
+
+/**
+ * Which prices are alternatives to one another rather than a change of one.
+ *
+ * Two prices are in the same **lane** when they are the same offer to the same
+ * buyer: same kind, same billing period, same threshold. A list price and a
+ * ten-seat volume price are two lanes and both live at once; last year's list
+ * price and this year's are one lane, one after the other.
+ *
+ * The lane is what makes a history readable and an overlap detectable, and it
+ * is a derived key rather than a column because it is a fact about the three
+ * fields and would go stale as a fourth.
+ */
+export const priceLane = (price: Pick<ProductPrice, 'kind' | 'recurrence' | 'min_quantity'>): string =>
+  `${price.kind}|${price.recurrence}|${Math.max(1, price.min_quantity || 1)}`;
+
+/** Whether a price's window is open on a day. Both dates absent is always. */
+export function priceApplies(price: Pick<ProductPrice, 'valid_from' | 'valid_to'>, on: ISODate): boolean {
+  if (price.valid_from && price.valid_from > on) return false;
+  if (price.valid_to && price.valid_to < on) return false;
+  return true;
+}
+
+/** One step in a lane's history: what it was, what it became, and from when. */
+export interface PriceChange {
+  lane: string;
+  from: ProductPrice;
+  to: ProductPrice;
+  /** The day the new one takes over — its `valid_from`, or the day it was made. */
+  on: ISODate;
+  /** The difference, in minor units. Negative is a cut. */
+  delta: Minor;
+  /** The difference as basis points of the old price. Null when it was zero. */
+  deltaBps: number | null;
+}
+
+/**
+ * A product's price history, lane by lane, oldest first.
+ *
+ * There is no `product_price_versions` table and there should not be one. A
+ * page has versions because its body is *overwritten* — the old text exists
+ * only if something copied it first. A price is never overwritten: raising one
+ * closes a window and opens another, so the old row, with its `valid_to` in the
+ * past, already **is** the historical price, and `priceFor` has always read it
+ * that way. A second table would be a copy of rows that are still there.
+ *
+ * Ordered by when each price takes effect, with `created_at` settling the ties
+ * — two prices starting the same day is somebody correcting a mistake, and the
+ * later edit is the one that stands.
+ */
+export function priceHistory(prices: readonly ProductPrice[]): PriceChange[] {
+  const lanes = new Map<string, ProductPrice[]>();
+  for (const price of prices) {
+    const lane = priceLane(price);
+    lanes.set(lane, [...(lanes.get(lane) ?? []), price]);
+  }
+  const out: PriceChange[] = [];
+  for (const [lane, listed] of lanes) {
+    const ordered = [...listed].sort((a, b) =>
+      (a.valid_from ?? '').localeCompare(b.valid_from ?? '') || a.created_at - b.created_at);
+    for (let index = 1; index < ordered.length; index++) {
+      const from = ordered[index - 1]!;
+      const to = ordered[index]!;
+      const delta = to.amount - from.amount;
+      out.push({
+        lane,
+        from,
+        to,
+        on: to.valid_from ?? new Date(to.created_at).toISOString().slice(0, 10),
+        delta,
+        deltaBps: from.amount === 0 ? null : Math.round((delta * FULL_BPS) / from.amount),
+      });
+    }
+  }
+  return out.sort((a, b) => a.on.localeCompare(b.on));
+}
+
+/**
+ * Prices that are live at the same time in the same lane.
+ *
+ * Two list prices both open today is not a tier and not a history — it is a
+ * price change where somebody forgot to close the old one, and `priceFor`
+ * answers it deterministically without anybody knowing which of the two won.
+ * Reported rather than resolved: which one was meant is not ours to guess.
+ *
+ * Compared as windows rather than on one day, so a pair that will collide in
+ * March is found in January. An open end is a window that never closes.
+ */
+export function overlappingPrices(prices: readonly ProductPrice[]): [ProductPrice, ProductPrice][] {
+  const out: [ProductPrice, ProductPrice][] = [];
+  const lanes = new Map<string, ProductPrice[]>();
+  for (const price of prices) {
+    const lane = priceLane(price);
+    lanes.set(lane, [...(lanes.get(lane) ?? []), price]);
+  }
+  for (const listed of lanes.values()) {
+    for (let a = 0; a < listed.length; a++) {
+      for (let b = a + 1; b < listed.length; b++) {
+        const one = listed[a]!;
+        const two = listed[b]!;
+        const startsAfter = (x: ProductPrice, y: ProductPrice) => !!y.valid_to && !!x.valid_from && x.valid_from > y.valid_to;
+        if (startsAfter(one, two) || startsAfter(two, one)) continue;
+        out.push(one.id < two.id ? [one, two] : [two, one]);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Why a price cannot change on a given day, or null if it can.
+ *
+ * Separate from `raisePrice` so a form can grey the button out and say which
+ * way the date is wrong, rather than letting somebody press save and catch an
+ * exception. The two answers are the two ends of the old price's window: a
+ * change takes effect strictly after it started — the old one has to keep at
+ * least one day to be the price it was — and not after it ended, because a
+ * price that already stopped is not the one being changed.
+ */
+export function priceChangeRefusal(
+  price: Pick<ProductPrice, 'valid_from' | 'valid_to'>,
+  on: ISODate,
+): 'before-start' | 'after-end' | null {
+  if (price.valid_from && on <= price.valid_from) return 'before-start';
+  if (price.valid_to && on > price.valid_to) return 'after-end';
+  return null;
+}
+
+/**
+ * The two rows a price change is made of: the old one closed, the new one open.
+ *
+ * Returned as a pair rather than written, because `@kolibri/shared` writes
+ * nothing — but it is one function so that the client and MCP cannot disagree
+ * about the boundary. The old window closes the **day before** the new one
+ * opens: sharing a day would leave both live for twenty-four hours, which is
+ * the overlap above and the exact mistake this exists to prevent.
+ *
+ * Everything else about the price carries over. A change of amount is a change
+ * of amount; changing the threshold or the period at the same time makes it a
+ * different offer, which is a new price rather than a new version of this one.
+ *
+ * **Refuses a day the old window does not contain**, because all three ways out
+ * of it are silent. Landing on or before its `valid_from` closes it before it
+ * opened, and an inverted window matches *no* day, so the old price does not
+ * become history — it disappears, from the history table and from `priceFor`
+ * alike. Landing after its `valid_to` is the mirror: the close date moves
+ * *later* than the end somebody already set, quietly reselling a price that had
+ * stopped, and the new row inherits that same past `valid_to` and is born
+ * inverted too. Nothing in the schema forbids `valid_to < valid_from`, and
+ * nothing downstream reports it; `priceChangeRefusal` is how a caller asks
+ * before writing, and this throw is the backstop for one that did not.
+ */
+export function raisePrice(
+  price: ProductPrice,
+  input: { amount: Minor; on: ISODate },
+): { closes: { id: ID; valid_to: ISODate }; opens: Omit<ProductPrice, keyof Base> & { product_id: ID } } {
+  const refusal = priceChangeRefusal(price, input.on);
+  if (refusal) throw new Error(`a price cannot change on ${input.on}: ${refusal}`);
+  return {
+    closes: { id: price.id, valid_to: dayBefore(input.on) },
+    opens: {
+      workspace_id: price.workspace_id,
+      product_id: price.product_id,
+      name: price.name,
+      kind: price.kind,
+      amount: input.amount,
+      min_quantity: price.min_quantity,
+      recurrence: price.recurrence,
+      valid_from: input.on,
+      valid_to: price.valid_to,
+      note: price.note,
+      sort_order: price.sort_order,
+    },
+  };
+}
+
+/** The day before an ISO date, without a timezone anywhere near it. */
+export function dayBefore(date: ISODate): ISODate {
+  const at = new Date(`${date}T00:00:00Z`);
+  at.setUTCDate(at.getUTCDate() - 1);
+  return at.toISOString().slice(0, 10);
+}
 
 /**
  * A price over one month, whatever it is charged over.

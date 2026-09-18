@@ -117,6 +117,40 @@ that is not an assumption about how long somebody stays.
 customer who has chosen to pay yearly are asking different questions, and
 neither is the other's answer.
 
+## A price change is two rows, not an edit
+
+There is no `product_price_versions` table and there should not be one. A page
+has versions because its body is **overwritten** — the old text exists only if
+something copied it first. A price is never overwritten: raising one closes a
+window and opens another, so the old row, with its `valid_to` in the past,
+already *is* the historical price, and `priceFor` has always read it that way. A
+second table would be a copy of rows that are still there.
+
+`raisePrice` returns the two rows so the client and MCP cannot disagree about
+the boundary, and the boundary is the part worth stating: the old window closes
+the **day before** the new one opens. Sharing a day would leave both live for
+twenty-four hours, which is exactly the mistake the whole thing exists to
+prevent — and `overlappingPrices` reports it when it happens anyway, rather than
+resolving it, because which of two live prices was meant is not ours to guess.
+
+The change has to land **inside the window the old price already has**, and
+`priceChangeRefusal` says so before anything is written. Both ways out of it are
+silent. A day on or before its `valid_from` closes the old window before it
+opened, and an inverted window matches *no* day — the old amount does not become
+history, it disappears, from the history table and from `priceFor` alike. A day
+after its `valid_to` is the mirror: the close date moves *later* than the end
+somebody already set, quietly reselling a price that had stopped, and the new row
+inherits that same past `valid_to` and is born inverted too. Nothing in the
+schema forbids `valid_to < valid_from` and nothing downstream reports it, so the
+form greys the button out and names the end that is wrong, and `raisePrice`
+throws for a caller that asked anyway.
+
+What counts as "the same price over time" is a **lane**: same kind, same billing
+period, same threshold. A list price and a ten-seat volume price are two lanes
+and both live at once; last year's list price and this year's are one lane, one
+after the other. It is derived from the three fields rather than stored, because
+it is a fact about them and would go stale as a fourth.
+
 ## Which price applies
 
 Three filters and one preference, in this order:
@@ -270,7 +304,7 @@ does not keep. See [`TODO.md`](../TODO.md).
 
 ## Over MCP
 
-Ten tools. Every read answers with the *derived* figures rather than the rows,
+Eleven tools. Every read answers with the *derived* figures rather than the rows,
 because an assistant handed four price rows and eleven cost rows will do the
 arithmetic itself and get a different answer from the screen. The arithmetic
 lives in `@kolibri/shared` and both sides call it.
@@ -283,6 +317,7 @@ lives in `@kolibri/shared` and both sides call it.
 | `set_product_price` | A list, volume, partner or internal price |
 | `add_product_cost` | With the basis that decides where it lands |
 | `add_product_contributor` | An external speaker or subcontractor, with their fee |
+| `change_product_price` | Raise or cut a price from a day, keeping the old one as history |
 | `add_product_part` | Put a product in a package |
 | `list_promotions` | With the phase worked out from today |
 | `create_promotion` | Refuses a product or group it cannot resolve |

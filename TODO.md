@@ -637,6 +637,21 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       one, and a half-built one whose numbers cannot be reconciled with the finance system is worse
       than an assumption that admits it is one. **The honest middle step, if this is wanted, is
       recording cohort sizes month by month** — enough for a real curve, without holding a person.
+- [ ] **A restored budget comes back without its lines, its invoices or its scenarios.** The
+      deleting half is there — `tombstoneBudgetChildren` — and the restoring half is not, so a
+      budget put back from the trash is an empty envelope and its children stay tombstoned. Worse
+      than the display problem: `purgeable()` collects rows whose parent is gone, and theirs is
+      back, so emptying the trash leaves them permanently, unreachable and un-purgeable. Exactly the
+      shape `cascadeProject` in `work.ts` documents and fixes for a project, and `cascadeProduct`
+      now does for a product — the same six lines, plus the `deleted_at >=` clause that takes back
+      what the deletion took rather than everything ever deleted. Not done here because a budget is
+      not what was being worked on and a cascade is not a change to make in passing; it is small and
+      it is wanted. The trash does not list budgets today, which is the only reason nobody has hit
+      it — the same was true of products until the trash learned to list them.
+- [ ] **A budget cannot be archived from the interface.** `budgets.archived` is read by every list
+      (`budgets.tsx:97` filters `!row.archived`) and set by nothing, so the column is a filter with
+      no switch behind it — the same thing that was true of `products.archived` until a product
+      grew an Archive button. One control and a "show archived" toggle, as the catalogue now has.
 - [ ] **`products.billing` is a dead column on every instance that ran the first
       version.** The period moved to the price, where it belonged; the column left `schema.sql` and
       the registry, and nothing writes or reads it. On a fresh database it is simply not there. On
@@ -1251,7 +1266,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 99 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 100 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

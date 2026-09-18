@@ -20,7 +20,9 @@ import { describe, it } from 'node:test';
 import {
   applyPromotion, assumptionsOf, breakEven, bundleValue, capabilitiesOf, costStructure,
   expectedMonths, healthOfProduct, monthlyAmount, priceFor, promotedPrice, promotionCovers,
-  mixedPeriods, periodsOf, promotionPhase, retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
+  dayBefore, mixedPeriods, overlappingPrices, periodsOf, priceChangeRefusal, priceHistory,
+  promotionPhase, raisePrice,
+  retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
   type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice,
   type Promotion,
 } from '@kolibri/shared';
@@ -145,6 +147,113 @@ describe('which price applies', () => {
     const a = price({ id: 'aaa', amount: 90_000, min_quantity: 5 });
     const b = price({ id: 'bbb', amount: 90_000, min_quantity: 5 });
     assert.equal(priceFor([a, b], { quantity: 9 })?.id, priceFor([b, a], { quantity: 9 })?.id);
+  });
+});
+
+describe('a price history', () => {
+  const dated = (over: Partial<ProductPrice>) => price({ kind: 'list', recurrence: 'monthly', ...over });
+
+  it('reads a closed window as the old price rather than as a second live one', () => {
+    /*
+     * There is no versions table and there should not be one. A page has
+     * versions because its body is overwritten; a price is never overwritten —
+     * raising one closes a window and opens another, so the old row already is
+     * the history and `priceFor` has always read it that way.
+     */
+    const changes = priceHistory([
+      dated({ id: 'neu', amount: 5_900, valid_from: '2026-01-01' }),
+      dated({ id: 'alt', amount: 4_900, valid_to: '2025-12-31' }),
+    ]);
+    assert.equal(changes.length, 1);
+    assert.equal(changes[0].from.id, 'alt');
+    assert.equal(changes[0].to.id, 'neu');
+    assert.equal(changes[0].delta, 1_000);
+    assert.equal(changes[0].deltaBps, 2_041, 'just over a fifth');
+    assert.equal(changes[0].on, '2026-01-01');
+  });
+
+  it('keeps a volume tier out of the list price\'s history', () => {
+    // Two lanes, not two versions: a list price and a ten-seat price are
+    // alternatives that live at once, and neither is a change of the other.
+    const changes = priceHistory([
+      dated({ id: 'liste', amount: 4_900 }),
+      dated({ id: 'zehn', amount: 3_900, kind: 'volume', min_quantity: 10 }),
+    ]);
+    assert.deepEqual(changes, []);
+  });
+
+  it('finds two prices left live in one lane, in January for a March collision', () => {
+    /*
+     * Not a tier and not a history — a price change where somebody forgot to
+     * close the old one. `priceFor` answers it deterministically and nobody
+     * knows which of the two won, which is why it is reported rather than
+     * resolved.
+     */
+    const clash = overlappingPrices([
+      dated({ id: 'a', amount: 4_900 }),
+      dated({ id: 'b', amount: 5_900, valid_from: '2026-03-01' }),
+    ]);
+    assert.equal(clash.length, 1);
+    assert.deepEqual(clash[0].map((p) => p.id), ['a', 'b']);
+
+    // Closed properly, there is nothing to report.
+    assert.deepEqual(overlappingPrices([
+      dated({ id: 'a', amount: 4_900, valid_to: '2026-02-28' }),
+      dated({ id: 'b', amount: 5_900, valid_from: '2026-03-01' }),
+    ]), []);
+  });
+
+  it('closes the old window the day before the new one opens', () => {
+    // Sharing a day would leave both live for twenty-four hours, which is the
+    // overlap above and the exact mistake this exists to prevent.
+    const { closes, opens } = raisePrice(dated({ id: 'alt', amount: 4_900 }), { amount: 5_900, on: '2026-03-01' });
+    assert.equal(closes.id, 'alt');
+    assert.equal(closes.valid_to, '2026-02-28', '2026 is not a leap year');
+    assert.equal(opens.amount, 5_900);
+    assert.equal(opens.valid_from, '2026-03-01');
+    assert.equal(opens.kind, 'list', 'everything else about the offer carries over');
+    assert.equal(opens.recurrence, 'monthly');
+  });
+
+  it('refuses a day the old window does not contain, either end', () => {
+    /*
+     * Both ways out of the window are silent, which is why this is a refusal
+     * rather than a best effort. Landing on or before `valid_from` closes the
+     * old price before it opened, and an inverted window matches no day at all
+     * — the old amount does not become history, it disappears. Landing after
+     * `valid_to` moves the close date later than the end somebody already set,
+     * reselling a price that had stopped, and hands the new row that same past
+     * `valid_to` so it is born inverted too. Nothing in the schema forbids
+     * either shape and nothing downstream reports it.
+     */
+    const window = dated({ valid_from: '2026-01-01', valid_to: '2026-06-30' });
+
+    assert.equal(priceChangeRefusal(window, '2026-01-01'), 'before-start', 'the old price keeps at least one day');
+    assert.equal(priceChangeRefusal(window, '2025-12-31'), 'before-start');
+    assert.equal(priceChangeRefusal(window, '2026-07-01'), 'after-end');
+    assert.equal(priceChangeRefusal(window, '2026-01-02'), null);
+    assert.equal(priceChangeRefusal(window, '2026-06-30'), null, 'the last day it applies is still a day it applies');
+    assert.equal(priceChangeRefusal(dated({}), '2026-01-01'), null, 'an open window contains every day');
+
+    assert.throws(() => raisePrice(window, { amount: 5_900, on: '2026-01-01' }), /before-start/);
+    assert.throws(() => raisePrice(window, { amount: 5_900, on: '2026-07-01' }), /after-end/);
+  });
+
+  it('never writes a window that ends before it begins', () => {
+    // The shape the guard exists to prevent, asserted on what comes back rather
+    // than on the guard: a caller reads these two rows, not the refusal.
+    const window = dated({ valid_from: '2026-01-01', valid_to: '2026-06-30' });
+    const { closes, opens } = raisePrice(window, { amount: 5_900, on: '2026-04-01' });
+    assert.ok(closes.valid_to >= (window.valid_from ?? ''), 'the old price keeps a window');
+    assert.ok(!opens.valid_to || opens.valid_to >= opens.valid_from!, 'and so does the new one');
+    assert.equal(closes.valid_to, '2026-03-31');
+    assert.equal(opens.valid_to, '2026-06-30', 'the end somebody set is not moved by a change of amount');
+  });
+
+  it('steps back across a month and a year end without a timezone anywhere', () => {
+    assert.equal(dayBefore('2026-03-01'), '2026-02-28');
+    assert.equal(dayBefore('2026-01-01'), '2025-12-31');
+    assert.equal(dayBefore('2024-03-01'), '2024-02-29', 'a leap year');
   });
 });
 
