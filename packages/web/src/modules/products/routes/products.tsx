@@ -19,11 +19,11 @@ import {
   COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS, PRICE_KINDS,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
   assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, dayBefore, expectedMonths, orderKey,
-  overlappingPrices, priceChangeRefusal, priceFor, priceHistory, raisePrice,
-  promotionPhase, retentionCurve, retentionOf, simulate,
+  overlappingPrices, priceChangeRefusal, priceFor, priceHistory, promotionPhase, promotionReach,
+  raisePrice, retentionCurve, retentionOf, simulate, stackedPromotions,
   type CatalogueEntry, type CostBasis, type Minor, type Product, type ProductAssumptions, type ProductCapability,
   type ProductContributor, type ProductCost, type ProductGroup, type ProductPrice,
-  type ProductScenario, type Promotion,
+  type ProductScenario, type Promotion, type PromotionBreakEven,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
 import {
@@ -361,7 +361,13 @@ function Promotions() {
   const products = useQuery(() => list('product'), []);
   const groups = useQuery(() => list('productGroup'), []);
   const [editing, setEditing] = useState<Promotion | null | undefined>(undefined);
+  const [opened, setOpened] = useState<Promotion | null>(null);
   const day = today();
+
+  /* Two campaigns live on one product at once are applied one after the other
+     by `promotedPrice` — deliberately, and invisibly. Reported here for the
+     same reason overlapping prices are reported one floor down. */
+  const stacked = useMemo(() => stackedPromotions(promotions, products), [promotions, products]);
 
   const named = useMemo(() => {
     const out = new Map<string, string>();
@@ -378,6 +384,14 @@ function Promotions() {
             <Icon name="plus" size={14} /> {t('product.newPromotion')}
           </Button>
         </div>
+      )}
+      {stacked.length > 0 && (
+        <p className="notice-warn">
+          {t('product.promoStacked', {
+            count: String(stacked.length),
+            products: [...new Set(stacked.flatMap((pair) => pair.products.map((row) => row.name)))].join(', '),
+          })}
+        </p>
       )}
       {!promotions.length ? (
         <Empty emoji="📣" title={t('product.noPromotions')} hint={t('product.noPromotionsHint')} />
@@ -400,7 +414,14 @@ function Promotions() {
                 const covered = [...promotion.products, ...promotion.groups];
                 return (
                   <tr key={promotion.id}>
-                    <td>{promotion.name}</td>
+                    <td>
+                      {/* The name is the way in. Everything computed about a
+                          campaign is per covered product, which is a table,
+                          and a table does not fit in a cell. */}
+                      <button type="button" className="cell-link" onClick={() => setOpened(promotion)}>
+                        {promotion.name}
+                      </button>
+                    </td>
                     <td>
                       {promotion.kind === 'percent'
                         ? `${promotion.value / 100}%`
@@ -447,9 +468,109 @@ function Promotions() {
       {editing !== undefined && (
         <PromotionForm promotion={editing} products={products} groups={groups} onClose={() => setEditing(undefined)} />
       )}
+      {opened && <PromotionDetail promotion={opened} onClose={() => setOpened(null)} />}
       {dialog}
     </div>
   );
+}
+
+/**
+ * What a campaign actually does, per product it touches.
+ *
+ * The list row says a percentage and a window; this says 64 € becomes 32 €,
+ * that it gives away 32 € a sale, and at what volume it starts paying for
+ * itself. Per product rather than as one total, because a campaign covering
+ * four products discounts four different prices and the sum of them is a
+ * figure nobody can act on without a volume mix nothing here records.
+ */
+function PromotionDetail({ promotion, onClose }: { promotion: Promotion; onClose: () => void }) {
+  const t = useT();
+  const { entries, today: day } = useCatalogue({ months: 12, deliveries: 1 });
+  const prices = useQuery(() => list('productPrice'), []);
+
+  const reached = useMemo(() => {
+    const pricesOf = new Map<string, ProductPrice[]>();
+    for (const price of prices) {
+      const listed = pricesOf.get(price.product_id) ?? [];
+      listed.push(price);
+      pricesOf.set(price.product_id, listed);
+    }
+    const costs = new Map(entries.map((entry) => [entry.product.id, entry.structure.unit]));
+    return promotionReach({
+      promotion,
+      products: entries.map((entry) => entry.product),
+      pricesOf: (id) => pricesOf.get(id) ?? [],
+      unitCostOf: (id) => costs.get(id) ?? 0,
+      on: day,
+    });
+  }, [promotion, entries, prices, day]);
+
+  return (
+    <Sheet title={promotion.name} onClose={onClose} wide>
+      <p className="text-[12.5px] text-muted">{t('product.promoDetailHint')}</p>
+      {!reached.length ? (
+        <p className="notice-warn">{t('product.promoReachesNothing')}</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="task-table">
+            <thead>
+              <tr>
+                <th>{t('product.product')}</th>
+                <th className="narrow">{t('product.listPrice')}</th>
+                <th className="narrow">{t('product.withPromo')}</th>
+                <th className="narrow">{t('product.givenAway')}</th>
+                <th>{t('product.paysFrom')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reached.map((row) => (
+                <tr key={row.product.id}>
+                  <td>{row.product.name}</td>
+                  <td className="narrow">{row.list === null ? '—' : asMoney(row.list, row.product.currency)}</td>
+                  <td className="narrow">{row.promoted === null ? '—' : asMoney(row.promoted, row.product.currency)}</td>
+                  <td className="narrow">
+                    {row.list === null ? '—' : (
+                      /* Flat, not red: a discount given is not an overrun, and
+                         whether it is bad news depends on what it buys. */
+                      <span className="money-flat">
+                        −{asMoney(row.discount, row.product.currency)}
+                        {row.discountBps !== null && ` (${Math.round(row.discountBps / 100)}%)`}
+                      </span>
+                    )}
+                  </td>
+                  <td>{payback(t, row.breakEven)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-[12.5px] text-muted">
+        {t('product.promoAssumption', {
+          uplift: String(Math.round(promotion.uplift_bps / 100)),
+          spend: asMoney(promotion.spend, promotion.currency, true),
+        })}
+      </p>
+    </Sheet>
+  );
+}
+
+/**
+ * The break-even as a sentence, because two of its three answers are not numbers.
+ *
+ * It names no unit. `unit_label` is a word the organisation typed, in the
+ * singular — "Platz", "Lizenz", "Tag" — and "ab 45 Platz im Monat" is what
+ * putting it after a count reads as. No locale here can decline a word it was
+ * handed, so the sentence is written not to need one.
+ */
+function payback(t: ReturnType<typeof useT>, answer: PromotionBreakEven): string {
+  if (answer.kind === 'always') return t('product.paysAlways');
+  if (answer.kind === 'never') {
+    return t(answer.why === 'no-price' ? 'product.paysNoPrice'
+      : answer.why === 'no-uplift' ? 'product.paysNoUplift'
+        : 'product.paysNeverSmall');
+  }
+  return t('product.paysAbove', { units: String(answer.units) });
 }
 
 function PromotionForm({ promotion, products, groups, onClose }: {

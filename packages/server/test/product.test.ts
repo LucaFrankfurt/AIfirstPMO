@@ -21,7 +21,7 @@ import {
   applyPromotion, assumptionsOf, breakEven, bundleValue, capabilitiesOf, costStructure,
   expectedMonths, healthOfProduct, monthlyAmount, priceFor, promotedPrice, promotionCovers,
   dayBefore, mixedPeriods, overlappingPrices, periodsOf, priceChangeRefusal, priceHistory,
-  priceLane, promotionPhase, raisePrice,
+  priceLane, promotionBreakEven, promotionPhase, promotionReach, raisePrice, stackedPromotions,
   retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
   type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice,
   type Promotion,
@@ -348,6 +348,117 @@ describe('a price history', () => {
     assert.equal(dayBefore('2026-03-01'), '2026-02-28');
     assert.equal(dayBefore('2026-01-01'), '2025-12-31');
     assert.equal(dayBefore('2024-03-01'), '2024-02-29', 'a leap year');
+  });
+});
+
+describe('what a campaign does', () => {
+  const campaign = (over: Partial<Promotion> = {}): Promotion => ({
+    id: `pm${++seq}`, workspace_id: 'w', name: 'Black Friday', description: null,
+    kind: 'percent', value: 5_000, starts_on: null, ends_on: null, products: [], groups: [],
+    spend: 0, uplift_bps: 0, status: 'live', owner_id: null, currency: 'EUR',
+    sort_order: 'V', created_at: seq, updated_at: seq, deleted_at: null, seq,
+    ...over,
+  } as Promotion);
+
+  it('says at what volume a campaign starts paying for itself', () => {
+    /*
+     * Every sale that would have happened anyway costs the discount; every sale
+     * the campaign causes earns what is left. 1.000 EUR spent, 10 EUR given
+     * away per sale, 54 EUR left after it, a quarter again expected:
+     * 0,25 × 54 = 13,50 earned against 10 given away, so 3,50 per baseline
+     * sale, and 1.000 / 3,50 = 286 rounded up.
+     */
+    const answer = promotionBreakEven({ spend: 100_000, discount: 1_000, contribution: 5_400, upliftBps: 2_500 });
+    assert.deepEqual(answer, { kind: 'above', units: 286 });
+  });
+
+  it('answers with a word where the honest answer is not a number', () => {
+    // Two of the three answers are statements, not thresholds, and returning
+    // 0 and Infinity for them would put both in one column as if they were.
+    assert.deepEqual(
+      promotionBreakEven({ spend: 0, discount: 1_000, contribution: 5_400, upliftBps: 2_500 }),
+      { kind: 'always' },
+      'nothing spent, and each extra sale earns more than the discount costs',
+    );
+    assert.deepEqual(
+      promotionBreakEven({ spend: 100_000, discount: 1_000, contribution: 5_400, upliftBps: 0 }),
+      { kind: 'never', why: 'no-uplift' },
+      'a discount nobody expects to sell more is a giveaway, and the arithmetic says so',
+    );
+    assert.deepEqual(
+      promotionBreakEven({ spend: 100_000, discount: 3_200, contribution: 3_200, upliftBps: 2_500 }),
+      { kind: 'never', why: 'uplift-too-small' },
+      '0,25 × 32 = 8 earned against 32 given away — no volume fixes that',
+    );
+    assert.deepEqual(
+      promotionBreakEven({ spend: 100_000, discount: 0, contribution: null, upliftBps: 2_500 }),
+      { kind: 'never', why: 'no-price' },
+    );
+  });
+
+  it('works out what each covered product actually costs under the campaign', () => {
+    const half = campaign({ kind: 'percent', value: 5_000, uplift_bps: 2_500, spend: 0 });
+    const buchung = product({ id: 'buch', name: 'Buchung', term_months: 0 });
+    const prices = [price({ product_id: 'buch', amount: 6_400, recurrence: 'monthly', term_months: 0 })];
+
+    const [reached] = promotionReach({
+      promotion: half,
+      products: [buchung],
+      pricesOf: () => prices,
+      on: '2026-11-27',
+    });
+
+    assert.equal(reached!.list, 6_400, 'what it would have cost');
+    assert.equal(reached!.promoted, 3_200, 'what it costs under the campaign');
+    assert.equal(reached!.discount, 3_200, 'and what that gives away per sale');
+    assert.equal(reached!.discountBps, 5_000);
+    assert.deepEqual(reached!.breakEven, { kind: 'never', why: 'uplift-too-small' },
+      'half off against a quarter more sold never pays, whatever the volume');
+  });
+
+  it('leaves an unpriced product reachable but unanswerable', () => {
+    // A draft product in a campaign is not an error — it is a campaign written
+    // before the price was. It has to appear, and it must not report a figure.
+    const [reached] = promotionReach({
+      promotion: campaign({ uplift_bps: 2_500 }),
+      products: [product({ id: 'stemp', name: 'Stempelkarte' })],
+      pricesOf: () => [],
+      on: '2026-11-27',
+    });
+    assert.equal(reached!.list, null);
+    assert.equal(reached!.contribution, null);
+    assert.equal(reached!.discount, 0, 'nothing is given away on a price that does not exist');
+    assert.deepEqual(reached!.breakEven, { kind: 'never', why: 'no-price' });
+  });
+
+  it('reports two campaigns that will both be applied to one product', () => {
+    /*
+     * `promotedPrice` stacks them, deliberately and deterministically — two
+     * live 50% campaigns make a product 25% of list. What it cannot do is say
+     * so, and the only place that shows is a price three screens away that
+     * looks wrong. Same reporting `overlappingPrices` does one floor down.
+     */
+    const buchung = product({ id: 'buch', name: 'Buchung' });
+    const webseite = product({ id: 'web', name: 'Webseite' });
+    const november = campaign({ id: 'a', products: ['buch'], starts_on: '2026-11-01', ends_on: '2026-11-30' });
+    const blackFriday = campaign({ id: 'b', products: ['buch', 'web'], starts_on: '2026-11-27', ends_on: '2026-12-01' });
+    const january = campaign({ id: 'c', products: ['buch'], starts_on: '2027-01-01', ends_on: '2027-01-31' });
+
+    const clashes = stackedPromotions([november, blackFriday, january], [buchung, webseite]);
+    assert.equal(clashes.length, 1, 'January does not overlap either of them');
+    assert.equal(clashes[0]!.a.id, 'a');
+    assert.equal(clashes[0]!.b.id, 'b');
+    assert.deepEqual(clashes[0]!.products.map((row) => row.name), ['Buchung'],
+      'only the product both of them cover');
+  });
+
+  it('does not call a draft campaign a collision', () => {
+    // Nothing applies a draft to a price, so two of them cannot collide. The
+    // warning has to mean something on the day somebody reads it.
+    const buchung = product({ id: 'buch' });
+    const draft = campaign({ id: 'a', status: 'draft', products: ['buch'] });
+    const live = campaign({ id: 'b', status: 'live', products: ['buch'] });
+    assert.deepEqual(stackedPromotions([draft, live], [buchung]), []);
   });
 });
 

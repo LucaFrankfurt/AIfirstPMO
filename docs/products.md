@@ -48,6 +48,47 @@ column that was added up differently.
 One currency per product, and nothing anywhere converts between two. A catalogue
 in two currencies is two totals.
 
+## What a campaign does, and what it has to earn back
+
+The campaign screen showed only what somebody typed: a percentage, a window, a
+spend. Not one figure was computed, so "50% off Buchung" never said 64 € becomes
+32 €, and nothing anywhere said what that costs.
+
+`promotionReach` answers it **per covered product**, because a campaign covering
+four products discounts four different prices and the sum of them is a figure
+nobody can act on without a volume mix nothing here records. The discounted price
+it reports is that campaign *alone*.
+
+`promotionBreakEven` says when it starts paying. Every sale that would have
+happened anyway costs the discount; every sale the campaign *causes* earns what
+is left. With `b` the baseline, `u` the expected uplift and `c` the contribution
+after the discount:
+
+    spend + b × discount = b × u × c        →        b = spend / (u × c − discount)
+
+Two of its three answers are not numbers, and it returns words for them rather
+than 0 and Infinity: a campaign with no spend that earns more per extra sale than
+it gives away on the rest pays at **any** volume, and one whose expected uplift
+cannot cover the discount pays at **none** — an uplift of zero included, because
+a discount nobody expects to sell more is a giveaway and the arithmetic should
+say so rather than divide by zero.
+
+**This is the first thing that uses `uplift_bps`, and the distinction is the
+point.** `TODO.md` records that a simulation deliberately does not raise its
+volumes by the expected uplift: a projection that silently inflates itself by a
+number nobody has been held to is the kind of confident wrong figure this
+repository is written against. A break-even is the opposite move — it makes the
+guess load-bearing *and* visible, and answers "at what point would this have been
+worth it", which is a question about the assumption rather than a forecast
+dressed as a fact. The sheet names whose number it is.
+
+`stackedPromotions` reports two live campaigns that will both be applied to one
+product. `promotedPrice` stacks them — deliberately, deepest discount first, so
+two devices reach one answer — and what it cannot do is tell anybody: two 50%
+campaigns make a product 25% of list, and the only place that showed was a price
+three screens away that looked wrong. Same reporting `overlappingPrices` does one
+floor down, for the same reason: the arithmetic is fine, the surprise is not.
+
 ## A package is a product
 
 `kind: 'bundle'`, and a `product_parts` row per thing inside it. Not a table of
