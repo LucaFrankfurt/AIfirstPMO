@@ -212,7 +212,8 @@ function refuseCycle(values: Record<string, unknown>, existing: Row | undefined)
 }
 
 /**
- * A product that is gone takes its prices, costs, people and parts with it.
+ * A product that is gone takes its prices, costs, people and parts with it —
+ * and a restored one brings them back.
  *
  * Tombstones rather than a `DELETE`, for the reason `tombstoneBudgetChildren`
  * gives: every other device holds those rows and only a tombstone tells them.
@@ -221,16 +222,33 @@ function refuseCycle(values: Record<string, unknown>, existing: Row | undefined)
  * which the budget has no equivalent of. Leaving those behind would give every
  * package containing it a part that resolves to nothing: no price, no
  * capabilities, and a list value quietly short by whatever it was worth.
+ *
+ * **The restoring half was missing** until the trash learned to list products,
+ * and the gap was the one `cascadeProject` in `work.ts` documents: a product
+ * restored without its prices is a product nobody can sell, and its costs and
+ * contributors would have stayed in the trash — un-purgeable, because
+ * `purgeable()` collects rows whose parent is gone and theirs would be back.
+ *
+ * **Restoring takes back exactly what this deletion took.** `deleted_at >=` the
+ * product's own timestamp is what says so: the cascade stamps its rows in the
+ * same transaction, so they are at or after it, while a price somebody deleted
+ * last week is before it and stays deleted. The same bounded mistake as the
+ * project's — a row deleted in the same millisecond comes back with it — and
+ * the same reason for accepting it: cheaper than keeping a list of what was
+ * taken. Budgets still have only the deleting half; see `TODO.md`.
  */
-function tombstoneProductChildren(product: Row, opts: WriteOpts): void {
+function cascadeProduct(product: Row, restoring: boolean, opts: WriteOpts): void {
+  const write = (entity: EntityName, id: string) =>
+    writeEntity(entity, id, {}, { ...opts, system: true, silent: true, ...(restoring ? {} : { op: 'delete' as const }) });
+
+  const taken = (table: string, column: 'product_id' | 'part_id') => (restoring
+    ? all<Row>(`SELECT id FROM ${table} WHERE ${column} = ? AND deleted_at >= ?`, product.id, Number(product.deleted_at ?? 0))
+    : all<Row>(`SELECT id FROM ${table} WHERE ${column} = ? AND deleted_at IS NULL`, product.id));
+
   for (const [entity, table] of PRODUCT_CHILDREN) {
-    for (const row of all<Row>(`SELECT id FROM ${table} WHERE product_id = ? AND deleted_at IS NULL`, product.id)) {
-      writeEntity(entity, String(row.id), {}, { ...opts, op: 'delete', system: true, silent: true });
-    }
+    for (const row of taken(table, 'product_id')) write(entity, String(row.id));
   }
-  for (const row of all<Row>(`SELECT id FROM product_parts WHERE part_id = ? AND deleted_at IS NULL`, product.id)) {
-    writeEntity('productPart', String(row.id), {}, { ...opts, op: 'delete', system: true, silent: true });
-  }
+  for (const row of taken('product_parts', 'part_id')) write('productPart', String(row.id));
 }
 
 /**
@@ -279,7 +297,13 @@ export const productRules = {
     if (entity === 'productPart') refuseCycle(values, existing);
   },
   effects(entity, row, before, changed, opts) {
-    if (entity === 'product' && row.deleted_at && !before?.deleted_at) tombstoneProductChildren(row, opts);
+    // The transition, not the state: an edit to an already-deleted product must
+    // not cascade a second time, and `before` is the only thing that knows
+    // which way this write went. The same shape `work.ts` uses for a project.
+    if (entity === 'product' && before) {
+      if (row.deleted_at && !before.deleted_at) cascadeProduct(row, false, opts);
+      else if (!row.deleted_at && before.deleted_at) cascadeProduct(before, true, opts);
+    }
     if (entity === 'productGroup' && row.deleted_at && !before?.deleted_at) detachProductsOf(row, opts);
   },
 } satisfies EntityRule;

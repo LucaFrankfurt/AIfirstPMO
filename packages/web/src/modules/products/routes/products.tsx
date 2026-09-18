@@ -18,7 +18,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS, PRICE_KINDS,
   PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
-  assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, expectedMonths, orderKey, priceFor,
+  assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, dayBefore, expectedMonths, orderKey,
+  overlappingPrices, priceChangeRefusal, priceFor, priceHistory, raisePrice,
   promotionPhase, retentionCurve, retentionOf, simulate,
   type CatalogueEntry, type CostBasis, type Minor, type Product, type ProductAssumptions, type ProductCapability,
   type ProductContributor, type ProductCost, type ProductGroup, type ProductPrice,
@@ -137,7 +138,14 @@ function Catalogue() {
   const t = useT();
   const { entries } = useCatalogue(HORIZON);
   const groups = useQuery(() => list('productGroup', (row) => !row.archived), []);
-  const live = entries.filter((entry) => !entry.product.archived);
+  /*
+   * Archived products are hidden and findable, not gone. Without the toggle the
+   * archive is a one-way door: `archived` was read by this filter and set by
+   * nothing, so a product made by mistake could only ever be deleted.
+   */
+  const [showArchived, setShowArchived] = useState(false);
+  const archivedCount = entries.filter((entry) => entry.product.archived).length;
+  const live = entries.filter((entry) => (showArchived ? true : !entry.product.archived));
   const totals = useMemo(() => byGroup(live), [live]);
 
   const perCurrency = useMemo(() => {
@@ -155,7 +163,25 @@ function Catalogue() {
   }, [totals]);
 
   if (!live.length) {
-    return <Empty emoji="🏷️" title={t('product.emptyTitle')} hint={t('product.emptyHint')} />;
+    /*
+     * The way back out has to be *here*, not below.
+     *
+     * The toggle used to sit at the foot of the table, under an early return
+     * that fires exactly when somebody needs it most: archive the last product
+     * and the screen says "nothing is being sold yet" with no hint that three
+     * products are one click away. An escape hatch below the thing it escapes
+     * is not an escape hatch.
+     */
+    return (
+      <Empty
+        emoji="🏷️"
+        title={archivedCount > 0 ? t('product.allArchived') : t('product.emptyTitle')}
+        hint={archivedCount > 0 ? t('product.allArchivedHint', { count: String(archivedCount) }) : t('product.emptyHint')}
+        action={archivedCount > 0
+          ? <Button onClick={() => setShowArchived(true)}>{t('product.showArchived', { count: String(archivedCount) })}</Button>
+          : undefined}
+      />
+    );
   }
 
   /* Ungrouped last, and under a heading that says so rather than an empty one. */
@@ -256,6 +282,12 @@ function Catalogue() {
         </div>
       ))}
       <p className="text-[12px] text-muted">{t('product.horizonNote', { months: String(HORIZON.months) })}</p>
+      {archivedCount > 0 && (
+        <label className="check-row">
+          <input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} />
+          <span><span>{t('product.showArchived', { count: String(archivedCount) })}</span></span>
+        </label>
+      )}
       <GroupAdmin groups={groups} />
     </div>
   );
@@ -867,6 +899,9 @@ export function ProductDetail() {
 function Overview({ product, entry }: { product: Product; entry: CatalogueEntry }) {
   const t = useT();
   const canWrite = useCanWrite();
+  const toast = useToast();
+  const navigate = useNavigate();
+  const { confirm, dialog } = useConfirm();
   const [editing, setEditing] = useState(false);
   const capabilities = useCapabilityNames();
   const contributors = useQuery(() => list('productContributor', (row) => row.product_id === product.id), [product.id]);
@@ -996,8 +1031,38 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
         )}
       </div>
 
-      {canWrite && <div><Button onClick={() => setEditing(true)}>{t('product.edit')}</Button></div>}
+      {canWrite && (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setEditing(true)}>{t('product.edit')}</Button>
+          {/*
+            * Archiving and retiring are two different sentences and the product
+            * carries both. `status: retired` says it is no longer sold and its
+            * figures still count — a fact about the product. `archived` says
+            * take it off my screen — a fact about the reader. Budgets carry the
+            * same pair, and a product that had neither could only be deleted.
+            */}
+          <Button onClick={() => {
+            update('product', product.id, { archived: product.archived ? 0 : 1 });
+            toast(t(product.archived ? 'product.unarchived' : 'product.archived'));
+          }}
+          >
+            {t(product.archived ? 'product.unarchive' : 'product.archive')}
+          </Button>
+          <Button
+            variant="danger"
+            onClick={async () => {
+              if (!(await confirm(t('product.removeHint', { name: product.name })))) return;
+              remove('product', product.id);
+              toast(t('product.removed'));
+              navigate('/products');
+            }}
+          >
+            {t('action.delete')}
+          </Button>
+        </div>
+      )}
       {editing && <ProductForm product={product} onClose={() => setEditing(false)} />}
+      {dialog}
     </div>
   );
 }
@@ -1160,8 +1225,16 @@ function Prices({ product }: { product: Product }) {
   const { confirm, dialog } = useConfirm();
   const prices = useQuery(() => list('productPrice', (row) => row.product_id === product.id), [product.id]);
   const [editing, setEditing] = useState<ProductPrice | null | undefined>(undefined);
+  const [raising, setRaising] = useState<ProductPrice | null>(null);
   const day = today();
   const applied = useMemo(() => priceFor(prices, { on: day }), [prices, day]);
+  const history = useMemo(() => priceHistory(prices), [prices]);
+  const clashes = useMemo(() => overlappingPrices(prices), [prices]);
+  /** What is live now or still to come. The rest is the history below. */
+  const current = useMemo(
+    () => prices.filter((price) => !price.valid_to || price.valid_to >= day),
+    [prices, day],
+  );
 
   return (
     <div className="grid gap-3.5">
@@ -1172,6 +1245,11 @@ function Prices({ product }: { product: Product }) {
             <Icon name="plus" size={14} /> {t('product.addPrice')}
           </Button>
         </div>
+      )}
+      {clashes.length > 0 && (
+        <p className="notice-warn">
+          {t('product.priceOverlap', { count: String(clashes.length) })}
+        </p>
       )}
       {!prices.length ? (
         <Empty emoji="💶" title={t('product.noPrices')} hint={t('product.noPricesHint')} />
@@ -1190,7 +1268,7 @@ function Prices({ product }: { product: Product }) {
               </tr>
             </thead>
             <tbody>
-              {[...prices].sort(byOrder).map((price) => (
+              {[...current].sort(byOrder).map((price) => (
                 <tr key={price.id}>
                   <td>
                     {price.name || t('product.unnamedPrice')}
@@ -1210,6 +1288,7 @@ function Prices({ product }: { product: Product }) {
                   </td>
                   {canWrite && (
                     <td className="narrow">
+                      <Button size="sm" onClick={() => setRaising(price)}>{t('product.change')}</Button>
                       <Button size="sm" onClick={() => setEditing(price)}>{t('action.edit')}</Button>
                       <Button
                         size="sm"
@@ -1229,9 +1308,142 @@ function Prices({ product }: { product: Product }) {
           </table>
         </div>
       )}
+      {history.length > 0 && (
+        <div>
+          <SectionHeading>{t('product.priceHistory')}</SectionHeading>
+          {/* Read off the rows rather than out of a versions table: a price is
+              never overwritten, so a window that has closed already is the old
+              price. See `priceHistory`. */}
+          <p className="text-[12px] text-muted">{t('product.priceHistoryHint')}</p>
+          <div className="table-wrap">
+            <table className="task-table">
+              <thead>
+                <tr>
+                  <th>{t('product.changedOn')}</th>
+                  <th>{t('product.priceName')}</th>
+                  <th className="narrow">{t('product.wasAmount')}</th>
+                  <th className="narrow">{t('product.becameAmount')}</th>
+                  <th className="narrow">{t('product.changeBy')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {[...history].reverse().map((change) => (
+                  <tr key={`${change.from.id}-${change.to.id}`}>
+                    <td>{shortDate(change.on)}</td>
+                    <td>{change.to.name || t('product.unnamedPrice')} <span className="text-[11px] text-muted">{t(priceKindKey(change.to.kind))} · {t(billingKey(change.to.recurrence))}</span></td>
+                    <td className="narrow">{asMoney(change.from.amount, product.currency)}</td>
+                    <td className="narrow">{asMoney(change.to.amount, product.currency)}</td>
+                    {/*
+                      * No colour on the direction, deliberately. The classes to
+                      * hand are the budget's — `money-over` is red and means
+                      * "past what was agreed" — and a price rise painted with it
+                      * reads as a problem when for the seller it is the opposite.
+                      * Whether a rise is good news depends on which side of the
+                      * invoice the reader is on, which is not ours to decide; the
+                      * sign and the percentage say what happened and stop there.
+                      */}
+                    <td className="narrow">
+                      <span className="money-flat">
+                        {change.delta > 0 ? '+' : ''}{asMoney(change.delta, product.currency, true)}
+                        {change.deltaBps !== null && ` (${change.delta > 0 ? '+' : ''}${Math.round(change.deltaBps / 100)}%)`}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
       {editing !== undefined && <PriceForm product={product} price={editing} onClose={() => setEditing(undefined)} />}
+      {raising && <RaiseForm product={product} price={raising} onClose={() => setRaising(null)} />}
       {dialog}
     </div>
+  );
+}
+
+/**
+ * Change a price without leaving the old one live.
+ *
+ * Two rows in one step, which is the whole point: doing it by hand means
+ * remembering to close the current window, and forgetting leaves two prices
+ * open at once — `priceFor` then answers deterministically and nobody knows
+ * which of the two won. `raisePrice` in `@kolibri/shared` decides the boundary
+ * so that the client and MCP cannot disagree about it.
+ */
+function RaiseForm({ product, price, onClose }: { product: Product; price: ProductPrice; onClose: () => void }) {
+  const t = useT();
+  const toast = useToast();
+  const [amount, setAmount] = useState(price.amount);
+  const [on, setOn] = useState(today());
+  const delta = amount - price.amount;
+  /* Asked before the click rather than caught after it: `raisePrice` throws on
+     a day the old window does not contain, and a date field can reach one. */
+  const refusal = priceChangeRefusal(price, on);
+
+  return (
+    <Sheet
+      title={t('product.raisePrice')}
+      onClose={onClose}
+      footer={(
+        <Button
+          variant="primary"
+          disabled={amount === price.amount || !!refusal}
+          onClick={() => {
+            const { closes, opens } = raisePrice(price, { amount, on });
+            update('productPrice', closes.id, { valid_to: closes.valid_to });
+            create('productPrice', { ...opens, sort_order: orderKey() });
+            toast(t('product.priceChanged'));
+            onClose();
+          }}
+        >
+          {t('action.save')}
+        </Button>
+      )}
+    >
+      <p className="text-[12.5px] text-muted">{t('product.raisePriceHint')}</p>
+      <div className="field-row">
+        <div className="field flex-1 min-w-0">
+          <label>{t('product.wasAmount')}</label>
+          <p className="text-[13px]">{asMoney(price.amount, product.currency)}</p>
+        </div>
+        <div className="field flex-1 min-w-0">
+          <label htmlFor="rp-amount">{t('product.becameAmount')}</label>
+          <MoneyInput id="rp-amount" value={amount} currency={product.currency} onChange={setAmount} />
+        </div>
+        <div className="field flex-1 min-w-0">
+          <label htmlFor="rp-on">{t('product.effectiveFrom')}</label>
+          <Input id="rp-on" type="date" value={on} onChange={(event) => setOn(event.target.value)} />
+        </div>
+      </div>
+      {refusal && (
+        <p className="text-[12.5px] money-over">
+          {t(refusal === 'before-start' ? 'product.raiseBeforeStart' : 'product.raiseAfterEnd', {
+            date: shortDate((refusal === 'before-start' ? price.valid_from : price.valid_to) ?? on),
+          })}
+        </p>
+      )}
+      {/* What will actually be written, before it is. The closing date is the
+          day before, and somebody should see that rather than discover it. */}
+      {!refusal && (
+        <p className="text-[12.5px] text-muted">
+          {t('product.raisePreview', {
+            old: asMoney(price.amount, product.currency),
+            until: shortDate(dayBefore(on)),
+            next: asMoney(amount, product.currency),
+            from: shortDate(on),
+          })}
+        </p>
+      )}
+      {delta !== 0 && (
+        <p className="text-[12.5px]">
+          <span className="money-flat">
+            {delta > 0 ? '+' : ''}{asMoney(delta, product.currency)}
+            {price.amount !== 0 && ` (${delta > 0 ? '+' : ''}${Math.round((delta * 100) / price.amount)}%)`}
+          </span>
+        </p>
+      )}
+    </Sheet>
   );
 }
 

@@ -239,6 +239,54 @@ describe('a package may not contain itself', () => {
   });
 });
 
+describe('archiving and deleting a product', () => {
+  let me: Person;
+  let workspace = '';
+
+  before(async () => {
+    const made = await register('product-archive@example.com');
+    me = made.person;
+    workspace = made.workspace;
+    await ok(`/api/workspaces/${workspace}`, { cookie: me.cookie, method: 'PATCH', body: { features: { products: true } } });
+  });
+
+  it('archives and brings back, which is not the same as retiring', async () => {
+    /*
+     * Three states that sound alike and are not. `status: retired` is a fact
+     * about the product — no longer sold, figures still count. `archived` is a
+     * fact about the reader — take it off my screen. Deleted is gone.
+     */
+    const made = await ok(`/api/workspaces/${workspace}/products`, { cookie: me.cookie, body: { name: 'Altlast' } });
+    assert.equal(made.archived, 0);
+
+    const archived = await ok(`/api/products/${made.id}`, { cookie: me.cookie, method: 'PATCH', body: { archived: 1 } });
+    assert.equal(archived.archived, 1);
+    assert.equal(archived.status, 'draft', 'archiving does not retire it');
+
+    const back = await ok(`/api/products/${made.id}`, { cookie: me.cookie, method: 'PATCH', body: { archived: 0 } });
+    assert.equal(back.archived, 0);
+  });
+
+  it('is restorable after a delete, with its prices', async () => {
+    // The trash lists products now, and a restore has to bring back something
+    // usable rather than a name with nothing under it.
+    const made = await ok(`/api/workspaces/${workspace}/products`, { cookie: me.cookie, body: { name: 'Versehen' } });
+    const price = await ok(`/api/workspaces/${workspace}/product-prices`, {
+      cookie: me.cookie, body: { product_id: made.id, amount: 1_000 },
+    });
+    await ok(`/api/products/${made.id}`, { cookie: me.cookie, method: 'DELETE' });
+    assert.ok(get<any>(`SELECT deleted_at FROM products WHERE id = ?`, made.id)?.deleted_at);
+    assert.ok(get<any>(`SELECT deleted_at FROM product_prices WHERE id = ?`, price.id)?.deleted_at);
+
+    await ok(`/api/products/${made.id}`, { cookie: me.cookie, method: 'PATCH', body: { deleted_at: null } });
+    assert.equal(get<any>(`SELECT deleted_at FROM products WHERE id = ?`, made.id)?.deleted_at, null);
+    assert.equal(
+      get<any>(`SELECT deleted_at FROM product_prices WHERE id = ?`, price.id)?.deleted_at, null,
+      'a product restored without its price is a product nobody can sell',
+    );
+  });
+});
+
 describe('the two cascades', () => {
   let me: Person;
   let workspace = '';
@@ -375,6 +423,79 @@ describe('the tools an assistant gets', () => {
     assert.equal(status.mixed_periods, false);
     assert.equal(status.price, 49_000, 'the yearly one, which is 40,83 € a month');
     assert.ok(made.id);
+  });
+
+  it('changes a price without leaving two of them live', async () => {
+    /*
+     * The mistake this tool exists to prevent: a second `set_product_price`
+     * without closing the first leaves both applicable, `priceFor` then answers
+     * deterministically, and nobody knows which of the two won.
+     */
+    await tool(me.token, 'create_product', { name: 'Wartung', code: 'WART', price: '100', billing: 'monthly' });
+    const changed = await tool(me.token, 'change_product_price', { product: 'WART', amount: '120', from: '2026-07-01' });
+
+    assert.equal(changed.was, 10_000);
+    assert.equal(changed.now, 12_000);
+    assert.equal(changed.change_percent, 20);
+    assert.equal(changed.old_price_ends, '2026-06-30', 'the day before, never the same day');
+
+    const rows = all<any>(`SELECT * FROM product_prices WHERE product_id = (SELECT id FROM products WHERE code = 'WART') AND deleted_at IS NULL ORDER BY amount`);
+    assert.equal(rows.length, 2, 'the old amount is kept rather than overwritten');
+    assert.equal(rows[0].valid_to, '2026-06-30');
+    assert.equal(rows[1].valid_from, '2026-07-01');
+
+    const status = await tool(me.token, 'product_status', { product: 'WART' });
+    assert.equal(status.price_history.length, 1);
+    assert.equal(status.price_history[0].change, 2_000);
+    assert.deepEqual(status.overlapping_prices, [], 'and the two windows do not collide');
+  });
+
+  it('refuses to change a price on a product that has none', async () => {
+    // Better than inventing one: a product nobody has priced has no "current"
+    // price to raise, and guessing which it meant is how a catalogue grows a
+    // price nobody chose.
+    await tool(me.token, 'create_product', { name: 'Noch ohne Preis', code: 'OHNE' });
+    await assert.rejects(
+      () => tool(me.token, 'change_product_price', { product: 'OHNE', amount: '50' }),
+      /no price that applies today/,
+    );
+  });
+
+  it('refuses a change dated outside the window the price already has', async () => {
+    /*
+     * The date arrives from a caller, so both ends are reachable. On or before
+     * the start, the old window would close before it opened and match no day
+     * at all — the amount would not become history, it would vanish. After the
+     * end, the close date would move later than the end somebody set, reselling
+     * a price that had stopped. Both are silent in the schema, so they are
+     * refused here with the end that is wrong named in the message.
+     */
+    await tool(me.token, 'create_product', { name: 'Fenster', code: 'FENS' });
+    await tool(me.token, 'set_product_price', {
+      product: 'FENS', name: 'Saison', amount: '40', billing: 'monthly',
+      valid_from: '2026-01-01', valid_to: '2026-06-30',
+    });
+    // Named rather than left to the default, which is whichever price applies
+    // *today* — a window written in the test would otherwise decide the outcome
+    // by the date the suite happens to run on.
+    const saison = { product: 'FENS', price: 'Saison', amount: '50' };
+
+    await assert.rejects(
+      () => tool(me.token, 'change_product_price', { ...saison, from: '2026-01-01' }),
+      /only starts on 2026-01-01/,
+    );
+    await assert.rejects(
+      () => tool(me.token, 'change_product_price', { ...saison, from: '2026-07-01' }),
+      /already ends on 2026-06-30/,
+    );
+
+    const rows = all<any>(`SELECT * FROM product_prices WHERE product_id = (SELECT id FROM products WHERE code = 'FENS') AND deleted_at IS NULL`);
+    assert.equal(rows.length, 1, 'a refused change writes nothing');
+    assert.equal(rows[0].valid_to, '2026-06-30', 'and moves nothing');
+
+    const ok = await tool(me.token, 'change_product_price', { ...saison, from: '2026-04-01' });
+    assert.equal(ok.old_price_ends, '2026-03-31');
+    assert.equal(ok.new_price_starts, '2026-04-01');
   });
 
   it('simulates without writing anything', async () => {
