@@ -1314,6 +1314,29 @@ export function productView(entry: CatalogueEntry): Record<string, unknown> {
     // several and a single `billing` field used to claim it had one.
     periods: entry.periods,
     mixed_periods: entry.mixed,
+    /*
+     * And the commitments, when there is a choice of them.
+     *
+     * `periods` says how often it is billed, which for three subscription
+     * prices is "monthly" three times over; the term is what tells them apart.
+     * The screen learned to say so and this did not, so the two surfaces stood
+     * there describing one product differently — the catalogue reading
+     * "54 – 64 €" and this one `price: 6400`, which is the shortest term and
+     * the dearest of the three. `catalogue()` exists so that cannot happen,
+     * and it did anyway because the field was added at one end only.
+     *
+     * Absent rather than a one-entry list when the product is sold on a single
+     * commitment: a key that is always there and almost always says nothing is
+     * a key a reader learns to skip.
+     */
+    ...(entry.terms.length > 1
+      ? {
+        terms: entry.terms.map(({ months, amount }) => ({
+          months,
+          ...money(currency, { amount }),
+        })),
+      }
+      : {}),
     ...money(currency, {
       price: economics.price ?? 0,
       unit_cost: economics.unitCost,
