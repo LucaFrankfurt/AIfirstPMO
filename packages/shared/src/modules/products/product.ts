@@ -712,6 +712,170 @@ export function promotedPrice(
   return out;
 }
 
+/* --------------------------------------------------------- what a campaign does */
+
+/**
+ * What a campaign does to one product's price, and what it has to earn back.
+ *
+ * The campaign screen used to show only what somebody typed: a percentage, a
+ * window, a spend. Not one figure was computed, so "50% off Buchung" never said
+ * 64 € becomes 32 €, and nothing anywhere said what that costs.
+ */
+export interface PromotionReach {
+  product: Product;
+  /** What it would cost without this campaign. Null when the product has no price. */
+  list: Minor | null;
+  /** What it costs under this campaign alone — not stacked with any other. */
+  promoted: Minor | null;
+  /** Given away per sale. Zero when there is no price to discount. */
+  discount: Minor;
+  /** That discount as a share of the list price. Null when the list price is zero. */
+  discountBps: number | null;
+  /** What one sale still contributes after the discount and the unit cost. */
+  contribution: Minor | null;
+  breakEven: PromotionBreakEven;
+}
+
+/**
+ * When a campaign starts being worth running.
+ *
+ * Three answers rather than a number, because two of them are not numbers. A
+ * campaign with no spend that earns more per extra sale than it gives away on
+ * the rest pays at **any** volume; one whose expected uplift cannot cover what
+ * the discount costs on the sales that would have happened anyway pays at
+ * **none**. Returning 0 and Infinity for those would put two very different
+ * statements in one column and let a reader mistake either for a threshold.
+ */
+export type PromotionBreakEven =
+  | { kind: 'always' }
+  | { kind: 'never'; why: 'no-uplift' | 'uplift-too-small' | 'no-price' }
+  | { kind: 'above'; units: number };
+
+/**
+ * The baseline volume a campaign needs before it pays for itself.
+ *
+ * Every sale that would have happened anyway costs the discount; every sale the
+ * campaign *causes* earns the contribution that is left after it. With `b` the
+ * baseline, `u` the expected uplift and `c` the contribution after the discount:
+ *
+ *     spend + b × discount = b × u × c        →        b = spend / (u × c − discount)
+ *
+ * **This is the first thing that uses `uplift_bps`, and the distinction matters.**
+ * `TODO.md` records that a simulation deliberately does *not* raise its volumes
+ * by the expected uplift: a projection that silently inflates itself by a number
+ * nobody has been held to is the kind of confident wrong figure this repository
+ * is written against. A break-even is the opposite move — it makes the guess
+ * load-bearing *and* visible, and answers "at what point would this have been
+ * worth it", which is a question about the assumption rather than a forecast
+ * dressed as a fact. The screens say whose number it is.
+ *
+ * An uplift of zero therefore reads as **never**, and it should: a discount
+ * nobody expects to sell more is a giveaway, and the arithmetic says so rather
+ * than dividing by zero and reporting something.
+ */
+export function promotionBreakEven(input: {
+  spend: Minor;
+  /** Given away per sale. */
+  discount: Minor;
+  /** What one sale contributes after that discount. Null when there is no price. */
+  contribution: Minor | null;
+  upliftBps: number;
+}): PromotionBreakEven {
+  if (input.contribution === null) return { kind: 'never', why: 'no-price' };
+  if (input.upliftBps <= 0) return { kind: 'never', why: 'no-uplift' };
+  const earned = (input.upliftBps * input.contribution) / FULL_BPS;
+  const gap = earned - input.discount;
+  if (gap <= 0) return { kind: 'never', why: 'uplift-too-small' };
+  const spend = Math.max(0, Math.round(Number(input.spend) || 0));
+  if (spend === 0) return { kind: 'always' };
+  return { kind: 'above', units: Math.ceil(spend / gap) };
+}
+
+/**
+ * Every product a campaign touches, and what it does to each.
+ *
+ * Per product rather than as one total, because a campaign covering four
+ * products discounts four different prices by four different amounts, and the
+ * sum of them is a number nobody can act on without a volume mix nothing here
+ * records. Four rows that each mean something beat one that does not.
+ *
+ * The promoted price is this campaign **alone**. What a customer actually pays
+ * when two campaigns run at once is `promotedPrice`, and that they stack is
+ * what `stackedPromotions` is for — showing the stacked figure here would hide
+ * the collision rather than report it.
+ */
+export function promotionReach(input: {
+  promotion: Promotion;
+  products: readonly Product[];
+  pricesOf: (id: ID) => readonly ProductPrice[];
+  /** What one unit costs to deliver. Nothing recorded is zero, not unknown. */
+  unitCostOf?: (id: ID) => Minor;
+  on: ISODate;
+}): PromotionReach[] {
+  const live = input.products.filter((product) => !product.archived && !product.deleted_at);
+  return live
+    .filter((product) => promotionCovers(input.promotion, product))
+    .map((product) => {
+      const price = priceFor(input.pricesOf(product.id), { on: input.on, productTerm: product.term_months });
+      const list = price ? price.amount : null;
+      const promoted = list === null ? null : applyPromotion(list, input.promotion);
+      const discount = list === null || promoted === null ? 0 : list - promoted;
+      const unitCost = input.unitCostOf?.(product.id) ?? 0;
+      const contribution = promoted === null ? null : promoted - unitCost;
+      return {
+        product,
+        list,
+        promoted,
+        discount,
+        discountBps: list === null || list === 0 ? null : Math.round((discount * FULL_BPS) / list),
+        contribution,
+        breakEven: promotionBreakEven({
+          spend: input.promotion.spend,
+          discount,
+          contribution,
+          upliftBps: Number(input.promotion.uplift_bps) || 0,
+        }),
+      };
+    });
+}
+
+/**
+ * Campaigns that will both be applied to the same product at the same time.
+ *
+ * `promotedPrice` stacks them — deliberately, and deterministically, deepest
+ * discount first. What it cannot do is tell anybody it happened: two live 50%
+ * campaigns on one product make it 25% of list, and the only place that shows
+ * is a price three screens away that looks wrong. This is the same reporting
+ * `overlappingPrices` does one floor down, for the same reason — the arithmetic
+ * is fine, the surprise is not.
+ *
+ * Compared as windows rather than on one day, so a pair that will collide in
+ * March is found in January. A campaign that is not live at all cannot collide
+ * with anything.
+ */
+export function stackedPromotions(
+  promotions: readonly Promotion[],
+  products: readonly Product[],
+): { a: Promotion; b: Promotion; products: Product[] }[] {
+  const live = promotions.filter((promotion) => promotion.status === 'live' && !promotion.deleted_at);
+  const sellable = products.filter((product) => !product.archived && !product.deleted_at);
+  const out: { a: Promotion; b: Promotion; products: Product[] }[] = [];
+  const overlaps = (a: Promotion, b: Promotion) => {
+    const after = (x: Promotion, y: Promotion) => !!y.ends_on && !!x.starts_on && x.starts_on > y.ends_on;
+    return !after(a, b) && !after(b, a);
+  };
+  for (let i = 0; i < live.length; i++) {
+    for (let j = i + 1; j < live.length; j++) {
+      const a = live[i]!;
+      const b = live[j]!;
+      if (!overlaps(a, b)) continue;
+      const shared = sellable.filter((product) => promotionCovers(a, product) && promotionCovers(b, product));
+      if (shared.length) out.push(a.id < b.id ? { a, b, products: shared } : { a: b, b: a, products: shared });
+    }
+  }
+  return out;
+}
+
 /* ----------------------------------------------------------------- packages */
 
 /**
