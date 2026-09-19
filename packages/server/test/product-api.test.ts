@@ -703,6 +703,32 @@ describe('the tools an assistant gets', () => {
     );
   });
 
+  it('says the commitments a product is sold on, where the screen says them', async () => {
+    /*
+     * `catalogue()` is one function so that the screen and this surface cannot
+     * describe a product differently — and they did anyway, because the terms
+     * were added to the row and not to this view. The catalogue read
+     * "54 – 64 €" while `list_products` answered 6400, which is the shortest
+     * term and the dearest of the three.
+     */
+    await tool(me.token, 'create_product', { name: 'Bindung', code: 'BIND' });
+    for (const [name, amount, term] of [['Monatlich', '64', 0], ['Ein Jahr', '59', 12], ['Zwei Jahre', '54', 24]]) {
+      await tool(me.token, 'set_product_price', {
+        product: 'BIND', name, amount, billing: 'monthly', term_months: term,
+      });
+    }
+
+    const status = await tool(me.token, 'product_status', { product: 'BIND' });
+    assert.deepEqual(status.terms.map((row: any) => [row.months, row.amount]), [[0, 6_400], [12, 5_900], [24, 5_400]]);
+    assert.equal(status.price, 6_400, 'and the figures still quote the shortest, which is what was decided');
+
+    // A product sold on one commitment says nothing new, so the key is absent
+    // rather than a list of one a reader learns to skip.
+    await tool(me.token, 'create_product', { name: 'Schlicht', code: 'SCHL' });
+    await tool(me.token, 'set_product_price', { product: 'SCHL', amount: '10', billing: 'monthly' });
+    assert.equal((await tool(me.token, 'product_status', { product: 'SCHL' })).terms, undefined);
+  });
+
   it('refuses a name that is not one, rather than writing the word null', async () => {
     /*
      * `String(raw).trim()` is what every creating tool does and on a create the
