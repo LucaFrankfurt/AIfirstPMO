@@ -680,6 +680,7 @@ export const fr: Catalogue = {
   'product.allArchivedHint': 'Rien n’est en vente — {count} produit(s) archivé(s) sont toujours là et peuvent être restaurés.',
 
   'product.tabCatalogue': 'Catalogue',
+  'product.tabPackages': 'Forfaits',
   'product.tabPromotions': 'Campagnes',
   'product.tabScenarios': 'Scénarios',
   'product.tabOverview': 'Aperçu',
@@ -843,6 +844,7 @@ export const fr: Catalogue = {
   'product.packagePrice': 'Prix du forfait',
   'product.saving': 'Économie',
   'product.premium': 'Supplément',
+  'product.unpricedShort': '{count} sans prix',
   'product.unpricedParts': '{count} composants n’ont pas de prix et manquent donc au chiffre ci-dessus.',
 
   'product.retention': 'Fidélisation',

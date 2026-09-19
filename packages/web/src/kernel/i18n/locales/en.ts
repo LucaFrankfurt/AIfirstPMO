@@ -683,6 +683,7 @@ export const en = {
   'product.allArchivedHint': 'Nothing is on sale — {count} archived product(s) are still here and can be brought back.',
 
   'product.tabCatalogue': 'Catalogue',
+  'product.tabPackages': 'Packages',
   'product.tabPromotions': 'Campaigns',
   'product.tabScenarios': 'Scenarios',
   'product.tabOverview': 'Overview',
@@ -846,6 +847,7 @@ export const en = {
   'product.packagePrice': 'Package price',
   'product.saving': 'Saving',
   'product.premium': 'Premium',
+  'product.unpricedShort': '{count} unpriced',
   'product.unpricedParts': '{count} parts have no price, so they are missing from the figure above.',
 
   'product.retention': 'Retention',

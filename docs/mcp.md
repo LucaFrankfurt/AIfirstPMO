@@ -248,6 +248,18 @@ likes, with or without a notification. This is a property of the transport rathe
 Tasks are addressed by id or by the identifier humans use (`WEB-42`). Projects accept id, key or
 name. Users accept id, email or name — so an assistant can pass what it read in the conversation.
 
+**An argument a tool does not have is refused, not dropped.** It used to be dropped, on the ground
+that an unknown key cannot do damage — true, and beside the point: a caller who passes one believes
+something happened. Twelve package prices went into a live catalogue as `once` because the call said
+`billing: 'monthly'` to `set_product_price`, which calls that field `recurrence`; the value was
+dropped, the create snapped the absent field to its default, and nothing anywhere said so. Ten call
+sites in this repository's own tests had been doing the same for as long as they existed and stayed
+green, because the amounts come out the same either way. Keys beginning with `_` are the protocol's
+own and pass through.
+
+`create_product` now takes `recurrence` for the billing period, which is what every other tool has
+always called it. `billing` still works and is documented as the older spelling.
+
 ### Reading
 
 | Tool | Returns |

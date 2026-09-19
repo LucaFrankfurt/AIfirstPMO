@@ -107,6 +107,9 @@ const SCREENS = [
   // chip, a price, a cost, a margin, a break-even and a standing pill — which
   // at 340px is the case that decides which columns survive and which fold.
   ['products', '/products'],
+  // The packages, which are the catalogue's other half: same table, two more
+  // columns, and the rows that carry the most chips.
+  ['products: packages', '/products?tab=packages'],
   // And the densest form anywhere here: six numeric fields in one row, which
   // is where a `field-row` either wraps or squeezes each box to nothing.
   ['products: simulation', '/products?tab=scenarios'],
