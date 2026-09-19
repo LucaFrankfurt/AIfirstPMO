@@ -776,15 +776,16 @@ p { margin: 0 0 0.75em; }
  * hint that the buttons existed. Nothing announced it, because a missing
  * column looks exactly like a column that was never there.
  *
- * It is pinned to the trailing edge rather than merely un-hidden: restoring a
- * seventh column to a 360px screen puts the buttons off the side, and a
- * button you can only reach by dragging a table sideways is barely better
- * than one that is gone.
+ * It was pinned to the trailing edge for a while, so the buttons would be
+ * there without scrolling. Measured on a 360px phone it cost more than it
+ * bought: three buttons are 218px of a 336px table — 65% — and an opaque
+ * column that wide does not sit *beside* the row, it sits *on* it. The name,
+ * the amount and the billing period were all underneath it, which is the
+ * thing the column beside this one exists to prevent.
  *
- * Pinning needs something opaque to pin, or the row slides visibly underneath
- * it — hence the background on the row, which the cell then takes with
- * `inherit` rather than naming a colour of its own. That way the row's hover
- * and selected tints still reach the cell instead of stopping at its edge.
+ * So it scrolls with the rest. What makes the buttons reachable is the
+ * `min-width: 0` above, which is what turned `overflow-x: auto` from a
+ * promise into a scroll; the pinning was never the part that worked.
  */
 .task-table .actions { white-space: nowrap; }
 
@@ -792,14 +793,6 @@ p { margin: 0 0 0.75em; }
    rather than squeezed — the ones left are the ones you would read out. */
 @media (max-width: 700px) {
   .task-table .narrow { display: none; }
-  .task-table .actions {
-    position: sticky;
-    inset-inline-end: 0;
-    background: inherit;
-    box-shadow: -8px 0 8px -8px rgb(0 0 0 / 0.28);
-  }
-  .task-table tbody tr { background: var(--bg); }
-  .task-table thead .actions { z-index: 2; }
 }
 
 .trash-row { gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }

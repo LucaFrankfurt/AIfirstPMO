@@ -21,7 +21,7 @@ import {
   applyPromotion, assumptionsOf, breakEven, bundleValue, capabilitiesOf, costStructure,
   expectedMonths, healthOfProduct, monthlyAmount, priceFor, promotedPrice, promotionCovers,
   dayBefore, mixedPeriods, overlappingPrices, periodsOf, priceChangeRefusal, priceHistory,
-  priceLane, promotionBreakEven, promotionPhase, promotionReach, raisePrice, stackedPromotions,
+  priceLane, promotionBreakEven, promotionPhase, promotionReach, raisePrice, stackedPromotions, termsOf,
   retentionCurve, retentionOf, simulate, unitCosts, unitEconomics,
   type Product, type ProductContributor, type ProductCost, type ProductPart, type ProductPrice,
   type Promotion,
@@ -240,6 +240,35 @@ describe('a price history', () => {
     assert.equal(history.length, 1);
     assert.equal(history[0]!.from.id, 'y', 'the year price rose; the other two are untouched');
     assert.equal(history[0]!.delta, 500);
+  });
+
+  it('gathers the terms one offer is sold on, and leaves other offers out of it', () => {
+    /*
+     * `periodsOf` answers how often a product is billed, and for these three
+     * that answer is "monthly" for all of them — so the catalogue showed one
+     * chip saying nothing and one price of 64, which is the dearest of the
+     * three and the only one a customer can decline.
+     */
+    const three = [
+      dated({ id: 'm', amount: 6_400, term_months: 0 }),
+      dated({ id: 'y', amount: 5_900, term_months: 12 }),
+      dated({ id: 't', amount: 5_400, term_months: 24 }),
+    ];
+    assert.deepEqual(termsOf(three).map((row) => [row.months, row.amount]), [[0, 6_400], [12, 5_900], [24, 5_400]]);
+
+    // A partner price is a different offer, not a longer version of this one,
+    // and a span that swallowed it would name an amount nobody is charged.
+    const partner = dated({ id: 'p', amount: 3_000, term_months: 12, kind: 'partner' });
+    assert.deepEqual(termsOf([...three, partner]).map((row) => row.amount), [6_400, 5_900, 5_400]);
+
+    // Same for a volume price: the threshold is part of which offer it is.
+    const ten = dated({ id: 'v', amount: 4_000, term_months: 24, min_quantity: 10 });
+    assert.deepEqual(termsOf([...three, ten]).map((row) => row.amount), [6_400, 5_900, 5_400]);
+
+    // One commitment is the ordinary case and says nothing new; no price at
+    // all is empty rather than a row quoting zero.
+    assert.equal(termsOf([dated({ id: 'one', amount: 2_500 })]).length, 1);
+    assert.deepEqual(termsOf([]), []);
   });
 
   it('applies the price that asks for no commitment to an order that made none', () => {
