@@ -763,8 +763,8 @@ function Scenarios() {
               <tr>
                 <th>{t('product.name')}</th>
                 <th>{t('product.scenarioProduct')}</th>
-                <th className="narrow">{t('product.months')}</th>
-                <th className="narrow">{t('product.units')}</th>
+                <th>{t('product.months')}</th>
+                <th>{t('product.units')}</th>
                 {canWrite && <th className="actions" />}
               </tr>
             </thead>
@@ -779,8 +779,8 @@ function Scenarios() {
                         : scenario.name}
                     </td>
                     <td>{scenario.product_id ? names.get(scenario.product_id) ?? '—' : t('product.wholeCatalogue')}</td>
-                    <td className="narrow">{settled.months}</td>
-                    <td className="narrow">{settled.units}</td>
+                    <td>{settled.months}</td>
+                    <td>{settled.units}</td>
                     {canWrite && (
                       <td className="actions">
                         <Button size="sm" onClick={() => setEditing(scenario)}>{t('action.edit')}</Button>
@@ -1209,10 +1209,10 @@ function Contributors({ product, contributors }: { product: Product; contributor
             <thead>
               <tr>
                 <th>{t('product.name')}</th>
-                <th>{t('product.role')}</th>
-                <th>{t('product.organisation')}</th>
-                <th className="narrow">{t('product.fee')}</th>
-                <th className="narrow">{t('product.basisLabel')}</th>
+                <th className="narrow">{t('product.role')}</th>
+                <th className="narrow">{t('product.organisation')}</th>
+                <th>{t('product.fee')}</th>
+                <th>{t('product.basisLabel')}</th>
                 {canWrite && <th className="actions" />}
               </tr>
             </thead>
@@ -1220,10 +1220,10 @@ function Contributors({ product, contributors }: { product: Product; contributor
               {[...contributors].sort(byOrder).map((person) => (
                 <tr key={person.id}>
                   <td>{person.email ? <a className="cell-link" href={`mailto:${person.email}`}>{person.name}</a> : person.name}</td>
-                  <td>{person.role ?? '—'}</td>
-                  <td>{person.organisation ?? '—'}</td>
-                  <td className="narrow">{asMoney(person.fee, product.currency, true)}</td>
-                  <td className="narrow">{t(basisKey(person.fee_basis))}</td>
+                  <td className="narrow">{person.role ?? '—'}</td>
+                  <td className="narrow">{person.organisation ?? '—'}</td>
+                  <td>{asMoney(person.fee, product.currency, true)}</td>
+                  <td>{t(basisKey(person.fee_basis))}</td>
                   {canWrite && (
                     <td className="actions">
                       <Button size="sm" onClick={() => setEditing(person)}>{t('action.edit')}</Button>
@@ -1387,9 +1387,9 @@ function Prices({ product }: { product: Product }) {
               <tr>
                 <th>{t('product.priceName')}</th>
                 <th className="narrow">{t('product.priceKindLabel')}</th>
-                <th className="narrow">{t('product.amount')}</th>
+                <th>{t('product.amount')}</th>
                 <th className="narrow">{t('product.minQuantity')}</th>
-                <th className="narrow">{t('product.billingLabel')}</th>
+                <th>{t('product.billingLabel')}</th>
                 <th className="narrow">{t('product.priceTerm')}</th>
                 <th className="narrow">{t('product.window')}</th>
                 {canWrite && <th className="actions" />}
@@ -1406,9 +1406,9 @@ function Prices({ product }: { product: Product }) {
                     {applied?.id === price.id && <> <Chip>{t('product.appliesNow')}</Chip></>}
                   </td>
                   <td className="narrow">{t(priceKindKey(price.kind))}</td>
-                  <td className="narrow">{asMoney(price.amount, product.currency)}</td>
+                  <td>{asMoney(price.amount, product.currency)}</td>
                   <td className="narrow">{price.min_quantity}</td>
-                  <td className="narrow">{t(billingKey(price.recurrence))}</td>
+                  <td>{t(billingKey(price.recurrence))}</td>
                   {/* Without this column three prices at three terms are three
                       identical rows at three different amounts, which is what
                       made them look like a mistake. */}
@@ -1745,10 +1745,10 @@ function Costs({ product }: { product: Product }) {
               <thead>
                 <tr>
                   <th>{t('product.name')}</th>
-                  <th className="narrow">{t('product.basisLabel')}</th>
+                  <th>{t('product.basisLabel')}</th>
                   <th className="narrow">{t('product.category')}</th>
-                  <th className="narrow">{t('product.amount')}</th>
-                  <th>{t('product.vendor')}</th>
+                  <th>{t('product.amount')}</th>
+                  <th className="narrow">{t('product.vendor')}</th>
                   {canWrite && <th className="actions" />}
                 </tr>
               </thead>
@@ -1756,10 +1756,10 @@ function Costs({ product }: { product: Product }) {
                 {[...costs].sort(byOrder).map((cost) => (
                   <tr key={cost.id}>
                     <td>{cost.name}</td>
-                    <td className="narrow">{t(basisKey(cost.basis))}</td>
+                    <td>{t(basisKey(cost.basis))}</td>
                     <td className="narrow">{t(categoryKey(cost.category))}</td>
-                    <td className="narrow">{asMoney(cost.amount, product.currency)}</td>
-                    <td>{cost.vendor ?? '—'}</td>
+                    <td>{asMoney(cost.amount, product.currency)}</td>
+                    <td className="narrow">{cost.vendor ?? '—'}</td>
                     {canWrite && (
                       <td className="actions">
                         <Button size="sm" onClick={() => setEditing(cost)}>{t('action.edit')}</Button>
@@ -1948,8 +1948,8 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
           <thead>
             <tr>
               <th>{t('product.part')}</th>
-              <th className="narrow">{t('product.quantity')}</th>
-              <th className="narrow">{t('product.price')}</th>
+              <th>{t('product.quantity')}</th>
+              <th>{t('product.price')}</th>
               {canWrite && <th className="actions" />}
             </tr>
           </thead>
@@ -1960,8 +1960,8 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
               return (
                 <tr key={part.id}>
                   <td>{child ? <Link className="cell-link" to={`/products/${child.id}`}>{child.name}</Link> : t('product.unknownPart')}</td>
-                  <td className="narrow">{part.quantity}</td>
-                  <td className="narrow">
+                  <td>{part.quantity}</td>
+                  <td>
                     {price ? asMoney(price.amount * part.quantity, product.currency) : <span className="money-flat">—</span>}
                   </td>
                   {canWrite && (
