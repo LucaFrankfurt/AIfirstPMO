@@ -20,8 +20,9 @@ import { env } from '../../../kernel/platform/env.ts';
 import { deleteEntity, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
-  catalogueOf, findProduct, isoDay, lastChildOrder, McpError, money, productChildren, productsOf,
-  productView, requireFeature, requireMoney, requireWrite, str, type ToolDef, workspaceOf, writeOpts,
+  catalogueOf, findProduct, isoDay, lastChildOrder, McpError, money, PRODUCT_CHILD_TABLES, productChildren,
+  productsOf, productView, requireFeature, requireMoney, requireWrite, str, type ProductChild, type ToolDef,
+  workspaceOf, writeOpts,
 } from '../kit.ts';
 
 /**
@@ -34,7 +35,7 @@ import {
  * there.
  */
 function findChild(
-  entity: 'productPrice' | 'productCost' | 'productContributor' | 'productPart',
+  entity: ProductChild,
   product: Row,
   ref: string,
   label: string,
@@ -48,6 +49,140 @@ function findChild(
       ? `No ${label} "${ref}" on ${product.name}. It has: ${rows.map((row) => String(row.name ?? row.id)).join(', ')}`
       : `${product.name} has no ${label} at all`);
   }
+  return found;
+}
+
+/**
+ * The product a child is on, and the child — with the product optional.
+ *
+ * Naming the product was documented as optional and was not: the fallback read
+ * `args.product ?? args.price` and looked the *price* up as a product, so a
+ * caller who had a price id and nothing else was told "No product
+ * \"pr_9f2…\" in this workspace" — a true sentence about the wrong noun, and
+ * no way forward from it. An id is unique on its own, so it answers which
+ * product it is on. A name is not: "Setup" is a cost on four products, and
+ * that path still needs the product named, which is now what it says.
+ */
+function findOn(
+  entity: ProductChild,
+  args: Record<string, any>,
+  field: string,
+  label: string,
+  workspaceId: string,
+): { product: Row; row: Row } {
+  const ref = String(args[field] ?? '').trim();
+  /*
+   * `required` in a tool schema is advice to a client and nothing on this
+   * boundary reads it — `index.ts` hands `params.arguments` straight to `run`.
+   * So a call that simply omits the reference arrives here as an empty string,
+   * and without this it is answered with `No price with id ""`, which reads
+   * like a lookup that failed rather than an argument that was never sent.
+   */
+  if (!ref) throw new McpError(`Name the ${label}: \`${field}\` is required and was not given`);
+  if (args.product !== undefined) {
+    const product = findProduct(String(args.product), workspaceId);
+    return { product, row: findChild(entity, product, ref, label) };
+  }
+  /*
+   * Joined to `products` so the workspace bounds the lookup, not just the
+   * `findProduct` below it. Without the join a child id from another workspace
+   * came back and was refused one line later as "No product <its id> in this
+   * workspace" — a refusal that confirms the row exists and names what it
+   * hangs off. Same belt-and-braces `findTask` documents: scope the query, not
+   * only the answer.
+   */
+  const owner = all<Row>(
+    `SELECT c.product_id FROM ${PRODUCT_CHILD_TABLES[entity]} c JOIN products p ON p.id = c.product_id
+     WHERE c.id = ? AND c.deleted_at IS NULL AND p.deleted_at IS NULL AND p.workspace_id = ?`,
+    ref, workspaceId,
+  )[0];
+  if (!owner) {
+    throw new McpError(
+      `No ${label} with id "${ref}". If that is a name rather than an id, name the product too — `
+      + `a ${label} name only means something inside one product.`,
+    );
+  }
+  const product = findProduct(String(owner.product_id), workspaceId);
+  return { product, row: findChild(entity, product, ref, label) };
+}
+
+/**
+ * Text a caller typed, or a complaint. Never a coercion.
+ *
+ * `String(raw).trim()` is what the creating tools do, and on a create the worst
+ * it costs is a row called `null` that somebody deletes. On an *update* the
+ * same line overwrites the name that was there, so a client that sends JSON
+ * null for a field it means to leave alone renames the product to the four
+ * letters n-u-l-l and the old name is gone. Refusing costs one call; the
+ * coercion costs the name.
+ */
+function requireText(raw: unknown, field: string): string {
+  const value = str(raw);
+  if (!value) throw new McpError(`\`${field}\` must be a non-empty string`);
+  return value;
+}
+
+/**
+ * What the write actually took, rather than what it was offered.
+ *
+ * The write path drops a field whose stored stamp is newer than this write's —
+ * a browser whose clock runs fast leaves one behind, which is the case
+ * `check:clocks` opens a second browser for — and a `changed` list built from
+ * the patch names that field anyway. So it is measured against the row: what
+ * is listed here moved. A field set to the value it already held does not
+ * appear, which is the same word used truthfully.
+ */
+function changedFields(before: Row, after: Row, patch: Record<string, unknown>): string[] {
+  return Object.keys(patch).filter((field) => String(before[field] ?? '') !== String(after[field] ?? ''));
+}
+
+/** The packages holding this product, by name. A cost that moves here moves their margin too. */
+const containingPackages = (productId: string): string[] =>
+  all<Row>(
+    `SELECT p.name FROM product_parts pt JOIN products p ON p.id = pt.product_id
+     WHERE pt.part_id = ? AND pt.deleted_at IS NULL AND p.deleted_at IS NULL`,
+    productId,
+  ).map((row) => String(row.name));
+
+/**
+ * One row of a package, by its id or by the name of the product in it.
+ *
+ * A part has no name of its own — it is a pointer — so it is found by the name
+ * of the product inside it, which is what somebody reading the package sees.
+ * Nothing stops a package holding the same product twice, so that name can
+ * match two rows, and `find` answered the first of them: on `remove_product_part`
+ * that is a coin flip about which row is destroyed. Two matches is a question,
+ * so it is asked rather than guessed.
+ */
+function findPart(container: Row, ref: unknown, workspaceId: string): Row {
+  const parts = productChildren('productPart', String(container.id));
+  const wanted = String(ref ?? '').trim();
+  const lowered = wanted.toLowerCase();
+  const catalogue = productsOf(workspaceId);
+  const nameOf = (row: Row) => String(catalogue.find((item) => item.id === row.part_id)?.name ?? row.part_id);
+  const byId = parts.find((row) => String(row.id) === wanted);
+  if (byId) return byId;
+  const byName = parts.filter((row) => nameOf(row).toLowerCase() === lowered);
+  if (byName.length > 1) {
+    throw new McpError(
+      `${container.name} holds ${nameOf(byName[0])} ${byName.length} times — name the row by its id: ${byName.map((row) => row.id).join(', ')}`,
+    );
+  }
+  if (!byName.length) {
+    throw new McpError(parts.length
+      ? `No part "${ref}" in ${container.name}. It holds: ${parts.map(nameOf).join(', ')}`
+      : `${container.name} holds nothing yet`);
+  }
+  return byName[0];
+}
+
+/** A campaign by its id or its name, scoped to the workspace. */
+function findPromotion(ref: unknown, workspaceId: string): Row {
+  const wanted = String(ref).trim();
+  const lowered = wanted.toLowerCase();
+  const found = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+    .find((row) => String(row.id) === wanted || String(row.name).toLowerCase() === lowered);
+  if (!found) throw new McpError(`No campaign "${ref}" in this workspace`);
   return found;
 }
 
@@ -74,6 +209,22 @@ function oneOf<T extends string>(raw: unknown, allowed: readonly T[], field: str
     throw new McpError(`${field} must be one of: ${allowed.join(', ')}`);
   }
   return value as T;
+}
+
+/**
+ * An ISO 4217 code, or a complaint. Never a fallback.
+ *
+ * The write path snaps anything that is not three capitals to `EUR`
+ * (`rules/products.ts`), which is right for sync traffic — a row has to land
+ * somewhere — and wrong for a caller who typed the code. `currency: 'Dollars'`
+ * would come back as a silently euro-denominated product with every amount
+ * restated and nothing said. The form beside this uses a closed list for the
+ * same reason, written down there: a field that corrects you without saying so.
+ */
+function currencyCode(raw: unknown): string {
+  const code = requireText(raw, 'currency').toUpperCase();
+  if (!/^[A-Z]{3}$/.test(code)) throw new McpError(`\`currency\` must be a three-letter ISO 4217 code, not "${raw}"`);
+  return code;
 }
 
 /** A whole number a caller typed, inside bounds, or a complaint naming the field. */
@@ -376,7 +527,7 @@ export const productTools: ToolDef[] = [
         status: { type: 'string', enum: [...PRODUCT_STATUS] },
         currency: {
           type: 'string',
-          description: 'ISO 4217. Nothing anywhere converts between two, so changing this restates every amount on the product rather than converting it',
+          description: 'ISO 4217, three letters, refused otherwise. Nothing anywhere converts between two, so changing this restates every amount on the product rather than converting it — and the answer names any package left summing two',
         },
         unit_label: { type: ['string', 'null'] },
         scope_amount: { type: 'number' },
@@ -412,12 +563,12 @@ export const productTools: ToolDef[] = [
       }
 
       const patch = patchOf(args, {
-        name: (raw) => String(raw).trim(),
+        name: (raw) => requireText(raw, 'name'),
         code: (raw) => str(raw) ?? null,
         description: (raw) => str(raw) ?? null,
         kind: (raw) => oneOf(raw, PRODUCT_KINDS, 'kind'),
         status: (raw) => oneOf(raw, PRODUCT_STATUS, 'status'),
-        currency: (raw) => String(raw).trim().toUpperCase(),
+        currency: (raw) => currencyCode(raw),
         unit_label: (raw) => str(raw) ?? null,
         scope_amount: (raw) => whole(raw, 'scope_amount', 0, 1_000_000),
         scope_unit: (raw) => str(raw) ?? null,
@@ -440,7 +591,25 @@ export const productTools: ToolDef[] = [
 
       if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
       const { row } = writeEntity('product', String(product.id), patch, writeOpts(workspaceId, ctx));
-      return { id: row.id, product: row.name, changed: Object.keys(patch), status: row.status, archived: !!Number(row.archived) };
+      const changed = changedFields(product, row, patch);
+      /*
+       * Nothing converts between two currencies anywhere, and `unitCosts` sums
+       * a part's costs into the package holding it while `unitEconomics` labels
+       * the total with the *package's* currency. So restating this product's
+       * amounts in another currency leaves every containing package adding two
+       * currencies under one symbol. Named rather than refused, because the
+       * form has no such refusal either — but a caller should not have to
+       * discover it from a total.
+       */
+      const packages = changed.includes('currency') ? containingPackages(String(product.id)) : [];
+      return {
+        id: row.id,
+        product: row.name,
+        changed,
+        status: row.status,
+        archived: !!Number(row.archived),
+        ...(packages.length ? { packages_now_mixing_currencies: packages } : {}),
+      };
     },
   },
   {
@@ -451,6 +620,7 @@ export const productTools: ToolDef[] = [
       + 'with everything that went with it: its prices, costs, people and the packages it was part of. '
       + 'To take something out of the catalogue without removing it, use `update_product` with '
       + '`archived: true` instead — that is the reversible one a customer-facing list respects.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['product'],
@@ -471,11 +641,7 @@ export const productTools: ToolDef[] = [
        * caller deleting a module that four packages contain should be told so
        * by the answer rather than by a customer.
        */
-      const packages = all<Row>(
-        `SELECT p.name FROM product_parts pt JOIN products p ON p.id = pt.product_id
-         WHERE pt.part_id = ? AND pt.deleted_at IS NULL AND p.deleted_at IS NULL`,
-        product.id,
-      ).map((row) => String(row.name));
+      const packages = containingPackages(String(product.id));
       /*
        * Exactly what `cascadeProduct` will tombstone, counted the way it
        * gathers: its own children, *and* the part rows pointing at it from
@@ -483,9 +649,21 @@ export const productTools: ToolDef[] = [
        * reported one row taken where three went — the two packages losing it
        * are the half a caller most needs to hear about.
        */
-      const children = (['productPrice', 'productCost', 'productContributor', 'productPart'] as const)
+      const children = (Object.keys(PRODUCT_CHILD_TABLES) as ProductChild[])
         .reduce((total, entity) => total + productChildren(entity, String(product.id)).length, 0)
         + all<Row>(`SELECT id FROM product_parts WHERE part_id = ? AND deleted_at IS NULL`, product.id).length;
+
+      /*
+       * Saved simulations are not in `PRODUCT_CHILDREN`, so they are not
+       * tombstoned and not restored — they stay live pointing at a row that is
+       * gone, and once the trash is emptied they point at nothing at all.
+       * Whether that should cascade is a decision about saved work and not one
+       * to take inside a delete tool; leaving it silent is not a choice at all,
+       * so the answer names them.
+       */
+      const scenarios = all<Row>(
+        `SELECT name FROM product_scenarios WHERE product_id = ? AND deleted_at IS NULL`, product.id,
+      ).map((row) => String(row.name));
 
       deleteEntity('product', String(product.id), writeOpts(workspaceId, ctx));
       return {
@@ -493,6 +671,7 @@ export const productTools: ToolDef[] = [
         id: product.id,
         rows_taken_with_it: children,
         packages_left_short: packages,
+        scenarios_left_dangling: scenarios,
       };
     },
   },
@@ -639,11 +818,12 @@ export const productTools: ToolDef[] = [
       + 'from a date onward, use `change_product_price` instead — that keeps the old amount as '
       + 'history by closing its window and opening a new one, which is what makes a price history '
       + 'readable at all. Use this one only when the old value was never true.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['price'],
       properties: {
-        product: { type: 'string', description: 'Product id, name or code the price belongs to' },
+        product: { type: 'string', description: 'Product id, name or code. Needed only when `price` is a name rather than an id' },
         price: { type: 'string', description: 'Price id, or its name within that product' },
         name: { type: 'string' },
         kind: { type: 'string', enum: [...PRICE_KINDS] },
@@ -661,11 +841,10 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const product = findProduct(String(args.product ?? args.price), workspaceId);
-      const price = findChild('productPrice', product, String(args.price), 'price');
+      const { product, row: price } = findOn('productPrice', args, 'price', 'price', workspaceId);
 
       const patch = patchOf(args, {
-        name: (raw) => String(raw).trim(),
+        name: (raw) => requireText(raw, 'name'),
         kind: (raw) => oneOf(raw, PRICE_KINDS, 'kind'),
         amount: (raw) => requireMoney(raw, 'amount'),
         min_quantity: (raw) => whole(raw, 'min_quantity', 1, 1_000_000),
@@ -694,10 +873,15 @@ export const productTools: ToolDef[] = [
         id: row.id,
         product: product.name,
         ...money(String(product.currency), { amount: Number(row.amount) }),
-        changed: Object.keys(patch),
+        changed: changedFields(price, row, patch),
         /* A correction can put two prices in one lane. Reported rather than
            refused: which of them was meant is not ours to guess. */
         overlapping_prices: overlappingPrices(after, Number(product.term_months) || 0).map(([a, b]) => [a.id, b.id]),
+        /* `bundleValue` reads each part's applicable price, so an amount, a
+           window, a threshold or a kind moved here moves what every package
+           holding this product is said to be worth — and none of those show up
+           as a lane change. */
+        packages_affected: containingPackages(String(product.id)),
       };
     },
   },
@@ -708,12 +892,14 @@ export const productTools: ToolDef[] = [
       'Remove a price from a product. Use it for a price that should never have existed — a '
       + 'duplicate, a typo written as a second row. A price whose time has passed does not need '
       + 'removing: give it a `valid_to` with `update_product_price` and it stays readable as what '
-      + 'the product used to cost.',
+      + 'the product used to cost. Removing the last one leaves the product unpriced, and every '
+      + 'package holding it then counts it as worth nothing — the answer names them.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['price'],
       properties: {
-        product: { type: 'string', description: 'Product id, name or code the price belongs to' },
+        product: { type: 'string', description: 'Product id, name or code. Needed only when `price` is a name rather than an id' },
         price: { type: 'string', description: 'Price id, or its name within that product' },
         workspace_id: { type: 'string' },
       },
@@ -722,9 +908,9 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const product = findProduct(String(args.product ?? args.price), workspaceId);
-      const price = findChild('productPrice', product, String(args.price), 'price');
+      const { product, row: price } = findOn('productPrice', args, 'price', 'price', workspaceId);
 
+      const packages = containingPackages(String(product.id));
       deleteEntity('productPrice', String(price.id), writeOpts(workspaceId, ctx));
 
       /*
@@ -740,6 +926,11 @@ export const productTools: ToolDef[] = [
         product: product.name,
         prices_left: left.length,
         applies_now: applies ? formatMoney(applies.amount, String(product.currency), 'en') : null,
+        /* Read together with `applies_now`: a null there and names here is
+           every one of those packages worth this product's price less than it
+           was a moment ago, because `bundleValue` counts an unpriced part as
+           nothing rather than as missing. */
+        packages_affected: packages,
       };
     },
   },
@@ -805,7 +996,7 @@ export const productTools: ToolDef[] = [
       type: 'object',
       required: ['cost'],
       properties: {
-        product: { type: 'string', description: 'Product id, name or code the cost belongs to' },
+        product: { type: 'string', description: 'Product id, name or code. Needed only when `cost` is a name rather than an id' },
         cost: { type: 'string', description: 'Cost id, or its name within that product' },
         name: { type: 'string' },
         basis: { type: 'string', enum: [...COST_BASIS] },
@@ -820,11 +1011,10 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const product = findProduct(String(args.product ?? args.cost), workspaceId);
-      const cost = findChild('productCost', product, String(args.cost), 'cost');
+      const { product, row: cost } = findOn('productCost', args, 'cost', 'cost', workspaceId);
 
       const patch = patchOf(args, {
-        name: (raw) => String(raw).trim(),
+        name: (raw) => requireText(raw, 'name'),
         basis: (raw) => oneOf(raw, COST_BASIS, 'basis'),
         category: (raw) => oneOf(raw, COST_CATEGORIES, 'category'),
         amount: (raw) => requireMoney(raw, 'amount'),
@@ -846,15 +1036,20 @@ export const productTools: ToolDef[] = [
         product: product.name,
         basis: row.basis,
         ...money(String(product.currency), { amount: Number(row.amount) }),
-        changed: Object.keys(patch),
+        changed: changedFields(cost, row, patch),
         ...(entry ? {
           ...money(String(product.currency), {
             unit_cost: entry.structure.unit,
+            per_delivery: entry.structure.delivery,
             fixed_per_period: entry.structure.period,
             contribution: entry.economics.contribution ?? 0,
           }),
           margin_percent: entry.economics.marginBps === null ? null : Math.round(entry.economics.marginBps / 100),
         } : {}),
+        /* A module's cost is a package's cost. The margin above is this
+           product's; these are the ones that moved with it and do not say so
+           anywhere the caller is looking. */
+        packages_affected: containingPackages(String(product.id)),
       };
     },
   },
@@ -865,11 +1060,12 @@ export const productTools: ToolDef[] = [
       'Remove a cost from a product. The margin and the break-even are recomputed from what is '
       + 'left, and a product whose last cost goes reads as `no_costs` again — which means nobody '
       + 'has costed it, not that it is free.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['cost'],
       properties: {
-        product: { type: 'string', description: 'Product id, name or code the cost belongs to' },
+        product: { type: 'string', description: 'Product id, name or code. Needed only when `cost` is a name rather than an id' },
         cost: { type: 'string', description: 'Cost id, or its name within that product' },
         workspace_id: { type: 'string' },
       },
@@ -878,8 +1074,7 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const product = findProduct(String(args.product ?? args.cost), workspaceId);
-      const cost = findChild('productCost', product, String(args.cost), 'cost');
+      const { product, row: cost } = findOn('productCost', args, 'cost', 'cost', workspaceId);
 
       deleteEntity('productCost', String(cost.id), writeOpts(workspaceId, ctx));
       const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
@@ -888,6 +1083,7 @@ export const productTools: ToolDef[] = [
         product: product.name,
         costs_left: productChildren('productCost', String(product.id)).length,
         health: entry ? healthOfProduct(entry) : null,
+        packages_affected: containingPackages(String(product.id)),
       };
     },
   },
@@ -953,7 +1149,7 @@ export const productTools: ToolDef[] = [
       type: 'object',
       required: ['contributor'],
       properties: {
-        product: { type: 'string', description: 'Product id, name or code they contribute to' },
+        product: { type: 'string', description: 'Product id, name or code. Needed only when `contributor` is a name rather than an id' },
         contributor: { type: 'string', description: 'Contributor id, or their name within that product' },
         name: { type: 'string' },
         role: { type: ['string', 'null'] },
@@ -969,11 +1165,10 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const product = findProduct(String(args.product ?? args.contributor), workspaceId);
-      const person = findChild('productContributor', product, String(args.contributor), 'contributor');
+      const { product, row: person } = findOn('productContributor', args, 'contributor', 'contributor', workspaceId);
 
       const patch = patchOf(args, {
-        name: (raw) => String(raw).trim(),
+        name: (raw) => requireText(raw, 'name'),
         role: (raw) => str(raw) ?? null,
         organisation: (raw) => str(raw) ?? null,
         email: (raw) => str(raw) ?? null,
@@ -990,7 +1185,10 @@ export const productTools: ToolDef[] = [
         name: row.name,
         fee_basis: row.fee_basis,
         ...money(String(product.currency), { fee: Number(row.fee) }),
-        changed: Object.keys(patch),
+        changed: changedFields(person, row, patch),
+        /* A fee is a cost of the product on exactly its basis, and a `unit` one
+           rolls into every package holding it. Same reason the cost tools say so. */
+        packages_affected: containingPackages(String(product.id)),
       };
     },
   },
@@ -998,11 +1196,12 @@ export const productTools: ToolDef[] = [
     name: 'delete_product_contributor',
     title: 'Remove an external contributor',
     description: 'Take an outside contributor off a product. Their fee stops counting as a cost of it.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['contributor'],
       properties: {
-        product: { type: 'string', description: 'Product id, name or code they contribute to' },
+        product: { type: 'string', description: 'Product id, name or code. Needed only when `contributor` is a name rather than an id' },
         contributor: { type: 'string', description: 'Contributor id, or their name within that product' },
         workspace_id: { type: 'string' },
       },
@@ -1011,14 +1210,23 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const product = findProduct(String(args.product ?? args.contributor), workspaceId);
-      const person = findChild('productContributor', product, String(args.contributor), 'contributor');
+      const { product, row: person } = findOn('productContributor', args, 'contributor', 'contributor', workspaceId);
 
       deleteEntity('productContributor', String(person.id), writeOpts(workspaceId, ctx));
+      /*
+       * A fee is a cost of the product, so taking the last contributor off one
+       * that has no costs of its own puts it back to `no_costs` — the state a
+       * catalogue paints green by omission. Answered here for the same reason
+       * `delete_product_cost` answers it, which is also what the tool table
+       * says of both.
+       */
+      const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
       return {
         deleted: String(person.name || person.id),
         product: product.name,
         contributors_left: productChildren('productContributor', String(product.id)).length,
+        health: entry ? healthOfProduct(entry) : null,
+        packages_affected: containingPackages(String(product.id)),
       };
     },
   },
@@ -1091,21 +1299,7 @@ export const productTools: ToolDef[] = [
       requireFeature(workspaceId, 'products');
       const container = findProduct(String(args.package), workspaceId);
 
-      /*
-       * A part has no name of its own — it is a pointer — so it is found by the
-       * name of the product inside it, which is what somebody reading the
-       * package sees. `findChild` matches on `name`, and a part row has none.
-       */
-      const parts = productChildren('productPart', String(container.id));
-      const ref = String(args.part).trim();
-      const wanted = ref.toLowerCase();
-      const part = parts.find((row) => String(row.id) === ref)
-        ?? parts.find((row) => String(productsOf(workspaceId).find((item) => item.id === row.part_id)?.name ?? '').toLowerCase() === wanted);
-      if (!part) {
-        throw new McpError(parts.length
-          ? `No part "${args.part}" in ${container.name}. It holds: ${parts.map((row) => String(productsOf(workspaceId).find((item) => item.id === row.part_id)?.name ?? row.id)).join(', ')}`
-          : `${container.name} holds nothing yet`);
-      }
+      const part = findPart(container, args.part, workspaceId);
 
       const patch: Record<string, unknown> = {};
       if (args.quantity !== undefined) patch.quantity = whole(args.quantity, 'quantity', 1, 1_000_000);
@@ -1124,6 +1318,7 @@ export const productTools: ToolDef[] = [
       'Take one product out of a package. The package keeps its own price and its kind — a package '
       + 'holding nothing is still a package, and the answer says how many are left so that an empty '
       + 'one is visible rather than discovered.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['package', 'part'],
@@ -1138,18 +1333,8 @@ export const productTools: ToolDef[] = [
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
       const container = findProduct(String(args.package), workspaceId);
-      const parts = productChildren('productPart', String(container.id));
-      const ref = String(args.part).trim();
-      const wanted = ref.toLowerCase();
-      const named = (row: Row) => String(productsOf(workspaceId).find((item) => item.id === row.part_id)?.name ?? row.part_id);
-      const part = parts.find((row) => String(row.id) === ref) ?? parts.find((row) => named(row).toLowerCase() === wanted);
-      if (!part) {
-        throw new McpError(parts.length
-          ? `No part "${args.part}" in ${container.name}. It holds: ${parts.map(named).join(', ')}`
-          : `${container.name} holds nothing yet`);
-      }
-
-      const label = named(part);
+      const part = findPart(container, args.part, workspaceId);
+      const label = String(productsOf(workspaceId).find((item) => item.id === part.part_id)?.name ?? part.part_id);
       deleteEntity('productPart', String(part.id), writeOpts(workspaceId, ctx));
       return {
         removed: label,
@@ -1297,8 +1482,8 @@ export const productTools: ToolDef[] = [
         promotion: { type: 'string', description: 'Campaign id or name' },
         name: { type: 'string' },
         description: { type: ['string', 'null'] },
-        kind: { type: 'string', enum: [...PROMOTION_KINDS] },
-        value: { type: 'string', description: 'A percentage for kind percent, otherwise an amount' },
+        kind: { type: 'string', enum: [...PROMOTION_KINDS], description: 'Moving it needs `value` too: the stored number means something different under each' },
+        value: { type: 'string', description: 'A percentage for percent, what comes off for amount, what it becomes for price' },
         starts_on: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
         ends_on: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
         products: { type: 'array', items: { type: 'string' }, description: 'Replaces the list. Product ids, names or codes' },
@@ -1313,13 +1498,10 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const wanted = String(args.promotion).trim().toLowerCase();
-      const found = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
-        .find((row) => String(row.id) === String(args.promotion).trim() || String(row.name).toLowerCase() === wanted);
-      if (!found) throw new McpError(`No campaign "${args.promotion}" in this workspace`);
+      const found = findPromotion(args.promotion, workspaceId);
 
       const patch = patchOf(args, {
-        name: (raw) => String(raw).trim(),
+        name: (raw) => requireText(raw, 'name'),
         description: (raw) => str(raw) ?? null,
         kind: (raw) => oneOf(raw, PROMOTION_KINDS, 'kind'),
         starts_on: (raw) => isoDay(raw, 'starts_on'),
@@ -1337,10 +1519,24 @@ export const productTools: ToolDef[] = [
       });
       if (args.uplift_percent !== undefined) patch.uplift_bps = bps(args.uplift_percent, 'uplift_percent', 0, 10_000);
       /*
-       * The value means two different things — basis points for a percentage,
-       * minor units otherwise — so it is read against the kind this campaign
-       * will have after the change, not the one it had before.
+       * The value means three different things — basis points for `percent`,
+       * what comes off for `amount`, what it becomes for `price` — so it is
+       * read against the kind this campaign will have after the change, not
+       * the one it had before.
+       *
+       * And a kind may not move without it. `2000` under `amount` is twenty
+       * euros off a fourteen-hundred-euro seminar; the same row read as
+       * `price` sells it for twenty. Nothing in the write path would object,
+       * the campaign can be live, and the first evidence would be an invoice.
+       * The caller knows which number they mean and is the only one who does.
        */
+      if (patch.kind !== undefined && patch.kind !== found.kind && args.value === undefined) {
+        throw new McpError(
+          `A ${found.kind} campaign's value and a ${patch.kind} campaign's are different numbers `
+          + `— give \`value\` as well, or the one ${found.name} already stores survives the change `
+          + 'and comes to mean something else',
+        );
+      }
       if (args.value !== undefined) {
         const kind = String(patch.kind ?? found.kind);
         patch.value = kind === 'percent' ? bps(args.value, 'value', 0, 100) : requireMoney(args.value, 'value');
@@ -1353,7 +1549,7 @@ export const productTools: ToolDef[] = [
         id: row.id,
         name: row.name,
         phase: promotionPhase(row as unknown as Promotion, today),
-        changed: Object.keys(patch),
+        changed: changedFields(found, row, patch),
       };
     },
   },
@@ -1364,6 +1560,7 @@ export const productTools: ToolDef[] = [
       'Remove a campaign. Nothing it discounted keeps the discount: every price it touched goes '
       + 'back to what it was. To stop a campaign without losing the record of it, set its status to '
       + '`ended` with `update_promotion` instead.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['promotion'],
@@ -1376,10 +1573,7 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const wanted = String(args.promotion).trim().toLowerCase();
-      const found = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
-        .find((row) => String(row.id) === String(args.promotion).trim() || String(row.name).toLowerCase() === wanted);
-      if (!found) throw new McpError(`No campaign "${args.promotion}" in this workspace`);
+      const found = findPromotion(args.promotion, workspaceId);
 
       deleteEntity('promotion', String(found.id), writeOpts(workspaceId, ctx));
       return { deleted: String(found.name), id: String(found.id) };

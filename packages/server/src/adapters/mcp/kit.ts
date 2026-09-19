@@ -30,6 +30,20 @@ export interface ToolDef {
   schema: Record<string, unknown>;
   readOnly?: boolean;
   /**
+   * Whether running this tool loses something.
+   *
+   * `destructiveHint` is what a client reads to decide whether to ask a person
+   * first, and it was `tool.name === 'delete_task'` — one name, written when
+   * there was one. `delete_cycle`, `delete_module` and `delete_attachment`
+   * arrived afterwards and every one of them announced itself as *not*
+   * destructive, which is worse than saying nothing: a client that trusts the
+   * annotation runs them unasked. A flag on the tool is the only version of
+   * this that a new tool cannot silently fall out of, and it says more than a
+   * name can — `update_product_price` deletes no row and still loses what the
+   * price used to say.
+   */
+  destructive?: boolean;
+  /**
    * May return a promise. Almost none do — every tool here reads and writes
    * SQLite, which `node:sqlite` does synchronously — but `upload_attachment`
    * puts bytes in a store that may be an object store across a network, and
@@ -483,8 +497,18 @@ export const cycleView = (row: Row): Record<string, unknown> => ({
  * Every date column here is a `YYYY-MM-DD` string compared with `date('now')`
  * in SQL, so anything else — a timestamp, `"next friday"`, an ISO datetime —
  * sorts and compares wrongly rather than failing. Cheaper to refuse it.
+ *
+ * A value that is not a string at all is refused rather than read as absent.
+ * This went through `str`, which answers `undefined` for a number the same way
+ * it does for a missing argument — so `valid_to: 20261231` did not fail, it
+ * *cleared the end of the window*, and a price that was to run until December
+ * silently ran forever. Null and the empty string still clear one, because
+ * that is a caller saying so; a number is a caller getting the type wrong.
  */
 export function isoDay(value: unknown, field: string): string | null {
+  if (value !== undefined && value !== null && typeof value !== 'string') {
+    throw new McpError(`\`${field}\` must be a YYYY-MM-DD string, not a ${typeof value}`);
+  }
   const raw = str(value);
   if (raw === undefined) return null;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) throw new McpError(`\`${field}\` must be YYYY-MM-DD, not "${raw}"`);
@@ -1193,13 +1217,22 @@ export function findProduct(ref: string, workspaceId: string): Row {
   return found;
 }
 
+/** What a product's children are stored in. Named once so a lookup by id can reach the same tables. */
+export const PRODUCT_CHILD_TABLES = {
+  productPrice: 'product_prices',
+  productCost: 'product_costs',
+  productContributor: 'product_contributors',
+  productPart: 'product_parts',
+} as const;
+
+export type ProductChild = keyof typeof PRODUCT_CHILD_TABLES;
+
 /** The live rows of one child table belonging to a product, already serialized. */
-export function productChildren<K extends 'productPrice' | 'productCost' | 'productContributor' | 'productPart'>(
-  entity: K, productId: string,
-): Row[] {
-  const table = { productPrice: 'product_prices', productCost: 'product_costs', productContributor: 'product_contributors', productPart: 'product_parts' }[entity];
-  return all<Row>(`SELECT * FROM ${table} WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order`, productId)
-    .map((row) => serialize(entity, row) as unknown as Row);
+export function productChildren<K extends ProductChild>(entity: K, productId: string): Row[] {
+  return all<Row>(
+    `SELECT * FROM ${PRODUCT_CHILD_TABLES[entity]} WHERE product_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+    productId,
+  ).map((row) => serialize(entity, row) as unknown as Row);
 }
 
 /**

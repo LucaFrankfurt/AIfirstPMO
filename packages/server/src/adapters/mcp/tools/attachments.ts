@@ -465,6 +465,7 @@ export const attachmentTools: ToolDef[] = [
     name: 'delete_attachment',
     title: 'Delete attachment',
     description: 'Remove a file from the task or page it is attached to. Soft — it goes to the trash and can be restored. The stored bytes are shared and are not deleted.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['attachment_id'],

@@ -368,6 +368,7 @@ export const taskTools: ToolDef[] = [
     name: 'delete_task',
     title: 'Delete task',
     description: 'Soft-delete a task. It disappears from every client but stays recoverable in the database.',
+    destructive: true,
     schema: { type: 'object', required: ['task'], properties: { task: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);

@@ -26,7 +26,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { get, all } = await import('../src/kernel/platform/db/index.ts');
+const { get, all, run } = await import('../src/kernel/platform/db/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
@@ -701,6 +701,250 @@ describe('the tools an assistant gets', () => {
       /Nothing to change/,
       'and naming no field at all is a mistake worth saying out loud',
     );
+  });
+
+  it('refuses a name that is not one, rather than writing the word null', async () => {
+    /*
+     * `String(raw).trim()` is what every creating tool does and on a create the
+     * worst it costs is a row nobody wanted. On an update the same line
+     * overwrites what was there: a client sending JSON null for a field it
+     * means to leave alone renamed the product to the four letters n-u-l-l,
+     * and the old name was gone. The same applied to a price, a cost, a
+     * contributor and a campaign.
+     */
+    await tool(me.token, 'create_product', { name: 'Namenstreu', code: 'NAME' });
+    for (const value of [null, '', '   ']) {
+      await assert.rejects(
+        () => tool(me.token, 'update_product', { product: 'NAME', name: value as any }),
+        /must be a non-empty string/,
+      );
+    }
+    assert.equal(get<any>(`SELECT name FROM products WHERE code = 'NAME'`).name, 'Namenstreu');
+  });
+
+  it('refuses a currency the write path would have snapped to EUR', async () => {
+    // The rule below settles anything that is not three capitals to EUR, which
+    // is right for sync traffic and wrong for a caller who typed the code: a
+    // dollar product would come back euro-denominated with nothing said.
+    await tool(me.token, 'create_product', { name: 'Dollarware', code: 'USDW', currency: 'USD' });
+    await assert.rejects(
+      () => tool(me.token, 'update_product', { product: 'USDW', currency: 'Dollars' }),
+      /three-letter ISO 4217 code/,
+    );
+    assert.equal(get<any>(`SELECT currency FROM products WHERE code = 'USDW'`).currency, 'USD');
+
+    // And a real change is allowed, but it names what it just made incoherent:
+    // nothing converts, and a package sums its parts under its own symbol.
+    await tool(me.token, 'create_product', { name: 'Dollarpaket', code: 'USDP', kind: 'bundle' });
+    await tool(me.token, 'add_product_part', { package: 'USDP', product: 'USDW' });
+    const moved = await tool(me.token, 'update_product', { product: 'USDW', currency: 'chf' });
+    assert.deepEqual(moved.changed, ['currency']);
+    assert.deepEqual(moved.packages_now_mixing_currencies, ['Dollarpaket']);
+  });
+
+  it('refuses a date that is not a string instead of clearing the window', async () => {
+    /*
+     * `isoDay` went through `str`, which answers undefined for a number the
+     * same way it does for a missing argument. So `valid_to: 20261231` did not
+     * fail — it cleared the end of the window, and a price that was to run
+     * until December ran forever.
+     */
+    await tool(me.token, 'create_product', { name: 'Befristet', code: 'BEFR' });
+    const price = await tool(me.token, 'set_product_price', {
+      product: 'BEFR', name: 'Aktion', amount: '10', billing: 'monthly', valid_to: '2026-12-31',
+    });
+    await assert.rejects(
+      () => tool(me.token, 'update_product_price', { product: 'BEFR', price: 'Aktion', valid_to: 20261231 as any }),
+      /must be a YYYY-MM-DD string, not a number/,
+    );
+    assert.equal(get<any>(`SELECT valid_to FROM product_prices WHERE id = ?`, price.id).valid_to, '2026-12-31');
+
+    // Null still clears one, because that is a caller saying so.
+    await tool(me.token, 'update_product_price', { product: 'BEFR', price: 'Aktion', valid_to: null });
+    assert.equal(get<any>(`SELECT valid_to FROM product_prices WHERE id = ?`, price.id).valid_to, null);
+  });
+
+  it('names in `changed` only what the write actually took', async () => {
+    /*
+     * The write path drops a field whose stored stamp is newer than the
+     * write's — a browser whose clock runs fast leaves one behind, which is the
+     * case `check:clocks` opens a second browser for. `changed` was built from
+     * the patch, so it named that field anyway and a caller had no way to know
+     * the correction had not landed.
+     */
+    await tool(me.token, 'create_product', { name: 'Uhrvor', code: 'UHRV' });
+    const price = await tool(me.token, 'set_product_price', { product: 'UHRV', name: 'Liste', amount: '10', billing: 'monthly' });
+
+    const clocks = JSON.parse(get<any>(`SELECT clocks FROM product_prices WHERE id = ?`, price.id).clocks);
+    clocks.amount = `${String(Date.now() + 600_000).padStart(11, '0')}-0000-schnelleuhr`;
+    run(`UPDATE product_prices SET clocks = ? WHERE id = ?`, JSON.stringify(clocks), price.id);
+
+    const tried = await tool(me.token, 'update_product_price', { product: 'UHRV', price: 'Liste', amount: '99', note: 'korrigiert' });
+    assert.deepEqual(tried.changed, ['note'], 'the amount was dropped as stale and is not claimed');
+    assert.equal(tried.amount, 1_000, 'and the answer carries what the row still says');
+  });
+
+  it('finds a price by its id without being told the product', async () => {
+    // The fallback read `args.product ?? args.price` and looked the price up as
+    // a product, so a caller holding a price id was told "No product
+    // \"pr_…\" in this workspace" — a true sentence about the wrong noun.
+    await tool(me.token, 'create_product', { name: 'Ohneprodukt', code: 'OHNE' });
+    const price = await tool(me.token, 'set_product_price', { product: 'OHNE', name: 'Liste', amount: '12', billing: 'monthly' });
+
+    const fixed = await tool(me.token, 'update_product_price', { price: price.id, amount: '13' });
+    assert.equal(fixed.product, 'Ohneprodukt');
+    assert.equal(fixed.amount, 1_300);
+
+    // A name is not unique across a workspace, so that path still needs the
+    // product — and says which of the two is missing.
+    await assert.rejects(
+      () => tool(me.token, 'update_product_price', { price: 'Liste', amount: '14' }),
+      /name the product too/,
+    );
+    await assert.rejects(
+      () => tool(me.token, 'update_product_cost', { amount: '14' }),
+      /`cost` is required and was not given/,
+    );
+
+    // And a child of somebody else's product reads exactly like one that does
+    // not exist: the lookup is bounded by the workspace, not only the answer.
+    const stranger = await register('fremde-preise@example.com');
+    await ok(`/api/workspaces/${stranger.workspace}`, {
+      cookie: stranger.person.cookie, method: 'PATCH', body: { features: { products: true } },
+    });
+    await tool(stranger.person.token, 'create_product', { name: 'Fremd', code: 'FRMD' });
+    const theirs = await tool(stranger.person.token, 'set_product_price', {
+      product: 'FRMD', name: 'Liste', amount: '99', billing: 'monthly',
+    });
+    await assert.rejects(
+      () => tool(me.token, 'update_product_price', { price: theirs.id, amount: '1' }),
+      new RegExp(`No price with id "${theirs.id}"`),
+    );
+  });
+
+  it('says which packages a changed cost moved, and what a delivery cost is', async () => {
+    /*
+     * `unitCosts` recurses into parts, so a module's cost is a package's cost
+     * — the margin in the answer is this product's and the packages' moved
+     * with it, in a figure nobody was looking at. And `delivery` is one of the
+     * three bases this tool's description explains at length; it was the one
+     * the answer never carried.
+     */
+    await tool(me.token, 'create_product', { name: 'Modul', code: 'MODL' });
+    await tool(me.token, 'set_product_price', { product: 'MODL', amount: '100', billing: 'monthly' });
+    await tool(me.token, 'add_product_cost', { product: 'MODL', name: 'Anreise', amount: '20', basis: 'delivery' });
+    await tool(me.token, 'create_product', { name: 'Grosspaket', code: 'GPAK', kind: 'bundle' });
+    await tool(me.token, 'add_product_part', { package: 'GPAK', product: 'MODL' });
+
+    const changed = await tool(me.token, 'update_product_cost', { product: 'MODL', cost: 'Anreise', amount: '500' });
+    assert.equal(changed.per_delivery, 50_000, 'the basis the answer used to leave out entirely');
+    assert.deepEqual(changed.packages_affected, ['Grosspaket']);
+
+    const gone = await tool(me.token, 'delete_product_cost', { product: 'MODL', cost: 'Anreise' });
+    assert.equal(gone.health, 'no_costs', 'which means nobody has costed it, not that it is free');
+    assert.deepEqual(gone.packages_affected, ['Grosspaket']);
+  });
+
+  it('names the packages that lose a part\'s value when its last price goes', async () => {
+    // `bundleValue` counts a part with no applicable price as worth nothing
+    // rather than as missing, so the package's list value simply drops.
+    await tool(me.token, 'create_product', { name: 'Teilwert', code: 'TWRT' });
+    await tool(me.token, 'set_product_price', { product: 'TWRT', name: 'Liste', amount: '50', billing: 'monthly' });
+    await tool(me.token, 'create_product', { name: 'Wertpaket', code: 'WPAK', kind: 'bundle' });
+    await tool(me.token, 'add_product_part', { package: 'WPAK', product: 'TWRT' });
+    assert.equal((await tool(me.token, 'product_status', { product: 'WPAK' })).bundle.list_value, 5_000);
+
+    const gone = await tool(me.token, 'delete_product_price', { product: 'TWRT', price: 'Liste' });
+    assert.equal(gone.applies_now, null);
+    assert.deepEqual(gone.packages_affected, ['Wertpaket']);
+    const after = await tool(me.token, 'product_status', { product: 'WPAK' });
+    assert.equal(after.bundle.list_value, 0, 'an unpriced part counts as worth nothing, not as missing');
+    assert.equal(after.bundle.unpriced_parts, 1);
+  });
+
+  it('will not guess which of two identical parts to remove', async () => {
+    // Nothing stops a package holding the same product twice, and a part has no
+    // name of its own — so the name matches both rows and `find` answered the
+    // first. On a removal that is a coin flip about which row is destroyed.
+    await tool(me.token, 'create_product', { name: 'Doppelt', code: 'DOPP' });
+    await tool(me.token, 'create_product', { name: 'Doppelpaket', code: 'DPAK', kind: 'bundle' });
+    const first = await tool(me.token, 'add_product_part', { package: 'DPAK', product: 'DOPP' });
+    await tool(me.token, 'add_product_part', { package: 'DPAK', product: 'DOPP' });
+
+    await assert.rejects(
+      () => tool(me.token, 'remove_product_part', { package: 'DPAK', part: 'Doppelt' }),
+      /holds Doppelt 2 times — name the row by its id/,
+    );
+    const removed = await tool(me.token, 'remove_product_part', { package: 'DPAK', part: first.id });
+    assert.equal(removed.parts_left, 1, 'and by id it is unambiguous');
+  });
+
+  it('will not let a campaign change what its number means without saying the number', async () => {
+    /*
+     * `2000` under `amount` is twenty euros off a fourteen-hundred-euro
+     * seminar; the same row read as `price` sells it for twenty. Nothing in
+     * the write path would object, the campaign can be live, and the first
+     * evidence would be an invoice.
+     */
+    await tool(me.token, 'create_promotion', { name: 'Bedeutung', kind: 'amount', value: '20' });
+    await assert.rejects(
+      () => tool(me.token, 'update_promotion', { promotion: 'Bedeutung', kind: 'price' }),
+      /give `value` as well/,
+    );
+    assert.equal(get<any>(`SELECT kind FROM promotions WHERE name = 'Bedeutung'`).kind, 'amount');
+
+    const moved = await tool(me.token, 'update_promotion', { promotion: 'Bedeutung', kind: 'price', value: '1200' });
+    assert.deepEqual(moved.changed.sort(), ['kind', 'value']);
+    assert.equal(get<any>(`SELECT value FROM promotions WHERE name = 'Bedeutung'`).value, 120_000);
+  });
+
+  it('names the saved simulations a deleted product leaves pointing at nothing', async () => {
+    // Scenarios are not in PRODUCT_CHILDREN, so they are neither tombstoned nor
+    // restored. Whether that should cascade is a decision about saved work;
+    // leaving it silent is not a decision at all.
+    const product = await tool(me.token, 'create_product', { name: 'Simuliert', code: 'SIMU' });
+    await tool(me.token, 'set_product_price', { product: 'SIMU', amount: '10', billing: 'monthly' });
+    /*
+     * Written straight into the table because nothing else in this process
+     * can: the screen saves a scenario through the sync push and there is no
+     * REST collection and no tool for one. That is itself part of the finding
+     * — a row a product can be deleted out from under, reachable from exactly
+     * one surface.
+     */
+    run(
+      `INSERT INTO product_scenarios (id, workspace_id, product_id, name, assumptions, created_at, updated_at, seq)
+       VALUES (?, ?, ?, ?, '{}', ?, ?, 0)`,
+      'sc-basisfall', workspace, product.id, 'Basisfall', Date.now(), Date.now(),
+    );
+
+    const gone = await tool(me.token, 'delete_product', { product: 'SIMU' });
+    assert.deepEqual(gone.scenarios_left_dangling, ['Basisfall']);
+  });
+
+  it('tells a client which of its tools destroy something', async () => {
+    /*
+     * `destructiveHint` is what a client reads to decide whether to ask a
+     * person first, and it was `tool.name === 'delete_task'` — one name,
+     * written when there was one. Every delete tool added since announced
+     * itself as not destructive, which is worse than saying nothing.
+     */
+    const listed = await ok<any>('/mcp', {
+      token: me.token, body: { jsonrpc: '2.0', id: 9_001, method: 'tools/list', params: {} },
+    });
+    const flagged = new Map<string, boolean>(
+      listed.result.tools.map((entry: any) => [entry.name, !!entry.annotations?.destructiveHint]),
+    );
+    for (const name of [
+      'delete_task', 'delete_cycle', 'delete_module', 'delete_attachment',
+      'delete_product', 'delete_product_price', 'delete_product_cost',
+      'delete_product_contributor', 'remove_product_part', 'delete_promotion',
+      'update_product_price',
+    ]) {
+      assert.equal(flagged.get(name), true, `${name} loses something and must say so`);
+    }
+    for (const name of ['list_products', 'update_product', 'change_product_price', 'add_product_part']) {
+      assert.equal(flagged.get(name), false, `${name} does not, and a false alarm is how a hint stops being read`);
+    }
   });
 
   it('simulates without writing anything', async () => {
