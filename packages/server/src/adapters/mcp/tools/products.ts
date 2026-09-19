@@ -9,19 +9,72 @@
  */
 import {
   assumptionsOf, bundleValue, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
-  formatMoney, orderKey, overlappingPrices, PRICE_KINDS, priceChangeRefusal, priceFor, priceHistory,
+  formatMoney, healthOfProduct, orderKey, overlappingPrices, PRICE_KINDS, priceChangeRefusal, priceFor,
+  priceHistory,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, promotionPhase, raisePrice, RENEWALS,
   retentionOf, simulate, unitCosts, type ProductAssumptions,
   type ProductContributor, type ProductCost, type ProductPart, type ProductPrice, type Promotion, type Product,
 } from '@kolibri/shared';
 import { all, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
-import { serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { deleteEntity, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
   catalogueOf, findProduct, isoDay, lastChildOrder, McpError, money, productChildren, productsOf,
   productView, requireFeature, requireMoney, requireWrite, str, type ToolDef, workspaceOf, writeOpts,
 } from '../kit.ts';
+
+/**
+ * One of a product's children, by its id or by the name somebody gave it.
+ *
+ * Scoped to the product on purpose. "The RTB cost" means nothing across a
+ * workspace and everything inside one product, and a lookup that searched wider
+ * would edit a row on a product the caller never named — the one mistake a
+ * changing tool must not make, because unlike a create it destroys what was
+ * there.
+ */
+function findChild(
+  entity: 'productPrice' | 'productCost' | 'productContributor' | 'productPart',
+  product: Row,
+  ref: string,
+  label: string,
+): Row {
+  const rows = productChildren(entity, String(product.id));
+  const wanted = ref.trim().toLowerCase();
+  const found = rows.find((row) => String(row.id) === ref.trim())
+    ?? rows.find((row) => String(row.name ?? '').trim().toLowerCase() === wanted);
+  if (!found) {
+    throw new McpError(rows.length
+      ? `No ${label} "${ref}" on ${product.name}. It has: ${rows.map((row) => String(row.name ?? row.id)).join(', ')}`
+      : `${product.name} has no ${label} at all`);
+  }
+  return found;
+}
+
+/**
+ * The fields a caller actually named, as a patch.
+ *
+ * `undefined` means "not mentioned" and everything else — `null` included —
+ * means "set it to this". Written once because every update tool here needs the
+ * same distinction, and writing it out per field is how one of them eventually
+ * clears something nobody asked to clear.
+ */
+function patchOf(args: Record<string, any>, fields: Record<string, (raw: any) => unknown>): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+  for (const [name, read] of Object.entries(fields)) {
+    if (args[name] !== undefined) patch[name] = read(args[name]);
+  }
+  return patch;
+}
+
+/** A value from a closed list, or a complaint naming what was allowed. */
+function oneOf<T extends string>(raw: unknown, allowed: readonly T[], field: string): T {
+  const value = String(raw);
+  if (!(allowed as readonly string[]).includes(value)) {
+    throw new McpError(`${field} must be one of: ${allowed.join(', ')}`);
+  }
+  return value as T;
+}
 
 /** A whole number a caller typed, inside bounds, or a complaint naming the field. */
 function whole(raw: unknown, field: string, min: number, max: number): number {
@@ -302,6 +355,148 @@ export const productTools: ToolDef[] = [
     },
   },
   {
+    name: 'update_product',
+    title: 'Change a product',
+    description:
+      'Change anything about a product that is not a price, a cost, a person or a part: its name, '
+      + 'code, description, group, kind, status, currency, scope, capacity, or the retention fields. '
+      + 'Only the fields named are touched; everything else is left alone. `archived` takes it out of '
+      + 'the catalogue while keeping it, `status` says where it is in its life, and `delete_product` '
+      + 'removes it — three different meanings of "not on sale", and this tool reaches the first two.',
+    schema: {
+      type: 'object',
+      required: ['product'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code' },
+        name: { type: 'string' },
+        code: { type: ['string', 'null'] },
+        description: { type: ['string', 'null'] },
+        group: { type: ['string', 'null'], description: 'Group id or name, or null to take it out of one' },
+        kind: { type: 'string', enum: [...PRODUCT_KINDS], description: 'Refused back to single while it still holds parts' },
+        status: { type: 'string', enum: [...PRODUCT_STATUS] },
+        currency: {
+          type: 'string',
+          description: 'ISO 4217. Nothing anywhere converts between two, so changing this restates every amount on the product rather than converting it',
+        },
+        unit_label: { type: ['string', 'null'] },
+        scope_amount: { type: 'number' },
+        scope_unit: { type: ['string', 'null'] },
+        capacity: { type: ['number', 'null'], description: 'Units one delivery can take, or null for no ceiling' },
+        term_months: { type: 'number', description: 'Minimum commitment. A price may state its own and override this' },
+        renewal: { type: 'string', enum: [...RENEWALS] },
+        churn_percent: { type: 'number' },
+        acquisition_cost: { type: 'string' },
+        archived: { type: 'boolean' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product), workspaceId);
+
+      /*
+       * A product holding parts cannot go back to being a single one.
+       * `unitCosts` recurses through its parts whatever `kind` says, so the
+       * catalogue would carry a package's costs under a single product's name.
+       * The form disables the option for this reason; a tool has to refuse it.
+       */
+      if (args.kind !== undefined && args.kind !== 'bundle') {
+        const held = productChildren('productPart', String(product.id));
+        if (held.length) {
+          throw new McpError(
+            `${product.name} still holds ${held.length} product(s), so it stays a package — remove them with remove_product_part first`,
+          );
+        }
+      }
+
+      const patch = patchOf(args, {
+        name: (raw) => String(raw).trim(),
+        code: (raw) => str(raw) ?? null,
+        description: (raw) => str(raw) ?? null,
+        kind: (raw) => oneOf(raw, PRODUCT_KINDS, 'kind'),
+        status: (raw) => oneOf(raw, PRODUCT_STATUS, 'status'),
+        currency: (raw) => String(raw).trim().toUpperCase(),
+        unit_label: (raw) => str(raw) ?? null,
+        scope_amount: (raw) => whole(raw, 'scope_amount', 0, 1_000_000),
+        scope_unit: (raw) => str(raw) ?? null,
+        capacity: (raw) => (raw === null ? null : whole(raw, 'capacity', 1, 1_000_000)),
+        term_months: (raw) => whole(raw, 'term_months', 0, 600),
+        renewal: (raw) => oneOf(raw, RENEWALS, 'renewal'),
+        acquisition_cost: (raw) => requireMoney(raw, 'acquisition_cost'),
+      });
+      if (args.churn_percent !== undefined) patch.churn_bps = bps(args.churn_percent, 'churn_percent', 0, 100);
+      if (args.archived !== undefined) patch.archived = args.archived ? 1 : 0;
+      if (args.group !== undefined) {
+        const wanted = str(args.group)?.toLowerCase();
+        const group = wanted
+          ? all<Row>(`SELECT * FROM product_groups WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+            .find((row) => row.id === args.group || String(row.name).toLowerCase() === wanted)
+          : null;
+        if (wanted && !group) throw new McpError(`No product group "${args.group}" in this workspace`);
+        patch.group_id = group ? group.id : null;
+      }
+
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
+      const { row } = writeEntity('product', String(product.id), patch, writeOpts(workspaceId, ctx));
+      return { id: row.id, product: row.name, changed: Object.keys(patch), status: row.status, archived: !!Number(row.archived) };
+    },
+  },
+  {
+    name: 'delete_product',
+    title: 'Delete a product',
+    description:
+      'Soft-delete a product. It leaves every list and goes to the trash, where it can be restored '
+      + 'with everything that went with it: its prices, costs, people and the packages it was part of. '
+      + 'To take something out of the catalogue without removing it, use `update_product` with '
+      + '`archived: true` instead — that is the reversible one a customer-facing list respects.',
+    schema: {
+      type: 'object',
+      required: ['product'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product), workspaceId);
+
+      /*
+       * Counted before the write, because `cascadeProduct` tombstones these in
+       * the same transaction and afterwards there is nothing left to count. A
+       * caller deleting a module that four packages contain should be told so
+       * by the answer rather than by a customer.
+       */
+      const packages = all<Row>(
+        `SELECT p.name FROM product_parts pt JOIN products p ON p.id = pt.product_id
+         WHERE pt.part_id = ? AND pt.deleted_at IS NULL AND p.deleted_at IS NULL`,
+        product.id,
+      ).map((row) => String(row.name));
+      /*
+       * Exactly what `cascadeProduct` will tombstone, counted the way it
+       * gathers: its own children, *and* the part rows pointing at it from
+       * elsewhere. Counting only the first is what this said at first, and it
+       * reported one row taken where three went — the two packages losing it
+       * are the half a caller most needs to hear about.
+       */
+      const children = (['productPrice', 'productCost', 'productContributor', 'productPart'] as const)
+        .reduce((total, entity) => total + productChildren(entity, String(product.id)).length, 0)
+        + all<Row>(`SELECT id FROM product_parts WHERE part_id = ? AND deleted_at IS NULL`, product.id).length;
+
+      deleteEntity('product', String(product.id), writeOpts(workspaceId, ctx));
+      return {
+        deleted: product.name,
+        id: product.id,
+        rows_taken_with_it: children,
+        packages_left_short: packages,
+      };
+    },
+  },
+  {
     name: 'set_product_price',
     title: 'Price a product',
     description:
@@ -436,6 +631,119 @@ export const productTools: ToolDef[] = [
     },
   },
   {
+    name: 'update_product_price',
+    title: 'Correct a price',
+    description:
+      'Correct a price in place — a typo in the amount, a wrong threshold, a name, a window. '
+      + '**This overwrites: what the price used to say is gone.** To change what a product costs '
+      + 'from a date onward, use `change_product_price` instead — that keeps the old amount as '
+      + 'history by closing its window and opening a new one, which is what makes a price history '
+      + 'readable at all. Use this one only when the old value was never true.',
+    schema: {
+      type: 'object',
+      required: ['price'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code the price belongs to' },
+        price: { type: 'string', description: 'Price id, or its name within that product' },
+        name: { type: 'string' },
+        kind: { type: 'string', enum: [...PRICE_KINDS] },
+        amount: { type: 'string', description: 'Corrects the amount in place, losing what it said. See the description' },
+        min_quantity: { type: 'number' },
+        recurrence: { type: 'string', enum: [...COST_RECURRENCES] },
+        term_months: { type: ['number', 'null'], description: "What the customer commits to for this price. Null defers to the product's own" },
+        valid_from: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+        valid_to: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+        note: { type: ['string', 'null'] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product ?? args.price), workspaceId);
+      const price = findChild('productPrice', product, String(args.price), 'price');
+
+      const patch = patchOf(args, {
+        name: (raw) => String(raw).trim(),
+        kind: (raw) => oneOf(raw, PRICE_KINDS, 'kind'),
+        amount: (raw) => requireMoney(raw, 'amount'),
+        min_quantity: (raw) => whole(raw, 'min_quantity', 1, 1_000_000),
+        recurrence: (raw) => oneOf(raw, COST_RECURRENCES, 'recurrence'),
+        term_months: (raw) => (raw === null ? null : whole(raw, 'term_months', 0, 600)),
+        valid_from: (raw) => isoDay(raw, 'valid_from'),
+        valid_to: (raw) => isoDay(raw, 'valid_to'),
+        note: (raw) => str(raw) ?? null,
+      });
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
+
+      /*
+       * A window that ends before it begins matches no day at all, so the price
+       * neither applies nor reads as history — it simply disappears. Checked
+       * against the merged row rather than the patch, because either end may be
+       * the one that moved. Same shape `priceChangeRefusal` guards one door up.
+       */
+      const merged = { ...price, ...patch } as unknown as ProductPrice;
+      if (merged.valid_from && merged.valid_to && merged.valid_to < merged.valid_from) {
+        throw new McpError(`That window ends on ${merged.valid_to}, before it starts on ${merged.valid_from} — it would apply to no day at all`);
+      }
+
+      const { row } = writeEntity('productPrice', String(price.id), patch, writeOpts(workspaceId, ctx));
+      const after = productChildren('productPrice', String(product.id)) as unknown as ProductPrice[];
+      return {
+        id: row.id,
+        product: product.name,
+        ...money(String(product.currency), { amount: Number(row.amount) }),
+        changed: Object.keys(patch),
+        /* A correction can put two prices in one lane. Reported rather than
+           refused: which of them was meant is not ours to guess. */
+        overlapping_prices: overlappingPrices(after, Number(product.term_months) || 0).map(([a, b]) => [a.id, b.id]),
+      };
+    },
+  },
+  {
+    name: 'delete_product_price',
+    title: 'Remove a price',
+    description:
+      'Remove a price from a product. Use it for a price that should never have existed — a '
+      + 'duplicate, a typo written as a second row. A price whose time has passed does not need '
+      + 'removing: give it a `valid_to` with `update_product_price` and it stays readable as what '
+      + 'the product used to cost.',
+    schema: {
+      type: 'object',
+      required: ['price'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code the price belongs to' },
+        price: { type: 'string', description: 'Price id, or its name within that product' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product ?? args.price), workspaceId);
+      const price = findChild('productPrice', product, String(args.price), 'price');
+
+      deleteEntity('productPrice', String(price.id), writeOpts(workspaceId, ctx));
+
+      /*
+       * What the product costs *after* the removal, which is the part a caller
+       * cannot work out: taking away the row that applied today leaves a
+       * product that answers "unpriced" everywhere, and that should arrive in
+       * the reply rather than in a margin somebody reads next week.
+       */
+      const left = productChildren('productPrice', String(product.id)) as unknown as ProductPrice[];
+      const applies = priceFor(left, { on: new Date().toISOString().slice(0, 10), productTerm: Number(product.term_months) || 0 });
+      return {
+        deleted: String(price.name || price.id),
+        product: product.name,
+        prices_left: left.length,
+        applies_now: applies ? formatMoney(applies.amount, String(product.currency), 'en') : null,
+      };
+    },
+  },
+  {
     name: 'add_product_cost',
     title: 'Cost a product',
     description:
@@ -480,6 +788,106 @@ export const productTools: ToolDef[] = [
         product: product.name,
         basis: row.basis,
         ...money(String(product.currency), { amount: Number(row.amount) }),
+      };
+    },
+  },
+  {
+    name: 'update_product_cost',
+    title: 'Change a cost',
+    description:
+      'Change a cost on a product: its name, what it varies with, its category, its amount, its '
+      + 'vendor. **`basis` is the one worth naming.** `period` is incurred every month however many '
+      + 'customers there are; `unit` is incurred per unit sold and is the only one that comes off '
+      + 'the price — and on a subscription it recurs, every month for every active customer. A cost '
+      + 'that grows with the customers filed as `period` reads as a 100% margin, which is why this '
+      + 'tool exists.',
+    schema: {
+      type: 'object',
+      required: ['cost'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code the cost belongs to' },
+        cost: { type: 'string', description: 'Cost id, or its name within that product' },
+        name: { type: 'string' },
+        basis: { type: 'string', enum: [...COST_BASIS] },
+        category: { type: 'string', enum: [...COST_CATEGORIES] },
+        amount: { type: 'string', description: 'Per period, per delivery or per unit — see basis' },
+        vendor: { type: ['string', 'null'] },
+        note: { type: ['string', 'null'] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product ?? args.cost), workspaceId);
+      const cost = findChild('productCost', product, String(args.cost), 'cost');
+
+      const patch = patchOf(args, {
+        name: (raw) => String(raw).trim(),
+        basis: (raw) => oneOf(raw, COST_BASIS, 'basis'),
+        category: (raw) => oneOf(raw, COST_CATEGORIES, 'category'),
+        amount: (raw) => requireMoney(raw, 'amount'),
+        vendor: (raw) => str(raw) ?? null,
+        note: (raw) => str(raw) ?? null,
+      });
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
+
+      const { row } = writeEntity('productCost', String(cost.id), patch, writeOpts(workspaceId, ctx));
+
+      /*
+       * The margin before and after, because moving a cost between bases moves
+       * money between the margin and the break-even and a caller cannot see
+       * that from the row it just wrote. This is the whole point of the tool.
+       */
+      const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
+      return {
+        id: row.id,
+        product: product.name,
+        basis: row.basis,
+        ...money(String(product.currency), { amount: Number(row.amount) }),
+        changed: Object.keys(patch),
+        ...(entry ? {
+          ...money(String(product.currency), {
+            unit_cost: entry.structure.unit,
+            fixed_per_period: entry.structure.period,
+            contribution: entry.economics.contribution ?? 0,
+          }),
+          margin_percent: entry.economics.marginBps === null ? null : Math.round(entry.economics.marginBps / 100),
+        } : {}),
+      };
+    },
+  },
+  {
+    name: 'delete_product_cost',
+    title: 'Remove a cost',
+    description:
+      'Remove a cost from a product. The margin and the break-even are recomputed from what is '
+      + 'left, and a product whose last cost goes reads as `no_costs` again — which means nobody '
+      + 'has costed it, not that it is free.',
+    schema: {
+      type: 'object',
+      required: ['cost'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code the cost belongs to' },
+        cost: { type: 'string', description: 'Cost id, or its name within that product' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product ?? args.cost), workspaceId);
+      const cost = findChild('productCost', product, String(args.cost), 'cost');
+
+      deleteEntity('productCost', String(cost.id), writeOpts(workspaceId, ctx));
+      const entry = catalogueOf(workspaceId).entries.find((item) => item.product.id === product.id);
+      return {
+        deleted: String(cost.name || cost.id),
+        product: product.name,
+        costs_left: productChildren('productCost', String(product.id)).length,
+        health: entry ? healthOfProduct(entry) : null,
       };
     },
   },
@@ -535,6 +943,86 @@ export const productTools: ToolDef[] = [
     },
   },
   {
+    name: 'update_product_contributor',
+    title: 'Change an external contributor',
+    description:
+      'Change what an outside contributor is paid, or on what basis, or who they are. Their fee '
+      + 'counts as a cost of exactly that basis, so moving `fee_basis` moves their money between '
+      + 'the margin and the break-even the same way a cost does.',
+    schema: {
+      type: 'object',
+      required: ['contributor'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code they contribute to' },
+        contributor: { type: 'string', description: 'Contributor id, or their name within that product' },
+        name: { type: 'string' },
+        role: { type: ['string', 'null'] },
+        organisation: { type: ['string', 'null'] },
+        email: { type: ['string', 'null'] },
+        fee: { type: 'string' },
+        fee_basis: { type: 'string', enum: [...COST_BASIS] },
+        note: { type: ['string', 'null'] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product ?? args.contributor), workspaceId);
+      const person = findChild('productContributor', product, String(args.contributor), 'contributor');
+
+      const patch = patchOf(args, {
+        name: (raw) => String(raw).trim(),
+        role: (raw) => str(raw) ?? null,
+        organisation: (raw) => str(raw) ?? null,
+        email: (raw) => str(raw) ?? null,
+        fee: (raw) => requireMoney(raw, 'fee'),
+        fee_basis: (raw) => oneOf(raw, COST_BASIS, 'fee_basis'),
+        note: (raw) => str(raw) ?? null,
+      });
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
+
+      const { row } = writeEntity('productContributor', String(person.id), patch, writeOpts(workspaceId, ctx));
+      return {
+        id: row.id,
+        product: product.name,
+        name: row.name,
+        fee_basis: row.fee_basis,
+        ...money(String(product.currency), { fee: Number(row.fee) }),
+        changed: Object.keys(patch),
+      };
+    },
+  },
+  {
+    name: 'delete_product_contributor',
+    title: 'Remove an external contributor',
+    description: 'Take an outside contributor off a product. Their fee stops counting as a cost of it.',
+    schema: {
+      type: 'object',
+      required: ['contributor'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code they contribute to' },
+        contributor: { type: 'string', description: 'Contributor id, or their name within that product' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product ?? args.contributor), workspaceId);
+      const person = findChild('productContributor', product, String(args.contributor), 'contributor');
+
+      deleteEntity('productContributor', String(person.id), writeOpts(workspaceId, ctx));
+      return {
+        deleted: String(person.name || person.id),
+        product: product.name,
+        contributors_left: productChildren('productContributor', String(product.id)).length,
+      };
+    },
+  },
+  {
     name: 'add_product_part',
     title: 'Put a product in a package',
     description:
@@ -577,6 +1065,97 @@ export const productTools: ToolDef[] = [
       }
 
       return { id: row.id, package: container.name, product: part.name, quantity: row.quantity };
+    },
+  },
+  {
+    name: 'update_product_part',
+    title: 'Change what a package holds',
+    description:
+      'Change how many of a product a package holds, or swap which product it is. A package may '
+      + 'not end up containing itself at any depth — that is refused rather than corrected, because '
+      + 'every correction available is a guess.',
+    schema: {
+      type: 'object',
+      required: ['package', 'part'],
+      properties: {
+        package: { type: 'string', description: 'The package: product id, name or code' },
+        part: { type: 'string', description: 'The part to change, by its id or by the name of the product in it' },
+        product: { type: 'string', description: 'Swap it for this product instead' },
+        quantity: { type: 'number', description: 'How many of it the package hands over' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const container = findProduct(String(args.package), workspaceId);
+
+      /*
+       * A part has no name of its own — it is a pointer — so it is found by the
+       * name of the product inside it, which is what somebody reading the
+       * package sees. `findChild` matches on `name`, and a part row has none.
+       */
+      const parts = productChildren('productPart', String(container.id));
+      const ref = String(args.part).trim();
+      const wanted = ref.toLowerCase();
+      const part = parts.find((row) => String(row.id) === ref)
+        ?? parts.find((row) => String(productsOf(workspaceId).find((item) => item.id === row.part_id)?.name ?? '').toLowerCase() === wanted);
+      if (!part) {
+        throw new McpError(parts.length
+          ? `No part "${args.part}" in ${container.name}. It holds: ${parts.map((row) => String(productsOf(workspaceId).find((item) => item.id === row.part_id)?.name ?? row.id)).join(', ')}`
+          : `${container.name} holds nothing yet`);
+      }
+
+      const patch: Record<string, unknown> = {};
+      if (args.quantity !== undefined) patch.quantity = whole(args.quantity, 'quantity', 1, 1_000_000);
+      if (args.product !== undefined) patch.part_id = findProduct(String(args.product), workspaceId).id;
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — give a quantity or a product');
+
+      const { row } = writeEntity('productPart', String(part.id), patch, writeOpts(workspaceId, ctx));
+      const inside = productsOf(workspaceId).find((item) => item.id === row.part_id);
+      return { id: row.id, package: container.name, product: inside ? inside.name : row.part_id, quantity: row.quantity };
+    },
+  },
+  {
+    name: 'remove_product_part',
+    title: 'Take a product out of a package',
+    description:
+      'Take one product out of a package. The package keeps its own price and its kind — a package '
+      + 'holding nothing is still a package, and the answer says how many are left so that an empty '
+      + 'one is visible rather than discovered.',
+    schema: {
+      type: 'object',
+      required: ['package', 'part'],
+      properties: {
+        package: { type: 'string', description: 'The package: product id, name or code' },
+        part: { type: 'string', description: 'The part to remove, by its id or by the name of the product in it' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const container = findProduct(String(args.package), workspaceId);
+      const parts = productChildren('productPart', String(container.id));
+      const ref = String(args.part).trim();
+      const wanted = ref.toLowerCase();
+      const named = (row: Row) => String(productsOf(workspaceId).find((item) => item.id === row.part_id)?.name ?? row.part_id);
+      const part = parts.find((row) => String(row.id) === ref) ?? parts.find((row) => named(row).toLowerCase() === wanted);
+      if (!part) {
+        throw new McpError(parts.length
+          ? `No part "${args.part}" in ${container.name}. It holds: ${parts.map(named).join(', ')}`
+          : `${container.name} holds nothing yet`);
+      }
+
+      const label = named(part);
+      deleteEntity('productPart', String(part.id), writeOpts(workspaceId, ctx));
+      return {
+        removed: label,
+        package: container.name,
+        parts_left: productChildren('productPart', String(container.id)).length,
+      };
     },
   },
   {
@@ -701,6 +1280,109 @@ export const productTools: ToolDef[] = [
       }, writeOpts(workspaceId, ctx));
 
       return { id: row.id, name: row.name, kind: row.kind, status: row.status, url: `${env.publicUrl}/products?tab=promotions` };
+    },
+  },
+  {
+    name: 'update_promotion',
+    title: 'Change a campaign',
+    description:
+      'Change a campaign: its discount, its window, what it covers, what running it costs, how '
+      + 'much more it is expected to sell, or its status. `status: live` is what makes it apply to '
+      + 'a price at all — a draft is planned and applies to nothing. Naming `products` or `groups` '
+      + 'replaces the whole list; giving both as empty arrays means the whole catalogue.',
+    schema: {
+      type: 'object',
+      required: ['promotion'],
+      properties: {
+        promotion: { type: 'string', description: 'Campaign id or name' },
+        name: { type: 'string' },
+        description: { type: ['string', 'null'] },
+        kind: { type: 'string', enum: [...PROMOTION_KINDS] },
+        value: { type: 'string', description: 'A percentage for kind percent, otherwise an amount' },
+        starts_on: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+        ends_on: { type: ['string', 'null'], description: 'YYYY-MM-DD' },
+        products: { type: 'array', items: { type: 'string' }, description: 'Replaces the list. Product ids, names or codes' },
+        groups: { type: 'array', items: { type: 'string' }, description: 'Replaces the list. Group ids or names' },
+        spend: { type: 'string' },
+        uplift_percent: { type: 'number' },
+        status: { type: 'string', enum: [...PROMOTION_STATUS] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const wanted = String(args.promotion).trim().toLowerCase();
+      const found = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+        .find((row) => String(row.id) === String(args.promotion).trim() || String(row.name).toLowerCase() === wanted);
+      if (!found) throw new McpError(`No campaign "${args.promotion}" in this workspace`);
+
+      const patch = patchOf(args, {
+        name: (raw) => String(raw).trim(),
+        description: (raw) => str(raw) ?? null,
+        kind: (raw) => oneOf(raw, PROMOTION_KINDS, 'kind'),
+        starts_on: (raw) => isoDay(raw, 'starts_on'),
+        ends_on: (raw) => isoDay(raw, 'ends_on'),
+        spend: (raw) => requireMoney(raw, 'spend'),
+        status: (raw) => oneOf(raw, PROMOTION_STATUS, 'status'),
+        products: (raw) => (raw as unknown[]).map((ref) => findProduct(String(ref), workspaceId).id),
+        groups: (raw) => (raw as unknown[]).map((ref) => {
+          const name = String(ref).trim().toLowerCase();
+          const group = all<Row>(`SELECT * FROM product_groups WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+            .find((row) => String(row.id) === String(ref).trim() || String(row.name).toLowerCase() === name);
+          if (!group) throw new McpError(`No product group "${ref}" in this workspace`);
+          return group.id;
+        }),
+      });
+      if (args.uplift_percent !== undefined) patch.uplift_bps = bps(args.uplift_percent, 'uplift_percent', 0, 10_000);
+      /*
+       * The value means two different things — basis points for a percentage,
+       * minor units otherwise — so it is read against the kind this campaign
+       * will have after the change, not the one it had before.
+       */
+      if (args.value !== undefined) {
+        const kind = String(patch.kind ?? found.kind);
+        patch.value = kind === 'percent' ? bps(args.value, 'value', 0, 100) : requireMoney(args.value, 'value');
+      }
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — name at least one field');
+
+      const { row } = writeEntity('promotion', String(found.id), patch, writeOpts(workspaceId, ctx));
+      const today = new Date().toISOString().slice(0, 10);
+      return {
+        id: row.id,
+        name: row.name,
+        phase: promotionPhase(row as unknown as Promotion, today),
+        changed: Object.keys(patch),
+      };
+    },
+  },
+  {
+    name: 'delete_promotion',
+    title: 'Remove a campaign',
+    description:
+      'Remove a campaign. Nothing it discounted keeps the discount: every price it touched goes '
+      + 'back to what it was. To stop a campaign without losing the record of it, set its status to '
+      + '`ended` with `update_promotion` instead.',
+    schema: {
+      type: 'object',
+      required: ['promotion'],
+      properties: {
+        promotion: { type: 'string', description: 'Campaign id or name' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const wanted = String(args.promotion).trim().toLowerCase();
+      const found = all<Row>(`SELECT * FROM promotions WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId)
+        .find((row) => String(row.id) === String(args.promotion).trim() || String(row.name).toLowerCase() === wanted);
+      if (!found) throw new McpError(`No campaign "${args.promotion}" in this workspace`);
+
+      deleteEntity('promotion', String(found.id), writeOpts(workspaceId, ctx));
+      return { deleted: String(found.name), id: String(found.id) };
     },
   },
   {

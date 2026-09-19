@@ -536,6 +536,17 @@ is inclusive to the end of the day it names.
 | `add_product_contributor` | an external speaker or subcontractor, as a person with a fee. The fee counts as a cost of its own basis, so it is in the margin without being entered twice |
 | `add_product_part` | put a product in a package, which is what makes it one. A package cannot contain itself at any depth; that is refused rather than corrected |
 | `create_promotion` | a campaign: what it takes off, what it applies to, what running it costs and what it should sell. A product or group it cannot resolve is an error, never a silently narrower campaign |
+| `update_product` | anything about a product that is not a price, a cost, a person or a part. Only the fields named are touched, and a product still holding parts is refused back to `single`: `unitCosts` recurses through them whatever `kind` says |
+| `update_product_price` | **corrects** a price in place, losing what it said. Changing what something costs from a date onward is `change_product_price`, which keeps the old amount as history — the description says which is which, because a model picking the wrong one destroys a price history quietly |
+| `update_product_cost` | the one this group was missing. Moving a cost between bases moves money between the margin and the break-even, so the answer carries the new unit cost, contribution and margin rather than only the row |
+| `update_product_contributor` | what an outside contributor is paid, or on what basis |
+| `update_product_part` | how many of a product a package holds, or which product it is. A package may not end up inside itself at any depth — `refuseCycle` runs on updates too, falling back to the existing row for whichever side the patch does not name |
+| `update_promotion` | a campaign's discount, window, coverage, spend, uplift or status. `value` is read against the kind the campaign *will* have, not the one it had, because the field means basis points for a percentage and minor units otherwise |
+| `delete_product` | soft-deletes it and everything that goes with it, and says what the packages holding it lost. Counted before the write, because the cascade runs in the same transaction |
+| `delete_product_price` | for a price that should never have existed. The answer says what applies now, because removing the row that applied today leaves a product reading "unpriced" everywhere |
+| `delete_product_cost`, `delete_product_contributor` | take one off. The answer carries the health that is left — `no_costs` means nobody has costed it, not that it is free |
+| `remove_product_part` | take a product out of a package. The package keeps its price and its kind; the answer says how many are left, so an empty one is visible rather than discovered |
+| `delete_promotion` | every price it touched goes back to what it was. To stop a campaign without losing the record, set its status to `ended` instead |
 | `create_kpi` | define a number to watch. `decimals` fixes the scale for every value on it; `cadence` is what lets a reading be reported as stale rather than quoted as current |
 | `record_measurement` | what a KPI reads today, or on a given day. `source` is where the number came from, and a measurement nobody can trace is one nobody can defend |
 | `set_kpi_target` | what it has to reach. Give `milestone` instead of `due_on` and the deadline moves when that milestone moves |
