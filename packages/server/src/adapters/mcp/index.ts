@@ -164,6 +164,35 @@ const PROMPTS = [
   },
 ];
 
+/**
+ * An argument the tool does not know is refused rather than dropped.
+ *
+ * `create_product` calls the billing period `billing` and `set_product_price`
+ * calls it `recurrence` — two names for one thing on neighbouring tools, which
+ * is a trap somebody walks into eventually. Somebody did: twelve package
+ * prices went into a live catalogue as `once` because the call said
+ * `billing: 'monthly'` to the tool that does not have that word, and nothing
+ * anywhere said so. The create tool then snapped the absent value to its
+ * default, which is what a create is supposed to do.
+ *
+ * Ten call sites in this repository's own tests had been doing the same thing
+ * for as long as the tests existed, and stayed green because the amounts came
+ * out the same either way. A silent drop does not announce itself even to the
+ * people who wrote it.
+ *
+ * So the boundary says so. Keys beginning with `_` are the protocol's own —
+ * `_meta` travels on requests and is not the caller's argument — and they pass
+ * through untouched.
+ */
+function refuseUnknownArguments(tool: ToolDef, args: Record<string, unknown>): void {
+  const known = new Set(Object.keys((tool.schema as { properties?: Record<string, unknown> }).properties ?? {}));
+  const strangers = Object.keys(args).filter((key) => !key.startsWith('_') && !known.has(key));
+  if (!strangers.length) return;
+  throw new McpError(
+    `${tool.name} has no argument ${strangers.map((key) => `\`${key}\``).join(', ')}. It takes: ${[...known].sort().join(', ')}`,
+  );
+}
+
 /* ------------------------------------------------------------- JSON-RPC */
 
 const toolList = () =>
@@ -302,6 +331,7 @@ export async function handleRpc(request: RpcRequest, ctx: McpCtx): Promise<Recor
       case 'tools/call': {
         const tool = TOOLS.find((t) => t.name === params.name);
         if (!tool) throw new McpError(`Unknown tool ${params.name}`);
+        refuseUnknownArguments(tool, (params.arguments ?? {}) as Record<string, unknown>);
         const result = await tool.run((params.arguments ?? {}) as Record<string, any>, ctx);
         /*
          * A tool that has content of its own says so by what it returns.

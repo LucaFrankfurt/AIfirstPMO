@@ -431,7 +431,7 @@ describe('the tools an assistant gets', () => {
      * without closing the first leaves both applicable, `priceFor` then answers
      * deterministically, and nobody knows which of the two won.
      */
-    await tool(me.token, 'create_product', { name: 'Wartung', code: 'WART', price: '100', billing: 'monthly' });
+    await tool(me.token, 'create_product', { name: 'Wartung', code: 'WART', price: '100', recurrence: 'monthly' });
     const changed = await tool(me.token, 'change_product_price', { product: 'WART', amount: '120', from: '2026-07-01' });
 
     assert.equal(changed.was, 10_000);
@@ -472,7 +472,7 @@ describe('the tools an assistant gets', () => {
     await tool(me.token, 'create_product', { name: 'Buchung', code: 'BUCH' });
     for (const [amount, term] of [['64', 0], ['59', 12], ['54', 24]] as const) {
       await tool(me.token, 'set_product_price', {
-        product: 'BUCH', name: `Laufzeit ${term}`, amount, billing: 'monthly', term_months: term,
+        product: 'BUCH', name: `Laufzeit ${term}`, amount, recurrence: 'monthly', term_months: term,
       });
     }
 
@@ -492,7 +492,7 @@ describe('the tools an assistant gets', () => {
     // term changes. Writing the product's number into the price would freeze it.
     await tool(me.token, 'create_product', { name: 'Ohne Angabe', code: 'OHNEA', term_months: 12 });
     const set = await tool(me.token, 'set_product_price', {
-      product: 'OHNEA', amount: '30', billing: 'monthly',
+      product: 'OHNEA', amount: '30', recurrence: 'monthly',
     });
     assert.equal(set.term_months, 12, 'reported as the product\'s, so nobody reads it as no commitment');
 
@@ -505,7 +505,7 @@ describe('the tools an assistant gets', () => {
     // must not quietly turn it into the no-commitment one.
     await tool(me.token, 'create_product', { name: 'Zwei Jahre', code: 'ZWEI' });
     await tool(me.token, 'set_product_price', {
-      product: 'ZWEI', name: 'Zwei Jahre', amount: '54', billing: 'monthly', term_months: 24,
+      product: 'ZWEI', name: 'Zwei Jahre', amount: '54', recurrence: 'monthly', term_months: 24,
     });
     const changed = await tool(me.token, 'change_product_price', {
       product: 'ZWEI', amount: '58', from: '2027-01-01',
@@ -525,7 +525,7 @@ describe('the tools an assistant gets', () => {
      */
     await tool(me.token, 'create_product', { name: 'Fenster', code: 'FENS' });
     await tool(me.token, 'set_product_price', {
-      product: 'FENS', name: 'Saison', amount: '40', billing: 'monthly',
+      product: 'FENS', name: 'Saison', amount: '40', recurrence: 'monthly',
       valid_from: '2026-01-01', valid_to: '2026-06-30',
     });
     // Named rather than left to the default, which is whichever price applies
@@ -560,7 +560,7 @@ describe('the tools an assistant gets', () => {
      * and not one that changes.
      */
     await tool(me.token, 'create_product', { name: 'Webseite', code: 'WEBT' });
-    await tool(me.token, 'set_product_price', { product: 'WEBT', amount: '25', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'WEBT', amount: '25', recurrence: 'monthly' });
     await tool(me.token, 'add_product_cost', { product: 'WEBT', name: 'Hosting', amount: '1', basis: 'period' });
 
     const before = await tool(me.token, 'product_status', { product: 'WEBT' });
@@ -600,7 +600,7 @@ describe('the tools an assistant gets', () => {
     // Counted before the write, because cascadeProduct tombstones the part rows
     // in the same transaction and afterwards there is nothing left to count.
     await tool(me.token, 'create_product', { name: 'Zutat', code: 'ZUT' });
-    await tool(me.token, 'set_product_price', { product: 'ZUT', amount: '10', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'ZUT', amount: '10', recurrence: 'monthly' });
     for (const code of ['PAKA', 'PAKB']) {
       await tool(me.token, 'create_product', { name: `Paket ${code}`, code, kind: 'bundle' });
       await tool(me.token, 'add_product_part', { package: code, product: 'ZUT' });
@@ -621,7 +621,7 @@ describe('the tools an assistant gets', () => {
     // reads as history, it simply disappears.
     await tool(me.token, 'create_product', { name: 'Fenster zwei', code: 'FEN2' });
     const set = await tool(me.token, 'set_product_price', {
-      product: 'FEN2', name: 'Saison', amount: '40', billing: 'monthly',
+      product: 'FEN2', name: 'Saison', amount: '40', recurrence: 'monthly',
       valid_from: '2026-01-01', valid_to: '2026-06-30',
     });
 
@@ -642,7 +642,7 @@ describe('the tools an assistant gets', () => {
     // "unpriced" everywhere — that belongs in the reply, not in a margin
     // somebody reads next week.
     await tool(me.token, 'create_product', { name: 'Einziger', code: 'EINZ' });
-    await tool(me.token, 'set_product_price', { product: 'EINZ', name: 'Liste', amount: '30', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'EINZ', name: 'Liste', amount: '30', recurrence: 'monthly' });
 
     const gone = await tool(me.token, 'delete_product_price', { product: 'EINZ', price: 'Liste' });
     assert.equal(gone.prices_left, 0);
@@ -714,7 +714,7 @@ describe('the tools an assistant gets', () => {
     await tool(me.token, 'create_product', { name: 'Bindung', code: 'BIND' });
     for (const [name, amount, term] of [['Monatlich', '64', 0], ['Ein Jahr', '59', 12], ['Zwei Jahre', '54', 24]]) {
       await tool(me.token, 'set_product_price', {
-        product: 'BIND', name, amount, billing: 'monthly', term_months: term,
+        product: 'BIND', name, amount, recurrence: 'monthly', term_months: term,
       });
     }
 
@@ -725,8 +725,42 @@ describe('the tools an assistant gets', () => {
     // A product sold on one commitment says nothing new, so the key is absent
     // rather than a list of one a reader learns to skip.
     await tool(me.token, 'create_product', { name: 'Schlicht', code: 'SCHL' });
-    await tool(me.token, 'set_product_price', { product: 'SCHL', amount: '10', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'SCHL', amount: '10', recurrence: 'monthly' });
     assert.equal((await tool(me.token, 'product_status', { product: 'SCHL' })).terms, undefined);
+  });
+
+  it('refuses an argument it does not have, rather than dropping it', async () => {
+    /*
+     * `create_product` called the billing period `billing` and
+     * `set_product_price` calls it `recurrence` — one concept, two words, two
+     * neighbouring tools. Twelve package prices went into a live catalogue as
+     * `once` because a call said `billing` to the tool without it: the value
+     * was dropped, the create snapped the absent field to its default, and
+     * nothing anywhere said so. Ten call sites in this very file had been
+     * doing the same since they were written and stayed green, because the
+     * amounts come out the same either way.
+     */
+    await tool(me.token, 'create_product', { name: 'Fremdwort', code: 'FREM' });
+    await assert.rejects(
+      () => tool(me.token, 'set_product_price', { product: 'FREM', amount: '10', billing: 'monthly' }),
+      /has no argument `billing`.*It takes:.*recurrence/s,
+    );
+    assert.equal(
+      all<any>(`SELECT id FROM product_prices WHERE product_id = (SELECT id FROM products WHERE code = 'FREM')`).length,
+      0,
+      'and a refused call writes nothing',
+    );
+
+    // The word the rest of the surface uses works on the create tool too, so
+    // the two are not a trap any more.
+    const made = await tool(me.token, 'create_product', { name: 'Gleichwort', code: 'GLEI', price: '20', recurrence: 'monthly' });
+    assert.equal(get<any>(`SELECT recurrence FROM product_prices WHERE product_id = ?`, made.id).recurrence, 'monthly');
+    // And the older spelling still does what it always did.
+    const old = await tool(me.token, 'create_product', { name: 'Altwort', code: 'ALTW', price: '20', billing: 'monthly' });
+    assert.equal(get<any>(`SELECT recurrence FROM product_prices WHERE product_id = ?`, old.id).recurrence, 'monthly');
+
+    // `_meta` is the protocol's own and travels on requests that are fine.
+    await tool(me.token, 'list_products', { _meta: { progressToken: 1 } } as any);
   });
 
   it('refuses a name that is not one, rather than writing the word null', async () => {
@@ -777,7 +811,7 @@ describe('the tools an assistant gets', () => {
      */
     await tool(me.token, 'create_product', { name: 'Befristet', code: 'BEFR' });
     const price = await tool(me.token, 'set_product_price', {
-      product: 'BEFR', name: 'Aktion', amount: '10', billing: 'monthly', valid_to: '2026-12-31',
+      product: 'BEFR', name: 'Aktion', amount: '10', recurrence: 'monthly', valid_to: '2026-12-31',
     });
     await assert.rejects(
       () => tool(me.token, 'update_product_price', { product: 'BEFR', price: 'Aktion', valid_to: 20261231 as any }),
@@ -799,7 +833,7 @@ describe('the tools an assistant gets', () => {
      * the correction had not landed.
      */
     await tool(me.token, 'create_product', { name: 'Uhrvor', code: 'UHRV' });
-    const price = await tool(me.token, 'set_product_price', { product: 'UHRV', name: 'Liste', amount: '10', billing: 'monthly' });
+    const price = await tool(me.token, 'set_product_price', { product: 'UHRV', name: 'Liste', amount: '10', recurrence: 'monthly' });
 
     const clocks = JSON.parse(get<any>(`SELECT clocks FROM product_prices WHERE id = ?`, price.id).clocks);
     clocks.amount = `${String(Date.now() + 600_000).padStart(11, '0')}-0000-schnelleuhr`;
@@ -815,7 +849,7 @@ describe('the tools an assistant gets', () => {
     // a product, so a caller holding a price id was told "No product
     // \"pr_…\" in this workspace" — a true sentence about the wrong noun.
     await tool(me.token, 'create_product', { name: 'Ohneprodukt', code: 'OHNE' });
-    const price = await tool(me.token, 'set_product_price', { product: 'OHNE', name: 'Liste', amount: '12', billing: 'monthly' });
+    const price = await tool(me.token, 'set_product_price', { product: 'OHNE', name: 'Liste', amount: '12', recurrence: 'monthly' });
 
     const fixed = await tool(me.token, 'update_product_price', { price: price.id, amount: '13' });
     assert.equal(fixed.product, 'Ohneprodukt');
@@ -840,7 +874,7 @@ describe('the tools an assistant gets', () => {
     });
     await tool(stranger.person.token, 'create_product', { name: 'Fremd', code: 'FRMD' });
     const theirs = await tool(stranger.person.token, 'set_product_price', {
-      product: 'FRMD', name: 'Liste', amount: '99', billing: 'monthly',
+      product: 'FRMD', name: 'Liste', amount: '99', recurrence: 'monthly',
     });
     await assert.rejects(
       () => tool(me.token, 'update_product_price', { price: theirs.id, amount: '1' }),
@@ -857,7 +891,7 @@ describe('the tools an assistant gets', () => {
      * the answer never carried.
      */
     await tool(me.token, 'create_product', { name: 'Modul', code: 'MODL' });
-    await tool(me.token, 'set_product_price', { product: 'MODL', amount: '100', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'MODL', amount: '100', recurrence: 'monthly' });
     await tool(me.token, 'add_product_cost', { product: 'MODL', name: 'Anreise', amount: '20', basis: 'delivery' });
     await tool(me.token, 'create_product', { name: 'Grosspaket', code: 'GPAK', kind: 'bundle' });
     await tool(me.token, 'add_product_part', { package: 'GPAK', product: 'MODL' });
@@ -875,7 +909,7 @@ describe('the tools an assistant gets', () => {
     // `bundleValue` counts a part with no applicable price as worth nothing
     // rather than as missing, so the package's list value simply drops.
     await tool(me.token, 'create_product', { name: 'Teilwert', code: 'TWRT' });
-    await tool(me.token, 'set_product_price', { product: 'TWRT', name: 'Liste', amount: '50', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'TWRT', name: 'Liste', amount: '50', recurrence: 'monthly' });
     await tool(me.token, 'create_product', { name: 'Wertpaket', code: 'WPAK', kind: 'bundle' });
     await tool(me.token, 'add_product_part', { package: 'WPAK', product: 'TWRT' });
     assert.equal((await tool(me.token, 'product_status', { product: 'WPAK' })).bundle.list_value, 5_000);
@@ -929,7 +963,7 @@ describe('the tools an assistant gets', () => {
     // restored. Whether that should cascade is a decision about saved work;
     // leaving it silent is not a decision at all.
     const product = await tool(me.token, 'create_product', { name: 'Simuliert', code: 'SIMU' });
-    await tool(me.token, 'set_product_price', { product: 'SIMU', amount: '10', billing: 'monthly' });
+    await tool(me.token, 'set_product_price', { product: 'SIMU', amount: '10', recurrence: 'monthly' });
     /*
      * Written straight into the table because nothing else in this process
      * can: the screen saves a scenario through the sync push and there is no

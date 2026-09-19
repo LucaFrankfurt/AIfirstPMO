@@ -1337,6 +1337,24 @@ export function productView(entry: CatalogueEntry): Record<string, unknown> {
         })),
       }
       : {}),
+    /*
+     * And for a package, what its parts come to bought separately.
+     *
+     * Absent on a single product rather than null: a saving of nothing and a
+     * product that cannot have one read the same in JSON and are not the same
+     * claim. `product_status` has always answered this; a catalogue listing
+     * six packages and not saying what any of them is worth was the half that
+     * made somebody open all six.
+     */
+    ...(entry.bundle
+      ? {
+        bundle: {
+          ...money(currency, { list_value: entry.bundle.listValue, saving: entry.bundle.saving ?? 0 }),
+          saving_percent: entry.bundle.savingBps === null ? null : Math.round(entry.bundle.savingBps / 100),
+          unpriced_parts: entry.bundle.unpriced,
+        },
+      }
+      : {}),
     ...money(currency, {
       price: economics.price ?? 0,
       unit_cost: economics.unitCost,

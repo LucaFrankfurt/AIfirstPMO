@@ -865,10 +865,25 @@ describe('kolibri api', () => {
       /Unknown status/,
     );
 
-    // `key` is not in the schema, so passing it changes nothing rather than
-    // renaming every identifier the project has minted.
-    const ignored = (await callTool('update_project', { project: 'WEB', key: 'SITE', name: 'Website relaunch' })).result.structuredContent;
-    assert.equal(ignored.key, 'WEB');
+    /*
+     * `key` is not in the schema, and the identifier is safe either way — but
+     * the caller is told now instead of left to assume.
+     *
+     * This used to pass and answer with the project unchanged, which kept the
+     * key safe and taught the caller nothing. The cost of that showed up
+     * elsewhere: `create_product` calls the billing period `billing` and
+     * `set_product_price` calls it `recurrence`, and twelve package prices
+     * went into a live catalogue as `once` because a call said the first word
+     * to the second tool. Nothing was wrong with the write; nothing said the
+     * argument had been dropped.
+     */
+    assert.match(
+      JSON.stringify(await callTool('update_project', { project: 'WEB', key: 'SITE', name: 'Website relaunch' })),
+      /has no argument .key./,
+    );
+    assert.equal((await callTool('get_task', { task: 'WEB-1' })).result.structuredContent.identifier, 'WEB-1',
+      'and the identifiers it has minted are untouched, which was the point of dropping it');
+    await callTool('update_project', { project: 'WEB', name: 'Website relaunch' });
 
     await callTool('update_project', { project: 'WEB', status: 'in_progress' });
   });

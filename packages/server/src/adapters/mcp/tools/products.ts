@@ -8,7 +8,7 @@
  * The arithmetic lives in `@kolibri/shared` and both sides call it.
  */
 import {
-  assumptionsOf, bundleValue, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
+  assumptionsOf, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
   formatMoney, healthOfProduct, orderKey, overlappingPrices, PRICE_KINDS, priceChangeRefusal, priceFor,
   priceHistory,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, promotionPhase, raisePrice, RENEWALS,
@@ -402,19 +402,11 @@ export const productTools: ToolDef[] = [
          * product: a saving of nothing and a product that cannot have one read
          * the same in JSON and are not the same claim.
          */
-        bundle: entry.product.kind !== 'bundle' ? null : ((): Record<string, unknown> => {
-          const value = bundleValue({
-            parts: parts as unknown as Parameters<typeof bundleValue>[0]['parts'],
-            pricesOf: (id) => prices.get(id) ?? [],
-            price: entry.economics.price,
-            on: today,
-          });
-          return {
-            ...money(currency, { list_value: value.listValue, saving: value.saving ?? 0 }),
-            saving_percent: value.savingBps === null ? null : Math.round(value.savingBps / 100),
-            unpriced_parts: value.unpriced,
-          };
-        })(),
+        bundle: !entry.bundle ? null : {
+          ...money(currency, { list_value: entry.bundle.listValue, saving: entry.bundle.saving ?? 0 }),
+          saving_percent: entry.bundle.savingBps === null ? null : Math.round(entry.bundle.savingBps / 100),
+          unpriced_parts: entry.bundle.unpriced,
+        },
       };
     },
   },
@@ -441,7 +433,19 @@ export const productTools: ToolDef[] = [
         scope_amount: { type: 'number' },
         scope_unit: { type: 'string', description: 'Tage, Monate, Stunden' },
         capacity: { type: 'number', description: 'Units one delivery can take. Omit for no ceiling' },
-        billing: { type: 'string', enum: [...COST_RECURRENCES], description: 'How `price` is charged. once is a sale, the rest a subscription. A product sold in several periods gets a `set_product_price` per period' },
+        recurrence: { type: 'string', enum: [...COST_RECURRENCES], description: 'How `price` is charged. once is a sale, the rest a subscription. A product sold in several periods gets a `set_product_price` per period' },
+        /*
+         * The same thing under the name this tool used to give it.
+         *
+         * `set_product_price` has always called it `recurrence` and this one
+         * called it `billing`, which is one concept with two words on two
+         * neighbouring tools — and the trap held: twelve package prices went
+         * into a live catalogue as `once` because the call said `billing` to
+         * the tool that does not have it. Kept so nobody's saved call breaks,
+         * named second so a reader learns the word the rest of the surface
+         * uses.
+         */
+        billing: { type: 'string', enum: [...COST_RECURRENCES], description: 'The older spelling of `recurrence`. Both work; `recurrence` is the one everything else says' },
         term_months: { type: 'number', description: 'Minimum commitment. 0 is none' },
         renewal: { type: 'string', enum: [...RENEWALS] },
         churn_percent: { type: 'number', description: 'Customers lost per month, e.g. 3.5' },
@@ -467,7 +471,8 @@ export const productTools: ToolDef[] = [
        * is sold monthly and yearly at once. Kept as an argument here because
        * this call also makes the first price, and that price needs one.
        */
-      const billing = (COST_RECURRENCES as readonly string[]).includes(String(args.billing)) ? String(args.billing) : 'once';
+      const said = String(args.recurrence ?? args.billing);
+      const billing = (COST_RECURRENCES as readonly string[]).includes(said) ? said : 'once';
       const { row } = writeEntity('product', uid(), {
         workspace_id: workspaceId,
         group_id: group ? group.id : null,
