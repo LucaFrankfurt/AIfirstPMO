@@ -18,11 +18,11 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS, PRICE_KINDS,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
-  assumptionsOf, bundleValue, byGroup, compareOrder, costsByCategory, dayBefore, expectedMonths, orderKey,
+  assumptionsOf, byGroup, compareOrder, costsByCategory, dayBefore, expectedMonths, orderKey,
   overlappingPrices, priceChangeRefusal, priceFor, priceHistory, promotionPhase, promotionReach,
   raisePrice, retentionCurve, retentionOf, simulate, stackedPromotions,
-  type CatalogueEntry, type CostBasis, type Minor, type Product, type ProductAssumptions, type ProductCapability,
-  type ProductContributor, type ProductCost, type ProductGroup, type ProductPrice,
+  type BundleValue, type CatalogueEntry, type CostBasis, type Minor, type Product, type ProductAssumptions, type ProductCapability,
+  type ProductContributor, type ProductCost, type ProductGroup, type ProductKind, type ProductPrice,
   type ProductScenario, type Promotion, type PromotionBreakEven,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
@@ -75,10 +75,11 @@ const HORIZON = { months: DEFAULT_ASSUMPTIONS.months, deliveries: DEFAULT_ASSUMP
 
 /* ------------------------------------------------------------------ index */
 
-type IndexTab = 'catalogue' | 'promotions' | 'scenarios';
-const INDEX_TABS: IndexTab[] = ['catalogue', 'promotions', 'scenarios'];
+type IndexTab = 'catalogue' | 'packages' | 'promotions' | 'scenarios';
+const INDEX_TABS: IndexTab[] = ['catalogue', 'packages', 'promotions', 'scenarios'];
 const INDEX_TAB_KEY: Record<IndexTab, TranslationKey> = {
   catalogue: 'product.tabCatalogue',
+  packages: 'product.tabPackages',
   promotions: 'product.tabPromotions',
   scenarios: 'product.tabScenarios',
 };
@@ -99,7 +100,7 @@ export function ProductIndex() {
   return (
     <>
       <Header title={t('product.title')}>
-        {canWrite && tab === 'catalogue' && (
+        {canWrite && (tab === 'catalogue' || tab === 'packages') && (
           <Button variant="primary" size="sm" onClick={() => setCreating(true)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('product.new')}</span>
           </Button>
@@ -113,7 +114,8 @@ export function ProductIndex() {
         ))}
       </div>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        {tab === 'catalogue' && <Catalogue />}
+        {tab === 'catalogue' && <Catalogue only="single" />}
+        {tab === 'packages' && <Catalogue only="bundle" />}
         {tab === 'promotions' && <Promotions />}
         {tab === 'scenarios' && <Scenarios />}
       </div>
@@ -134,9 +136,22 @@ export function ProductIndex() {
  * of each would earn, which is the comparison a catalogue makes between two
  * lines of business without anybody having to enter a volume first.
  */
-function Catalogue() {
+/**
+ * The catalogue, or the half of it the caller asked for.
+ *
+ * Packages sat in the same list as the things they are made of, told apart by
+ * a chip — so reading "what do we sell" meant reading past six rows that are
+ * the other rows in a different arrangement, and reading "what do the packages
+ * come to" meant opening all six. They are two questions and now two tabs.
+ *
+ * One component rather than two, filtered: the figures, the totals, the
+ * archive toggle and the term chips are the same in both, and a second table
+ * is a second place for them to drift apart.
+ */
+function Catalogue({ only }: { only: ProductKind }) {
   const t = useT();
-  const { entries } = useCatalogue(HORIZON);
+  const { entries: all } = useCatalogue(HORIZON);
+  const entries = useMemo(() => all.filter((entry) => entry.product.kind === only), [all, only]);
   const groups = useQuery(() => list('productGroup', (row) => !row.archived), []);
   /*
    * Archived products are hidden and findable, not gone. Without the toggle the
@@ -233,6 +248,14 @@ function Catalogue() {
                   <th className="narrow">{t('product.unitCost')}</th>
                   <th className="narrow">{t('product.margin')}</th>
                   <th className="narrow">{t('product.breakEven')}</th>
+                  {/* Only where every row is a package, and not `narrow`.
+                      What the parts come to separately is the question this
+                      tab exists for — folded away on a phone it would show
+                      exactly what the catalogue shows, which is a tab that
+                      earns nothing. Margin and break-even fold instead: those
+                      are the comparing columns here. */}
+                  {only === 'bundle' && <th>{t('product.listValue')}</th>}
+                  {only === 'bundle' && <th>{t('product.saving')}</th>}
                   <th>{t('product.healthLabel')}</th>
                 </tr>
               </thead>
@@ -243,7 +266,7 @@ function Catalogue() {
                     <tr key={entry.product.id}>
                       <td>
                         <Link className="cell-link" to={`/products/${entry.product.id}`}>{entry.product.name}</Link>
-                        {entry.product.kind === 'bundle' && <> <Chip>{t('product.package')}</Chip></>}
+                        {entry.product.kind === 'bundle' && only !== 'bundle' && <> <Chip>{t('product.package')}</Chip></>}
                         {entry.product.status !== 'active' && <> <Chip>{t(statusKey(entry.product.status))}</Chip></>}
                         {/* A campaign is the one thing that makes today's price
                             different from the one in the column beside it. */}
@@ -304,6 +327,31 @@ function Catalogue() {
                             </span>
                           )}
                       </td>
+                      {only === 'bundle' && (
+                        <td>
+                          {entry.bundle
+                            ? asMoney(entry.bundle.listValue, entry.economics.currency, true)
+                            : <span className="money-flat">—</span>}
+                        </td>
+                      )}
+                      {only === 'bundle' && (
+                        <td>
+                          {/* A package dearer than its parts is a real state and
+                              not an error — MAX asks 99 for 89 of parts because
+                              one of them is unpriced. Negative is shown as it is
+                              rather than hidden behind an absolute value. */}
+                          {!entry.bundle || entry.bundle.saving === null
+                            ? <span className="money-flat">—</span>
+                            : (
+                              <span className={entry.bundle.saving < 0 ? 'money-over' : ''}>
+                                {asMoney(entry.bundle.saving, entry.economics.currency, true)}
+                                {entry.bundle.unpriced > 0 && (
+                                  <> <Chip>{t('product.unpricedShort', { count: String(entry.bundle.unpriced) })}</Chip></>
+                                )}
+                              </span>
+                            )}
+                        </td>
+                      )}
                       <td><Health entry={entry} /></td>
                     </tr>
                   ))}
@@ -1961,12 +2009,11 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
     return out;
   }, [prices]);
 
-  const value = useMemo(() => bundleValue({
-    parts,
-    pricesOf: (id) => pricesOf.get(id) ?? [],
-    price: entry.economics.price,
-    on: day,
-  }), [parts, pricesOf, entry.economics.price, day]);
+  /* Read off the entry rather than figured again here. `catalogue()` already
+     has the parts and every part's prices, and a second assembly of the same
+     number is the place the two come to disagree — which is not a worry but a
+     thing that happened, one field at a time. */
+  const value: BundleValue = entry.bundle ?? { listValue: 0, price: null, saving: null, savingBps: null, unpriced: 0 };
 
   const named = useMemo(() => new Map(products.map((row) => [row.id, row])), [products]);
 

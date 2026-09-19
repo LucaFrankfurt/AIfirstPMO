@@ -1458,6 +1458,16 @@ export interface CatalogueEntry {
    * is the dearest and the one nobody has to agree to. See `termsOf`.
    */
   terms: { months: number; amount: Minor }[];
+  /**
+   * What the parts are worth bought separately, for a package; null otherwise.
+   *
+   * Computed here rather than by whoever is drawing a package, because two
+   * places computing it is two places to disagree — which is not a worry, it
+   * is what happened: the terms were added to the screen and not to
+   * `productView`, and the catalogue read "54 – 64 €" while the tool answered
+   * `6400`. The screen and the MCP surface get one number and cannot drift.
+   */
+  bundle: BundleValue | null;
 }
 
 /**
@@ -1520,6 +1530,12 @@ export function catalogue(input: {
       mixed: mixedPeriods(prices),
       terms: termsOf(prices, { on: input.today, productTerm: product.term_months })
         .map(({ months, amount }) => ({ months, amount })),
+      bundle: product.kind !== 'bundle' ? null : bundleValue({
+        parts,
+        pricesOf: input.pricesOf,
+        price: economics.price,
+        on: input.today,
+      }),
     };
   });
 }

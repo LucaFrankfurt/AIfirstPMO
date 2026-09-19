@@ -677,6 +677,7 @@ export const de: Catalogue = {
   'product.allArchivedHint': 'Nichts steht zum Verkauf — {count} archivierte Produkt(e) sind noch da und lassen sich zurückholen.',
 
   'product.tabCatalogue': 'Katalog',
+  'product.tabPackages': 'Pakete',
   'product.tabPromotions': 'Aktionen',
   'product.tabScenarios': 'Szenarien',
   'product.tabOverview': 'Überblick',
@@ -840,6 +841,7 @@ export const de: Catalogue = {
   'product.packagePrice': 'Paketpreis',
   'product.saving': 'Ersparnis',
   'product.premium': 'Aufschlag',
+  'product.unpricedShort': '{count} ohne Preis',
   'product.unpricedParts': '{count} Bestandteile haben keinen Preis und fehlen deshalb in der Zahl oben.',
 
   'product.retention': 'Kundenbindung',
