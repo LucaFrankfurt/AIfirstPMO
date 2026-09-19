@@ -795,6 +795,20 @@ p { margin: 0 0 0.75em; }
   .task-table .narrow { display: none; }
 }
 
+/*
+ * And on the narrowest screen the cells give back some of their gutter.
+ *
+ * Ten pixels either side is right at a comfortable width and is four columns'
+ * worth of nothing at 340px: the costs table came to 343px there — three over,
+ * which `responsive.mjs` reports rather than tolerates, because a box that
+ * scrolls by a sliver is rounding rather than a decision. Seven leaves the
+ * columns apart and the table inside the screen.
+ */
+@media (max-width: 400px) {
+  .task-table th,
+  .task-table td { padding-inline: 7px; }
+}
+
 .trash-row { gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .trash-row:last-child { border-bottom: none; }
 
