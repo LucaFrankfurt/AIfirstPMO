@@ -852,6 +852,8 @@ export const fr: Catalogue = {
   'product.termMonths': 'Durée minimale, mois',
   'product.priceTerm': 'Engagement',
   'product.priceTermHint': 'Mois d’engagement du client pour ce prix. Vide signifie celui du produit, {term}.',
+  'product.termFree': 'sans engagement',
+  'product.priceSpan': '{low} – {high}',
   'product.termNone': 'aucun',
   'product.termMonthsShort': '{months} mois',
   'product.churn': 'Attrition, % par mois',

@@ -33,7 +33,7 @@ import {
 } from '../product';
 import { Stat } from '../../planning/insights';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty, Icon, MenuButton, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
@@ -256,11 +256,42 @@ function Catalogue() {
                         {entry.periods.map((every) => (
                           <span key={every}> <Chip>{t(billingKey(every))}</Chip></span>
                         ))}
+                        {/* And on what commitment. `periods` answers how often
+                            it is billed, which for three subscription prices is
+                            "monthly" three times over — the thing that tells
+                            them apart is what the customer signs. One term is
+                            the ordinary case and adds nothing, so it is only
+                            said when there is a choice to be seen.
+
+                            `narrow` on the chips rather than on a column,
+                            because they live inside the name. Spelled out on a
+                            360px screen they made this cell 363px wide on its
+                            own and pushed the price off the side entirely —
+                            information added by taking the subject away. The
+                            span in the next column is the same fact said
+                            short, so the phone keeps that one. */}
+                        {entry.terms.length > 1 && (
+                          <span className="narrow">
+                            {entry.terms.map(({ months }) => (
+                              <span key={months}> <Chip>{termChip(t, months)}</Chip></span>
+                            ))}
+                          </span>
+                        )}
                       </td>
                       <td>
                         {entry.economics.price === null
                           ? <span className="money-flat">—</span>
-                          : asMoney(entry.economics.price, entry.economics.currency, true)}
+                          /* The span when the commitment moves the price, because
+                             the single figure was the shortest term — the dearest
+                             of them, and the only one a customer can decline. The
+                             columns beside it are still figured from that one:
+                             the cheaper prices are an offer, not a forecast. */
+                          : entry.terms.length > 1
+                            ? t('product.priceSpan', {
+                              low: asMoney(entry.terms[entry.terms.length - 1]!.amount, entry.economics.currency, true),
+                              high: asMoney(entry.terms[0]!.amount, entry.economics.currency, true),
+                            })
+                            : asMoney(entry.economics.price, entry.economics.currency, true)}
                       </td>
                       <td className="narrow">{asMoney(entry.economics.unitCost, entry.economics.currency, true)}</td>
                       <td className="narrow"><Margin marginBps={entry.economics.marginBps} /></td>
@@ -445,17 +476,21 @@ function Promotions() {
                     <td><Chip>{t(phaseKey(promotionPhase(promotion, day)))}</Chip></td>
                     {canWrite && (
                       <td className="actions">
-                        <Button size="sm" onClick={() => setEditing(promotion)}>{t('action.edit')}</Button>
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            if (await confirm(t('product.removePromotionHint'))) {
-                              remove('promotion', promotion.id);
-                            }
-                          }}
+                        <MenuButton
+                          variant="ghost" size="iconSm"
+                          label={t('common.moreActions')}
+                          items={[
+                          { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(promotion) },
+                          {
+                            id: 'delete',
+                            label: t('action.delete'),
+                            danger: true,
+                            onSelect: async () => { if (await confirm(t('product.removePromotionHint'))) remove('promotion', promotion.id); },
+                          },
+                          ]}
                         >
-                          {t('action.delete')}
-                        </Button>
+                          <Icon name="dots" size={14} />
+                        </MenuButton>
                       </td>
                     )}
                   </tr>
@@ -783,17 +818,21 @@ function Scenarios() {
                     <td>{settled.units}</td>
                     {canWrite && (
                       <td className="actions">
-                        <Button size="sm" onClick={() => setEditing(scenario)}>{t('action.edit')}</Button>
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            if (await confirm(t('product.removeScenarioHint'))) {
-                              remove('productScenario', scenario.id);
-                            }
-                          }}
+                        <MenuButton
+                          variant="ghost" size="iconSm"
+                          label={t('common.moreActions')}
+                          items={[
+                          { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(scenario) },
+                          {
+                            id: 'delete',
+                            label: t('action.delete'),
+                            danger: true,
+                            onSelect: async () => { if (await confirm(t('product.removeScenarioHint'))) remove('productScenario', scenario.id); },
+                          },
+                          ]}
                         >
-                          {t('action.delete')}
-                        </Button>
+                          <Icon name="dots" size={14} />
+                        </MenuButton>
                       </td>
                     )}
                   </tr>
@@ -1226,17 +1265,21 @@ function Contributors({ product, contributors }: { product: Product; contributor
                   <td>{t(basisKey(person.fee_basis))}</td>
                   {canWrite && (
                     <td className="actions">
-                      <Button size="sm" onClick={() => setEditing(person)}>{t('action.edit')}</Button>
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          if (await confirm(t('product.removeContributorHint'))) {
-                            remove('productContributor', person.id);
-                          }
-                        }}
+                      <MenuButton
+                        variant="ghost" size="iconSm"
+                        label={t('common.moreActions')}
+                        items={[
+                        { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(person) },
+                        {
+                          id: 'delete',
+                          label: t('action.delete'),
+                          danger: true,
+                          onSelect: async () => { if (await confirm(t('product.removeContributorHint'))) remove('productContributor', person.id); },
+                        },
+                        ]}
                       >
-                        {t('action.delete')}
-                      </Button>
+                        <Icon name="dots" size={14} />
+                      </MenuButton>
                     </td>
                   )}
                 </tr>
@@ -1420,18 +1463,22 @@ function Prices({ product }: { product: Product }) {
                   </td>
                   {canWrite && (
                     <td className="actions">
-                      <Button size="sm" onClick={() => setRaising(price)}>{t('product.change')}</Button>
-                      <Button size="sm" onClick={() => setEditing(price)}>{t('action.edit')}</Button>
-                      <Button
-                        size="sm"
-                        onClick={async () => {
-                          if (await confirm(t('product.removePriceHint'))) {
-                            remove('productPrice', price.id);
-                          }
-                        }}
+                      <MenuButton
+                        variant="ghost" size="iconSm"
+                        label={t('common.moreActions')}
+                        items={[
+                        { id: 'change', label: t('product.change'), onSelect: () => setRaising(price) },
+                        { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(price) },
+                        {
+                          id: 'delete',
+                          label: t('action.delete'),
+                          danger: true,
+                          onSelect: async () => { if (await confirm(t('product.removePriceHint'))) remove('productPrice', price.id); },
+                        },
+                        ]}
                       >
-                        {t('action.delete')}
-                      </Button>
+                        <Icon name="dots" size={14} />
+                      </MenuButton>
                     </td>
                   )}
                 </tr>
@@ -1502,6 +1549,16 @@ function Prices({ product }: { product: Product }) {
  * like no commitment at all. The inherited figure is shown in the product's
  * own words with a mark, so the column can be read down without opening a row.
  */
+/**
+ * A commitment, as a chip stands on its own.
+ *
+ * `termLabel` below answers under a column headed "Term", where "none" reads
+ * fine. A chip has no header over it, so it has to carry the noun itself.
+ */
+function termChip(t: ReturnType<typeof useT>, months: number): string {
+  return months === 0 ? t('product.termFree') : t('product.termMonthsShort', { months: String(months) });
+}
+
 function termLabel(t: ReturnType<typeof useT>, price: ProductPrice, product: Product): string {
   const months = price.term_months ?? product.term_months;
   const said = months === 0 ? t('product.termNone') : t('product.termMonthsShort', { months: String(months) });
@@ -1762,17 +1819,21 @@ function Costs({ product }: { product: Product }) {
                     <td className="narrow">{cost.vendor ?? '—'}</td>
                     {canWrite && (
                       <td className="actions">
-                        <Button size="sm" onClick={() => setEditing(cost)}>{t('action.edit')}</Button>
-                        <Button
-                          size="sm"
-                          onClick={async () => {
-                            if (await confirm(t('product.removeCostHint'))) {
-                              remove('productCost', cost.id);
-                            }
-                          }}
+                        <MenuButton
+                          variant="ghost" size="iconSm"
+                          label={t('common.moreActions')}
+                          items={[
+                          { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cost) },
+                          {
+                            id: 'delete',
+                            label: t('action.delete'),
+                            danger: true,
+                            onSelect: async () => { if (await confirm(t('product.removeCostHint'))) remove('productCost', cost.id); },
+                          },
+                          ]}
                         >
-                          {t('action.delete')}
-                        </Button>
+                          <Icon name="dots" size={14} />
+                        </MenuButton>
                       </td>
                     )}
                   </tr>
@@ -1967,14 +2028,16 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
                   {canWrite && (
                     <td className="actions">
                       <Button
-                        size="sm"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('action.delete')}
                         onClick={async () => {
                           if (await confirm(t('product.removePartHint'))) {
                             remove('productPart', part.id);
                           }
                         }}
                       >
-                        {t('action.delete')}
+                        <Icon name="trash" size={14} />
                       </Button>
                     </td>
                   )}

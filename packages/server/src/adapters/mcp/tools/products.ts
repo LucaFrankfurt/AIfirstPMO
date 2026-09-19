@@ -349,6 +349,13 @@ export const productTools: ToolDef[] = [
           ...money(currency, { amount: price.amount }),
           min_quantity: price.min_quantity,
           recurrence: price.recurrence,
+          /* What the customer signs for, which for a catalogue of subscription
+             modules is the only thing telling three rows apart: same kind, same
+             threshold, same "monthly", three different commitments and three
+             different amounts. Left out, this answer listed three prices and
+             gave no way to say which was which. Null defers to the product's
+             own term, and that is reported rather than resolved away. */
+          term_months: price.term_months,
           valid: `${price.valid_from ?? '…'} → ${price.valid_to ?? '…'}`,
           applies_now: applied?.id === price.id,
         })),

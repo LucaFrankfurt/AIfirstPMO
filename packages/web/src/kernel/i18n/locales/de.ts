@@ -849,6 +849,8 @@ export const de: Catalogue = {
   'product.termMonths': 'Mindestlaufzeit, Monate',
   'product.priceTerm': 'Bindung',
   'product.priceTermHint': 'Monate, auf die sich der Kunde für diesen Preis festlegt. Leer heißt: die des Produkts, {term}.',
+  'product.termFree': 'ohne Bindung',
+  'product.priceSpan': '{low} – {high}',
   'product.termNone': 'keine',
   'product.termMonthsShort': '{months} Mon.',
   'product.churn': 'Abwanderung, % im Monat',

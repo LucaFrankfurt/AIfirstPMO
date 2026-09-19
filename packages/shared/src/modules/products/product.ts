@@ -162,6 +162,48 @@ export const mixedPeriods = (prices: readonly ProductPrice[]): boolean => {
 };
 
 /**
+ * The commitments one offer is sold on, and what it costs on each.
+ *
+ * `periodsOf` answers how *often* a product is billed, and for a catalogue
+ * built out of subscription modules that answer is "monthly" and says nothing.
+ * Calendoora sells Buchung at 64 EUR with no commitment, 59 EUR on a year and
+ * 54 EUR on two — three rows, one billing period, three different offers. The
+ * list showed a single chip reading "monthly" and a single price of 64, which
+ * is both the dearest of the three and the only one a customer can decline.
+ *
+ * Only prices that are the *same offer* are gathered: same kind, same billing
+ * period, same threshold, differing in the term alone. A partner price or a
+ * ten-seat price is a different offer rather than a longer version of this one,
+ * and a span that mixed them would name an amount nobody is charged.
+ *
+ * Empty when the product has no applicable price, and a single entry when it
+ * is sold on one commitment — the screens can then treat "more than one" as
+ * the question it is.
+ */
+export function termsOf(
+  prices: readonly ProductPrice[],
+  options: { on?: ISODate; quantity?: number; productTerm?: number } = {},
+): { months: number; amount: Minor; price: ProductPrice }[] {
+  const quoted = priceFor(prices, options);
+  if (!quoted) return [];
+  const productTerm = options.productTerm ?? 0;
+  const lane = (price: ProductPrice) => `${price.kind}|${price.recurrence}|${Math.max(1, price.min_quantity || 1)}`;
+  const wanted = lane(quoted);
+  const byTerm = new Map<number, ProductPrice>();
+  for (const price of prices) {
+    if (lane(price) !== wanted) continue;
+    const term = price.term_months ?? productTerm;
+    // Whichever of two prices on the same term `priceFor` would quote, so this
+    // never disagrees with the figure beside it.
+    const better = priceFor([price, ...(byTerm.has(term) ? [byTerm.get(term)!] : [])], { ...options, termMonths: term });
+    if (better) byTerm.set(term, better);
+  }
+  return [...byTerm.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([months, price]) => ({ months, amount: comparableAmount(price), price }));
+}
+
+/**
  * Which prices are alternatives to one another rather than a change of one.
  *
  * Two prices are in the same **lane** when they are the same offer to the same
@@ -1407,6 +1449,15 @@ export interface CatalogueEntry {
   periods: CostRecurrence[];
   /** Sold both as a sale and as a subscription. See `mixedPeriods`. */
   mixed: boolean;
+  /**
+   * The commitments the quoted offer is sold on, shortest first.
+   *
+   * One entry is the ordinary case and says nothing new. More than one is a
+   * product whose price depends on how long the customer signs up for, and the
+   * figures beside it are computed from the first of them — the shortest, which
+   * is the dearest and the one nobody has to agree to. See `termsOf`.
+   */
+  terms: { months: number; amount: Minor }[];
 }
 
 /**
@@ -1467,6 +1518,8 @@ export function catalogue(input: {
       promoted: economics.price === null || !running.length ? null : promotedPrice(economics.price, running),
       periods: periodsOf(prices),
       mixed: mixedPeriods(prices),
+      terms: termsOf(prices, { on: input.today, productTerm: product.term_months })
+        .map(({ months, amount }) => ({ months, amount })),
     };
   });
 }

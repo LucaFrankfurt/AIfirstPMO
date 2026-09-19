@@ -855,6 +855,8 @@ export const en = {
   'product.termMonths': 'Minimum term, months',
   'product.priceTerm': 'Commitment',
   'product.priceTermHint': 'Months the customer is tied in for this price. Empty means the product’s own, {term}.',
+  'product.termFree': 'no commitment',
+  'product.priceSpan': '{low} – {high}',
   'product.termNone': 'none',
   'product.termMonthsShort': '{months} mo.',
   'product.churn': 'Churn, % a month',
