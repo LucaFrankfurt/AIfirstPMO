@@ -172,7 +172,7 @@ const toolList = () =>
     title: tool.title,
     description: tool.description,
     inputSchema: tool.schema,
-    annotations: { readOnlyHint: !!tool.readOnly, destructiveHint: tool.name === 'delete_task' },
+    annotations: { readOnlyHint: !!tool.readOnly, destructiveHint: !!tool.destructive },
   }));
 
 /**

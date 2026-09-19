@@ -205,6 +205,7 @@ export const planningTools: ToolDef[] = [
     name: 'delete_cycle',
     title: 'Delete cycle',
     description: 'Delete a cycle. It goes to the trash and can be restored; tasks in it are kept and simply lose their cycle.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['cycle'],
@@ -410,6 +411,7 @@ export const planningTools: ToolDef[] = [
     name: 'delete_module',
     title: 'Delete module',
     description: 'Delete a module. It goes to the trash and can be restored; tasks in it are kept and simply lose their module.',
+    destructive: true,
     schema: {
       type: 'object',
       required: ['module'],
