@@ -173,6 +173,16 @@ export type PriceKind = (typeof PRICE_KINDS)[number];
  * and `delivery` are both fixed — separated because a seminar run four times a
  * year and a seminar run monthly have the same room hire per run and very
  * different room hire per year, and one number cannot say both.
+ *
+ * **On a subscription a `unit` cost recurs.** `simulate` charges it for every
+ * *active* customer every month, beside the price and over the same period, so
+ * a euro of hosting per customer per month is `unit` and not `period`. This is
+ * written here because the distinction that matters is whether a cost grows
+ * with the number of customers, and the labels used to lead with how often it
+ * is billed instead: somebody costing a website at "1 € per customer per
+ * month" read *Every month*, picked `period`, and the catalogue answered a 100%
+ * contribution and twelve euros of cost a year where the truth was 96% and 780.
+ * The screens now say it; so does the type it is a fact about.
  */
 export const COST_BASIS = ['period', 'delivery', 'unit'] as const;
 export type CostBasis = (typeof COST_BASIS)[number];

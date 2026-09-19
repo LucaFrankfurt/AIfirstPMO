@@ -1090,7 +1090,11 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
         ) : (
           <>
             <p className="text-[13px]">
+              {/* `count` is what picks the plural form; the catalogue has had
+                  `Intl.PluralRules` all along and this sentence was not using
+                  it, so a product covered by one sale read "1 Einheiten". */}
               {t('product.breakEvenSentence', {
+                count: entry.breakEven.units ?? 0,
                 units: String(entry.breakEven.units),
                 fixed: asMoney(entry.breakEven.fixed, currency),
                 months: String(HORIZON.months),

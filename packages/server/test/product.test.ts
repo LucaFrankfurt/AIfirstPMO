@@ -351,6 +351,66 @@ describe('a price history', () => {
   });
 });
 
+describe('a cost that grows with the customers', () => {
+  const website = () => product({
+    id: 'web', name: 'Webseite', unit_label: 'Betrieb', term_months: 0, renewal: 'auto', churn_bps: 0,
+  });
+  const monthly = () => [price({ product_id: 'web', amount: 2_500, recurrence: 'monthly', term_months: 0 })];
+  const euro = (basis: ProductCost['basis']) => [cost({ product_id: 'web', name: 'RTB', basis, amount: 100 })];
+  const year = {
+    months: 12, units: 10, growth_bps: 0, price_bps: 0, cost_bps: 0, deliveries: 1,
+    promotions: [], churn_bps: null, price_id: null,
+  };
+
+  it('charges a unit cost again every month a subscriber stays', () => {
+    /*
+     * The distinction that matters is whether a cost grows with the number of
+     * customers — and the labels used to lead with how often it is billed. A
+     * website costed at "1 € per customer per month" was entered as `period`,
+     * because that column said *Every month*, and the catalogue answered a
+     * 100% contribution. This pins what the labels now promise.
+     */
+    const fixed = simulate({
+      product: website(), prices: monthly(), costs: euro('period'),
+      contributors: [], promotions: [], assumptions: year, today: '2026-09-18',
+    });
+    const perCustomer = simulate({
+      product: website(), prices: monthly(), costs: euro('unit'),
+      contributors: [], promotions: [], assumptions: year, today: '2026-09-18',
+    });
+
+    assert.equal(fixed.cost, 1_200, 'a fixed euro a month is twelve euros a year, whoever buys');
+    /*
+     * Ten arriving a month with nothing churning is 10, 20, 30 … 120 active,
+     * which is 780 customer-months, and a euro of each.
+     */
+    assert.equal(perCustomer.cost, 78_000, 'a euro per active customer per month is 780 over the same year');
+    assert.equal(perCustomer.revenue, fixed.revenue, 'and neither touches what was billed');
+  });
+
+  it('takes only the per-customer euro off the contribution', () => {
+    // `period` is fixed, so it belongs in the break-even and not in the margin.
+    const fixed = unitEconomics({ product: website(), prices: monthly(), costs: euro('period'), contributors: [] });
+    const perCustomer = unitEconomics({ product: website(), prices: monthly(), costs: euro('unit'), contributors: [] });
+
+    assert.equal(fixed.unitCost, 0);
+    assert.equal(fixed.contribution, 2_500, 'the whole price, which is what a fixed cost leaves');
+    assert.equal(perCustomer.unitCost, 100);
+    assert.equal(perCustomer.contribution, 2_400, '96% of the price, not 100%');
+  });
+
+  it('charges a unit cost once on something sold once', () => {
+    // The other half of the same rule: a sale is over, so its unit cost is too.
+    const sold = simulate({
+      product: product({ id: 'once', renewal: 'none', churn_bps: 0 }),
+      prices: [price({ product_id: 'once', amount: 2_500, recurrence: 'once' })],
+      costs: [cost({ product_id: 'once', basis: 'unit', amount: 100 })],
+      contributors: [], promotions: [], assumptions: year, today: '2026-09-18',
+    });
+    assert.equal(sold.cost, 12_000, 'ten a month for twelve months, a euro each — and never again');
+  });
+});
+
 describe('what a campaign does', () => {
   const campaign = (over: Partial<Promotion> = {}): Promotion => ({
     id: `pm${++seq}`, workspace_id: 'w', name: 'Black Friday', description: null,
