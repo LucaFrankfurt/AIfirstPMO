@@ -406,7 +406,7 @@ function Promotions() {
                 <th className="narrow">{t('product.window')}</th>
                 <th className="narrow">{t('product.spend')}</th>
                 <th>{t('product.phaseLabel')}</th>
-                {canWrite && <th className="narrow" />}
+                {canWrite && <th className="actions" />}
               </tr>
             </thead>
             <tbody>
@@ -444,7 +444,7 @@ function Promotions() {
                     <td className="narrow">{asMoney(promotion.spend, promotion.currency, true)}</td>
                     <td><Chip>{t(phaseKey(promotionPhase(promotion, day)))}</Chip></td>
                     {canWrite && (
-                      <td className="narrow">
+                      <td className="actions">
                         <Button size="sm" onClick={() => setEditing(promotion)}>{t('action.edit')}</Button>
                         <Button
                           size="sm"
@@ -765,7 +765,7 @@ function Scenarios() {
                 <th>{t('product.scenarioProduct')}</th>
                 <th className="narrow">{t('product.months')}</th>
                 <th className="narrow">{t('product.units')}</th>
-                {canWrite && <th className="narrow" />}
+                {canWrite && <th className="actions" />}
               </tr>
             </thead>
             <tbody>
@@ -782,7 +782,7 @@ function Scenarios() {
                     <td className="narrow">{settled.months}</td>
                     <td className="narrow">{settled.units}</td>
                     {canWrite && (
-                      <td className="narrow">
+                      <td className="actions">
                         <Button size="sm" onClick={() => setEditing(scenario)}>{t('action.edit')}</Button>
                         <Button
                           size="sm"
@@ -1213,7 +1213,7 @@ function Contributors({ product, contributors }: { product: Product; contributor
                 <th>{t('product.organisation')}</th>
                 <th className="narrow">{t('product.fee')}</th>
                 <th className="narrow">{t('product.basisLabel')}</th>
-                {canWrite && <th className="narrow" />}
+                {canWrite && <th className="actions" />}
               </tr>
             </thead>
             <tbody>
@@ -1225,7 +1225,7 @@ function Contributors({ product, contributors }: { product: Product; contributor
                   <td className="narrow">{asMoney(person.fee, product.currency, true)}</td>
                   <td className="narrow">{t(basisKey(person.fee_basis))}</td>
                   {canWrite && (
-                    <td className="narrow">
+                    <td className="actions">
                       <Button size="sm" onClick={() => setEditing(person)}>{t('action.edit')}</Button>
                       <Button
                         size="sm"
@@ -1392,7 +1392,7 @@ function Prices({ product }: { product: Product }) {
                 <th className="narrow">{t('product.billingLabel')}</th>
                 <th className="narrow">{t('product.priceTerm')}</th>
                 <th className="narrow">{t('product.window')}</th>
-                {canWrite && <th className="narrow" />}
+                {canWrite && <th className="actions" />}
               </tr>
             </thead>
             <tbody>
@@ -1419,7 +1419,7 @@ function Prices({ product }: { product: Product }) {
                     {price.valid_to ? shortDate(price.valid_to) : '…'}
                   </td>
                   {canWrite && (
-                    <td className="narrow">
+                    <td className="actions">
                       <Button size="sm" onClick={() => setRaising(price)}>{t('product.change')}</Button>
                       <Button size="sm" onClick={() => setEditing(price)}>{t('action.edit')}</Button>
                       <Button
@@ -1749,7 +1749,7 @@ function Costs({ product }: { product: Product }) {
                   <th className="narrow">{t('product.category')}</th>
                   <th className="narrow">{t('product.amount')}</th>
                   <th>{t('product.vendor')}</th>
-                  {canWrite && <th className="narrow" />}
+                  {canWrite && <th className="actions" />}
                 </tr>
               </thead>
               <tbody>
@@ -1761,7 +1761,7 @@ function Costs({ product }: { product: Product }) {
                     <td className="narrow">{asMoney(cost.amount, product.currency)}</td>
                     <td>{cost.vendor ?? '—'}</td>
                     {canWrite && (
-                      <td className="narrow">
+                      <td className="actions">
                         <Button size="sm" onClick={() => setEditing(cost)}>{t('action.edit')}</Button>
                         <Button
                           size="sm"
@@ -1950,7 +1950,7 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
               <th>{t('product.part')}</th>
               <th className="narrow">{t('product.quantity')}</th>
               <th className="narrow">{t('product.price')}</th>
-              {canWrite && <th className="narrow" />}
+              {canWrite && <th className="actions" />}
             </tr>
           </thead>
           <tbody>
@@ -1965,7 +1965,7 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
                     {price ? asMoney(price.amount * part.quantity, product.currency) : <span className="money-flat">—</span>}
                   </td>
                   {canWrite && (
-                    <td className="narrow">
+                    <td className="actions">
                       <Button
                         size="sm"
                         onClick={async () => {

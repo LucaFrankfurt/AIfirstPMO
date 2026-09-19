@@ -710,9 +710,21 @@ p { margin: 0 0 0.75em; }
 
 /* ---------------------------------------------------------- table layout */
 
-/* The table is the one layout that may be wider than the screen: it scrolls
-   inside itself rather than making the page scroll sideways. */
-.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/*
+ * The table is the one layout that may be wider than the screen: it scrolls
+ * inside itself rather than making the page scroll sideways.
+ *
+ * `min-width: 0` is what makes that promise real, here and on the item
+ * holding it. A grid or flex child defaults to `min-width: auto` — "never
+ * shrink below your content" — so the track was sized to the table and the
+ * box grew *past* its parent instead of scrolling inside it. Measured on a
+ * 360px phone: a 336px grid, a 431px track, `scrollWidth === clientWidth`,
+ * nothing to scroll, and everything beyond the screen edge simply gone. The
+ * narrow-column rule below had been folding enough of each table away to keep
+ * that under the surface.
+ */
+.table-wrap { min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.grid > .table-wrap, .grid > :has(> .table-wrap) { min-width: 0; }
 
 .task-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .task-table th, .task-table td { text-align: start; padding: 8px 10px; white-space: nowrap; }
@@ -755,10 +767,39 @@ p { margin: 0 0 0.75em; }
 }
 .task-table .sort[aria-pressed='true'] { color: var(--fg); }
 
+/*
+ * The column you act from, which is not one of the ones above.
+ *
+ * It used to be `narrow`, and `narrow` is dropped below 700px — so every
+ * catalogue table on a phone could be read and not changed: no editing a
+ * price, a cost, a contributor, a part, a scenario or a campaign, with no
+ * hint that the buttons existed. Nothing announced it, because a missing
+ * column looks exactly like a column that was never there.
+ *
+ * It is pinned to the trailing edge rather than merely un-hidden: restoring a
+ * seventh column to a 360px screen puts the buttons off the side, and a
+ * button you can only reach by dragging a table sideways is barely better
+ * than one that is gone.
+ *
+ * Pinning needs something opaque to pin, or the row slides visibly underneath
+ * it — hence the background on the row, which the cell then takes with
+ * `inherit` rather than naming a colour of its own. That way the row's hover
+ * and selected tints still reach the cell instead of stopping at its edge.
+ */
+.task-table .actions { white-space: nowrap; }
+
 /* On a phone the columns that are only useful for comparing are dropped
    rather than squeezed — the ones left are the ones you would read out. */
 @media (max-width: 700px) {
   .task-table .narrow { display: none; }
+  .task-table .actions {
+    position: sticky;
+    inset-inline-end: 0;
+    background: inherit;
+    box-shadow: -8px 0 8px -8px rgb(0 0 0 / 0.28);
+  }
+  .task-table tbody tr { background: var(--bg); }
+  .task-table thead .actions { z-index: 2; }
 }
 
 .trash-row { gap: 9px; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
