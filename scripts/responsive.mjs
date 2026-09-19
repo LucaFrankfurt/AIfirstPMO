@@ -57,6 +57,22 @@ await switchOnDecisions(page);
 await switchOnVault(page);
 await switchOnProducts(page);
 
+/*
+ * A product to open, because `/products` alone was never enough.
+ *
+ * The list is one table; the *detail* is four more — prices, costs, parts and
+ * the people on it — and each carries the column you act from. None of them
+ * had ever been walked at any width, which is how six tables shipped with
+ * their Edit and Delete buttons cut off on a phone and every check still
+ * green. A screen nobody measures is a screen nobody has checked.
+ */
+const productId = await page.evaluate(async () => {
+  const workspace = localStorage.getItem('kolibri.workspace');
+  const body = await (await fetch(`/api/workspaces/${workspace}/products`, { credentials: 'include' })).json();
+  return (body.products ?? body)[0]?.id;
+});
+if (!productId) throw new Error('no product to open — the catalogue fixture found nothing to walk');
+
 const SCREENS = [
   ['my work', '/'],
   ['project', `/projects/${project}`],
@@ -94,6 +110,11 @@ const SCREENS = [
   // And the densest form anywhere here: six numeric fields in one row, which
   // is where a `field-row` either wraps or squeezes each box to nothing.
   ['products: simulation', '/products?tab=scenarios'],
+  // The two detail tabs that carry rows *and* the column you act from. Prices
+  // is the widest of them — a name, a kind, an amount, a threshold, a period,
+  // a term and a window before the buttons even start.
+  ['product: prices', `/products/${productId}?tab=prices`],
+  ['product: costs', `/products/${productId}?tab=costs`],
   ['decisions', '/decisions'],
   // Behind the secrets switch, and the widest row on any screen: a name, an
   // environment, a strength pill, a rotation state and two icon buttons, which
@@ -202,6 +223,7 @@ const inspect = () => {
       out.push(`${field.tagName.toLowerCase()} ${label ? `"${label}"` : `[type=${type || 'text'}]`} has ${Math.round(room)}px of room inside it`);
     }
   }
+
   return out;
 };
 

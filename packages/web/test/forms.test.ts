@@ -332,3 +332,51 @@ describe('a product made', () => {
     assert.deepEqual(decided, [], `pinned at creation instead of asked: ${decided.join(', ')}`);
   });
 });
+
+/**
+ * The column you act from, and the one class it must never wear.
+ *
+ * `.narrow` means "drop this below 700px" — it is for the columns that are
+ * only useful for comparing, and the stylesheet says so. Six action cells in
+ * the catalogue carried it anyway, so on a phone every products table could
+ * be read and not changed: no editing a price, a cost, a contributor, a part,
+ * a scenario or a campaign, and nothing to suggest the buttons existed. A
+ * column that is `display: none` looks exactly like a column nobody built.
+ *
+ * `responsive.mjs` cannot catch this half. A control with no box is a control
+ * hidden on purpose as far as any layout measurement can tell, and guessing
+ * which hiding was meant is not something a browser can do. So it is caught
+ * here, where the intent is still written down: a cell holding a button is a
+ * cell you act from, and it is never one of the ones that fold away.
+ */
+describe('every column you act from', () => {
+  const cells = files.flatMap(({ path, text }) => {
+    const lines = text.split('\n');
+    return lines.flatMap((line, i) => {
+      const match = /<td\b[^>]*className="([^"]*)"/.exec(line);
+      if (!match) return [];
+      /*
+       * The buttons sit on the lines after the cell opens, so the scan reads
+       * to the cell's own `</td>` — and a cell that closes on its own line is
+       * one line long. Reading to the *next* `</td>` instead put every
+       * one-line comparison cell's neighbour inside it, and the first version
+       * of this test duly reported two innocent columns holding buttons they
+       * do not hold.
+       */
+      const closes = line.includes('</td>');
+      const end = closes ? i : lines.findIndex((l, j) => j > i && l.includes('</td>'));
+      const body = lines.slice(i, end === -1 ? i + 1 : end + 1).join('\n');
+      if (!/<Button\b|action\.edit|action\.delete/.test(body)) return [];
+      return [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, classes: match[1].split(/\s+/) }];
+    });
+  });
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(cells.length >= 6, `only found ${cells.length} action cells, which means the scan is broken`);
+  });
+
+  it('is never dropped on a phone', () => {
+    const folded = cells.filter((cell) => cell.classes.includes('narrow')).map((cell) => cell.where);
+    assert.deepEqual(folded, [], `action cell(s) marked \`narrow\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
+  });
+});
