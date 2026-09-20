@@ -972,6 +972,51 @@ export function bundleValue(input: {
 }
 
 /**
+ * A capability's name, as it should be stored.
+ *
+ * HTML entities are decoded and runs of whitespace collapsed, because a name is
+ * text somebody reads rather than markup. The scar is specific: the vocabulary
+ * was filled through the API by an assistant whose prompt had gone through an
+ * HTML-escaping stage on the way, and `Statistiken &amp; Berichte` landed
+ * beside `Statistiken & Berichte`. They render as two chips no reader can
+ * tell apart, and the guard that refuses a duplicate name found nothing wrong —
+ * they really are two different strings. The duplicate then could not be
+ * removed from anywhere, because at the time nothing here could delete a
+ * capability at all.
+ *
+ * A correction rather than a refusal, for the reason `rules/products.ts` gives:
+ * these writes arrive in sync batches from devices that have been away, and one
+ * badly spelled name should not take twenty other rows down with it.
+ *
+ * Only the entities a text pipeline actually produces. A table of the two
+ * thousand HTML names would be the wrong size of answer to this: a capability
+ * is called "Online-Terminbuchung", not marked up.
+ */
+export function capabilityName(raw: string): string {
+  return String(raw ?? '')
+    .replace(/&(?:lt|#0*60|#[xX]0*3[cC]);/g, '<')
+    .replace(/&(?:gt|#0*62|#[xX]0*3[eE]);/g, '>')
+    .replace(/&(?:quot|#0*34|#[xX]0*22);/g, '"')
+    .replace(/&(?:apos|#0*39|#[xX]0*27);/g, "'")
+    .replace(/&(?:nbsp|#0*160|#[xX]0*[aA]0);/g, ' ')
+    // Last, deliberately: `&amp;lt;` is the text "&lt;" and decoding the outer
+    // entity first would turn it into a "<" nobody wrote.
+    .replace(/&(?:amp|#0*38|#[xX]0*26);/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * What two capability names compare by.
+ *
+ * Case and spacing fold together because the vocabulary is typed by hand and
+ * "online-terminbuchung" is nobody's second feature. Exported so that the two
+ * doors that refuse a duplicate — the tool and the form — cannot come to
+ * disagree about what "the same name" means.
+ */
+export const capabilityKey = (raw: string): string => capabilityName(raw).toLocaleLowerCase();
+
+/**
  * Everything a product can do, a package included.
  *
  * A package's capabilities are its own plus every part's, because that is what

@@ -661,18 +661,21 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       product write, a read and a sync pull without it, because the column carries
       `NOT NULL DEFAULT 'once'` and the insert never names it. It would be tidied by whatever
       eventually closes the removal gap; it is not worth a migration runner of its own.
-- [ ] **The capability vocabulary can be added to over MCP but not tidied.** `list_capabilities`,
-      `create_capability` and `set_product_capabilities` cover naming a feature and ticking it on a
-      product, which is what the catalogue was missing — until they existed the surface could manage
-      every part of a product except what it actually does. Renaming one, writing its description
-      afterwards, archiving it or deleting it are not there: the interface has all four, so nothing
-      is unreachable, and each is a tool that either rewrites a word every product's chips read or
-      leaves an id behind on every product that claimed it. Worth doing together, with the dangling
-      id decided rather than inherited — `capabilitiesOf` already drops one that no longer resolves,
-      which is why a deletion is survivable rather than urgent.
+- [x] **The capability vocabulary can be managed, not only added to.** `update_capability` and
+      `delete_capability` over MCP, and a tab of its own in the interface with the same two
+      controls — the vocabulary belongs to the workspace, not to whichever product happened to be
+      open. The entry this replaces said renaming and deleting were *"not there: the interface has
+      all four, so nothing is unreachable"*, and that was simply wrong: the interface could only
+      ever create one, from a single input at the bottom of the product form. `archived` was a
+      column every list filtered on and nothing set, the same shape `budgets.archived` still has.
+      It cost something within the hour: a name arrived HTML-escaped through the API, landed beside
+      its unescaped twin, and could then be removed from nowhere at all. `capabilityName` in
+      `@kolibri/shared` decodes it in the write path so every door stores the one spelling, and
+      `capabilityKey` is the comparison all three doors now refuse a duplicate by.
 - [ ] **The screen unions a package's capabilities one level deep; MCP goes all the way down.**
-      `products.tsx` walks a package's parts and takes each part's *own* list, so a package inside a
-      package shows the outer one's parts and stops. `capabilitySpread` in the MCP tools recurses,
+      `products.tsx` walks a package's parts and takes each part's *own* list — on the product
+      screen and on the vocabulary tab alike — so a package inside a package shows the outer one's
+      parts and stops. `capabilitySpread` in the MCP tools recurses,
       memoised and cycle-guarded the way `unitCosts` does. No catalogue here nests that far, which
       is the only reason the two agree today. The fix is to move the recursion down beside
       `capabilitiesOf` in `@kolibri/shared` and have both sides call it — the same move that every
@@ -1282,7 +1285,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 115 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 117 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

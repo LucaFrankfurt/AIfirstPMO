@@ -31,7 +31,7 @@ Three questions, asked in this order, in `lib/auth.ts` and `lib/repo.ts`:
    a "public" project is public *to that workspace*, and `canSeeProject` used to answer the
    visibility question without asking the membership one.
 3. **Does the token carry the scope?** API and MCP tokens are `read` or `read,write`. A read-only
-   token is refused by every write path, including all 61 writing MCP tools.
+   token is refused by every write path, including all 63 writing MCP tools.
 4. **Does the row answer for itself?** Most do not — they follow their project, and that is the
    whole of it. Two do: a **secret**, and a **page**, which can be `access: 'private'` inside a
    project everybody can see. `pageIsVisible` in `lib/repo.ts` asks both halves, and it is one

@@ -14,7 +14,7 @@
  */
 
 import {
-  COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, type EntityName, PRICE_KINDS,
+  capabilityName, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, type EntityName, PRICE_KINDS,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
@@ -129,6 +129,21 @@ function applyProductInvariants(entity: EntityName, values: Record<string, unkno
   }
 
   if (entity === 'productPart') bounded('quantity', 1, 1_000_000, 1);
+
+  /*
+   * A capability's name is text, not markup.
+   *
+   * `capabilityName` says what this cost: a name that arrived HTML-escaped sat
+   * in the vocabulary beside the same name unescaped, indistinguishable on
+   * screen and not equal to any comparison. Corrected here rather than in the
+   * tool that happened to catch it, so that REST, MCP, an import and a sync
+   * batch all store the one spelling — and `forced` tells the client what was
+   * changed rather than leaving it to wonder.
+   */
+  if (entity === 'productCapability' && typeof values.name === 'string') {
+    const clean = capabilityName(values.name);
+    if (clean !== values.name) settle('name', clean);
+  }
 
   if (entity === 'promotion') {
     oneOf('kind', PROMOTION_KINDS, 'percent');
