@@ -2202,7 +2202,8 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
      has the parts and every part's prices, and a second assembly of the same
      number is the place the two come to disagree — which is not a worry but a
      thing that happened, one field at a time. */
-  const value: BundleValue = entry.bundle ?? { listValue: 0, price: null, saving: null, savingBps: null, unpriced: 0 };
+  const value: BundleValue = entry.bundle
+    ?? { listValue: 0, price: null, saving: null, savingBps: null, recurrence: null, periods: [], unpriced: 0 };
 
   const named = useMemo(() => new Map(products.map((row) => [row.id, row])), [products]);
 
@@ -2239,6 +2240,60 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
         />
       </div>
       {value.unpriced > 0 && <p className="notice-warn">{t('product.unpricedParts', { count: String(value.unpriced) })}</p>}
+
+      {/* Only when there is more than one, because a package billed one way is
+          fully described by the three figures above. With two, those three
+          describe the quoted period alone, and the rest would simply be absent
+          from the screen — which is how a 450,00 € setup fee goes unseen. */}
+      {value.periods.length > 1 && (
+        <div>
+          <SectionHeading>{t('product.periodsHeading')}</SectionHeading>
+          <p className="text-[12px] text-muted">{t('product.periodsHint')}</p>
+          <div className="table-wrap">
+            <table className="task-table">
+              <thead>
+                <tr>
+                  <th>{t('product.billingLabel')}</th>
+                  {/* The two comparison columns drop on a phone, which is what
+                      `narrow` is for. What is left answers the question
+                      somebody opens this on a phone to ask: what does this
+                      package cost me, and how often. */}
+                  <th className="narrow">{t('product.listValue')}</th>
+                  <th>{t('product.packagePrice')}</th>
+                  <th className="narrow">{t('product.saving')}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {value.periods.map((line) => (
+                  <tr key={line.recurrence}>
+                    <td>
+                      {t(billingKey(line.recurrence))}
+                      {line.recurrence === value.recurrence && <> <Chip>{t('product.appliesNow')}</Chip></>}
+                    </td>
+                    <td className="narrow">{asMoney(line.listValue, product.currency)}</td>
+                    <td>
+                      {line.price === null
+                        ? <span className="text-muted">{t('product.periodNotCharged')}</span>
+                        : asMoney(line.price, product.currency)}
+                    </td>
+                    {/* No colour on the direction, the same reasoning the price
+                        history gives: whether a premium is good news depends on
+                        which side of the invoice the reader is on. */}
+                    <td className="narrow">
+                      {line.saving === null ? '—' : (
+                        <span className="money-flat">
+                          {line.saving > 0 ? '+' : ''}{asMoney(line.saving, product.currency, true)}
+                          {line.savingBps !== null && ` (${line.saving > 0 ? '+' : ''}${Math.round(line.savingBps / 100)}%)`}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="table-wrap">
         <table className="task-table">

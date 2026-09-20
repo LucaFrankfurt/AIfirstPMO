@@ -858,6 +858,9 @@ export const en = {
   'product.saving': 'Saving',
   'product.premium': 'Premium',
   'product.unpricedShort': '{count} unpriced',
+  'product.periodsHeading': 'By billing period',
+  'product.periodsHint': 'A one-off and a monthly fee have no common figure, so each period is compared on its own. The figures above are for the period the package is quoted in.',
+  'product.periodNotCharged': 'Not charged',
   'product.unpricedParts': '{count} parts have no price, so they are missing from the figure above.',
 
   'product.retention': 'Retention',

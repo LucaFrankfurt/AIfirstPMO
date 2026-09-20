@@ -920,29 +920,60 @@ export function stackedPromotions(
 
 /* ----------------------------------------------------------------- packages */
 
-/**
- * What a package would cost bought part by part, and what it actually costs.
- *
- * The discount a package *is*, made visible. `listValue` is the sum of the
- * parts at their own prices times their quantities; `price` is what the package
- * itself is sold for. A package priced above its parts is a real thing — a
- * managed service is worth more than its licences — and it should be seen on
- * purpose rather than discovered by a customer.
- *
- * A part that has no price of its own contributes nothing and is counted in
- * `unpriced`, because a list value that silently omits a part is a discount
- * figure that is wrong in the flattering direction.
- */
-export interface BundleValue {
-  /** The parts at their own prices, times quantity. */
+/** One billing period of a package: what its parts cost that way, and what it charges. */
+export interface BundlePeriod {
+  recurrence: CostRecurrence;
+  /** The parts billed this way, at their own prices, times quantity. */
   listValue: Minor;
-  /** What the package is sold for, or null when it has no price. */
+  /** What the package charges on this period, or null when it charges nothing. */
   price: Minor | null;
   /** List value less the package price. Negative is a premium. */
   saving: Minor | null;
   /** Basis points of the list value. Null when there is nothing to compare. */
   savingBps: number | null;
-  /** Parts with no applicable price, which the list value could not include. */
+}
+
+/**
+ * What a package would cost bought part by part, and what it actually costs.
+ *
+ * The discount a package *is*, made visible. A package priced above its parts
+ * is a real thing — a managed service is worth more than its licences — and it
+ * should be seen on purpose rather than discovered by a customer.
+ *
+ * A part that has no price of its own contributes nothing and is counted in
+ * `unpriced`, because a list value that silently omits a part is a discount
+ * figure that is wrong in the flattering direction.
+ *
+ * **One period at a time.** This used to add every part's amount into one
+ * total, which is the mistake `comparableAmount` documents one floor down, made
+ * again: `€450 once` and `€25 a month` have no sum. A package holding a monthly
+ * module and a one-off setup came out at 579 against a price of 99 and reported
+ * a saving of 480 — confident, large and meaningless. Nothing in the catalogue
+ * triggered it, which is the only reason it survived: the setup fee lived as a
+ * separate product rather than as a part, precisely because putting it in
+ * produced that number.
+ *
+ * So `periods` carries one line per billing period, each comparing like with
+ * like, and the four headline fields describe the period the package's own
+ * applied price is in — the one `economics.price` reports, so the two screens
+ * cannot disagree. A part billed on a period the package charges nothing for
+ * still gets a line, with a null price: "the parts include a one-off nobody is
+ * billed for" is worth seeing rather than rounding away.
+ */
+export interface BundleValue {
+  /** The parts at their own prices, times quantity, in `recurrence`'s period. */
+  listValue: Minor;
+  /** What the package is sold for on that period, or null when it has no price. */
+  price: Minor | null;
+  /** List value less the package price. Negative is a premium. */
+  saving: Minor | null;
+  /** Basis points of the list value. Null when there is nothing to compare. */
+  savingBps: number | null;
+  /** Which period the four figures above describe. Null when there is none. */
+  recurrence: CostRecurrence | null;
+  /** Every period either side is billed in, in `COST_RECURRENCES` order. */
+  periods: BundlePeriod[];
+  /** Parts with no applicable price, which no list value could include. */
   unpriced: number;
 }
 
@@ -950,23 +981,53 @@ export function bundleValue(input: {
   parts: readonly ProductPart[];
   /** Every part's prices, by product id. */
   pricesOf: (productId: ID) => readonly ProductPrice[];
-  price: Minor | null;
+  /** The package's own prices — plural, because it may charge on more than one period. */
+  prices: readonly ProductPrice[];
   on?: ISODate;
+  /** What a package price naming no term commits to. See `Product.term_months`. */
+  productTerm?: number;
 }): BundleValue {
-  let listValue = 0;
+  const parts = new Map<CostRecurrence, Minor>();
   let unpriced = 0;
   for (const part of input.parts) {
     const quantity = Math.max(1, Math.round(part.quantity) || 1);
     const price = priceFor(input.pricesOf(part.part_id), { quantity, on: input.on });
     if (!price) { unpriced += 1; continue; }
-    listValue += price.amount * quantity;
+    parts.set(price.recurrence, (parts.get(price.recurrence) ?? 0) + price.amount * quantity);
   }
-  const saving = input.price === null ? null : listValue - input.price;
+
+  const charged = (recurrence: CostRecurrence): Minor | null =>
+    priceFor(input.prices, { on: input.on, recurrence, productTerm: input.productTerm })?.amount ?? null;
+
+  // Both sides: a period the parts are billed in, and a period the package
+  // charges on. Either alone is a line somebody needs to see.
+  const seen = new Set<CostRecurrence>([...parts.keys(), ...periodsOf(input.prices)]);
+  const periods: BundlePeriod[] = COST_RECURRENCES.filter((every) => seen.has(every)).map((recurrence) => {
+    const listValue = parts.get(recurrence) ?? 0;
+    const price = charged(recurrence);
+    const saving = price === null ? null : listValue - price;
+    return {
+      recurrence,
+      listValue,
+      price,
+      saving,
+      savingBps: saving === null || listValue === 0 ? null : Math.round((saving * FULL_BPS) / listValue),
+    };
+  });
+
+  /* The headline follows whichever price `priceFor` would quote, so the package
+     tab's three figures and the catalogue's price column are about the same
+     offer. Falling back to the first line keeps a package whose own price is
+     missing from reporting nothing at all. */
+  const applied = priceFor(input.prices, { on: input.on, productTerm: input.productTerm });
+  const head = periods.find((line) => line.recurrence === applied?.recurrence) ?? periods[0] ?? null;
   return {
-    listValue,
-    price: input.price,
-    saving,
-    savingBps: saving === null || listValue === 0 ? null : Math.round((saving * FULL_BPS) / listValue),
+    listValue: head?.listValue ?? 0,
+    price: head?.price ?? null,
+    saving: head?.saving ?? null,
+    savingBps: head?.savingBps ?? null,
+    recurrence: head?.recurrence ?? null,
+    periods,
     unpriced,
   };
 }
@@ -1578,8 +1639,9 @@ export function catalogue(input: {
       bundle: product.kind !== 'bundle' ? null : bundleValue({
         parts,
         pricesOf: input.pricesOf,
-        price: economics.price,
+        prices,
         on: input.today,
+        productTerm: product.term_months,
       }),
     };
   });

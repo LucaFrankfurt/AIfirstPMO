@@ -73,6 +73,16 @@ const productId = await page.evaluate(async () => {
 });
 if (!productId) throw new Error('no product to open — the catalogue fixture found nothing to walk');
 
+/* The package is a different product from the first one, and its own tab: the
+   parts table plus the per-period comparison, which only renders for a package
+   billed more than one way. See `catalogue-fixture.mjs`. */
+const packageId = await page.evaluate(async () => {
+  const workspace = localStorage.getItem('kolibri.workspace');
+  const body = await (await fetch(`/api/workspaces/${workspace}/products`, { credentials: 'include' })).json();
+  return (body.products ?? body).find((row) => row.kind === 'bundle')?.id;
+});
+if (!packageId) throw new Error('no package to open — the catalogue fixture built none');
+
 const SCREENS = [
   ['my work', '/'],
   ['project', `/projects/${project}`],
@@ -121,6 +131,9 @@ const SCREENS = [
   // a term and a window before the buttons even start.
   ['product: prices', `/products/${productId}?tab=prices`],
   ['product: costs', `/products/${productId}?tab=costs`],
+  // The package tab, whose per-period table compares one billing period at a
+  // time — four money columns, two of which a phone drops.
+  ['product: package', `/products/${packageId}?tab=package`],
   ['decisions', '/decisions'],
   // Behind the secrets switch, and the widest row on any screen: a name, an
   // environment, a strength pill, a rotation state and two icon buttons, which

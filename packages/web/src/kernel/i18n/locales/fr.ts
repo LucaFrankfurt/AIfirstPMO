@@ -855,6 +855,9 @@ export const fr: Catalogue = {
   'product.saving': 'Économie',
   'product.premium': 'Supplément',
   'product.unpricedShort': '{count} sans prix',
+  'product.periodsHeading': 'Par période de facturation',
+  'product.periodsHint': 'Un paiement unique et un abonnement mensuel n’ont aucun chiffre commun ; chaque période est donc comparée séparément. Les chiffres ci-dessus concernent la période dans laquelle le forfait est proposé.',
+  'product.periodNotCharged': 'Non facturée',
   'product.unpricedParts': '{count} composants n’ont pas de prix et manquent donc au chiffre ci-dessus.',
 
   'product.retention': 'Fidélisation',
