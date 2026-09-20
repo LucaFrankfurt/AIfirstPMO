@@ -852,6 +852,9 @@ export const de: Catalogue = {
   'product.saving': 'Ersparnis',
   'product.premium': 'Aufschlag',
   'product.unpricedShort': '{count} ohne Preis',
+  'product.periodsHeading': 'Je Abrechnungsperiode',
+  'product.periodsHint': 'Einmalig und monatlich haben keine gemeinsame Zahl, also wird jede Periode für sich verglichen. Die Kennzahlen oben gehören zu der Periode, in der das Paket angeboten wird.',
+  'product.periodNotCharged': 'Wird nicht berechnet',
   'product.unpricedParts': '{count} Bestandteile haben keinen Preis und fehlen deshalb in der Zahl oben.',
 
   'product.retention': 'Kundenbindung',

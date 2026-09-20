@@ -720,7 +720,7 @@ describe('a package', () => {
     const value = bundleValue({
       parts: [part({ part_id: 'a', quantity: 2 }), part({ part_id: 'b' })],
       pricesOf: (id) => (id === 'a' ? [price({ amount: 50_000 })] : [price({ amount: 100_000 })]),
-      price: 150_000,
+      prices: [price({ amount: 150_000 })],
     });
     assert.equal(value.listValue, 200_000);
     assert.equal(value.saving, 50_000);
@@ -731,7 +731,7 @@ describe('a package', () => {
     const value = bundleValue({
       parts: [part({ part_id: 'a' })],
       pricesOf: () => [price({ amount: 100_000 })],
-      price: 120_000,
+      prices: [price({ amount: 120_000 })],
     });
     assert.equal(value.saving, -20_000);
   });
@@ -740,10 +740,54 @@ describe('a package', () => {
     const value = bundleValue({
       parts: [part({ part_id: 'a' }), part({ part_id: 'b' })],
       pricesOf: (id) => (id === 'a' ? [price({ amount: 100_000 })] : []),
-      price: 90_000,
+      prices: [price({ amount: 90_000 })],
     });
     assert.equal(value.listValue, 100_000);
     assert.equal(value.unpriced, 1);
+  });
+
+  it('never adds a one-off to a monthly, because the two have no sum', () => {
+    /*
+     * The bug this replaced: every part's amount went into one total whatever
+     * it was billed as. A package holding a 25,00 € monthly module and a
+     * 450,00 € one-off setup reported a list value of 475,00 € against a price
+     * of 99,00 € and a saving of 376,00 € — a number with no meaning, stated
+     * with total confidence. Nothing in the catalogue tripped it only because
+     * the setup fee was kept out of the package on purpose.
+     */
+    const value = bundleValue({
+      parts: [part({ part_id: 'monthly' }), part({ part_id: 'setup' })],
+      pricesOf: (id) => (id === 'monthly'
+        ? [price({ amount: 2_500, recurrence: 'monthly' })]
+        : [price({ amount: 45_000, recurrence: 'once' })]),
+      prices: [price({ amount: 9_900, recurrence: 'monthly' }), price({ amount: 45_000, recurrence: 'once' })],
+    });
+
+    assert.deepEqual(value.periods.map((line) => [line.recurrence, line.listValue, line.price, line.saving]), [
+      ['once', 45_000, 45_000, 0],
+      ['monthly', 2_500, 9_900, -7_400],
+    ]);
+    // The headline follows the price `priceFor` would quote, which is the
+    // monthly one — the same figure the catalogue's price column shows.
+    assert.equal(value.recurrence, 'monthly');
+    assert.equal(value.listValue, 2_500);
+    assert.equal(value.saving, -7_400, 'the 450,00 € setup is not smuggled into a monthly comparison');
+  });
+
+  it('gives a period the package charges nothing for a line of its own', () => {
+    // "The parts include a one-off nobody is billed for" is worth seeing
+    // rather than rounding away into a monthly total.
+    const value = bundleValue({
+      parts: [part({ part_id: 'setup' })],
+      pricesOf: () => [price({ amount: 45_000, recurrence: 'once' })],
+      prices: [price({ amount: 9_900, recurrence: 'monthly' })],
+    });
+    const once = value.periods.find((line) => line.recurrence === 'once');
+    assert.equal(once?.listValue, 45_000);
+    assert.equal(once?.price, null, 'the package charges nothing one-off');
+    assert.equal(once?.saving, null, 'and nothing to compare is not a saving of zero');
+    assert.equal(value.recurrence, 'monthly');
+    assert.equal(value.listValue, 0, 'no part is billed monthly, so the monthly comparison has nothing in it');
   });
 
   it('costs what its parts cost to hand over, and only the unit half', () => {

@@ -95,6 +95,18 @@ export async function switchOnProducts(page) {
     await post(`/api/workspaces/${workspace}/product-parts`, {
       product_id: bundle.id, part_id: seminar.id, quantity: 2,
     });
+    /*
+     * A one-off beside the monthly, so the package is billed two ways.
+     *
+     * Without it the per-period table on the Package tab never renders in any
+     * check — and a package billed two ways is exactly the case that table
+     * exists for: `bundleValue` used to add a one-off into a monthly total and
+     * report a saving with no meaning. A screen nobody measures is a screen
+     * nobody has checked, which is the reason this whole file exists.
+     */
+    await post(`/api/workspaces/${workspace}/product-prices`, {
+      product_id: bundle.id, name: 'Einrichtung', kind: 'list', amount: 45_000, recurrence: 'once',
+    });
 
     // Live and inside its window, so the phase chip is `running` rather than
     // the draft state every other row would otherwise show.

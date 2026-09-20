@@ -504,6 +504,25 @@ export const productTools: ToolDef[] = [
           ...money(currency, { list_value: entry.bundle.listValue, saving: entry.bundle.saving ?? 0 }),
           saving_percent: entry.bundle.savingBps === null ? null : Math.round(entry.bundle.savingBps / 100),
           unpriced_parts: entry.bundle.unpriced,
+          /*
+           * One line per billing period, and only when there is more than one
+           * — the same rule `terms` follows. A package charging a monthly fee
+           * and a one-off setup has no single saving, and the four figures
+           * above describe only the period its quoted price is in; without
+           * these the one-off is simply missing from the answer.
+           */
+          ...(entry.bundle.periods.length > 1
+            ? {
+              recurrence: entry.bundle.recurrence,
+              periods: entry.bundle.periods.map((line) => ({
+                recurrence: line.recurrence,
+                ...money(currency, { list_value: line.listValue }),
+                ...(line.price === null ? { price: null, price_text: null } : money(currency, { price: line.price })),
+                ...(line.saving === null ? { saving: null, saving_text: null } : money(currency, { saving: line.saving })),
+                saving_percent: line.savingBps === null ? null : Math.round(line.savingBps / 100),
+              })),
+            }
+            : {}),
         },
       };
     },
