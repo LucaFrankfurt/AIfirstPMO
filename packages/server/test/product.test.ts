@@ -570,7 +570,7 @@ describe('what a cost varies with', () => {
       costs: [cost({ basis: 'unit', amount: 2_000 }), cost({ basis: 'period', amount: 50_000 })],
       contributors: [speaker({ fee: 120_000, fee_basis: 'delivery' })],
     });
-    assert.deepEqual(structure, { period: 50_000, delivery: 120_000, unit: 2_000 });
+    assert.deepEqual(structure, { period: 50_000, delivery: 120_000, unit: 2_000, unitByPeriod: [] });
   });
 
   it('moves all three at once under a scenario factor', () => {
@@ -578,7 +578,7 @@ describe('what a cost varies with', () => {
       costs: [cost({ basis: 'unit', amount: 1_000 }), cost({ basis: 'period', amount: 1_000 })],
       factorBps: 11_000,
     });
-    assert.deepEqual(structure, { period: 1_100, delivery: 0, unit: 1_100 });
+    assert.deepEqual(structure, { period: 1_100, delivery: 0, unit: 1_100, unitByPeriod: [] });
   });
 });
 
@@ -608,7 +608,7 @@ describe('what one unit earns', () => {
 
 describe('break-even', () => {
   it('counts period costs by month and delivery costs by run', () => {
-    const structure = { period: 10_000, delivery: 100_000, unit: 0 };
+    const structure = { period: 10_000, delivery: 100_000, unit: 0, unitByPeriod: [] };
     const result = breakEven({
       product: product(),
       economics: { price: 50_000, contribution: 50_000 },
@@ -628,7 +628,7 @@ describe('break-even', () => {
     const result = breakEven({
       product: product(),
       economics: { price: 10_000, contribution: -2_000 },
-      structure: { period: 100_000, delivery: 0, unit: 12_000 },
+      structure: { period: 100_000, delivery: 0, unit: 12_000, unitByPeriod: [] },
       months: 12,
       deliveries: 1,
     });
@@ -643,7 +643,7 @@ describe('break-even', () => {
     const result = breakEven({
       product: product({ capacity: 12 }),
       economics: { price: 50_000, contribution: 50_000 },
-      structure: { period: 0, delivery: 1_000_000, unit: 0 },
+      structure: { period: 0, delivery: 1_000_000, unit: 0, unitByPeriod: [] },
       months: 12,
       deliveries: 1,
     });
@@ -656,7 +656,7 @@ describe('break-even', () => {
     const result = breakEven({
       product: product(),
       economics: { price: null, contribution: null },
-      structure: { period: 10_000, delivery: 0, unit: 0 },
+      structure: { period: 10_000, delivery: 0, unit: 0, unitByPeriod: [] },
       months: 6,
       deliveries: 0,
     });
@@ -788,6 +788,58 @@ describe('a package', () => {
     assert.equal(once?.saving, null, 'and nothing to compare is not a saving of zero');
     assert.equal(value.recurrence, 'monthly');
     assert.equal(value.listValue, 0, 'no part is billed monthly, so the monthly comparison has nothing in it');
+  });
+
+  it('never subtracts a one-off setup from a monthly price', () => {
+    /*
+     * The second half of the same mistake, and the one that was still live
+     * after `bundleValue` was fixed. MAX holds a website at 25,00 € a month and
+     * a setup at 450,00 € once; the setup costs 200,00 € of somebody's time.
+     * Rolling that 200,00 € into the package's per-unit cost and subtracting it
+     * from the 99,00 € monthly price reported a contribution of −101,50 €, a
+     * margin of −103 % and `health: loss` — on a package earning 1 638,00 € a
+     * year against 206,00 € of cost. The catalogue said the flagship loses
+     * money, in its own headline figure.
+     */
+    const monthly = price({ amount: 2_500, recurrence: 'monthly' });
+    const setup = price({ amount: 45_000, recurrence: 'once' });
+    const costOf = unitCosts({
+      costsOf: (id) => (id === 'setup' ? [cost({ basis: 'unit', amount: 20_000 })] : [cost({ basis: 'unit', amount: 50 })]),
+    });
+
+    const economics = unitEconomics({
+      product: { currency: 'EUR' } as any,
+      prices: [price({ amount: 9_900, recurrence: 'monthly' })],
+      costs: [],
+      parts: [part({ part_id: 'web' }), part({ part_id: 'setup' })],
+      unitCostOfPart: costOf,
+      recurrenceOfPart: (id) => (id === 'setup' ? setup.recurrence : monthly.recurrence),
+    });
+
+    assert.equal(economics.unitCost, 50, 'only what a month of this package costs');
+    assert.equal(economics.contribution, 9_850);
+    assert.equal(economics.marginBps, 9_949);
+    // And the 200,00 € is not dropped: it is a real cost, on its own period.
+    assert.deepEqual(economics.unitCostByPeriod, [
+      { recurrence: 'once', amount: 20_000 },
+      { recurrence: 'monthly', amount: 50 },
+    ]);
+  });
+
+  it('leaves a single-period package exactly as it was', () => {
+    // The guard that keeps this change from moving any number in a catalogue
+    // billed one way — which is every package here but the two MAX ones.
+    const costOf = unitCosts({ costsOf: () => [cost({ basis: 'unit', amount: 4_500 })] });
+    const economics = unitEconomics({
+      product: { currency: 'EUR' } as any,
+      prices: [price({ amount: 250_000, recurrence: 'monthly' })],
+      costs: [],
+      parts: [part({ part_id: 'seminar', quantity: 2 })],
+      unitCostOfPart: costOf,
+      recurrenceOfPart: () => 'monthly',
+    });
+    assert.equal(economics.unitCost, 9_000, 'two seats of handouts, as before');
+    assert.equal(economics.contribution, 241_000);
   });
 
   it('costs what its parts cost to hand over, and only the unit half', () => {
@@ -1030,12 +1082,13 @@ describe('how a product is doing', () => {
       currency: 'EUR',
       price: over.price,
       unitCost: over.unitCost,
+      unitCostByPeriod: [],
       contribution: over.price === null ? null : over.price - over.unitCost,
       marginBps: over.price === null || over.price === 0
         ? null
         : Math.round(((over.price - over.unitCost) * 10_000) / over.price),
     },
-    structure: { period: over.costs === false ? 0 : 1, delivery: 0, unit: over.unitCost },
+    structure: { period: over.costs === false ? 0 : 1, delivery: 0, unit: over.unitCost, unitByPeriod: [] },
   });
 
   it('separates the two states a catalogue paints green by omission', () => {

@@ -2261,6 +2261,12 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
                   <th className="narrow">{t('product.listValue')}</th>
                   <th>{t('product.packagePrice')}</th>
                   <th className="narrow">{t('product.saving')}</th>
+                  {/* The cost belongs beside the price it is subtracted from.
+                      The figures above the table describe the quoted period
+                      alone, so a one-off setup's cost is not in the margin —
+                      and a column that never mentions it is the flattering
+                      half of an honest split. */}
+                  <th className="narrow">{t('product.unitCost')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2286,6 +2292,13 @@ function Package({ product, entry }: { product: Product; entry: CatalogueEntry }
                           {line.savingBps !== null && ` (${line.saving > 0 ? '+' : ''}${Math.round(line.savingBps / 100)}%)`}
                         </span>
                       )}
+                    </td>
+                    <td className="narrow">
+                      {(() => {
+                        const spent = entry.economics.unitCostByPeriod
+                          .find((row) => row.recurrence === line.recurrence);
+                        return spent ? asMoney(spent.amount, product.currency) : '—';
+                      })()}
                     </td>
                   </tr>
                 ))}
