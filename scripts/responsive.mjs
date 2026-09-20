@@ -113,6 +113,9 @@ const SCREENS = [
   // And the densest form anywhere here: six numeric fields in one row, which
   // is where a `field-row` either wraps or squeezes each box to nothing.
   ['products: simulation', '/products?tab=scenarios'],
+  // The vocabulary, whose two widest columns are lists of product names that
+  // grow with the catalogue rather than with the design.
+  ['products: capabilities', '/products?tab=capabilities'],
   // The two detail tabs that carry rows *and* the column you act from. Prices
   // is the widest of them — a name, a kind, an amount, a threshold, a period,
   // a term and a window before the buttons even start.

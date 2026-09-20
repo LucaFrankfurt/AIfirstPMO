@@ -757,6 +757,16 @@ p { margin: 0 0 0.75em; }
 .task-table tr.group .count { color: var(--fg-muted); font-weight: 500; margin-inline-start: 6px; }
 .task-table tr.group .state-dot { margin-inline-end: 6px; vertical-align: -1px; }
 .task-table .title { white-space: normal; min-width: 240px; }
+/*
+ * Prose in a cell, allowed to wrap.
+ *
+ * `.task-table td` is `nowrap` by default, which is right for an amount, a date
+ * or a chip and wrong for a sentence: three nowrap sentence columns made the
+ * capability table 200px wider than a tablet and pushed the column you act from
+ * off the side. `.title` already says this, but it carries a 240px floor that
+ * only makes sense for the column a row is named by.
+ */
+.task-table .wraps { white-space: normal; }
 .task-table .identifier { font-family: var(--mono); font-size: 11.5px; color: var(--fg-muted); }
 .task-table .pick { width: 30px; }
 /* A column a project invented. Truncated rather than allowed to set the width. */

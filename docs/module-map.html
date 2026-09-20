@@ -356,11 +356,11 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">301</span><span class="k">source files</span></div>
     <div><span class="v num">43</span><span class="k">modules</span></div>
-    <div><span class="v num">96 043</span><span class="k">lines</span></div>
+    <div><span class="v num">96 441</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">57</span><span class="k">entities</span></div>
     <div><span class="v num">138</span><span class="k">endpoints</span></div>
-    <div><span class="v num">115</span><span class="k">MCP tools</span></div>
+    <div><span class="v num">117</span><span class="k">MCP tools</span></div>
   </div>
 
   <p class="provenance">
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 25 820 lines, 27%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 47 323 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 20 885 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 25 850 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 47 584 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 20 992 lines, 22%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 015 lines, 2%</span>
 <!-- end -->
     </div>
@@ -457,7 +457,7 @@ footer {
       into five adapters. It is <strong>400 lines</strong> now, and the growth is the fix: the
       meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
       delivery stayed in the adapters but through a port they register with. And
-      <code>adapter/mcp</code> is <strong>9 634</strong>: the assistant's view of the product is
+      <code>adapter/mcp</code> is <strong>9 741</strong>: the assistant's view of the product is
       larger than the largest thing the product actually does. Fifteen files rather than three, now,
       which makes it readable — not smaller. Finding 7 is why.
     </p>
@@ -948,7 +948,7 @@ footer {
     <div class="step done">
       <span class="i num">6</span>
       <span class="what">Split <code>lib/mcp.ts</code> into eleven tool files
-        <em>The adapter is 18 files now, the largest 2 033 lines, and a group is a file</em></span>
+        <em>The adapter is 18 files now, the largest 2 140 lines, and a group is a file</em></span>
       <span class="risk" data-r="none">Shipped</span>
     </div>
     <div class="step done">
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 9 445 lines is three
-      catalogues of 2 838 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 9 475 lines is three
+      catalogues of 2 848 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1412,7 +1412,7 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":9445,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3001},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":9475,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3011},
 {"ring":"kernel","name":"registry","flag":"","files":5,"lines":3434,"biggest":"kernel/registry/types.ts","biggestLines":2382},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2268,"biggest":"kernel/identity/routes/auth.ts","biggestLines":559},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2252,"biggest":"kernel/write-path/repo.ts","biggestLines":1046},
@@ -1424,7 +1424,7 @@ const MODULES = [
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"pages","flag":"","files":21,"lines":7324,"biggest":"modules/pages/Markdown.tsx","biggestLines":987},
 {"ring":"capability","name":"work","flag":"","files":25,"lines":6253,"biggest":"modules/work/views.tsx","biggestLines":1008},
-{"ring":"capability","name":"products","flag":"products","files":4,"lines":4850,"biggest":"modules/products/routes/products.tsx","biggestLines":2595},
+{"ring":"capability","name":"products","flag":"products","files":4,"lines":5111,"biggest":"modules/products/routes/products.tsx","biggestLines":2796},
 {"ring":"capability","name":"planning","flag":"","files":11,"lines":4353,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1583},
 {"ring":"capability","name":"operations","flag":"","files":10,"lines":3272,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1093},
 {"ring":"capability","name":"budgets","flag":"budget","files":4,"lines":3253,"biggest":"modules/budgets/routes/budgets.tsx","biggestLines":1683},
@@ -1442,7 +1442,7 @@ const MODULES = [
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":400,"biggest":"modules/notifications/effects.ts","biggestLines":322},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":229,"biggest":"modules/intake/intake.tsx","biggestLines":229},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
-{"ring":"adapter","name":"mcp","flag":"","files":18,"lines":9634,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2033},
+{"ring":"adapter","name":"mcp","flag":"","files":18,"lines":9741,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2140},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3375,"biggest":"adapters/transfer/transfer.ts","biggestLines":793},
 {"ring":"adapter","name":"webhooks","flag":"","files":6,"lines":1969,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1187,"biggest":"adapters/imap/imap.ts","biggestLines":364},

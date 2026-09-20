@@ -2,10 +2,12 @@
  * The catalogue screens: what is sold, what it earns, and what would happen if
  * something changed.
  *
- * Three tabs on the index, in the order somebody uses them — the catalogue is
- * what people come back for, the campaigns are what is being done to it this
- * quarter, and the scenarios are the argument somebody makes about it on a
- * Tuesday. Five on a product, in the order a product is filled in: what it is,
+ * The index tabs run in the order somebody uses them — the catalogue is what
+ * people come back for, the packages are its other half, the campaigns are what
+ * is being done to it this quarter, the scenarios are the argument somebody
+ * makes about it on a Tuesday, and the capabilities are the vocabulary all of
+ * it is written in. Five on a product, in the order a product is filled in:
+ * what it is,
  * what it costs to sell, what it costs to make, what is in it, and what happens
  * next.
  *
@@ -18,7 +20,8 @@ import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS, PRICE_KINDS,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, RENEWALS,
-  assumptionsOf, byGroup, compareOrder, costsByCategory, dayBefore, expectedMonths, orderKey,
+  assumptionsOf, byGroup, capabilitiesOf, capabilityKey, compareOrder, costsByCategory, dayBefore,
+  expectedMonths, orderKey,
   overlappingPrices, priceChangeRefusal, priceFor, priceHistory, promotionPhase, promotionReach,
   raisePrice, retentionCurve, retentionOf, simulate, stackedPromotions,
   type BundleValue, type CatalogueEntry, type CostBasis, type Minor, type Product, type ProductAssumptions, type ProductCapability,
@@ -73,15 +76,200 @@ function SwitchedOff() {
  */
 const HORIZON = { months: DEFAULT_ASSUMPTIONS.months, deliveries: DEFAULT_ASSUMPTIONS.deliveries };
 
+/* ----------------------------------------------------- capability vocabulary */
+
+/**
+ * The workspace's vocabulary, and the screen that was missing under it.
+ *
+ * A capability could be created — one input at the bottom of the product form —
+ * and after that nothing could rename it, describe it or take it away. That is
+ * the same shape as `budgets.archived`: a column every list filters on and
+ * nothing sets. It cost something real within an hour of being written down: a
+ * name arrived HTML-escaped through the API, landed beside its unescaped twin,
+ * and could then not be removed from anywhere.
+ *
+ * Its own tab rather than more controls in the product form, because the
+ * vocabulary belongs to the workspace and not to whichever product happened to
+ * be open. `claimed_by` and `inherited_by` are the two columns that make it
+ * readable: a package never claims a capability, it gets it from a part, and a
+ * table that showed only claims would say the packages have nothing.
+ */
+function Capabilities() {
+  const t = useT();
+  const canWrite = useCanWrite();
+  const { confirm, dialog } = useConfirm();
+  const [editing, setEditing] = useState<ProductCapability | null | undefined>(undefined);
+  const capabilities = useQuery(() => list('productCapability', (row) => !row.archived), []);
+  const products = useQuery(() => list('product', (row) => !row.archived), []);
+  const parts = useQuery(() => list('productPart'), []);
+
+  /* The same union the product screens and the tools compute, so this table
+     cannot come to disagree with either about who has what. */
+  const known = useMemo(() => new Set(capabilities.map((row: ProductCapability) => row.id)), [capabilities]);
+  const claims = useMemo(() => {
+    const own = new Map<string, string[]>();
+    const via = new Map<string, string[]>();
+    const byId = new Map(products.map((product: Product) => [String(product.id), product]));
+    for (const product of products as Product[]) {
+      const mine = (product.capabilities ?? []).filter((id) => known.has(id));
+      const all = capabilitiesOf({
+        product,
+        parts: parts.filter((part: { product_id: string }) => part.product_id === product.id),
+        capabilitiesOfPart: (id) => byId.get(String(id))?.capabilities ?? [],
+        known,
+      });
+      for (const id of all) {
+        const bucket = mine.includes(id) ? own : via;
+        bucket.set(id, [...(bucket.get(id) ?? []), String(product.name)]);
+      }
+    }
+    return { own, via };
+  }, [products, parts, known]);
+
+  return (
+    <div className="grid gap-3.5">
+      <p className="text-[12px] text-muted">{t('product.capabilitiesTabHint')}</p>
+      {canWrite && (
+        <div>
+          <Button variant="primary" size="sm" onClick={() => setEditing(null)}>
+            <Icon name="plus" size={14} /> {t('product.addCapability')}
+          </Button>
+        </div>
+      )}
+      {!capabilities.length ? (
+        <Empty emoji="🏷️" title={t('product.noCapabilities')} hint={t('product.noCapabilitiesHint')} />
+      ) : (
+        <div className="table-wrap">
+          <table className="task-table">
+            <thead>
+              <tr>
+                <th>{t('product.name')}</th>
+                <th className="narrow wraps">{t('product.description')}</th>
+                {/* Both lists are `narrow`: they grow with the catalogue rather
+                    than with the design — one product name is 24 characters and
+                    there is no upper bound on how many — and at 360px they
+                    pushed the column you act from off the side of the table.
+                    The one thing worth acting on, that nothing claims it, moves
+                    up beside the name instead. */}
+                <th className="narrow wraps">{t('product.claimedBy')}</th>
+                <th className="narrow wraps">{t('product.inheritedBy')}</th>
+                {canWrite && <th className="actions" />}
+              </tr>
+            </thead>
+            <tbody>
+              {[...capabilities].sort(byOrder).map((capability: ProductCapability) => {
+                const own = claims.own.get(capability.id) ?? [];
+                return (
+                  <tr key={capability.id}>
+                    {/* `title` rather than a plain cell: `.task-table td` is
+                        `nowrap`, so a name and a chip sat on one 322px line and
+                        pushed the column you act from past the edge of a 360px
+                        screen. This is the class that already answers that. */}
+                    <td className="title">
+                      {capability.name}
+                      {/* Marked rather than left to a column that a phone drops:
+                          an entry nothing claims is the one somebody came here
+                          to delete. */}
+                      {!own.length && <> <Chip>{t('product.nobodyClaims')}</Chip></>}
+                    </td>
+                    <td className="narrow wraps">{capability.description || '—'}</td>
+                    <td className="narrow wraps">{own.join(', ') || '—'}</td>
+                    <td className="narrow wraps">{(claims.via.get(capability.id) ?? []).join(', ') || '—'}</td>
+                    {canWrite && (
+                      <td className="actions">
+                        <MenuButton
+                          variant="ghost" size="iconSm"
+                          label={t('common.moreActions')}
+                          items={[
+                            { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(capability) },
+                            {
+                              id: 'delete',
+                              label: t('action.delete'),
+                              danger: true,
+                              onSelect: async () => {
+                                if (await confirm(t('product.removeCapabilityHint'))) remove('productCapability', capability.id);
+                              },
+                            },
+                          ]}
+                        >
+                          <Icon name="dots" size={14} />
+                        </MenuButton>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      {editing !== undefined && (
+        <CapabilityForm capability={editing} known={capabilities} onClose={() => setEditing(undefined)} />
+      )}
+      {dialog}
+    </div>
+  );
+}
+
+function CapabilityForm(
+  { capability, known, onClose }:
+  { capability: ProductCapability | null; known: readonly ProductCapability[]; onClose: () => void },
+) {
+  const t = useT();
+  const [form, setForm] = useState({ name: capability?.name ?? '', description: capability?.description ?? '' });
+
+  /* The same comparison `create_capability` refuses on, from the same function
+     in `@kolibri/shared`. Two doors deciding separately what "the same name"
+     means is how the vocabulary gained a duplicate in the first place. */
+  const taken = useMemo(() => {
+    const key = capabilityKey(form.name);
+    return !!key && known.some((row) => row.id !== capability?.id && capabilityKey(row.name) === key);
+  }, [form.name, known, capability]);
+
+  return (
+    <Sheet
+      title={capability ? t('product.editCapabilityTitle') : t('product.addCapability')}
+      onClose={onClose}
+      footer={(
+        <Button
+          variant="primary"
+          disabled={!form.name.trim() || taken}
+          onClick={() => {
+            const patch = { name: form.name.trim(), description: form.description.trim() || null };
+            if (capability) update('productCapability', capability.id, patch);
+            else create('productCapability', { ...patch, archived: 0, sort_order: orderKey() });
+            onClose();
+          }}
+        >
+          {t('action.save')}
+        </Button>
+      )}
+    >
+      <div className="field">
+        <label htmlFor="cap-name">{t('product.name')}</label>
+        <Input id="cap-name" value={form.name} autoFocus onChange={(event) => setForm({ ...form, name: event.target.value })} />
+        {taken && <span className="text-[12px] text-danger">{t('product.capabilityTaken')}</span>}
+      </div>
+      <div className="field">
+        <label htmlFor="cap-desc">{t('product.description')}</label>
+        <Textarea id="cap-desc" rows={2} value={form.description}
+          onChange={(event) => setForm({ ...form, description: event.target.value })} />
+        <span className="text-[12px] text-muted">{t('product.capabilitiesHint')}</span>
+      </div>
+    </Sheet>
+  );
+}
+
 /* ------------------------------------------------------------------ index */
 
-type IndexTab = 'catalogue' | 'packages' | 'promotions' | 'scenarios';
-const INDEX_TABS: IndexTab[] = ['catalogue', 'packages', 'promotions', 'scenarios'];
+type IndexTab = 'catalogue' | 'packages' | 'promotions' | 'scenarios' | 'capabilities';
+const INDEX_TABS: IndexTab[] = ['catalogue', 'packages', 'promotions', 'scenarios', 'capabilities'];
 const INDEX_TAB_KEY: Record<IndexTab, TranslationKey> = {
   catalogue: 'product.tabCatalogue',
   packages: 'product.tabPackages',
   promotions: 'product.tabPromotions',
   scenarios: 'product.tabScenarios',
+  capabilities: 'product.tabCapabilities',
 };
 
 export function ProductIndex() {
@@ -118,6 +306,7 @@ export function ProductIndex() {
         {tab === 'packages' && <Catalogue only="bundle" />}
         {tab === 'promotions' && <Promotions />}
         {tab === 'scenarios' && <Scenarios />}
+        {tab === 'capabilities' && <Capabilities />}
       </div>
       {creating && <ProductForm onClose={() => setCreating(false)} />}
     </>
@@ -2332,6 +2521,12 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
     capabilities: product?.capabilities ?? [],
   });
   const [newCapability, setNewCapability] = useState('');
+  /* Same question, same answer, same function as the tool and the vocabulary
+     screen — see `capabilityKey` in `@kolibri/shared`. */
+  const duplicateCapability = useMemo(() => {
+    const key = capabilityKey(newCapability);
+    return !!key && capabilities.some((row: ProductCapability) => capabilityKey(row.name) === key);
+  }, [newCapability, capabilities]);
 
   return (
     <Sheet
@@ -2577,7 +2772,10 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
           onChange={(event) => setNewCapability(event.target.value)}
         />
         <Button
-          disabled={!newCapability.trim()}
+          /* The third door onto the vocabulary, refusing what the other two
+             refuse. This one used to create whatever was typed, which is how a
+             second spelling gets in without anyone meaning to. */
+          disabled={!newCapability.trim() || !!duplicateCapability}
           onClick={() => {
             const id = create('productCapability', {
               name: newCapability.trim(), description: null, archived: 0, sort_order: orderKey(),
@@ -2589,6 +2787,9 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
           {t('action.add')}
         </Button>
       </div>
+      {duplicateCapability && (
+        <span className="text-[12px] text-danger">{t('product.capabilityTaken')}</span>
+      )}
     </Sheet>
   );
 }

@@ -130,6 +130,32 @@ describe('what the server settles', () => {
     assert.equal(made.renewal, 'none');
   });
 
+  it('stores a capability name as text, whichever door it came through', async () => {
+    /*
+     * The tool that happened to catch this corrects it too, which is why this
+     * test goes through plain REST instead: MCP is one of four doors onto the
+     * vocabulary — the form, an import and a sync batch are the others — and a
+     * rule that lives on one door is a rule the next door will not have.
+     *
+     * `Statistiken &amp; Berichte` reached the catalogue exactly this way and
+     * sat beside `Statistiken & Berichte`, two chips no reader could
+     * tell apart and no comparison could call equal.
+     */
+    const made = await ok(`/api/workspaces/${workspace}/product-capabilities`, {
+      cookie: me.cookie,
+      body: { name: '  Statistiken &amp;   Berichte  ', archived: 0, sort_order: 'V' },
+    });
+    assert.equal(made.name, 'Statistiken & Berichte', 'decoded, and the run of spaces collapsed');
+
+    // `&amp;lt;` is the text "&lt;", not a "<" nobody wrote: the outer
+    // entity is decoded last for exactly this case.
+    const nested = await ok(`/api/workspaces/${workspace}/product-capabilities`, {
+      cookie: me.cookie,
+      body: { name: 'A &amp;lt;B', archived: 0, sort_order: 'W' },
+    });
+    assert.equal(nested.name, 'A &lt;B');
+  });
+
   it('no longer carries a billing period, because the price does', async () => {
     /*
      * The column is gone, and a client that still sends one is not refused —
@@ -1139,6 +1165,77 @@ describe('what a product can do', () => {
     const part = await tool(me.token, 'product_status', { product: 'CAP-TREU' });
     assert.equal(part.capabilities[0].own, true);
     assert.deepEqual(part.capabilities[0].from, []);
+  });
+
+  /*
+   * The one that got through, and what it cost.
+   *
+   * An assistant filled the vocabulary through the API with its prompt run past
+   * an HTML-escaping stage, so `Statistiken &amp; Berichte` landed beside
+   * `Statistiken & Berichte`. The refusal above compared the two and found
+   * nothing wrong, because they really are two different strings. Both then
+   * rendered as chips no reader could tell apart — and nothing anywhere could
+   * delete a capability, so the duplicate stayed.
+   */
+  it('stores an escaped name as the text it means, rather than as markup', async () => {
+    const made = await tool(me.token, 'create_capability', { name: 'Statistiken &amp; Berichte' });
+    assert.equal(made.name, 'Statistiken & Berichte');
+  });
+
+  it('refuses the escaped twin of a name it already knows', async () => {
+    await assert.rejects(
+      () => tool(me.token, 'create_capability', { name: 'Statistiken &amp; Berichte' }),
+      /already in this workspace/,
+      'the guard compares what will be stored, not what was typed',
+    );
+    // And the other way round, for whichever spelling happened to arrive first.
+    await assert.rejects(
+      () => tool(me.token, 'create_capability', { name: 'statistiken & berichte' }),
+      /already in this workspace/,
+    );
+  });
+
+  it('renames one entry and every product reads the new wording', async () => {
+    // All three, not two: leaving one out here would quietly unclaim it and the
+    // `unclaimed` count further down would start counting this test's leftovers.
+    await tool(me.token, 'set_product_capabilities', {
+      product: 'CAP-BUCH', capabilities: ['Online-Terminbuchung', 'Terminerinnerungen', 'Statistiken & Berichte'],
+    });
+    const renamed = await tool(me.token, 'update_capability', {
+      capability: 'Statistiken & Berichte', name: 'Auswertungen', description: 'Auslastung und Umsatz',
+    });
+    assert.equal(renamed.was, 'Statistiken & Berichte');
+    assert.equal(renamed.name, 'Auswertungen');
+    assert.deepEqual(renamed.claimed_by, ['Buchung']);
+
+    const status = await tool(me.token, 'product_status', { product: 'CAP-PAK' });
+    assert.ok(status.capabilities.some((row: any) => row.name === 'Auswertungen'),
+      'the package reads the rename through its part, without being touched');
+  });
+
+  it('refuses a rename onto a name already in use', async () => {
+    await assert.rejects(
+      () => tool(me.token, 'update_capability', { capability: 'Auswertungen', name: 'Online-Terminbuchung' }),
+      /already in this workspace/,
+    );
+    // Renaming something to what it is already called is not a clash with itself.
+    const same = await tool(me.token, 'update_capability', { capability: 'Auswertungen', name: 'Auswertungen' });
+    assert.equal(same.name, 'Auswertungen');
+  });
+
+  it('names what loses a capability when it is deleted, packages included', async () => {
+    const gone = await tool(me.token, 'delete_capability', { capability: 'Auswertungen' });
+    assert.equal(gone.removed, 'Auswertungen');
+    assert.deepEqual(gone.claimed_by, ['Buchung']);
+    assert.deepEqual(gone.inherited_by, ['Paket'], 'a package loses it through a part, not through a claim');
+
+    // The products are not rewritten; the dangling id is dropped on the way out.
+    const status = await tool(me.token, 'product_status', { product: 'CAP-BUCH' });
+    assert.deepEqual(status.capabilities.map((row: any) => row.name), ['Online-Terminbuchung', 'Terminerinnerungen']);
+    await assert.rejects(
+      () => tool(me.token, 'update_capability', { capability: 'Auswertungen', name: 'Wieder da' }),
+      /No capability/,
+    );
   });
 
   it('counts a vocabulary nothing claims, which is the state worth seeing', async () => {

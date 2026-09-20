@@ -8,7 +8,8 @@
  * The arithmetic lives in `@kolibri/shared` and both sides call it.
  */
 import {
-  assumptionsOf, capabilitiesOf, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
+  assumptionsOf, capabilitiesOf, capabilityKey, capabilityName,
+  COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
   formatMoney, healthOfProduct, orderKey, overlappingPrices, PRICE_KINDS, priceChangeRefusal, priceFor,
   priceHistory,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, promotionPhase, raisePrice, RENEWALS,
@@ -209,9 +210,9 @@ const capabilitiesIn = (workspaceId: string): Row[] => all<Row>(
  */
 function findCapability(ref: unknown, known: readonly Row[]): Row {
   const wanted = requireText(ref, 'capability');
-  const lowered = wanted.toLocaleLowerCase();
+  const key = capabilityKey(wanted);
   const found = known.find((row) => String(row.id) === wanted)
-    ?? known.find((row) => String(row.name).trim().toLocaleLowerCase() === lowered);
+    ?? known.find((row) => capabilityKey(String(row.name)) === key);
   if (found) return found;
   throw new McpError(
     known.length
@@ -1529,10 +1530,14 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       requireFeature(workspaceId, 'products');
-      const name = requireText(args.name, 'name');
+      /* `capabilityName` here as well as in the write path, so the refusal
+         below compares what will actually be stored rather than what was
+         typed — otherwise an escaped name passes the check and then becomes
+         its unescaped twin on the way in. */
+      const name = capabilityName(requireText(args.name, 'name'));
+      if (!name) throw new McpError('`name` must be a non-empty string');
       const known = capabilitiesIn(workspaceId);
-      const lowered = name.toLocaleLowerCase();
-      const clash = known.find((row) => String(row.name).trim().toLocaleLowerCase() === lowered);
+      const clash = known.find((row) => capabilityKey(String(row.name)) === capabilityKey(name));
       if (clash) throw new McpError(`"${clash.name}" is already in this workspace's vocabulary (${clash.id})`);
 
       const { row } = writeEntity('productCapability', uid(), {
@@ -1544,6 +1549,108 @@ export const productTools: ToolDef[] = [
       }, writeOpts(workspaceId, ctx));
 
       return { id: row.id, name: row.name, description: row.description };
+    },
+  },
+  {
+    name: 'update_capability',
+    title: 'Rename something the catalogue can do',
+    description:
+      'Change a capability\'s name or its description. Every product claiming it reads the new '
+      + 'wording at once, which is the point of naming it in one place — and the reason a name '
+      + 'already in use is refused here too.',
+    schema: {
+      type: 'object',
+      required: ['capability'],
+      properties: {
+        capability: { type: 'string', description: 'Capability id, or its current name' },
+        name: { type: 'string', description: 'What to call it instead' },
+        description: { type: 'string', description: 'What it means. Pass an empty string to clear it' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const known = capabilitiesIn(workspaceId);
+      const capability = findCapability(args.capability, known);
+
+      const patch: Record<string, unknown> = {};
+      if (args.name !== undefined) {
+        const name = capabilityName(requireText(args.name, 'name'));
+        if (!name) throw new McpError('`name` must be a non-empty string');
+        const clash = known.find((row) => row.id !== capability.id && capabilityKey(String(row.name)) === capabilityKey(name));
+        if (clash) throw new McpError(`"${clash.name}" is already in this workspace's vocabulary (${clash.id})`);
+        patch.name = name;
+      }
+      if (args.description !== undefined) patch.description = str(args.description) ?? null;
+      if (!Object.keys(patch).length) throw new McpError('Nothing to change — give a name or a description');
+
+      const { row } = writeEntity('productCapability', String(capability.id), patch, writeOpts(workspaceId, ctx));
+      const claimed = productsOf(workspaceId)
+        .map((product) => serialize('product', product) as unknown as Product)
+        .filter((product) => (product.capabilities ?? []).includes(String(capability.id)))
+        .map((product) => String(product.name));
+      return {
+        id: row.id,
+        was: capability.name,
+        name: row.name,
+        description: row.description,
+        /* Named rather than counted: a rename reaches every product at once,
+           and which ones is the part somebody wants confirmed. */
+        claimed_by: claimed,
+      };
+    },
+  },
+  {
+    name: 'delete_capability',
+    title: 'Take something out of the vocabulary',
+    description:
+      'Remove a capability from the workspace. Every product that claimed it stops showing it, and '
+      + 'so does every package that inherited it — the answer names them, because that is the part '
+      + 'a count would hide. The products themselves are not rewritten: an id nothing resolves is '
+      + 'dropped when the list is read, so nothing is left rendering as a blank chip.',
+    destructive: true,
+    schema: {
+      type: 'object',
+      required: ['capability'],
+      properties: {
+        capability: { type: 'string', description: 'Capability id, or its name' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const known = capabilitiesIn(workspaceId);
+      const capability = findCapability(args.capability, known);
+      const id = String(capability.id);
+
+      const { entries, parts: allParts } = catalogueOf(workspaceId);
+      const byId = new Map(entries.map((row) => [String(row.product.id), row.product]));
+      const spread = capabilitySpread(
+        new Set(known.map((row) => String(row.id))),
+        (productId) => byId.get(productId),
+        (productId) => (allParts.get(productId) ?? []) as readonly ProductPart[],
+      );
+      const claimed: string[] = [];
+      const inherited: string[] = [];
+      for (const entry of entries) {
+        const name = String(entry.product.name);
+        if ((entry.product.capabilities ?? []).includes(id)) claimed.push(name);
+        else if (spread(String(entry.product.id)).includes(id)) inherited.push(name);
+      }
+
+      deleteEntity('productCapability', id, writeOpts(workspaceId, ctx));
+      return {
+        removed: capability.name,
+        /* Both lists, because a package loses it through a part rather than
+           through a claim of its own and would otherwise go unmentioned. */
+        claimed_by: claimed,
+        inherited_by: inherited,
+        left: capabilitiesIn(workspaceId).length,
+      };
     },
   },
   {
