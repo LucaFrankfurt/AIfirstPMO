@@ -1,14 +1,14 @@
 /**
  * What is sold, what it is worth, and what it would take to sell more of it.
  *
- * Nine tools and a deliberate asymmetry between them: every read answers with
+ * A deliberate asymmetry runs through them: every read answers with
  * the *derived* figures — margin, break-even, lifetime value — rather than with
  * the rows, because an assistant handed four price rows and eleven cost rows
  * will do the arithmetic itself and get a different answer from the screen.
  * The arithmetic lives in `@kolibri/shared` and both sides call it.
  */
 import {
-  assumptionsOf, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
+  assumptionsOf, capabilitiesOf, COST_BASIS, COST_CATEGORIES, COST_RECURRENCES, DEFAULT_ASSUMPTIONS,
   formatMoney, healthOfProduct, orderKey, overlappingPrices, PRICE_KINDS, priceChangeRefusal, priceFor,
   priceHistory,
   PRODUCT_KINDS, PRODUCT_STATUS, PROMOTION_KINDS, PROMOTION_STATUS, promotionPhase, raisePrice, RENEWALS,
@@ -186,6 +186,80 @@ function findPromotion(ref: unknown, workspaceId: string): Row {
   return found;
 }
 
+/** The workspace's capability vocabulary, in the order the screens show it. */
+const capabilitiesIn = (workspaceId: string): Row[] => all<Row>(
+  `SELECT * FROM product_capabilities WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+  workspaceId,
+);
+
+/**
+ * One capability, by its id or by what it is called.
+ *
+ * Workspace-scoped, which is the opposite of `findChild` above and for the
+ * opposite reason. A price named "List" means something only inside the product
+ * that carries it; a capability is the one thing here that is deliberately
+ * *shared* — "Online-Terminbuchung" has to mean the same on the module and on
+ * every package holding it, or the comparison the vocabulary exists for stops
+ * working.
+ *
+ * An unknown name is refused rather than created on the way past. The whole
+ * value of a shared vocabulary is that there is one spelling of each entry, and
+ * a tool that quietly adds one is how a catalogue ends up claiming both
+ * "Online-Terminbuchung" and "Online Terminbuchung" and comparing neither.
+ */
+function findCapability(ref: unknown, known: readonly Row[]): Row {
+  const wanted = requireText(ref, 'capability');
+  const lowered = wanted.toLocaleLowerCase();
+  const found = known.find((row) => String(row.id) === wanted)
+    ?? known.find((row) => String(row.name).trim().toLocaleLowerCase() === lowered);
+  if (found) return found;
+  throw new McpError(
+    known.length
+      ? `No capability "${wanted}". This workspace knows: ${known.map((row) => `"${row.name}"`).join(', ')}. `
+        + 'Add it with create_capability first.'
+      : `No capability "${wanted}" — this workspace has none yet. Add one with create_capability.`,
+  );
+}
+
+/**
+ * Everything a product can do, its parts included, at any depth.
+ *
+ * `capabilitiesOf` in `@kolibri/shared` unions one product with its parts; this
+ * feeds itself back in as `capabilitiesOfPart` so a package inside a package
+ * still answers for what is at the bottom of it. Memoised and cycle-guarded for
+ * the reason `unitCosts` is: the write path refuses a package that contains
+ * itself, and a mirror can still hold a stale ring for the length of one sync.
+ *
+ * This exists because the two surfaces disagreed. The screen has always shown a
+ * package the union — it is what the customer gets — while `product_status`
+ * answered with the package's *own* list, which is empty for every package here
+ * and reads as a package that does nothing.
+ */
+function capabilitySpread(
+  known: ReadonlySet<string>,
+  productOf: (id: string) => { capabilities?: readonly string[] } | undefined,
+  partsOf: (id: string) => readonly ProductPart[],
+): (productId: string) => string[] {
+  const cache = new Map<string, string[]>();
+  const walking = new Set<string>();
+  const of = (productId: string): string[] => {
+    const hit = cache.get(productId);
+    if (hit) return hit;
+    if (walking.has(productId)) return [];
+    walking.add(productId);
+    const union = capabilitiesOf({
+      product: { capabilities: (productOf(productId)?.capabilities ?? []) as string[] },
+      parts: partsOf(productId),
+      capabilitiesOfPart: of,
+      known,
+    });
+    walking.delete(productId);
+    cache.set(productId, union);
+    return union;
+  };
+  return of;
+}
+
 /**
  * The fields a caller actually named, as a patch.
  *
@@ -319,7 +393,7 @@ export const productTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireFeature(workspaceId, 'products');
       const found = findProduct(String(args.product), workspaceId);
-      const { entries, prices, today } = catalogueOf(workspaceId, horizon(args));
+      const { entries, prices, today, parts: allParts } = catalogueOf(workspaceId, horizon(args));
       const entry = entries.find((row) => row.product.id === found.id);
       if (!entry) throw new McpError(`No product "${args.product}" in this workspace`);
       const currency = entry.economics.currency;
@@ -329,6 +403,12 @@ export const productTools: ToolDef[] = [
       );
       const parts = productChildren('productPart', String(found.id));
       const named = new Map(productsOf(workspaceId).map((row) => [String(row.id), String(row.name)]));
+      const byId = new Map(entries.map((row) => [String(row.product.id), row.product]));
+      const spread = capabilitySpread(
+        new Set(capabilities.map((row) => String(row.id))),
+        (id) => byId.get(id),
+        (id) => (allParts.get(id) ?? []) as readonly ProductPart[],
+      );
 
       const own = prices.get(String(found.id)) ?? [];
       /*
@@ -387,10 +467,27 @@ export const productTools: ToolDef[] = [
         /* Two prices live at once for the same offer. Reported rather than
            resolved: which was meant is not ours to guess. */
         overlapping_prices: overlappingPrices(own, Number(entry.product.term_months) || 0).map(([a, b]) => [a.id, b.id]),
-        capabilities: (entry.product.capabilities ?? [])
+        /*
+         * The union, not the row. A package claims its own capabilities plus
+         * every part's — that is what the customer gets and what the screen has
+         * always shown — so answering with the package's own list said "this
+         * package does nothing" about every package in a real catalogue. `own`
+         * and `from` keep the distinction that the union would otherwise lose:
+         * which of these is this product's own claim, and which part supplies
+         * the rest.
+         */
+        capabilities: spread(String(found.id))
           .map((id) => capabilities.find((row) => row.id === id))
           .filter((row): row is Row => !!row)
-          .map((row) => ({ id: row.id, name: row.name, description: row.description })),
+          .map((row) => ({
+            id: row.id,
+            name: row.name,
+            description: row.description,
+            own: (entry.product.capabilities ?? []).includes(String(row.id)),
+            from: parts
+              .filter((part) => spread(String(part.part_id)).includes(String(row.id)))
+              .map((part) => named.get(String(part.part_id)) ?? String(part.part_id)),
+          })),
         parts: parts.map((part) => ({
           id: part.id,
           product_id: part.part_id,
@@ -1352,6 +1449,155 @@ export const productTools: ToolDef[] = [
         removed: label,
         package: container.name,
         parts_left: productChildren('productPart', String(container.id)).length,
+      };
+    },
+  },
+  {
+    name: 'list_capabilities',
+    title: 'List what the catalogue can do',
+    description:
+      'The workspace\'s capability vocabulary: a feature named once and ticked on every product '
+      + 'that has it, so a module and the packages holding it describe the same thing in the same '
+      + 'words. Each entry says which products claim it themselves and which inherit it through a '
+      + 'package, because a package\'s list is computed rather than kept in step by hand.',
+    readOnly: true,
+    schema: {
+      type: 'object',
+      properties: {
+        unclaimed: { type: 'boolean', description: 'Only the ones no product claims. Defaults to false' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireFeature(workspaceId, 'products');
+      const known = capabilitiesIn(workspaceId);
+      const { entries, parts: allParts } = catalogueOf(workspaceId);
+      const byId = new Map(entries.map((row) => [String(row.product.id), row.product]));
+      const spread = capabilitySpread(
+        new Set(known.map((row) => String(row.id))),
+        (id) => byId.get(id),
+        (id) => (allParts.get(id) ?? []) as readonly ProductPart[],
+      );
+
+      const rows = known.map((capability) => {
+        const id = String(capability.id);
+        const claimed: string[] = [];
+        const inherited: string[] = [];
+        for (const entry of entries) {
+          const product = String(entry.product.name);
+          if ((entry.product.capabilities ?? []).includes(id)) claimed.push(product);
+          else if (spread(String(entry.product.id)).includes(id)) inherited.push(product);
+        }
+        return {
+          id: capability.id,
+          name: capability.name,
+          description: capability.description,
+          archived: !!capability.archived,
+          claimed_by: claimed,
+          inherited_by: inherited,
+        };
+      });
+
+      const shown = args.unclaimed ? rows.filter((row) => !row.claimed_by.length) : rows;
+      return {
+        capabilities: shown,
+        total: shown.length,
+        /* A vocabulary nothing claims is the state this tool exists to make
+           visible: it reads as a catalogue that cannot do anything. */
+        unclaimed: rows.filter((row) => !row.claimed_by.length).length,
+      };
+    },
+  },
+  {
+    name: 'create_capability',
+    title: 'Name something the catalogue can do',
+    description:
+      'Add an entry to the capability vocabulary. A name already in use is refused rather than '
+      + 'duplicated — two spellings of one feature compare as two features, which is the one thing '
+      + 'a shared vocabulary must not do. Attach it to products with set_product_capabilities.',
+    schema: {
+      type: 'object',
+      required: ['name'],
+      properties: {
+        name: { type: 'string', description: 'What the feature is called, in the words a customer would read' },
+        description: { type: 'string', description: 'What it means, for the people who have to decide whether a product has it' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const name = requireText(args.name, 'name');
+      const known = capabilitiesIn(workspaceId);
+      const lowered = name.toLocaleLowerCase();
+      const clash = known.find((row) => String(row.name).trim().toLocaleLowerCase() === lowered);
+      if (clash) throw new McpError(`"${clash.name}" is already in this workspace's vocabulary (${clash.id})`);
+
+      const { row } = writeEntity('productCapability', uid(), {
+        workspace_id: workspaceId,
+        name,
+        description: str(args.description) ?? null,
+        archived: 0,
+        sort_order: orderKey(known.length ? String(known[known.length - 1].sort_order) : null, null),
+      }, writeOpts(workspaceId, ctx));
+
+      return { id: row.id, name: row.name, description: row.description };
+    },
+  },
+  {
+    name: 'set_product_capabilities',
+    title: 'Say what a product can do',
+    description:
+      'Replace what one product claims it can do. The list given is what it ends up with, so an '
+      + 'entry left out is taken off — the answer names what was added and what was removed rather '
+      + 'than reporting a count, because a silent removal is the failure mode of a replacing tool. '
+      + 'Name each capability by id or by its exact name; an unknown one is refused, not invented. '
+      + 'Never set these on a package: it already claims everything its parts do.',
+    schema: {
+      type: 'object',
+      required: ['product', 'capabilities'],
+      properties: {
+        product: { type: 'string', description: 'Product id, name or code' },
+        capabilities: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Capability ids or names. An empty list takes them all off',
+        },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      requireFeature(workspaceId, 'products');
+      const product = findProduct(String(args.product), workspaceId);
+      if (!Array.isArray(args.capabilities)) throw new McpError('`capabilities` must be an array of ids or names');
+      const known = capabilitiesIn(workspaceId);
+      const label = new Map(known.map((row) => [String(row.id), String(row.name)]));
+
+      const wanted: string[] = [];
+      for (const ref of args.capabilities) {
+        const id = String(findCapability(ref, known).id);
+        if (!wanted.includes(id)) wanted.push(id);
+      }
+      const before = ((serialize('product', product) as unknown as Product).capabilities ?? []).map(String);
+
+      const { row } = writeEntity('product', String(product.id), {
+        capabilities: JSON.stringify(wanted),
+      }, writeOpts(workspaceId, ctx));
+      const after = ((serialize('product', row) as unknown as Product).capabilities ?? []).map(String);
+
+      return {
+        product: product.name,
+        capabilities: after.map((id) => label.get(id) ?? id),
+        added: after.filter((id) => !before.includes(id)).map((id) => label.get(id) ?? id),
+        removed: before.filter((id) => !after.includes(id)).map((id) => label.get(id) ?? id),
+        /* A package's own list is not what the screen shows — see
+           `capabilitySpread`. Said here so nobody sets one and wonders why the
+           answer is longer than what they asked for. */
+        packages_affected: containingPackages(String(product.id)),
       };
     },
   },

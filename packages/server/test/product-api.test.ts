@@ -1039,3 +1039,118 @@ describe('the tools an assistant gets', () => {
     assert.equal(outlook.products[0].lifetime_value, null);
   });
 });
+
+/**
+ * The vocabulary, and the disagreement that made it worth its own block.
+ *
+ * A capability is the one row in the catalogue that is deliberately shared: it
+ * is named once for the workspace and ticked on every product that has it, so
+ * that a module and the packages holding it describe the same thing in the same
+ * words. Two things follow, and both had a way of going wrong silently.
+ *
+ * A package does not keep its own list — it claims what its parts claim — and
+ * `product_status` used to answer with the package's *own* row anyway, which is
+ * empty for every real package and reads as a package that does nothing while
+ * the screen beside it shows the full list. One door answering differently from
+ * another, the shape this repository has paid for before.
+ *
+ * And a vocabulary is typed by hand, so the second failure is two spellings of
+ * one feature comparing as two features. Both tools refuse rather than guess.
+ */
+describe('what a product can do', () => {
+  let me: Person;
+  let workspace = '';
+
+  before(async () => {
+    const made = await register('capabilities@example.com');
+    me = made.person;
+    workspace = made.workspace;
+    await ok(`/api/workspaces/${workspace}`, { cookie: me.cookie, method: 'PATCH', body: { features: { products: true } } });
+    await tool(me.token, 'create_product', { name: 'Buchung', code: 'CAP-BUCH', price: '64' });
+    await tool(me.token, 'create_product', { name: 'Treuekarte', code: 'CAP-TREU', price: '25' });
+    await tool(me.token, 'create_product', { name: 'Paket', code: 'CAP-PAK', price: '79' });
+    await tool(me.token, 'add_product_part', { package: 'CAP-PAK', product: 'CAP-BUCH' });
+    await tool(me.token, 'add_product_part', { package: 'CAP-PAK', product: 'CAP-TREU' });
+  });
+
+  it('refuses a second spelling of a capability it already knows', async () => {
+    const made = await tool(me.token, 'create_capability', {
+      name: 'Online-Terminbuchung', description: 'Gäste buchen selbst',
+    });
+    assert.ok(made.id);
+    await assert.rejects(
+      () => tool(me.token, 'create_capability', { name: '  online-terminbuchung ' }),
+      /already in this workspace/,
+      'case and padding are not a different feature',
+    );
+  });
+
+  it('refuses a capability nobody has named, rather than inventing it', async () => {
+    await assert.rejects(
+      () => tool(me.token, 'set_product_capabilities', { product: 'CAP-BUCH', capabilities: ['Zeitreise'] }),
+      /No capability "Zeitreise"/,
+    );
+    // And it says what there is, so the next call can be right.
+    await assert.rejects(
+      () => tool(me.token, 'set_product_capabilities', { product: 'CAP-BUCH', capabilities: ['Zeitreise'] }),
+      /Online-Terminbuchung/,
+    );
+  });
+
+  it('says what it took off, because a replacing tool that only counts hides one', async () => {
+    await tool(me.token, 'create_capability', { name: 'Terminerinnerungen' });
+    const first = await tool(me.token, 'set_product_capabilities', {
+      product: 'CAP-BUCH', capabilities: ['Online-Terminbuchung', 'Terminerinnerungen'],
+    });
+    assert.deepEqual(first.added.sort(), ['Online-Terminbuchung', 'Terminerinnerungen']);
+    assert.deepEqual(first.removed, []);
+
+    const second = await tool(me.token, 'set_product_capabilities', {
+      product: 'CAP-BUCH', capabilities: ['Online-Terminbuchung'],
+    });
+    assert.deepEqual(second.removed, ['Terminerinnerungen'], 'left out means taken off, and it says so');
+    assert.deepEqual(second.capabilities, ['Online-Terminbuchung']);
+    assert.deepEqual(second.packages_affected, ['Paket']);
+  });
+
+  it('matches a capability by name as well as by id, and drops a repeat', async () => {
+    const known = await tool(me.token, 'list_capabilities');
+    const id = known.capabilities.find((row: any) => row.name === 'Terminerinnerungen').id;
+    const set = await tool(me.token, 'set_product_capabilities', {
+      product: 'CAP-BUCH', capabilities: ['Online-Terminbuchung', id, 'Online-Terminbuchung'],
+    });
+    assert.deepEqual(set.capabilities, ['Online-Terminbuchung', 'Terminerinnerungen']);
+  });
+
+  it('gives a package what its parts can do, and says which part supplies it', async () => {
+    await tool(me.token, 'create_capability', { name: 'Stempeln' });
+    await tool(me.token, 'set_product_capabilities', { product: 'CAP-TREU', capabilities: ['Stempeln'] });
+
+    const status = await tool(me.token, 'product_status', { product: 'CAP-PAK' });
+    const names = status.capabilities.map((row: any) => row.name).sort();
+    assert.deepEqual(names, ['Online-Terminbuchung', 'Stempeln', 'Terminerinnerungen'],
+      'the package claims none of these itself — answering with its own row said it does nothing');
+
+    const stamping = status.capabilities.find((row: any) => row.name === 'Stempeln');
+    assert.equal(stamping.own, false);
+    assert.deepEqual(stamping.from, ['Treuekarte']);
+
+    // The part itself still answers for its own, with nothing supplying it.
+    const part = await tool(me.token, 'product_status', { product: 'CAP-TREU' });
+    assert.equal(part.capabilities[0].own, true);
+    assert.deepEqual(part.capabilities[0].from, []);
+  });
+
+  it('counts a vocabulary nothing claims, which is the state worth seeing', async () => {
+    await tool(me.token, 'create_capability', { name: 'Nie benutzt' });
+    const listed = await tool(me.token, 'list_capabilities');
+    assert.equal(listed.unclaimed, 1);
+
+    const row = listed.capabilities.find((entry: any) => entry.name === 'Stempeln');
+    assert.deepEqual(row.claimed_by, ['Treuekarte']);
+    assert.deepEqual(row.inherited_by, ['Paket'], 'the package has it without claiming it');
+
+    const only = await tool(me.token, 'list_capabilities', { unclaimed: true });
+    assert.deepEqual(only.capabilities.map((entry: any) => entry.name), ['Nie benutzt']);
+  });
+});
