@@ -624,7 +624,7 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
 
 ## The product catalogue, and what it deliberately does not hold
 
-The catalogue answers what is sold, what it costs and whether selling it is worth doing. Four
+The catalogue answers what is sold, what it costs and whether selling it is worth doing. Several
 things a reader might reasonably expect from that sentence are **not** built, and each is left
 out for a reason rather than forgotten. See [`docs/products.md`](docs/products.md).
 
@@ -661,6 +661,22 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       product write, a read and a sync pull without it, because the column carries
       `NOT NULL DEFAULT 'once'` and the insert never names it. It would be tidied by whatever
       eventually closes the removal gap; it is not worth a migration runner of its own.
+- [ ] **The capability vocabulary can be added to over MCP but not tidied.** `list_capabilities`,
+      `create_capability` and `set_product_capabilities` cover naming a feature and ticking it on a
+      product, which is what the catalogue was missing — until they existed the surface could manage
+      every part of a product except what it actually does. Renaming one, writing its description
+      afterwards, archiving it or deleting it are not there: the interface has all four, so nothing
+      is unreachable, and each is a tool that either rewrites a word every product's chips read or
+      leaves an id behind on every product that claimed it. Worth doing together, with the dangling
+      id decided rather than inherited — `capabilitiesOf` already drops one that no longer resolves,
+      which is why a deletion is survivable rather than urgent.
+- [ ] **The screen unions a package's capabilities one level deep; MCP goes all the way down.**
+      `products.tsx` walks a package's parts and takes each part's *own* list, so a package inside a
+      package shows the outer one's parts and stops. `capabilitySpread` in the MCP tools recurses,
+      memoised and cycle-guarded the way `unitCosts` does. No catalogue here nests that far, which
+      is the only reason the two agree today. The fix is to move the recursion down beside
+      `capabilitiesOf` in `@kolibri/shared` and have both sides call it — the same move that every
+      layering problem this repository has had came apart for want of.
 - [ ] **A product is not linked to the project that builds it.** The link is obviously useful and
       it is left out on purpose: the generic REST guard reads `project_id` off any row that has one,
       so a product naming a private project would become invisible to everybody not on it — turning
@@ -1266,7 +1282,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 112 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 115 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they

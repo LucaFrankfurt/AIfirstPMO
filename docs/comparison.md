@@ -22,8 +22,8 @@ Worth stating first, because it is the reason the gaps below are acceptable:
 - **Offline-first with per-field merge.** Two people editing the same task while one is on a train
   both keep their change. None of the five do this; they are all request/response applications with
   a spinner. Vikunja comes closest by syncing to a calendar client, which is a different thing.
-- **MCP natively.** An assistant is a user with a scoped token, not a plugin or a chat sidebar. 112
-  tools over the same permissions as a person, and a read-only token is refused by all 59 that
+- **MCP natively.** An assistant is a user with a scoped token, not a plugin or a chat sidebar. 115
+  tools over the same permissions as a person, and a read-only token is refused by all 61 that
   write. Jira has AI features; none of the five is an MCP server you can point a client at.
 - **A messenger in the same box**, and made of the same rows — so a message sends from a train and
   arrives when the tunnel ends. None of the five has one: Plane, Vikunja and OpenProject send you to
