@@ -423,11 +423,28 @@ export interface CostStructure {
   period: Minor;
   /** Incurred each time it is delivered, whoever attends. */
   delivery: Minor;
-  /** Incurred per unit sold. The only one that comes off the price. */
+  /**
+   * Incurred per unit sold, on the product's **own** billing period. The only
+   * one that comes off the price — and the reason it says "own": see
+   * `unitByPeriod`.
+   */
   unit: Minor;
+  /**
+   * The same per-unit costs, grouped by the period the part carrying them is
+   * sold on. Every period, the product's own included, so a reader never has
+   * to add `unit` back in.
+   *
+   * A package holding a monthly module and a one-off setup incurs the setup's
+   * cost once and the module's every month. Folding both into `unit` and
+   * subtracting the total from a monthly price is the mistake `bundleValue`
+   * documents one floor up, and it read the same way: MAX came out at a unit
+   * cost of 200,50 € against a price of 99,00 € and reported a margin of
+   * −103 % on a package that earns 1 638 € a year against 206 € of cost.
+   */
+  unitByPeriod: { recurrence: CostRecurrence; amount: Minor }[];
 }
 
-const EMPTY_STRUCTURE: CostStructure = { period: 0, delivery: 0, unit: 0 };
+const EMPTY_STRUCTURE: CostStructure = { period: 0, delivery: 0, unit: 0, unitByPeriod: [] };
 
 /**
  * Every cost of a product, by what it varies with.
@@ -449,8 +466,14 @@ export function costStructure(input: {
   /** For a package: what is in it, and what one of each costs. See below. */
   parts?: readonly ProductPart[];
   unitCostOfPart?: (productId: ID) => Minor;
+  /** How often this product is sold. Omitted, every part counts as its own. */
+  recurrence?: CostRecurrence | null;
+  /** How often a part is sold, which is when its per-unit cost is incurred. */
+  recurrenceOfPart?: (productId: ID) => CostRecurrence | null;
 }): CostStructure {
-  const out: CostStructure = { ...EMPTY_STRUCTURE };
+  const out: CostStructure = { ...EMPTY_STRUCTURE, unitByPeriod: [] };
+  const own = input.recurrence ?? null;
+  const byPeriod = new Map<CostRecurrence, Minor>();
   for (const cost of input.costs) out[cost.basis in out ? cost.basis : 'unit'] += Math.round(Number(cost.amount) || 0);
   for (const person of input.contributors ?? []) {
     const basis = (person.fee_basis in out ? person.fee_basis : 'delivery') as CostBasis;
@@ -474,12 +497,33 @@ export function costStructure(input: {
    */
   if (input.parts && input.unitCostOfPart) {
     for (const part of input.parts) {
-      out.unit += Math.max(1, Math.round(part.quantity) || 1) * input.unitCostOfPart(part.part_id);
+      const amount = Math.max(1, Math.round(part.quantity) || 1) * input.unitCostOfPart(part.part_id);
+      /*
+       * Which period this lands on: the one the part is *sold* on, because
+       * that is when handing it over costs anything. A caller that does not
+       * say — every caller did until this existed — keeps the old behaviour of
+       * counting everything as the product's own, so nothing silently changes
+       * for a catalogue billed one way.
+       */
+      const period = input.recurrenceOfPart?.(part.part_id) ?? own;
+      if (own === null || period === null || period === own) out.unit += amount;
+      else byPeriod.set(period, (byPeriod.get(period) ?? 0) + amount);
     }
   }
+  // The product's own per-unit costs belong to the period its unit is sold on.
+  if (own !== null && (out.unit || byPeriod.size)) byPeriod.set(own, (byPeriod.get(own) ?? 0) + out.unit);
+  out.unitByPeriod = COST_RECURRENCES
+    .filter((every) => byPeriod.has(every))
+    .map((recurrence) => ({ recurrence, amount: byPeriod.get(recurrence) ?? 0 }));
+
   const factor = input.factorBps ?? FULL_BPS;
   if (factor === FULL_BPS) return out;
-  return { period: scaleBps(out.period, factor), delivery: scaleBps(out.delivery, factor), unit: scaleBps(out.unit, factor) };
+  return {
+    period: scaleBps(out.period, factor),
+    delivery: scaleBps(out.delivery, factor),
+    unit: scaleBps(out.unit, factor),
+    unitByPeriod: out.unitByPeriod.map((line) => ({ ...line, amount: scaleBps(line.amount, factor) })),
+  };
 }
 
 /**
@@ -543,9 +587,16 @@ export interface UnitEconomics {
   currency: string;
   /** What one unit is sold for, or null when it has no price. */
   price: Minor | null;
-  /** What one unit costs to deliver: the `unit` half of the structure. */
+  /** What one unit costs to deliver, on the period it is sold: `structure.unit`. */
   unitCost: Minor;
-  /** Price less unit cost. Null when there is no price. */
+  /**
+   * The same costs by the period they fall on. Carried out of the structure so
+   * that a screen showing a margin can also show what that margin leaves out —
+   * a one-off setup inside a monthly package is a real cost and belongs on its
+   * own line, not subtracted from a month.
+   */
+  unitCostByPeriod: { recurrence: CostRecurrence; amount: Minor }[];
+  /** Price less unit cost, on that one period. Null when there is no price. */
   contribution: Minor | null;
   /** Contribution as basis points of the price. Null when there is no price. */
   marginBps: number | null;
@@ -558,6 +609,8 @@ export function unitEconomics(input: {
   contributors?: readonly ProductContributor[];
   parts?: readonly ProductPart[];
   unitCostOfPart?: (productId: ID) => Minor;
+  /** How often a part is sold. See `costStructure`. */
+  recurrenceOfPart?: (productId: ID) => CostRecurrence | null;
   quantity?: number;
   on?: ISODate;
   priceBps?: number;
@@ -569,6 +622,11 @@ export function unitEconomics(input: {
     contributors: input.contributors,
     parts: input.parts,
     unitCostOfPart: input.unitCostOfPart,
+    /* The period the quoted price is billed on — the one `contribution` below
+       subtracts from. Without it every part's cost lands in `unit` whatever it
+       is sold on, which is what made a healthy package read as a loss. */
+    recurrence: chosen?.recurrence ?? null,
+    recurrenceOfPart: input.recurrenceOfPart,
     factorBps: input.costBps,
   });
   const price = chosen ? scaleBps(chosen.amount, input.priceBps ?? FULL_BPS) : null;
@@ -577,6 +635,7 @@ export function unitEconomics(input: {
     currency: input.product.currency || 'EUR',
     price,
     unitCost: structure.unit,
+    unitCostByPeriod: structure.unitByPeriod,
     contribution,
     // Against the price rather than against the cost: margin is the share of
     // what the customer pays that the business keeps, and the other reading —
@@ -1387,6 +1446,8 @@ export function simulate(input: {
   /** For a package: what is in it, and what one of each costs. See `unitCosts`. */
   parts?: readonly ProductPart[];
   unitCostOfPart?: (productId: ID) => Minor;
+  /** How often a part is sold. See `costStructure`. */
+  recurrenceOfPart?: (productId: ID) => CostRecurrence | null;
   promotions?: readonly Promotion[];
   assumptions?: ProductAssumptions | null;
   /** The month to start in. Defaults to the month of `today`. */
@@ -1427,6 +1488,11 @@ export function simulate(input: {
     contributors: input.contributors,
     parts: input.parts,
     unitCostOfPart: input.unitCostOfPart,
+    /* Null rather than the `'once'` fallback above: with no price there is no
+       projection, and `null` is what tells `costStructure` to leave every
+       part's cost where it has always been rather than guess a period. */
+    recurrence: chosen ? chosen.recurrence : null,
+    recurrenceOfPart: input.recurrenceOfPart,
     factorBps: FULL_BPS + assumed.cost_bps,
   });
   const contribution = price === null ? null : price - structure.unit;
@@ -1609,8 +1675,22 @@ export function catalogue(input: {
     const costs = input.costsOf(product.id);
     const contributors = input.contributorsOf?.(product.id) ?? [];
     const parts = input.partsOf?.(product.id) ?? [];
-    const economics = unitEconomics({ product, prices, costs, contributors, parts, unitCostOfPart, on: input.today });
-    const structure = costStructure({ costs, contributors, parts, unitCostOfPart });
+    /* What a part is sold as, which is when handing it over costs anything.
+       Read off the same `priceFor` every other figure here uses, so the cost
+       side and the price side cannot disagree about a part's period. */
+    const recurrenceOfPart = (id: ID): CostRecurrence | null =>
+      priceFor(input.pricesOf(id), { on: input.today })?.recurrence ?? null;
+    const economics = unitEconomics({
+      product, prices, costs, contributors, parts, unitCostOfPart, recurrenceOfPart, on: input.today,
+    });
+    const structure = costStructure({
+      costs,
+      contributors,
+      parts,
+      unitCostOfPart,
+      recurrence: priceFor(prices, { on: input.today })?.recurrence ?? null,
+      recurrenceOfPart,
+    });
     const running = promotionsFor(input.promotions ?? [], product, input.today);
     /* One lookup for the row's period and its commitment: the price the row
        quotes is the contract the retention beside it has to be figured over. */

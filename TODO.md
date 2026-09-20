@@ -672,6 +672,19 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       its unescaped twin, and could then be removed from nowhere at all. `capabilityName` in
       `@kolibri/shared` decodes it in the write path so every door stores the one spelling, and
       `capabilityKey` is the comparison all three doors now refuse a duplicate by.
+- [ ] **A projection still spends a one-off part cost every month.** `costStructure` now keeps a
+      part's per-unit cost on the period the part is *sold* on, so a margin and a break-even no
+      longer subtract a 450 EUR setup from a monthly price. `simulate` reads `structure.unit`, which
+      is the quoted period's bucket — correct for the months it projects, and it means the setup's
+      200 EUR of labour appears in no month at all rather than in the wrong one. The honest shape is
+      a one-off part cost landing in the month a unit is sold, beside `acquisition_cost`, which is
+      the field that already means exactly that and is filled by hand. Left out here because the
+      projection was not what was being fixed and a cash-flow model is not a change to make in
+      passing.
+- [ ] **`unitCosts` flattens a package inside a package.** The recursion sums a nested package's
+      parts into one figure with no period attached, so the bucketing above can only see the
+      outermost level. No catalogue here nests that far — the same limit the capability union has,
+      and for the same reason it has gone unnoticed.
 - [ ] **The screen unions a package's capabilities one level deep; MCP goes all the way down.**
       `products.tsx` walks a package's parts and takes each part's *own* list — on the product
       screen and on the vocabulary tab alike — so a package inside a package shows the outer one's

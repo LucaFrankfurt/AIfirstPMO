@@ -1384,6 +1384,21 @@ export function productView(entry: CatalogueEntry): Record<string, unknown> {
     // Restated after `money` has filled them in: an unpriced product has to
     // come out as null and not as the zero the formatter would have written.
     ...(economics.price === null ? { price: null, price_text: null, contribution: null, contribution_text: null } : {}),
+    /*
+     * Only when the product is billed more than one way, and then it matters a
+     * lot: `unit_cost` and `contribution` above describe the period the quoted
+     * price is in, so a one-off setup inside a monthly package is *not* in
+     * them. Saying nothing here would be the flattering half of an honest
+     * split — the margin got better and a real cost went quiet.
+     */
+    ...(economics.unitCostByPeriod.length > 1
+      ? {
+        unit_cost_by_period: economics.unitCostByPeriod.map((line) => ({
+          recurrence: line.recurrence,
+          ...money(currency, { amount: line.amount }),
+        })),
+      }
+      : {}),
     margin_percent: economics.marginBps === null ? null : Math.round(economics.marginBps / 100),
     health: healthOfProduct(entry),
     break_even: {
