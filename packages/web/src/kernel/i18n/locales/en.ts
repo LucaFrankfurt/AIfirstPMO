@@ -235,7 +235,7 @@ export const en = {
   'query.short': 'Query',
   'query.apply': 'Apply',
   'query.placeholder': 'assignee = me AND state != Done',
-  'query.help': 'Clauses join with AND. Use `in (a, b)` for several answers to one field, `!=` or `not in` to exclude, and bare words to search the text. OR between two different fields is not something a saved view can hold.',
+  'query.help': 'Clauses join with AND. Use `in (a, b)` for several answers to one field, and `!=` or `not in` to exclude. Bare words search the text, each as a prefix — `"a phrase"` keeps the words together, `-word` leaves out what carries it, and a task number like WEB-12 finds that task. OR between two different fields is not something a saved view can hold.',
   'query.fieldsKept': 'This filter also has custom-field answers. They have no syntax here yet, so they are kept as they are rather than lost.',
   'view.reset': 'Reset',
   'view.showCompleted': 'Show completed',

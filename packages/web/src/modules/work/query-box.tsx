@@ -20,6 +20,11 @@ import { Icon, Sheet } from '../../kernel/design-system/ui';
  * than none: the clauses that parsed take effect, and the sentence under the box
  * names the word to fix. What is never done is silently dropping a clause — a
  * filter that quietly widens is worse than one that matches nothing and says so.
+ *
+ * Whatever is not a clause is a search, in the grammar the search box uses —
+ * quotes hold words together, a leading minus leaves one out, and a task number
+ * finds that task. The examples below are the only place that is taught, which
+ * is why one of them is a search rather than a fourth way to write a clause.
  */
 export function QueryBox({
   filters, onChange, projectId, workspaceId,
@@ -61,8 +66,13 @@ export function QueryBox({
 
   const apply = () => {
     // The custom-field part of a filter has no syntax yet, so it is carried
-    // across untouched rather than thrown away by a box that cannot show it.
-    onChange({ ...parsed.filters, field: filters.field });
+    // across untouched rather than thrown away by a box that cannot show it —
+    // and only when there is one. `field: undefined` is not the same as no
+    // `field` at all: the key is written, `Object.entries` reports it, and the
+    // reader that expected an object got nothing. Every Apply on a filter
+    // without a custom field in it took the screen down, which is to say
+    // almost every Apply there has ever been.
+    onChange(filters.field ? { ...parsed.filters, field: filters.field } : parsed.filters);
     setOpen(false);
   };
 
@@ -123,7 +133,7 @@ export function QueryBox({
 {`assignee = me AND state != Done
 priority in (urgent, high) AND due = overdue
 project = WEB AND label in (design, ops)
-is: open AND cycle = none`}
+is: open AND "design review" -entwurf`}
           </pre>
         </Sheet>
       )}

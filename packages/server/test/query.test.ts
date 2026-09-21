@@ -5,10 +5,16 @@
  * something that parses to the same thing, and — the one that matters most —
  * it says *no* clearly. A query language whose failure mode is "returns
  * nothing" is one people stare at; the errors below are the feature.
+ *
+ * A fourth since the free text became a search rather than a substring: what is
+ * not a clause reaches `filters.text` as written, quotes and all, because
+ * `parseTerms` is what reads it from there. The round trip is what that rests
+ * on — a phrase that loses its quotes on the way through the printer is a
+ * phrase that quietly stops being one the next time the box is opened.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { parseQuery, printQuery, type QueryVocabulary } from '@kolibri/shared';
+import { countFilters, matchesTerms, parseQuery, parseTerms, printQuery, type QueryVocabulary } from '@kolibri/shared';
 
 const vocabulary: QueryVocabulary = {
   meId: 'u-me',
@@ -95,6 +101,21 @@ describe('what a query can ask', () => {
     assert.deepEqual(filters.assignee, ['u-me']);
   });
 
+  it('keeps the quotes a phrase was written with', () => {
+    // The scanner takes them off as delimiters. Without putting them back the
+    // one thing they were for is gone before anything reads the text.
+    assert.equal(parse('"design review"').filters.text, '"design review"');
+    assert.equal(parse('text ~ "design review"').filters.text, '"design review"');
+    assert.equal(parse('rechnung "design review" -entwurf').filters.text, 'rechnung "design review" -entwurf');
+  });
+
+  it('lets a quoted word be a word rather than a connector', () => {
+    // `and` joins clauses; `"and"` is something somebody is looking for. The
+    // check could not tell them apart and ate the second one.
+    assert.equal(parse('"and"').filters.text, '"and"');
+    assert.equal(parse('salt and pepper').filters.text, 'salt pepper');
+  });
+
   it('does not need spaces around the operator', () => {
     const { filters, errors } = parse('state!=Done');
     assert.deepEqual(errors, []);
@@ -179,6 +200,27 @@ describe('printing one back', () => {
     round('cycle = none');
   });
 
+  it('survives it with a search in it, quotes and minus and all', () => {
+    // Printed as bare words rather than wrapped in `text ~ "…"`: a second pair
+    // of quotes around `"design review"` is a different search, and the scanner
+    // has no escape to spell its way back out of one.
+    assert.equal(round('"design review"'), '"design review"');
+    assert.equal(round('rechnung -entwurf'), 'rechnung -entwurf');
+    assert.equal(round('state != Done AND "design review"'), 'state != Done AND "design review"');
+    assert.equal(round('assignee = me AND WEB-12'), 'assignee = me AND WEB-12');
+    round('"and"');
+  });
+
+  it('does not hand a connector back to the parser as a join', () => {
+    // A filter written before the text was a search: `text ~ "salt and pepper"`
+    // stored the three words unquoted, and printing them bare would lose the
+    // middle one. Quoted on the way out, it stays the word it was.
+    const printed = printQuery({ text: 'salt and pepper' }, vocabulary);
+    assert.equal(printed, 'salt "and" pepper');
+    assert.equal(parse(printed).filters.text, 'salt "and" pepper');
+    assert.equal(printQuery(parse(printed).filters, vocabulary), printed, 'and settles there');
+  });
+
   it('says `me` rather than an id, and quotes what needs quoting', () => {
     const { filters } = parse('assignee = me AND state = "In Progress"');
     const printed = printQuery(filters, vocabulary);
@@ -204,5 +246,74 @@ describe('printing one back', () => {
     const b = parse('assignee = me AND state != Done').filters;
     assert.equal(printQuery(a, vocabulary), printQuery(b, vocabulary));
     assert.equal(printQuery(a, vocabulary), 'assignee = me AND state != Done');
+  });
+});
+
+/**
+ * The other half: what the list does with the text once it has it.
+ *
+ * `useVisibleTasks` reads `filters.text` through `parseTerms` and asks
+ * `matchesTerms`, so the two calls below are the filter box's search, minus
+ * React. Each case is one the old `toLowerCase().includes()` got wrong.
+ */
+describe('the text a filter searches for', () => {
+  const finds = (query: string, task: string): boolean =>
+    matchesTerms(task, parseTerms(parse(query).filters.text ?? ''));
+
+  const TASK = 'WEB-3 Ship dark mode across the marketing site';
+
+  it('is not stopped by an umlaut somebody did not type', () => {
+    assert.ok(finds('prufen', 'WEB-9 Rechnung prüfen'));
+  });
+
+  it('does not need the words adjacent, or in order', () => {
+    assert.ok(finds('marketing dark', TASK));
+    assert.ok(finds('des rev', 'WEB-4 Design review'));
+  });
+
+  it('does need them adjacent and in order when they are quoted', () => {
+    assert.ok(finds('"dark mode"', TASK));
+    assert.ok(!finds('"mode dark"', TASK));
+  });
+
+  it('leaves out what a minus names', () => {
+    assert.ok(finds('dark', TASK));
+    assert.ok(!finds('dark -mode', TASK));
+  });
+
+  it('finds a task by its number, hyphen or no hyphen', () => {
+    assert.ok(finds('WEB-3', TASK));
+    assert.ok(finds('web 3', TASK));
+    assert.ok(!finds('WEB-4', TASK));
+  });
+});
+
+/**
+ * Counting what a filter asks, which the header draws as a badge.
+ *
+ * The case that matters is the one that used to throw: a `Filters` is a partial
+ * and a spread can write a key with nothing under it. `Object.entries` reports
+ * that key, and the branch for `field` handed it to `Object.values`, which does
+ * not take `undefined`. Every Apply in the query box did exactly that.
+ */
+describe('counting what a filter asks', () => {
+  it('counts a key that is there and skips one that is only named', () => {
+    assert.equal(countFilters({}), 0);
+    assert.equal(countFilters({ state: ['s-done'], due: 'overdue' }), 2);
+    assert.equal(countFilters({ state: [] }), 0, 'an empty list asks nothing');
+    assert.equal(countFilters({ field: undefined }), 0);
+    assert.equal(countFilters({ state: ['s-done'], field: undefined }), 1);
+  });
+
+  it('counts each custom field rather than the object holding them', () => {
+    assert.equal(countFilters({ field: { 'f-1': ['a'], 'f-2': ['b'] } }), 2);
+    assert.equal(countFilters({ field: { 'f-1': [] } }), 0);
+  });
+
+  it('survives what the query box hands it', () => {
+    // `{ ...parsed.filters, field: filters.field }` with no custom field in
+    // sight: the key is written, the value is not, and this is what read it.
+    const applied = { ...parse('state != Done AND rechnung').filters, field: undefined };
+    assert.equal(countFilters(applied), 2);
   });
 });
