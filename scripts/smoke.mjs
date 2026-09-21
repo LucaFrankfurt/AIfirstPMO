@@ -49,6 +49,7 @@ const LABELS = {
     taskParent: 'Parent',
     reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
+    query: 'Query', apply: 'Apply',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
     mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes',
@@ -63,6 +64,7 @@ const LABELS = {
     taskParent: 'Übergeordnet',
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
+    query: 'Abfrage', apply: 'Anwenden',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
     mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer',
@@ -77,6 +79,7 @@ const LABELS = {
     taskParent: 'Tâche parente',
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
+    query: 'Requête', apply: 'Appliquer',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
     mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail',
@@ -1385,6 +1388,57 @@ await step('search: prose finds work, and @ offers the people', async () => {
  * reaches from the local mirror through the pinned block to the task sheet, and
  * every layer in between has to agree about what `WEB-3` means.
  */
+/**
+ * The query box, pressed rather than only typed into.
+ *
+ * This is here because of what it found the first time it ran: Apply spread
+ * `field: undefined` into the filter, the header's badge handed that key to
+ * `Object.values`, and the screen came down with "This screen did not arrive".
+ * Every Apply, on every filter without a custom field in it. The box had unit
+ * tests for what it parses and prints, and nothing had ever pressed the button
+ * — which is the one thing only a browser can do.
+ *
+ * So the assertion is not about the parser. It is that the list is still there
+ * afterwards, and shorter, and that reopening the box shows the search back
+ * with its quotes on.
+ */
+await step('the query box applies a filter, and the screen survives it', async () => {
+  await page.goto(`${base}/`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.task-row');
+  const before = await page.locator('.task-row').count();
+
+  const apply = async (query) => {
+    await page.click(`button:has-text("${LABELS.query}")`);
+    await page.waitForSelector('.sheet textarea', { timeout: 5000 });
+    await page.locator('.sheet textarea').first().fill(query);
+    await page.click(`.sheet button:has-text("${LABELS.apply}")`);
+    await page.waitForTimeout(800);
+    // The sheet closes onto the list rather than onto an error screen.
+    if (await page.locator('button:has-text("Reload"), button:has-text("Neu laden"), button:has-text("Recharger")').count()) {
+      throw new Error(`applying "${query}" took the screen down`);
+    }
+    return page.locator('.task-row').count();
+  };
+
+  const narrowed = await apply('"dark mode"');
+  if (!(narrowed < before)) throw new Error(`a phrase left ${narrowed} of ${before} rows`);
+
+  // Reopened, the box says what it is filtering by — quotes and all, because
+  // they are what makes it a phrase rather than two words.
+  await page.click(`button:has-text("${LABELS.query}")`);
+  await page.waitForSelector('.sheet textarea');
+  const shown = await page.locator('.sheet textarea').first().inputValue();
+  if (!shown.includes('"dark mode"')) throw new Error(`the box came back as "${shown}"`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
+  console.log('     "dark mode" narrowed', before, '->', narrowed, '· box reopened as', JSON.stringify(shown));
+
+  // Put it back, so the filter does not follow the rest of the walk around.
+  const restored = await apply('');
+  if (restored !== before) throw new Error(`clearing left ${restored} of ${before} rows`);
+});
+
 await step('search: a phrase, an exclusion, and a task by its own name', async () => {
   await page.goto(`${base}/search`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('input');

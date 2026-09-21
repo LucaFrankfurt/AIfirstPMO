@@ -2,8 +2,8 @@ import { Fragment, useMemo, useState } from 'react';
 import type { Field, Filters, Layout, Task } from '@kolibri/shared';
 import {
   FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId,
-  formatFieldValue, isDoneGroup, isGroupable, matchesTerms, orderKey, parseTerms,
-  PRIORITIES, readFieldValue,
+  countFilters, formatFieldValue, isDoneGroup, isGroupable, matchesTerms, orderKey,
+  parseTerms, PRIORITIES, readFieldValue,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { byOrder, create, update } from '../../kernel/sync/mutations';
@@ -277,12 +277,7 @@ export function ViewControls({
     { id: 'clear', section: t('view.reset'), label: t('view.clearFilters'), onSelect: () => onChange({ ...view, filters: {} }) },
   ];
 
-  const activeFilters = Object.entries(view.filters)
-    // A field filter is one entry holding several, and counting it as one would
-    // under-report the badge that tells somebody why the list is short.
-    .reduce((count, [key, value]) => count
-      + (key === 'field' ? Object.values(value as Record<string, string[]>).filter((v) => v.length).length
-        : Array.isArray(value) ? (value.length ? 1 : 0) : value ? 1 : 0), 0);
+  const activeFilters = countFilters(view.filters);
 
   return (
     // Emphatically not `flex-wrap`. Every one of these lives in the header,

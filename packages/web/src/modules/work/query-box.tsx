@@ -66,8 +66,13 @@ export function QueryBox({
 
   const apply = () => {
     // The custom-field part of a filter has no syntax yet, so it is carried
-    // across untouched rather than thrown away by a box that cannot show it.
-    onChange({ ...parsed.filters, field: filters.field });
+    // across untouched rather than thrown away by a box that cannot show it —
+    // and only when there is one. `field: undefined` is not the same as no
+    // `field` at all: the key is written, `Object.entries` reports it, and the
+    // reader that expected an object got nothing. Every Apply on a filter
+    // without a custom field in it took the screen down, which is to say
+    // almost every Apply there has ever been.
+    onChange(filters.field ? { ...parsed.filters, field: filters.field } : parsed.filters);
     setOpen(false);
   };
 

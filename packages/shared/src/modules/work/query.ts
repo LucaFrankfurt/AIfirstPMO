@@ -329,6 +329,33 @@ export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): Que
   return { filters, errors };
 }
 
+/**
+ * How many questions a filter is asking, for the badge that says why a list is
+ * short.
+ *
+ * Down here rather than inside the header that draws it, because it is a fact
+ * about `Filters` and because the version that lived up there threw. `Filters`
+ * is a partial: every key may be missing, and a spread that writes
+ * `field: undefined` puts the key there anyway — `Object.entries` then hands a
+ * reader that expected an object exactly nothing. Pressing Apply in the query
+ * box did that on every filter without a custom field in it, which is nearly
+ * all of them, and took the whole screen down with it. An absent value is
+ * counted as what it is: nothing asked.
+ *
+ * A field filter is one entry holding several, and counting it as one would
+ * under-report the badge.
+ */
+export function countFilters(filters: Filters): number {
+  return Object.entries(filters).reduce((count, [key, value]) => {
+    if (!value) return count;
+    if (key === 'field') return count + Object.values(value as Record<string, string[]>).filter((one) => one?.length).length;
+    // `not` counts as one however many negations it holds, as it always has.
+    // Widening that is a decision about what the badge means, and this is a
+    // repair.
+    return count + (Array.isArray(value) ? (value.length ? 1 : 0) : 1);
+  }, 0);
+}
+
 /* ------------------------------------------------------------ the printer */
 
 /** Words the scanner reads as joins rather than as words. */

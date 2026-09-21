@@ -14,7 +14,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { matchesTerms, parseQuery, parseTerms, printQuery, type QueryVocabulary } from '@kolibri/shared';
+import { countFilters, matchesTerms, parseQuery, parseTerms, printQuery, type QueryVocabulary } from '@kolibri/shared';
 
 const vocabulary: QueryVocabulary = {
   meId: 'u-me',
@@ -285,5 +285,35 @@ describe('the text a filter searches for', () => {
     assert.ok(finds('WEB-3', TASK));
     assert.ok(finds('web 3', TASK));
     assert.ok(!finds('WEB-4', TASK));
+  });
+});
+
+/**
+ * Counting what a filter asks, which the header draws as a badge.
+ *
+ * The case that matters is the one that used to throw: a `Filters` is a partial
+ * and a spread can write a key with nothing under it. `Object.entries` reports
+ * that key, and the branch for `field` handed it to `Object.values`, which does
+ * not take `undefined`. Every Apply in the query box did exactly that.
+ */
+describe('counting what a filter asks', () => {
+  it('counts a key that is there and skips one that is only named', () => {
+    assert.equal(countFilters({}), 0);
+    assert.equal(countFilters({ state: ['s-done'], due: 'overdue' }), 2);
+    assert.equal(countFilters({ state: [] }), 0, 'an empty list asks nothing');
+    assert.equal(countFilters({ field: undefined }), 0);
+    assert.equal(countFilters({ state: ['s-done'], field: undefined }), 1);
+  });
+
+  it('counts each custom field rather than the object holding them', () => {
+    assert.equal(countFilters({ field: { 'f-1': ['a'], 'f-2': ['b'] } }), 2);
+    assert.equal(countFilters({ field: { 'f-1': [] } }), 0);
+  });
+
+  it('survives what the query box hands it', () => {
+    // `{ ...parsed.filters, field: filters.field }` with no custom field in
+    // sight: the key is written, the value is not, and this is what read it.
+    const applied = { ...parse('state != Done AND rechnung').filters, field: undefined };
+    assert.equal(countFilters(applied), 2);
   });
 });
