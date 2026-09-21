@@ -19,6 +19,15 @@
  * `state = Dnoe` filtering everything away is a query somebody stares at for
  * five minutes; `no state here is called "Dnoe"` is one they fix in five
  * seconds.
+ *
+ * **The free text is not a field of its own dialect.** Whatever is not a clause
+ * lands in `filters.text` and is read by `parseTerms` in `kernel/search` — the
+ * same grammar as the search box and the index, so `"eine wortfolge"`, `-nicht`
+ * and `FEE-1` mean here exactly what they mean there. The filter box used to
+ * hand its text to a `toLowerCase().includes()`, which meant `prufen` missed
+ * `prüfen`, `des rev` missed `Design review`, and two words had to be adjacent
+ * and in order to find anything at all. Three ways of saying "that is not how
+ * anybody types", in the one box that is shown a filter and asked to search.
  */
 import { PRIORITIES, STATE_GROUPS, type Filters, type Priority, type StateGroup } from '../../kernel/registry/types.ts';
 
@@ -136,6 +145,21 @@ function scan(input: string): Token[] {
 
 const NEGATIVE = new Set(['!=', 'not in', 'not']);
 
+/**
+ * A token on its way into `filters.text`, with its quotes back on.
+ *
+ * `filters.text` is not a string to look for any more — it is a search, read by
+ * `parseTerms` in the kernel, the same one the search box and the index use. So
+ * `"design review"` has to still *be* quoted when it gets there, or the one
+ * thing the quotes were for is gone by the time anybody asks: the scanner takes
+ * them off as delimiters, and this is what says they were meaningful.
+ *
+ * Everything else travels as written. `-entwurf` is a word to the scanner and
+ * an exclusion to `parseTerms`, and `FEE-1` is a word here and an identifier
+ * there — neither needs anything from this.
+ */
+const asSearch = (token: Token): string => (token.quoted ? quote(token.text) : token.text);
+
 export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): QueryResult {
   const filters: Filters = {};
   const errors: QueryError[] = [];
@@ -163,8 +187,11 @@ export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): Que
     const start = next()!;
     const word = fold(start.text);
 
-    if (word === 'and' || word === '&&') continue;
-    if (word === 'or' || word === '||') {
+    // Unquoted only. `"and"` is a word somebody is searching for — it reaches
+    // the text search below, where the quotes now mean something, and a
+    // connector check that could not tell the two apart ate it silently.
+    if (!start.quoted && (word === 'and' || word === '&&')) continue;
+    if (!start.quoted && (word === 'or' || word === '||')) {
       fail('OR between clauses is not something a saved view can hold — put the alternatives in one field instead, like `priority in (urgent, high)`', start);
       continue;
     }
@@ -177,7 +204,7 @@ export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): Que
     const isIn = operator && !operator.quoted && ['in', 'not'].includes(fold(operator.text));
 
     if (!key || (!isOperator && !isIn)) {
-      filters.text = `${filters.text ? `${filters.text} ` : ''}${start.text}`;
+      filters.text = `${filters.text ? `${filters.text} ` : ''}${asSearch(start)}`;
       continue;
     }
 
@@ -214,7 +241,7 @@ export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): Que
     /* ---------------------------------------------------- the special ones */
 
     if (key === 'text') {
-      filters.text = values.map((value) => value.text).join(' ');
+      filters.text = values.map(asSearch).join(' ');
       continue;
     }
 
@@ -304,8 +331,34 @@ export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): Que
 
 /* ------------------------------------------------------------ the printer */
 
+/** Words the scanner reads as joins rather than as words. */
+const CONNECTORS = new Set(['and', '&&', 'or', '||']);
+
+/**
+ * The search, written so that reading it back gives the same search.
+ *
+ * Only one thing needs saying, and it is for filters written before the text
+ * was a search: `text ~ "salt and pepper"` stored those three words unquoted,
+ * and printing them bare would hand `and` back to the parser as a join and lose
+ * it. Quoted here, it stays the word it was. Splitting on spaces is safe
+ * because the pieces were joined with single ones, and a quote inside one
+ * travels with its piece — `"design` is not a connector and never will be.
+ */
+const printSearch = (text: string): string =>
+  text.split(' ').map((piece) => (CONNECTORS.has(piece.toLowerCase()) ? quote(piece) : piece)).join(' ');
+
+/**
+ * Quotes that the scanner will take off again.
+ *
+ * Single quotes when the value holds a double one, because the scanner accepts
+ * either as a delimiter and has no escape for the one it is delimited by. A
+ * value holding both cannot be written down at all; it loses the inner single
+ * quotes rather than producing something that scans as three tokens.
+ */
+const quote = (value: string): string => (value.includes('"') ? `'${value.replace(/'/g, '')}'` : `"${value}"`);
+
 /** A value that needs no quotes: no space, no bracket, no operator. */
-const bare = (value: string): string => (/^[\w.@-]+$/.test(value) ? value : `"${value}"`);
+const bare = (value: string): string => (/^[\w.@-]+$/.test(value) ? value : quote(value));
 
 const nameOf = (
   id: string,
@@ -348,7 +401,15 @@ export function printQuery(filters: Filters, vocabulary: QueryVocabulary = {}): 
   // and printing `field.7f3a… = x` would be text nobody could read or retype.
   // They are kept in the filters and simply not printed, which the interface
   // says out loud rather than pretending the query is the whole picture.
-  if (filters.text) clauses.push(`text ~ ${bare(filters.text)}`);
+
+  // The search goes last, and as written. It used to be wrapped in
+  // `text ~ "…"`, which was fine while the value was a plain string and is not
+  // now: a second pair of quotes around `"design review"` is a different
+  // search, and the scanner has no escape to spell its way out of. Bare words
+  // *are* the text search — the parser has always read them that way — so
+  // printing them as themselves is both shorter and the only form that
+  // survives the round trip.
+  if (filters.text) clauses.push(printSearch(filters.text));
 
   return clauses.join(' AND ');
 }

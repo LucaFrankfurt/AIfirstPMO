@@ -2,7 +2,8 @@ import { Fragment, useMemo, useState } from 'react';
 import type { Field, Filters, Layout, Task } from '@kolibri/shared';
 import {
   FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId,
-  formatFieldValue, isDoneGroup, isGroupable, orderKey, PRIORITIES, readFieldValue,
+  formatFieldValue, isDoneGroup, isGroupable, matchesTerms, orderKey, parseTerms,
+  PRIORITIES, readFieldValue,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { byOrder, create, update } from '../../kernel/sync/mutations';
@@ -65,6 +66,10 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
     // with a few hundred tasks and half a dozen fields is a few thousand rows,
     // and this runs on every keystroke in the search box.
     const fieldFilters = Object.entries(filters.field ?? {}).filter(([, wanted]) => wanted?.length);
+    // Read once for the whole pass, like the field answers above: `parseTerms`
+    // is cheap and this is not the place to find out how cheap, with a few
+    // hundred tasks under it and a keystroke behind each one.
+    const terms = parseTerms(filters.text ?? '');
     const answers = fieldFilters.length
       ? new Map(list('fieldValue').map((row) => [`${row.task_id}.${row.field_id}`, row.value]))
       : new Map<string, string | null>();
@@ -107,11 +112,19 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       // bucket and stays out of this one — "the coming week" is what somebody
       // asking for it means, and a task from last month is not an answer to it.
       if (filters.due === 'week' && !(task.due_date && task.due_date >= day && task.due_date <= horizon)) return false;
-      if (filters.text) {
-        const needle = filters.text.toLowerCase();
-        const haystack = `${task.identifier} ${task.title} ${task.description ?? ''}`.toLowerCase();
-        if (!haystack.includes(needle)) return false;
-      }
+      // The same grammar the search box reads, rather than one `includes` over
+      // a lower-cased line. That is not a refinement: `prufen` did not find
+      // `prüfen`, `des rev` did not find `Design review`, and `FEE 1` did not
+      // find `FEE-1`, because every word had to be adjacent, in order and spelt
+      // exactly. `"eine wortfolge"` and `-nicht` work here now because they
+      // work there — one grammar, and this is a reader of it.
+      //
+      // One thing reads differently than it does on the search screen, and
+      // should: there, a query of nothing but exclusions is not a search and
+      // answers nothing. Here it is a filter over a list that already exists,
+      // so `-entwurf` means the same as ticking a box would — the rows without
+      // it — and leaving that to fall through as "no filter" would be wrong.
+      if (terms.length && !matchesTerms(`${task.identifier} ${task.title} ${task.description ?? ''}`, terms)) return false;
       if (fieldFilters.length) {
         for (const [fieldId, wanted] of fieldFilters) {
           const field = byId('field', fieldId);

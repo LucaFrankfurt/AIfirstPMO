@@ -232,7 +232,7 @@ export const de: Catalogue = {
   'query.short': 'Abfrage',
   'query.apply': 'Anwenden',
   'query.placeholder': 'assignee = me AND state != Erledigt',
-  'query.help': 'Bedingungen werden mit AND verknüpft. `in (a, b)` für mehrere Antworten auf ein Feld, `!=` oder `not in` zum Ausschließen, einzelne Wörter durchsuchen den Text. OR zwischen zwei verschiedenen Feldern kann eine gespeicherte Ansicht nicht abbilden.',
+  'query.help': 'Bedingungen werden mit AND verknüpft. `in (a, b)` für mehrere Antworten auf ein Feld, `!=` oder `not in` zum Ausschließen. Einzelne Wörter durchsuchen den Text, jedes als Wortanfang — `"eine Wortfolge"` hält die Wörter zusammen, `-wort` lässt weg, was es trägt, und eine Aufgabennummer wie WEB-12 findet genau die Aufgabe. OR zwischen zwei verschiedenen Feldern kann eine gespeicherte Ansicht nicht abbilden.',
   'query.fieldsKept': 'Dieser Filter enthält außerdem Antworten auf eigene Felder. Dafür gibt es hier noch keine Syntax — sie bleiben unverändert erhalten.',
   'view.reset': 'Zurücksetzen',
   'view.showCompleted': 'Erledigte anzeigen',

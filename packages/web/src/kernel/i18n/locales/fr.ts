@@ -238,7 +238,7 @@ export const fr: Catalogue = {
   'query.short': 'Requête',
   'query.apply': 'Appliquer',
   'query.placeholder': 'assignee = me AND state != Terminé',
-  'query.help': 'Les clauses se combinent avec AND. `in (a, b)` pour plusieurs réponses à un champ, `!=` ou `not in` pour exclure, les mots simples cherchent dans le texte. OR entre deux champs différents n\'est pas quelque chose qu\'une vue enregistrée peut contenir.',
+  'query.help': 'Les clauses se combinent avec AND. `in (a, b)` pour plusieurs réponses à un champ, `!=` ou `not in` pour exclure. Les mots simples cherchent dans le texte, chacun comme un préfixe — `"une suite de mots"` les garde ensemble, `-mot` exclut ce qui le porte, et un numéro de tâche comme WEB-12 trouve cette tâche. OR entre deux champs différents n\'est pas quelque chose qu\'une vue enregistrée peut contenir.',
   'query.fieldsKept': 'Ce filtre contient aussi des réponses à des champs personnalisés. Il n\'y a pas encore de syntaxe pour eux ici : ils sont conservés tels quels.',
   'view.reset': 'Réinitialiser',
   'view.showCompleted': 'Afficher les terminées',

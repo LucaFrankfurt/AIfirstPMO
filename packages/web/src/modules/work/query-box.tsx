@@ -20,6 +20,11 @@ import { Icon, Sheet } from '../../kernel/design-system/ui';
  * than none: the clauses that parsed take effect, and the sentence under the box
  * names the word to fix. What is never done is silently dropping a clause — a
  * filter that quietly widens is worse than one that matches nothing and says so.
+ *
+ * Whatever is not a clause is a search, in the grammar the search box uses —
+ * quotes hold words together, a leading minus leaves one out, and a task number
+ * finds that task. The examples below are the only place that is taught, which
+ * is why one of them is a search rather than a fourth way to write a clause.
  */
 export function QueryBox({
   filters, onChange, projectId, workspaceId,
@@ -123,7 +128,7 @@ export function QueryBox({
 {`assignee = me AND state != Done
 priority in (urgent, high) AND due = overdue
 project = WEB AND label in (design, ops)
-is: open AND cycle = none`}
+is: open AND "design review" -entwurf`}
           </pre>
         </Sheet>
       )}
