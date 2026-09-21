@@ -449,19 +449,33 @@ itself against a stopped server. See [`deployment.md`](deployment.md#restoring).
 GET /api/workspaces/:ws/search?q=cookie+banner&kind=task,page&limit=20
 ```
 
-SQLite FTS5 over tasks, pages, comments, projects, cycles and modules. Words are turned into prefix
-terms, so `des rev` already finds *Design review*. `kind` is part of the query rather than a sieve
-over its answer, so asking for pages returns the twenty best pages rather than whichever pages
-happened to rank inside the best twenty of everything. Results are filtered by project visibility.
+SQLite FTS5 over tasks, pages, comments, projects, cycles and modules. `kind` is part of the query
+rather than a sieve over its answer, so asking for pages returns the twenty best pages rather than
+whichever pages happened to rank inside the best twenty of everything. Results are filtered by
+project visibility, and ranked with the title weighted above the body — a page *named* "Rechnungen"
+beats one that says the word four times in a paragraph.
+
+`q` is prose. What it makes of it:
+
+| written | means |
+|---|---|
+| `des rev` | each word as a prefix term, so this already finds *Design review* |
+| `"design review"` | those words, adjacent and in that order — and nothing looser |
+| `"rechnung"` | one word in quotes is the whole word: not *Rechnungsprüfung* |
+| `-intern` | and not that. A query of nothing but exclusions returns nothing |
+| `WEB-12` | that task, first in the list, above whatever the words turned up |
+
+An identifier is only a short cut if a task answers to it: `COVID-19` is the same shape and finds no
+task, so it stays two words. The same rule the `@` of a name follows on the screen.
 
 Archived rows are not in the index. Every list in the interface hides what is archived, the local
 instant search included, so an index that kept them made the same query answer differently depending
 on which half got there first. Unarchiving puts the row straight back — the row never left its
-table, only the index.
+table, only the index. The identifier short cut skips archived work for the same reason.
 
-The endpoint takes words and nothing else: there is no filter language. The `@`, `#` and `+` the
-search screen offers are read in the browser against the names it already holds, and what reaches
-the server is the prose that was left over.
+There is no *filter* language beyond that: no field names, no `state:`, no boolean grouping. The
+`@`, `#` and `+` the search screen offers are read in the browser against the names it already
+holds, and what reaches the server is the prose that was left over.
 
 ## Sync
 

@@ -861,9 +861,14 @@ describe('the query dialect', () => {
     assert.equal(parseMailQuery('re: rechnung').text, 're: rechnung');
   });
 
-  it('keeps a quoted phrase together', () => {
-    assert.equal(parseMailQuery('"invoice number" hat:anhang').text, 'invoice number');
+  it('keeps a quoted phrase together, quotes and all', () => {
+    // The quotes travel: `text` goes to `toMatchQuery`, which is where a quote
+    // becomes "these words, in this order". Stripped here, the phrase reached
+    // the index as two loose words and the quoting did nothing at all.
+    assert.equal(parseMailQuery('"invoice number" hat:anhang').text, '"invoice number"');
     assert.equal(parseMailQuery('"invoice number" hat:anhang').hasAttachment, true);
+    // A prefixed value is matched with LIKE, so there it is still unquoted.
+    assert.equal(parseMailQuery('von:"Max Mustermann"').from, 'Max Mustermann');
   });
 });
 

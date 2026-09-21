@@ -1,5 +1,5 @@
 /**
- * What somebody typed into the search box, read as a question.
+ * Which names the search box recognises, and where in the text they sit.
  *
  * The box takes prose. It is the only thing most people will ever type into
  * it, and it has to work on its own — "rechnung letzte woche" is a search, not
@@ -14,8 +14,15 @@
  * language cannot do and is exactly what somebody who does not know there is a
  * filter language expects.
  *
+ * What is left over once the names are lifted out is read by `parseTerms` in
+ * `@kolibri/shared` — quotes, exclusions and task identifiers. That half lives
+ * there rather than here because the server compiles the very same terms into
+ * its MATCH, and a box whose two halves disagree about what a word is answers
+ * one question locally and a different one over the wire.
+ *
  * No React here on purpose: this is the part worth testing.
  */
+import { fold } from '@kolibri/shared';
 
 export type FacetKind = 'person' | 'label' | 'project';
 
@@ -64,16 +71,6 @@ export interface Suggestion {
   trigger: Trigger;
   options: FacetOption[];
 }
-
-/**
- * Case, accents and the two ways to write an accent, all made not to matter.
- *
- * "Jose" finds "José" and "MÜLLER" finds "Müller", because a search box where
- * the umlaut has to be right is a search box that half the people in a German
- * company will give up on.
- */
-export const fold = (text: string): string =>
-  text.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
 
 const isBoundary = (char: string | undefined): boolean => char === undefined || /[\s(,;]/.test(char);
 
@@ -204,27 +201,3 @@ export function applySuggestion(input: string, trigger: Trigger, option: FacetOp
 export function removeFacet(input: string, facet: Facet): string {
   return `${input.slice(0, facet.start)}${input.slice(facet.end)}`.replace(/\s+/g, ' ').trim();
 }
-
-/**
- * The words the free text asks about.
- *
- * All of them have to appear, and each of them anywhere inside a word rather
- * than only at its start — deliberately a little wider than the server's index,
- * which matches on prefixes. The local answer is the one that appears while
- * somebody is still typing, and an answer that is there and then gone as the
- * server's narrower one replaces it reads as a bug.
- */
-export const terms = (text: string): string[] => fold(text).split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
-
-export const matchesTerms = (haystack: string, words: string[]): boolean => {
-  if (!words.length) return true;
-  const folded = fold(haystack);
-  // A single character is matched at the start of a word rather than anywhere
-  // inside one. Anything else and the first keystroke of every search — the
-  // `@` of a name most of all — matches almost every row there is, so the list
-  // underneath flails while somebody is still typing the first word.
-  const parts = folded.split(/[^\p{L}\p{N}_]+/u);
-  return words.every((word) => (word.length > 1
-    ? folded.includes(word)
-    : parts.some((part) => part.startsWith(word))));
-};

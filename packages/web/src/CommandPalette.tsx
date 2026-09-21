@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { pageExcerpt } from '@kolibri/shared';
+import { asIdentifier, matchesTerms, pageExcerpt, parseTerms } from '@kolibri/shared';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { list, useQuery } from './kernel/sync/store';
@@ -21,6 +21,17 @@ interface Command {
 /**
  * ⌘K search over everything already in the local cache — so it answers while
  * offline and never waits for a request.
+ *
+ * It reads what was typed with the same `parseTerms` the search screen and the
+ * server use, which it did not used to: the filter here was one `includes` over
+ * the whole string, so `des rev` found nothing, `Müller` had to be spelt with
+ * the umlaut, and `WEB 12` missed `WEB-12` because of the hyphen. Three
+ * different ways of saying "that is not how typing works", all fixed by asking
+ * the one question the rest of the box already asks.
+ *
+ * A task named outright comes first. `FEE-1` into this field and Enter is the
+ * shortest path from anywhere in the app to that task, which is the thing this
+ * palette is for.
  */
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const t = useT();
@@ -50,11 +61,18 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       { id: 'nav-new-project', icon: 'plus', title: t('nav.newProject'), run: go('/projects/new') },
     ];
 
-    const needle = query.trim().toLowerCase();
-    const match = (text: string) => !needle || text.toLowerCase().includes(needle);
+    const terms = parseTerms(query);
+    const match = (text: string) => matchesTerms(text, terms);
+    // What the query spells out, if it spells a task's name. Compared against
+    // the row rather than trusted: a workspace with no `FEE` project has no
+    // `FEE-1`, and then it is three characters and a number like any other.
+    const named = query.trim().split(/\s+/).map(asIdentifier).filter(Boolean);
 
     const taskCommands = tasks
       .filter((task) => match(`${task.identifier} ${task.title}`))
+      // The task somebody named outright, ahead of the twenty the words turned
+      // up — and before the slice, so it cannot be the twenty-first.
+      .sort((a, b) => Number(named.includes(b.identifier)) - Number(named.includes(a.identifier)))
       .slice(0, 20)
       .map((task) => ({
         id: task.id,
@@ -94,7 +112,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
     // The palette answers from the local cache, which is fast and does not
     // know what is inside a description or a comment. Rather than end at "no
     // match", it hands the same words to the search screen, which does.
-    const fullText: Command[] = needle
+    const fullText: Command[] = terms.length
       ? [{
         id: 'search-all',
         icon: 'search',

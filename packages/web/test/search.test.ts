@@ -6,11 +6,16 @@
  * words of prose when there is not. Everything below is a way of asking
  * whether that rule still holds — including the cases where it would be
  * tempting to be clever, like a name inside an e-mail address.
+ *
+ * What the *rest* of the text asks for — words, phrases, exclusions and task
+ * identifiers — is read by `parseTerms` in `@kolibri/shared` and tested beside
+ * the MATCH it compiles to, in `packages/server/test/search.test.ts`. One
+ * grammar, one place it is pinned.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  applySuggestion, matchesTerms, parseQuery, removeFacet, suggest, terms, type FacetOption,
+  applySuggestion, parseQuery, removeFacet, suggest, type FacetOption,
 } from '../src/kernel/search/search-query.ts';
 
 const options: FacetOption[] = [
@@ -137,33 +142,5 @@ describe('taking a filter back out', () => {
     const input = '@Anna #Bug absturz';
     const parsed = parseQuery(input, options);
     assert.equal(removeFacet(input, parsed.facets[0]), '#Bug absturz');
-  });
-});
-
-describe('the words themselves', () => {
-  it('wants all of them, anywhere', () => {
-    assert.ok(matchesTerms('WEB-12 Rechnung prüfen', terms('rechnung web')));
-    assert.ok(!matchesTerms('WEB-12 Rechnung prüfen', terms('rechnung angebot')));
-  });
-
-  it('is not stopped by an accent or by case', () => {
-    assert.ok(matchesTerms('Rechnung prüfen', terms('PRUFEN')));
-  });
-
-  it('matches on a prefix, the way typing does', () => {
-    assert.ok(matchesTerms('Design review', terms('des rev')));
-  });
-
-  it('asks nothing of a search with no words in it', () => {
-    assert.ok(matchesTerms('anything', terms('   ')));
-  });
-
-  it('holds a single character to the start of a word', () => {
-    // The first keystroke of `@Grace` is a lone "g". Matched anywhere inside a
-    // word it finds nearly every task there is, and the list flails.
-    assert.ok(matchesTerms('WEB-3 Grace notes', terms('g')));
-    assert.ok(!matchesTerms('WEB-3 Ship dark mode', terms('g')));
-    // A lone digit is usually the end of an identifier somebody is typing.
-    assert.ok(matchesTerms('WEB-1 Redesign the pricing page', terms('web 1')));
   });
 });

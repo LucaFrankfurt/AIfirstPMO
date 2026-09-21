@@ -268,7 +268,7 @@ always called it. `billing` still works and is documented as the older spelling.
 | `list_projects` | projects with open/done task counts |
 | `list_tasks` | filter by `project`, `state` (name or group), `assignee` (`"me"` works), `priority`, `label`, `cycle` (`"current"` works), `module`, `due_before`, `query` |
 | `get_task` | one task with description, sub-tasks, relations, comments, attachments and recent activity |
-| `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves |
+| `search` | full text across tasks, pages, projects, comments, cycles, modules — and connected mailboxes, which answer for themselves. Words match as prefixes, `"quoted words"` as a phrase, `-word` excludes, and `WEB-12` puts that task first |
 | `list_cycles` | sprints with `total`/`done` counts |
 | `list_modules` | milestones with `total`/`done` counts, ordered by target date. Given a project: its own plus the shared ones it works on |
 | `prepare_meeting` | **all six reports as one agenda**, in the order a meeting runs, with a `headline` of the numbers that decide whether it is a short one |

@@ -92,6 +92,14 @@ const lastDay = (yearMonth: string): string => {
  * is somebody else's prose: `re:` and `fwd:` and `http:` all appear in real
  * subject lines, and refusing to search for `http://x` because `http` is not a
  * field would be absurd. So an unknown prefix stays part of the free text.
+ *
+ * A quoted run keeps its quotes on the way into `text`, and loses them in a
+ * `von:` or `betreff:` value. The asymmetry is not an oversight: `text` is
+ * handed to `toMatchQuery`, which reads a quote as "these words, adjacent and
+ * in this order", while the prefixed fields are matched with LIKE and a `"` in
+ * the pattern would look for one in the address. Stripping them here used to
+ * mean `"invoice number"` searched the inbox for two unrelated words — the one
+ * thing somebody types quotes to rule out.
  */
 export function parseMailQuery(input: string): MailFilter {
   const filter: MailFilter = {};
@@ -105,7 +113,7 @@ export function parseMailQuery(input: string): MailFilter {
     const colon = token.indexOf(':');
     const key = colon > 0 ? PREFIXES[token.slice(0, colon).toLowerCase()] : undefined;
     if (!key) {
-      free.push(unquote(token));
+      free.push(token);
       continue;
     }
     const value = unquote(token.slice(colon + 1));
