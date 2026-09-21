@@ -7,11 +7,21 @@
  * open a list of real names, and picking one narrows the search. Nothing has
  * to be learnt first, because the list is what teaches it.
  *
- * The reading of the box lives in `lib/search-query`; this file is the screen.
+ * Three things are typed rather than picked, and the empty screen is where they
+ * are taught: `"a phrase"`, `-not this`, and a task's own name. That last one
+ * is the short cut this box was missing — `FEE-1` is how the work is referred
+ * to in every meeting, and it now lands on that task above everything the words
+ * turned up, with Enter enough to open it.
+ *
+ * Which names the box recognises lives in `../search-query`; what the rest of
+ * the text asks for lives in `@kolibri/shared`, because the server compiles the
+ * same terms. This file is the screen.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { excerpt, pageExcerpt, type Task } from '@kolibri/shared';
+import {
+  excerpt, identifiersIn, matchesTerms, pageExcerpt, parseTerms, termsKey, type Task,
+} from '@kolibri/shared';
 import { Header } from '../../design-system/chrome';
 import { TaskRow } from '../../../modules/work/task-parts';
 import { Avatar, Empty, Icon, useToast } from '../../design-system/ui';
@@ -23,7 +33,7 @@ import { useT, type TranslationKey } from '../../i18n/i18n';
 import { useOpenTask } from '../../design-system/navigation';
 import { byId, list, useQuery } from '../../sync/store';
 import {
-  applySuggestion, matchesTerms, parseQuery, removeFacet, suggest, terms, TRIGGER_OF,
+  applySuggestion, parseQuery, removeFacet, suggest, TRIGGER_OF,
   type Facet, type FacetKind, type FacetOption,
 } from '../search-query';
 import { useMembers, useSession } from '../../identity/session';
@@ -143,10 +153,12 @@ function useFacetOptions(): FacetOption[] {
  * makes the popup worth noticing when it does appear.
  */
 function SearchBox({
-  value, onChange, options, autoFocus,
+  value, onChange, onSubmit, options, autoFocus,
 }: {
   value: string;
   onChange: (next: string) => void;
+  /** Enter with no list open. What a typed identifier is a short cut *to*. */
+  onSubmit?: () => void;
   options: FacetOption[];
   autoFocus?: boolean;
 }) {
@@ -204,6 +216,13 @@ function SearchBox({
       event.preventDefault();
       event.stopPropagation();
       setDismissed(true);
+      return;
+    }
+    // Enter while a name is being offered picks the name; that list is the more
+    // immediate thing on screen and taking it away would be the surprise.
+    if (event.key === 'Enter' && !suggestion) {
+      event.preventDefault();
+      onSubmit?.();
       return;
     }
     if (!suggestion) return;
@@ -325,12 +344,40 @@ export function Search() {
   }, [input, setParams]);
 
   const { text, facets } = useMemo(() => parseQuery(input, options), [input, options]);
-  const words = useMemo(() => terms(text), [text]);
+  const terms = useMemo(() => parseTerms(text), [text]);
   const facetKey = facets.map((facet) => `${facet.kind}:${facet.ids.join('|')}`).join(',');
-  const wordKey = words.join(' ');
-  const asked = words.length > 0 || facets.length > 0;
+  const wordKey = termsKey(terms);
+  /**
+   * Whether anything was asked *for*, as opposed to asked against.
+   *
+   * `-intern` on its own reads, term by term, as "everything that does not say
+   * intern" — which is almost the whole workspace, listed as though somebody
+   * had searched for it. An exclusion narrows a search; it is not one. The
+   * server draws the same line in `toMatch`, where a MATCH of nothing but
+   * exclusions is not even valid FTS5.
+   */
+  const wanted = terms.some((term) => !term.negated);
+  const asked = wanted || facets.length > 0;
   /** A person or a label is a thing only work can have. */
   const workOnly = facets.some((facet) => facet.kind !== 'project');
+
+  /**
+   * The tasks the query named outright, rather than described.
+   *
+   * Resolved from the local mirror, which is what makes `FEE-1` land instantly
+   * and offline; the server pins the same rows for anything the mirror has not
+   * got. Archived work is left out here as it is everywhere else in the app —
+   * a short cut into the archive would find what every list hides.
+   */
+  const named = useMemo(() => identifiersIn(terms), [wordKey]);
+  const exact = useQuery<Task[]>(
+    () => named
+      .map((identifier) => list('task', (task) => task.workspace_id === workspaceId
+        && !task.archived && task.identifier === identifier)[0])
+      .filter((task): task is Task => Boolean(task)),
+    [workspaceId, named.join(' ')],
+  );
+  const exactIds = exact.map((task) => task.id).join(' ');
 
   const tasks = useQuery(() => {
     if (!asked) return [];
@@ -338,12 +385,12 @@ export function Search() {
     const people = sets('person');
     const labels = sets('label');
     const projects = sets('project');
-    const titled = (task: Task) => matchesTerms(`${task.identifier} ${task.title}`, words);
+    const titled = (task: Task) => matchesTerms(`${task.identifier} ${task.title}`, terms);
     return list('task', (task) => task.workspace_id === workspaceId && !task.archived
       && people.every((set) => (task.assignees ?? []).some((id) => set.has(id)))
       && labels.every((set) => (task.labels ?? []).some((id) => set.has(id)))
       && projects.every((set) => set.has(task.project_id))
-      && matchesTerms(`${task.identifier} ${task.title} ${task.description ?? ''}`, words))
+      && matchesTerms(`${task.identifier} ${task.title} ${task.description ?? ''}`, terms))
       // A word in the title beats the same word buried in a description, and
       // among equals the one somebody touched last week is the likelier one.
       .sort((a, b) => Number(titled(b)) - Number(titled(a)) || b.updated_at - a.updated_at)
@@ -367,25 +414,25 @@ export function Search() {
   }, [workspaceId, facetKey, workOnly]);
 
   const local = useQuery<Hit[]>(() => {
-    if (!words.length || workOnly) return [];
+    if (!wanted || workOnly) return [];
     const projects = facets.filter((facet) => facet.kind === 'project').map((facet) => new Set(facet.ids));
     const inScope = (projectId: string | null) => projects.every((set) => projectId && set.has(projectId));
     const pages = list('page', (page) => page.workspace_id === workspaceId && !page.archived
-      && inScope(page.project_id ?? null) && matchesTerms(page.title, words)).slice(0, 12);
+      && inScope(page.project_id ?? null) && matchesTerms(page.title, terms)).slice(0, 12);
     const found = list('project', (project) => project.workspace_id === workspaceId && !project.archived
       && (!projects.length || projects.every((set) => set.has(project.id)))
-      && matchesTerms(`${project.key} ${project.name}`, words)).slice(0, 8);
+      && matchesTerms(`${project.key} ${project.name}`, terms)).slice(0, 8);
     return [
       ...pages.map((page) => ({ kind: 'page', id: page.id, title: page.title, snippet: pageExcerpt(page.content, page.format, 90), projectId: page.project_id ?? null })),
       ...found.map((project) => ({ kind: 'project', id: project.id, title: `${project.icon ?? ''} ${project.name}`.trim(), snippet: excerpt(project.description ?? '', 90), projectId: project.id })),
     ];
-  }, [workspaceId, wordKey, facetKey, workOnly]);
+  }, [workspaceId, wordKey, facetKey, workOnly, wanted]);
 
   const [remote, setRemote] = useState<Hit[]>([]);
   const [waiting, setWaiting] = useState(false);
 
   useEffect(() => {
-    if (!workspaceId || text.trim().length < 2) {
+    if (!workspaceId || !wanted || text.trim().length < 2) {
       setRemote([]);
       setWaiting(false);
       return;
@@ -404,14 +451,23 @@ export function Search() {
       live = false;
       clearTimeout(handle);
     };
-  }, [text, workspaceId]);
+  }, [text, workspaceId, wanted]);
 
   const sections = useMemo(() => {
+    // The named task is shown once, in its own block above these. Kept out of
+    // `seen` as well as out of `hits`, so the server's copy of the same row
+    // cannot walk back in underneath it.
+    const pinned = new Set(exact.map((task) => task.id));
     const hits: Hit[] = [
-      ...tasks.map((task) => ({ kind: 'task', id: task.id, title: `${task.identifier} ${task.title}`, snippet: '', projectId: task.project_id })),
+      ...tasks
+        .filter((task) => !pinned.has(task.id))
+        .map((task) => ({ kind: 'task', id: task.id, title: `${task.identifier} ${task.title}`, snippet: '', projectId: task.project_id })),
       ...local,
     ];
-    const seen = new Set(hits.map((hit) => `${hit.kind}:${hit.id}`));
+    const seen = new Set([
+      ...[...pinned].map((id) => `task:${id}`),
+      ...hits.map((hit) => `${hit.kind}:${hit.id}`),
+    ]);
     const projects = facets.filter((facet) => facet.kind === 'project').map((facet) => new Set(facet.ids));
 
     for (const hit of remote) {
@@ -439,9 +495,9 @@ export function Search() {
     return KIND_ORDER
       .map((kind) => ({ kind, hits: hits.filter((hit) => hit.kind === kind) }))
       .filter((section) => section.hits.length);
-  }, [tasks, local, remote, facetKey, scope]);
+  }, [tasks, local, remote, facetKey, scope, exactIds]);
 
-  const total = sections.reduce((sum, section) => sum + section.hits.length, 0);
+  const total = exact.length + sections.reduce((sum, section) => sum + section.hits.length, 0);
 
   const open = (hit: Hit) => {
     if (hit.kind === 'task') openTask({ id: hit.id });
@@ -472,7 +528,15 @@ export function Search() {
     <>
       <Header title={t('search.title')} />
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <SearchBox autoFocus value={input} onChange={setInput} options={options} />
+        <SearchBox
+          autoFocus
+          value={input}
+          onChange={setInput}
+          options={options}
+          // Enter on `FEE-1` opens FEE-1. Nothing else answers to Enter, because
+          // the results are already on screen: there is no "go" to press.
+          onSubmit={() => exact[0] && openTask({ id: exact[0].id })}
+        />
 
         {facets.length > 0 && (
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -496,7 +560,17 @@ export function Search() {
           )
         ) : (
           <div className="mt-3.5">
-            {workOnly && words.length > 0 && <p className="mb-2 text-[12.5px] text-muted">{t('search.workOnly')}</p>}
+            {workOnly && wanted && <p className="mb-2 text-[12.5px] text-muted">{t('search.workOnly')}</p>}
+            {exact.length > 0 && (
+              <section className="mb-4">
+                <h2 className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                  {t('search.groupExact')}
+                </h2>
+                {exact.map((task) => (
+                  <TaskRow key={task.id} task={task} onOpen={() => openTask({ id: task.id })} showProject />
+                ))}
+              </section>
+            )}
             {sections.map((section) => (
               <section key={section.kind} className="mb-4">
                 <h2 className="mb-1 flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-muted">
@@ -555,16 +629,24 @@ function FacetChip({ facet, onRemove }: { facet: Facet; onRemove: () => void }) 
 /**
  * The empty screen carries the whole feature.
  *
- * Somebody who has never used a filter in their life reads three lines here
+ * Somebody who has never used a filter in their life reads five lines here
  * and then types `@` — which is the only moment this can be taught, because
  * afterwards the screen is full of results and nobody reads it.
+ *
+ * The three that open a list are first, because picking beats remembering.
+ * The two that are typed come after, and each is one character: a quote and a
+ * minus. The task-number short cut is in the sentence above rather than in this
+ * list, since it is the one line here that is about *this* workspace's own
+ * vocabulary rather than about punctuation.
  */
 function Tips() {
   const t = useT();
-  const rows: { kind: FacetKind; hint: TranslationKey }[] = [
-    { kind: 'person', hint: 'search.tipPerson' },
-    { kind: 'label', hint: 'search.tipLabel' },
-    { kind: 'project', hint: 'search.tipProject' },
+  const rows: { glyph: string; hint: TranslationKey }[] = [
+    { glyph: TRIGGER_OF.person, hint: 'search.tipPerson' },
+    { glyph: TRIGGER_OF.label, hint: 'search.tipLabel' },
+    { glyph: TRIGGER_OF.project, hint: 'search.tipProject' },
+    { glyph: '"', hint: 'search.tipPhrase' },
+    { glyph: '-', hint: 'search.tipExclude' },
   ];
   return (
     <div className="mx-auto mt-10 max-w-[420px]">
@@ -572,9 +654,9 @@ function Tips() {
       <p className="mb-4 text-center text-muted">{t('search.promptHint')}</p>
       <ul className="flex flex-col gap-1.5">
         {rows.map((row) => (
-          <li key={row.kind} className="flex items-center gap-2.5 text-[13px] text-soft">
+          <li key={row.glyph} className="flex items-center gap-2.5 text-[13px] text-soft">
             <span className="mono grid size-7 flex-none place-items-center rounded-[var(--radius-sm)] border border-line bg-hover text-[13px]">
-              {TRIGGER_OF[row.kind]}
+              {row.glyph}
             </span>
             {t(row.hint)}
           </li>

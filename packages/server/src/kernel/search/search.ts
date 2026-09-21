@@ -20,6 +20,7 @@
  * answers for its own rows, including who may see them — `registerCorpus`
  * below, filled by `capability/mail` through `wiring.ts`.
  */
+import { identifiersIn, parseTerms, type SearchTerm } from '@kolibri/shared';
 import { all, type Row } from '../platform/db/index.ts';
 import { canSeeBudget, canSeeProject } from '../write-path/repo.ts';
 
@@ -33,19 +34,57 @@ export interface SearchHit {
 }
 
 /**
- * FTS5 expects a query language; users type prose. We turn each word into a
- * prefix term so "des rev" already finds "Design review", and quote everything
- * so stray operators cannot blow up the query.
+ * FTS5 expects a query language; people type prose. `parseTerms` reads the
+ * prose — see `@kolibri/shared`, where the grammar lives so that the client
+ * matching its own rows and the index answering the same question cannot drift
+ * apart — and this turns what it found into a MATCH.
+ *
+ * Three shapes come out of it, and the second and third are the point:
+ *
+ *   rechnung            "rechnung"*                  a word, still being typed
+ *   "design review"     "design review"              those words, in that order
+ *   -intern             (…) NOT ("intern"*)          and not that
+ *
+ * Every word has already been through `fold` and a split on non-word
+ * characters, so a `"` cannot survive into one and the quoting below cannot be
+ * escaped out of. That is worth saying out loud: this string is concatenated
+ * into a MATCH rather than bound, because FTS5 has no parameter for half a
+ * query, and the safety is the tokeniser rather than a `replace` somebody could
+ * later decide was redundant.
+ *
+ * A query of nothing but exclusions compiles to nothing at all. `NOT ("x"*)`
+ * with no left-hand side is an FTS5 syntax error, and "everything except" is
+ * not a search anybody meant to run against a whole workspace.
  */
 export function toMatchQuery(input: string): string {
-  const terms = input
-    .toLowerCase()
-    .split(/[^\p{L}\p{N}_]+/u)
-    .filter((t) => t.length > 0)
-    .slice(0, 12);
-  if (!terms.length) return '';
-  return terms.map((t) => `"${t.replace(/"/g, '')}"*`).join(' AND ');
+  return toMatch(parseTerms(input));
 }
+
+function toMatch(terms: readonly SearchTerm[]): string {
+  const wanted = terms.filter((term) => !term.negated).map(asPhrase);
+  if (!wanted.length) return '';
+  const unwanted = terms.filter((term) => term.negated).map(asPhrase);
+  const required = wanted.join(' AND ');
+  return unwanted.length ? `(${required}) NOT (${unwanted.join(' OR ')})` : required;
+}
+
+const asPhrase = (term: SearchTerm): string => `"${term.words.join(' ')}"${term.prefix ? '*' : ''}`;
+
+/**
+ * A word in a title outweighs the same word buried in a description.
+ *
+ * `bm25` takes one weight per column — including the four the table does not
+ * index, which still occupy their argument positions — so the two numbers at
+ * the end are `title` and `body`. Without them a page whose *name* is
+ * "Rechnungen" lost to a task that happened to say the word four times in a
+ * paragraph, which is never what somebody typing one word is after. The web
+ * list has always sorted its own rows that way; this is the index catching up.
+ *
+ * Five rather than something larger: a comment and a message have no title at
+ * all, and a weight big enough to make the ordering feel decisive is also big
+ * enough to push everything that can only ever match in `body` off the end.
+ */
+const RANK = 'bm25(search_index, 0.0, 0.0, 0.0, 0.0, 5.0, 1.0)';
 
 /**
  * A body of text with an index and a visibility rule of its own.
@@ -110,7 +149,8 @@ function interleave(lists: SearchHit[][], limit: number): SearchHit[] {
 }
 
 export function searchWorkspace(workspaceId: string, userId: string, query: string, limit = 30, kinds?: string[]): SearchHit[] {
-  const match = toMatchQuery(query);
+  const terms = parseTerms(query);
+  const match = toMatch(terms);
   if (!match) return [];
   // The kind goes into the query rather than into a filter over its result:
   // asking for pages and cutting the list afterwards means a page ranked
@@ -118,7 +158,7 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
   const wanted = kinds?.filter(Boolean) ?? [];
   const kindClause = wanted.length ? ` AND kind IN (${wanted.map(() => '?').join(', ')})` : '';
   const rows = all<Row>(
-    `SELECT kind, ref_id, project_id, title, snippet(search_index, 5, '', '', '…', 12) AS snippet, bm25(search_index) AS rank
+    `SELECT kind, ref_id, project_id, title, snippet(search_index, 5, '', '', '…', 12) AS snippet, ${RANK} AS rank
        FROM search_index
       WHERE search_index MATCH ? AND (workspace_id = ? OR workspace_id IS NULL)${kindClause}
       ORDER BY rank LIMIT ?`,
@@ -152,6 +192,16 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
       rank: Number(row.rank ?? 0),
     }));
 
+  // Somebody who typed `FEE-1` gets `FEE-1` first, above whatever else the
+  // index thought of the words. Deduplicated rather than appended: the phrase
+  // the identifier compiles to matches that task's own title, so without this
+  // it would be in the list twice, once pinned and once earned.
+  const named = namedTasks(workspaceId, userId, identifiersIn(terms), wanted);
+  const pinned = new Set(named.map((hit) => hit.id));
+  const ordered = named.length
+    ? [...named, ...indexed.filter((hit) => !(hit.kind === 'task' && pinned.has(hit.id)))]
+    : indexed;
+
   // Asked for the full `limit` each, not a share of it: a corpus that returns
   // nothing must not cost the others anything, and `interleave` does the
   // trimming. A corpus that throws is a corpus that is missing from this
@@ -168,7 +218,43 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
     })
     .filter((list) => list.length > 0);
 
-  return extra.length ? interleave([indexed, ...extra], limit) : indexed.slice(0, limit);
+  return extra.length ? interleave([ordered, ...extra], limit) : ordered.slice(0, limit);
+}
+
+/**
+ * The tasks somebody named outright, rather than described.
+ *
+ * `FEE-1` is how this team refers to a task out loud, and it is the one search
+ * where the right answer is a single row and everybody knows which. Left to the
+ * index alone it is a phrase like any other and lands wherever bm25 puts it,
+ * which for a short title against a long description is not always first.
+ *
+ * Read from `tasks` rather than from the index on purpose: `identifier` is a
+ * column with a unique meaning, and asking it directly is both exact and
+ * cheaper than asking FTS5 for a phrase it would then have to be trusted about.
+ * The same two exclusions the index applies — deleted and archived — because a
+ * short cut into the archive would find what every list in the app hides.
+ */
+function namedTasks(workspaceId: string, userId: string, identifiers: string[], kinds: string[]): SearchHit[] {
+  if (!identifiers.length || (kinds.length && !kinds.includes('task'))) return [];
+  const rows = all<Row>(
+    `SELECT id, identifier, title, project_id FROM tasks
+      WHERE workspace_id = ? AND deleted_at IS NULL AND COALESCE(archived, 0) = 0
+        AND identifier IN (${identifiers.map(() => '?').join(', ')})`,
+    workspaceId, ...identifiers,
+  );
+  return rows
+    .filter((row) => canSeeProject(userId, row.project_id))
+    // Ranked ahead of anything bm25 can produce, which is always negative and
+    // never this far down. The number is only ever read as an order.
+    .map((row) => ({
+      kind: 'task',
+      id: String(row.id),
+      project_id: row.project_id ? String(row.project_id) : null,
+      title: `${row.identifier ?? ''} ${row.title ?? ''}`.trim(),
+      snippet: '',
+      rank: -Infinity,
+    }));
 }
 
 /**

@@ -1376,6 +1376,52 @@ await step('search: prose finds work, and @ offers the people', async () => {
   console.log('     rows for a plain word:', rows);
 });
 
+/**
+ * The three things the box understands that nothing offers a list for.
+ *
+ * Asserted on structure rather than on headings, so the same run works in
+ * every language: which row is first, how many rows there are, and where Enter
+ * lands. The identifier is the one that cannot be checked anywhere else — it
+ * reaches from the local mirror through the pinned block to the task sheet, and
+ * every layer in between has to agree about what `WEB-3` means.
+ */
+await step('search: a phrase, an exclusion, and a task by its own name', async () => {
+  await page.goto(`${base}/search`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('input');
+  const box = page.locator('input').first();
+
+  const found = async (query) => {
+    await box.fill('');
+    await box.type(query);
+    await page.waitForTimeout(1200);
+    return page.locator('.task-row');
+  };
+
+  // Two words in that order. `mode dark` is the same two words and is not the
+  // phrase, which is the whole of what a quote buys.
+  const phrase = await (await found('"dark mode"')).first().innerText();
+  if (!/dark mode/i.test(phrase)) throw new Error(`a phrase found "${phrase.replace(/\s+/g, ' ')}"`);
+  const reversed = await (await found('"mode dark"')).count();
+  if (reversed) throw new Error(`the words the wrong way round still found ${reversed} rows`);
+
+  // The same word, minus what carries the other.
+  const loose = await (await found('dark')).count();
+  const fewer = await (await found('dark -mode')).count();
+  if (!(fewer < loose)) throw new Error(`excluding a word left ${fewer} of ${loose} rows`);
+  console.log('     "dark" found', loose, '· "dark -mode" found', fewer);
+
+  // A task's own name, above whatever the words turned up — and Enter is
+  // enough, because there is nothing else on this screen Enter could mean.
+  const named = (await (await found('WEB-3')).first().innerText()).replace(/\s+/g, ' ');
+  if (!named.startsWith('WEB-3')) throw new Error(`an identifier put "${named}" first`);
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(800);
+  if (!/\/t\//.test(page.url())) throw new Error(`Enter on an identifier went to ${page.url()}`);
+  console.log('     WEB-3 opened', new URL(page.url()).pathname);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+});
+
 await step('the server\'s own settings are editable, and stick', async () => {
   await page.goto(`${base}/settings?tab=instance`, { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('label:has-text("KOLIBRI_MAIL_FROM_NAME")');

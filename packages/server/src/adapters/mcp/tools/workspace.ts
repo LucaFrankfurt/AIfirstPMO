@@ -195,7 +195,9 @@ export const workspaceTools: ToolDef[] = [
   {
     name: 'search',
     title: 'Search',
-    description: 'Full-text search across tasks, pages, projects, cycles and comments.',
+    description: 'Full-text search across tasks, pages, projects, cycles and comments. '
+      + 'Words match as prefixes; "quoted words" match as a phrase, -word excludes, '
+      + 'and an identifier like WEB-12 puts that task first.',
     readOnly: true,
     schema: {
       type: 'object',

@@ -27,6 +27,7 @@ export * from './modules/mail/mailbox.ts';
 export * from './modules/mail/query.ts';
 export * from './modules/mail/documents.ts';
 export * from './kernel/registry/scope.ts';
+export * from './kernel/search/terms.ts';
 export * from './modules/work/quickadd.ts';
 export * from './modules/work/query.ts';
 export * from './modules/work/relocate.ts';
