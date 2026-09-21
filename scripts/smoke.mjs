@@ -1405,8 +1405,19 @@ await step('search: prose finds work, and @ offers the people', async () => {
 await step('the query box applies a filter, and the screen survives it', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  await page.waitForSelector('.task-row');
-  const before = await page.locator('.task-row').count();
+  // `.my-work-list` and not `.task-row` anywhere: the overdue bucket above the
+  // list and the "created by you" section below it draw the same row and are
+  // not filtered, so counting the page counts a superset of what the filter
+  // touched — which passes a narrowing assertion while proving nothing.
+  const rows = page.locator('.my-work-list .task-row');
+  await rows.first().waitFor();
+  const before = await rows.count();
+  // Asked of the list rather than hard-coded, so the case stays true whatever
+  // this walk has already created and assigned by the time it gets here.
+  const first = (await rows.first().innerText()).replace(/\s+/g, ' ');
+  const identifier = first.match(/[A-Z][A-Z0-9]*-\d+/)?.[0];
+  const phrase = first.replace(/^\S+\s+/, '').match(/^[\p{L}\p{N}]+ [\p{L}\p{N}]+/u)?.[0];
+  if (!identifier || !phrase) throw new Error(`could not read a task out of "${first}"`);
 
   const apply = async (query) => {
     await page.click(`button:has-text("${LABELS.query}")`);
@@ -1414,25 +1425,38 @@ await step('the query box applies a filter, and the screen survives it', async (
     await page.locator('.sheet textarea').first().fill(query);
     await page.click(`.sheet button:has-text("${LABELS.apply}")`);
     await page.waitForTimeout(800);
-    // The sheet closes onto the list rather than onto an error screen.
+    // The sheet closes onto the list rather than onto an error screen. It did
+    // not, for as long as this box has existed: Apply wrote `field: undefined`
+    // into the filter and the badge that counts it handed that to
+    // `Object.values`. Unit tests for what the box parses and prints could not
+    // see it, because nothing had ever pressed the button.
     if (await page.locator('button:has-text("Reload"), button:has-text("Neu laden"), button:has-text("Recharger")').count()) {
       throw new Error(`applying "${query}" took the screen down`);
     }
-    return page.locator('.task-row').count();
+    return rows.count();
   };
 
-  const narrowed = await apply('"dark mode"');
-  if (!(narrowed < before)) throw new Error(`a phrase left ${narrowed} of ${before} rows`);
+  // A task by its own name is one row, and the right one.
+  const one = await apply(identifier);
+  if (one !== 1) throw new Error(`"${identifier}" left ${one} of ${before} rows`);
+  if (!(await rows.first().innerText()).includes(identifier)) {
+    throw new Error(`"${identifier}" left a row that is not it`);
+  }
+
+  // And two words of its title, quoted, still find it — which the substring
+  // this used to be could only do when they were already adjacent and exact.
+  const some = await apply(`"${phrase}"`);
+  if (!(some >= 1 && some <= before)) throw new Error(`"${phrase}" left ${some} of ${before} rows`);
 
   // Reopened, the box says what it is filtering by — quotes and all, because
-  // they are what makes it a phrase rather than two words.
+  // they are what makes it a phrase rather than two loose words.
   await page.click(`button:has-text("${LABELS.query}")`);
   await page.waitForSelector('.sheet textarea');
   const shown = await page.locator('.sheet textarea').first().inputValue();
-  if (!shown.includes('"dark mode"')) throw new Error(`the box came back as "${shown}"`);
+  if (!shown.includes(`"${phrase}"`)) throw new Error(`the box came back as "${shown}"`);
   await page.keyboard.press('Escape');
   await page.waitForTimeout(300);
-  console.log('     "dark mode" narrowed', before, '->', narrowed, '· box reopened as', JSON.stringify(shown));
+  console.log(`     ${before} rows · ${identifier} -> 1 · "${phrase}" -> ${some} · box reopened as ${JSON.stringify(shown)}`);
 
   // Put it back, so the filter does not follow the rest of the walk around.
   const restored = await apply('');
