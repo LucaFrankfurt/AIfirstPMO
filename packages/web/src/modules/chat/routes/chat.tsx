@@ -20,8 +20,10 @@ import {
   channelTitle,
   directChannelId,
   excerpt,
+  matchesTerms,
   messageOrder,
   normaliseChannelName,
+  parseTerms,
   readStateId,
   unreadCount,
   type Channel,
@@ -467,8 +469,13 @@ function Conversation({ channel, me, onBack }: { channel: Channel; me: string; o
   const hunting = needle !== null && needle.trim().length > 0;
   const found = useMemo(() => {
     if (!hunting) return [];
-    const query = needle!.trim().toLowerCase();
-    return messages.filter((message) => String(message.body ?? '').toLowerCase().includes(query));
+    // Read the way every other search box in the app is read. It used to be one
+    // `toLowerCase().includes()` over the body, which in a German conversation
+    // means `grusse` does not find "Grüße" and two words have to have been
+    // typed next to each other in that order to find anything at all — neither
+    // of which is how anybody looks for something they remember saying.
+    const terms = parseTerms(needle!);
+    return terms.length ? messages.filter((message) => matchesTerms(String(message.body ?? ''), terms)) : [];
   }, [hunting, needle, messages]);
   const drawn = hunting ? found : messages.slice(Math.max(0, messages.length - reach));
   const older = !hunting && messages.length > drawn.length;

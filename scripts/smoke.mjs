@@ -49,7 +49,7 @@ const LABELS = {
     taskParent: 'Parent',
     reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
-    query: 'Query', apply: 'Apply',
+    query: 'Query', apply: 'Apply', assignees: 'Assignees', filterBox: 'Filter…',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
     mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes',
@@ -64,7 +64,7 @@ const LABELS = {
     taskParent: 'Übergeordnet',
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
-    query: 'Abfrage', apply: 'Anwenden',
+    query: 'Abfrage', apply: 'Anwenden', assignees: 'Zuständig', filterBox: 'Filtern…',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
     mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer',
@@ -79,7 +79,7 @@ const LABELS = {
     taskParent: 'Tâche parente',
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
-    query: 'Requête', apply: 'Appliquer',
+    query: 'Requête', apply: 'Appliquer', assignees: 'Assignés', filterBox: 'Filtrer…',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
     mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail',
@@ -358,6 +358,53 @@ await step('open task detail + comment', async () => {
   await page.waitForSelector('.sheet', { timeout: 5000 });
   const title = await page.locator('.sheet input[type=text], .sheet input:not([type])').first().inputValue();
   console.log('     task:', title.slice(0, 40));
+});
+
+/**
+ * The filter box every picker in the app shares.
+ *
+ * Ten lists hang off `MenuButton`: assignees, labels, states, the parent task,
+ * relations, saved views, the bulk bar and quick add. All ten filtered with one
+ * `toLowerCase().includes()`, which asks that the words be adjacent, in order,
+ * and spelt exactly — so a surname typed before a first name found nobody, and
+ * `jorg` never found "Jörg". A unit test on the matcher cannot see that a call
+ * site is not using it; opening the menu can.
+ *
+ * The umlaut is not the case asserted here, because nobody in the demo
+ * workspace has one. The surname-first case fails on the old code just as
+ * plainly and is in front of us.
+ */
+await step('a picker finds a name by its second word', async () => {
+  const menu = page.locator(`.sheet button[title="${LABELS.assignees}"], .sheet button[aria-label="${LABELS.assignees}"]`).first();
+  await menu.click();
+  const box = page.locator(`input[placeholder="${LABELS.filterBox}"]`).first();
+  await box.waitFor({ timeout: 5000 });
+
+  // The name, not the row: the row starts with an avatar, which draws the
+  // person's initials as text of its own.
+  const rows = page.locator('[role=menuitem]');
+  const names = rows.locator('span.flex-1');
+  const everyone = await rows.count();
+  if (everyone < 2) throw new Error(`the assignee menu offered ${everyone} people`);
+  const whole = (await names.first().innerText()).trim();
+  const [given, family] = whole.split(/\s+/);
+  if (!family) throw new Error(`"${whole}" is one word, and this case needs two`);
+
+  // The surname on its own, then both the wrong way round. A substring finds
+  // the first and not the second; words that stand on their own find both.
+  await box.fill(family);
+  await page.waitForTimeout(400);
+  const one = await rows.count();
+  if (one !== 1) throw new Error(`"${family}" left ${one} rows, not 1`);
+  await box.fill(`${family} ${given}`);
+  await page.waitForTimeout(400);
+  const reversed = await rows.count();
+  if (reversed !== 1) throw new Error(`"${family} ${given}" left ${reversed} rows, not 1`);
+  if (!(await names.first().innerText()).includes(family)) throw new Error('and it is the wrong person');
+  console.log(`     "${family} ${given}" still finds ${whole}`);
+
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(300);
 });
 await page.screenshot({ path: `${shots}/3-task.png` });
 
