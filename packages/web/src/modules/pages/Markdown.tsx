@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
-  enterInList, htmlToMarkdown, indentList, looksLikeHtml, renderMarkdown, toggleTask,
+  enterInList, htmlToMarkdown, indentList, looksLikeHtml, matchesTerms, parseTerms,
+  renderMarkdown, toggleTask,
   type Edit, type MarkdownOptions,
 } from '@kolibri/shared';
 
@@ -333,11 +334,20 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   // ...and the `/` menu, which offers block shapes rather than anything named.
   const [slash, setSlash] = useState<{ query: string; at: number; index: number } | null>(null);
 
-  const matches = mention
-    ? members
-      .filter((member) => `${member.name} ${member.email}`.toLowerCase().includes(mention.query.toLowerCase()))
-      .slice(0, 6)
-    : [];
+  /**
+   * What `@` offers, read the way every other search box in the app is read.
+   *
+   * These four menus each had a `toLowerCase().includes()` of their own, which
+   * is three things at once in a German workspace: `jorg` does not find "Jörg",
+   * the words have to be adjacent and in the order they were typed, and — in
+   * the `#` menu below — `WEB 12` does not find `WEB-12`, because the hyphen is
+   * a character like any other to a substring.
+   */
+  const matches = useMemo(() => {
+    if (!mention) return [];
+    const terms = parseTerms(mention.query);
+    return members.filter((member) => matchesTerms(`${member.name} ${member.email}`, terms)).slice(0, 6);
+  }, [mention?.query, members]);
 
   /**
    * What `#` offers: the projects and the tasks of this workspace.
@@ -352,9 +362,9 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
    */
   const refMatches = useQuery(() => {
     if (!hash) return [] as RefChoice[];
-    const query = hash.query.toLowerCase();
+    const terms = parseTerms(hash.query);
     const projects = list('project', (project) => project.workspace_id === workspaceId && !project.archived)
-      .filter((project) => !query || `${project.key} ${project.name}`.toLowerCase().includes(query))
+      .filter((project) => matchesTerms(`${project.key} ${project.name}`, terms))
       .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? ''))
       .slice(0, 3)
       .map((project): RefChoice => ({
@@ -365,7 +375,9 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
         hint: project.key ?? '',
       }));
     const tasks = list('task', (task) => task.workspace_id === workspaceId && !task.archived && !!task.identifier)
-      .filter((task) => !query || `${task.identifier} ${task.title}`.toLowerCase().includes(query))
+      // `WEB-12` and `WEB 12` are the same question here, because `parseTerms`
+      // reads an identifier as the two adjacent words the hyphen makes of it.
+      .filter((task) => matchesTerms(`${task.identifier} ${task.title}`, terms))
       .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))
       .slice(0, 6 - projects.length)
       .map((task): RefChoice => ({
@@ -389,9 +401,9 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
    */
   const pageMatches = useQuery(() => {
     if (!wiki) return [] as RefChoice[];
-    const query = wiki.query.toLowerCase();
+    const terms = parseTerms(wiki.query);
     return list('page', (page) => page.workspace_id === workspaceId && !page.archived)
-      .filter((page) => !query || (page.title ?? '').toLowerCase().includes(query))
+      .filter((page) => matchesTerms(page.title ?? '', terms))
       .sort((a, b) => (b.updated_at ?? 0) - (a.updated_at ?? 0))
       .slice(0, 6)
       .map((page): RefChoice => ({
@@ -561,11 +573,13 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
 
   const commands = useMemo(() => {
     if (!slash) return [] as Command[];
-    const query = slash.query.toLowerCase();
-    if (!query) return COMMANDS;
     // Matched on the command's own id and on what it is called in the reader's
-    // language, so `/tab` and `/tabelle` both find the table.
-    return COMMANDS.filter((one) => `${one.id} ${t(one.title)}`.toLowerCase().includes(query));
+    // language, so `/tab` and `/tabelle` both find the table — and `/uber`
+    // finds "Überschrift", which a substring over a lower-cased string could
+    // not, since lowercasing an umlaut leaves it an umlaut.
+    const terms = parseTerms(slash.query);
+    if (!terms.length) return COMMANDS;
+    return COMMANDS.filter((one) => matchesTerms(`${one.id} ${t(one.title)}`, terms));
   }, [slash?.query, t]);
 
   /** Take the `/query` back out and put the block in its place. */

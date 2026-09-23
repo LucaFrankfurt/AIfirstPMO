@@ -14,7 +14,7 @@ import {
 import { createPortal } from 'react-dom';
 import type { VariantProps } from 'class-variance-authority';
 import type { Priority, StateGroup } from '@kolibri/shared';
-import { isDoneGroup } from '@kolibri/shared';
+import { isDoneGroup, matchesTerms, parseTerms } from '@kolibri/shared';
 import { colorFor, initials, PRIORITY_COLOR } from './format';
 import { priorityKey, useT } from '../i18n/i18n';
 import type { GuideTarget } from '../../modules/guide/guide';
@@ -329,11 +329,19 @@ export function MenuButton({
 }) {
   const t = useT();
   const [query, setQuery] = useState('');
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => `${typeof item.label === 'string' ? item.label : ''} ${item.hint ?? ''}`.toLowerCase().includes(q));
-  }, [items, query]);
+  /**
+   * The same reading of a search box the rest of the app does.
+   *
+   * It was `toLowerCase().includes()`, and the ten lists behind this one are
+   * exactly where that hurts: they are people, labels, states and projects.
+   * `jorg` did not find "Jörg Müller", and a colleague you can only reach by
+   * spelling the umlaut is a picker half a German company types around. The
+   * words also stand on their own now, so "muller jorg" finds him too.
+   */
+  const terms = useMemo(() => parseTerms(query), [query]);
+  const filtered = useMemo(() => (terms.length
+    ? items.filter((item) => matchesTerms(`${typeof item.label === 'string' ? item.label : ''} ${item.hint ?? ''}`, terms))
+    : items), [items, terms]);
 
   let lastSection: string | undefined;
   return (

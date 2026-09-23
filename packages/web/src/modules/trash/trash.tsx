@@ -12,7 +12,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import type { EntityName } from '@kolibri/shared';
+import { matchesTerms, parseTerms, type EntityName } from '@kolibri/shared';
 import { api } from '../../kernel/sync/api';
 import { relativeTime } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -116,8 +116,11 @@ export function Trash() {
 
   const entries = useRecoverable(workspaceId, mode);
   const shown = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return (needle ? entries.filter((entry) => entry.title.toLowerCase().includes(needle)) : entries).slice(0, 200);
+    // The same reading the search box does, rather than a substring of a
+    // lower-cased title: what is in here is mostly named in German, and a
+    // deleted page is looked for by half-remembering what it was called.
+    const terms = parseTerms(query);
+    return (terms.length ? entries.filter((entry) => matchesTerms(entry.title, terms)) : entries).slice(0, 200);
   }, [entries, query]);
 
   const bring = (entry: Entry) => {
