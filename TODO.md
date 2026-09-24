@@ -170,6 +170,28 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       The share is the better place to solve it first, because a share already *is* a capability
       token: the right shape is almost certainly a file URL scoped to the share rather than to the
       session, which is the one option that does not put a session token in somebody's DOM.
+- [x] **Every pre-signed download was refused.** `presignGet` signed its query in the form
+      encoding, a space as `+`, where SigV4 wants `%20` — and a download link always has a space in
+      it, in `; filename="…"`. Measured against MinIO `RELEASE.2026-09-22`, the build the compose
+      stack pulls today: every link with a file name answered **403** `SignatureDoesNotMatch`, the
+      same object without one **200**. Nothing noticed because the fake store in `storage.test.ts`
+      served a pre-signed URL once it looked well formed, and the compose files set
+      `KOLIBRI_S3_PRESIGN=false`; the application's own default is on, so an instance pointed at a
+      bucket by hand with nothing said about pre-signing got it — and, against MinIO, downloads
+      that did not work. The link is now signed and sent in RFC 3986,
+      and the fake checks it the way a store does — stricter than MinIO, reading a `+` as a plus,
+      because a link signed right but *sent* in the form encoding passes MinIO and is exactly what
+      a store reading RFC 3986 would refuse. Not measured against AWS, R2 or Ceph.
+- [ ] **A file whose name leaves Latin-1 cannot be downloaded from disk.** Found while measuring
+      the entry above, and not that bug. The download route writes the name into
+      `Content-Disposition` as it is, and Node refuses any character above U+00FF in a header — so
+      the upload answers 200 and the download **500** (`ERR_INVALID_CHAR`, thrown in
+      `kernel/files/routes/files.ts`). Measured through the real route on disk storage:
+      `Müller.pdf` downloads; `Angebot – Firma.pdf`, `日本語.pdf` and `Plan 🚀.pdf` do not, and an
+      en dash is ordinary in a German document name. A pre-signed link escapes it only because the
+      store writes that header rather than Node — MinIO sends the UTF-8 bytes as they are, which
+      browsers mostly guess right. The fix is RFC 6266's pair on both paths: an ASCII
+      `filename="…"` for old clients and `filename*=UTF-8''…` for everything else.
 
 ---
 
