@@ -2,7 +2,7 @@ import { all, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
 import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
-import { disposition } from '../mime.ts';
+import { contentDisposition, disposition } from '../mime.ts';
 import * as storage from '../storage.ts';
 import { canSeeFile } from '../../write-path/repo.ts';
 import { safeName, storeFile } from '../uploads.ts';
@@ -68,7 +68,7 @@ export function registerFileRoutes(router: Router): void {
     ctx.res.writeHead(200, {
       'content-type': type,
       ...(result.size ? { 'content-length': String(result.size) } : {}),
-      'content-disposition': `${inline ? 'inline' : 'attachment'}; filename="${filename}"`,
+      'content-disposition': contentDisposition(inline ? 'inline' : 'attachment', filename),
       // Content-addressed: the bytes behind a hash never change.
       'cache-control': 'private, max-age=31536000, immutable',
       'x-content-type-options': 'nosniff',

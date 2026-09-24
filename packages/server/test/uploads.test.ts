@@ -127,6 +127,65 @@ describe('what a browser is told to do with it', () => {
   });
 });
 
+/** What a browser saves it as: `filename*` when there is one (RFC 6266), else `filename`. */
+const savedAs = (header: string): string | undefined => {
+  const extended = /filename\*=UTF-8''([^;]+)/.exec(header);
+  return extended ? decodeURIComponent(extended[1]) : /filename="([^"]*)"/.exec(header)?.[1];
+};
+
+/**
+ * The name a download is given, which a header cannot always hold.
+ *
+ * Node refuses any character above U+00FF in one, and the name used to be
+ * written straight in — so a file called `Angebot – Firma.pdf` uploaded with a
+ * 200 and downloaded with a 500. An en dash is an ordinary thing to find in a
+ * German document's name; so are the other three below.
+ */
+describe('the name a download is given', () => {
+  it('is written as it always was when it is plain ASCII', async () => {
+    const { contentDisposition } = await import('../src/kernel/files/mime.ts');
+    assert.equal(contentDisposition('attachment', 'report.pdf'), 'attachment; filename="report.pdf"');
+    assert.equal(contentDisposition('inline', "it's (1)*.png"), `inline; filename="it's (1)*.png"`);
+  });
+
+  it('cannot end the header or its quoted string, whatever the caller passed', async () => {
+    const { contentDisposition } = await import('../src/kernel/files/mime.ts');
+    assert.equal(contentDisposition('attachment', 'a"b\\c\r\nd.txt'), 'attachment; filename="a_b_c__d.txt"');
+  });
+
+  it('carries any other name twice: an ASCII stand-in, and the name itself', async () => {
+    const { contentDisposition } = await import('../src/kernel/files/mime.ts');
+    assert.equal(
+      contentDisposition('attachment', 'Angebot – Müller.pdf'),
+      `attachment; filename="Angebot _ Muller.pdf"; filename*=UTF-8''Angebot%20%E2%80%93%20M%C3%BCller.pdf`,
+    );
+  });
+
+  it('encodes what RFC 8187 does not allow bare, which encodeURIComponent would not', async () => {
+    const { contentDisposition } = await import('../src/kernel/files/mime.ts');
+    // A bare `'` would close the charset; `(`, `)` and `*` are not allowed either.
+    assert.match(contentDisposition('attachment', "Grüße (Ada's)*.txt"),
+      /; filename\*=UTF-8''Gr%C3%BC%C3%9Fe%20%28Ada%27s%29%2A\.txt$/);
+  });
+
+  it('survives half a surrogate pair rather than throwing', async () => {
+    const { contentDisposition } = await import('../src/kernel/files/mime.ts');
+    assert.match(contentDisposition('attachment', '\uD800.txt'), /filename\*=UTF-8''%EF%BF%BD\.txt$/);
+  });
+
+  it('downloads under its own name, whatever the name is', async () => {
+    for (const name of ['Angebot – Firma.pdf', '日本語.pdf', 'Plan 🚀.pdf', 'Müller.pdf']) {
+      // Sent the way the client sends it: the upload header cannot hold the name either.
+      const { hash } = await (await upload(ada, encodeURIComponent(name), 'application/pdf', `%PDF ${name}`)).json() as any;
+      const served = await fetch(`${base}/files/${hash}/${encodeURIComponent(name)}`, { headers: { cookie: ada.cookie } });
+      assert.equal(served.status, 200, name);
+      const header = served.headers.get('content-disposition') ?? '';
+      assert.match(header, /^[\x20-\x7e]+$/, 'nothing a header cannot carry');
+      assert.equal(savedAs(header), name);
+    }
+  });
+});
+
 /**
  * The object store hands out a signed URL instead of proxying the bytes, and
  * the browser then obeys whatever that URL says — so the URL has to say the

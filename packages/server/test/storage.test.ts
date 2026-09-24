@@ -121,8 +121,18 @@ const s3Server: Server = createServer((req, res) => {
         res.writeHead(404).end();
         return;
       }
-      // Served the way a store serves one: with what the URL asked for.
+      // Served the way a store serves one: with what the URL asked for. Except
+      // a value that is not plain ASCII, which is refused rather than sent.
+      // MinIO writes such a value's UTF-8 bytes as they are, for each browser
+      // to decode however it guesses; Node cannot do the same — it writes
+      // Latin-1 where it can and throws where it cannot, and then nothing
+      // answers and the test waits five minutes to say so.
       const disposition = asked.get('response-content-disposition');
+      if (disposition && !/^[\x20-\x7e]*$/.test(disposition)) {
+        res.writeHead(502, { 'content-type': 'text/plain' });
+        res.end(`not plain ASCII, so no two clients read it alike: ${JSON.stringify(disposition)}`);
+        return;
+      }
       res.writeHead(200, {
         'content-type': asked.get('response-content-type') ?? stored.contentType,
         'content-length': String(stored.body.length),
@@ -280,6 +290,19 @@ describe('s3 storage', () => {
     const response = await fetch(storage.directUrl('ab/cd/named.txt', name, 'text/plain')!);
     assert.equal(response.status, 200, await response.clone().text());
     assert.equal(response.headers.get('content-disposition'), `inline; filename="${name}"`);
+  });
+
+  it('hands the store a name outside Latin-1 in a form a header can carry', async () => {
+    // The store copies the value into its header as it is, so what the URL
+    // asks for is what the browser reads — the same pair the disk path writes.
+    const name = 'Angebot – Firma.txt';
+    await storage.put('ab/cd/angebot.txt', Buffer.from('angebot'), 'text/plain');
+
+    const response = await fetch(storage.directUrl('ab/cd/angebot.txt', name, 'text/plain')!);
+    assert.equal(response.status, 200, await response.clone().text());
+    const header = response.headers.get('content-disposition') ?? '';
+    assert.match(header, /^[\x20-\x7e]+$/, 'nothing a header cannot carry');
+    assert.equal(decodeURIComponent(/filename\*=UTF-8''([^;]+)/.exec(header)?.[1] ?? ''), name);
   });
 
   it('refuses a pre-signed URL somebody edited', async () => {
