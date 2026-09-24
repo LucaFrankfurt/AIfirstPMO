@@ -13,7 +13,7 @@ import { provision } from './modules/operations/provision.ts';
 import { installSettings } from './kernel/platform/settings.ts';
 import { installEffects } from './wiring.ts';
 import { buildCsp } from './kernel/platform/csp.ts';
-import { HttpError, Router, send, type Ctx } from './kernel/platform/http.ts';
+import { HttpError, Router, badRequest, decodeParam, send, type Ctx } from './kernel/platform/http.ts';
 import { overTls } from './kernel/platform/origin.ts';
 import { registerAiRoutes } from './modules/ai-review/routes/ai.ts';
 import { registerAuthRoutes } from './kernel/identity/routes/auth.ts';
@@ -157,7 +157,7 @@ const MIME: Record<string, string> = {
 
 function serveStatic(pathname: string, res: ServerResponse): boolean {
   if (!existsSync(env.webDir)) return false;
-  const relative = normalize(decodeURIComponent(pathname)).replace(/^([/\\.]+)/, '');
+  const relative = normalize(decodeParam(pathname, 'The path')).replace(/^([/\\.]+)/, '');
   const candidate = resolve(join(env.webDir, relative));
   const isFile = candidate.startsWith(env.webDir) && existsSync(candidate) && statSync(candidate).isFile();
   const file = isFile ? candidate : join(env.webDir, 'index.html');
@@ -193,8 +193,60 @@ function securityHeaders(res: ServerResponse, secure: boolean): void {
   if (secure) res.setHeader('strict-transport-security', 'max-age=15552000');
 }
 
-const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+/**
+ * What a request that threw is answered with, decided in one place.
+ *
+ * An `HttpError` carries its own status. A constraint the database refused is
+ * a bad request that happens to arrive as an exception — see
+ * `constraintFailure` — and is logged all the same, because a constraint
+ * failing on a path that should never produce one is still worth seeing; it is
+ * the *status* that was wrong. Everything else is a 500, and a line in the log.
+ */
+function failed(req: IncomingMessage, res: ServerResponse, err: unknown, pathname: string): void {
+  if (res.headersSent) {
+    res.end();
+    return;
+  }
+  if (err instanceof HttpError) {
+    send(res, err.status, { error: err.code ?? 'error', message: err.message });
+    return;
+  }
+  const refused = constraintFailure(err);
+  if (refused) {
+    log('warn', `${req.method} ${pathname} refused by the database: ${refused}`);
+    send(res, 400, { error: 'bad_request', message: refused });
+    return;
+  }
+  log('error', `${req.method} ${pathname} failed`, err);
+  send(res, 500, { error: 'internal_error', message: 'Something went wrong' });
+}
+
+/** The request's URL — which a `Host` of `[` cannot make, and which used to end the process. */
+function requestUrl(req: IncomingMessage): URL {
+  try {
+    return new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`);
+  } catch {
+    throw badRequest('The request line and the Host header do not make a URL');
+  }
+}
+
+/**
+ * Nothing a request does may end the process.
+ *
+ * The one `catch` below used to begin after the route was matched, and the
+ * listener is `async` with nothing awaiting it — so whatever threw before
+ * that point was an unhandled rejection, and Node ends the process on one.
+ * Measured, before this: a single request with `%E0` in a path parameter, in a
+ * path for the web build, or `[` as its Host, and the server was gone, signed
+ * in or not. This catches everything the listener lets through, to the same
+ * answers as the `catch` inside it.
+ */
+const server = createServer((req: IncomingMessage, res: ServerResponse) => {
+  handle(req, res).catch((err) => failed(req, res, err, (req.url ?? '/').split('?')[0]));
+});
+
+async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const url = requestUrl(req);
   securityHeaders(res, overTls({ req, res, url, params: {}, query: url.searchParams, method: req.method ?? 'GET' }));
   const origin = req.headers.origin;
   if (origin) {
@@ -248,28 +300,9 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     if (res.writableEnded || res.headersSent) return; // handler streamed its own response
     send(res, result === undefined ? 204 : 200, result ?? null);
   } catch (err) {
-    if (res.headersSent) {
-      res.end();
-      return;
-    }
-    if (err instanceof HttpError) {
-      send(res, err.status, { error: err.code ?? 'error', message: err.message });
-      return;
-    }
-    // A constraint the database refused is a bad request that happens to
-    // arrive as an exception — see `constraintFailure`. Logged all the same,
-    // because a constraint failing on a path that should never produce one is
-    // still worth seeing in the log; it is the *status* that was wrong.
-    const refused = constraintFailure(err);
-    if (refused) {
-      log('warn', `${req.method} ${url.pathname} refused by the database: ${refused}`);
-      send(res, 400, { error: 'bad_request', message: refused });
-      return;
-    }
-    log('error', `${req.method} ${url.pathname} failed`, err);
-    send(res, 500, { error: 'internal_error', message: 'Something went wrong' });
+    failed(req, res, err, url.pathname);
   }
-});
+}
 
 /**
  * The OAuth and MCP endpoints, which are the ones a stranger's software talks

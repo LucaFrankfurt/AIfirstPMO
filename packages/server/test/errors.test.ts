@@ -20,11 +20,17 @@
  */
 process.env.NODE_ENV = 'test';
 process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-errors-${process.pid}`;
+// A web build to serve, so that a path for one is actually decoded: with no
+// directory there, static serving gives up before it reads the path at all.
+process.env.KOLIBRI_WEB_DIR = `/tmp/kolibri-errors-web-${process.pid}`;
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { connect, type AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
-import type { AddressInfo } from 'node:net';
+
+mkdirSync(process.env.KOLIBRI_WEB_DIR, { recursive: true });
+writeFileSync(`${process.env.KOLIBRI_WEB_DIR}/index.html`, '<!doctype html><title>Kolibri</title>');
 
 const { server, router } = await import('../src/index.ts');
 const { constraintFailure, get } = await import('../src/kernel/platform/db/index.ts');
@@ -84,7 +90,26 @@ before(async () => {
 after(() => {
   server.close();
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
+  rmSync(process.env.KOLIBRI_WEB_DIR!, { recursive: true, force: true });
 });
+
+/**
+ * A request exactly as written, and the status it gets.
+ *
+ * Over a socket rather than `fetch`, which normalises what it sends — and a
+ * Host of `[` is one of the things being sent.
+ */
+function raw(target: string, headers: Record<string, string> = {}): Promise<number> {
+  const lines = [`GET ${target} HTTP/1.1`, `Host: ${headers.host ?? '127.0.0.1'}`, 'Connection: close'];
+  for (const [name, value] of Object.entries(headers)) if (name !== 'host') lines.push(`${name}: ${value}`);
+  return new Promise((resolve, reject) => {
+    const socket = connect((server.address() as AddressInfo).port, '127.0.0.1', () => socket.end(`${lines.join('\r\n')}\r\n\r\n`));
+    let reply = '';
+    socket.on('data', (chunk) => { reply += chunk; });
+    socket.on('end', () => resolve(Number(/^HTTP\/1\.1 (\d{3})/.exec(reply)?.[1] ?? 0)));
+    socket.on('error', reject);
+  });
+}
 
 describe('a row the database refuses', () => {
   it('is a bad request, not a server error', async () => {
@@ -137,5 +162,73 @@ describe('an actual server error', () => {
     assert.equal(constraintFailure({ code: 'ERR_SQLITE_ERROR', errcode: 1, message: 'no such column: nope' }), null);
     assert.equal(constraintFailure(new TypeError('not from sqlite at all')), null);
     assert.equal(constraintFailure({ code: 'ERR_SQLITE_ERROR' }), null);
+  });
+});
+
+/**
+ * A request that cannot even be read.
+ *
+ * Everything above is a request the server understood and refused. These are
+ * ones it could not read — an escape that decodes to nothing, a Host that is
+ * not one — and what mattered was where they were caught. Before the route was
+ * matched the listener had no `catch`, so each was an unhandled rejection and
+ * the end of the process: measured, one request and the server was gone. So
+ * every case here is followed by one that must still be answered, because a
+ * 400 from a server that then dies is not the fix.
+ */
+describe('a request that cannot be read', () => {
+  const alive = async () => assert.equal((await fetch(`${base}/api/health`)).status, 200, 'the server is still there');
+  const upload = (name: string) => fetch(`${base}/api/workspaces/${workspace}/files`, {
+    method: 'POST', headers: { cookie, 'content-type': 'text/plain', 'x-filename': name }, body: `bytes of ${name}`,
+  });
+
+  it('is a 400 when a path parameter will not decode', async () => {
+    assert.equal(await raw('/api/workspaces/%E0/projects'), 400);
+    await alive();
+  });
+
+  it('is a 400 when a path for the web build will not decode', async () => {
+    assert.equal(await raw('/%E0.js'), 400);
+    await alive();
+  });
+
+  it('is a 400 when the Host header cannot make a URL', async () => {
+    assert.equal(await raw('/api/health', { host: '[' }), 400);
+    await alive();
+  });
+
+  it('is a 400 when a file name will not decode, uploaded or asked for', async () => {
+    assert.equal((await upload('%E0.txt')).status, 400);
+    const { hash } = await (await upload('fine.txt')).json() as any;
+    // `100%.txt` in a URL is a `%` with nothing after it; the name is spelled `100%25.txt` there.
+    assert.equal((await fetch(`${base}/files/${hash}/100%.txt`, { headers: { cookie } })).status, 400);
+    await alive();
+  });
+
+  it('downloads a stored name as it is, rather than decoding it as if it came from a URL', async () => {
+    const { hash } = await (await upload('100%25.txt')).json() as any;
+    const served = await fetch(`${base}/files/${hash}`, { headers: { cookie } });
+    assert.equal(served.status, 200);
+    assert.equal(served.headers.get('content-disposition'), 'inline; filename="100%.txt"');
+  });
+
+  it('is not refused over a cookie somebody else set, which will not decode', async () => {
+    // Not this request's mistake — and it made every request from that browser a 500.
+    assert.equal(await raw('/api/health', { cookie: 'elsewhere=%E0' }), 200);
+    const session = await fetch(`${base}/api/session`, { headers: { cookie: `elsewhere=%E0; ${cookie}` } });
+    assert.equal(session.status, 200, 'the session beside it still counts');
+  });
+
+  it('decodes a path parameter once, so the address cleared is the one named', async () => {
+    const { isSuppressed, suppress } = await import('../src/adapters/mail/mail.ts');
+    suppress('a%41@example.com', 'manual');
+    suppress('aa@example.com', 'manual');
+    const cleared = await fetch(`${base}/api/mail/suppressions/${encodeURIComponent('a%41@example.com')}`, {
+      method: 'DELETE', headers: { cookie },
+    });
+    assert.equal(cleared.status, 200);
+    assert.equal(isSuppressed('a%41@example.com'), false);
+    // Decoded a second time, `a%41` read as `aA` — and cleared this one instead.
+    assert.equal(isSuppressed('aa@example.com'), true);
   });
 });

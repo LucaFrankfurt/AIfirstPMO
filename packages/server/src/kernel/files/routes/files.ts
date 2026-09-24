@@ -1,7 +1,7 @@
 import { all, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
 import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
-import { badRequest, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
+import { badRequest, decodeParam, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
 import { contentDisposition, disposition } from '../mime.ts';
 import * as storage from '../storage.ts';
 import { canSeeFile } from '../../write-path/repo.ts';
@@ -19,7 +19,7 @@ export function registerFileRoutes(router: Router): void {
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
 
     const mime = (ctx.req.headers['content-type'] ?? 'application/octet-stream').split(';')[0].trim();
-    const name = decodeURIComponent(String(ctx.req.headers['x-filename'] ?? 'upload'));
+    const name = decodeParam(String(ctx.req.headers['x-filename'] ?? 'upload'), 'x-filename');
     const body = await readBody(ctx.req, env.maxUploadBytes);
     if (!body.length) throw badRequest('Empty upload');
 
@@ -51,7 +51,9 @@ export function registerFileRoutes(router: Router): void {
     const key = storage.keyFor(file.hash, file.mime);
     const backend = (file.storage ?? 'disk') as storage.StorageKind;
     const { inline, type } = disposition(String(file.mime));
-    const filename = safeName(decodeURIComponent(ctx.params['*'] || file.name));
+    // Only the name in the URL is encoded. The stored one is the name itself, and
+    // decoding it too made `100%.pdf` a 500 and `%41.pdf` into `A.pdf`.
+    const filename = safeName(ctx.params['*'] ? decodeParam(ctx.params['*'], 'The file name') : String(file.name));
 
     // With an object store we hand out a short-lived signed URL instead of
     // proxying the bytes — the permission check above still gates who gets one.

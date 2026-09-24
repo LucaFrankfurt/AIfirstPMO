@@ -18,6 +18,23 @@ export const forbidden = (m = 'Not allowed') => new HttpError(403, m, 'forbidden
 export const notFound = (m = 'Not found') => new HttpError(404, m, 'not_found');
 export const conflict = (m: string) => new HttpError(409, m, 'conflict');
 
+/**
+ * `decodeURIComponent` for what a request carries, where a malformed escape —
+ * `%E0` on its own, a `%` with nothing after it — is the sender's mistake.
+ *
+ * It was the server's crash. The router decodes path parameters before any
+ * `catch` is reached, so one request for `/api/workspaces/%E0/projects`, signed
+ * in or not, threw out of the listener and ended the process; the same escape
+ * in a file's name was a 500. Now it is a 400 that says what could not be read.
+ */
+export function decodeParam(value: string, what: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    throw badRequest(`${what} is not valid percent-encoding`);
+  }
+}
+
 export interface Ctx {
   req: IncomingMessage;
   res: ServerResponse;
@@ -82,7 +99,7 @@ export class Router {
         }
         const part = parts[i];
         if (part === undefined) { ok = false; break; }
-        if (seg.startsWith(':')) params[seg.slice(1)] = decodeURIComponent(part);
+        if (seg.startsWith(':')) params[seg.slice(1)] = decodeParam(part, 'The path');
         else if (seg !== part) { ok = false; break; }
       }
       if (ok) return { handler: route.handler, params };
@@ -168,7 +185,15 @@ export function parseCookies(req: IncomingMessage): Record<string, string> {
   for (const part of header.split(';')) {
     const idx = part.indexOf('=');
     if (idx < 0) continue;
-    out[part.slice(0, idx).trim()] = decodeURIComponent(part.slice(idx + 1).trim());
+    const value = part.slice(idx + 1).trim();
+    // One that will not decode is somebody else's cookie on the same host, not
+    // this request's mistake — kept as it came, as the `cookie` package keeps
+    // it. Thrown instead, it made every request from that browser a 500.
+    try {
+      out[part.slice(0, idx).trim()] = decodeURIComponent(value);
+    } catch {
+      out[part.slice(0, idx).trim()] = value;
+    }
   }
   return out;
 }

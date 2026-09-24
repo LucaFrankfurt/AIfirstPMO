@@ -184,9 +184,10 @@ recognising again.
 | Injection | Registration's email pattern allowed a trailing newline (`$` without `m`), and the invite form validated nothing — SMTP command injection through the instance's relay | A regex that reads as strict and is not |
 | Injection | A row could reference a row in another workspace, and a public share published it | A missing check found by asking what a *public* surface renders |
 | Injection | Outgoing webhooks and push endpoints went straight to `fetch` | SSRF, in the two places a URL is user-supplied |
+| Request parsing | A malformed escape in a path parameter or a path for the web build, or a `Host` of `[`, ended the process — one request, signed in or not | A `catch` that began after the first line that could throw |
 | Deploy | The address validator refused `kolibri@localhost` — this project's own default sender | Validation that drifted from "is this safe" into "is this tidy" |
 
-The last one is the most useful of the eight. It was introduced *by* a security fix, it broke a
+The last one is the most useful of the nine. It was introduced *by* a security fix, it broke a
 working deployment, and the test suite stayed green because every test used an address invented for
 the test rather than the one the project ships. There are now two guards against exactly that: the
 SMTP suite runs against the shipped default, and a check reads the `KOLIBRI_MAIL_FROM` fallback out
