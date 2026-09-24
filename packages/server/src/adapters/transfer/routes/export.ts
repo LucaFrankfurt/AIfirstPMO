@@ -20,6 +20,7 @@ import { requireAuth, requireWorkspace, requireWrite } from '../../../kernel/ide
 import { readArchive, sendArchive, storeBlobs } from '../../../modules/planning/archive.ts';
 import * as backups from '../../../modules/operations/backups.ts';
 import * as rehydrate from '../../../modules/operations/rehydrate.ts';
+import { verify } from '../../../modules/operations/restore.ts';
 import { badRequest, forbidden, notFound, readBody, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { exportPerson } from '../../../modules/time/personal.ts';
 import { canSeeProject, serialize } from '../../../kernel/write-path/repo.ts';
@@ -280,15 +281,30 @@ export function registerExportRoutes(router: Router): void {
     return { ...backups.status(), snapshots: backups.snapshots().map(withoutPath) };
   });
 
+  /**
+   * What the bucket holds, asked for on its own.
+   *
+   * A second request rather than a field on the one above, because this one
+   * waits on somebody else's network, and the panel that draws the rest should
+   * not wait with it.
+   */
+  router.get('/api/admin/backups/bucket', async (ctx: Ctx) => {
+    requireInstanceAdmin(ctx);
+    return (await backups.remoteSnapshots()) ?? { names: [] };
+  });
+
+  /**
+   * One now, into the directory and out to everywhere else — or, with no
+   * directory, straight out: taken into scratch space, opened, sent, removed.
+   */
   router.post('/api/admin/backups', async (ctx: Ctx) => {
     requireInstanceAdmin(ctx);
-    if (!env.backup.dir) throw badRequest('No backup directory is configured — set KOLIBRI_BACKUP_DIR');
-    const done = backups.take(env.backup.dir, { force: true });
-    if (!done) throw badRequest('Could not take a snapshot');
-    const pruned = backups.prune();
-    let copied: number | null = null;
-    if (env.backup.offsite) copied = (await backups.offsite(done.snapshot.name)).uploaded;
-    return { snapshot: withoutPath(backups.checked(done.snapshot.name) ?? done.snapshot), pruned, copied };
+    if (!backups.somewhere()) {
+      throw badRequest('There is nowhere to put a backup — set a bucket or an address in Settings → Server, or KOLIBRI_BACKUP_DIR');
+    }
+    const done = await backups.backUpNow();
+    const snapshot = done.kept ? backups.checked(done.snapshot.name) ?? done.snapshot : done.snapshot;
+    return { snapshot: withoutPath(snapshot), kept: done.kept, pruned: done.pruned, sent: done.sent };
   });
 
   router.post('/api/admin/backups/:name/verify', (ctx: Ctx) => {
@@ -298,10 +314,13 @@ export function registerExportRoutes(router: Router): void {
     return withoutPath(snapshot);
   });
 
+  /** Send one from the directory to everywhere else again — the bucket, the address. */
   router.post('/api/admin/backups/:name/offsite', async (ctx: Ctx) => {
     requireInstanceAdmin(ctx);
     if (!backups.pathOf(ctx.params.name)) throw notFound('No such snapshot');
-    return backups.offsite(ctx.params.name);
+    const sent = await backups.sendAgain(ctx.params.name);
+    if (!sent.length) throw badRequest('There is nowhere to send it — set a bucket or an address in Settings → Server');
+    return { sent };
   });
 
   router.delete('/api/admin/backups/:name', (ctx: Ctx) => {
@@ -338,6 +357,30 @@ export function registerExportRoutes(router: Router): void {
     const path = backups.pathOf(ctx.params.name);
     if (!path) throw notFound('No such snapshot');
     return restoreFrom(path, ctx.params.name);
+  });
+
+  /**
+   * The same, for one that is in the bucket.
+   *
+   * On an instance deployed somewhere new that is the only place it is — and
+   * the whole of moving house becomes: give the new one the same bucket in
+   * Settings → Server, and restore from the list that appears. The files come
+   * out of the bucket's blobs, the same way they went in.
+   */
+  router.post('/api/admin/backups/bucket/:name/restore', async (ctx: Ctx) => {
+    requireInstanceAdmin(ctx);
+    const staged = mkdtempSync(join(tmpdir(), 'kolibri-snapshot-'));
+    try {
+      // What the store said, rather than "something went wrong": a key that
+      // may write but not read is the likeliest reason, and it has a fix.
+      const fetched = await backups.fetchRemote(ctx.params.name, staged).catch((problem: unknown) => {
+        throw badRequest(`The bucket could not be read: ${problem instanceof Error ? problem.message : String(problem)}`);
+      });
+      if (!fetched) throw notFound('The bucket holds no snapshot by that name');
+      return await restoreFrom(staged, `${ctx.params.name} from the bucket`);
+    } finally {
+      rmSync(staged, { recursive: true, force: true });
+    }
   });
 
   /**
@@ -414,16 +457,25 @@ const here = (): { users: number; workspaces: number; tasks: number; unused: boo
  * The tables, then the blobs, then the report.
  *
  * In that order because the blobs are found *through* the tables: which file
- * has which content type is a restored row, not a guess from an extension.
+ * has which content type is a restored row, not a guess from an extension. A
+ * blob the snapshot does not carry is looked for in the backup bucket, when
+ * there is one — which is what makes an emailed snapshot restore with its
+ * files.
  */
 async function restoreFrom(dir: string, from: string): Promise<Record<string, unknown>> {
   const replacing = here();
+  const kept = await keepElsewhere(dir, replacing.unused);
   const report = rehydrate.rehydrate(dir);
-  report.files = await rehydrate.restoreUploads(dir);
+  report.files = await rehydrate.restoreUploads(dir, backups.blobSource());
+  if (kept) report.replaced = kept;
   return {
     ...report,
     from,
     replaced: report.replaced,
+    // Where the copy of what was replaced went, so the screen can say so: a
+    // name alone reads as a snapshot on this machine, and with no directory
+    // configured there are none.
+    replacedIn: kept ? 'bucket' : report.replaced ? 'directory' : undefined,
     // Said in the response because it is the next thing that happens to
     // whoever pressed the button: the sessions table was one of the tables
     // that got replaced, so this reply is the last one their cookie will be
@@ -431,6 +483,26 @@ async function restoreFrom(dir: string, from: string): Promise<Record<string, un
     signedOut: true,
     was: replacing,
   };
+}
+
+/**
+ * A copy of what is about to be replaced, for an instance with no directory to
+ * keep one in — sent to the bucket, where it can be fetched back from.
+ *
+ * Only once the incoming snapshot has been seen to open: a damaged file is
+ * refused by `rehydrate` in its own words, and should not cost a backup first.
+ * And not for an instance nobody has worked in yet, which is the one restoring
+ * somebody's old instance into itself: a snapshot of nothing would be the
+ * newest name in the bucket, and the first one offered the next time.
+ */
+async function keepElsewhere(dir: string, unused: boolean): Promise<string | undefined> {
+  if (env.backup.dir || unused || !backups.canKeep()) return undefined;
+  try {
+    verify(dir);
+  } catch {
+    return undefined;
+  }
+  return backups.keepBeforeRestore().catch(() => undefined);
 }
 
 /** Every file under a directory, as paths relative to it. */

@@ -17,8 +17,16 @@
  * So they are separated. `wiring.ts` calls this and then adds the write path;
  * `cli.ts` calls only this. Registering a backend fires nothing, which is why
  * it is safe in front of a restore.
+ *
+ * The places a backup is sent are the same kind of thing — `kolibri backup`
+ * sends to a bucket and an address exactly as the nightly run does — and
+ * carry the same obligation: nothing imported from here may open the
+ * database, because the CLI imports this before it has read its arguments.
+ * The bucket goes first, so the email can say where the files went.
  */
 import { installS3Storage } from './adapters/s3/backend.ts';
+import { installS3Backups } from './adapters/s3/backup.ts';
+import { installMailBackups } from './adapters/mail/backup.ts';
 
 let installed = false;
 
@@ -27,4 +35,6 @@ export function installBackends(): void {
   if (installed) return;
   installed = true;
   installS3Storage();
+  installS3Backups();
+  installMailBackups();
 }

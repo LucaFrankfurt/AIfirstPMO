@@ -295,8 +295,13 @@ export interface Manifest {
   seq: number;
   storage: string;
   counts: Record<string, number>;
-  /** Whether the uploads in this snapshot are the whole set. */
-  uploads: 'included' | 'in the object store';
+  /**
+   * Whether the uploads in this snapshot are the whole set. `not included` is a
+   * snapshot taken only to be sent: where it goes, the files travel their own
+   * way, and copying every one of them onto this disk first to send them would
+   * need room the disk may not have.
+   */
+  uploads: 'included' | 'in the object store' | 'not included';
 }
 
 /**
@@ -308,14 +313,15 @@ export interface Manifest {
  * the server is running is the classic way to take a backup that restores into
  * a corrupt database.
  */
-export function backup(dir: string, now = new Date()): Manifest {
+export function backup(dir: string, now = new Date(), options: { uploads?: boolean } = {}): Manifest {
   mkdirSync(dir, { recursive: true });
   const target = join(dir, 'kolibri.sqlite');
   if (existsSync(target)) rmSync(target);
   db.prepare(`VACUUM INTO ?`).run(target);
 
   const onDisk = env.storage.kind === 'disk';
-  if (onDisk && existsSync(env.uploadDir)) {
+  const copied = onDisk && options.uploads !== false;
+  if (copied && existsSync(env.uploadDir)) {
     cpSync(env.uploadDir, join(dir, 'uploads'), { recursive: true });
   }
 
@@ -325,7 +331,7 @@ export function backup(dir: string, now = new Date()): Manifest {
     seq: Number(pluck<number>(`SELECT value FROM counters WHERE name = 'seq'`) ?? 0),
     storage: env.storage.kind,
     counts: counts(),
-    uploads: onDisk ? 'included' : 'in the object store',
+    uploads: copied ? 'included' : onDisk ? 'not included' : 'in the object store',
   };
   writeFileSync(join(dir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;

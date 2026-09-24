@@ -16,7 +16,32 @@ export interface Deliverable {
   html?: string;
   replyTo?: string;
   headers?: Record<string, string>;
+  /**
+   * Files carried with the message. One sender uses these — the nightly backup,
+   * see `backup.ts` — and it sends directly rather than through the queue,
+   * because a queued attachment would sit in a table in the very database the
+   * next night's backup copies.
+   */
+  attachments?: Attachment[];
 }
+
+export interface Attachment {
+  /** Letters, digits, dots and dashes; anything else is replaced on the way out. */
+  filename: string;
+  contentType: string;
+  content: Buffer;
+}
+
+/**
+ * A filename and a content type that are safe in a header.
+ *
+ * Both end up inside a quoted MIME parameter, and a quote or a line break in
+ * either would end the parameter and start whatever came next. The names this
+ * server attaches are its own, so narrowing them costs nothing.
+ */
+export const safeFilename = (name: string): string => name.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 100) || 'attachment';
+export const safeContentType = (type: string): string =>
+  (/^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(type) ? type : 'application/octet-stream');
 
 /** Returns the Message-ID it delivered under. */
 export type Transport = (mail: Deliverable) => Promise<string>;

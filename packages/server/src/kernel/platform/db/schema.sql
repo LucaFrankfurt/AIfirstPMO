@@ -1809,6 +1809,24 @@ CREATE TABLE IF NOT EXISTS instance_settings (
   updated_by TEXT
 );
 
+-- The last time a backup was sent somewhere other than the backup directory,
+-- one row per place: a bucket, an address. A snapshot that went to a bucket or
+-- an inbox leaves nothing on this disk to list, so without this the only
+-- evidence that last night's arrived anywhere would be a log line — and the
+-- commonest backup failure is the one nobody looked at the log for.
+--
+-- `snapshot` and `ok` are the latest attempt; `delivered` is the latest that
+-- arrived, kept apart so a failure tonight does not hide when it last worked.
+CREATE TABLE IF NOT EXISTS backup_deliveries (
+  destination  TEXT PRIMARY KEY,
+  snapshot     TEXT NOT NULL,
+  attempted_at INTEGER NOT NULL,
+  ok           INTEGER NOT NULL,
+  detail       TEXT NOT NULL DEFAULT '',
+  delivered    TEXT,
+  delivered_at INTEGER
+);
+
 -- A mail account this workspace has connected. Syncable, so the settings
 -- screen and the client's mailbox list come down the same pull as everything
 -- else — but note what is *not* here: the password. That lives in

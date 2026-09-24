@@ -1037,6 +1037,44 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
       Found while building it: **a workspace export carried its settings and the import threw them
       away.** `createWorkspace` takes a name and a slug, because that is all somebody typing into a
       form has — so a workspace whose team had turned time tracking on arrived with it off.
+- [x] **Backups that need nothing mounted.** They used to go to one place: a directory, which on a
+      hosted container or a PaaS is the one thing nobody can set up from a browser — and the only
+      way off the machine was a copy into the bucket the uploads already lived in. Now a bucket of
+      its own and an email address are places too, typed into Settings → Server with a button that
+      tries each (an object written and read back; a message with a small `.zip`, because the
+      attachment is the part a provider refuses). Any one of the three switches the nightly run on;
+      with no directory the snapshot is taken into scratch space, opened, sent and removed.
+      The bucket holds everything — database, manifest, and the uploads under the shared
+      content-addressed prefix, read from wherever they are, so an instance whose files live in
+      another bucket is finally backed up whole. It borrows the file storage's endpoint and keys
+      when it has none of its own, so on an S3 instance its name is the whole setting, and reads the
+      region off the endpoint for the providers that spell it into the host. It is listed in
+      Settings → Data and restored from there, which makes moving house: same bucket, restore,
+      sign in. The email carries the database as the very `.zip` Restore from a file takes; a
+      restore on an instance with the bucket configured fetches the files from the bucket, which
+      the upload route now does for every archive. A snapshot too big to post, or one the provider
+      refuses, arrives as a notice and the night counts as failed; a night with nothing to send says
+      so to the address; a bucket that refused tonight's copy is mentioned in the email.
+      Behind a port (`modules/operations/destinations.ts`) that `adapters/s3` and `adapters/mail`
+      fill, so the capability never names a provider — and deliberately free of the database: the
+      CLI installs those adapters before it has read its arguments, and `kolibri restore` must find
+      the database closed.
+      Found while building it: **the S3 client signed its query string in the form encoding**, a
+      space as `+` and a tilde as `%7E`, which SigV4 does not. No request it signed had carried a
+      query until the bucket had to be listed; the test's prefix has a space and a tilde in it now.
+- [ ] **An emailed snapshot is not encrypted.** The attachment is the whole database, and the
+      screen, the email and `deployment.md` all say so. A passphrase would fix it and costs a field
+      whose loss makes every backup unreadable, plus a step in Restore from a file — a trade for the
+      person running the instance to choose, not one to make for them quietly.
+- [ ] **A night that fails is not tried again until the next night.** The same as the directory
+      always was; the screen says it failed and "Back up now" is one press, but a bucket down for
+      the one hour that matters is a night without an offsite copy.
+- [ ] **`kolibri restore` does not fetch uploads from a bucket.** The app does; the command line
+      restores what the directory holds. An instance whose files are only in the bucket has to be
+      started and restored from Settings → Data.
+- [ ] **The bucket's database upload is read into memory whole**, as the old offsite copy was — the
+      signature covers the body, and streaming it would mean signing chunks. Fine for the databases
+      this is for; a multi-gigabyte one would want it.
 - [x] **Reading the other tools' own exports.** A Jira search response, a Linear query result, a
       Plane issue list and an OpenProject collection are recognised by their *shape* rather than by
       what the browser called the download, and converted into the document above so the ordinary

@@ -19,7 +19,7 @@ import type { AddressInfo } from 'node:net';
 
 import { DeliveryError, isPermanentFailure } from '../src/adapters/mail/delivery.ts';
 import { parseSmtpUrl } from '../src/kernel/mail/relay.ts';
-import { sendMail } from '../src/adapters/mail/smtp.ts';
+import { buildMessage, sendMail } from '../src/adapters/mail/smtp.ts';
 import { sendViaScaleway } from '../src/adapters/mail/scaleway.ts';
 
 const letter = {
@@ -137,6 +137,38 @@ describe('smtp encryption', () => {
     }
   });
 
+  it('wraps a message with a file in multipart/mixed, the words first', () => {
+    const content = Buffer.from('PK\u0003\u0004 not really a zip, but bytes all the same');
+    const raw = buildMessage({
+      ...letter,
+      html: '<p>A body.</p>',
+      attachments: [{ filename: 'kolibri-2026-09-24.zip', contentType: 'application/zip', content }],
+    }, '<id@test>');
+
+    const [head, ...rest] = raw.split('\r\n\r\n');
+    const boundary = /Content-Type: multipart\/mixed; boundary="([^"]+)"/.exec(head)?.[1];
+    assert.ok(boundary, 'the envelope says it is mixed');
+    // The body's own content type moved into its part, and is not said twice.
+    assert.equal(head.match(/^Content-Type:/gm)?.length, 1);
+    assert.match(head, /^Auto-Submitted: auto-generated$/m);
+
+    const parts = rest.join('\r\n\r\n').split(`--${boundary}`).slice(1, -1);
+    assert.equal(parts.length, 2, 'the words, then the file');
+    assert.match(parts[0], /Content-Type: multipart\/alternative/, 'the words keep their text and html');
+    assert.match(parts[1], /Content-Disposition: attachment; filename="kolibri-2026-09-24.zip"/);
+    const encoded = parts[1].split('\r\n\r\n')[1].replace(/\r\n/g, '');
+    assert.ok(Buffer.from(encoded, 'base64').equals(content), 'and the bytes are the bytes');
+  });
+
+  it('keeps a filename and a type from writing a header of their own', () => {
+    const raw = buildMessage({
+      ...letter,
+      attachments: [{ filename: 'a"; x="\r\nBcc: mallory@example.com.zip', contentType: 'text/plain\r\nBcc: x', content: Buffer.from('x') }],
+    }, '<id@test>');
+    assert.ok(!/^Bcc:/m.test(raw), raw);
+    assert.match(raw, /Content-Type: application\/octet-stream; name="a_x_Bcc_mallory_example.com.zip"/);
+  });
+
   it('reads the encryption out of the url, and lets a query override the scheme', () => {
     assert.equal(parseSmtpUrl('smtp://host:587')?.encryption, 'starttls');
     assert.equal(parseSmtpUrl('smtps://host:465')?.encryption, 'tls');
@@ -248,6 +280,22 @@ describe('scaleway transport', () => {
       } finally {
         server.close();
       }
+    }
+  });
+
+  it('carries a file as the API documents one: a name, a type and base64', async () => {
+    const { url, server, calls } = await startApi(() => ({ status: 200, body: { emails: [{ id: 'scw-2' }] } }));
+    try {
+      const content = Buffer.from('a backup, in spirit');
+      await sendViaScaleway(config(url), {
+        ...letter,
+        attachments: [{ filename: 'kolibri-2026-09-24.zip', contentType: 'application/zip', content }],
+      });
+      assert.deepEqual(calls[0].body.attachments, [
+        { name: 'kolibri-2026-09-24.zip', type: 'application/zip', content: content.toString('base64') },
+      ]);
+    } finally {
+      server.close();
     }
   });
 

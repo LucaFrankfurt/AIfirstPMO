@@ -1,11 +1,13 @@
 /**
  * The settings that belong to the server rather than to a workspace.
  *
- * A relay, a bot token, a model key. All three used to live in a compose file,
- * which is the right place for a platform team and the wrong one for the
- * person who set this up on a Sunday and now wants password resets to arrive:
- * editing that file means finding the machine, changing a line and restarting
- * the container, and none of those steps is available from a phone.
+ * A relay, a bot token, a model key, and where the backups go. All of them used
+ * to live in a compose file, which is the right place for a platform team and
+ * the wrong one for the person who set this up on a Sunday and now wants
+ * password resets to arrive: editing that file means finding the machine,
+ * changing a line and restarting the container, and none of those steps is
+ * available from a phone. For backups it was worse — the only place they could
+ * go was a directory, and a directory is a volume somebody has to mount.
  *
  * Two things this screen owes the person reading it. It says where each value
  * is *coming from*, because an instance whose compose file already sets a
@@ -24,7 +26,7 @@ import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Icon, useToast } from '../../kernel/design-system/ui';
 
-type Group = 'mail' | 'telegram' | 'ai';
+type Group = 'mail' | 'telegram' | 'ai' | 'backup';
 
 interface SettingView {
   key: string;
@@ -35,12 +37,17 @@ interface SettingView {
   value: string;
   set: boolean;
   source: 'app' | 'environment' | 'default';
+  /** Takes its value from elsewhere while nothing is set here — see `SettingSpec.inherits`. */
+  inherits?: boolean;
+  /** That value, shown as what applies rather than as something typed. Never a secret's. */
+  inherited?: string;
 }
 
 interface Status {
   mail: { enabled: boolean; transport: string; mode: string; from: string; host: string };
   telegram: { enabled: boolean };
   ai: { provider: string; model: string };
+  backup: { dir: boolean; places: { kind: 's3' | 'email'; where: string }[]; problems: string[] };
 }
 
 interface State {
@@ -52,6 +59,7 @@ const GROUPS: { group: Group; title: TranslationKey; hint: TranslationKey }[] = 
   { group: 'mail', title: 'instance.mail', hint: 'instance.mailHint' },
   { group: 'telegram', title: 'instance.telegram', hint: 'instance.telegramHint' },
   { group: 'ai', title: 'instance.ai', hint: 'instance.aiHint' },
+  { group: 'backup', title: 'instance.backup', hint: 'instance.backupHint' },
 ];
 
 const LABEL: Record<string, TranslationKey> = {
@@ -72,6 +80,21 @@ const LABEL: Record<string, TranslationKey> = {
   KOLIBRI_AI_API_KEY: 'instance.aiKey',
   KOLIBRI_AI_MODEL: 'instance.aiModel',
   KOLIBRI_AI_BASE_URL: 'instance.aiBaseUrl',
+  KOLIBRI_BACKUP_HOUR: 'instance.backupHour',
+  KOLIBRI_BACKUP_KEEP: 'instance.backupKeep',
+  KOLIBRI_BACKUP_EMAIL: 'instance.backupEmail',
+  KOLIBRI_BACKUP_S3_BUCKET: 'instance.backupBucket',
+  KOLIBRI_BACKUP_S3_ENDPOINT: 'instance.backupEndpoint',
+  KOLIBRI_BACKUP_S3_REGION: 'instance.backupRegion',
+  KOLIBRI_BACKUP_S3_ACCESS_KEY: 'instance.backupAccessKey',
+  KOLIBRI_BACKUP_S3_SECRET_KEY: 'instance.backupSecretKey',
+};
+
+/** What each place a backup can go is called on its chip. */
+const PLACE: Record<'dir' | 's3' | 'email', TranslationKey> = {
+  dir: 'instance.backupDirectory',
+  s3: 'instance.backupBucketChip',
+  email: 'instance.backupEmailChip',
 };
 
 /** `null` is "hand this one back to the environment"; a string is a new value. */
@@ -115,12 +138,18 @@ export function InstanceSettings() {
   const test = async (group: Group) => {
     setBusy(group);
     try {
-      const result = await api.post<{ detail: string; delivered?: boolean }>(`/api/instance/test/${group}`);
+      const result = await api.post<{ detail: string; delivered?: boolean; bucket?: string; email?: string }>(`/api/instance/test/${group}`);
       toast(
         group === 'mail' ? t('instance.testMailOk', { email: result.detail })
           : group === 'telegram'
             ? result.delivered ? t('instance.testTelegramSent', { bot: result.detail }) : t('instance.testTelegramOk', { bot: result.detail })
-            : t('instance.testAiOk', { model: result.detail }),
+            : group === 'backup'
+              ? result.bucket && result.email
+                ? t('instance.testBackupBoth', { bucket: result.bucket, email: result.email })
+                : result.bucket
+                  ? t('instance.testBackupBucket', { bucket: result.bucket })
+                  : t('instance.testBackupEmail', { email: result.email ?? '' })
+              : t('instance.testAiOk', { model: result.detail }),
       );
     } catch (error) {
       toast(error instanceof Error ? error.message : t('instance.testFailed'));
@@ -175,6 +204,20 @@ export function InstanceSettings() {
 /** What this group adds up to right now, in one chip. */
 function GroupState({ group, status }: { group: Group; status: Status }) {
   const t = useT();
+  if (group === 'backup') {
+    // A chip per place, since any of them is enough and more than one is common.
+    const places = [...(status.backup.dir ? ['dir' as const] : []), ...status.backup.places.map((place) => place.kind)];
+    return (
+      <>
+        {places.length
+          ? places.map((place) => <Chip key={place} tone="on">{t(PLACE[place])}</Chip>)
+          : <Chip>{t('instance.off')}</Chip>}
+        {status.backup.problems.map((problem) => (
+          <span key={problem} className="truncate text-[12px] text-danger">{problem}</span>
+        ))}
+      </>
+    );
+  }
   if (group === 'mail') {
     if (!status.mail.enabled) return <Chip>{t('instance.off')}</Chip>;
     return (
@@ -218,6 +261,9 @@ function Field({
         {setting.source === 'environment' && !edited && (
           <span className="text-[11px] text-muted">{t('instance.fromEnvironment')}</span>
         )}
+        {setting.inherits && setting.source === 'default' && setting.set && !edited && (
+          <span className="text-[11px] text-muted">{t('instance.inherited')}</span>
+        )}
       </span>
 
       {setting.kind === 'choice' ? (
@@ -259,7 +305,10 @@ function Field({
             autoComplete={setting.kind === 'secret' ? 'new-password' : 'off'}
             // A stored secret is shown as the fact that it exists, never as
             // its length: the field is empty, and leaving it empty keeps it.
-            placeholder={setting.kind === 'secret' ? (setting.set ? t('instance.secretSet') : t('instance.secretUnset')) : ''}
+            placeholder={setting.kind === 'secret'
+              ? (!setting.set ? t('instance.secretUnset')
+                : setting.inherits && setting.source === 'default' ? t('instance.secretInherited') : t('instance.secretSet'))
+              : setting.inherited ?? ''}
             value={edited ? current ?? '' : setting.kind === 'secret' ? '' : setting.value}
             onChange={(event) => onChange(event.target.value)}
           />

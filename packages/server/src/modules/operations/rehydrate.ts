@@ -30,7 +30,9 @@
  *   - **What is replaced is snapshotted first**, where the instance is
  *     configured for backups. Restoring the wrong file is exactly the moment
  *     somebody needs the previous state, and it is the moment it has just
- *     stopped existing.
+ *     stopped existing. Here that means the backup directory; an instance with
+ *     only a bucket sends its copy there instead, which is asynchronous and so
+ *     is done by the route in front of this — see `keepBeforeRestore`.
  */
 import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -188,11 +190,19 @@ export function rehydrate(dir: string, options: { safetyBackup?: boolean } = {})
  * row that now refers to it, so the content type is the one recorded rather
  * than one guessed from a file extension. A snapshot taken on a disk instance
  * therefore restores into an S3 one without anybody converting anything.
+ *
+ * `elsewhere` is where to look for one the snapshot does not carry — the
+ * backup bucket, when this instance has one. An emailed snapshot carries no
+ * uploads at all and one sent to a bucket left them in it, so without this a
+ * restore from either would bring every table back and none of the files.
  */
-export async function restoreUploads(dir: string): Promise<RehydrateReport['files']> {
+export async function restoreUploads(
+  dir: string,
+  elsewhere?: (key: string) => Promise<Buffer | null>,
+): Promise<RehydrateReport['files']> {
   const result = { restored: 0, alreadyThere: 0, missing: 0 };
   const source = join(dir, 'uploads');
-  if (!existsSync(source)) {
+  if (!existsSync(source) && !elsewhere) {
     // Nothing in the snapshot. On an instance whose blobs live in an object
     // store that is correct and expected — they never left it.
     return result;
@@ -201,9 +211,19 @@ export async function restoreUploads(dir: string): Promise<RehydrateReport['file
   for (const row of all<Row>(`SELECT hash, mime FROM files`)) {
     const key = storage.keyFor(String(row.hash), String(row.mime));
     const path = join(source, key);
-    if (!existsSync(path)) { result.missing++; continue; }
+    if (existsSync(path)) {
+      if (await storage.exists(key)) { result.alreadyThere++; continue; }
+      await storage.put(key, readFileSync(path), String(row.mime));
+      result.restored++;
+      continue;
+    }
+    if (!elsewhere) { result.missing++; continue; }
     if (await storage.exists(key)) { result.alreadyThere++; continue; }
-    await storage.put(key, readFileSync(path), String(row.mime));
+    // A bucket that cannot be reached is a missing file, not a failed restore:
+    // the tables are already in, and the count says what is not.
+    const body = await elsewhere(key).catch(() => null);
+    if (!body) { result.missing++; continue; }
+    await storage.put(key, body, String(row.mime));
     result.restored++;
   }
   return result;

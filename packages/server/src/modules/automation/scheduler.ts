@@ -214,8 +214,14 @@ export function startScheduler(): void {
     void sweepBackups().then((result) => {
       if (!result) return;
       if (result.problem) console.error(`[backup] ${result.problem}`);
-      else {
-        console.log(`[backup] took ${result.taken}${result.pruned.length ? `, removed ${result.pruned.join(', ')}` : ''}${result.copied ? `, copied ${result.copied} object(s) offsite` : ''}`);
+      else if (result.taken) {
+        console.log(`[backup] took ${result.taken}${result.pruned.length ? `, removed ${result.pruned.join(', ')}` : ''}`);
+      }
+      // One line per place, and a failed one on stderr: a bucket that refused
+      // tonight's copy is the line somebody grepping for errors has to find.
+      for (const sent of result.sent) {
+        if (sent.ok) console.log(`[backup] ${sent.kind}: ${sent.detail}`);
+        else console.error(`[backup] ${sent.kind} failed: ${sent.detail}`);
       }
     }).catch((error) => console.error('[backup] failed', error));
   };

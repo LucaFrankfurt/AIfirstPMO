@@ -20,9 +20,26 @@ import { describeSettings, instanceStatus, writeSettings } from '../settings.ts'
 import { call, linkedChat, reloadTelegram, sendTest } from '../../../adapters/telegram/telegram.ts';
 import { reviewer } from '../../../modules/ai-review/review.ts';
 import { AiError } from '../../../adapters/ai/ai.ts';
+import { places, testDestinations } from '../../../modules/operations/backups.ts';
+
+/**
+ * Where backups go, for the group's chip — and what is set up halfway.
+ *
+ * Asked of the backups module rather than added to `instanceStatus`, because
+ * which places exist is decided by the adapters that fill its port, and the
+ * kernel does not know them.
+ */
+const backupStatus = () => {
+  const everywhere = places();
+  return {
+    dir: !!env.backup.dir,
+    places: everywhere.filter((place) => place.configured).map((place) => ({ kind: place.kind, where: place.where })),
+    problems: everywhere.flatMap((place) => (place.problem ? [place.problem] : [])),
+  };
+};
 
 /** Everything the screen draws itself from, in one answer. */
-const state = () => ({ settings: describeSettings(), status: instanceStatus() });
+const state = () => ({ settings: describeSettings(), status: { ...instanceStatus(), backup: backupStatus() } });
 
 /**
  * Make the running server match what was just saved.
@@ -115,6 +132,25 @@ export function registerSettingsRoutes(router: Router): void {
         throw badRequest(error instanceof AiError ? error.message : (error as Error).message);
       }
       return { ok: true, detail: chosen.model };
+    }
+
+    /*
+     * Every place a backup goes, tried the way a backup would use it: an object
+     * written to the bucket and read back, a message with an attachment sent
+     * to the address. The attachment is the point — a provider that refuses a
+     * .zip says so now rather than at three in the morning.
+     */
+    if (ctx.params.group === 'backup') {
+      const tried = await testDestinations();
+      if (!tried.length) throw badRequest('No bucket or address is set up to test');
+      const failed = tried.filter((one) => !one.ok);
+      if (failed.length) throw badRequest(failed.map((one) => one.detail).join(' — '));
+      return {
+        ok: true,
+        detail: tried.map((one) => one.detail).join(', '),
+        bucket: tried.find((one) => one.kind === 's3')?.detail,
+        email: tried.find((one) => one.kind === 'email')?.detail,
+      };
     }
 
     throw badRequest(`There is nothing called ${ctx.params.group} to test`);

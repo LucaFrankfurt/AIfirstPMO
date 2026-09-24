@@ -1482,3 +1482,13 @@ CREATE TABLE promotions (
   seq          INTEGER NOT NULL DEFAULT 0,
   clocks       TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE backup_deliveries (
+  destination  TEXT PRIMARY KEY,
+  snapshot     TEXT NOT NULL,
+  attempted_at INTEGER NOT NULL,
+  ok           INTEGER NOT NULL,
+  detail       TEXT NOT NULL DEFAULT '',
+  delivered    TEXT,
+  delivered_at INTEGER
+);

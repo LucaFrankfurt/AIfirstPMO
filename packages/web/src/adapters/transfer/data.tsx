@@ -9,14 +9,16 @@
  * person's own data, and the backups — and they are the same promise said
  * three times.
  *
- * Restoring is not here on purpose. SQLite must not be open when its file is
- * replaced, so a restore is a command run against a stopped server; a button
- * that could only ever half-work is worse than a sentence saying which command.
+ * Restoring is here too, though it was once kept out on purpose: SQLite must
+ * not be open when its file is replaced. It never replaces the file — see
+ * `rehydrate.ts` for how — and it restores from a snapshot on the server, from
+ * a `.zip` somebody uploads, or from the backup bucket, which on a machine that
+ * has just replaced the old one is the only place a snapshot is.
  */
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../../kernel/sync/api';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
-import { useT } from '../../kernel/i18n/i18n';
+import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { useSession } from '../../kernel/identity/session';
 import { Empty, Icon, Sheet, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button, buttonVariants } from '../../kernel/design-system/ui/button';
@@ -255,16 +257,52 @@ interface Held {
   replacing: { users: number; workspaces: number; tasks: number; unused: boolean };
 }
 
+/** How the last attempt to send to one place went — see `backup_deliveries`. */
+interface Delivered {
+  snapshot: string;
+  attempted_at: number;
+  ok: boolean;
+  detail: string;
+  delivered: string | null;
+  delivered_at: number | null;
+}
+
+interface Place {
+  kind: 's3' | 'email';
+  configured: boolean;
+  where: string;
+  problem?: string;
+  last: Delivered | null;
+}
+
+interface Sent {
+  kind: 's3' | 'email';
+  ok: boolean;
+  detail: string;
+}
+
 interface BackupStatus {
   enabled: boolean;
   dir: string;
   hour: number;
   keep: number;
   offsite: boolean;
+  /** Whether a restore can keep a copy of what it replaces. */
+  keeps: boolean;
+  destinations: Place[];
   total: number;
   size: string;
   snapshots: Snapshot[];
 }
+
+/** What the bucket holds, asked for separately because it waits on a network. */
+interface Bucket {
+  names: string[];
+  where?: string;
+  problem?: string;
+}
+
+const PLACE_NAME: Record<Place['kind'], TranslationKey> = { s3: 'backup.bucket', email: 'backup.email' };
 
 /**
  * Backups cover the whole instance, so this is for whoever administers the
@@ -279,21 +317,31 @@ export function Backups() {
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
   const [status, setStatus] = useState<BackupStatus | null>(null);
+  const [bucket, setBucket] = useState<Bucket | null>(null);
   const [allowed, setAllowed] = useState(true);
   const [busy, setBusy] = useState('');
   /**
    * A restore, waiting to be agreed to.
    *
    * `held` is what the snapshot turns out to contain, which is only knowable
-   * for one already on the server — an uploaded file has not been sent yet.
-   * The confirmation says so rather than showing blanks.
+   * for one already on the server — an uploaded file has not been sent yet,
+   * and one in the bucket is not fetched until somebody agrees. The
+   * confirmation says so rather than showing blanks.
    */
-  const [restoring, setRestoring] = useState<{ name?: string; file?: File; held?: Held } | null>(null);
+  const [restoring, setRestoring] = useState<{ name?: string; file?: File; bucket?: string; held?: Held } | null>(null);
   const [typed, setTyped] = useState('');
 
   const load = async () => {
     try {
-      setStatus(await api.get<BackupStatus>('/api/admin/backups'));
+      const next = await api.get<BackupStatus>('/api/admin/backups');
+      setStatus(next);
+      // The bucket's list waits on somebody else's network; the rest of the
+      // panel does not wait with it.
+      if (next.destinations.some((place) => place.kind === 's3' && place.configured)) {
+        api.get<Bucket>('/api/admin/backups/bucket').then(setBucket).catch(() => setBucket(null));
+      } else {
+        setBucket(null);
+      }
     } catch (problem) {
       if (problem instanceof ApiError && (problem.status === 403 || problem.status === 401)) setAllowed(false);
     }
@@ -315,10 +363,33 @@ export function Backups() {
     }
   };
 
+  /**
+   * One now, wherever the nightly one goes.
+   *
+   * A place that refused it is said by name rather than folded into "done": a
+   * snapshot taken and not sent is the failure this whole panel is here to
+   * make visible, and a green toast over it would be the opposite.
+   */
+  async function backUpNow(): Promise<void> {
+    setBusy('take');
+    try {
+      const result = await api.post<{ kept: boolean; sent: Sent[] }>('/api/admin/backups');
+      const failed = result.sent.find((sent) => !sent.ok);
+      if (failed) toast(t('backup.sendFailed', { place: t(PLACE_NAME[failed.kind]), detail: failed.detail }));
+      else if (result.sent.length) toast(t(result.kept ? 'backup.takenAndSent' : 'backup.sent', { places: result.sent.map((sent) => t(PLACE_NAME[sent.kind])).join(', ') }));
+      else toast(t('backup.taken'));
+      await load();
+    } catch (problem) {
+      toast(problem instanceof Error ? problem.message : t('transfer.failed'));
+    } finally {
+      setBusy('');
+    }
+  }
+
   /** Open the confirmation, having first asked what the snapshot holds. */
-  async function askAbout(snapshot?: Snapshot, file?: File): Promise<void> {
+  async function askAbout(snapshot?: Snapshot, file?: File, remote?: string): Promise<void> {
     setTyped('');
-    if (!snapshot) { setRestoring({ file }); return; }
+    if (!snapshot) { setRestoring({ file, bucket: remote }); return; }
     setBusy(`inspect:${snapshot.name}`);
     try {
       setRestoring({ name: snapshot.name, held: await api.post<Held>(`/api/admin/backups/${snapshot.name}/inspect`) });
@@ -343,10 +414,14 @@ export function Backups() {
     setBusy('restore');
     try {
       const report = restoring.file
-        ? await api.postArchive<{ replaced?: string }>('/api/admin/restore', await restoring.file.arrayBuffer())
-        : await api.post<{ replaced?: string }>(`/api/admin/backups/${restoring.name}/restore`);
+        ? await api.postArchive<{ replaced?: string; replacedIn?: string }>('/api/admin/restore', await restoring.file.arrayBuffer())
+        : restoring.bucket
+          ? await api.post<{ replaced?: string; replacedIn?: string }>(`/api/admin/backups/bucket/${restoring.bucket}/restore`)
+          : await api.post<{ replaced?: string; replacedIn?: string }>(`/api/admin/backups/${restoring.name}/restore`);
       setRestoring(null);
-      toast(report.replaced ? t('restore.doneKept', { name: report.replaced }) : t('restore.done'));
+      toast(!report.replaced ? t('restore.done')
+        : report.replacedIn === 'bucket' ? t('restore.doneKeptBucket', { name: report.replaced })
+          : t('restore.doneKept', { name: report.replaced }));
       setTimeout(() => window.location.assign('/login'), 1800);
     } catch (problem) {
       toast(problem instanceof Error ? problem.message : t('transfer.failed'));
@@ -354,48 +429,61 @@ export function Backups() {
     }
   }
 
+  const places = status.destinations.filter((place) => place.configured || place.problem);
+  // With no directory, the newest thing that arrived anywhere is "the last".
+  const lastAt = status.snapshots[0]?.created_at
+    ? Date.parse(status.snapshots[0].created_at)
+    : Math.max(0, ...status.destinations.map((place) => place.last?.delivered_at ?? 0)) || null;
+
   return (
     <>
       <SectionHeading>{t('backup.title')}</SectionHeading>
       <p className="text-muted text-[13.5px]">{t('backup.hint')}</p>
 
       {!status.enabled ? (
-        <Empty emoji="🗄️" title={t('backup.off')} hint={t('backup.offHint')} />
+        <>
+          <Empty emoji="🗄️" title={t('backup.off')} hint={t('backup.offHint')} />
+          {places.map((place) => (
+            <p key={place.kind} className="text-[12px] text-danger">{t(PLACE_NAME[place.kind])}: {place.problem}</p>
+          ))}
+        </>
       ) : (
         <>
           <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 mb-3.5 text-[13.5px]">
             <div className="flex items-center gap-2">
               <span className="flex-1 min-w-0">{t('backup.schedule')}</span>
-              <strong>{t('backup.scheduleValue', { hour: String(status.hour).padStart(2, '0'), keep: status.keep || t('backup.keepAll') })}</strong>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="flex-1 min-w-0">{t('backup.where')}</span>
-              <strong className="truncate">{status.dir}</strong>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="flex-1 min-w-0">{t('backup.last')}</span>
               <strong>
-                {status.snapshots[0]?.created_at
-                  ? `${shortDate(Date.parse(status.snapshots[0].created_at))} · ${relativeTime(Date.parse(status.snapshots[0].created_at))}`
-                  : t('backup.never')}
+                {status.dir
+                  ? t('backup.scheduleValue', { hour: String(status.hour).padStart(2, '0'), keep: status.keep || t('backup.keepAll') })
+                  : t('backup.scheduleDaily', { hour: String(status.hour).padStart(2, '0') })}
               </strong>
             </div>
+            {status.dir && (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 min-w-0">{t('backup.where')}</span>
+                <strong className="truncate">{status.dir}</strong>
+              </div>
+            )}
             <div className="flex items-center gap-2">
-              <span className="flex-1 min-w-0">{t('backup.offsite')}</span>
-              <strong>{status.offsite ? t('backup.offsiteOn') : t('backup.offsiteOff')}</strong>
+              <span className="flex-1 min-w-0">{t('backup.last')}</span>
+              <strong>{lastAt ? `${shortDate(lastAt)} · ${relativeTime(lastAt)}` : t('backup.never')}</strong>
             </div>
+            {places.map((place) => <PlaceRow key={place.kind} place={place} />)}
+            {!places.length && (
+              <div className="flex items-center gap-2">
+                <span className="flex-1 min-w-0">{t('backup.offsite')}</span>
+                <strong>{t('backup.offsiteOff')}</strong>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 flex-wrap mb-3">
-            <Button
-              disabled={busy === 'take'}
-              onClick={() => void act('take', () => api.post('/api/admin/backups'), t('backup.taken'))}
-            >
+            <Button disabled={busy === 'take'} onClick={() => void backUpNow()}>
               <Icon name="refresh" size={14} /> {busy === 'take' ? t('backup.taking') : t('backup.now')}
             </Button>
           </div>
 
-          {status.snapshots.length === 0 ? (
+          {status.dir && (status.snapshots.length === 0 ? (
             <p className="text-[12px] text-muted">{t('backup.none')}</p>
           ) : (
             <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
@@ -441,6 +529,31 @@ export function Backups() {
                 </div>
               ))}
             </div>
+          ))}
+
+          {/* The bucket's own list, which on a machine that has just replaced
+              the old one is the only list there is. */}
+          {bucket && (
+            <>
+              <p className="text-[12.5px] font-medium text-soft mt-3 mb-1.5">{t('backup.inBucket', { where: bucket.where ?? '' })}</p>
+              {bucket.problem ? (
+                <p className="text-[12px] text-danger">{bucket.problem}</p>
+              ) : bucket.names.length === 0 ? (
+                <p className="text-[12px] text-muted">{t('backup.bucketEmpty')}</p>
+              ) : (
+                <div className="rounded-[var(--radius)] border border-line bg-raised p-0">
+                  {bucket.names.map((name) => (
+                    <div className="flex items-center gap-2 trash-row" key={name} style={{ gap: 9 }}>
+                      <Icon name="archive" size={15} className="text-muted" />
+                      <span className="flex-1 min-w-0">{name}</span>
+                      <Button size="sm" disabled={busy === 'restore'} onClick={() => void askAbout(undefined, undefined, name)}>
+                        <Icon name="refresh" size={13} /> {t('restore.action')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
 
           <p className="text-[12px] text-muted mt-2">{t('backup.restoreHint')}</p>
@@ -481,7 +594,11 @@ export function Backups() {
             </>
           }
         >
-          <p>{restoring.file ? t('restore.aboutFile', { name: restoring.file.name }) : t('restore.about', { name: restoring.name ?? '' })}</p>
+          <p>
+            {restoring.file ? t('restore.aboutFile', { name: restoring.file.name })
+              : restoring.bucket ? t('restore.aboutBucket', { name: restoring.bucket })
+                : t('restore.about', { name: restoring.name ?? '' })}
+          </p>
 
           {restoring.held && (
             <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5 my-2 text-[13.5px]">
@@ -510,7 +627,7 @@ export function Backups() {
           <p className="text-[13px] text-danger">
             {restoring.held?.replacing.unused ? t('restore.emptyInstance') : t('restore.replaces')}
           </p>
-          <p className="text-[13px] text-muted">{status.enabled ? t('restore.safety') : t('restore.noSafety')}</p>
+          <p className="text-[13px] text-muted">{status.keeps ? t('restore.safety') : t('restore.noSafety')}</p>
           <p className="text-[13px] text-muted">{t('restore.signedOut')}</p>
           <p className="text-[13px] text-muted">{t('restore.secret')}</p>
 
@@ -525,5 +642,41 @@ export function Backups() {
       )}
       {dialog}
     </>
+  );
+}
+
+/**
+ * One place backups go, and how the last night there went.
+ *
+ * A failure is said with its own words and with when it last worked, because
+ * "failed" alone does not tell anybody whether that was last night or since
+ * March — and since March is the failure this panel exists to catch.
+ */
+function PlaceRow({ place }: { place: Place }) {
+  const t = useT();
+  const last = place.last;
+  // The label keeps its width and the address gives way: a bucket's host and
+  // path are long, and on a phone they are the part worth truncating.
+  return (
+    <div className="flex items-start gap-2">
+      <span className="shrink-0">{t(PLACE_NAME[place.kind])}</span>
+      <span className="flex-1 min-w-0 text-right">
+        <strong className="block truncate">{place.where}</strong>
+        {place.problem ? (
+          <span className="block text-[12px] text-danger">{place.problem}</span>
+        ) : !last ? (
+          <span className="block text-[12px] text-muted">{t('backup.notYet')}</span>
+        ) : last.ok ? (
+          <span className="block text-[12px] text-muted">{t('backup.arrived', { name: last.snapshot, when: relativeTime(last.attempted_at) })}</span>
+        ) : (
+          <>
+            <span className="block text-[12px] text-danger">{t('backup.failedAt', { when: relativeTime(last.attempted_at), detail: last.detail })}</span>
+            <span className="block text-[12px] text-muted">
+              {last.delivered_at ? t('backup.lastArrived', { when: relativeTime(last.delivered_at) }) : t('backup.neverArrived')}
+            </span>
+          </>
+        )}
+      </span>
+    </div>
   );
 }

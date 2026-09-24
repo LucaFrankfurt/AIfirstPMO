@@ -5278,6 +5278,67 @@
         }
       }
     },
+    "/api/admin/backups/bucket": {
+      "get": {
+        "operationId": "getAdminBackupsBucket",
+        "summary": "GET /api/admin/backups/bucket",
+        "description": "Defined in `packages/server/src/adapters/transfer/routes/export.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/backups/bucket/{name}/restore": {
+      "post": {
+        "operationId": "postAdminBackupsBucketRestore",
+        "summary": "POST /api/admin/backups/bucket/:name/restore",
+        "description": "Defined in `packages/server/src/adapters/transfer/routes/export.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/admin/backups/{name}": {
       "delete": {
         "operationId": "deleteAdminBackupsByName",

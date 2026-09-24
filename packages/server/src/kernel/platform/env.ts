@@ -303,6 +303,112 @@ const computeMailOAuth = () => ({
 
 const mailOAuth = computeMailOAuth();
 
+/**
+ * The region an endpoint names, for the providers that spell it into the host.
+ *
+ * SigV4 signs the region into every request, so a wrong one is refused with a
+ * signature error that says nothing about regions — and most providers put it
+ * in the host anyway: `s3.fr-par.scw.cloud`, `s3.eu-central-1.amazonaws.com`,
+ * `s3.eu-central-003.backblazeb2.com`, `fsn1.your-objectstorage.com`. Asking
+ * somebody to type again what they have just pasted is how a backup setting
+ * gets left half-finished. Anything that does not match is `us-east-1`, which
+ * is what MinIO answers to; a typed region always wins over this.
+ */
+export function regionOf(endpoint: string): string {
+  let host: string;
+  try {
+    host = new URL(endpoint).hostname.toLowerCase();
+  } catch {
+    return 'us-east-1';
+  }
+  // Cloudflare signs for a region called `auto`; Hetzner puts it first.
+  if (host.endsWith('.r2.cloudflarestorage.com')) return 'auto';
+  const first = host.match(/^([a-z]{2,}\d+)\.your-objectstorage\.com$/);
+  if (first) return first[1];
+  const labelled = host.match(/^s3[.-]([a-z0-9-]+)\./);
+  // `s3.amazonaws.com` is the global endpoint, not a region called amazonaws.
+  if (labelled && !['amazonaws', 'dualstack', 'accesspoint'].includes(labelled[1])) return labelled[1];
+  return 'us-east-1';
+}
+
+/**
+ * Backups, and the places one can go.
+ *
+ * Three of them, and any one is enough to switch the nightly run on:
+ *
+ *   - **A directory** (`KOLIBRI_BACKUP_DIR`), mounted from somewhere other than
+ *     the data volume. The only one that keeps snapshots on this machine, and
+ *     the only one that is environment-only — a path is worth nothing until a
+ *     volume is mounted at it, and mounting one is a deployment's decision.
+ *   - **A bucket** of its own (`KOLIBRI_BACKUP_S3_*`), independent of where the
+ *     uploads live. Typed into Settings → Server like the relay is, because a
+ *     bucket is the kind of thing somebody sets up after the container runs.
+ *   - **An address** (`KOLIBRI_BACKUP_EMAIL`), sent the database as an
+ *     attachment through whichever transport mail already uses.
+ *
+ * The bucket borrows what it is not given. With no endpoint of its own and the
+ * uploads already in S3, it is on the same provider and signed with the same
+ * keys — so on such an instance a bucket name is the whole of the setting, and
+ * a key of its own (one allowed to write backups and nothing else) still wins
+ * where one is typed. With an endpoint of its own, nothing is borrowed: those
+ * keys belong to somebody else's store.
+ *
+ * `KOLIBRI_BACKUP_OFFSITE` is what this was before it had a bucket of its own:
+ * the storage bucket, under the prefix. It still means that, and a named
+ * bucket wins over it.
+ */
+const computeBackup = () => {
+  const offsite = bool(process.env.KOLIBRI_BACKUP_OFFSITE, false);
+  const own = setting('KOLIBRI_BACKUP_S3_ENDPOINT')?.replace(/\/+$/, '');
+  const borrowed = !own && storage.kind === 's3';
+  const endpoint = own ?? (borrowed ? storage.s3.endpoint : '');
+  const bucket = setting('KOLIBRI_BACKUP_S3_BUCKET') ?? (offsite && storage.kind === 's3' ? storage.s3.bucket : '');
+  // Through `text`, not `bool`: compose writes an empty string for an unset
+  // `${…:-}`, and `bool('')` is a firm "no" rather than "work it out".
+  const pathStyle = text(process.env.KOLIBRI_BACKUP_S3_PATH_STYLE);
+  // A fraction is allowed — half a megabyte is a real relay's limit — and
+  // anything that is not a positive number is the default rather than "never".
+  const emailMb = Number(text(process.env.KOLIBRI_BACKUP_EMAIL_MAX_MB) ?? 10);
+  let host = '';
+  try { host = endpoint ? new URL(endpoint).hostname.toLowerCase() : ''; } catch { /* the check says so */ }
+  return {
+    dir: (process.env.KOLIBRI_BACKUP_DIR ?? '').trim(),
+    /** Local hour to take it, 0–23. Three in the morning by default. */
+    hour: Math.min(23, Math.max(0, int(setting('KOLIBRI_BACKUP_HOUR'), 3))),
+    /** How many to keep. `0` keeps every one, and fills the disk in a year. */
+    keep: Math.max(0, int(setting('KOLIBRI_BACKUP_KEEP'), 7)),
+    /** Copy each snapshot into the storage bucket — the older spelling of a bucket. */
+    offsite,
+    /** Where in the bucket. Content-addressed blobs share `<prefix>/blobs`. */
+    prefix: (text(process.env.KOLIBRI_BACKUP_PREFIX) ?? 'backups').replace(/^\/+|\/+$/g, '') || 'backups',
+    s3: {
+      endpoint,
+      bucket,
+      region: setting('KOLIBRI_BACKUP_S3_REGION') ?? (borrowed ? storage.s3.region : regionOf(endpoint)),
+      accessKeyId: setting('KOLIBRI_BACKUP_S3_ACCESS_KEY') ?? (borrowed ? storage.s3.accessKeyId : ''),
+      secretAccessKey: setting('KOLIBRI_BACKUP_S3_SECRET_KEY') ?? (borrowed ? storage.s3.secretAccessKey : ''),
+      // AWS stopped addressing new buckets by path in 2020; MinIO, Scaleway,
+      // R2 and Backblaze all take it, and MinIO takes nothing else.
+      forcePathStyle: pathStyle !== undefined ? bool(pathStyle, true)
+        : borrowed ? storage.s3.forcePathStyle : !host.endsWith('amazonaws.com'),
+      /** Endpoint and keys are the storage's, because none were given. */
+      borrowed,
+      /** The very bucket the uploads live in — where their blobs already are. */
+      shared: borrowed && bucket === storage.s3.bucket,
+    },
+    email: {
+      to: setting('KOLIBRI_BACKUP_EMAIL') ?? '',
+      /**
+       * The largest attachment it will send. Ten megabytes because that is
+       * where the strictest common relays stop; Scaleway's API stops at two,
+       * which the sender knows for itself.
+       */
+      maxBytes: Math.floor((emailMb > 0 ? emailMb : 10) * 1024 * 1024),
+    },
+  };
+};
+
+const backup = computeBackup();
 
 /**
  * Read the environment and the stored settings again.
@@ -316,6 +422,7 @@ export function refreshEnv(): void {
   Object.assign(mailOAuth, computeMailOAuth());
   Object.assign(ai, computeAi());
   Object.assign(telegram, computeTelegram());
+  Object.assign(backup, computeBackup());
 }
 
 const admin = {
@@ -440,27 +547,18 @@ export const env = {
   /**
    * Backups that take themselves.
    *
-   * Off until a directory is named, because where somebody else's backups
-   * belong is not this program's decision — and a default of "next to the
+   * Off until somebody says where they go — a directory, a bucket or an
+   * address, see `computeBackup` — because where somebody else's backups
+   * belong is not this program's decision, and a default of "next to the
    * database" would put the copy on the disk whose failure it is meant to
-   * survive. `KOLIBRI_BACKUP_DIR=/backups` with that path mounted from
-   * somewhere else is the arrangement this is for.
+   * survive.
    *
    * `KEEP` is a count and not a number of days: a count is what a disk has
    * room for, and an instance that was off for a fortnight should still have
-   * seven snapshots rather than none.
+   * seven snapshots rather than none. It governs the directory only; nothing
+   * here deletes from a bucket or an inbox.
    */
-  backup: {
-    dir: (process.env.KOLIBRI_BACKUP_DIR ?? '').trim(),
-    /** Local hour to take it, 0–23. Three in the morning by default. */
-    hour: Math.min(23, Math.max(0, int(process.env.KOLIBRI_BACKUP_HOUR, 3))),
-    /** How many to keep. `0` keeps every one, and fills the disk in a year. */
-    keep: Math.max(0, int(process.env.KOLIBRI_BACKUP_KEEP, 7)),
-    /** Also copy each snapshot into the object store, when there is one. */
-    offsite: bool(process.env.KOLIBRI_BACKUP_OFFSITE, false),
-    /** Where in the bucket. Content-addressed blobs share `<prefix>/blobs`. */
-    prefix: (process.env.KOLIBRI_BACKUP_PREFIX ?? 'backups').replace(/^\/+|\/+$/g, ''),
-  },
+  backup,
   demo: bool(process.env.KOLIBRI_DEMO, false),
   storage,
   mail,

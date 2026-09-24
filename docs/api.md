@@ -423,22 +423,25 @@ workspace. See [`deployment.md`](deployment.md#backups).
 
 | | |
 |---|---|
-| `GET /api/admin/backups` | the schedule, the last run and what is on disk |
-| `POST /api/admin/backups` | take one now, check it, apply the retention, copy it offsite |
+| `GET /api/admin/backups` | the schedule, what is in the directory, and where else they go with how the last attempt there went |
+| `GET /api/admin/backups/bucket` | what the backup bucket holds — asked separately, since it waits on the store |
+| `POST /api/admin/backups` | take one now, check it, apply the retention, send it to the bucket and the address. Works with no directory: `kept: false` |
 | `POST /api/admin/backups/:name/verify` | open it and run an integrity check |
-| `POST /api/admin/backups/:name/offsite` | copy one into the object store |
+| `POST /api/admin/backups/:name/offsite` | send one from the directory to the bucket and the address again |
 | `GET /api/admin/backups/:name/download` | the snapshot as a `.zip`, streamed |
 | `DELETE /api/admin/backups/:name` | remove one |
 | `POST /api/admin/backups/:name/inspect` | what the snapshot holds, and what this instance holds now |
 | `POST /api/admin/backups/:name/restore` | put it back, in place, without stopping the server |
+| `POST /api/admin/backups/bucket/:name/restore` | the same for one in the backup bucket, files included |
 | `POST /api/admin/restore` | the same from an uploaded `.zip` body, `content-type: application/zip` |
 
 A restore replaces the contents of every table in one transaction rather than swapping the database
 file, which is what lets it run against a live process. It verifies the snapshot first, takes a
-snapshot of what it is about to replace where `KOLIBRI_BACKUP_DIR` is set, and copies rows through
-the columns both databases have in common so an older snapshot still restores. Afterwards every
-session is gone — `sessions` was one of the tables replaced — so the response to this call is the
-last one the caller's cookie is accepted for.
+snapshot of what it is about to replace — into the directory where `KOLIBRI_BACKUP_DIR` is set, or
+the bucket where only a bucket is — fetches uploads the snapshot does not carry from the backup
+bucket when there is one, and copies rows through the columns both databases have in common so an
+older snapshot still restores. Afterwards every session is gone — `sessions` was one of the tables
+replaced — so the response to this call is the last one the caller's cookie is accepted for.
 
 `kolibri restore` is still there for the instance that will not start, and still replaces the file
 itself against a stopped server. See [`deployment.md`](deployment.md#restoring).

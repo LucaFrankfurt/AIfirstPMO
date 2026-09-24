@@ -42,7 +42,7 @@ import { isEncryption } from '../mail/relay.ts';
 import { cleanHost, nameOfCharacter } from '../mail/mailbox.ts';
 import { seal as sealWith, unseal as unsealWith } from './seal.ts';
 
-export type SettingGroup = 'mail' | 'telegram' | 'ai';
+export type SettingGroup = 'mail' | 'telegram' | 'ai' | 'backup';
 export type SettingKind = 'text' | 'secret' | 'number' | 'bool' | 'choice';
 
 export interface SettingSpec {
@@ -63,6 +63,14 @@ export interface SettingSpec {
   aliases?: string[];
   /** Reject a value that cannot work, with a sentence saying why. */
   check?: (value: string) => string | null;
+  /**
+   * For a setting that takes its value from elsewhere while nothing is set for
+   * it — the backup bucket borrowing the file storage's endpoint, a region read
+   * off that endpoint. The screen shows what is in effect as a placeholder
+   * rather than as a value, because a value in the field would read as though
+   * somebody had typed it, and saving the form would then make it so.
+   */
+  inherits?: boolean;
 }
 
 const port = (value: string): string | null => {
@@ -102,6 +110,28 @@ const httpUrl = (value: string): string | null => {
  */
 const botToken = (value: string): string | null =>
   (/^\d{5,}:[A-Za-z0-9_-]{20,}$/.test(value) ? null : 'A bot token looks like 123456789:AA… — paste the whole line BotFather sent');
+
+const hour = (value: string): string | null =>
+  (Number(value) >= 0 && Number(value) <= 23 ? null : 'The hour is a number from 0 to 23, in the server’s own time zone');
+
+/**
+ * A bucket's name, and the two things people paste instead of one.
+ *
+ * The rules differ a little between providers — AWS wants lower case, older
+ * MinIO buckets need not be — so this refuses only what no provider accepts:
+ * a scheme, a slash, a space. `s3://backups` and `https://…/backups` are what
+ * a console's copy button tends to produce, and each would otherwise fail at
+ * three in the morning as a signature error.
+ */
+const bucketName = (value: string): string | null => {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value) || value.includes('/')) {
+    return 'Just the bucket’s name — the address goes in the endpoint field';
+  }
+  return /^[A-Za-z0-9][A-Za-z0-9._-]{2,62}$/.test(value) ? null : 'A bucket name is 3 to 63 letters, digits, dots and dashes';
+};
+
+const region = (value: string): string | null =>
+  (/^[A-Za-z0-9-]+$/.test(value) ? null : 'A region is a name like eu-central-1 or fr-par');
 
 export const SETTINGS: SettingSpec[] = [
   {
@@ -184,6 +214,23 @@ export const SETTINGS: SettingSpec[] = [
   },
   { key: 'KOLIBRI_AI_MODEL', group: 'ai', kind: 'text', read: () => env.ai.model },
   { key: 'KOLIBRI_AI_BASE_URL', group: 'ai', kind: 'text', read: () => env.ai.baseUrl, check: httpUrl },
+  /*
+   * Where the nightly snapshot goes, when it is not only a directory.
+   *
+   * Here for the reason the relay is: a bucket or an inbox is something
+   * somebody sets up after the container is running, and the directory — the
+   * one place that needs a volume mounted — was the only way there was. That
+   * one stays in the environment, since a path is worth nothing until a
+   * deployment mounts something at it.
+   */
+  { key: 'KOLIBRI_BACKUP_HOUR', group: 'backup', kind: 'number', read: () => String(env.backup.hour), check: hour },
+  { key: 'KOLIBRI_BACKUP_KEEP', group: 'backup', kind: 'number', read: () => String(env.backup.keep) },
+  { key: 'KOLIBRI_BACKUP_EMAIL', group: 'backup', kind: 'text', read: () => env.backup.email.to, check: address },
+  { key: 'KOLIBRI_BACKUP_S3_BUCKET', group: 'backup', kind: 'text', read: () => env.backup.s3.bucket, check: bucketName, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_ENDPOINT', group: 'backup', kind: 'text', read: () => env.backup.s3.endpoint, check: httpUrl, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_REGION', group: 'backup', kind: 'text', read: () => env.backup.s3.region, check: region, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_ACCESS_KEY', group: 'backup', kind: 'text', read: () => env.backup.s3.accessKeyId, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_SECRET_KEY', group: 'backup', kind: 'secret', read: () => env.backup.s3.secretAccessKey, inherits: true },
 ];
 
 const SPECS = new Map(SETTINGS.map((spec) => [spec.key, spec]));
@@ -247,6 +294,10 @@ export interface SettingView {
   set: boolean;
   /** `app` — typed in here. `environment` — the container was started with it. */
   source: 'app' | 'environment' | 'default';
+  /** The setting takes its value from elsewhere while it is unset — see `SettingSpec.inherits`. */
+  inherits?: boolean;
+  /** What that value is, while nothing is set here. Never given for a secret. */
+  inherited?: string;
 }
 
 const fromEnvironment = (spec: SettingSpec): boolean =>
@@ -255,14 +306,19 @@ const fromEnvironment = (spec: SettingSpec): boolean =>
 export function describeSettings(): SettingView[] {
   return SETTINGS.map((spec) => {
     const effective = spec.read();
+    const source = cache[spec.key] !== undefined ? 'app' : fromEnvironment(spec) ? 'environment' : 'default';
+    // Borrowed, not set: said as what applies, never as though it were typed.
+    const borrowed = !!spec.inherits && source === 'default';
     return {
       key: spec.key,
       group: spec.group,
       kind: spec.kind,
       choices: spec.choices,
-      value: spec.kind === 'secret' ? '' : effective,
+      value: spec.kind === 'secret' || borrowed ? '' : effective,
       set: effective !== '' && effective !== 'off',
-      source: cache[spec.key] !== undefined ? 'app' : fromEnvironment(spec) ? 'environment' : 'default',
+      source,
+      ...(spec.inherits ? { inherits: true } : {}),
+      ...(borrowed && spec.kind !== 'secret' && effective ? { inherited: effective } : {}),
     };
   });
 }

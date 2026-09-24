@@ -12,7 +12,7 @@ import { connect as tlsConnect, type TLSSocket } from 'node:tls';
 import { assertEmailAddress } from '../../kernel/mail/address.ts';
 import type { SmtpConfig } from '../../kernel/mail/relay.ts';
 import { headerSafe, isHeaderName } from './headers.ts';
-import { DeliveryError, type Deliverable } from './delivery.ts';
+import { DeliveryError, safeContentType, safeFilename, type Deliverable } from './delivery.ts';
 
 /** The same shape every transport takes — see `delivery.ts`. */
 export type Mail = Deliverable;
@@ -231,10 +231,52 @@ export async function sendMail(config: SmtpConfig, mail: Mail): Promise<string> 
 const encodeHeader = (value: string): string =>
   /^[\x20-\x7e]*$/.test(value) ? value : `=?UTF-8?B?${Buffer.from(value).toString('base64')}?=`;
 
-const base64Lines = (value: string): string =>
-  (Buffer.from(value, 'utf8').toString('base64').match(/.{1,76}/g) ?? []).join('\r\n');
+const base64Lines = (value: string | Buffer): string =>
+  ((typeof value === 'string' ? Buffer.from(value, 'utf8') : value).toString('base64').match(/.{1,76}/g) ?? []).join('\r\n');
 
+/**
+ * The message, and — when it carries files — the message wrapped around them.
+ *
+ * With attachments the body becomes the first part of a `multipart/mixed` and
+ * each file a part after it, which is the one arrangement every mail client
+ * shows as "a message with attachments" rather than as a pile of parts.
+ */
 export function buildMessage(mail: Mail, messageId: string): string {
+  if (!mail.attachments?.length) return buildBody(mail, messageId);
+
+  const mixed = `kolibri-mixed-${createHash('sha1').update(`${messageId}:mixed`).digest('hex').slice(0, 24)}`;
+  const inner = buildBody(mail, messageId);
+  const split = inner.indexOf('\r\n\r\n');
+  const headers = inner.slice(0, split).split('\r\n');
+  // The body's own content headers move into its part; the envelope keeps the rest.
+  const own = headers.filter((line) => /^Content-(Type|Transfer-Encoding):/i.test(line));
+  const envelope = headers.filter((line) => !/^Content-(Type|Transfer-Encoding):/i.test(line));
+
+  return [
+    ...envelope,
+    `Content-Type: multipart/mixed; boundary="${mixed}"`,
+    '',
+    `--${mixed}`,
+    ...own,
+    '',
+    inner.slice(split + 4),
+    ...mail.attachments.flatMap((file) => {
+      const name = safeFilename(file.filename);
+      return [
+        `--${mixed}`,
+        `Content-Type: ${safeContentType(file.contentType)}; name="${name}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${name}"`,
+        '',
+        base64Lines(file.content),
+      ];
+    }),
+    `--${mixed}--`,
+    '',
+  ].join('\r\n');
+}
+
+function buildBody(mail: Mail, messageId: string): string {
   const boundary = `kolibri-${createHash('sha1').update(messageId).digest('hex').slice(0, 24)}`;
   const from = mail.fromName ? `${encodeHeader(mail.fromName)} <${assertEmailAddress(mail.from, 'The sender address')}>` : assertEmailAddress(mail.from, 'The sender address');
   const headers: string[] = [
