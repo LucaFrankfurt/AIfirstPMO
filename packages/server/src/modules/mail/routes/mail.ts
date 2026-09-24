@@ -19,6 +19,7 @@ import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { requireAuth, requireWorkspace } from '../../../kernel/identity/auth.ts';
 import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { env } from '../../../kernel/platform/env.ts';
+import { contentDisposition } from '../../../kernel/files/mime.ts';
 import { randomBytes } from 'node:crypto';
 import { checkMailbox } from '../../../kernel/mail/mailbox.ts';
 import { configOf, credentialsFor, findMailbox, mailboxView, setPassword, visibleMailboxes } from '../mailboxes.ts';
@@ -142,7 +143,7 @@ export function registerMailboxRoutes(router: Router): void {
       'content-length': String(bytes.length),
       // `attachment`, always. These bytes came from a stranger's email, and an
       // HTML part rendered inline would run their script on this origin.
-      'content-disposition': `attachment; filename="${String(attachment.filename).replace(/["\\\r\n]/g, '')}"`,
+      'content-disposition': contentDisposition('attachment', String(attachment.filename)),
     });
     ctx.res.end(bytes);
     return undefined;

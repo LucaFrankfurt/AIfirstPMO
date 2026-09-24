@@ -30,6 +30,7 @@ import {
   detectWorkspaceDoc, exportWorkspace, importWorkspace, type WorkspaceDoc,
 } from '../workspace-transfer.ts';
 import { unzip, ZipWriter } from '../../../kernel/files/zip.ts';
+import { contentDisposition } from '../../../kernel/files/mime.ts';
 
 /** A filename a browser will accept and a filesystem will keep. */
 const safe = (value: string): string =>
@@ -63,7 +64,7 @@ function sendRaw(ctx: Ctx, type: string, filename: string, body: Buffer): void {
   ctx.res.writeHead(200, {
     'content-type': type,
     'content-length': String(body.length),
-    'content-disposition': `attachment; filename="${filename.replace(/[\r\n"\\]/g, '_')}"`,
+    'content-disposition': contentDisposition('attachment', filename),
     'cache-control': 'no-store',
   });
   ctx.res.end(body);
@@ -431,7 +432,7 @@ export function registerExportRoutes(router: Router): void {
 
     ctx.res.writeHead(200, {
       'content-type': 'application/zip',
-      'content-disposition': `attachment; filename="kolibri-${safe(ctx.params.name)}.zip"`,
+      'content-disposition': contentDisposition('attachment', `kolibri-${safe(ctx.params.name)}.zip`),
       'cache-control': 'no-store',
     });
     const writer = new ZipWriter(ctx.res);

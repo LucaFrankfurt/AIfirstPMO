@@ -33,7 +33,7 @@ const { visibleMailboxes, findMailbox, setPassword, credentialsFor, hasPassword,
   await import('../src/modules/mail/mailboxes.ts');
 const { storeMessage, highestUid, forgetMailbox, countMessages } = await import('../src/modules/mail/store.ts');
 const { checkMailbox, cleanHost } = await import('../src/kernel/mail/mailbox.ts');
-const { pollMailbox } = await import('../src/modules/mail/poll.ts');
+const { pollMailbox, mailFetcher, registerMailFetcher } = await import('../src/modules/mail/poll.ts');
 const { searchMail, countMail, narrow, threadOf } = await import('../src/modules/mail/search.ts');
 const { mailStats, responseTimes } = await import('../src/modules/mail/analytics.ts');
 const { rankDocuments } = await import('../src/modules/mail/documents.ts');
@@ -897,5 +897,42 @@ describe('disconnecting', () => {
     assert.ok(before > 0);
     assert.equal(forgetMailbox(boxes.admin), before);
     assert.equal(countMessages(boxes.admin), 0);
+  });
+});
+
+/**
+ * An attachment is named by whoever sent it, which makes its name the least
+ * predictable string this product writes into a header. Written in as it was,
+ * `Rechnung – März.pdf` made the download a 500 — Node refuses any character
+ * above U+00FF in a header, and an en dash is one.
+ */
+describe('downloading an attachment', () => {
+  it('names it whatever the sender called it', async () => {
+    const id = (await as(people.ada, `/api/workspaces/${workspaceId}/mailboxes`, {
+      address: 'files@calendoora.de', host: 'imap.calendoora.de',
+    })).id;
+    setPassword(id, 'hunter2', people.ada.id);
+    const names = ['Rechnung – März.pdf', '报价单.pdf', 'Vertrag 📝.pdf', 'Rechnung.pdf'];
+    for (const filename of names) seed(id, { subject: filename, files: [{ filename, mime: 'application/pdf', size: 8, part: '2' }] });
+
+    // The bytes are fetched from the mail server on demand; this one has them to hand.
+    const real = mailFetcher();
+    registerMailFetcher({ fetch: async () => [], fetchPart: async () => Buffer.from('%PDF-1.4'), check: async () => {} });
+    try {
+      for (const filename of names) {
+        const row = get<any>(`SELECT id, message_id FROM mail_attachments WHERE mailbox_id = ? AND filename = ?`, id, filename);
+        const served = await fetch(`${base}/api/workspaces/${workspaceId}/mail/${row.message_id}/attachments/${row.id}`, {
+          headers: { cookie: people.ada.cookie },
+        });
+        assert.equal(served.status, 200, filename);
+        assert.equal(await served.text(), '%PDF-1.4');
+        const header = served.headers.get('content-disposition') ?? '';
+        assert.match(header, /^attachment; [\x20-\x7e]+$/, 'always a download, and nothing a header cannot carry');
+        const extended = /filename\*=UTF-8''([^;]+)/.exec(header);
+        assert.equal(extended ? decodeURIComponent(extended[1]) : /filename="([^"]*)"/.exec(header)?.[1], filename);
+      }
+    } finally {
+      registerMailFetcher(real);
+    }
   });
 });

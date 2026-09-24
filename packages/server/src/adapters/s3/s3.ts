@@ -6,7 +6,7 @@
  * ~20 MB of dependencies for the same five calls.
  */
 import { createHash, createHmac } from 'node:crypto';
-import { disposition } from '../../kernel/files/mime.ts';
+import { contentDisposition, disposition } from '../../kernel/files/mime.ts';
 
 export interface S3Config {
   endpoint: string;
@@ -185,9 +185,9 @@ export function presignGet(
   if (mime) {
     const { inline, type } = disposition(mime);
     url.searchParams.set('response-content-type', type);
-    if (filename) url.searchParams.set('response-content-disposition', `${inline ? 'inline' : 'attachment'}; filename="${filename.replace(/"/g, '')}"`);
+    if (filename) url.searchParams.set('response-content-disposition', contentDisposition(inline ? 'inline' : 'attachment', filename));
   } else if (filename) {
-    url.searchParams.set('response-content-disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
+    url.searchParams.set('response-content-disposition', contentDisposition('attachment', filename));
   }
   const query = canonicalQuery(url.searchParams);
 

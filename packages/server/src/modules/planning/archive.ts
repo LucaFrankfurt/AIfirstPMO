@@ -25,6 +25,7 @@ import { get, type Row } from '../../kernel/platform/db/index.ts';
 import { badRequest } from '../../kernel/platform/http.ts';
 import * as storage from '../../kernel/files/storage.ts';
 import { ZipWriter, unzip } from '../../kernel/files/zip.ts';
+import { contentDisposition } from '../../kernel/files/mime.ts';
 import type { FileRef } from '../../adapters/transfer/transfer.ts';
 
 /** The document's name inside the archive. */
@@ -110,7 +111,7 @@ export async function sendArchive(
       'content-type': 'application/zip',
       // No length: the archive is compressed as it is written, so its size is
       // not known until the last byte. Chunked is the honest answer.
-      'content-disposition': `attachment; filename="${filename.replace(/[\r\n"\\]/g, '_')}"`,
+      'content-disposition': contentDisposition('attachment', filename),
       'cache-control': 'no-store',
     });
   }

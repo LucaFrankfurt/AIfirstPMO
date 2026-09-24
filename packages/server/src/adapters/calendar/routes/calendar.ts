@@ -24,6 +24,7 @@ import { buildCalendar, ICAL_PRIORITY, type CalendarEntry } from '../ical.ts';
 import { forbidden, notFound, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { token as randomToken } from '../../../kernel/platform/ids.ts';
 import { publicOrigin } from '../../../kernel/platform/origin.ts';
+import { contentDisposition } from '../../../kernel/files/mime.ts';
 import { byAddress, enforce, LIMITS } from '../../../kernel/identity/ratelimit.ts';
 import { readFilters, tasksMatching } from '../../../modules/work/viewquery.ts';
 
@@ -39,7 +40,7 @@ const STATUS: Record<string, CalendarEntry['status']> = {
 const ics = (ctx: Ctx, body: string, filename: string): undefined => {
   ctx.res.writeHead(200, {
     'content-type': 'text/calendar; charset=utf-8',
-    'content-disposition': `inline; filename="${filename}"`,
+    'content-disposition': contentDisposition('inline', filename),
     // A calendar a client re-fetches on a schedule must not be served from
     // anybody's cache: the whole point is that it is current.
     'cache-control': 'private, no-store',

@@ -182,16 +182,20 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       and the fake checks it the way a store does — stricter than MinIO, reading a `+` as a plus,
       because a link signed right but *sent* in the form encoding passes MinIO and is exactly what
       a store reading RFC 3986 would refuse. Not measured against AWS, R2 or Ceph.
-- [ ] **A file whose name leaves Latin-1 cannot be downloaded from disk.** Found while measuring
-      the entry above, and not that bug. The download route writes the name into
-      `Content-Disposition` as it is, and Node refuses any character above U+00FF in a header — so
-      the upload answers 200 and the download **500** (`ERR_INVALID_CHAR`, thrown in
-      `kernel/files/routes/files.ts`). Measured through the real route on disk storage:
-      `Müller.pdf` downloads; `Angebot – Firma.pdf`, `日本語.pdf` and `Plan 🚀.pdf` do not, and an
-      en dash is ordinary in a German document name. A pre-signed link escapes it only because the
-      store writes that header rather than Node — MinIO sends the UTF-8 bytes as they are, which
-      browsers mostly guess right. The fix is RFC 6266's pair on both paths: an ASCII
-      `filename="…"` for old clients and `filename*=UTF-8''…` for everything else.
+- [x] **A file whose name leaves Latin-1 could not be downloaded.** Found while measuring the
+      entry above, and not that bug. Every download wrote the name into `Content-Disposition` as it
+      was, and Node refuses any character above U+00FF in a header — so a file called
+      `Angebot – Firma.pdf` uploaded with a 200 and downloaded with a **500** (`ERR_INVALID_CHAR`),
+      and a mail attachment called that, the least predictable name this product serves, could not
+      be downloaded at all. Measured through both real routes: `Müller.pdf` went through;
+      `Angebot – Firma.pdf`, `日本語.pdf`, `报价单.pdf` and `Plan 🚀.pdf` did not. Now one function in
+      `kernel/files/mime.ts` writes the header for every download — files, mail attachments, the
+      object store's pre-signed link, exports, backups, the calendar feed — as RFC 6266's pair: an
+      ASCII stand-in in `filename`, the name itself in `filename*` (RFC 8187). Measured in
+      Chromium 141, through the app from disk and through the redirect to MinIO: all five names
+      tried are saved as themselves, where three of them had been a 500. One trap on the way: in a
+      container with no locale, Chromium saves every name that is not ASCII as `download` — that
+      is the missing `LANG`, not the header. Not measured in Firefox or Safari.
 
 ---
 
