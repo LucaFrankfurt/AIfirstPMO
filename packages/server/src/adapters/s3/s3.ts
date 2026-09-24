@@ -55,10 +55,14 @@ function encodeKey(key: string): string {
  * sorted by name.
  *
  * Not `URLSearchParams.toString()`, which writes the form encoding — a space as
- * `+`, a `~` as `%7E` — so any value holding one is signed as something other
- * than what the store reads, and refused as a bad signature. No request signed
- * here carried a query until the bucket had to be listed — `presignGet` below
- * builds its own — which is why this was never found.
+ * `+`, a `~` as `%7E`, a `*` as itself — so any value holding one is signed as
+ * something other than what the store reads, and refused as a bad signature.
+ * Both signers here once did that. A header-signed call carried no query until
+ * the bucket had to be listed; a download link always carries one with a space
+ * in it — `…; filename="…"` — so with pre-signing on, MinIO refused every
+ * download with `SignatureDoesNotMatch`. Nothing noticed, because the fake
+ * store in the tests checked that such a URL was well formed rather than that
+ * it was signed, and the compose files ship with pre-signing off.
  */
 function canonicalQuery(params: URLSearchParams): string {
   return [...params]
@@ -153,11 +157,8 @@ export function signUrl(
 }
 
 /**
- * Pre-signed GET URL (query form). Lets the browser fetch straight from the
- * object store, so file downloads do not stream through the app server.
- */
-/**
- * A signed URL for one object.
+ * A signed URL for one object (SigV4's query form), so the browser fetches
+ * straight from the object store and downloads do not stream through the app.
  *
  * `mime` decides what the store is told to serve it as, and it matters: the
  * store obeys the URL, so a URL that says `inline` renders whatever the
@@ -188,19 +189,25 @@ export function presignGet(
   } else if (filename) {
     url.searchParams.set('response-content-disposition', `attachment; filename="${filename.replace(/"/g, '')}"`);
   }
-  url.searchParams.sort();
+  const query = canonicalQuery(url.searchParams);
 
   const canonicalRequest = [
     'GET',
     url.pathname,
-    url.searchParams.toString(),
+    query,
     `host:${url.host}\n`,
     'host',
     'UNSIGNED-PAYLOAD',
   ].join('\n');
 
   const stringToSign = ['AWS4-HMAC-SHA256', amzDate, scope, sha256(canonicalRequest)].join('\n');
-  url.searchParams.set('X-Amz-Signature', hmac(signingKey(config, dateStamp), stringToSign).toString('hex'));
+  const signature = hmac(signingKey(config, dateStamp), stringToSign).toString('hex');
+  // Sent exactly as signed, and the signature added by hand: setting it through
+  // `searchParams` would write the whole query back out in the form encoding,
+  // a `+` for every space. MinIO reads that `+` as a space and serves it;
+  // RFC 3986 reads it as a plus, and a store that does would refuse it — so
+  // the URL would be right or wrong depending on where it points.
+  url.search = `${query}&X-Amz-Signature=${signature}`;
   return url.toString();
 }
 

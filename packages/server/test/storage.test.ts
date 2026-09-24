@@ -23,6 +23,57 @@ let lastAuthOk = false;
 
 const hmac = (key: Buffer | string, value: string) => createHmac('sha256', key).update(value).digest();
 const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+const signingKey = (dateStamp: string, region: string) =>
+  hmac(hmac(hmac(hmac(`AWS4${SECRET_KEY}`, dateStamp), region), 's3'), 'aws4_request');
+
+/** RFC 3986, which is what SigV4 wants every name and value in. */
+const rfc3986 = (value: string) =>
+  encodeURIComponent(value).replace(/[!'()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+
+/**
+ * The query as the store reads it off the wire: split, and each part decoded
+ * the way RFC 3986 reads a URL, where a `+` is a plus.
+ *
+ * The stricter of the two readings, on purpose. MinIO reads a `+` as a space,
+ * and so serves a URL that was signed correctly but sent in the form encoding —
+ * measured, with exactly that mistake put back — and this refuses it.
+ */
+function queryOf(raw: string): [string, string][] {
+  return raw.split('&').filter(Boolean).map((part) => {
+    const at = part.includes('=') ? part.indexOf('=') : part.length;
+    return [decodeURIComponent(part.slice(0, at)), decodeURIComponent(part.slice(at + 1))];
+  });
+}
+
+/**
+ * And as SigV4 wants it signed: re-encoded, then sorted by name. The header
+ * check used to rebuild it with `URLSearchParams.toString()` instead — the
+ * form encoding, the very mistake it exists to catch — and would have agreed
+ * with a client that made it.
+ */
+const canonicalQuery = (pairs: [string, string][]) => pairs
+  .map(([name, value]) => [rfc3986(name), rfc3986(value)])
+  .sort(([a, x], [b, y]) => (a < b ? -1 : a > b ? 1 : x < y ? -1 : x > y ? 1 : 0))
+  .map(([name, value]) => `${name}=${value}`)
+  .join('&');
+
+/**
+ * A pre-signed GET: everything the signature covers rides in the query, and
+ * the only header signed is `host`. It used to be served once it merely looked
+ * well formed, which is how every download link failing against MinIO passed
+ * here for as long as pre-signing had a file name in it.
+ */
+function verifyPresigned(path: string, query: [string, string][], host: string): boolean {
+  const params = new Map(query);
+  const credential = /^([^/]+)\/(\d{8})\/([^/]+)\/s3\/aws4_request$/.exec(params.get('X-Amz-Credential') ?? '');
+  if (!credential || credential[1] !== ACCESS_KEY || params.get('X-Amz-SignedHeaders') !== 'host') return false;
+  const [, , dateStamp, region] = credential;
+  const signed = query.filter(([name]) => name !== 'X-Amz-Signature');
+  const canonicalRequest = ['GET', path, canonicalQuery(signed), `host:${host}\n`, 'host', 'UNSIGNED-PAYLOAD'].join('\n');
+  const scope = `${dateStamp}/${region}/s3/aws4_request`;
+  const stringToSign = ['AWS4-HMAC-SHA256', params.get('X-Amz-Date'), scope, sha256(canonicalRequest)].join('\n');
+  return hmac(signingKey(dateStamp, region), stringToSign).toString('hex') === params.get('X-Amz-Signature');
+}
 
 /** Recompute the signature the client claims, exactly as S3 does. */
 function verifySignature(method: string, path: string, query: string, headers: Record<string, string>, payloadHash: string): boolean {
@@ -39,8 +90,7 @@ function verifySignature(method: string, path: string, query: string, headers: R
   const canonicalRequest = [method, path, query, canonicalHeaders, signedHeaders, payloadHash].join('\n');
   const scope = `${dateStamp}/${region}/s3/aws4_request`;
   const stringToSign = ['AWS4-HMAC-SHA256', headers['x-amz-date'], scope, sha256(canonicalRequest)].join('\n');
-  const key = hmac(hmac(hmac(hmac(`AWS4${SECRET_KEY}`, dateStamp), region), 's3'), 'aws4_request');
-  return hmac(key, stringToSign).toString('hex') === signature;
+  return hmac(signingKey(dateStamp, region), stringToSign).toString('hex') === signature;
 }
 
 const s3Server: Server = createServer((req, res) => {
@@ -57,15 +107,27 @@ const s3Server: Server = createServer((req, res) => {
     const segments = url.pathname.split('/').filter(Boolean);
     const bucket = segments[0];
     const key = segments.slice(1).map(decodeURIComponent).join('/');
+    const query = queryOf(url.search.slice(1));
+    const asked = new Map(query);
 
-    if (url.searchParams.has('X-Amz-Signature')) {
-      // Pre-signed GET: we only assert it is well formed, then serve.
+    if (asked.has('X-Amz-Signature')) {
+      if (!verifyPresigned(url.pathname, query, headers.host ?? '')) {
+        res.writeHead(403, { 'content-type': 'application/xml' });
+        res.end('<Error><Code>SignatureDoesNotMatch</Code></Error>');
+        return;
+      }
       const stored = objects.get(key);
       if (!stored) {
         res.writeHead(404).end();
         return;
       }
-      res.writeHead(200, { 'content-type': stored.contentType, 'content-length': String(stored.body.length) });
+      // Served the way a store serves one: with what the URL asked for.
+      const disposition = asked.get('response-content-disposition');
+      res.writeHead(200, {
+        'content-type': asked.get('response-content-type') ?? stored.contentType,
+        'content-length': String(stored.body.length),
+        ...(disposition ? { 'content-disposition': disposition } : {}),
+      });
       res.end(stored.body);
       return;
     }
@@ -73,7 +135,7 @@ const s3Server: Server = createServer((req, res) => {
     lastAuthOk = verifySignature(
       req.method ?? 'GET',
       url.pathname,
-      url.searchParams.toString(),
+      canonicalQuery(query),
       headers,
       headers['x-amz-content-sha256'] ?? sha256(body),
     );
@@ -204,6 +266,31 @@ describe('s3 storage', () => {
     const response = await fetch(url!);
     assert.equal(response.status, 200);
     assert.equal(await response.text(), 'presigned!');
+    assert.equal(response.headers.get('content-disposition'), 'inline; filename="presigned.txt"');
+  });
+
+  it('signs a file name the way the store reads it back', async () => {
+    // A space, a `~` and a `*` are the three characters the form encoding
+    // writes differently from RFC 3986, and a real `+` has to come back as a
+    // plus, not a space. Every download link has at least the space, in
+    // `; filename=`.
+    const name = 'Q3 report *final* (v2)~ + notes.txt';
+    await storage.put('ab/cd/named.txt', Buffer.from('named'), 'text/plain');
+
+    const response = await fetch(storage.directUrl('ab/cd/named.txt', name, 'text/plain')!);
+    assert.equal(response.status, 200, await response.clone().text());
+    assert.equal(response.headers.get('content-disposition'), `inline; filename="${name}"`);
+  });
+
+  it('refuses a pre-signed URL somebody edited', async () => {
+    await storage.put('ab/cd/drawing.svg', Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>'), 'image/svg+xml');
+    const url = storage.directUrl('ab/cd/drawing.svg', 'drawing.svg', 'image/svg+xml')!;
+    assert.equal((await fetch(url)).status, 200, 'served as it was signed');
+
+    // The edit worth making: an SVG handed out as a download, asked to render.
+    const edited = url.replace('attachment', 'inline');
+    assert.notEqual(edited, url);
+    assert.equal((await fetch(edited)).status, 403);
   });
 
   it('rejects a tampered signature', async () => {
