@@ -218,8 +218,19 @@ services:
 
   # Object storage for uploads. Only the console is published; the API is
   # reachable inside the compose network, which is all the app needs.
+  #
+  # Chainguard's build of MinIO rather than MinIO's own, because MinIO stopped
+  # handing its own out: `quay.io/minio/minio` answers an anonymous pull with
+  # "unauthorized" (first seen 2026-09-24; CI pulled it the day before), and a
+  # `docker compose up` of this file failed with it. The same server built from
+  # MinIO's source, with `mc` inside for the healthcheck below. The free tier
+  # publishes `latest` only — pin by digest for reproducible deploys.
   minio:
-    image: quay.io/minio/minio:latest   # pin to a RELEASE.* tag for reproducible deploys
+    image: cgr.dev/chainguard/minio:latest
+    # Root, as the official image ran. This one's own user is 65532, and a
+    # volume the official image wrote belongs to root: without this, every
+    # instance upgraded in place would find its object store unable to start.
+    user: "0:0"
     container_name: kolibri-minio
     restart: unless-stopped
     command: server /data --console-address ":9001"

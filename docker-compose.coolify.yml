@@ -182,8 +182,10 @@ services:
       retries: 3
       start_period: 30s
 
+  # Chainguard's build of MinIO, as root — see docker-compose.yml for why both.
   minio:
-    image: quay.io/minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
+    user: "0:0"
     restart: unless-stopped
     command: server /data --console-address ":9001"
     environment:
