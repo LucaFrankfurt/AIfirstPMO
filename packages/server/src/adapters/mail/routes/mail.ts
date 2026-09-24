@@ -117,7 +117,9 @@ export function registerMailRoutes(router: Router): void {
     // Anybody may un-suppress their own address; an admin may clear any of
     // them. A bounce is usually a full mailbox, and the person it happened to
     // is the one who knows it is fixed.
-    const address = decodeURIComponent(ctx.params.email).toLowerCase();
+    // Decoded once already, by the router. A second pass read `a%41@x` as
+    // `aa@x`, which is another address, and a lone `%` as a 500.
+    const address = ctx.params.email.toLowerCase();
     const me = get<Row>(`SELECT email FROM users WHERE id = ?`, auth.userId);
     const mine = String(me?.email ?? '').toLowerCase() === address;
     if (!mine && !auth.isAdmin && ![...auth.memberships.values()].some((role) => role === 'owner' || role === 'admin')) {

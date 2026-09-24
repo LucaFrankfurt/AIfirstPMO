@@ -86,6 +86,19 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `page-files.test.ts` asks the question through the door that was wrong rather than through the
       function, including the two cases that had to keep working: a page everybody may read, and
       bytes that hang off no attachment row at all, which is every avatar and workspace logo.
+- [x] **No request can end the process.** Found while turning a 500 into a 400 for a file name that
+      will not decode, and much worse than that: the router decodes path parameters, and static
+      serving decodes the path, before the one `catch` in `index.ts` was reached — and the listener
+      is `async` with nothing awaiting it, so whatever threw there was an unhandled rejection, which
+      ends a Node process. Measured against a real server: `GET /api/workspaces/%E0/projects`,
+      `GET /%E0.js` or a `Host: [` — one request, signed in or not, and the server was gone. The
+      listener now has a `catch` around all of it, with the same answers as the one inside; a
+      malformed escape in a path, a file name or the upload header is a **400** (`decodeParam` in
+      `http.ts`); and a cookie that will not decode is kept as it came, where it had made every
+      request from that browser a 500. Two more on the way: a download without a name in its URL
+      decoded the *stored* name, so `100%.txt` was a 500; and the suppression route decoded its
+      address a second time, so clearing `a%41@x` cleared `aa@x`. `errors.test.ts` sends each one
+      over a raw socket and then asks whether the server is still there.
 
 ### Operations
 
