@@ -171,7 +171,17 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
     'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
     'content-length': String(statSync(file).size),
   });
-  createReadStream(file).pipe(res);
+  createReadStream(file)
+    // A read that fails once the checks above have passed — the build swapped
+    // out by a deploy mid-request, a disk going bad — is this response's
+    // problem, not the process's. With no listener it was an uncaught `error`
+    // event, which ends the process: measured with a file that is a file to
+    // `statSync` and an EIO to `read`. The files route has always had this.
+    .on('error', (err) => {
+      log('warn', `serving ${relative} failed: ${err.message}`);
+      res.destroy();
+    })
+    .pipe(res);
   return true;
 }
 
