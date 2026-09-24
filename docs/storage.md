@@ -35,6 +35,13 @@ KOLIBRI_S3_PATH_STYLE=true
 **Change the secret key** before the machine is reachable by anyone else: it is both the S3
 credential and the MinIO console login.
 
+The image is Chainguard's build of MinIO, `cgr.dev/chainguard/minio`, not MinIO's own: since
+September 2026 `quay.io/minio/minio` refuses anonymous pulls, which left `docker compose up` unable
+to start the stack. It is the same server built from MinIO's source, with `mc` in it. It runs as
+root, as the official image did, so a volume that image wrote keeps working after an upgrade — the
+image's own user could not write to it. The free tier publishes `latest` only; pin it by digest if
+deploys have to be reproducible.
+
 Prefer no object store at all? `docker compose -f docker-compose.lite.yml up -d` runs the single
 container with uploads on the volume.
 
