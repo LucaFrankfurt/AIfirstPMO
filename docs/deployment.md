@@ -44,9 +44,11 @@ For the smallest possible install — one container, uploads on the volume, no m
 
 Everything in the **Email**, **Telegram** and **Model** sections below can also
 be set in *Settings → Server*, by the account that holds the instance — the
-first to sign up, or the one `KOLIBRI_ADMIN_EMAIL` created. Each group has a
+first to sign up, or the one `KOLIBRI_ADMIN_EMAIL` created — and so can where
+the [backups](#backups) go: a bucket, an address, the hour. Each group has a
 button that tries it: a test message through the relay, `getMe` against the bot
-token, one question to the model.
+token, one question to the model, an object written to the backup bucket and a
+message with an attachment sent to the backup address.
 
 Two rules, both visible on the screen:
 
@@ -293,7 +295,9 @@ visible, and so nothing depends on that behaviour staying as it is.
 
 **Named volumes are renamed.** `kolibri-data` becomes `<app-uuid>_kolibri-data` on the host, and the
 UUID changes if you delete and recreate the resource. Take snapshots with `kolibri backup` (see
-below) rather than by copying a volume you found by name.
+below) rather than by copying a volume you found by name — or, better, give the instance a bucket in
+Settings → Server → Backups: on a platform that owns the host it is the place for backups that needs
+nothing mounted.
 
 The same shape works on any PaaS that consumes a compose file. On one that only takes a Dockerfile
 (Fly, Railway's simple mode, a plain container host), deploy the image on its own with
@@ -520,52 +524,129 @@ The commonest backup failure is not a corrupt snapshot. It is a snapshot that st
 March — a cron entry somebody wrote once, on a host somebody has since rebuilt, running a command
 nobody has verified since.
 
-Name a directory and this instance takes one itself, every night:
+Say where they go and this instance takes one itself, every night. There are three places, and any
+one of them is enough:
+
+| | A bucket | An address | A directory |
+|---|---|---|---|
+| Set in | Settings → Server → Backups, or `KOLIBRI_BACKUP_S3_*` | Settings → Server → Backups, or `KOLIBRI_BACKUP_EMAIL` | `KOLIBRI_BACKUP_DIR`, with a volume mounted there |
+| Holds | the database **and every uploaded file** | the database, as a `.zip` attachment — no uploads | the database, and the uploads on disk storage |
+| Keeps | every snapshot, until the bucket's own lifecycle rules say otherwise | whatever the mailbox keeps | the newest `KOLIBRI_BACKUP_KEEP` |
+| Restored from | the list in Settings → Data, on any instance given the same bucket | Restore from a file, with the attachment | the list in Settings → Data, or `kolibri restore` |
+| Needs | any S3-compatible store | a working mail transport | a volume from somewhere other than the data volume |
+
+The bucket is the complete one and the one to reach for; the address is the one with nothing to set
+up beyond the relay mail already uses. Together they are a good pair: the bucket holds everything,
+and the mailbox receives the database every night — with a line saying so on a night the bucket did
+not take its copy. The directory is the only one that needs a volume mounted, which is the one thing a
+hosted container or a PaaS often cannot do from a browser.
 
 ```yaml
 environment:
-  KOLIBRI_BACKUP_DIR: /backups        # a volume other than the database's
-  KOLIBRI_BACKUP_HOUR: "3"            # local hour, 0–23
-  KOLIBRI_BACKUP_KEEP: "7"            # how many to keep. 0 keeps every one
-  KOLIBRI_BACKUP_OFFSITE: "false"     # also copy into the object store
-volumes:
-  - /mnt/backups:/backups
+  KOLIBRI_BACKUP_HOUR: "3"                  # local hour, 0–23, in the server's time zone
+  # any one of these is enough:
+  KOLIBRI_BACKUP_S3_BUCKET: kolibri-backups
+  KOLIBRI_BACKUP_EMAIL: ops@example.com
+  KOLIBRI_BACKUP_DIR: /backups              # a volume other than the database's
 ```
 
-Off until that directory is set, because the copy belongs somewhere other than the disk whose
-failure it exists to survive — and choosing where somebody else's backups live is not this
-program's decision to make.
+Off until one of them is set, because choosing where somebody else's backups live is not this
+program's decision to make. With no directory, the snapshot is written to scratch space, opened,
+sent and removed again — nothing accumulates on the disk whose failure it exists to survive.
 
 Each snapshot is named for the day it covers, so a restart, a double tick or a clock jump costs
-nothing. It is **verified before the older ones are pruned**: removing the last good snapshot on the
-strength of one that turns out not to open is the specific disaster that ordering avoids. `KEEP` is
-a count rather than a number of days, because a count is what a disk has room for, and an instance
-that was off for a fortnight should still have seven snapshots rather than none.
+nothing — and a night that was taken but never sent, because the server restarted between the two, is
+sent as soon as it is back, if that is within the same hour. It is **verified before anything older is pruned**: removing the last good
+snapshot on the strength of one that turns out not to open is the specific disaster that ordering
+avoids. `KEEP` is a count rather than a number of days, because a count is what a disk has room for,
+and an instance that was off for a fortnight should still have seven snapshots rather than none. It
+applies to the directory only; see below for the bucket.
 
 ```bash
-docker compose exec kolibri kolibri backups        # what is there, and when the last one ran
-docker compose exec kolibri kolibri backup         # take one now, into the configured directory
+docker compose exec kolibri kolibri backups        # what is there, where they go, when one last arrived
+docker compose exec kolibri kolibri backup         # take one now, and send it where the nightly one goes
 ```
 
-An instance administrator sees the same list in **Settings → Data**, and can take one, check one, or
-download one as a `.zip` from there. Restoring is not there and will not be: SQLite must not have
-the file open while it is replaced, so it stays a command run against a stopped server.
+An instance administrator sees the same in **Settings → Data**: each place, when a copy last
+arrived there, and — when the last attempt failed — what it said. From there they can take one now,
+check one, download one as a `.zip`, and restore one. Every attempt is one attempt: a night that fails
+is not retried until the next one, and says so on that screen and in the log rather than quietly.
 
-### Off this machine
+### A bucket
 
-`KOLIBRI_BACKUP_OFFSITE=1`, with `KOLIBRI_STORAGE=s3`, copies each snapshot into the bucket. The
-database and its manifest go under `backups/<date>/`; the uploads go under a **shared**,
-content-addressed `backups/blobs/` prefix, so a nightly run of a workspace whose files have not
+**Settings → Server → Backups** takes a bucket's name, an endpoint and a key pair, and **Send a
+test** writes an object, reads it back and deletes it again. Everything else is worked out:
+
+- **The region** is read off the endpoint for the providers that spell it into the host — AWS,
+  Scaleway (`s3.fr-par.scw.cloud` is `fr-par`), Backblaze, Wasabi, OVH, Hetzner, and Cloudflare R2's
+  `auto` — and is `us-east-1` otherwise, which is what MinIO answers to. Type one where that is wrong.
+- **Addressing** is by subdomain on AWS, which stopped taking the other kind for new buckets in 2020,
+  and by path everywhere else. `KOLIBRI_BACKUP_S3_PATH_STYLE` overrides it.
+- **On an instance whose uploads are already in S3**, leave the endpoint empty: the bucket is then on
+  the same store, signed with the same keys, and its name is the whole of the setting. A key of its
+  own still wins where one is typed — one allowed to write backups and nothing else is the careful
+  arrangement. (The default stack's MinIO runs on the same machine: a bucket there survives a
+  damaged database, not a lost machine.)
+- **The bucket is made** at the first write if it is not there yet.
+
+What goes where:
+
+```
+backups/2026-09-24/kolibri.sqlite
+backups/2026-09-24/manifest.json
+backups/blobs/ab/cd/<hash>.png        shared by every snapshot
+```
+
+The uploads go under a **shared**, content-addressed prefix, read from wherever they actually are —
+the disk, or the object store the uploads use — so a nightly run of a workspace whose files have not
 changed sends the database and nothing else. That is the difference between an offsite copy somebody
-keeps switched on and one they turn off in week three.
+keeps switched on and one they turn off in week three. They are written first, then the database,
+then the manifest: an interrupted night leaves a folder whose database already has its files.
 
-Those blobs are **never pruned automatically**. They are shared by every snapshot, so "delete the
-ones this snapshot used" is wrong for any snapshot older than it — and they are the part that cannot
-be regenerated. Deleting them stays something somebody does on purpose.
+**Nothing is ever deleted from the bucket.** The blobs are shared by every snapshot, so "delete the
+ones this snapshot used" is wrong for any snapshot older than it; and a server that can delete its
+own offsite copies is a server whose compromise takes them with it. Keep the bucket in check with its
+own lifecycle rules instead — every snapshot's folder starts with its year, so a rule on the prefix
+`backups/2` expiring objects after 90 days removes old snapshots and leaves the blobs alone.
 
-Nothing here is encrypted. A snapshot is exactly as readable as the database it came from; where
-that matters it is the volume or the bucket that should be encrypted, by somebody who knows where
-the key lives.
+A key that may write but not list or read still works for the nightly copy, at the price of sending
+every file every night, since it cannot ask which are already there. Restoring from the bucket needs
+to read, which is why the test reads back what it wrote.
+
+`KOLIBRI_BACKUP_OFFSITE=1` is the older way to a bucket: the uploads' own, under the prefix, with
+`KOLIBRI_STORAGE=s3`. It still means that, a bucket named for backups wins over it, and the blobs
+already in that bucket are not copied into it a second time.
+
+### An address
+
+`KOLIBRI_BACKUP_EMAIL`, or the same field in Settings → Server, is sent the database every night as
+`kolibri-<date>.zip`, through whichever transport mail already uses, with a note saying what is in it
+and how to put it back. The attachment is exactly the file **Restore from a file** takes. The uploads
+are not in it — they are what makes a snapshot too big to post — and a restore on an instance with
+the backup bucket configured fetches them from the bucket.
+
+It has to fit. `KOLIBRI_BACKUP_EMAIL_MAX_MB` is the largest attachment it will send (10 by default,
+fractions allowed); Scaleway's API takes 2 MB for a whole message whatever that says, and attaches a
+`.zip` only on its Scale plan, while Scaleway's SMTP relay takes 50 MB. For a sense of scale: the
+seeded demo instance, a 1.4 MB database, is a 65 KB attachment; a real instance's grows with its
+pages, comments and history. **Send a test** sends a small `.zip`, so a provider that refuses the file
+says so then rather than at three in the morning.
+
+A snapshot over the limit, or one the provider refuses, arrives as a notice saying so and where the
+snapshot is instead — and the night counts as failed. If there was nothing to send at all, because
+the backup itself failed, the address is told that too. Sent directly rather than through the mail
+queue, since the queue is a table and an attachment in it would ride along in the next night's backup.
+
+**The attachment is the whole database, unencrypted**, and the mailbox becomes exactly as sensitive
+as the server. Sessions, API tokens and recovery codes are stored hashed, and the vault's values and
+the secrets typed into Settings → Server are sealed with the instance secret, which is not in the
+snapshot — but every workspace's content, every password hash and every second-factor secret is
+readable by whoever can read that mailbox. Use an address whose mailbox you would trust with the
+server itself.
+
+Nothing here encrypts a snapshot. It is exactly as readable as the database it came from; where that
+matters it is the volume or the bucket that should be encrypted, by somebody who knows where the key
+lives.
 
 ### Restoring
 
@@ -573,10 +654,11 @@ Two ways, and which one you want depends on whether the instance is running.
 
 #### From the app, while it is running
 
-**Settings → Data → Backups → Restore**, on a snapshot already on the server — or **Restore from a
-file**, for a `.zip` downloaded from an instance that no longer exists. This is how a Kolibri
-deployed somewhere new becomes the old one: deploy it, claim it, upload the snapshot, sign in with
-your old password. Accounts, workspaces, projects, pages, files and settings all come across.
+**Settings → Data → Backups → Restore**, on a snapshot on the server or in the bucket — or **Restore
+from a file**, for a `.zip` downloaded from an instance that no longer exists, or the one an email
+brought. This is how a Kolibri deployed somewhere new becomes the old one: deploy it, claim it, give
+it the old bucket in Settings → Server (or upload the snapshot), restore, sign in with your old
+password. Accounts, workspaces, projects, pages, files and settings all come across.
 
 It does not swap the database file. It **attaches** the snapshot and replaces the contents of every
 table in one transaction, which is what makes it possible at all while the process holds the file
@@ -587,21 +669,26 @@ open — and which turns out to be better in three ways besides:
 - **It is all or nothing.** A transaction lands or rolls back; there is no half-copied state.
 - **The uploads follow this instance's storage.** A snapshot taken on a disk instance restores into
   an S3 one, because the blobs are put through the storage layer rather than copied into a directory.
+  A file the snapshot does not carry is fetched from the backup bucket, when there is one.
 
 Two guarantees make it safe enough to be a button:
 
 - **The snapshot is never written to.** It is copied to a temporary file and *that* is attached —
   attaching read-write is enough to leave a write-ahead log beside somebody's only backup.
-- **What is replaced is snapshotted first**, where `KOLIBRI_BACKUP_DIR` is set. Restoring the wrong
-  file is exactly the moment somebody needs the previous state, and the moment it has just stopped
-  existing. The report names the copy it took.
+- **What is replaced is snapshotted first** — into the directory where `KOLIBRI_BACKUP_DIR` is set,
+  and into the bucket where only a bucket is. Restoring the wrong file is exactly the moment somebody
+  needs the previous state, and the moment it has just stopped existing. The report names the copy
+  it took. An instance nobody has worked in yet is not copied into the bucket, since a snapshot of
+  nothing would become the newest name there.
 
 Afterwards **everybody is signed out**, including whoever pressed the button — `sessions` is one of
 the tables that was replaced. That is the mechanism rather than a side effect: a client that meets a
 401 clears its local copy and downloads again, which is precisely what a device holding a sync
 cursor newer than the restored data has to be made to do. Sign in with the password from the
 restored instance; passwords are self-contained, while sessions and API tokens only survive if this
-instance has the same `KOLIBRI_SECRET` as the one the snapshot came from.
+instance has the same `KOLIBRI_SECRET` as the one the snapshot came from. The same goes for secrets
+typed into Settings → Server: sealed under the old instance's secret, they arrive unreadable under a
+different one, and have to be typed in again.
 
 The button is for whoever administers the **instance**, not for an administrator of one workspace in
 it — a snapshot covers every workspace.
@@ -626,6 +713,11 @@ a write-ahead log belonging to the previous database would otherwise be replayed
 Uploads are merged rather than replaced: they are content-addressed, so a name that exists in both
 holds the same bytes.
 
+A snapshot in a bucket restores this way too: download `backups/<date>/kolibri.sqlite` and its
+`manifest.json` into a directory and point `restore` at it. The command line does not fetch uploads
+from the bucket, though — for an instance whose files are only there, start it and restore from the
+app, which does.
+
 Keep `.secret` with the backup (or set `KOLIBRI_SECRET` explicitly) — without it, existing sessions
 and API tokens are void. It is deliberately *not* in the snapshot: a copy of the database and the key
 that signs its sessions, in one tarball, is a worse trade than an operator remembering one file.
@@ -649,8 +741,8 @@ log, expired rows nobody swept, and whether every stored file's bytes are still 
 | `doctor --fix` | Rebuilds the search index, removes expired sessions and old replay records, folds away deleted text in page bodies (see [`sync.md`](sync.md)), then compacts the file — and re-checks, so what it prints is the state afterwards |
 | `reindex` | Rebuilds the full-text index alone. This is the supported way back if the index ever drifts |
 | `vacuum` | Checkpoints the write-ahead log and returns free pages to the disk |
-| `backup [dir]` | Above. With no directory it uses the configured one and behaves like the nightly run: named for the day, verified, pruned, copied offsite |
-| `backups` | Lists the snapshots and says when the last one ran. `--json` for monitoring |
+| `backup [dir]` | Above. With no directory, or with `--send`, it behaves like the nightly run: named for the day, verified, pruned, and sent to the bucket and the address. Exits non-zero when a place did not take it |
+| `backups` | Lists the snapshots, where they go and when a copy last arrived at each. `--json` for monitoring |
 | `verify <dir>` / `restore <dir>` | Above |
 | `export <workspace> [file]` | Writes a workspace out as a `.zip` — see [`export.md`](export.md) |
 | `files move <disk\|s3>` | Moves stored blobs onto the other backend — see [`storage.md`](storage.md) |

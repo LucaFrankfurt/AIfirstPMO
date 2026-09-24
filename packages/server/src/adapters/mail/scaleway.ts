@@ -20,11 +20,15 @@
  *
  * and the reply carries `emails: [{ id, message_id, status, … }]`.
  *
- * Two of its documented limits are worth knowing here, even though neither can
- * currently be hit: ten recipients per call, and 2 MB for the whole message
- * including attachments. Kolibri sends one recipient at a time and attaches
- * nothing, so both are headroom rather than constraints — noted so that
- * whoever adds attachments finds the number before their users do.
+ * Three of its documented limits are worth knowing here: ten recipients per
+ * call, 2 MB for the whole message including attachments, and a list of the
+ * types it will attach at all — `application/zip` among them only on its Scale
+ * plan. Kolibri sends one recipient at a time, and attaches exactly one thing:
+ * the nightly backup, whose sender (`backup.ts`) knows the 2 MB and sends a
+ * notice instead of a snapshot that will not fit. The type is not knowable in
+ * advance, so a refusal of it comes back as the permanent failure it is, and
+ * the settings screen's test sends a small `.zip` to find out before a night
+ * does. (Over SMTP the same service takes 50 MB.)
  *
  * The service runs in `fr-par` only, which is why the region is baked into the
  * default URL rather than assembled from a region name that has one legal
@@ -32,7 +36,7 @@
  */
 import { assertEmailAddress } from '../../kernel/mail/address.ts';
 import { headerSafe, isHeaderName } from './headers.ts';
-import { DeliveryError, type Deliverable } from './delivery.ts';
+import { DeliveryError, safeContentType, safeFilename, type Deliverable } from './delivery.ts';
 
 export interface ScalewayConfig {
   /** The full regional endpoint, ending in `/emails`. */
@@ -76,6 +80,15 @@ export async function sendViaScaleway(config: ScalewayConfig, mail: Deliverable)
     ...(mail.html ? { html: mail.html } : {}),
     project_id: config.projectId,
     ...(headers.length ? { additional_headers: headers } : {}),
+    ...(mail.attachments?.length
+      ? {
+        attachments: mail.attachments.map((file) => ({
+          name: safeFilename(file.filename),
+          type: safeContentType(file.contentType),
+          content: file.content.toString('base64'),
+        })),
+      }
+      : {}),
   };
 
   const timeoutMs = config.timeoutMs ?? 20_000;

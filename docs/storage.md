@@ -10,7 +10,7 @@ sets `s3` and runs MinIO for it.)
 |---|---|---|
 | Where | the data volume | any S3-compatible bucket |
 | Extra services | none | MinIO / Ceph / R2 / AWS |
-| Backups | included in the volume backup | the bucket's own lifecycle |
+| Backups | included in the volume backup | the bucket's own lifecycle — or a backup bucket, which copies them ([`deployment.md`](deployment.md#a-bucket)) |
 | Downloads | streamed by the app | short-lived pre-signed URL, straight from the store |
 | Good for | most self-hosted teams | large media libraries, several app nodes, existing object storage |
 

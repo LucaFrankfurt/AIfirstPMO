@@ -9,7 +9,7 @@
  * against a *closed* database, and importing the db module at the top of this
  * file would open one before the argument list had even been read.
  */
-import { env } from './kernel/platform/env.ts';
+import { env, refreshEnv } from './kernel/platform/env.ts';
 import { installBackends } from './backends.ts';
 
 /*
@@ -32,16 +32,17 @@ const USAGE = `kolibri — maintenance
   doctor [--fix] [--json]   check the database and the files, and say what is wrong
   reindex                   rebuild the full-text search index from the tables
   vacuum                    checkpoint the write-ahead log and give free space back
-  backup [dir] [--keep N] [--offsite]
-                            write a consistent snapshot (database + uploads) into dir
-  backups [--json]          list the scheduled snapshots and say when the last one ran
+  backup [dir] [--keep N] [--send]
+                            write a consistent snapshot (database + uploads) into dir;
+                            with --send or no dir, also send it to the bucket or address
+  backups [--json]          list the snapshots, where they go, and when one last arrived
   verify <dir>              check a snapshot without restoring it
   restore <dir> [--force]   put a snapshot back. The server must be stopped
   export <workspace> [file] write a workspace out as a .zip you can import anywhere
   files move <disk|s3>      move stored blobs onto the other backend
 
 Database: ${env.dbFile}
-Backups:  ${env.backup.dir ? `${env.backup.dir}, ${String(env.backup.hour).padStart(2, '0')}:00 daily, keeping ${env.backup.keep || 'all'}` : 'not scheduled (set KOLIBRI_BACKUP_DIR)'}
+Backups:  ${env.backup.dir ? `${env.backup.dir}, ${String(env.backup.hour).padStart(2, '0')}:00 daily, keeping ${env.backup.keep || 'all'}` : 'no directory'} — "kolibri backups" says where else they go
 `;
 
 type Exit = 0 | 1;
@@ -137,13 +138,18 @@ async function main(): Promise<Exit> {
     /**
      * `backup <dir>` still writes exactly where it is told, because that is
      * what every crontab out there already passes it. With no directory it
-     * uses the configured one and behaves like the nightly run: a snapshot
-     * named for the day, the retention applied, and the offsite copy made.
+     * behaves like the nightly run: a snapshot named for the day, opened, the
+     * retention applied, and sent to every place configured — which, with no
+     * directory configured either, is the only place it goes.
      */
     case 'backup': {
-      const explicit = rest[0];
+      // The value after `--keep` is not a directory, though it looks like one
+      // to a parser that only knows what starts with two dashes.
+      const keepAt = argv.indexOf('--keep');
+      const explicit = rest.find((arg) => keepAt < 0 || argv.indexOf(arg) !== keepAt + 1);
       const keep = flagValue(argv, '--keep');
-      if (explicit && !flags.has('--keep') && !flags.has('--offsite')) {
+      const send = flags.has('--send') || flags.has('--offsite');
+      if (explicit && !flags.has('--keep') && !send) {
         const { backup } = await import('./modules/operations/maintenance.ts');
         const manifest = backup(explicit);
         out(`Snapshot written to ${explicit}`);
@@ -157,37 +163,49 @@ async function main(): Promise<Exit> {
         return 0;
       }
 
-      const dir = explicit || env.backup.dir;
-      if (!dir) { err('Where to? kolibri backup /var/backups/kolibri, or set KOLIBRI_BACKUP_DIR'); return 1; }
-      const store = await import('./modules/operations/backups.ts');
-      const done = store.take(dir, { force: true });
-      if (!done) { err('Could not take a snapshot'); return 1; }
-      out(`Snapshot ${done.snapshot.name} written to ${done.snapshot.path}`);
-      out(`  ${Object.entries(done.manifest.counts).map(([table, n]) => `${n} ${table}`).join(', ')}`);
-      out(`  uploads: ${done.manifest.uploads}`);
+      // A bucket or an address typed into Settings → Server lives in the
+      // database, and this is the first moment the database is open.
+      const { installSettings } = await import('./kernel/platform/settings.ts');
+      installSettings();
+      // `--offsite` used to mean "and into the uploads' bucket" whatever the
+      // environment said, and crontabs still pass it that way.
+      if (flags.has('--offsite') && !env.backup.s3.bucket && env.storage.kind === 's3') {
+        process.env.KOLIBRI_BACKUP_OFFSITE = 'true';
+        refreshEnv();
+      }
 
-      const { verify } = await import('./modules/operations/restore.ts');
+      const store = await import('./modules/operations/backups.ts');
+      const dir = explicit || env.backup.dir;
+      if (!store.somewhere() && !dir) {
+        err('Where to? kolibri backup /var/backups/kolibri — or set KOLIBRI_BACKUP_DIR, or a bucket or an address in Settings → Server');
+        return 1;
+      }
+      let done: Awaited<ReturnType<typeof store.backUpNow>>;
       try {
-        verify(done.snapshot.path);
-        out('  ✓ it opens and passes an integrity check');
+        // Opened before anything older is pruned: removing the last good
+        // snapshot on the strength of one that turns out not to open is the
+        // failure this whole command exists to prevent.
+        done = await store.backUpNow({ dir, keep });
       } catch (problem) {
         err(`  ✗ ${problem instanceof Error ? problem.message : problem}`);
         return 1;
       }
-
-      // Only after it has been checked. Removing the last good snapshot on the
-      // strength of one that turns out not to open is the failure this whole
-      // command exists to prevent.
-      const removed = store.prune(dir, keep ?? env.backup.keep);
-      if (removed.length) out(`  removed ${removed.length} older snapshot(s): ${removed.join(', ')}`);
-      if (flags.has('--offsite') || env.backup.offsite) {
-        const sent = await store.offsite(done.snapshot.name, dir);
-        out(`  copied ${sent.uploaded} object(s) offsite (${sent.skipped} already there)`);
-      }
-      return 0;
+      out(done.kept
+        ? `Snapshot ${done.snapshot.name} written to ${done.snapshot.path}`
+        : `Snapshot ${done.snapshot.name} taken — nothing is kept on this machine`);
+      out(`  ${Object.entries(done.manifest.counts).map(([table, n]) => `${n} ${table}`).join(', ')}`);
+      out(`  uploads: ${done.manifest.uploads}`);
+      out('  ✓ it opens and passes an integrity check');
+      if (done.pruned.length) out(`  removed ${done.pruned.length} older snapshot(s): ${done.pruned.join(', ')}`);
+      for (const sent of done.sent) out(`  ${sent.ok ? '✓' : '✗'} ${sent.kind}: ${sent.detail}`);
+      // A snapshot that went nowhere it was meant to go is not the backup this
+      // was asked for, whatever the directory holds.
+      return done.sent.every((sent) => sent.ok) ? 0 : 1;
     }
 
     case 'backups': {
+      const { installSettings } = await import('./kernel/platform/settings.ts');
+      installSettings();
       const store = await import('./modules/operations/backups.ts');
       const status = store.status();
       const list = store.snapshots();
@@ -196,12 +214,27 @@ async function main(): Promise<Exit> {
         return 0;
       }
       if (!status.enabled) {
-        out('Scheduled backups are off. Set KOLIBRI_BACKUP_DIR to a directory on another volume.');
+        out('Scheduled backups are off. Set a bucket or an address in Settings → Server, or KOLIBRI_BACKUP_DIR to a directory on another volume.');
+        for (const place of status.destinations) if (place.problem) out(`  ! ${place.kind}: ${place.problem}`);
         return 0;
       }
-      out(`${status.dir} — daily at ${String(status.hour).padStart(2, '0')}:00, keeping ${status.keep || 'all'}${status.offsite ? ', copied to the object store' : ''}`);
+      out(`Daily at ${String(status.hour).padStart(2, '0')}:00${status.dir ? `, into ${status.dir}, keeping ${status.keep || 'all'}` : ''}`);
+      const when = (at: number | null) => (at ? new Date(at).toLocaleString() : 'never');
+      for (const place of status.destinations) {
+        if (place.problem) { out(`  ! ${place.kind}: ${place.problem}`); continue; }
+        if (!place.configured) continue;
+        const last = place.last;
+        out(`  ${place.kind} → ${place.where}`);
+        if (!last) out('      nothing sent yet');
+        else if (last.ok) out(`      ✓ ${last.snapshot}, ${when(last.attempted_at)} — ${last.detail}`);
+        else {
+          out(`      ✗ ${last.snapshot}, ${when(last.attempted_at)} — ${last.detail}`);
+          out(`      last arrived: ${last.delivered ?? 'never'}${last.delivered_at ? `, ${when(last.delivered_at)}` : ''}`);
+        }
+      }
+      if (!status.dir) return 0;
       if (!list.length) {
-        out('  Nothing yet. "kolibri backup" takes one now.');
+        out('  Nothing in the directory yet. "kolibri backup" takes one now.');
         return 0;
       }
       for (const snapshot of list) {

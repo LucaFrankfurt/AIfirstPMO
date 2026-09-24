@@ -62,16 +62,35 @@ services:
       KOLIBRI_TRASH_DAYS: "${KOLIBRI_TRASH_DAYS:-0}"
 
       # --- backups ---------------------------------------------------------
-      # Off until a directory is named, because the copy belongs on a volume
-      # other than the one holding the database it is meant to survive. Mount
-      # one and set this, and a snapshot is taken every night, checked, and
-      # kept to the count below.
+      # Off until somebody says where they go. Any one of the three places
+      # below is enough, and the bucket and the address can also be set later,
+      # in Settings → Server → Backups. See docs/deployment.md#backups.
+      #
+      # A directory on a volume other than the one holding the database — the
+      # only one of the three that keeps snapshots on this machine.
       KOLIBRI_BACKUP_DIR: "${KOLIBRI_BACKUP_DIR:-}"
+      # A bucket of its own, on any S3-compatible store. With the uploads
+      # already in S3 the name is enough: endpoint and keys are theirs.
+      KOLIBRI_BACKUP_S3_BUCKET: "${KOLIBRI_BACKUP_S3_BUCKET:-}"
+      KOLIBRI_BACKUP_S3_ENDPOINT: "${KOLIBRI_BACKUP_S3_ENDPOINT:-}"
+      # Read off the endpoint for most providers; set it where that is wrong.
+      KOLIBRI_BACKUP_S3_REGION: "${KOLIBRI_BACKUP_S3_REGION:-}"
+      KOLIBRI_BACKUP_S3_ACCESS_KEY: "${KOLIBRI_BACKUP_S3_ACCESS_KEY:-}"
+      KOLIBRI_BACKUP_S3_SECRET_KEY: "${KOLIBRI_BACKUP_S3_SECRET_KEY:-}"
+      # Empty works it out: by subdomain on AWS, by path everywhere else.
+      KOLIBRI_BACKUP_S3_PATH_STYLE: "${KOLIBRI_BACKUP_S3_PATH_STYLE:-}"
+      # An address, sent the database as a .zip through the mail transport —
+      # as readable as the inbox it lands in.
+      KOLIBRI_BACKUP_EMAIL: "${KOLIBRI_BACKUP_EMAIL:-}"
+      # The largest attachment it will send, in MB; a bigger one is a notice.
+      KOLIBRI_BACKUP_EMAIL_MAX_MB: "${KOLIBRI_BACKUP_EMAIL_MAX_MB:-10}"
       # Local hour to take it, 0–23.
       KOLIBRI_BACKUP_HOUR: "${KOLIBRI_BACKUP_HOUR:-3}"
-      # How many to keep. `0` keeps every one, and fills the disk in a year.
+      # How many to keep in the directory. `0` keeps every one, and fills the
+      # disk in a year. Nothing is ever deleted from a bucket or an inbox.
       KOLIBRI_BACKUP_KEEP: "${KOLIBRI_BACKUP_KEEP:-7}"
-      # Also copy each snapshot into the object store. Needs KOLIBRI_STORAGE=s3.
+      # The older way to a bucket: the uploads' own, under the prefix. Needs
+      # KOLIBRI_STORAGE=s3, and a bucket named above wins over it.
       KOLIBRI_BACKUP_OFFSITE: "${KOLIBRI_BACKUP_OFFSITE:-false}"
       KOLIBRI_BACKUP_PREFIX: "${KOLIBRI_BACKUP_PREFIX:-backups}"
       # The largest export this instance will read back in.

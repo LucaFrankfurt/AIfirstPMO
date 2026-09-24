@@ -118,11 +118,18 @@ every workspace, the settings, the files — is a **snapshot**, because the poin
 there is to be exact.
 
 1. On the old instance: **Settings → Data → Backups → Download** (or use a
-   snapshot already in `KOLIBRI_BACKUP_DIR`).
+   snapshot already in `KOLIBRI_BACKUP_DIR`, or the `.zip` the nightly email
+   brought).
 2. Deploy the new one and claim it — the first account to register administers
    the instance.
 3. **Settings → Data → Restore from a file**, and upload the `.zip`.
 4. Sign in with your password from the old instance.
+
+If the old instance sent its backups to a bucket, step 1 is not needed: give the
+new one the same bucket in **Settings → Server → Backups**, and **Settings →
+Data** lists what is in it, each with a Restore button. The files come out of
+the bucket too — and so do those of an emailed snapshot, which carries none of
+its own, on an instance with that bucket configured.
 
 The account that deployed it is replaced along with everything else, which is
 correct: after the restore, the instance *is* the old one.
@@ -132,7 +139,8 @@ and API tokens to keep working. Passwords work either way — a password hash
 carries its own salt and depends on nothing outside the row.
 
 Restoring is transactional, checks the snapshot before replacing anything, and
-takes a snapshot of whatever it is about to replace. See
+takes a snapshot of whatever it is about to replace — into the backup directory,
+or into the bucket where there is only a bucket. See
 [`deployment.md`](deployment.md#restoring) for what it does and why it does not
 need the server stopped.
 
@@ -153,8 +161,8 @@ is not a decision you cannot reverse.
 ## Snapshots
 
 The exact copy. See [`deployment.md`](deployment.md#backups) — how to schedule
-them, how many are kept, how to get one off the machine, and how to put one
-back.
+them, where they can go (a bucket, an email address, a directory), how many are
+kept, and how to put one back.
 
 ## The archive format
 
@@ -210,6 +218,7 @@ and somebody's download cannot drift apart if they are the same code.
 | `POST /api/workspaces/:ws/import/json` | `{ document, project_id? }` — see [`import.md`](import.md) |
 | `POST /api/admin/backups/:name/inspect` | what a snapshot holds, and what is here now |
 | `POST /api/admin/backups/:name/restore` | put a snapshot on this server back, in place |
+| `POST /api/admin/backups/bucket/:name/restore` | the same for one in the backup bucket |
 | `POST /api/admin/restore` | the same from an uploaded `.zip` |
 
 Every download is an ordinary authenticated request. Nothing here mints a link.

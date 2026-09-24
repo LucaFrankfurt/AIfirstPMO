@@ -12,10 +12,8 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
-import { type SmtpConfig } from '../../kernel/mail/relay.ts';
-import { sendMail } from './smtp.ts';
-import { sendViaScaleway } from './scaleway.ts';
-import { DeliveryError, isPermanentFailure, type Deliverable } from './delivery.ts';
+import { isPermanentFailure } from './delivery.ts';
+import { deliver } from './transport.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 import { isLocale, defaultLocale, translate, type Locale } from '../../kernel/i18n/i18n.ts';
 import { isImportantFor } from '@kolibri/shared';
@@ -31,35 +29,6 @@ export type EmailPreference = 'all' | 'important' | 'none';
  * in a two-hour digest is one answered too late to matter.
  */
 const important = (kind: string): boolean => isImportantFor('email', kind);
-
-const smtp = (): SmtpConfig => ({
-  host: env.mail.host,
-  port: env.mail.port,
-  encryption: env.mail.encryption,
-  user: env.mail.user,
-  pass: env.mail.pass,
-  allowInvalidCerts: env.mail.allowInvalidCerts,
-});
-
-/**
- * The one place that knows there is more than one way out.
- *
- * Read per message rather than chosen once at startup, so that a test send from
- * the settings screen exercises the configuration the instance actually has
- * rather than the one it booted with.
- */
-async function deliver(mail: Deliverable): Promise<string> {
-  if (env.mailTransport === 'scaleway') {
-    return sendViaScaleway({
-      url: env.mail.scaleway.url,
-      secretKey: env.mail.scaleway.secretKey,
-      projectId: env.mail.scaleway.projectId,
-    }, mail);
-  }
-  if (env.mailTransport === 'smtp') return sendMail(smtp(), mail);
-  // Reached only if the transport went away between queueing and flushing.
-  throw new DeliveryError('No mail transport is configured', false);
-}
 
 const link = (path: string): string => `${env.publicUrl || 'http://localhost:4000'}${path}`;
 
