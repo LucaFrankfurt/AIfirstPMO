@@ -25,12 +25,20 @@ process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-errors-${process.pid}`;
 process.env.KOLIBRI_WEB_DIR = `/tmp/kolibri-errors-web-${process.pid}`;
 
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { connect, type AddressInfo } from 'node:net';
 import { after, before, describe, it } from 'node:test';
 
 mkdirSync(process.env.KOLIBRI_WEB_DIR, { recursive: true });
 writeFileSync(`${process.env.KOLIBRI_WEB_DIR}/index.html`, '<!doctype html><title>Kolibri</title>');
+/*
+ * And a file in it that cannot be read. `/proc/self/mem` is a regular file to
+ * `statSync` and an EIO to `read`, which is a read failing after every check
+ * has passed — what a deploy swapping the build mid-request does, without
+ * waiting for one to lose the race. Linux only; see the test that uses it.
+ */
+const UNREADABLE = existsSync('/proc/self/mem');
+if (UNREADABLE) symlinkSync('/proc/self/mem', `${process.env.KOLIBRI_WEB_DIR}/unreadable.js`);
 
 const { server, router } = await import('../src/index.ts');
 const { constraintFailure, get } = await import('../src/kernel/platform/db/index.ts');
@@ -189,6 +197,20 @@ describe('a request that cannot be read', () => {
 
   it('is a 400 when a path for the web build will not decode', async () => {
     assert.equal(await raw('/%E0.js'), 400);
+    await alive();
+  });
+
+  it('outlives a file in the web build that cannot be read', {
+    // Not a skip to get green: elsewhere there is no file that stats as one and
+    // fails to read, so there would be nothing to test. CI runs on Linux.
+    skip: UNREADABLE ? false : 'needs /proc/self/mem, which only Linux has',
+  }, async () => {
+    // Headers are committed before the first byte is read, so there is no
+    // status left to send: the connection is dropped, and the question is only
+    // whether the process went with it. It did — an `error` event nobody heard.
+    // In here `node:test` catches that and fails the file as an
+    // `uncaughtException`; a real server simply ended.
+    await raw('/unreadable.js').catch(() => 0);
     await alive();
   });
 

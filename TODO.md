@@ -99,6 +99,11 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       decoded the *stored* name, so `100%.txt` was a 500; and the suppression route decoded its
       address a second time, so clearing `a%41@x` cleared `aa@x`. `errors.test.ts` sends each one
       over a raw socket and then asks whether the server is still there.
+      One more, not a request's doing: the web build was piped to the response with no `error`
+      listener, so a read failing after every check had passed — a deploy swapping the build
+      mid-request, a disk going bad — was an uncaught event and the end of the process. Measured
+      with a file that is a file to `statSync` and an EIO to `read` (`/proc/self/mem`); now the
+      response is dropped, a line is logged, and the server stays.
 
 ### Operations
 
