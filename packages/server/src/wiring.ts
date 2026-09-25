@@ -32,6 +32,9 @@ import { installMailAuthProviders } from './adapters/oauth/mailbox.ts';
 import { installTelegramChores } from './adapters/telegram/chores.ts';
 import { installWebhookChores } from './adapters/webhooks/chores.ts';
 import { onEntity } from './kernel/write-path/repo.ts';
+import { onSettingsChange } from './kernel/platform/settings.ts';
+import { startMailWorker, stopMailWorker } from './adapters/mail/mail.ts';
+import { reloadTelegram } from './adapters/telegram/telegram.ts';
 import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { productRules } from './modules/products/rules/products.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
@@ -71,6 +74,10 @@ export function installEffects(): void {
   installMailAuthProviders();
   installTelegramChores();
   installWebhookChores();
+  // The two things started at boot on the strength of a setting, told when one
+  // changes — a write in Settings → Server, or a restore replacing them all.
+  onSettingsChange(() => { stopMailWorker(); startMailWorker(); });
+  onSettingsChange(reloadTelegram);
   // The order within an entity is the order they were branches in. Across
   // entities it cannot matter — one write is one entity. See `repo.onEntity`.
   for (const rule of [

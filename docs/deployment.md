@@ -686,9 +686,19 @@ the tables that was replaced. That is the mechanism rather than a side effect: a
 401 clears its local copy and downloads again, which is precisely what a device holding a sync
 cursor newer than the restored data has to be made to do. Sign in with the password from the
 restored instance; passwords are self-contained, while sessions and API tokens only survive if this
-instance has the same `KOLIBRI_SECRET` as the one the snapshot came from. The same goes for secrets
-typed into Settings → Server: sealed under the old instance's secret, they arrive unreadable under a
-different one, and have to be typed in again.
+instance has the same `KOLIBRI_SECRET` as the one the snapshot came from.
+
+**Settings → Server** comes across too, with two exceptions that are what make moving house work.
+Where the snapshot says nothing about a setting — the old instance had its bucket in its environment
+— this instance keeps its own. And where the snapshot holds a secret sealed under the old instance's
+secret, which cannot be opened here, this instance keeps the one typed into it, provided every other
+field of that account that both have set says the same — bucket, endpoint and access key for a backup
+key; host, port and user for a relay password. So the bucket you typed in to restore *from* is still
+the bucket backups go to
+afterwards. A secret that cannot be kept that way stays in place and is marked in the screen as
+**saved under a different instance secret**, to be typed in again — and until it is, the bucket reports that as a
+failure every night rather than counting as not set up. Everything the snapshot does say and this
+instance can read, wins. The running server picks all of it up at once; nothing needs a restart.
 
 The button is for whoever administers the **instance**, not for an administrator of one workspace in
 it — a snapshot covers every workspace.

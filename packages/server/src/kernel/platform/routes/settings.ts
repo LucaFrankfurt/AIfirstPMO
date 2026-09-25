@@ -15,9 +15,9 @@ import { get, type Row } from '../db/index.ts';
 import { env } from '../env.ts';
 import { requireInstanceAdmin } from '../../identity/auth.ts';
 import { badRequest, readJson, type Ctx, type Router } from '../http.ts';
-import { flushQueue, queueTestMail, startMailWorker, stopMailWorker } from '../../../adapters/mail/mail.ts';
-import { describeSettings, instanceStatus, writeSettings } from '../settings.ts';
-import { call, linkedChat, reloadTelegram, sendTest } from '../../../adapters/telegram/telegram.ts';
+import { flushQueue, queueTestMail } from '../../../adapters/mail/mail.ts';
+import { applySettings, describeSettings, instanceStatus, writeSettings } from '../settings.ts';
+import { call, linkedChat, sendTest } from '../../../adapters/telegram/telegram.ts';
 import { reviewer } from '../../../modules/ai-review/review.ts';
 import { AiError } from '../../../adapters/ai/ai.ts';
 import { places, testDestinations } from '../../../modules/operations/backups.ts';
@@ -41,19 +41,6 @@ const backupStatus = () => {
 /** Everything the screen draws itself from, in one answer. */
 const state = () => ({ settings: describeSettings(), status: { ...instanceStatus(), backup: backupStatus() } });
 
-/**
- * Make the running server match what was just saved.
- *
- * The mail worker and the Telegram poller are both started at boot on the
- * strength of a setting, and both are now allowed to change underneath them —
- * so both are told, rather than waiting for a restart that would defeat the
- * point of the screen.
- */
-function apply(): void {
-  stopMailWorker();
-  startMailWorker();
-  reloadTelegram();
-}
 
 export function registerSettingsRoutes(router: Router): void {
   router.get('/api/instance/settings', (ctx: Ctx) => {
@@ -65,7 +52,8 @@ export function registerSettingsRoutes(router: Router): void {
     const auth = requireInstanceAdmin(ctx);
     const body = await readJson<{ settings?: Record<string, string | null> }>(ctx, 64 * 1024);
     writeSettings(body.settings ?? {}, auth.userId);
-    apply();
+    // The mail worker and the Telegram poller follow — see `onSettingsChange`.
+    applySettings();
     return state();
   });
 

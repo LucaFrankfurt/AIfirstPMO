@@ -58,9 +58,15 @@ const bool = (v: string | undefined, fallback: boolean) =>
  * writes.
  */
 let stored: () => Partial<Record<string, string>> = () => ({});
+/** Names stored as secrets this instance cannot open — see `settings.ts`. */
+let sealedElsewhere: () => ReadonlySet<string> = () => new Set();
 
-export function useSettingsSource(source: () => Partial<Record<string, string>>): void {
+export function useSettingsSource(
+  source: () => Partial<Record<string, string>>,
+  unreadable: () => ReadonlySet<string> = () => new Set(),
+): void {
   stored = source;
+  sealedElsewhere = unreadable;
   refreshEnv();
 }
 
@@ -393,6 +399,15 @@ const computeBackup = () => {
         : borrowed ? storage.s3.forcePathStyle : !host.endsWith('amazonaws.com'),
       /** Endpoint and keys are the storage's, because none were given. */
       borrowed,
+      /**
+       * A secret key is stored and cannot be opened here — typed under another
+       * instance secret, arrived with a restore — and the environment offers
+       * none instead. Said as a problem rather than read as "no key", which is
+       * what quietly stopped the nightly copy; and not made up for with the
+       * storage's key, which would sit beside an access key it never matched.
+       */
+      unreadable: sealedElsewhere().has('KOLIBRI_BACKUP_S3_SECRET_KEY')
+        && text(process.env.KOLIBRI_BACKUP_S3_SECRET_KEY) === undefined,
       /** The very bucket the uploads live in — where their blobs already are. */
       shared: borrowed && bucket === storage.s3.bucket,
     },

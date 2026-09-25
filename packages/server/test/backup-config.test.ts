@@ -53,6 +53,7 @@ describe('a bucket for backups on an instance whose uploads are in S3', () => {
         forcePathStyle: true,
         borrowed: true,
         shared: false,
+        unreadable: false,
       },
     );
   });
