@@ -41,6 +41,8 @@ interface SettingView {
   inherits?: boolean;
   /** That value, shown as what applies rather than as something typed. Never a secret's. */
   inherited?: string;
+  /** Stored, and sealed under another instance's secret — it has to be typed again. */
+  unreadable?: boolean;
 }
 
 interface Status {
@@ -327,6 +329,13 @@ function Field({
             </Button>
           )}
         </span>
+      )}
+      {/* A secret that arrived with a restore from another instance reads as
+          empty, and without this line it looked like one nobody had ever
+          typed — while the bucket it belonged to quietly stopped taking
+          backups. */}
+      {setting.unreadable && !edited && (
+        <span className="text-[12px] text-danger">{t('instance.unreadable')}</span>
       )}
     </label>
   );

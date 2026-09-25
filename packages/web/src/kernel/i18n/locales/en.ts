@@ -2213,6 +2213,7 @@ export const en = {
   'instance.testBackupBucket': 'Wrote a test object to {bucket} and read it back',
   'instance.testBackupEmail': 'A test with an attachment is on its way to {email}',
   'instance.inherited': 'applies while this is empty',
+  'instance.unreadable': 'Saved under a different instance secret (after a restore, for example) — it cannot be read here. Type it in again.',
   'instance.secretInherited': 'the file storage’s key applies while this is empty',
 
   'profile.displayName': 'Display name',

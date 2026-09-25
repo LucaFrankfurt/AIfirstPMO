@@ -43,8 +43,11 @@ export function seal(purpose: string, plain: string): string {
  * The one way that happens in practice is an instance secret that changed —
  * `KOLIBRI_SECRET` set after the fact, or a restore without the `.secret` file.
  * Every session is invalid in that case too, and the honest thing is to read as
- * unset: a setting says "not set" and can be typed in again, and a mailbox says
- * it cannot sign in rather than pretending it has no password.
+ * unset: there is no value to use. But not as *never set* — a setting that reads
+ * as though nobody typed it is how a restored instance lost its backup bucket's
+ * key and stopped taking backups without a word. So `settings.ts` remembers
+ * which it could not open and says so, and a mailbox says it cannot sign in
+ * rather than pretending it has no password.
  */
 export function unseal(purpose: string, stored: string): string | null {
   const [version, iv, tag, body] = stored.split('.');

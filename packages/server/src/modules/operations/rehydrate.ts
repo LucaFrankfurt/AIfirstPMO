@@ -39,6 +39,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { db, all, pluck, run, tx, type Row } from '../../kernel/platform/db/index.ts';
 import { env } from '../../kernel/platform/env.ts';
+import { applySettings, keepOwnSettings, storedSettings } from '../../kernel/platform/settings.ts';
 import { take } from './backups.ts';
 import { reindex } from './maintenance.ts';
 import * as storage from '../../kernel/files/storage.ts';
@@ -55,6 +56,8 @@ export interface RehydrateReport {
   ignored: string[];
   /** The snapshot taken of what was replaced, when one could be. */
   replaced?: string;
+  /** This instance's own settings put back over the snapshot's — see `keepOwnSettings`. */
+  settingsKept: string[];
 }
 
 /**
@@ -127,6 +130,7 @@ export function rehydrate(dir: string, options: { safetyBackup?: boolean } = {})
     indexed: 0,
     files: { restored: 0, alreadyThere: 0, missing: 0 },
     ignored: [],
+    settingsKept: [],
   };
 
   try {
@@ -148,6 +152,7 @@ export function rehydrate(dir: string, options: { safetyBackup?: boolean } = {})
     report.ignored = theirs.filter((table) => !mine.includes(table));
 
     if (options.safetyBackup !== false) report.replaced = keepWhatIsHere();
+    const ownSettings = storedSettings();
 
     tx(() => {
       for (const table of mine) {
@@ -169,6 +174,9 @@ export function rehydrate(dir: string, options: { safetyBackup?: boolean } = {})
         const written = Number(pluck<number>(`SELECT count(*) FROM main.${table}`) ?? 0);
         if (written) report.rows[table] = written;
       }
+      // Inside the transaction, so a restore never lands without them: the
+      // bucket somebody typed in to restore *from* is among what they keep.
+      report.settingsKept = keepOwnSettings(ownSettings);
     });
   } finally {
     detach();
@@ -180,6 +188,9 @@ export function rehydrate(dir: string, options: { safetyBackup?: boolean } = {})
   // instance whose data is right and whose search is one `kolibri reindex`
   // away from being right.
   report.indexed = reindex();
+  // And the running process told: it read `instance_settings` at boot, and
+  // until this it answered for the instance that had just been replaced.
+  applySettings();
   return report;
 }
 

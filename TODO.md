@@ -1119,6 +1119,20 @@ out for a reason rather than forgotten. See [`docs/products.md`](docs/products.m
 - [ ] **The bucket's database upload is read into memory whole**, as the old offsite copy was — the
       signature covers the body, and streaming it would mean signing chunks. Fine for the databases
       this is for; a multi-gigabyte one would want it.
+- [x] **Moving house no longer stops the backups.** Measured against a real MinIO, restoring a
+      snapshot into a fresh instance: everything came across — rows, files from the bucket, the old
+      password — and the backups did not, in two ways. With the old instance's bucket in its
+      environment, its snapshot had no rows for one, and the restore deleted the bucket just typed in
+      to restore *from*. With its bucket typed in, the snapshot's key was sealed under the other
+      instance's secret, replaced the one just typed, and read as never set. Either way the bucket
+      counted as not set up, so from the next restart no night was attempted, none failed, and nobody
+      was told. Until that restart the process still held what it had read at boot, so "Send a test"
+      said `ok` for the instance that had just been replaced. Now the restore keeps this instance's
+      own where the snapshot has nothing usable in its place — by account (`set` on the setting), so a
+      key is never put beside somebody else's access key — reloads the settings at once, and a secret
+      that cannot be opened is marked "saved under a different instance secret" and makes the bucket
+      fail every night out loud until it is typed in again. `rehydrate.test.ts` has each case;
+      without the fix all five fail, one of them because the running process never looked again.
 - [x] **Reading the other tools' own exports.** A Jira search response, a Linear query result, a
       Plane issue list and an OpenProject collection are recognised by their *shape* rather than by
       what the browser called the download, and converted into the document above so the ordinary

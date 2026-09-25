@@ -60,6 +60,12 @@ function state(): DestinationState {
       : { configured: false, where: '' };
   }
   if (!endpoint) return { configured: false, where: where(), problem: 'The bucket needs an endpoint — the address of the store it is in' };
+  // Configured, and failing out loud: counted as not set up, a key that arrived
+  // with a restore from another instance meant no attempt, so no failure, so
+  // nobody told — the nightly copy simply stopped.
+  if (env.backup.s3.unreadable) {
+    return { configured: true, where: where(), problem: 'The secret key in Settings → Server was saved under a different instance secret and cannot be read here — type it in again' };
+  }
   if (!accessKeyId || !secretAccessKey) {
     return { configured: false, where: where(), problem: 'The bucket needs an access key and a secret key' };
   }
@@ -116,6 +122,8 @@ async function bytesOf(file: SnapshotFile): Promise<Buffer | null> {
 }
 
 async function send(snapshot: Outgoing): Promise<{ detail: string; bytes: number }> {
+  const { problem } = state();
+  if (problem) throw new Error(problem);
   const prefix = env.backup.prefix;
   const blobs = `${prefix}/blobs/`;
   const known = await held(blobs);
@@ -192,6 +200,8 @@ const destination: Destination = {
    * the half nobody tries until they need it.
    */
   async test() {
+    const { problem } = state();
+    if (problem) throw new Error(problem);
     const key = `${env.backup.prefix}/.kolibri-test`;
     await put(key, Buffer.from('Written by Kolibri to check the backup settings. Safe to delete.\n'), 'text/plain');
     try {

@@ -2207,6 +2207,7 @@ export const de: Catalogue = {
   'instance.testBackupBucket': 'Testobjekt in {bucket} geschrieben und zurückgelesen',
   'instance.testBackupEmail': 'Ein Test mit Anhang ist unterwegs an {email}',
   'instance.inherited': 'gilt, solange das Feld leer ist',
+  'instance.unreadable': 'Unter einem anderen Instanz-Geheimnis gespeichert (etwa nach einer Wiederherstellung) — hier nicht lesbar. Bitte neu eintragen.',
   'instance.secretInherited': 'solange leer, gilt der Schlüssel des Dateispeichers',
 
   'profile.displayName': 'Anzeigename',

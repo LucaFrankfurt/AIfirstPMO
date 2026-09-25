@@ -71,6 +71,12 @@ export interface SettingSpec {
    * somebody had typed it, and saving the form would then make it so.
    */
   inherits?: boolean;
+  /**
+   * Settings that only work together — a key and the account it belongs to.
+   * A restore keeps or replaces them as one (see `keepOwnSettings`); a setting
+   * without one is a set of its own.
+   */
+  set?: string;
 }
 
 const port = (value: string): string | null => {
@@ -141,19 +147,20 @@ export const SETTINGS: SettingSpec[] = [
     choices: ['smtp', 'scaleway'],
     read: () => env.mailTransport,
   },
-  { key: 'KOLIBRI_SMTP_HOST', group: 'mail', kind: 'text', read: () => env.mail.host, check: host },
-  { key: 'KOLIBRI_SMTP_PORT', group: 'mail', kind: 'number', read: () => String(env.mail.port), check: port },
+  { key: 'KOLIBRI_SMTP_HOST', group: 'mail', set: 'relay', kind: 'text', read: () => env.mail.host, check: host },
+  { key: 'KOLIBRI_SMTP_PORT', group: 'mail', set: 'relay', kind: 'number', read: () => String(env.mail.port), check: port },
   {
     key: 'KOLIBRI_SMTP_ENCRYPTION',
     group: 'mail',
+    set: 'relay',
     kind: 'choice',
     choices: ['tls', 'starttls', 'none'],
     read: () => env.mail.encryption,
     check: (value) => (isEncryption(value) ? null : 'Encryption is tls, starttls or none'),
   },
-  { key: 'KOLIBRI_SMTP_USER', group: 'mail', kind: 'text', read: () => env.mail.user ?? '' },
-  { key: 'KOLIBRI_SMTP_PASS', group: 'mail', kind: 'secret', read: () => env.mail.pass ?? '' },
-  { key: 'KOLIBRI_SMTP_INSECURE', group: 'mail', kind: 'bool', read: () => String(env.mail.allowInvalidCerts) },
+  { key: 'KOLIBRI_SMTP_USER', group: 'mail', set: 'relay', kind: 'text', read: () => env.mail.user ?? '' },
+  { key: 'KOLIBRI_SMTP_PASS', group: 'mail', set: 'relay', kind: 'secret', read: () => env.mail.pass ?? '' },
+  { key: 'KOLIBRI_SMTP_INSECURE', group: 'mail', set: 'relay', kind: 'bool', read: () => String(env.mail.allowInvalidCerts) },
   { key: 'KOLIBRI_MAIL_FROM', group: 'mail', kind: 'text', aliases: ['EMAIL_FROM_INFO'], read: () => env.mail.from, check: address },
   { key: 'KOLIBRI_MAIL_FROM_NAME', group: 'mail', kind: 'text', aliases: ['EMAIL_FROM_NAME'], read: () => env.mail.fromName },
   { key: 'KOLIBRI_MAIL_REPLY_TO', group: 'mail', kind: 'text', read: () => env.mail.replyTo ?? '', check: address },
@@ -169,13 +176,14 @@ export const SETTINGS: SettingSpec[] = [
    * `<public URL>/api/mail/oauth/callback`, which the mailbox screen shows so
    * it does not have to be remembered.
    */
-  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_ID', group: 'mail', kind: 'text', read: () => env.mailOAuth.google.clientId },
-  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_SECRET', group: 'mail', kind: 'secret', read: () => env.mailOAuth.google.clientSecret },
-  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_ID', group: 'mail', kind: 'text', read: () => env.mailOAuth.microsoft.clientId },
-  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_SECRET', group: 'mail', kind: 'secret', read: () => env.mailOAuth.microsoft.clientSecret },
+  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_ID', group: 'mail', set: 'google', kind: 'text', read: () => env.mailOAuth.google.clientId },
+  { key: 'KOLIBRI_MAIL_OAUTH_GOOGLE_CLIENT_SECRET', group: 'mail', set: 'google', kind: 'secret', read: () => env.mailOAuth.google.clientSecret },
+  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_ID', group: 'mail', set: 'microsoft', kind: 'text', read: () => env.mailOAuth.microsoft.clientId },
+  { key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_CLIENT_SECRET', group: 'mail', set: 'microsoft', kind: 'secret', read: () => env.mailOAuth.microsoft.clientSecret },
   {
     key: 'KOLIBRI_MAIL_OAUTH_MICROSOFT_TENANT',
     group: 'mail',
+    set: 'microsoft',
     kind: 'text',
     read: () => env.mailOAuth.microsoft.tenant,
     // A tenant is `common`, `organizations`, `consumers`, or a GUID — never a
@@ -186,6 +194,7 @@ export const SETTINGS: SettingSpec[] = [
   {
     key: 'KOLIBRI_SCALEWAY_SECRET_KEY',
     group: 'mail',
+    set: 'scaleway',
     kind: 'secret',
     aliases: ['SCW_SECRET_KEY_EMAIL'],
     read: () => env.mail.scaleway.secretKey,
@@ -193,6 +202,7 @@ export const SETTINGS: SettingSpec[] = [
   {
     key: 'KOLIBRI_SCALEWAY_PROJECT_ID',
     group: 'mail',
+    set: 'scaleway',
     kind: 'text',
     aliases: ['SCW_PROJECT_ID'],
     read: () => env.mail.scaleway.projectId,
@@ -201,6 +211,7 @@ export const SETTINGS: SettingSpec[] = [
   {
     key: 'KOLIBRI_AI_PROVIDER',
     group: 'ai',
+    set: 'ai',
     kind: 'choice',
     choices: ['anthropic', 'gemini', 'openrouter'],
     read: () => env.aiProvider,
@@ -208,12 +219,13 @@ export const SETTINGS: SettingSpec[] = [
   {
     key: 'KOLIBRI_AI_API_KEY',
     group: 'ai',
+    set: 'ai',
     kind: 'secret',
     aliases: ['ANTHROPIC_API_KEY', 'GEMINI_API_KEY', 'OPENROUTER_API_KEY'],
     read: () => env.ai.key,
   },
-  { key: 'KOLIBRI_AI_MODEL', group: 'ai', kind: 'text', read: () => env.ai.model },
-  { key: 'KOLIBRI_AI_BASE_URL', group: 'ai', kind: 'text', read: () => env.ai.baseUrl, check: httpUrl },
+  { key: 'KOLIBRI_AI_MODEL', group: 'ai', set: 'ai', kind: 'text', read: () => env.ai.model },
+  { key: 'KOLIBRI_AI_BASE_URL', group: 'ai', set: 'ai', kind: 'text', read: () => env.ai.baseUrl, check: httpUrl },
   /*
    * Where the nightly snapshot goes, when it is not only a directory.
    *
@@ -226,11 +238,11 @@ export const SETTINGS: SettingSpec[] = [
   { key: 'KOLIBRI_BACKUP_HOUR', group: 'backup', kind: 'number', read: () => String(env.backup.hour), check: hour },
   { key: 'KOLIBRI_BACKUP_KEEP', group: 'backup', kind: 'number', read: () => String(env.backup.keep) },
   { key: 'KOLIBRI_BACKUP_EMAIL', group: 'backup', kind: 'text', read: () => env.backup.email.to, check: address },
-  { key: 'KOLIBRI_BACKUP_S3_BUCKET', group: 'backup', kind: 'text', read: () => env.backup.s3.bucket, check: bucketName, inherits: true },
-  { key: 'KOLIBRI_BACKUP_S3_ENDPOINT', group: 'backup', kind: 'text', read: () => env.backup.s3.endpoint, check: httpUrl, inherits: true },
-  { key: 'KOLIBRI_BACKUP_S3_REGION', group: 'backup', kind: 'text', read: () => env.backup.s3.region, check: region, inherits: true },
-  { key: 'KOLIBRI_BACKUP_S3_ACCESS_KEY', group: 'backup', kind: 'text', read: () => env.backup.s3.accessKeyId, inherits: true },
-  { key: 'KOLIBRI_BACKUP_S3_SECRET_KEY', group: 'backup', kind: 'secret', read: () => env.backup.s3.secretAccessKey, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_BUCKET', group: 'backup', set: 'bucket', kind: 'text', read: () => env.backup.s3.bucket, check: bucketName, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_ENDPOINT', group: 'backup', set: 'bucket', kind: 'text', read: () => env.backup.s3.endpoint, check: httpUrl, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_REGION', group: 'backup', set: 'bucket', kind: 'text', read: () => env.backup.s3.region, check: region, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_ACCESS_KEY', group: 'backup', set: 'bucket', kind: 'text', read: () => env.backup.s3.accessKeyId, inherits: true },
+  { key: 'KOLIBRI_BACKUP_S3_SECRET_KEY', group: 'backup', set: 'bucket', kind: 'secret', read: () => env.backup.s3.secretAccessKey, inherits: true },
 ];
 
 const SPECS = new Map(SETTINGS.map((spec) => [spec.key, spec]));
@@ -250,17 +262,38 @@ const unseal = (stored: string): string | null => unsealWith('settings', stored)
 
 let cache: Record<string, string> = {};
 
+/**
+ * Secrets that are stored and cannot be opened here — sealed under another
+ * instance's secret, which after a restore is the ordinary case.
+ *
+ * They still read as unset, since there is no value to use; what changed is
+ * that they are no longer *indistinguishable* from unset. Measured before
+ * this: an instance restored with a different secret showed the backup
+ * bucket's key as never typed, counted the bucket as not set up, and quietly
+ * took no backups at all from the next restart on — no failure, because
+ * nothing was attempted.
+ */
+let unreadable = new Set<string>();
+
 /** Read every override into memory. Called on start-up and after a write. */
 export function loadSettings(): void {
   const next: Record<string, string> = {};
+  const lost = new Set<string>();
   for (const row of all<{ key: string; value: string; secret: number }>(
     `SELECT key, value, secret FROM instance_settings`,
   )) {
     if (!SPECS.has(row.key)) continue;
     const value = row.secret ? unseal(row.value) : row.value;
-    if (value !== null && value !== '') next[row.key] = value;
+    if (value === null) lost.add(row.key);
+    else if (value !== '') next[row.key] = value;
+  }
+  for (const key of lost) {
+    if (!unreadable.has(key)) {
+      console.warn(`[settings] ${key} was saved under a different instance secret and cannot be read here — type it in again in Settings → Server`);
+    }
   }
   cache = next;
+  unreadable = lost;
 }
 
 /**
@@ -271,7 +304,103 @@ export function loadSettings(): void {
  */
 export function installSettings(): void {
   loadSettings();
-  useSettingsSource(() => cache);
+  useSettingsSource(() => cache, () => unreadable);
+}
+
+const followers: (() => void)[] = [];
+
+/**
+ * @port what has to follow a change of settings while the server runs
+ *
+ * A worker started at boot on the strength of a setting — the mail worker, the
+ * Telegram poller — which a write in Settings → Server, or a restore replacing
+ * the whole table, would otherwise leave running on the values it started with.
+ */
+export function onSettingsChange(follow: () => void): void {
+  followers.push(follow);
+}
+
+/**
+ * Read the store again and make the running server match it.
+ *
+ * After a write, and after a restore — which replaces the whole table under a
+ * process that had read it at boot. Without this the process went on with what
+ * it had in memory: "Send a test" answered for the instance that had just been
+ * replaced, and the truth arrived with the next restart.
+ */
+export function applySettings(): void {
+  loadSettings();
+  refreshEnv();
+  for (const follow of followers) follow();
+}
+
+/* ------------------------------------------------------------ restoring */
+
+export interface StoredSetting {
+  key: string;
+  value: string;
+  secret: number;
+  updated_at: number;
+  updated_by: string | null;
+}
+
+/** The rows as stored — what a restore is about to replace. */
+export const storedSettings = (): StoredSetting[] =>
+  all<StoredSetting>(`SELECT key, value, secret, updated_at, updated_by FROM instance_settings`);
+
+/**
+ * After a restore has replaced `instance_settings`: put back what of this
+ * instance's own the snapshot has nothing usable in place of.
+ *
+ * Moving house is restoring into a fresh instance, and the first thing done on
+ * it is to type in the bucket to restore *from*. The restore then replaced
+ * those rows with the old instance's — and in two ways that left a server with
+ * no backups and no complaint, both measured against a real MinIO:
+ *
+ *   - **The snapshot says nothing about it.** The old instance had its bucket
+ *     in its environment, so its snapshot has no rows for one, and the rows
+ *     just typed were deleted with the rest.
+ *   - **The snapshot holds a secret that cannot be opened here**, sealed under
+ *     the old instance's secret. The key just typed was replaced by one that
+ *     reads as unset.
+ *
+ * In both, this instance's own is put back — by `set`, not by field: a key is
+ * only right next to the account it belongs to, and this instance's secret
+ * beside the snapshot's *other* access key would be a pair that never matched.
+ * So a secret is kept only where every other field of its set that both sides
+ * have says the same; a signature error is a worse thing to find than a field
+ * that asks to be typed again. Everything the snapshot does say, and can be
+ * read here, wins — that is what restoring means.
+ */
+export function keepOwnSettings(before: StoredSetting[]): string[] {
+  const restored = new Map(storedSettings().map((row) => [row.key, row]));
+  const setOf = (key: string): string | undefined => {
+    const spec = SPECS.get(key);
+    return spec ? spec.set ?? spec.key : undefined;
+  };
+  const spoken = new Set([...restored.keys()].map(setOf));
+  const kept: string[] = [];
+  const put = (row: StoredSetting): void => {
+    run(
+      `INSERT INTO instance_settings (key, value, secret, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value, secret = excluded.secret,
+                                        updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+      row.key, row.value, row.secret, row.updated_at, row.updated_by,
+    );
+    kept.push(row.key);
+  };
+  for (const own of before) {
+    const set = setOf(own.key);
+    if (!set) continue;
+    if (!spoken.has(set)) { put(own); continue; }
+    const theirs = restored.get(own.key);
+    if (!own.secret || !theirs?.secret || unseal(theirs.value) !== null || unseal(own.value) === null) continue;
+    const agrees = before
+      .filter((other) => !other.secret && setOf(other.key) === set && restored.has(other.key))
+      .every((other) => restored.get(other.key)!.value === other.value);
+    if (agrees) put(own);
+  }
+  return kept;
 }
 
 /** Only for tests, which want an instance that has never been configured. */
@@ -298,6 +427,8 @@ export interface SettingView {
   inherits?: boolean;
   /** What that value is, while nothing is set here. Never given for a secret. */
   inherited?: string;
+  /** Stored, and sealed under another instance's secret — to be typed again. */
+  unreadable?: boolean;
 }
 
 const fromEnvironment = (spec: SettingSpec): boolean =>
@@ -319,6 +450,9 @@ export function describeSettings(): SettingView[] {
       source,
       ...(spec.inherits ? { inherits: true } : {}),
       ...(borrowed && spec.kind !== 'secret' && effective ? { inherited: effective } : {}),
+      // Only while nothing else supplies one: a stored value that cannot be
+      // read, behind one the environment provides, changes nothing.
+      ...(unreadable.has(spec.key) && !fromEnvironment(spec) ? { unreadable: true } : {}),
     };
   });
 }

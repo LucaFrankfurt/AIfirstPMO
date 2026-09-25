@@ -15,6 +15,7 @@ process.env.KOLIBRI_DATA_DIR = `/tmp/kolibri-rehydrate-${process.pid}`;
 process.env.KOLIBRI_BACKUP_DIR = `/tmp/kolibri-rehydrate-${process.pid}/backups`;
 
 import assert from 'node:assert/strict';
+import { createCipheriv, createHash, randomBytes } from 'node:crypto';
 import { existsSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
@@ -225,5 +226,126 @@ describe('a snapshot older than the schema', () => {
     assert.deepEqual(report.ignored, ['gadgets']);
     await signIn();
     assert.ok(all<any>(`SELECT id FROM tasks`).length >= 1);
+  });
+});
+
+/**
+ * Moving house: a fresh instance, the bucket typed in to restore *from*, and a
+ * snapshot from an instance with a secret of its own.
+ *
+ * Measured against a real MinIO before any of this, in both of the ways it
+ * happens: the rows just typed were replaced — by nothing, where the old
+ * instance had kept its bucket in its environment, or by a key sealed under
+ * the other secret — and from the next restart the instance took no backups
+ * and said nothing about it, because a bucket with no readable key counted as
+ * one that was never set up. Until that restart it was worse: the process
+ * still held the settings it had read at boot, so "Send a test" answered for
+ * the instance that had just been replaced. Every assertion below reads the
+ * running state straight after the restore, without restarting anything.
+ */
+describe('moving house', () => {
+  /** A secret sealed the way another instance seals one — the same format, a key of its own. */
+  const sealedElsewhere = (plain: string): string => {
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', createHash('sha256').update('kolibri.settings:another instance').digest(), iv);
+    const body = Buffer.concat([cipher.update(plain, 'utf8'), cipher.final()]);
+    return ['v1', iv.toString('base64'), cipher.getAuthTag().toString('base64'), body.toString('base64')].join('.');
+  };
+  const bucket = {
+    KOLIBRI_BACKUP_S3_BUCKET: 'moving-house',
+    KOLIBRI_BACKUP_S3_ENDPOINT: 'https://s3.example.com',
+    KOLIBRI_BACKUP_S3_ACCESS_KEY: 'AKOLD',
+  };
+  let settings: typeof import('../src/kernel/platform/settings.ts');
+  let env: typeof import('../src/kernel/platform/env.ts')['env'];
+  let admin = '';
+
+  before(async () => {
+    settings = await import('../src/kernel/platform/settings.ts');
+    ({ env } = await import('../src/kernel/platform/env.ts'));
+    admin = String(get<any>(`SELECT id FROM users LIMIT 1`).id);
+  });
+
+  /** A snapshot of this instance, with its settings rewritten to what another instance's would hold. */
+  const snapshotHolding = async (rows?: Record<string, string | { sealed: string }>): Promise<string> => {
+    const path = backups.take(undefined, { force: true })!.snapshot.path;
+    if (!rows) return path;
+    const file = new (await import('node:sqlite')).DatabaseSync(`${path}/kolibri.sqlite`);
+    file.exec(`DELETE FROM instance_settings`);
+    for (const [key, value] of Object.entries(rows)) {
+      const secret = typeof value !== 'string';
+      file.prepare(`INSERT INTO instance_settings (key, value, secret, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)`)
+        .run(key, secret ? value.sealed : value, secret ? 1 : 0, Date.now(), 'another-instance');
+    }
+    file.close();
+    return path;
+  };
+  const secretView = () => settings.describeSettings().find((one) => one.key === 'KOLIBRI_BACKUP_S3_SECRET_KEY')!;
+
+  it('keeps the key typed in here when the snapshot holds one sealed elsewhere', async () => {
+    settings.writeSettings({ ...bucket, KOLIBRI_BACKUP_S3_SECRET_KEY: 'typed-here' }, admin);
+    const path = await snapshotHolding({ ...bucket, KOLIBRI_BACKUP_S3_SECRET_KEY: { sealed: sealedElsewhere('typed-there') } });
+
+    const report = rehydrate.rehydrate(path, { safetyBackup: false });
+    assert.deepEqual(report.settingsKept, ['KOLIBRI_BACKUP_S3_SECRET_KEY']);
+    assert.equal(env.backup.s3.secretAccessKey, 'typed-here', 'in effect at once, not after a restart');
+    assert.equal(env.backup.s3.unreadable, false);
+    assert.equal(secretView().set, true);
+    assert.equal(secretView().unreadable, undefined);
+  });
+
+  it('does not put that key beside another access key, and says what is wrong instead', async () => {
+    settings.writeSettings({ ...bucket, KOLIBRI_BACKUP_S3_SECRET_KEY: 'typed-here' }, admin);
+    const path = await snapshotHolding({
+      ...bucket, KOLIBRI_BACKUP_S3_ACCESS_KEY: 'AKSOMEBODYELSE', KOLIBRI_BACKUP_S3_SECRET_KEY: { sealed: sealedElsewhere('theirs') },
+    });
+
+    const report = rehydrate.rehydrate(path, { safetyBackup: false });
+    assert.deepEqual(report.settingsKept, [], 'a pair that never matched is worse than a field to type again');
+    assert.equal(env.backup.s3.accessKeyId, 'AKSOMEBODYELSE', 'what the snapshot says and can be read, wins');
+    assert.equal(env.backup.s3.secretAccessKey, '');
+    assert.equal(env.backup.s3.unreadable, true);
+    assert.equal(secretView().set, false);
+    assert.equal(secretView().unreadable, true, 'and the screen says why the field is empty');
+  });
+
+  it('keeps trying the bucket, and fails out loud, where it used to stop quietly', async () => {
+    // State from the case above: a bucket whose key cannot be read here.
+    const place = backups.places().find((one) => one.kind === 's3')!;
+    assert.equal(place.configured, true, 'still counted, so a night is attempted rather than skipped');
+    assert.match(place.problem ?? '', /different instance secret/);
+
+    const tried = (await backups.testDestinations()).find((one) => one.kind === 's3');
+    assert.equal(tried?.ok, false);
+    assert.match(tried?.detail ?? '', /type it in again/);
+
+    const night = new Date();
+    night.setHours(env.backup.hour, 10, 0, 0);
+    const swept = await backups.sweepBackups(night);
+    const sent = swept?.sent.find((one) => one.kind === 's3');
+    assert.equal(sent?.ok, false, 'the night is recorded as failed, which is what gets somebody told');
+    assert.match(sent?.detail ?? '', /different instance secret/);
+  });
+
+  it('keeps the bucket typed in here when the snapshot says nothing about one', async () => {
+    settings.writeSettings({ ...bucket, KOLIBRI_BACKUP_S3_SECRET_KEY: 'typed-here' }, admin);
+    // The old instance kept its bucket in its environment and typed only the hour.
+    const path = await snapshotHolding({ KOLIBRI_BACKUP_HOUR: '4' });
+
+    const report = rehydrate.rehydrate(path, { safetyBackup: false });
+    assert.deepEqual(new Set(report.settingsKept), new Set([...Object.keys(bucket), 'KOLIBRI_BACKUP_S3_SECRET_KEY']));
+    assert.equal(env.backup.s3.bucket, 'moving-house');
+    assert.equal(env.backup.s3.secretAccessKey, 'typed-here');
+    assert.equal(env.backup.hour, 4, 'and what the snapshot does say, it still says');
+  });
+
+  it('still lets the snapshot win wherever it says something this instance can read', async () => {
+    settings.writeSettings({ ...bucket, KOLIBRI_BACKUP_S3_SECRET_KEY: 'from-the-snapshot' }, admin);
+    const path = await snapshotHolding();
+    settings.writeSettings({ KOLIBRI_BACKUP_S3_SECRET_KEY: 'typed-since' }, admin);
+
+    const report = rehydrate.rehydrate(path, { safetyBackup: false });
+    assert.deepEqual(report.settingsKept, []);
+    assert.equal(env.backup.s3.secretAccessKey, 'from-the-snapshot', 'restoring still means restoring');
   });
 });

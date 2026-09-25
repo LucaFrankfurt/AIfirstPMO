@@ -2207,6 +2207,7 @@ export const fr: Catalogue = {
   'instance.testBackupBucket': 'Objet de test écrit dans {bucket} et relu',
   'instance.testBackupEmail': 'Un test avec pièce jointe part vers {email}',
   'instance.inherited': 's’applique tant que le champ est vide',
+  'instance.unreadable': 'Enregistré sous un autre secret d’instance (après une restauration, par exemple) — illisible ici. Saisissez-le à nouveau.',
   'instance.secretInherited': 'tant que le champ est vide, la clé du stockage des fichiers s’applique',
 
   'profile.displayName': 'Nom affiché',
