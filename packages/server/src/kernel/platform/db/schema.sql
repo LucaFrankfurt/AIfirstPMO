@@ -1119,6 +1119,9 @@ CREATE TABLE IF NOT EXISTS comments (
   -- The passage a comment is about, when it was made on a selection: the quote
   -- plus its surroundings, so it can be found again after an edit.
   anchor       TEXT,
+  -- When the body was last rewritten, stamped by the server. `updated_at` is
+  -- not this: a reaction moves that too, and "edited" has to mean the words.
+  edited_at    INTEGER,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,

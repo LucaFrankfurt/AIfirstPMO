@@ -108,3 +108,73 @@ export function moveTargets(pageId: string, pages: PageNode[]): {
     out: page.parent_id && pages.some((row) => row.id === page.parent_id) ? page.parent_id : undefined,
   };
 }
+
+/**
+ * Everything under a page, level by level.
+ *
+ * Breadth-first, and deliberately *not* claiming to be drawing order — the
+ * tree draws depth-first, and neither caller here cares: one counts these
+ * ("and the 7 pages under them"), the other bars them as move targets. Saying
+ * "in the order the tree draws it" would be a sentence somebody later relies on.
+ *
+ * It does not include the page itself, because both callers want "and its
+ * sub-pages" as a separate thing to say.
+ *
+ * `seen` is not defensive tidiness: `wouldLoop` refuses a move that would close
+ * a cycle, but a database that already holds one — two devices that each made a
+ * legal move while apart, then met — would otherwise hang the screen rather
+ * than draw a wrong tree, and a wrong tree can at least be fixed by the person
+ * looking at it.
+ */
+export function descendantsOf<T extends PageNode>(pages: T[], pageId: string): T[] {
+  const out: T[] = [];
+  const seen = new Set<string>([pageId]);
+  let edge = childrenOf(pages, pageId);
+  while (edge.length) {
+    const next: T[] = [];
+    for (const page of edge) {
+      if (seen.has(page.id)) continue;
+      seen.add(page.id);
+      out.push(page);
+      next.push(...childrenOf(pages, page.id));
+    }
+    edge = next;
+  }
+  return out;
+}
+
+/** The pages a page sits under, outermost first. The same guard, for the same reason. */
+export function ancestorsOf<T extends PageNode>(pages: T[], pageId: string): T[] {
+  const byId = new Map(pages.map((page) => [page.id, page]));
+  const trail: T[] = [];
+  const seen = new Set<string>([pageId]);
+  let at = byId.get(pageId)?.parent_id ?? null;
+  while (at && !seen.has(at)) {
+    seen.add(at);
+    const parent = byId.get(at);
+    if (!parent) break;
+    trail.unshift(parent);
+    at = parent.parent_id ?? null;
+  }
+  return trail;
+}
+
+/**
+ * Which ids a filtered tree has to draw: the matches, plus everything they
+ * hang under.
+ *
+ * Because the answer to "where is the leave policy" is the path, not the row.
+ * A filter that returns bare matching rows turns the tree into a flat list and
+ * throws away the one thing the tree is for — which is also why the ancestors
+ * are marked as scaffolding by their absence from `matched` rather than by a
+ * second list: the caller draws them differently, and nothing has to agree
+ * about two sets.
+ */
+export function withAncestors<T extends PageNode>(pages: T[], matched: Iterable<string>): Set<string> {
+  const keep = new Set<string>();
+  for (const id of matched) {
+    keep.add(id);
+    for (const parent of ancestorsOf(pages, id)) keep.add(parent.id);
+  }
+  return keep;
+}

@@ -9,7 +9,7 @@ import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from 
 import { dueClass, shortDate } from '../../kernel/design-system/format';
 import { groupKey, priorityKey, useT, type Translate } from '../../kernel/i18n/i18n';
 import { useMemberMap, useMembers, useSession } from '../../kernel/identity/session';
-import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from './selection';
+import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from '../../kernel/design-system/selection';
 import { Input } from '../../kernel/design-system/ui/field';
 import { cn } from '../../kernel/design-system/cn';
 import { Chip, chipDot, chipVariants } from '../../kernel/design-system/ui/chip';

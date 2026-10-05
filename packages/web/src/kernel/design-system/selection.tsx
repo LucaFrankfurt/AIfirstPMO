@@ -1,18 +1,19 @@
 /**
- * Selecting several tasks and doing one thing to all of them.
+ * Selecting several rows and doing one thing to all of them.
  *
- * The rule that shapes this: **states and labels belong to a project**. A
- * selection that spans two projects has no shared list of states to offer, so
- * those actions disappear rather than guessing — everything that is workspace-
- * wide (priority, people, dates, archive, delete) stays available.
+ * Its own docblock said it: "the hook and the checkbox live here and know
+ * nothing about tasks". They sat in `modules/work/` anyway, which was fine
+ * while work was the only list long enough to need them — and the day the page
+ * tree needed the same three gestures the choice was between a second copy and
+ * moving this down. `CLAUDE.md` says which, and a selection that behaves one
+ * way on a board and another way in a wiki is the thing a copy guarantees.
  *
- * Every action is an ordinary local write, so a bulk change made on a train
- * lands in the outbox with everything else. The server's `/tasks/bulk` route is
- * for API and MCP callers, who have no outbox to put it in.
- *
- * The hook and the checkbox live here and know nothing about tasks; the bar
- * that acts on a selection is in `selection-bar.tsx`, because it needs the task
- * pickers and those need the checkbox.
+ * What stays in `modules/work/selection-bar.tsx` is the part that is actually
+ * about tasks: the bar, which needs the task pickers, and the rule that shapes
+ * it — **states and labels belong to a project**, so a selection spanning two
+ * of them offers neither. `modules/pages/page-bulk.tsx` is the same arrangement
+ * for pages. Every action either bar takes is an ordinary local write, so a
+ * bulk change made on a train lands in the outbox with everything else.
  */
 import { useCallback, useRef, useState } from 'react';
 import type React from 'react';

@@ -96,7 +96,7 @@ const ABOUT = {
   'files': ['Uploads, thumbnails, and where the bytes actually live.'],
   'work': ['Projects, tasks, states, labels, relations, custom fields, saved views.'],
   'planning': ['Cycles, modules, baselines, the timeline, the portfolio, the planner, templates.'],
-  'pages': ['Documents with a CRDT under them, their tree, and what a comment anchors to.'],
+  'pages': ['Documents with a CRDT under them, their tree, what a comment anchors to, and what is untidy about the lot.'],
   'secrets': ['Credentials the team keeps: sealed on the way in, one route out, every reading logged.', 'secrets'],
   'budgets': ['Plan, spend, variance and who is allowed to see money.', 'budget'],
   'products': ['What is sold: prices, packages, campaigns, break-even, simulations and what a customer is worth.', 'products'],

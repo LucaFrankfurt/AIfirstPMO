@@ -8,7 +8,7 @@ import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome'
 import { QuickAdd } from '../../work/QuickAdd';
 import { CycleProgress, TaskViews, useVisibleTasks, ViewControls } from '../../work/views';
 import { DEFAULT_VIEW, type ViewConfig } from '../../work/task-parts';
-import { useSelection } from '../../work/selection';
+import { useSelection } from '../../../kernel/design-system/selection';
 import { SelectionBar } from '../../work/selection-bar';
 import { ProjectTime } from '../../time/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../../../adapters/transfer/import';

@@ -888,6 +888,22 @@ export const visibleProjectsSql = (workspace = '?', user = '?'): string => `
                       WHERE m.project_id = p.id AND m.user_id = ${user} AND m.deleted_at IS NULL))`;
 
 /**
+ * Whether somebody runs this workspace.
+ *
+ * Here beside the `canSee*` family rather than in the one module that happened
+ * to need it first. It was a four-line predicate at the top of the chat rules,
+ * and the moment a second module had to ask the same question — who may take
+ * down a note an outsider left through a share link — the choice was between
+ * copying it and moving it down. `CLAUDE.md` says which, and the `canSeePage`
+ * note below says what the fifth copy of a rule costs.
+ */
+export const isWorkspaceAdmin = (workspaceId: string, userId: string): boolean => !!get(
+  `SELECT 1 FROM workspace_members
+    WHERE workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL`,
+  workspaceId, userId,
+);
+
+/**
  * Whether somebody may see a task, and therefore everything hanging off it.
  *
  * Three rows hang off a task and carry no `project_id` of their own — a

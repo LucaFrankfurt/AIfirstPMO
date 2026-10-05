@@ -42,6 +42,9 @@ const BudgetIndex = lazy(() => import('./modules/budgets/routes/budgets').then((
 const BudgetDetail = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetDetail })));
 const ProductIndex = lazy(() => import('./modules/products/routes/products').then((m) => ({ default: m.ProductIndex })));
 const ProductDetail = lazy(() => import('./modules/products/routes/products').then((m) => ({ default: m.ProductDetail })));
+// Tidying up is a screen somebody opens when they have decided to tidy up, and
+// not otherwise — the one page in the wiki that is lazy by the rule above.
+const PagesTidy = lazy(() => import('./modules/pages/routes/tidy').then((m) => ({ default: m.PagesTidy })));
 const Help = lazy(() => import('./modules/guide/routes/help').then((m) => ({ default: m.Help })));
 const Settings = lazy(() => import('./modules/operations/routes/settings').then((m) => ({ default: m.Settings })));
 import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './kernel/design-system/navigation';
@@ -259,6 +262,7 @@ export default function App() {
               segment higher either way. This is where a link to a page nobody
               has written yet lands. */}
           <Route path="/pages/new" element={<PageFromLink />} />
+          <Route path="/pages/tidy" element={<PagesTidy />} />
           <Route path="/pages/:id" element={<PageDetail />} />
           <Route path="/teams" element={<Teams />} />
           <Route path="/guide" element={<Help />} />

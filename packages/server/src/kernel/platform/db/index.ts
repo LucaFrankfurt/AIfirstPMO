@@ -131,6 +131,10 @@ for (const [table, column, definition] of [
    * meant.
    */
   ['product_prices', 'term_months', 'INTEGER'],
+  // A comment can be rewritten by its author now, so it has to be able to say
+  // that it was. NULL on every comment that predates the column is right: none
+  // of them was ever edited, because nothing could edit one.
+  ['comments', 'edited_at', 'INTEGER'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

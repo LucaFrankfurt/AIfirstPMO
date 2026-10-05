@@ -11,7 +11,7 @@ import { priorityKey, useT } from '../../kernel/i18n/i18n';
 import { remove, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useMembers } from '../../kernel/identity/session';
-import type { Selection } from './selection';
+import type { Selection } from '../../kernel/design-system/selection';
 import { useLabels, useStates } from './task-parts';
 import { Button } from '../../kernel/design-system/ui/button';
 import { navCount } from '../../kernel/design-system/ui/nav';

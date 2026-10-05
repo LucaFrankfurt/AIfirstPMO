@@ -1,23 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  compareOrder, formatHtml, htmlOutline, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
-  type Anchor, type Page, type PageFormat,
+  formatHtml, htmlOutline, htmlToMarkdown, matchesTerms, outlineOf, pageExcerpt, pageResolver, parseTerms,
+  renderMarkdown, type Anchor, type Page, type PageFormat,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
 import {
-  ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems, movePage,
+  ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems,
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
-import type { DropZone } from '../pagetree';
+import { withAncestors } from '../pagetree';
+import { PageTree, foldableIds, usePageFolds } from '../PageTree';
+import { PageBulkBar } from '../page-bulk';
+import { tidyPages } from '../tidy';
 import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
 import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
 import { HtmlEditor, HtmlView } from '../Html';
 import { ImportPages } from '../import';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
-import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../../kernel/design-system/drag';
 import { ShareSheet } from '../../share/share';
 import { useHighlights, useSelectionAnchor } from '../annotate';
 import { relativeTime } from '../../../kernel/design-system/format';
@@ -30,110 +32,11 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
-import { navItem } from '../../../kernel/design-system/ui/nav';
+import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
 import { chipDot } from '../../../kernel/design-system/ui/chip';
+import { useSelection } from '../../../kernel/design-system/selection';
 import { useT } from '../../../kernel/i18n/i18n';
 import { useMinute } from '../../../kernel/design-system/minute';
-
-/* ------------------------------------------------------------------- tree */
-
-interface TreeNode {
-  page: Page;
-  children: TreeNode[];
-}
-
-function buildTree(pages: Page[]): TreeNode[] {
-  const nodes = new Map<string, TreeNode>(pages.map((page) => [page.id, { page, children: [] }]));
-  const roots: TreeNode[] = [];
-  for (const node of nodes.values()) {
-    const parent = node.page.parent_id ? nodes.get(node.page.parent_id) : undefined;
-    if (parent) parent.children.push(node);
-    else roots.push(node);
-  }
-  const sort = (list: TreeNode[]) => {
-    list.sort((a, b) => compareOrder(a.page.sort_order ?? '', b.page.sort_order ?? ''));
-    list.forEach((node) => sort(node.children));
-  };
-  sort(roots);
-  return roots;
-}
-
-/**
- * Which third of a row the pointer is in, and therefore what a drop means.
- *
- * The middle half is `inside` rather than a third: dropping *onto* a page to
- * nest under it is the move people reach for, and the two edges only need to be
- * wide enough to hit deliberately.
- */
-function zoneAt(event: React.DragEvent, element: HTMLElement): DropZone {
-  const box = element.getBoundingClientRect();
-  const offset = (event.clientY - box.top) / (box.height || 1);
-  if (offset < 0.25) return 'before';
-  if (offset > 0.75) return 'after';
-  return 'inside';
-}
-
-function TreeItem({ node, depth, activeId, canWrite }: {
-  node: TreeNode; depth: number; activeId?: string; canWrite: boolean;
-}) {
-  const t = useT();
-  const navigate = useNavigate();
-  const { workspaceId } = useSession();
-  const [open, setOpen] = useState(true);
-  const [over, setOver] = useState<DropZone | null>(null);
-
-  return (
-    <>
-      <div
-        className={`page-row${over ? ` page-drop-${over}` : ''}`}
-        style={{ paddingInlineStart: depth * 12 }}
-        draggable={canWrite}
-        onDragStart={(event) => {
-          event.stopPropagation();
-          startDrag(event, PAGE_DRAG, node.page.id);
-        }}
-        onDragOver={(event) => {
-          if (!canWrite || !isDrag(event, PAGE_DRAG)) return;
-          // Only with `preventDefault` is this a drop target at all; the zone is
-          // read on every move because the answer changes as the pointer travels
-          // down the row.
-          event.preventDefault();
-          event.stopPropagation();
-          setOver(zoneAt(event, event.currentTarget));
-        }}
-        onDragLeave={() => setOver(null)}
-        onDrop={(event) => {
-          if (!canWrite || !isDrag(event, PAGE_DRAG)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          const zone = zoneAt(event, event.currentTarget);
-          setOver(null);
-          // A refusal is silent on purpose — the only one is dropping a page
-          // into its own subtree, and the page visibly not moving says it.
-          if (movePage(idFrom(event, PAGE_DRAG), node.page.id, zone, workspaceId) && zone === 'inside') setOpen(true);
-        }}
-      >
-        {node.children.length > 0 ? (
-          <Button variant="ghost" size="iconSm" onClick={() => setOpen(!open)} aria-label={t('page.toggleTree')}>
-            <Icon name={open ? 'chevronDown' : 'chevronRight'} size={13} />
-          </Button>
-        ) : (
-          <span style={{ width: 27 }} />
-        )}
-        <button
-          className={navItem({ active: activeId === node.page.id })}
-          onClick={() => navigate(`/pages/${node.page.id}`)}
-        >
-          <span style={{ width: 16 }}>{node.page.icon ?? '📄'}</span>
-          <span className="flex-1 min-w-0 truncate">{node.page.title || t('common.untitled')}</span>
-        </button>
-      </div>
-      {open && node.children.map((child) => (
-        <TreeItem key={child.page.id} node={child} depth={depth + 1} activeId={activeId} canWrite={canWrite} />
-      ))}
-    </>
-  );
-}
 
 /**
  * The headings of a page, as something to jump by.
@@ -220,32 +123,33 @@ export function PagesIndex() {
   const me = useMe();
   const navigate = useNavigate();
   const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
+  const everything = useQuery(() => list('page', (p) => p.workspace_id === workspaceId) as Page[], [workspaceId]);
   const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
   const [filter, setFilter] = useState<string>('');
   const [importing, setImporting] = useState(false);
   const canWrite = useCanWrite();
 
-  // Archived pages had nowhere to be seen at all. Every list in the app filters
-  // them out, so archiving one removed it from the tree, from the palette and
-  // from search at once, and the only control that could bring it back lived on
-  // the page you could no longer reach. That is deletion wearing another word.
-  const archived = useQuery(
-    () => list('page', (p) => p.workspace_id === workspaceId && !!p.archived).sort((a, b) => b.updated_at - a.updated_at),
-    [workspaceId],
-  );
-  const [showArchived, setShowArchived] = useState(false);
-  // Unarchiving the last one takes the list away with it, so the screen goes
-  // back to the pages rather than to an empty box that was full a moment ago.
-  const viewingArchive = showArchived && archived.length > 0;
+  /**
+   * The archive is on the tidying screen now, and this is why.
+   *
+   * It used to be a second mode of this one — a button that swapped the tree
+   * for a flat list — which was the right fix for the problem it had ("every
+   * list filters `!archived`, so the control that undoes it lived on a page you
+   * could no longer find") and the wrong place for it. The archive, the trash
+   * and the findings all answer one question, *what is not in the tree and what
+   * of it do I still want*, and three screens answering a third of it each is
+   * how the answer goes stale. So this screen draws the wiki and nothing else,
+   * and the button below leads to the one that draws everything it is not.
+   */
+  const archived = useMemo(() => everything.filter((page) => !!page.archived), [everything]);
 
   // Templates are kept out of the tree: they are starting points, not content,
   // and a handbook with three half-written templates in it reads as a mess.
   const templates = useMemo(() => all.filter((page) => page.is_template), [all]);
   const pages = useMemo(
-    () => all.filter((page) => !page.is_template && (!filter || (page.labels ?? []).includes(filter))),
+    () => all.filter((page) => !page.is_template && (!filter || (page.labels ?? []).includes(filter))) as Page[],
     [all, filter],
   );
-  const tree = useMemo(() => buildTree(pages), [pages]);
   const recent = useMemo(() => [...pages].sort((a, b) => b.updated_at - a.updated_at).slice(0, 6), [pages]);
   const inUse = useMemo(() => {
     const used = new Set(all.flatMap((page) => page.labels ?? []));
@@ -259,20 +163,48 @@ export function PagesIndex() {
   // different question and waits to be asked.
   const [drawn, setDrawn] = useState(false);
 
+  /* ------------------------------------------------------- tidying up */
+
+  const folds = usePageFolds();
+  const selection = useSelection();
+  /** Whether the checkboxes are showing. A tree is read far more often than it is sorted. */
+  const [picking, setPicking] = useState(false);
+  const [hunt, setHunt] = useState('');
+  const foldable = useMemo(() => foldableIds(pages), [pages]);
+
+  /**
+   * The filter, as a set of ids to draw.
+   *
+   * Matches *plus the path to each of them*, because the answer to "where is
+   * the leave policy" is the path and not the row — see `withAncestors`. The
+   * ancestors are told apart from the matches by being absent from the second
+   * set, which is what lets the tree draw them as scaffolding.
+   */
+  const { keep, matched } = useMemo(() => {
+    const terms = parseTerms(hunt);
+    if (!terms.length) return { keep: undefined, matched: undefined };
+    const hits = new Set(pages.filter((page) => matchesTerms(page.title || '', terms)).map((page) => page.id));
+    return { keep: withAncestors(pages, hits), matched: hits };
+  }, [pages, hunt]);
+
+  /** How much the tidying screen would have to say. Counted here to put on its button. */
+  const findings = useMemo(
+    () => tidyPages(pages, { all: everything }).pages + archived.length,
+    [pages, everything, archived],
+  );
+
   return (
     <>
       <Header title={t('page.listTitle')}>
-        {archived.length > 0 && (
-          <Button
-            variant={viewingArchive ? 'primary' : 'secondary'} size="sm"
-            aria-pressed={viewingArchive}
-            onClick={() => setShowArchived(!viewingArchive)}
-          >
-            <Icon name="archive" size={14} />
-            <span className="hide-sm">{t('page.archivedCount', { count: archived.length })}</span>
-          </Button>
-        )}
-        {!viewingArchive && inUse.length > 0 && (
+        {/* The way to everything this screen does not draw: the archive, the
+            trash, and what `tidy.ts` found. The count is on the button because
+            a screen nobody visits is a screen that reports nothing. */}
+        <Button variant="secondary" size="sm" onClick={() => navigate('/pages/tidy')}>
+          <Icon name="archive" size={14} />
+          <span className="hide-sm">{t('page.tidy')}</span>
+          {findings > 0 && <span className={navCount}>{findings}</span>}
+        </Button>
+        {inUse.length > 0 && (
           <MenuButton
             variant="secondary" size="sm"
             items={[
@@ -291,7 +223,7 @@ export function PagesIndex() {
             <span className="hide-sm">{filter ? byId('label', filter)?.name ?? t('page.filterByLabel') : t('page.filterByLabel')}</span>
           </MenuButton>
         )}
-        {!viewingArchive && templates.length > 0 && (
+        {templates.length > 0 && (
           <MenuButton
             variant="secondary" size="sm"
             items={templates.map((template) => ({
@@ -308,43 +240,19 @@ export function PagesIndex() {
             <span className="hide-sm">{t('page.newFromTemplate')}</span>
           </MenuButton>
         )}
-        {!viewingArchive && canWrite && (
+        {canWrite && (
           <Button variant="secondary" size="sm" onClick={() => setImporting(true)}>
             <Icon name="attach" size={14} /> <span className="hide-sm">{t('page.import')}</span>
           </Button>
         )}
-        {!viewingArchive && canWrite && (
+        {canWrite && (
           <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
           </Button>
         )}
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        {viewingArchive ? (
-          <>
-            {/* Flat, not a tree. An archived page's parent is usually still in
-                use, so drawing these as a tree would either duplicate live
-                pages as scaffolding or leave every row hanging off nothing. */}
-            <h2 className="mb-1 text-sm font-semibold">{t('page.archivedTitle')}</h2>
-            <p className="mb-3.5 text-[12.5px] text-muted">{t('page.archivedHint')}</p>
-            {archived.map((page) => (
-              <div className="page-row" key={page.id}>
-                <Link to={`/pages/${page.id}`} className={navItem()}>
-                  <span style={{ width: 16 }}>{page.icon ?? '\ud83d\udcc4'}</span>
-                  <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
-                  <span className="text-[11.5px] text-muted hide-sm">
-                    {t('page.updated', { time: relativeTime(page.updated_at) })}
-                  </span>
-                </Link>
-                {canWrite && (
-                  <Button size="sm" variant="ghost" onClick={() => update('page', page.id, { archived: 0 })}>
-                    {t('action.unarchive')}
-                  </Button>
-                )}
-              </div>
-            ))}
-          </>
-        ) : !pages.length ? (
+        {!pages.length ? (
           <Empty
             emoji="📓" title={t('page.emptyTitle')}
             hint={t('page.emptyHint')} guide="pages"
@@ -371,10 +279,47 @@ export function PagesIndex() {
                 </Link>
               ))}
             </div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center flex-wrap gap-2 mb-2">
               <h2 className="text-sm font-semibold">{t('page.all')}</h2>
-              {!drawn && canWrite && <span className="text-[12px] text-muted">{t('page.dragHint')}</span>}
+              {!drawn && canWrite && !picking && <span className="text-[12px] text-muted hide-sm">{t('page.dragHint')}</span>}
               <span className="flex-1 min-w-0" />
+              {!drawn && (
+                <>
+                  {/* Typing is the fast way to a page in a tree of ninety, and
+                      until now the only one was the command palette — which
+                      opens the page rather than showing you where it sits. */}
+                  <Input
+                    style={{ maxWidth: 200 }}
+                    placeholder={t('page.filterTree')}
+                    aria-label={t('page.filterTree')}
+                    value={hunt}
+                    onChange={(event) => setHunt(event.target.value)}
+                  />
+                  {foldable.length > 0 && !keep && (
+                    <Button
+                      variant="ghost" size="sm"
+                      title={folds.count ? t('page.unfoldAll') : t('page.foldAll')}
+                      aria-label={folds.count ? t('page.unfoldAll') : t('page.foldAll')}
+                      onClick={() => folds.setAll(!folds.count, foldable)}
+                    >
+                      <Icon name={folds.count ? 'chevronDown' : 'chevronRight'} size={14} />
+                    </Button>
+                  )}
+                  {canWrite && (
+                    <Button
+                      variant={picking ? 'primary' : 'ghost'} size="sm"
+                      aria-pressed={picking}
+                      onClick={() => {
+                        selection.clear();
+                        setPicking(!picking);
+                      }}
+                    >
+                      <Icon name="check" size={14} />
+                      <span className="hide-sm">{t('page.select')}</span>
+                    </Button>
+                  )}
+                </>
+              )}
               {graph.nodes.length > 1 && (
                 <Button
                   variant={drawn ? 'primary' : 'ghost'} size="sm"
@@ -386,9 +331,21 @@ export function PagesIndex() {
                 </Button>
               )}
             </div>
-            {drawn
-              ? <PageGraph nodes={graph.nodes} edges={graph.edges} />
-              : tree.map((node) => <TreeItem key={node.page.id} node={node} depth={0} canWrite={canWrite} />)}
+            {drawn ? (
+              <PageGraph nodes={graph.nodes} edges={graph.edges} />
+            ) : keep?.size === 0 ? (
+              <p className="text-muted text-[12.5px]">{t('page.filterNone')}</p>
+            ) : (
+              <PageTree
+                pages={pages}
+                canWrite={canWrite}
+                folds={folds}
+                selection={picking ? selection : undefined}
+                keep={keep}
+                matched={matched}
+                marks
+              />
+            )}
 
             {canWrite && unwritten.length > 0 && (
               <section className="mt-7">
@@ -418,11 +375,16 @@ export function PagesIndex() {
         )}
       </div>
       {importing && <ImportPages onClose={() => setImporting(false)} />}
+      {picking && <PageBulkBar selection={selection} pages={pages} />}
     </>
   );
 }
 
 /* ------------------------------------------------------------------- page */
+
+/** Whether this device wants the tree beside the page. Never synced — see below. */
+const TREE_KEY = 'kolibri.page-aside';
+
 
 export function PageDetail() {
   useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
@@ -460,6 +422,43 @@ export function PageDetail() {
   const canWrite = useCanWrite();
   const projects = useQuery(() => list('project'), []);
   const pageComments = useQuery(() => list('comment', (entry) => entry.page_id === id), [id]);
+
+  /* --------------------------------------------- the tree beside the page */
+
+  /** The whole tree, which is what navigation needs — not this page's branch. */
+  const siblings = useQuery(
+    () => list('page', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_template) as Page[],
+    [workspaceId],
+  );
+  const folds = usePageFolds();
+  const [hunt, setHunt] = useState('');
+  /**
+   * Whether the aside is showing, kept on this device.
+   *
+   * Shown by default and remembered when it is turned off, because a reader
+   * who wants the full width wants it on every page and not once. Not synced,
+   * for the reason the folds are not: it is a fact about this screen, not
+   * about the workspace.
+   */
+  const [aside, setAside] = useState(() => {
+    try {
+      return localStorage.getItem(TREE_KEY) !== 'off';
+    } catch {
+      return true;
+    }
+  });
+  const showTree = (on: boolean) => {
+    setAside(on);
+    try {
+      localStorage.setItem(TREE_KEY, on ? 'on' : 'off');
+    } catch { /* blocked storage — the session still works */ }
+  };
+  const { keep, matched } = useMemo(() => {
+    const terms = parseTerms(hunt);
+    if (!terms.length) return { keep: undefined, matched: undefined };
+    const hits = new Set(siblings.filter((p) => matchesTerms(p.title || '', terms)).map((p) => p.id));
+    return { keep: withAncestors(siblings, hits), matched: hits };
+  }, [siblings, hunt]);
 
   // The body is a CRDT, so two people typing at once is a merge rather than a
   // race. Everything else on this screen still reads `page.content`, which the
@@ -592,6 +591,13 @@ export function PageDetail() {
               onSelect: () => setImporting(true) },
             { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
               onSelect: () => setHistory(true) },
+            // In the menu rather than as a button in the header: on the screens
+            // where the aside exists at all there is room for it, and on the
+            // ones where there is not, a control for something invisible is
+            // worse than no control.
+            { id: 'aside', label: aside ? t('page.sidebarHide') : t('page.sidebarShow'),
+              icon: <Icon name="hierarchy" size={14} />, hint: aside ? '✓' : undefined,
+              onSelect: () => showTree(!aside) },
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
             { id: 'export-md', section: t('page.download'), label: t('page.export'), icon: <Icon name="page" size={14} />,
@@ -658,7 +664,35 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
-      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5" style={{ maxWidth: 820 }}>
+      <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">
+        {/*
+          * The tree, beside the page rather than one screen back.
+          *
+          * `PageOutline` above decided the other way about the *outline*, and
+          * the reasoning still holds: a sticky aside that takes width from the
+          * reading column is a bad trade, because a narrower line of prose is
+          * worse than one extra click. This is not that trade. The column keeps
+          * its 820px measure exactly, the aside lives in the gutter a wide
+          * screen already wastes, and below 1280px it is not there at all — so
+          * nothing is ever narrowed to make room for it. Which is also why it is
+          * navigation and not a second table of contents: moving between pages
+          * is the thing a wiki makes you do twenty times an hour.
+          */}
+        {aside && (
+          <aside className="page-aside" aria-label={t('page.listTitle')}>
+            <Input
+              className="w-full mb-1.5"
+              placeholder={t('page.filterTree')}
+              aria-label={t('page.filterTree')}
+              value={hunt}
+              onChange={(event) => setHunt(event.target.value)}
+            />
+            {keep?.size === 0
+              ? <p className="text-muted text-[12px]">{t('page.filterNone')}</p>
+              : <PageTree pages={siblings} activeId={id} canWrite={canWrite} folds={folds} keep={keep} matched={matched} />}
+          </aside>
+        )}
+        <div className="page-reading">
         {/* Said on the page, not only in the menu: an archived page still opens
             from a bookmark, from a link in another page and from a search on the
             server, and it used to look exactly like a live one. */}
@@ -779,6 +813,7 @@ export function PageDetail() {
             />
           </section>
         )}
+        </div>
       </div>
 
       {sharing && (

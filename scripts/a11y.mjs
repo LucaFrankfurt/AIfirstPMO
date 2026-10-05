@@ -380,7 +380,7 @@ for (const [label, options] of MODES) {
    * an `aria-label`, and a row of icon buttons — the exact shape that fails
    * the name rule most often, sitting behind one click nothing was making.
    */
-  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/teams', '/planner',
+  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
     '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/decisions', '/secrets',
     // Behind the products switch, and reached only because the fixture above

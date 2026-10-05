@@ -53,6 +53,9 @@ const LABELS = {
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
     mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes',
+    comment: 'Comment', editComment: 'Edit this comment', edited: 'edited',
+    tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
+    archive: 'Archive', duplicateTitles: 'Two pages, one title',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -68,6 +71,9 @@ const LABELS = {
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
     mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer',
+    comment: 'Kommentieren', editComment: 'Diesen Kommentar bearbeiten', edited: 'bearbeitet',
+    tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
+    archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -83,6 +89,9 @@ const LABELS = {
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
     mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail',
+    comment: 'Commenter', editComment: 'Modifier ce commentaire', edited: 'modifié',
+    tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
+    archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
   },
 }[locale];
 
@@ -930,6 +939,183 @@ await step('a comment anchors to the passage it was made from', async () => {
     throw new Error(`the highlight covers "${painted.under}" rather than the sentence`);
   }
   console.log('     underlined copy', painted.nth + 1, 'of', painted.of);
+});
+
+/**
+ * Take a step's fixture pages away again.
+ *
+ * Not tidiness — a correctness fix with a measurement behind it. Four of these
+ * steps' pages, all created seconds ago, filled the index's "Recently edited"
+ * cards and pushed `Team handbook` out of the six it shows. The `pages` step
+ * above clicks that card by name, so the *German* walkthrough — which CI runs
+ * second, against the same instance the English one just walked — failed on a
+ * step that has nothing to do with either of these. Measured: two runs against
+ * one data directory, and `pages` and the selection step both timed out on the
+ * click.
+ *
+ * So a step that makes pages puts them back. The deletion is a tombstone, so
+ * they stay out of every list without the walkthrough needing a fresh seed.
+ */
+const unmake = async (ids) => {
+  for (const id of ids) await page.request.delete(`${base}/api/pages/${id}`);
+};
+
+/**
+ * A comment can be rewritten by whoever left it, in place.
+ *
+ * Checked from the outside because the two ways to get this wrong both pass
+ * every unit test: an "edit" that posts a second comment and leaves the first
+ * one standing, and an edit that lands without the row ever saying it was
+ * edited — which is the half the server stamps and the half a client used to
+ * be able to claim for itself. So this counts the comments before and after,
+ * and reads the mark rather than the database.
+ */
+await step('a comment can be rewritten by the person who left it', async () => {
+  const workspace = await page.evaluate(() => localStorage.getItem('kolibri.workspace'));
+  const made = await (await page.request.post(`${base}/api/workspaces/${workspace}/pages`, {
+    data: { title: `smoke comment edit ${locale} ${Date.now()}`, content: 'Something to talk about.' },
+  })).json();
+  const id = made.page?.id ?? made.id;
+  if (!id) throw new Error(`the fixture page reached no server row: ${JSON.stringify(made).slice(0, 120)}`);
+
+  await page.goto(`${base}/pages/${id}`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.comment, textarea', { timeout: 8000 });
+
+  // Leave one, with a typo in it on purpose.
+  const composer = page.locator('textarea').last();
+  await composer.click();
+  await composer.fill('Ships on Tusday');
+  await page.locator(`button:has-text("${LABELS.comment}")`).last().click();
+  await page.waitForSelector('.comment', { timeout: 8000 });
+  const before = await page.locator('.comment').count();
+
+  // Nothing says it was edited yet, which is the half a client must not be
+  // able to claim — see `comment-edit.test.ts` for the same thing from the API.
+  if ((await page.locator(`.comment:has-text("${LABELS.edited}")`).count())) {
+    throw new Error('a comment nobody has edited already says it was');
+  }
+
+  await page.locator(`.comment button[aria-label="${LABELS.editComment}"]`).first().click();
+  const editor = page.locator('.comment textarea').first();
+  await editor.waitFor({ timeout: 5000 });
+  await editor.fill('Ships on Tuesday');
+  await page.locator(`.comment button:has-text("${LABELS.save}")`).first().click();
+  await page.waitForTimeout(700);
+
+  const body = (await page.locator('.comment').first().innerText()).replace(/\s+/g, ' ');
+  if (!body.includes('Ships on Tuesday')) throw new Error(`the edit did not land: "${body}"`);
+  if (body.includes('Tusday')) throw new Error(`the old text is still on the page: "${body}"`);
+  if (!body.includes(LABELS.edited)) throw new Error(`the comment does not say it was edited: "${body}"`);
+
+  const after = await page.locator('.comment').count();
+  if (after !== before) throw new Error(`editing changed the comment count from ${before} to ${after}`);
+  console.log('     comment rewritten in place, marked:', LABELS.edited);
+  await unmake([id]);
+});
+
+/**
+ * The wiki can be tidied, and the tree says what it is.
+ *
+ * Three things that were each invisible before, and are each a *drawing*
+ * problem rather than an arithmetic one — so `pagetidy.test.ts` cannot see any
+ * of them:
+ *
+ * - The findings screen exists, is reachable from the button that counts them,
+ *   and names a duplicate title that this step makes on purpose.
+ * - The filter keeps the path to a match, so a page three levels down can be
+ *   found *and placed* by typing.
+ * - Folding one branch leaves a count behind, rather than hiding how much.
+ */
+await step('the wiki reports what is untidy, and the tree can be filtered and folded', async () => {
+  const workspace = await page.evaluate(() => localStorage.getItem('kolibri.workspace'));
+  const stamp = `${locale}-${Date.now()}`;
+  const make = async (data) => {
+    const answer = await (await page.request.post(`${base}/api/workspaces/${workspace}/pages`, { data })).json();
+    const id = answer.page?.id ?? answer.id;
+    if (!id) throw new Error(`a fixture page reached no server row: ${JSON.stringify(answer).slice(0, 120)}`);
+    return id;
+  };
+  // Two pages answering to one title, and a child under one of them so the
+  // filter has a path to keep.
+  const parent = await make({ title: `Smoke notes ${stamp}`, content: 'The first one.' });
+  const second = await make({ title: `smoke notes ${stamp}`, content: 'The second one, folded differently.' });
+  // Deepest first when they go: a child whose parent is already a tombstone is
+  // exactly the `detached` case this step is about, and leaving one behind
+  // would make the next run report a finding it did not create.
+  const buried = await make({ title: `Smoke buried ${stamp}`, parent_id: parent, content: 'Three levels in.' });
+
+  // The button carries the count, which is what makes the screen get visited.
+  await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  // The number rides inside the button's own text — `navCount` is a utility
+  // class, not a `.count` element, which is a thing this step got wrong once.
+  const onButton = (await page.locator(`button:has-text("${LABELS.tidy}")`).first().innerText()).replace(/\s+/g, ' ');
+  if (!/\d/.test(onButton)) throw new Error(`the tidying button carries no count: "${onButton}"`);
+  await page.locator(`button:has-text("${LABELS.tidy}")`).first().click();
+  await page.waitForURL('**/pages/tidy', { timeout: 8000 });
+  await page.waitForSelector('.tidy-counts', { timeout: 8000 });
+
+  const screen = (await page.locator('.tidy-counts').innerText()).replace(/\s+/g, ' ');
+  const found = await page.locator(`h3:has-text("${LABELS.duplicateTitles}")`).count();
+  if (!found) throw new Error(`the tidying screen does not report the duplicate title it was given: ${screen}`);
+  console.log('     tidying screen:', screen, '· button said', JSON.stringify(onButton));
+  await page.screenshot({ path: `${shots}/4b-tidy.png` });
+
+  // The filter: a match three levels down, drawn with the pages it sits under.
+  await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.page-row', { timeout: 8000 });
+  const hunt = page.locator(`input[aria-label="${LABELS.findPage}"]`).first();
+  await hunt.fill(`Smoke buried ${stamp}`);
+  await page.waitForTimeout(400);
+  const narrowed = await page.locator('.page-row').count();
+  const shown = (await page.locator('.page-row').allInnerTexts()).join(' | ').replace(/\s+/g, ' ');
+  if (!shown.includes('Smoke buried')) throw new Error(`the filter hid its own match: ${shown}`);
+  if (!shown.includes('Smoke notes')) throw new Error(`the filter dropped the path to the match: ${shown}`);
+  console.log('     filtered to', narrowed, 'rows, path kept');
+
+  // Folding: the count behind a shut chevron.
+  await hunt.fill('');
+  await page.waitForTimeout(300);
+  /*
+   * Which row to read after the click, settled *before* it.
+   *
+   * A Playwright locator resolves when it is used, so
+   * `.filter({ has: [aria-expanded=true] }).first()` evaluated after the click
+   * matches whichever *other* branch is still open — and this step spent its
+   * first run reporting that a folded branch says nothing, about a row that was
+   * never folded. The index is the only handle that survives the state change.
+   */
+  const rows = page.locator('.page-row');
+  const expanded = await rows.evaluateAll((nodes) =>
+    nodes.findIndex((node) => node.querySelector('button[aria-expanded="true"]')));
+  if (expanded >= 0) {
+    const row = rows.nth(expanded);
+    const before = (await row.innerText()).replace(/\s+/g, ' ');
+    await row.locator('button[aria-expanded="true"]').click();
+    await page.waitForTimeout(250);
+    const after = (await row.innerText()).replace(/\s+/g, ' ');
+    if (!/\d/.test(after)) throw new Error(`a folded branch says nothing about how much is behind it: "${after}"`);
+    if (after === before) throw new Error(`folding changed nothing about the row: "${after}"`);
+    console.log('     folded branch reports:', JSON.stringify(after.slice(0, 60)));
+
+    // And it survives a reload, which is the whole point of keeping it.
+    await page.reload({ waitUntil: 'networkidle' });
+    await closeTour(page);
+    await page.waitForSelector('.page-row', { timeout: 8000 });
+    const again = (await rows.nth(expanded).innerText()).replace(/\s+/g, ' ');
+    if (again !== after) throw new Error(`the fold did not survive a reload: "${again}" rather than "${after}"`);
+    console.log('     fold survived the reload');
+  } else {
+    console.log('     skipped the fold: nothing in this workspace has children');
+  }
+
+  // And the guides, which are what makes depth readable at all.
+  const guides = await page.locator('.page-guide').count();
+  console.log('     indent guides drawn:', guides);
+
+  await unmake([buried, second, parent]);
 });
 
 await step('chat: a channel, a message, and a badge that clears', async () => {

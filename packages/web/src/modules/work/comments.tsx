@@ -5,13 +5,19 @@
  * first release; only tasks ever showed one, which made the wiki a shelf
  * rather than a place people talk. The thread is the same thread either way,
  * so it is the same component — the target is one field.
+ *
+ * A comment can be rewritten by whoever wrote it, which is the same affordance
+ * a chat message has had and the same `edited_at` behind it: stamped by the
+ * server, never claimed by a client. The thread is where a decision gets
+ * recorded, and a typo in the sentence that records it had, until now, exactly
+ * two remedies — delete and say it again, or leave it wrong.
  */
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../kernel/i18n/i18n';
 import { relativeTime } from '../../kernel/design-system/format';
-import { comment as postComment, remove } from '../../kernel/sync/mutations';
+import { comment as postComment, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
-import { useCanWrite, useMe, useMemberMap } from '../../kernel/identity/session';
+import { useCanWrite, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { anchorLabel, findAnchor, type Anchor } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -39,8 +45,21 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   const me = useMe();
   const canWrite = useCanWrite();
   const members = useMemberMap();
+  /**
+   * Whether this person may take down a note left from outside.
+   *
+   * A note through a public share link has no account behind it, so "your own"
+   * names nobody — and the server's answer is not "then anybody": it may be
+   * rewritten by no one and deleted by an admin or owner, who can also revoke
+   * the link it came through. That rule needs a button, or it is a rule only
+   * reachable with `curl`.
+   */
+  const { role } = useSession();
+  const runsThis = role === 'owner' || role === 'admin';
   const { confirm, dialog } = useConfirm();
   const [draft, setDraft] = useState('');
+  /** Which comment is open for editing, and the text as it stands. */
+  const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const editor = useRef<HTMLDivElement>(null);
 
   // A selection jumps to the composer: the thing somebody does after choosing a
@@ -52,6 +71,13 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   }, [anchor]);
 
   const key = target.task_id ?? target.page_id;
+
+  // An open editor belongs to the thread it was opened in. The draft below
+  // deliberately survives a trip to another page — somebody who typed it meant
+  // to — but an edit box pointing at a comment that is no longer on screen is
+  // just a box that reopens on the way back.
+  useEffect(() => setEditing(null), [key]);
+
   const comments = useQuery(
     () => list('comment', (entry) => (target.task_id ? entry.task_id === target.task_id : entry.page_id === target.page_id))
       .sort((a, b) => a.created_at - b.created_at),
@@ -64,6 +90,21 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
     postComment(target, body, me, anchor ?? null);
     setDraft('');
     onAnchorDone?.();
+  };
+
+  /**
+   * Commit an edit, or quietly drop one that changed nothing.
+   *
+   * An emptied body is *not* a delete. Deleting is a confirmed action one
+   * button along, and clearing a field by accident — select all, type, undo
+   * badly — should not be the unconfirmed way to reach it.
+   */
+  const saveEdit = () => {
+    if (!editing) return;
+    const body = editing.body.trim();
+    const before = comments.find((entry) => entry.id === editing.id)?.body ?? '';
+    if (body && body !== before) update('comment', editing.id, { body });
+    setEditing(null);
   };
 
   return (
@@ -85,16 +126,34 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                 </span>
                 {guest && <Chip>{t('comment.fromOutside')}</Chip>}
                 <span className="when">{relativeTime(entry.created_at)}</span>
-                {entry.author_id === me && (
-                  <Button variant="ghost" size="sm"
-                    style={{ marginInlineStart: 'auto' }}
-                    aria-label={t('task.deleteCommentLabel')}
-                    onClick={async () => {
-                      if (await confirm(t('task.deleteComment'))) remove('comment', entry.id);
-                    }}
-                  >
-                    <Icon name="trash" size={13} />
-                  </Button>
+                {/* Only that it was, not when: a second timestamp beside the
+                    first reads as two comments, and what anybody actually
+                    wants to know is whether these are still the words that
+                    were replied to. */}
+                {entry.edited_at && <span className="when">· {t('comment.edited')}</span>}
+                {(entry.author_id === me || (guest && runsThis)) && (
+                  <span className="flex items-center gap-0.5" style={{ marginInlineStart: 'auto' }}>
+                    {/* No pencil on a guest's note, whoever is looking: there is
+                        no author to be, and putting words in a stranger's mouth
+                        under the name they typed is worse than leaving it. */}
+                    {entry.author_id === me && (
+                      <Button variant="ghost" size="sm"
+                        aria-label={t('comment.edit')}
+                        title={t('comment.edit')}
+                        onClick={() => setEditing({ id: entry.id, body: entry.body })}
+                      >
+                        <Icon name="pencil" size={13} />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm"
+                      aria-label={t('task.deleteCommentLabel')}
+                      onClick={async () => {
+                        if (await confirm(t('task.deleteComment'))) remove('comment', entry.id);
+                      }}
+                    >
+                      <Icon name="trash" size={13} />
+                    </Button>
+                  </span>
                 )}
               </div>
               {entry.anchor?.quote && (
@@ -109,7 +168,28 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                   )}
                 </button>
               )}
-              <Markdown source={entry.body} />
+              {editing?.id === entry.id ? (
+                <div className="mt-1.5">
+                  {/* The same editor the composer uses, so an edit is typed
+                      the way the comment was — `@` menus, attachments and all. */}
+                  <MarkdownEditor
+                    value={editing.body}
+                    onChange={(body) => setEditing({ id: entry.id, body })}
+                    minHeight={70}
+                    autoFocus
+                    attachTo={target}
+                    onSubmit={saveEdit}
+                  />
+                  <div className="flex items-center gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
+                    <Button variant="ghost" size="sm" onClick={() => setEditing(null)}>{t('action.cancel')}</Button>
+                    <Button variant="primary" size="sm" disabled={!editing.body.trim()} onClick={saveEdit}>
+                      <Icon name="check" size={14} /> {t('action.save')}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Markdown source={entry.body} />
+              )}
               <Reactions kind="comment" id={entry.id} reactions={entry.reactions} canWrite={canWrite}>
                 {canWrite && (
                   <ReactionPicker kind="comment" id={entry.id} reactions={entry.reactions} align="start">

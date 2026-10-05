@@ -15,7 +15,9 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { compareOrder } from '@kolibri/shared';
-import { childrenOf, moveTargets, plotMove, type PageNode } from '../src/modules/pages/pagetree.ts';
+import {
+  ancestorsOf, childrenOf, descendantsOf, moveTargets, plotMove, withAncestors, type PageNode,
+} from '../src/modules/pages/pagetree.ts';
 
 /**
  * A handbook three levels deep.
@@ -182,5 +184,60 @@ describe('the four moves offered in the menu', () => {
 
     const indented = after(pages, 'tooling', plotMove('tooling', targets.in!, 'inside', pages)!);
     assert.deepEqual(idsUnder(indented, 'welcome'), ['tooling']);
+  });
+});
+
+/**
+ * The three questions the tree asks about itself once it can be tidied: what
+ * is under this page, what is it under, and — given a filter — which rows have
+ * to be drawn for a match to be findable at all.
+ */
+describe('reading the shape of the tree', () => {
+  it('takes the whole subtree, level by level', () => {
+    assert.deepEqual(
+      descendantsOf(tree(), 'handbook').map((page) => page.id),
+      ['welcome', 'tooling', 'editors'],
+    );
+  });
+
+  it('does not include the page itself, because callers say “and its sub-pages”', () => {
+    assert.equal(descendantsOf(tree(), 'handbook').some((page) => page.id === 'handbook'), false);
+  });
+
+  it('answers nothing for a leaf and for a page that is not there', () => {
+    assert.deepEqual(descendantsOf(tree(), 'editors'), []);
+    assert.deepEqual(descendantsOf(tree(), 'nowhere'), []);
+  });
+
+  it('walks up to the top, outermost first', () => {
+    assert.deepEqual(ancestorsOf(tree(), 'editors').map((page) => page.id), ['handbook', 'tooling']);
+    assert.deepEqual(ancestorsOf(tree(), 'handbook'), []);
+  });
+
+  it('stops at a parent that is not in the list rather than inventing one', () => {
+    const orphan = [{ id: 'stray', parent_id: 'archived', sort_order: 'a' }];
+    assert.deepEqual(ancestorsOf(orphan, 'stray'), []);
+  });
+
+  it('terminates on both ends of a tree that already loops', () => {
+    const looped: PageNode[] = [
+      { id: 'a', parent_id: 'b', sort_order: 'a' },
+      { id: 'b', parent_id: 'a', sort_order: 'a' },
+    ];
+    assert.equal(descendantsOf(looped, 'a').length <= 2, true);
+    assert.equal(ancestorsOf(looped, 'a').length <= 2, true);
+  });
+
+  it('keeps a match together with the path to it, so the filter still shows where', () => {
+    const keep = withAncestors(tree(), ['editors']);
+    assert.deepEqual([...keep].sort(), ['editors', 'handbook', 'tooling']);
+  });
+
+  it('keeps nothing for no matches, and merges overlapping paths once', () => {
+    assert.equal(withAncestors(tree(), []).size, 0);
+    assert.deepEqual(
+      [...withAncestors(tree(), ['welcome', 'tooling'])].sort(),
+      ['handbook', 'tooling', 'welcome'],
+    );
   });
 });
