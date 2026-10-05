@@ -7,12 +7,13 @@
  */
 
 import {
-  ENTITIES, ENTITY_NAMES, type EntityName, isDoneGroup, type ProjectVocabulary, reconcileReactions, relocate,
+  ENTITIES, ENTITY_NAMES, type EntityName, isDoneGroup, type ProjectVocabulary, relocate,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import {
-  canSeePage, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, wouldLoop, writeEntity, type WriteOpts,
+  canSeePage, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored, wouldLoop, writeEntity,
+  type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
 
 const asId = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -229,42 +230,16 @@ function guardCommentWrite(values: Record<string, unknown>, existing: Row | unde
 /**
  * A comment is written once and then it is somebody's words.
  *
- * `edited_at` is stamped here rather than taken from the client, for the reason
- * `applyMessageInvariants` stamps a message's: "edited" is a claim about this
- * server's clock, and a client that can set it is a client that can deny it.
- * `updated_at` cannot answer the question either — a reaction moves that too,
- * so a comment somebody merely liked would read as rewritten.
+ * Which columns an edit may not touch, and nothing else: the stamping of
+ * `edited_at`, the parsing of a fixed JSON column on the way back to the
+ * client, and the reconciling of the reactions map are `settleAuthored` in the
+ * kernel, shared with the one other entity that is somebody's words. Its
+ * docblock says what the two copies cost.
  *
- * Everything else is fixed. A comment cannot change what it hangs off, who
- * said it, which comment it answers, or which passage it quotes: an edit
- * rewrites the words, not the thing they are about. The anchor is in that list
- * on purpose — moving it would silently reattach somebody else's remark to a
- * sentence they never read.
+ * `anchor` is in the list on purpose: moving it would silently reattach
+ * somebody else's remark to a sentence they never read.
  */
-function applyCommentInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
-  if (!existing) return;
-  for (const fixed of ['task_id', 'page_id', 'parent_id', 'author_id', 'guest_name', 'anchor'] as const) {
-    if (values[fixed] !== undefined && values[fixed] !== existing[fixed]) {
-      values[fixed] = existing[fixed];
-      forced[fixed] = existing[fixed];
-    }
-  }
-  if (values.body !== undefined && String(values.body) !== String(existing.body ?? '')) {
-    values.edited_at = Date.now();
-    forced.edited_at = values.edited_at;
-  }
-  // The same reconciliation a message gets, from the same function: comments
-  // and messages store one shape, and this half of it was only ever applied to
-  // one of them — so a doctored map could clear everybody else's reactions off
-  // a comment while the identical write was refused on a message.
-  if (values.reactions !== undefined && !opts.system) {
-    const settled = JSON.stringify(reconcileReactions(values.reactions, existing.reactions, opts.actorId));
-    if (settled !== values.reactions) {
-      values.reactions = settled;
-      forced.reactions = JSON.parse(settled);
-    }
-  }
-}
+const COMMENT_FIXED = ['task_id', 'page_id', 'parent_id', 'author_id', 'guest_name', 'anchor'] as const;
 
 export const workRules = {
   entities: ['task', 'project', 'comment', 'attachment', 'view', 'field'],
@@ -445,7 +420,7 @@ export const workRules = {
       }
     }
     if (entity === 'task') applyTaskInvariants(values, existing, forced);
-    if (entity === 'comment') applyCommentInvariants(values, existing, forced, opts);
+    if (entity === 'comment' && existing) settleAuthored('comment', values, existing, forced, opts, COMMENT_FIXED);
   },
   effects(entity, row, before, changed, opts) {
     if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);

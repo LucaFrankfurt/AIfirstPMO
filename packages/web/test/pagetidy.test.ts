@@ -51,6 +51,21 @@ describe('a page whose parent is gone', () => {
     // Nothing can be done about it from this screen, so saying so is noise.
     assert.deepEqual(ids(pages, 'detached', { all: pages }), []);
   });
+
+  /**
+   * The case this check shipped without: a parent that was *deleted*.
+   *
+   * The arithmetic was right and the caller was not — `routes/tidy.tsx` built
+   * `all` with `list()`, the one reader that drops tombstones, so the deleted
+   * parent was not a row this function knew and the finding never fired. The
+   * screen's own copy promised "archived, deleted or turned into a template".
+   * A tombstone is a row with `deleted_at` on it, which is what this passes.
+   */
+  it('is reported when the parent is a tombstone rather than a live row', () => {
+    const tombstone = { ...page({ id: 'deleted-chapter' }), deleted_at: NOW - DAY } as TidyPage;
+    const live = [page({ id: 'tooling', parent_id: 'deleted-chapter' })];
+    assert.deepEqual(ids(live, 'detached', { all: [...live, tombstone] }), ['tooling']);
+  });
 });
 
 describe('two pages with one title', () => {
@@ -85,6 +100,28 @@ describe('a page with nothing on it', () => {
 
   it('is reported when its body is empty markup rather than empty text', () => {
     assert.deepEqual(ids([page({ id: 'blank', content: '<p></p>', format: 'html' })], 'empty'), ['blank']);
+  });
+
+  /**
+   * The case that shipped wrong: a page that is all picture and no prose.
+   *
+   * `pageExcerpt` extracts text, so a body of one image reduced to the empty
+   * string and the page was offered under "nothing written yet" on a screen
+   * with Delete in its bar.
+   */
+  it('is not reported when its body is a picture rather than prose', () => {
+    for (const [content, format] of [
+      ['![Architektur](diagram.png)', 'markdown'],
+      ['![](diagram.png)', 'markdown'],
+      ['<p><img src="diagram.png" alt=""></p>', 'html'],
+      ['<figure><img src="a.png"><figcaption></figcaption></figure>', 'html'],
+      ['<iframe src="https://example.com/board"></iframe>', 'html'],
+    ] as const) {
+      assert.deepEqual(
+        ids([page({ id: 'drawn', content, format })], 'empty'), [],
+        `a page whose body is ${JSON.stringify(content)} was called empty`,
+      );
+    }
   });
 
   it('is not reported when it has sub-pages, because then it is a section', () => {
@@ -140,8 +177,10 @@ describe('the whole report', () => {
     const pages = [page({ id: 'bad', title: 'Notes', content: '', updated_at: NOW - 400 * DAY }),
       page({ id: 'bad-too', title: 'notes', content: '', updated_at: NOW - 400 * DAY })];
     const report = tidyPages(pages, { now: NOW });
-    assert.equal(report.pages, 2, 'the number on the button has to be pages, not findings');
-    assert.deepEqual(report.byPage.get('bad')?.sort(), ['duplicate', 'empty', 'isolated', 'stale']);
+    assert.equal(report.pages, 2, 'a page with four things wrong with it is still one page');
+    // In `PROBLEMS` order, not sorted by this assertion: `byPage` feeds a badge,
+    // and the first one shown has to be the one the ordering argument is about.
+    assert.deepEqual(report.byPage.get('bad'), ['duplicate', 'empty', 'isolated', 'stale']);
   });
 
   it('keeps the findings in the order they are worth working through', () => {

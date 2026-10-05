@@ -17,7 +17,7 @@ import { useT } from '../../kernel/i18n/i18n';
 import { relativeTime } from '../../kernel/design-system/format';
 import { comment as postComment, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
-import { useCanWrite, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
+import { useCanWrite, useMe, useMemberMap, useRunsWorkspace } from '../../kernel/identity/session';
 import { anchorLabel, findAnchor, type Anchor } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -53,9 +53,11 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
    * rewritten by no one and deleted by an admin or owner, who can also revoke
    * the link it came through. That rule needs a button, or it is a rule only
    * reachable with `curl`.
+   *
+   * Asked through the hook rather than re-spelled as `role === …`, which is
+   * what `useRunsWorkspace`'s own note is about.
    */
-  const { role } = useSession();
-  const runsThis = role === 'owner' || role === 'admin';
+  const runsThis = useRunsWorkspace();
   const { confirm, dialog } = useConfirm();
   const [draft, setDraft] = useState('');
   /** Which comment is open for editing, and the text as it stands. */

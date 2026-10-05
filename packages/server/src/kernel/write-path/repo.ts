@@ -5,6 +5,7 @@ import {
   findMentions as mentionsIn,
   hlcGreater,
   htmlText,
+  reconcileReactions,
   type CrdtState,
   type EntityName,
 } from '@kolibri/shared';
@@ -886,6 +887,74 @@ export const visibleProjectsSql = (workspace = '?', user = '?'): string => `
      AND (p.visibility = 'public'
           OR EXISTS (SELECT 1 FROM project_members m
                       WHERE m.project_id = p.id AND m.user_id = ${user} AND m.deleted_at IS NULL))`;
+
+/**
+ * A row that is somebody's words, and what an edit to it may change.
+ *
+ * Two entities are this: a chat message and a comment. They have the same three
+ * rules — the body may be rewritten and the rewrite is *stamped*, a short list
+ * of columns is fixed for ever, and a reactions map is reconciled rather than
+ * taken — and they had them as two copies, because the second was written by
+ * reading the first.
+ *
+ * What that cost, in one commit: `edited_at` sat in `fields` on both (so the
+ * stamp a docblock promised was merely *added to* whatever a client sent), and
+ * the parsing of a fixed JSON column existed in the reactions branch of each
+ * copy and in neither of the fixed-field loops — so a refused `anchor` went
+ * back to the client as a raw string where an object is declared. One bug in
+ * both halves, one bug in one half, and no rule here that could have found
+ * either. `CLAUDE.md` says to move the shared thing down; this is it.
+ *
+ * `fixed` is the per-entity part and the only one: which columns an edit may
+ * not touch. Everything else is read off the registry.
+ */
+export function settleAuthored(
+  entity: EntityName,
+  values: Record<string, unknown>,
+  existing: Row,
+  forced: Record<string, unknown>,
+  opts: WriteOpts,
+  fixed: readonly string[],
+): void {
+  for (const field of fixed) {
+    if (values[field] === undefined || values[field] === existing[field]) continue;
+    // `values` takes the stored column; `forced` takes the shape a client
+    // speaks, and for a JSON column those differ. `forced` is applied straight
+    // into the pushing client's own row (`applyChanges` in the web `sync.ts`),
+    // so a raw string there is a string where an object is declared.
+    values[field] = existing[field];
+    forced[field] = isJsonField(entity, field) ? asJson(existing[field]) : existing[field];
+  }
+
+  // Stamped here rather than trusted: "edited" is a claim about this server's
+  // clock, and a client that can set it is a client that can deny it.
+  // `updated_at` cannot answer the question either — a reaction moves that too,
+  // so a row somebody merely liked would read as rewritten.
+  if (values.body !== undefined && String(values.body) !== String(existing.body ?? '')) {
+    values.edited_at = Date.now();
+    forced.edited_at = values.edited_at;
+  }
+
+  // A reaction is your own name in a list beside somebody's words, and only
+  // yours is yours to move — see `reconcileReactions`.
+  if (values.reactions !== undefined && !opts.system) {
+    const settled = JSON.stringify(reconcileReactions(values.reactions, existing.reactions, opts.actorId));
+    if (settled !== values.reactions) {
+      values.reactions = settled;
+      forced.reactions = JSON.parse(settled);
+    }
+  }
+}
+
+/** A stored JSON column as the value a client speaks, or `null` if it cannot be read. */
+const asJson = (raw: unknown): unknown => {
+  if (typeof raw !== 'string') return raw ?? null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+};
 
 /**
  * Whether somebody runs this workspace.

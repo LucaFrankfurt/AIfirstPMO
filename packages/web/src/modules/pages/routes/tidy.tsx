@@ -37,7 +37,7 @@ import { navItem } from '../../../kernel/design-system/ui/nav';
 import { Empty, Icon, useToast } from '../../../kernel/design-system/ui';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { STALE_DAYS, tidyPages, type Problem } from '../tidy';
-import { ancestorsOf } from '../pagetree';
+import { trailsOf } from '../pagetree';
 import { PageBulkBar } from '../page-bulk';
 
 /** What each finding is called, and the consequence that makes it one. */
@@ -65,14 +65,15 @@ const Count = ({ label, value }: { label: string; value: number }) => (
  * text rather than as links, because the row itself is already the way in and
  * a breadcrumb of six links is six things to miss the real one with.
  */
-function TidyRow({ page, pages, order, selection }: {
+function TidyRow({ page, trails, order, selection }: {
   page: Page;
-  pages: Page[];
+  /** Page id → the pages it sits under, built once by the screen. See `trailsOf`. */
+  trails: Map<string, Page[]>;
   order: string[];
   selection: ReturnType<typeof useSelection>;
 }) {
   const t = useT();
-  const trail = ancestorsOf(pages, page.id).map((parent) => parent.title || t('common.untitled'));
+  const trail = (trails.get(page.id) ?? []).map((parent) => parent.title || t('common.untitled'));
   return (
     <div className={`page-row${selection.has(page.id) ? ' selected' : ''}`}>
       <SelectBox id={page.id} order={order} selection={selection} label={page.title || t('common.untitled')} />
@@ -103,31 +104,47 @@ export function PagesTidy() {
     () => list('page', (page) => page.workspace_id === workspaceId && !page.archived && !page.is_template) as Page[],
     [workspaceId],
   );
-  /** The wider list the tree is checked against — see `tidyPages`. */
-  const everything = useQuery(
-    () => list('page', (page) => page.workspace_id === workspaceId) as Page[],
-    [workspaceId],
-  );
-  const templates = useMemo(() => everything.filter((page) => page.is_template && !page.archived), [everything]);
-  const archived = useQuery(
-    () => (list('page', (page) => page.workspace_id === workspaceId && !!page.archived) as Page[])
-      .sort((a, b) => b.updated_at - a.updated_at),
-    [workspaceId],
-  );
   /**
-   * The trash, read through `listAll` — the one reader that does not filter
-   * tombstones out. A deleted row keeps syncing, which is what lets two
-   * devices agree that something is gone, and is also why this list is already
-   * here with no endpoint behind it.
+   * Every page row this device holds, **tombstones included** — the wider list
+   * the tree is checked against, and the three lists below all come off it.
+   *
+   * `listAll` rather than `list`, and that is the fix for a finding this screen
+   * was getting wrong about itself: `list` is the one reader that drops
+   * deleted rows, so a page whose parent had been *deleted* was not reported
+   * as `detached` at all — `tidyPages` asks whether the missing parent is a row
+   * it knows, and a tombstone filtered out before it gets there is not. The
+   * copy on this very screen promises "archived, deleted or turned into a
+   * template", and two of the three were true.
+   *
+   * It is also why the trash list needs no endpoint: a deleted row keeps
+   * syncing, which is what lets two devices agree that something is gone.
    */
-  const deleted = useQuery(
-    () => (listAll('page') as Page[])
-      .filter((page) => page.workspace_id === workspaceId && page.deleted_at)
-      .sort((a, b) => Number(b.deleted_at) - Number(a.deleted_at)),
+  const known = useQuery(
+    () => (listAll('page') as Page[]).filter((page) => page.workspace_id === workspaceId),
     [workspaceId],
+  );
+  const templates = useMemo(
+    () => known.filter((page) => page.is_template && !page.archived && !page.deleted_at),
+    [known],
+  );
+  const archived = useMemo(
+    () => known.filter((page) => !!page.archived && !page.deleted_at).sort((a, b) => b.updated_at - a.updated_at),
+    [known],
+  );
+  const deleted = useMemo(
+    () => known.filter((page) => page.deleted_at).sort((a, b) => Number(b.deleted_at) - Number(a.deleted_at)),
+    [known],
   );
 
-  const report = useMemo(() => tidyPages(pages, { all: everything }), [pages, everything]);
+  const report = useMemo(() => tidyPages(pages, { all: known }), [pages, known]);
+  /**
+   * Where each reported page sits, worked out once for the whole screen.
+   *
+   * A page can be in three findings, so it is three rows, and `ancestorsOf`
+   * rebuilds a map of the wiki on every call — which per row is one map of
+   * every page per row, re-made each time `useMinute` above ticks.
+   */
+  const trails = useMemo(() => trailsOf(pages), [pages]);
 
   // The same reading the search boxes elsewhere do, rather than a lower-cased
   // substring: what is in here is mostly named in German, and a page is looked
@@ -200,7 +217,7 @@ export function PagesTidy() {
                 {problem === 'stale' && <> {t('page.tidyStaleDays')} {t('page.tidyDays', { count: STALE_DAYS })}.</>}
               </p>
               {found.map((page) => (
-                <TidyRow key={`${problem}-${page.id}`} page={page} pages={pages} order={order} selection={selection} />
+                <TidyRow key={`${problem}-${page.id}`} page={page} trails={trails} order={order} selection={selection} />
               ))}
             </section>
           ))

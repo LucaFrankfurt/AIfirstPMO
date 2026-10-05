@@ -56,6 +56,7 @@ const LABELS = {
     comment: 'Comment', editComment: 'Edit this comment', edited: 'edited',
     tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
     archive: 'Archive', duplicateTitles: 'Two pages, one title',
+    bulkOrganise: 'Organise', unarchive: 'Unarchive',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -74,6 +75,7 @@ const LABELS = {
     comment: 'Kommentieren', editComment: 'Diesen Kommentar bearbeiten', edited: 'bearbeitet',
     tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
     archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
+    bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -92,6 +94,7 @@ const LABELS = {
     comment: 'Commenter', editComment: 'Modifier ce commentaire', edited: 'modifié',
     tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
     archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
+    bulkOrganise: 'Ranger', unarchive: 'Désarchiver',
   },
 }[locale];
 
@@ -1048,10 +1051,9 @@ await step('the wiki reports what is untidy, and the tree can be filtered and fo
   // The button carries the count, which is what makes the screen get visited.
   await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
   await closeTour(page);
-  // The number rides inside the button's own text — `navCount` is a utility
-  // class, not a `.count` element, which is a thing this step got wrong once.
-  const onButton = (await page.locator(`button:has-text("${LABELS.tidy}")`).first().innerText()).replace(/\s+/g, ' ');
-  if (!/\d/.test(onButton)) throw new Error(`the tidying button carries no count: "${onButton}"`);
+  // The button is a label and deliberately carries no count — the number it
+  // used to show summed the findings and the archive, which is not what the
+  // screen behind it reports. The counts are asserted on that screen instead.
   await page.locator(`button:has-text("${LABELS.tidy}")`).first().click();
   await page.waitForURL('**/pages/tidy', { timeout: 8000 });
   await page.waitForSelector('.tidy-counts', { timeout: 8000 });
@@ -1059,7 +1061,7 @@ await step('the wiki reports what is untidy, and the tree can be filtered and fo
   const screen = (await page.locator('.tidy-counts').innerText()).replace(/\s+/g, ' ');
   const found = await page.locator(`h3:has-text("${LABELS.duplicateTitles}")`).count();
   if (!found) throw new Error(`the tidying screen does not report the duplicate title it was given: ${screen}`);
-  console.log('     tidying screen:', screen, '· button said', JSON.stringify(onButton));
+  console.log('     tidying screen:', screen);
   await page.screenshot({ path: `${shots}/4b-tidy.png` });
 
   // The filter: a match three levels down, drawn with the pages it sits under.
@@ -1114,6 +1116,68 @@ await step('the wiki reports what is untidy, and the tree can be filtered and fo
   // And the guides, which are what makes depth readable at all.
   const guides = await page.locator('.page-guide').count();
   console.log('     indent guides drawn:', guides);
+
+  /*
+   * And the selection, which is the half no browser had ever touched.
+   *
+   * It had to be added because of what it found: the bulk bar called a
+   * `useMemo` *after* its `if (!selected.length) return null`, so the first
+   * tick of a checkbox ran one hook more than the render before and React
+   * threw the whole screen into the error boundary. Every static check passed,
+   * and so did a walkthrough that filtered, folded and read the findings
+   * without ever pressing Select. So this presses it, ticks a row, and asserts
+   * the bar is actually there — a crash here leaves the error boundary, not a
+   * missing button, and both are the same timeout without the assertion.
+   */
+  await page.locator(`button:has-text("${LABELS.selectPages}")`).first().click();
+  await page.waitForTimeout(250);
+  const boxes = page.locator('.page-row .select-box input');
+  if (!(await boxes.count())) throw new Error('Select pages drew no checkboxes');
+  await boxes.first().click();
+  await page.waitForTimeout(400);
+
+  const bar = page.locator('.selection-bar');
+  if (!(await bar.count())) throw new Error('ticking a page drew no bulk bar — the screen may have crashed');
+  const said = (await bar.innerText()).replace(/\s+/g, ' ');
+  if (!/\d/.test(said)) throw new Error(`the bulk bar does not say how much is selected: "${said}"`);
+  console.log('     bulk bar:', JSON.stringify(said.slice(0, 70)));
+
+  // The menu the crash was hiding: it is built from the `targets` memo that was
+  // on the wrong side of the early return.
+  await bar.locator(`button:has-text("${LABELS.bulkOrganise}")`).first().click();
+  await page.waitForTimeout(300);
+  const offered = await page.locator('[role="menu"] [role="menuitem"], .menu [role="menuitem"]').count();
+  if (!offered) throw new Error('the Organise menu offered nothing');
+  console.log('     organise menu offers:', offered);
+  await page.keyboard.press('Escape');
+
+  // Archive the one page that is selected, and read it back off the screen.
+  await bar.locator(`button:has-text("${LABELS.archive}")`).first().click();
+  await page.waitForTimeout(600);
+  await page.goto(`${base}/pages/tidy`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.tidy-counts', { timeout: 8000 });
+  const counts = (await page.locator('.tidy-counts').innerText()).replace(/\s+/g, ' ');
+  if (!await page.locator(`.page-row button:has-text("${LABELS.unarchive}")`).count()) {
+    throw new Error(`the archived page is not offered back: ${counts}`);
+  }
+  console.log('     archived through the bar, and offered back:', counts);
+
+  /*
+   * And put it back, which is both halves of one point.
+   *
+   * The row ticked above is whichever page the tree draws first — a *seeded*
+   * one, not a fixture — so leaving it archived hands the next walkthrough a
+   * wiki missing a page it clicks by name, and CI runs the German leg against
+   * the instance the English one just walked. It is also the only place
+   * `unarchive` from this screen gets exercised.
+   */
+  await page.locator(`.page-row button:has-text("${LABELS.unarchive}")`).first().click();
+  await page.waitForTimeout(500);
+  if (await page.locator(`.page-row button:has-text("${LABELS.unarchive}")`).count()) {
+    throw new Error('the page came back from the archive and the archive still lists it');
+  }
+  console.log('     and put back');
 
   await unmake([buried, second, parent]);
 });

@@ -14,11 +14,11 @@
  * to prevent.
  */
 
-import { canManageMembers, directMembers, normaliseChannelName, reconcileReactions } from '@kolibri/shared';
+import { canManageMembers, directMembers, normaliseChannelName } from '@kolibri/shared';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import {
-  canSeeChannel, type EntityRule, isWorkspaceAdmin, parseIds, resendUser, type WriteOpts,
+  canSeeChannel, type EntityRule, isWorkspaceAdmin, parseIds, resendUser, settleAuthored, type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
 /**
  * A message belongs where its conversation belongs.
@@ -94,32 +94,14 @@ function applyChannelInvariants(id: string, values: Record<string, unknown>, exi
 /**
  * A message is written once and then it is somebody's words.
  *
- * The body may be edited by its author — that is what `edited_at` records, and
- * it is stamped here rather than trusted, because "edited" is a claim about
- * this server's clock. Everything else about a message is fixed: it cannot
- * change channel, it cannot change who said it, and it cannot change what it
- * answered — an edit rewrites the words, not the conversation around them.
+ * Which columns an edit may not touch, and nothing else — `settleAuthored` in
+ * the kernel does the rest, shared with the one other entity that is somebody's
+ * words. It cannot change channel, it cannot change who said it, and it cannot
+ * change what it answered: an edit rewrites the words, not the conversation
+ * around them.
  */
-function applyMessageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
-  if (!existing) return;
-  for (const fixed of ['channel_id', 'author_id', 'reply_to'] as const) {
-    if (values[fixed] !== undefined && values[fixed] !== existing[fixed]) {
-      values[fixed] = existing[fixed];
-      forced[fixed] = existing[fixed];
-    }
-  }
-  if (values.body !== undefined && String(values.body) !== String(existing.body ?? '')) {
-    values.edited_at = Date.now();
-    forced.edited_at = values.edited_at;
-  }
-  if (values.reactions !== undefined && !opts.system) {
-    const settled = JSON.stringify(reconcileReactions(values.reactions, existing.reactions, opts.actorId));
-    if (settled !== values.reactions) {
-      values.reactions = settled;
-      forced.reactions = JSON.parse(settled);
-    }
-  }
-}
+const MESSAGE_FIXED = ['channel_id', 'author_id', 'reply_to'] as const;
+
 /**
  * Who may change a conversation.
  *
@@ -281,7 +263,7 @@ export const chatRules = {
   },
   invariants(entity, id, values, existing, forced, opts) {
     if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
-    if (entity === 'message') applyMessageInvariants(values, existing, forced, opts);
+    if (entity === 'message' && existing) settleAuthored('message', values, existing, forced, opts, MESSAGE_FIXED);
     if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
   },
   effects(entity, row, before, changed, opts) {

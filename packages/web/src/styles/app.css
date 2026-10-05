@@ -3068,11 +3068,31 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * ever narrowed to make room for it, which is what makes it a different trade
  * rather than the same one with a nicer name.
  */
-.page-with-tree { display: flex; gap: 28px; align-items: flex-start; }
+.page-with-tree {
+  display: flex;
+  gap: 28px;
+  align-items: flex-start;
+  /* Without this the column sat flush against the left edge of the content
+     area at every width where the aside is not drawn — it used to be centred by
+     `mx-auto` on the box that carried the 820px measure, and moving the measure
+     onto the child took that with it. Measured at 1220px: 128px of dead space
+     on the right and the prose 64px left of where it had always been. */
+  justify-content: center;
+}
 .page-reading { flex: 1; min-width: 0; max-width: 820px; }
 .page-aside { display: none; }
 
-@media (min-width: 1280px) {
+/*
+ * 1400px, and the number is the promise rather than a round figure.
+ *
+ * The claim this feature rests on is that the reading column keeps its measure
+ * exactly, so the aside may only exist where there is room for *both*:
+ * 248px sidebar + 24px padding + 244px aside + 28px gap + 820px column + 24px
+ * padding = 1388. It was written as 1280 and not measured, and at 1320px the
+ * column came out **752px** — the aside taking 68px off the prose, which is the
+ * precise trade `PageOutline` refused and this was supposed not to make.
+ */
+@media (min-width: 1400px) {
   .page-aside {
     display: block;
     flex: none;

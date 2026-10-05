@@ -314,6 +314,13 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `edited_at` marked a message nobody had touched, and one carrying a date in the past buried a
       real edit. It is `serverOnly` on both now, which is the line the two docblocks had always
       described. Found by writing the test for comments; true of chat the whole time.
+      **Both halves are one function now.** The comment rules started as a copy of the message
+      rules, and the two findings above are what a copy is for: one was in both halves, and a third
+      — a fixed JSON column handed back to the pushing client as the raw stored string where an
+      object is declared, so an `anchor` correction made the quoted passage vanish from the comment
+      until the next full pull — was in the half that had no counterpart. `settleAuthored` in
+      `write-path/repo.ts` now carries the stamp, the reconcile and the fixed-field loop; each
+      module supplies only the list of columns an edit may not touch.
 - [x] **The wiki can be tidied, and the tree says what it is.** Five findings, each of them a thing
       the tree used to draw a confident wrong answer about rather than merely stay quiet on:
       a page whose parent was archived, deleted or made a template (it reappears at the top level as
@@ -333,6 +340,18 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       bar: archive, delete, label, assign a project, or move the lot under another page. Sub-pages
       are counted and offered as a *named* action rather than cascaded silently — archiving a parent
       and leaving its children live is how the first finding above gets made.
+      **Four things found by reviewing the above.** The bulk bar called a `useMemo` *after* its
+      `if (!selected.length) return null`, so the first tick of a checkbox ran one hook more than
+      the render before and React threw the whole screen into the error boundary — every static
+      check green, and no browser script had ever pressed Select, which is now a step in
+      `smoke.mjs`. The `detached` finding could never fire for a *deleted* parent, because the
+      screen built its comparison list with `list()`, the one reader that drops tombstones, while
+      its own copy promised "archived, deleted or turned into a template". A page whose body is one
+      image read as "nothing written yet", because `pageExcerpt` extracts text — offered under a bar
+      with Delete in it. And the count on the Tidy up button summed the findings *and* the archive
+      while the screen reports the findings alone, over a list already narrowed by the label filter;
+      it is a label now, since getting it right would have meant a third full parse of every page
+      body on the index for a badge.
       **And four things the tree itself was not saying.** A line per level, because indentation
       alone is not a structure and at the third level a reader counts pixels. A count behind a shut
       chevron, because a page with eleven sub-pages and a page with one looked identical closed.
@@ -340,11 +359,20 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       reason the project tree keeps its own: two people fighting over a chevron is what syncing it
       would mean. And a filter that draws each match *with the path to it*, because the answer to
       "where is the leave policy" is the path and not the row.
-- [x] **The tree sits beside the page**, from 1280px, remembered per device. `PageOutline` decided
+- [x] **The tree sits beside the page**, from 1400px, remembered per device. `PageOutline` decided
       the other way about an *outline* and the reasoning still holds — a sticky aside that takes
       width from the reading column is a bad trade — so this takes none: the column keeps its 820px
-      measure exactly, the aside lives in the gutter a wide screen already wastes, and below 1280px
-      it is not rendered at all.
+      measure exactly, the aside lives in the gutter a wide screen already wastes, and below that
+      width it is not rendered at all.
+      **1400 is the promise, and it was written as 1280 and not measured.** 248px of sidebar + 24
+      padding + 244 aside + 28 gap + 820 column + 24 padding is 1388, so at 1320px the column came
+      out **752px** — the aside taking 68px off the prose, which is the exact trade the paragraph
+      above says it does not make. Moving the 820px measure off the centred box and onto the column
+      also left the prose flush against the left edge at every width where the aside is absent:
+      128px of dead space at 1220px, and the line 64px left of where it had always sat. Both
+      measured in a browser at 1100/1220/1279/1320/1399/1400/1440/1500/1600/1920px, where the column
+      is now 820px at every one of them. `check:responsive` looks for overflow, not for alignment,
+      which is why neither showed up in a check.
 - [x] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
       a version *diff*, page templates, the `access` column exposed, and export as a markdown
       bundle (the page and everything under it). PDF is deliberately not built — see below.

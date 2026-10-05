@@ -33,7 +33,7 @@ import { navCount } from '../../kernel/design-system/ui/nav';
 import { chipDot } from '../../kernel/design-system/ui/chip';
 import { Icon, MenuButton, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
 import { descendantsOf } from './pagetree';
-import { movePage } from './page-parts';
+import { movePage, movePageToTop } from './page-parts';
 
 /**
  * The bar that appears once something is selected, fixed above the tab bar
@@ -67,6 +67,41 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
     return [...out.values()];
   }, [selected, pages]);
 
+  /**
+   * What a page may be put under: anything in the tree that is not in the
+   * selection and not under it.
+   *
+   * Filtered here rather than left to `plotMove` to refuse, because a menu
+   * listing twenty pages of which four do nothing is a menu that teaches people
+   * to distrust it.
+   *
+   * Above the early return, and that is not style. Every hook a component calls
+   * has to be called on every render of it, and this one sat *after* the
+   * `if (!selected.length) return null` below: with nothing selected the render
+   * bailed before reaching it, so the first tick of a checkbox ran one hook more
+   * than the render before and React threw `Rendered more hooks than during the
+   * previous render` — the screen, not the bar. Nothing caught it because
+   * nothing in CI had ever selected a page; `smoke.mjs` does now.
+   *
+   * `below` is reused rather than walked again. The barred set is the selection
+   * plus everything under it, which is exactly what `below` already computed —
+   * and `descendantsOf` filters the whole page list per node, so the second
+   * walk was the same quadratic cost a second time on every render.
+   */
+  const targets = useMemo(() => {
+    const barred = new Set<string>(selected.map((page) => page.id));
+    for (const page of below) barred.add(page.id);
+    return pages
+      .filter((page) => !barred.has(page.id))
+      // By title, not by tree position: this is a menu somebody reads down
+      // looking for a name, and the tree order means nothing out of the tree.
+      // Capped because a popover is not a page picker — a wiki past this many
+      // is one where the right gesture is to drag, or to open the page and use
+      // its own Move.
+      .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
+      .slice(0, 40);
+  }, [pages, selected, below]);
+
   if (!selected.length) return null;
 
   const count = selected.length;
@@ -97,51 +132,39 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
   /**
    * Put the selection under one page — or at the top level.
    *
-   * Through `movePage` rather than a bare `parent_id` patch, so each page gets
-   * a `sort_order` between the target's existing children instead of landing
-   * on whatever key it already had. One at a time and in reverse, because each
-   * move is plotted against the tree as it stands after the last: `inside`
-   * appends, so reversing keeps the selection's own order on arrival.
+   * Always through the two move functions in `page-parts.tsx`, never a bare
+   * `parent_id` patch, so each page gets a `sort_order` plotted against where
+   * it is going rather than keeping the key it had among its old siblings. The
+   * top-level branch *was* that bare patch, two lines under a docblock saying
+   * it was not: a page lifted out kept a key chosen relative to pages it no
+   * longer sat with, and `compareOrder` has no way to know that.
    *
-   * A refusal is counted rather than thrown. Moving a branch under its own
+   * One at a time and in reverse, because each move is plotted against the tree
+   * as it stands after the last: both `inside` and the top level append, so
+   * reversing keeps the selection's own order on arrival.
+   *
+   * **Refused is counted; already-there is not.** Moving a branch under its own
    * child is refused by `plotMove`, and in a bulk move that is one page of
-   * several — the rest should still go.
+   * several — the rest should still go, and the toast should say so. A page
+   * already at the top level when the top level is what was asked for is not a
+   * refusal, and counting it as one is how "Top level" on three top-level pages
+   * came to report "0 of 3 moved — the rest would have sat inside themselves",
+   * which is false twice over.
    */
   const moveUnder = (target: Page | null) => {
-    let moved = 0;
+    let refused = 0;
     for (const page of [...selected].reverse()) {
       if (target) {
-        if (movePage(page.id, target.id, 'inside', workspaceId)) moved += 1;
+        if (!movePage(page.id, target.id, 'inside', workspaceId)) refused += 1;
       } else if (page.parent_id) {
-        update('page', page.id, { parent_id: null });
-        moved += 1;
+        if (!movePageToTop(page.id, workspaceId)) refused += 1;
       }
     }
-    toast(moved === count ? done(moved) : t('page.bulkMovedSome', { count: moved, total: count }));
+    toast(refused
+      ? t('page.bulkMovedSome', { count: count - refused, total: count })
+      : done(count));
     selection.clear();
   };
-
-  /**
-   * What a page may be put under: anything in the tree that is not in the
-   * selection and not under it.
-   *
-   * Filtered here rather than left to `plotMove` to refuse, because a menu
-   * listing twenty pages of which four do nothing is a menu that teaches people
-   * to distrust it.
-   */
-  const targets = useMemo(() => {
-    const barred = new Set(selected.map((page) => page.id));
-    for (const page of selected) for (const child of descendantsOf(pages, page.id)) barred.add(child.id);
-    return pages
-      .filter((page) => !barred.has(page.id))
-      // By title, not by tree position: this is a menu somebody reads down
-      // looking for a name, and the tree order means nothing out of the tree.
-      // Capped because a popover is not a page picker — a wiki past this many
-      // is one where the right gesture is to drag, or to open the page and use
-      // its own Move.
-      .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
-      .slice(0, 40);
-  }, [pages, selected]);
 
   const items: MenuItem[] = [
     ...targets.map((page) => ({

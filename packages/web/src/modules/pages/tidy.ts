@@ -76,6 +76,18 @@ export interface Tidied<T> {
 }
 
 /**
+ * Anything that puts something on a page without putting words on it.
+ *
+ * `pageExcerpt` answers "what does this page say", which is the right question
+ * for a preview card and the wrong one on its own here: it extracts *text*, so
+ * a page whose whole body is `![Architektur](diagram.png)` or
+ * `<figure><img …></figure>` reduces to the empty string. Reported as "nothing
+ * written yet" on a screen whose bar offers Archive and Delete, that is a page
+ * holding a real diagram one click from being thrown away as a blank draft.
+ */
+const MEDIA = /!\[[^\]]*\]\([^)]*\)|<\s*(img|svg|video|audio|iframe|embed|object|picture|canvas|table)\b/i;
+
+/**
  * Whether a page has anything on it.
  *
  * `pageExcerpt` rather than `content.trim()`, because both readers of a page
@@ -85,8 +97,11 @@ export interface Tidied<T> {
  * heading also reads as empty, and deliberately is not treated as such — that
  * is a page somebody structured and has not filled, which is the normal first
  * minute of writing one.
+ *
+ * Text *or* media, for the reason above `MEDIA`.
  */
-const isEmpty = (page: TidyPage): boolean => !pageExcerpt(page.content, page.format, 40).trim();
+const isEmpty = (page: TidyPage): boolean =>
+  !pageExcerpt(page.content, page.format, 40).trim() && !MEDIA.test(page.content ?? '');
 
 /**
  * Read the whole wiki and say what is in the way.
@@ -94,9 +109,12 @@ const isEmpty = (page: TidyPage): boolean => !pageExcerpt(page.content, page.for
  * `pages` is what the caller may see and nothing else — the archive, the
  * templates and other people's private pages are left out by whoever reads
  * them out of the store, which keeps the visibility rule in the one place that
- * owns it. `all` is the wider list the tree is checked *against*: a parent that
- * is archived or a template is still a row, and the difference between "my
- * parent was archived" and "my parent was deleted" is not worth two findings.
+ * owns it. `all` is the wider list the tree is checked *against*, and it has to
+ * include **tombstones**: a parent that was archived, deleted or made into a
+ * template is still a row, and the difference between those three is not worth
+ * three findings. Handed a list that a plain `list()` produced, the deleted
+ * case silently never fires — the caller is `routes/tidy.tsx`, and the note
+ * above its `known` says what that cost.
  */
 export function tidyPages<T extends TidyPage>(
   pages: readonly T[],
@@ -153,6 +171,15 @@ export function tidyPages<T extends TidyPage>(
     for (const page of [...same].sort((a, b) => (a.created_at ?? 0) - (b.created_at ?? 0))) {
       note('duplicate', page);
     }
+  }
+
+  // `duplicate` is noted in the second loop above, so a page's own list came
+  // out with it last whatever `PROBLEMS` says — and `byPage` exists to put a
+  // badge on a row, where the first one shown is the one the ordering argument
+  // is about. Sorted here rather than by making the loops agree, because the
+  // grouping *has* to happen after the per-page pass.
+  for (const [id, on] of byPage) {
+    if (on.length > 1) byPage.set(id, [...on].sort((a, b) => PROBLEMS.indexOf(a) - PROBLEMS.indexOf(b)));
   }
 
   return {

@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  formatHtml, htmlOutline, htmlToMarkdown, matchesTerms, outlineOf, pageExcerpt, pageResolver, parseTerms,
-  renderMarkdown, type Anchor, type Page, type PageFormat,
+  formatHtml, htmlOutline, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
+  type Anchor, type Page, type PageFormat,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
@@ -10,10 +10,9 @@ import {
   ACCESS_KEY, PageCover, PageHistory, PageLabelChips, VersionDiff, labelItems, moveItems,
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
-import { withAncestors } from '../pagetree';
+import { pagesMatching } from '../pagetree';
 import { PageTree, foldableIds, usePageFolds } from '../PageTree';
 import { PageBulkBar } from '../page-bulk';
-import { tidyPages } from '../tidy';
 import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
 import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
@@ -32,7 +31,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Input } from '../../../kernel/design-system/ui/field';
 import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
-import { navCount, navItem } from '../../../kernel/design-system/ui/nav';
+import { navItem } from '../../../kernel/design-system/ui/nav';
 import { chipDot } from '../../../kernel/design-system/ui/chip';
 import { useSelection } from '../../../kernel/design-system/selection';
 import { useT } from '../../../kernel/i18n/i18n';
@@ -123,13 +122,12 @@ export function PagesIndex() {
   const me = useMe();
   const navigate = useNavigate();
   const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
-  const everything = useQuery(() => list('page', (p) => p.workspace_id === workspaceId) as Page[], [workspaceId]);
   const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
   const [filter, setFilter] = useState<string>('');
   const [importing, setImporting] = useState(false);
   const canWrite = useCanWrite();
 
-  /**
+  /*
    * The archive is on the tidying screen now, and this is why.
    *
    * It used to be a second mode of this one — a button that swapped the tree
@@ -141,7 +139,6 @@ export function PagesIndex() {
    * how the answer goes stale. So this screen draws the wiki and nothing else,
    * and the button below leads to the one that draws everything it is not.
    */
-  const archived = useMemo(() => everything.filter((page) => !!page.archived), [everything]);
 
   // Templates are kept out of the tree: they are starting points, not content,
   // and a handbook with three half-written templates in it reads as a mess.
@@ -173,36 +170,37 @@ export function PagesIndex() {
   const foldable = useMemo(() => foldableIds(pages), [pages]);
 
   /**
-   * The filter, as a set of ids to draw.
-   *
-   * Matches *plus the path to each of them*, because the answer to "where is
-   * the leave policy" is the path and not the row — see `withAncestors`. The
-   * ancestors are told apart from the matches by being absent from the second
-   * set, which is what lets the tree draw them as scaffolding.
+   * The filter, as a set of ids to draw: matches *plus the path to each of
+   * them*, because the answer to "where is the leave policy" is the path and
+   * not the row. `pagesMatching` is shared with the tree beside a page, so the
+   * two cannot come to disagree about what counts as a match.
    */
-  const { keep, matched } = useMemo(() => {
-    const terms = parseTerms(hunt);
-    if (!terms.length) return { keep: undefined, matched: undefined };
-    const hits = new Set(pages.filter((page) => matchesTerms(page.title || '', terms)).map((page) => page.id));
-    return { keep: withAncestors(pages, hits), matched: hits };
-  }, [pages, hunt]);
-
-  /** How much the tidying screen would have to say. Counted here to put on its button. */
-  const findings = useMemo(
-    () => tidyPages(pages, { all: everything }).pages + archived.length,
-    [pages, everything, archived],
-  );
+  const { keep, matched } = useMemo(() => pagesMatching(pages, hunt), [pages, hunt]);
 
   return (
     <>
       <Header title={t('page.listTitle')}>
-        {/* The way to everything this screen does not draw: the archive, the
-            trash, and what `tidy.ts` found. The count is on the button because
-            a screen nobody visits is a screen that reports nothing. */}
+        {/*
+          * The way to everything this screen does not draw: the archive, the
+          * trash, and what `tidy.ts` found.
+          *
+          * It carried a count, and the count was wrong twice. It summed the
+          * findings *and* the archive while the screen it opens reports the
+          * findings alone and puts the archive in a tile of its own — two
+          * numbers for one thing, which is the one duplication this repository
+          * will not keep. And it was computed over `pages`, already narrowed by
+          * the label filter above, so picking a label made it drop as though
+          * something had been tidied.
+          *
+          * Getting it right would also have meant a third full parse of every
+          * page body on this screen: `tidyPages` builds a `linkGraph`, and
+          * `usePageGraph` and `useUnwritten` below each build one already. For
+          * a badge. So the number lives where it can be checked against what is
+          * under it, and the button is a label.
+          */}
         <Button variant="secondary" size="sm" onClick={() => navigate('/pages/tidy')}>
           <Icon name="archive" size={14} />
           <span className="hide-sm">{t('page.tidy')}</span>
-          {findings > 0 && <span className={navCount}>{findings}</span>}
         </Button>
         {inUse.length > 0 && (
           <MenuButton
@@ -453,12 +451,7 @@ export function PageDetail() {
       localStorage.setItem(TREE_KEY, on ? 'on' : 'off');
     } catch { /* blocked storage — the session still works */ }
   };
-  const { keep, matched } = useMemo(() => {
-    const terms = parseTerms(hunt);
-    if (!terms.length) return { keep: undefined, matched: undefined };
-    const hits = new Set(siblings.filter((p) => matchesTerms(p.title || '', terms)).map((p) => p.id));
-    return { keep: withAncestors(siblings, hits), matched: hits };
-  }, [siblings, hunt]);
+  const { keep, matched } = useMemo(() => pagesMatching(siblings, hunt), [siblings, hunt]);
 
   // The body is a CRDT, so two people typing at once is a merge rather than a
   // race. Everything else on this screen still reads `page.content`, which the
@@ -671,12 +664,13 @@ export function PageDetail() {
           * `PageOutline` above decided the other way about the *outline*, and
           * the reasoning still holds: a sticky aside that takes width from the
           * reading column is a bad trade, because a narrower line of prose is
-          * worse than one extra click. This is not that trade. The column keeps
-          * its 820px measure exactly, the aside lives in the gutter a wide
-          * screen already wastes, and below 1280px it is not there at all — so
-          * nothing is ever narrowed to make room for it. Which is also why it is
-          * navigation and not a second table of contents: moving between pages
-          * is the thing a wiki makes you do twenty times an hour.
+          * worse than one extra click. This is not that trade — the column keeps
+          * its 820px measure exactly and the aside lives in the gutter a wide
+          * screen already wastes. Which width that starts at is the whole of
+          * the promise and is argued in `app.css`, where it was first written
+          * too low and measured afterwards. Also why this is navigation rather
+          * than a second table of contents: moving between pages is the thing a
+          * wiki makes you do twenty times an hour.
           */}
         {aside && (
           <aside className="page-aside" aria-label={t('page.listTitle')}>

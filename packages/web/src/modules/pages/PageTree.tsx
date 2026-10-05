@@ -37,7 +37,7 @@ import { PAGE_DRAG, idFrom, isDrag, startDrag } from '../../kernel/design-system
 import { SelectBox, type Selection } from '../../kernel/design-system/selection';
 import { useSession } from '../../kernel/identity/session';
 import { byId } from '../../kernel/sync/store';
-import type { DropZone } from './pagetree';
+import { familyOf, type DropZone } from './pagetree';
 import { movePage } from './page-parts';
 
 /** Which branches this device has folded. Never synced — see the note above. */
@@ -109,27 +109,6 @@ function zoneAt(event: React.DragEvent, element: HTMLElement): DropZone {
   if (offset < 0.25) return 'before';
   if (offset > 0.75) return 'after';
   return 'inside';
-}
-
-/**
- * One page's children, for every page, built once.
- *
- * `childrenOf` filters and sorts the whole list, which is the right shape for
- * the pure arithmetic in `pagetree.ts` and the wrong one to call per row: a
- * tree of three hundred pages drew ninety thousand comparisons on every
- * keystroke in the filter box. Same order, same sort — `compareOrder`, which is
- * what a fractional index has to be compared with — read from a map instead.
- */
-function familyOf(pages: Page[]): Map<string | null, Page[]> {
-  const kin = new Map<string | null, Page[]>();
-  for (const page of pages) {
-    const at = page.parent_id ?? null;
-    const same = kin.get(at);
-    if (same) same.push(page);
-    else kin.set(at, [page]);
-  }
-  for (const brood of kin.values()) brood.sort((a, b) => compareOrder(a.sort_order ?? '', b.sort_order ?? ''));
-  return kin;
 }
 
 interface Shared {

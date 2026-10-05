@@ -147,6 +147,45 @@ describe('a comment its author rewrites', () => {
     assert.equal(row.author_id, ada.id, 'a comment changed who said it');
     assert.match(String(row.anchor), /about this sentence|Soon\./, `the anchor moved: ${row.anchor}`);
   });
+
+  /**
+   * And the correction comes back in the shape a client speaks.
+   *
+   * `forced` is applied straight into the client's own row by `applyChanges`,
+   * so an `anchor` handed back as the raw stored string put a string where
+   * `Anchor | null` is declared: `entry.anchor?.quote` became undefined and the
+   * quoted passage vanished from the comment until the next full pull. Asked
+   * through the sync push rather than through REST, because that is the door
+   * `forced` goes out of.
+   */
+  it('hands a refused anchor back as an object, not as its stored string', async () => {
+    const made = await comment(ada, {
+      task_id: taskId, body: 'anchored', anchor: { quote: 'Soon.', before: '', after: '' },
+    });
+    const { body } = await call('/api/sync/push', {
+      cookie: ada.cookie,
+      body: {
+        workspaceId: ada.workspace,
+        clientId: 'test-client',
+        mutations: [{
+          id: `m-${Date.now()}`,
+          entity: 'comment',
+          entityId: made.id,
+          op: 'upsert',
+          hlc: `${Date.now()}:0:test-client`,
+          patch: { anchor: { quote: 'something else', before: '', after: '' } },
+        }],
+      },
+    });
+    // `patched` is a ChangeSet, keyed by entity — see `PushResponse` in sync.ts.
+    const patch = (body.patched?.comment ?? []).find((row: any) => row.id === made.id);
+    assert.ok(patch, `the push returned no correction: ${JSON.stringify(body).slice(0, 200)}`);
+    assert.equal(
+      typeof patch.anchor, 'object',
+      `the client was handed ${typeof patch.anchor} for anchor: ${JSON.stringify(patch.anchor)}`,
+    );
+    assert.equal(patch.anchor.quote, 'Soon.', 'the anchor that came back is not the stored one');
+  });
 });
 
 describe('a comment somebody else wrote', () => {

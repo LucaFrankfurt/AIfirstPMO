@@ -195,6 +195,22 @@ export function useMemberMap(): Map<string, User> {
  * should not have to import one another to find out. See `docs/modules.md`.
  */
 export function useSeesMoney(): boolean {
+  return useRunsWorkspace();
+}
+
+/**
+ * Whether this person runs the workspace: an owner or an admin.
+ *
+ * The one spelling of it on the client, for the reason `useCanWrite` above is
+ * the one spelling of "may write": this test was written out in `useSeesMoney`
+ * and again on the comment thread, where it decides who may take down a note
+ * left through a public share link. A third call site is where a rule starts
+ * being spelled differently — and when the role set grows, the money screens
+ * and the comment bin would answer differently about who runs a workspace.
+ * `isWorkspaceAdmin` in `write-path/repo.ts` is its counterpart on the server,
+ * which is the half that actually refuses.
+ */
+export function useRunsWorkspace(): boolean {
   const { role } = useSession();
   return role === 'owner' || role === 'admin';
 }
