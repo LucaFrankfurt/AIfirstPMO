@@ -25,6 +25,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { matchesTerms, parseTerms, type Page } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
+import { cn } from '../../../kernel/design-system/cn';
 import { relativeTime } from '../../../kernel/design-system/format';
 import { restore, update } from '../../../kernel/sync/mutations';
 import { list, listAll, useQuery } from '../../../kernel/sync/store';
@@ -77,7 +78,7 @@ function TidyRow({ page, trails, order, selection }: {
   return (
     <div className={`page-row${selection.has(page.id) ? ' selected' : ''}`}>
       <SelectBox id={page.id} order={order} selection={selection} label={page.title || t('common.untitled')} />
-      <Link to={`/pages/${page.id}`} className={navItem()}>
+      <Link to={`/pages/${page.id}`} className={cn(navItem(), 'page-row-main')}>
         <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
         <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
         {trail.length > 0 && <span className="tidy-where hide-sm">{trail.join(' › ')}</span>}
@@ -234,7 +235,7 @@ export function PagesTidy() {
             ? <p className="text-muted text-[12.5px]">{t('page.tidyArchiveEmpty')}</p>
             : archived.map((page) => (
               <div className="page-row" key={page.id}>
-                <Link to={`/pages/${page.id}`} className={navItem()}>
+                <Link to={`/pages/${page.id}`} className={cn(navItem(), 'page-row-main')}>
                   <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
                   <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
                   <span className="text-[11.5px] text-muted hide-sm">
@@ -260,7 +261,7 @@ export function PagesTidy() {
                 {/* Not a link: following one would open a page that is not
                     there and land on the wiki's own "deleted page" screen,
                     which is a dead end two clicks from the way back. */}
-                <span className={navItem()}>
+                <span className={cn(navItem(), 'page-row-main')}>
                   <span style={{ width: 16 }}>{page.icon ?? '📄'}</span>
                   <span className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</span>
                   <span className="text-[11.5px] text-muted hide-sm">

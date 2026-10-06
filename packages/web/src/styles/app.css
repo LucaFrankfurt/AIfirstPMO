@@ -3028,6 +3028,20 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .page-row[draggable='true']:active { cursor: grabbing; }
 .page-row.selected { background: var(--accent-soft); }
 
+/*
+ * The row's own control takes the space the rest of the row leaves.
+ *
+ * `navItem()` carries `w-full`, which is 100% of the row — correct where it is
+ * the only child, and 100% *plus* the guides, the chevron and the checkbox
+ * here. Measured in the aside at 1600px: a row two levels deep wanted 293px of
+ * a 240px column, over by exactly 2×13 of guide and 27 of chevron, and the
+ * title truncated at the right width while the row overflowed around it. The
+ * fix is not a narrower title: `flex: 1 1 0` replaces that 100% basis with
+ * "whatever is left", which is what the control actually wants, at any depth
+ * and in any width of container.
+ */
+.page-row-main { flex: 1 1 0; min-width: 0; }
+
 /* A page row is deliberately absent from the two `.select-box.idle` rules
    above, which name task rows only. A tree draws no checkboxes at all until
    somebody presses Select, so that mode *is* the reveal — fading them in on
@@ -3100,6 +3114,18 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
     position: sticky;
     top: 8px;
     max-height: calc(100vh - 120px);
+    /*
+     * Both axes, and `hidden` is not belt-and-braces.
+     *
+     * `overflow-y: auto` on its own does not leave the other axis alone: CSS
+     * computes `visible` to `auto` as soon as its partner is anything else, so
+     * this box asked for a *horizontal* scrollbar nobody wrote and got one the
+     * moment a row overflowed. A tree is navigation and every title truncates
+     * by design, so there is nothing to reach by scrolling sideways — saying so
+     * here means the next overflow shows up as a clipped title in a review
+     * rather than as a scrollbar under the tree.
+     */
+    overflow-x: hidden;
     overflow-y: auto;
     padding-inline-end: 4px;
     font-size: 13px;
