@@ -141,6 +141,43 @@ describe('what the server will not take on trust', () => {
 
 /* ------------------------------------------------- current against future */
 
+/**
+ * The four days this estate is described on, computed rather than written.
+ *
+ * They were literals — `2026-09-30` for the cutover, `2026-06-01` and
+ * `2026-12-01` for the two days either side of it — and on 1 October 2026 the
+ * suite went red on `main` with nobody having touched it. The move test asserts
+ * that a component *claimed* done disagrees with the register "because today is
+ * before the cutover", and the cutover had become last week.
+ *
+ * The relationships are what the tests are about, so those are what is written
+ * down: the old database leaves at `CUTOVER`, which is in the future; the new
+ * one arrives a month before that; `BEFORE` is a day when only the old one is
+ * live and `AFTER` a day when only the new one is. Everything else keeps its
+ * literal, because nothing else here is relative to now — a component live from
+ * `2024-01-01` is just "has been there a while".
+ *
+ * Anchored to the 15th so no month-length edge case can reorder them: adding
+ * three months to the 31st lands on the 1st, and two days that cross in a leap
+ * year would be a failure nobody could read.
+ */
+const monthsOut = (months: number): string => {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + months, 15))
+    .toISOString()
+    .slice(0, 10);
+};
+/** The day the old database goes and the move is due. In the future, which is the point. */
+const CUTOVER = monthsOut(3);
+/** The new one arrives before the old one leaves, as a real migration does. */
+const ARRIVES = monthsOut(2);
+/** A day when the old one is live and the new one is not. */
+const BEFORE = monthsOut(-3);
+/** A day when the old one is gone and the new one is running. */
+const AFTER = monthsOut(9);
+/** Far enough out that a planned component with no date is still undated. */
+const FAR = monthsOut(21);
+
 describe('a landscape is a date', () => {
   let oldDb = '';
   let newDb = '';
@@ -155,11 +192,11 @@ describe('a landscape is a date', () => {
     });
     oldDb = (await component({
       name: 'postgres-legacy', kind: 'database', parent_id: host.id, amount: 80000,
-      recurrence: 'monthly', status: 'retiring', live_from: '2024-01-01', live_until: '2026-09-30',
+      recurrence: 'monthly', status: 'retiring', live_from: '2024-01-01', live_until: CUTOVER,
     })).id;
     newDb = (await component({
       name: 'managed-postgres', kind: 'database', amount: 95000, recurrence: 'monthly',
-      status: 'planned', live_from: '2026-09-01',
+      status: 'planned', live_from: ARRIVES,
     })).id;
     await component({ name: 'someday-cdn', kind: 'service', status: 'planned', amount: 20000 });
     await component({ name: 'the rack', kind: 'server', amount: 1200000, recurrence: 'once', live_from: '2024-01-01' });
@@ -167,16 +204,16 @@ describe('a landscape is a date', () => {
   });
 
   it('answers two different days from the same rows', async () => {
-    const now = await tool('landscape', { from: '2026-06-01', to: '2026-06-01' });
+    const now = await tool('landscape', { from: BEFORE, to: BEFORE });
     assert.ok(now.leaving.length === 0 && now.arriving.length === 0);
 
-    const future = await tool('landscape', { from: '2026-06-01', to: '2026-12-01' });
+    const future = await tool('landscape', { from: BEFORE, to: AFTER });
     assert.deepEqual(future.leaving.map((row: any) => row.name), ['postgres-legacy']);
     assert.deepEqual(future.arriving.map((row: any) => row.name), ['managed-postgres']);
   });
 
   it('states what the difference costs a year', async () => {
-    const future = await tool('landscape', { from: '2026-06-01', to: '2026-12-01' });
+    const future = await tool('landscape', { from: BEFORE, to: AFTER });
     // 950 arrives, 800 goes: 150 a month, 1800 a year, more expensive.
     assert.equal(future.annual_delta[0].amount, 180_000);
   });
@@ -184,38 +221,38 @@ describe('a landscape is a date', () => {
   it('keeps a one-off purchase out of the run rate', async () => {
     // A year in which somebody bought a rack is not a year in which the estate
     // got permanently more expensive.
-    const now = await tool('landscape', { from: '2026-06-01' });
+    const now = await tool('landscape', { from: BEFORE });
     assert.equal(now.now.annual_cost[0].amount, (400_00 + 800_00) * 12);
     assert.ok(now.now.one_off_cost[0].amount === 1_200_000);
   });
 
   it('counts what nobody has priced instead of calling it free', async () => {
-    const now = await tool('landscape', { from: '2026-06-01' });
+    const now = await tool('landscape', { from: BEFORE });
     assert.equal(now.now.unpriced, 1);
   });
 
   it('reports a planned component with no date rather than hiding it', async () => {
     // It is in no landscape at all — present or future — and a register that
     // silently left it out of both would stop describing the plan.
-    const future = await tool('landscape', { from: '2026-06-01', to: '2027-06-01' });
+    const future = await tool('landscape', { from: BEFORE, to: FAR });
     assert.deepEqual(future.undated.map((row: any) => row.name), ['someday-cdn']);
     assert.ok(!future.arriving.some((row: any) => row.name === 'someday-cdn'));
   });
 
   it('lists only what is running on a day when asked to', async () => {
-    const june = await tool('list_components', { on: '2026-06-01' });
-    const names = june.components.map((row: any) => row.name);
+    const before = await tool('list_components', { on: BEFORE });
+    const names = before.components.map((row: any) => row.name);
     assert.ok(names.includes('postgres-legacy'));
     assert.ok(!names.includes('managed-postgres'));
 
-    const december = await tool('list_components', { on: '2026-12-01' });
-    const later = december.components.map((row: any) => row.name);
+    const after = await tool('list_components', { on: AFTER });
+    const later = after.components.map((row: any) => row.name);
     assert.ok(!later.includes('postgres-legacy'));
     assert.ok(later.includes('managed-postgres'));
   });
 
   it('says which machine an instance is on', async () => {
-    const listed = await tool('list_components', { on: '2026-06-01' });
+    const listed = await tool('list_components', { on: BEFORE });
     const legacy = listed.components.find((row: any) => row.name === 'postgres-legacy');
     assert.equal(legacy.parent, 'db-01');
   });
@@ -226,11 +263,12 @@ describe('a landscape is a date', () => {
     await tool('plan_move', {
       name: 'Managed Postgres', status: 'done',
       leaving: ['postgres-legacy'], arriving: ['managed-postgres'],
-      target_date: '2026-09-30', project: 'WEB',
+      target_date: CUTOVER, project: 'WEB',
     });
     const moves = await tool('list_moves');
     const move = moves.moves.find((row: any) => row.name === 'Managed Postgres');
-    // Claimed done; today is before the cutover, so the register disagrees.
+    // Claimed done; today is before `CUTOVER`, so the register disagrees. That
+    // the cutover is in the future is computed rather than written — see `monthsOut`.
     assert.equal(move.disagrees_with_the_register, true);
     assert.ok(move.done_share < 1);
     assert.deepEqual(move.leaving, ['postgres-legacy']);

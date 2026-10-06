@@ -15,7 +15,7 @@ import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { byOrder, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery } from '../../kernel/sync/store';
-import { moveTargets, plotMove, type DropZone } from './pagetree';
+import { moveTargets, plotMove, plotToTop, type DropZone } from './pagetree';
 import { pull } from '../../kernel/sync/sync';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
@@ -204,6 +204,21 @@ const movable = (workspaceId: string): Page[] =>
  */
 export function movePage(pageId: string, targetId: string, zone: DropZone, workspaceId: string): boolean {
   const patch = plotMove(pageId, targetId, zone, movable(workspaceId));
+  if (!patch) return false;
+  update('page', pageId, patch);
+  return true;
+}
+
+/**
+ * Lift a page out of the tree to the top level, and say whether it went.
+ *
+ * Beside `movePage` and through the same `movable()` list, so "which pages a
+ * move is worked out against" stays one answer. `false` means there was
+ * nothing to do — the page is already at the top level, or it is not in the
+ * list at all — which the caller counts differently from a refusal.
+ */
+export function movePageToTop(pageId: string, workspaceId: string): boolean {
+  const patch = plotToTop(pageId, movable(workspaceId));
   if (!patch) return false;
   update('page', pageId, patch);
   return true;

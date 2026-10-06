@@ -1101,6 +1101,14 @@ export interface Comment extends Base {
    * wrong the moment somebody types a word above it. See `anchor.ts`.
    */
   anchor: Anchor | null;
+  /**
+   * Stamped by the server when the body changes, never taken from a client.
+   *
+   * The same column a message carries, for the same reason: "edited" is a claim
+   * about this server's clock, and a comment that can be rewritten has to say
+   * that it was. `updated_at` cannot answer it — a reaction moves that too.
+   */
+  edited_at: number | null;
 }
 
 export interface Attachment extends Base {

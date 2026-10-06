@@ -15,7 +15,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { compareOrder } from '@kolibri/shared';
-import { childrenOf, moveTargets, plotMove, type PageNode } from '../src/modules/pages/pagetree.ts';
+import {
+  ancestorsOf, childrenOf, descendantsOf, moveTargets, pagesMatching, plotMove, plotToTop, trailsOf,
+  withAncestors, type PageNode,
+} from '../src/modules/pages/pagetree.ts';
 
 /**
  * A handbook three levels deep.
@@ -182,5 +185,167 @@ describe('the four moves offered in the menu', () => {
 
     const indented = after(pages, 'tooling', plotMove('tooling', targets.in!, 'inside', pages)!);
     assert.deepEqual(idsUnder(indented, 'welcome'), ['tooling']);
+  });
+});
+
+/**
+ * The three questions the tree asks about itself once it can be tidied: what
+ * is under this page, what is it under, and — given a filter — which rows have
+ * to be drawn for a match to be findable at all.
+ */
+describe('reading the shape of the tree', () => {
+  it('takes the whole subtree, level by level', () => {
+    assert.deepEqual(
+      descendantsOf(tree(), 'handbook').map((page) => page.id),
+      ['welcome', 'tooling', 'editors'],
+    );
+  });
+
+  it('does not include the page itself, because callers say “and its sub-pages”', () => {
+    assert.equal(descendantsOf(tree(), 'handbook').some((page) => page.id === 'handbook'), false);
+  });
+
+  it('answers nothing for a leaf and for a page that is not there', () => {
+    assert.deepEqual(descendantsOf(tree(), 'editors'), []);
+    assert.deepEqual(descendantsOf(tree(), 'nowhere'), []);
+  });
+
+  it('walks up to the top, outermost first', () => {
+    assert.deepEqual(ancestorsOf(tree(), 'editors').map((page) => page.id), ['handbook', 'tooling']);
+    assert.deepEqual(ancestorsOf(tree(), 'handbook'), []);
+  });
+
+  it('stops at a parent that is not in the list rather than inventing one', () => {
+    const orphan = [{ id: 'stray', parent_id: 'archived', sort_order: 'a' }];
+    assert.deepEqual(ancestorsOf(orphan, 'stray'), []);
+  });
+
+  it('terminates on both ends of a tree that already loops', () => {
+    const looped: PageNode[] = [
+      { id: 'a', parent_id: 'b', sort_order: 'a' },
+      { id: 'b', parent_id: 'a', sort_order: 'a' },
+    ];
+    assert.equal(descendantsOf(looped, 'a').length <= 2, true);
+    assert.equal(ancestorsOf(looped, 'a').length <= 2, true);
+  });
+
+  it('keeps a match together with the path to it, so the filter still shows where', () => {
+    const keep = withAncestors(tree(), ['editors']);
+    assert.deepEqual([...keep].sort(), ['editors', 'handbook', 'tooling']);
+  });
+
+  it('keeps nothing for no matches, and merges overlapping paths once', () => {
+    assert.equal(withAncestors(tree(), []).size, 0);
+    assert.deepEqual(
+      [...withAncestors(tree(), ['welcome', 'tooling'])].sort(),
+      ['handbook', 'tooling', 'welcome'],
+    );
+  });
+});
+
+/**
+ * Lifting a page out of the tree.
+ *
+ * The bulk bar used to do this with a bare `{ parent_id: null }` patch, so the
+ * page kept a `sort_order` chosen among siblings it no longer sat with. These
+ * are the two answers that replaces: a key after the current last root, and
+ * "nothing to do" for a page that is already there.
+ */
+describe('lifting a page to the top level', () => {
+  it('lands after the last page already at the top', () => {
+    const patch = plotToTop('editors', tree());
+    assert.ok(patch);
+    assert.equal(patch.parent_id, null);
+    // After `policies`, which is the last root in the fixture.
+    assert.equal(compareOrder(patch.sort_order, 'c') > 0, true);
+  });
+
+  it('answers nothing for a page that is already at the top level', () => {
+    assert.equal(plotToTop('handbook', tree()), null);
+  });
+
+  it('answers nothing for a page that is not in the list', () => {
+    assert.equal(plotToTop('nowhere', tree()), null);
+  });
+
+  it('does not order itself against itself', () => {
+    // A single child of a single root: once lifted there is one root to follow,
+    // and it must not be the page being moved.
+    const small: PageNode[] = [
+      { id: 'top', parent_id: null, sort_order: 'm' },
+      { id: 'child', parent_id: 'top', sort_order: 'm' },
+    ];
+    const patch = plotToTop('child', small);
+    assert.ok(patch);
+    assert.equal(compareOrder(patch.sort_order, 'm') > 0, true);
+  });
+});
+
+/**
+ * The filter both trees run.
+ *
+ * It was five identical lines in each of the two components, which is how two
+ * trees come to disagree about what counts as a match — the one thing they have
+ * to agree about.
+ */
+describe('filtering the tree by what somebody typed', () => {
+  // `PageNode` is the least a *move* needs and carries no title, which is why
+  // `pagesMatching` widens it rather than the other way round.
+  const named = (): (PageNode & { title: string })[] => [
+    { id: 'handbook', parent_id: null, sort_order: 'a', title: 'Handbook' },
+    { id: 'tooling', parent_id: 'handbook', sort_order: 'a', title: 'Tooling' },
+    { id: 'editors', parent_id: 'tooling', sort_order: 'a', title: 'Editors we use' },
+    { id: 'leave', parent_id: null, sort_order: 'b', title: 'Leave policy' },
+  ];
+
+  it('keeps a deep match together with the path to it', () => {
+    const { keep, matched } = pagesMatching(named(), 'editors');
+    assert.deepEqual([...matched!].sort(), ['editors']);
+    assert.deepEqual([...keep!].sort(), ['editors', 'handbook', 'tooling']);
+  });
+
+  it('answers “no filter” for an empty box rather than “everything”', () => {
+    // `PageTree` reads `undefined` as "not filtering", which is what keeps a
+    // cleared box from overriding the folds.
+    assert.deepEqual(pagesMatching(named(), '   '), { keep: undefined, matched: undefined });
+  });
+
+  it('answers an empty keep for a word nothing is called', () => {
+    const { keep, matched } = pagesMatching(named(), 'zzz');
+    assert.equal(keep!.size, 0);
+    assert.equal(matched!.size, 0);
+  });
+
+  it('reads the way the search boxes do, not as a lowercased substring', () => {
+    // Two words, in either order, and neither of them adjacent in the title.
+    assert.deepEqual([...pagesMatching(named(), 'use editors').matched!], ['editors']);
+  });
+});
+
+/** Every page's path, built once rather than per row. */
+describe('trails for the whole tree', () => {
+  it('gives each page the same answer `ancestorsOf` gives it', () => {
+    const trails = trailsOf(tree());
+    for (const page of tree()) {
+      assert.deepEqual(
+        trails.get(page.id)?.map((one) => one.id),
+        ancestorsOf(tree(), page.id).map((one) => one.id),
+        `trail for ${page.id}`,
+      );
+    }
+  });
+
+  it('terminates on a tree that already loops', () => {
+    const looped: PageNode[] = [
+      { id: 'a', parent_id: 'b', sort_order: 'a' },
+      { id: 'b', parent_id: 'a', sort_order: 'a' },
+    ];
+    const trails = trailsOf(looped);
+    assert.equal(trails.size, 2);
+    for (const trail of trails.values()) assert.equal(trail.length <= 2, true);
+  });
+
+  it('stops at a parent that is not in the list', () => {
+    assert.deepEqual(trailsOf([{ id: 'stray', parent_id: 'gone', sort_order: 'a' }]).get('stray'), []);
   });
 });

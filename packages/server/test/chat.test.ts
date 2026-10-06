@@ -207,6 +207,26 @@ describe('saying something', () => {
     assert.ok(Number(edited.edited_at) > 0);
   });
 
+  /**
+   * The docblock above `applyMessageInvariants` has always said `edited_at` is
+   * stamped rather than trusted. It was not: the column sat in the entity's
+   * `fields`, which is last-writer-wins and therefore the client's, so the
+   * stamp was only applied *in addition to* whatever a client sent. Found on
+   * comments, which were being given the same rule, and true here the whole
+   * time.
+   */
+  it('does not take the client’s word for when it was edited', async () => {
+    const message = await post(people.ada, 'messages', { channel_id: channel, body: 'untouched' });
+    await as(people.ada, `/api/messages/${message.id}`, { edited_at: Date.now() }, 'PATCH');
+    assert.equal(
+      get<any>(`SELECT edited_at FROM messages WHERE id = ?`, message.id)!.edited_at, null,
+      'a message claimed to have been edited without anybody editing it',
+    );
+
+    const real = await as(people.ada, `/api/messages/${message.id}`, { body: 'touched', edited_at: 1 }, 'PATCH');
+    assert.ok(Number(real.edited_at) > 1_600_000_000_000, `a client buried a real edit: ${real.edited_at}`);
+  });
+
   it('cannot be edited by anybody else', async () => {
     const message = await post(people.ada, 'messages', { channel_id: channel, body: 'mine' });
     const result = await raw(people.lin, `/api/messages/${message.id}`, { body: 'yours' }, 'PATCH');

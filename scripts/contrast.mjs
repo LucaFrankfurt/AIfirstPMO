@@ -167,7 +167,7 @@ for (const [label, options] of MODES) {
    * the colours worth reading — a muted host, a status pill, a placeholder —
    * are inside it rather than on the summary line above.
    */
-  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search?q=design', '/chat', '/pages', '/teams', '/planner',
+  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search?q=design', '/chat', '/pages', '/pages/tidy', '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
     '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/decisions', '/secrets',
     // Behind the products switch, and reached only because the fixture above

@@ -21,7 +21,7 @@ import { setFieldValue, useFields } from './fields';
 import { Avatar, AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from '../../kernel/design-system/ui';
 import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
-import { SelectBox, type Selection } from './selection';
+import { SelectBox, type Selection } from '../../kernel/design-system/selection';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input } from '../../kernel/design-system/ui/field';
 import { buttonVariants } from '../../kernel/design-system/ui/button';

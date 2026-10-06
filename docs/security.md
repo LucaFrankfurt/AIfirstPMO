@@ -41,6 +41,25 @@ Three questions, asked in this order, in `lib/auth.ts` and `lib/repo.ts`:
    the page body, in a browser cache and in an access log — so nothing may rest on nobody having it.
    `GET /files/:hash/*`, the pull filter and MCP all defer to that one function now.
 
+A comment's body is its author's. It was not: `body` was an ordinary synced field with no rule on
+it, so `PATCH /api/comments/:id` rewrote a colleague's sentence under the colleague's name and
+`DELETE` removed it, for any member who could see the task. The matching rule for a chat message had
+been in `chat/rules/chat.ts` since messages became editable; comments were the half nobody had asked
+about, because no screen offered the pencil and the screens were not the only way in. A reaction
+stays allowed, and is the reason the carve-out needed checking too: comments were also the half of
+the pair whose `reactions` map was not reconciled, so a doctored map could clear everybody else's
+reactions off a comment while the identical write was refused on a message. One function in
+`shared/modules/work/reactions.ts` answers for both now. A note left through a public share link has
+no account behind it, so "only the author" names nobody — it is rewritable by no one and deletable by
+an admin or owner, who can also revoke the link.
+
+`edited_at` was the client's to claim, on comments and messages both, which is the quieter half of
+the same finding. The docblock had said "stamped here rather than trusted" for as long as the stamp
+existed; the column sat in the entity's `fields`, which is last-writer-wins and therefore the
+client's, so the server's stamp was applied *in addition to* whatever arrived. A `PATCH` carrying
+nothing but `edited_at` marked a message nobody had edited, and one carrying a date in the past
+buried a real edit. It is `serverOnly` on both now.
+
 A row may only reference rows in its own workspace. `parent_id`, `project_id`, `state_id` and the
 rest are checked at the write in `guardReferences` — not because a dangling reference is dangerous
 in itself, but because a shared page renders its children, and without the check anybody with an
@@ -186,8 +205,13 @@ recognising again.
 | Injection | Outgoing webhooks and push endpoints went straight to `fetch` | SSRF, in the two places a URL is user-supplied |
 | Request parsing | A malformed escape in a path parameter or a path for the web build, or a `Host` of `[`, ended the process — one request, signed in or not | A `catch` that began after the first line that could throw |
 | Deploy | The address validator refused `kolibri@localhost` — this project's own default sender | Validation that drifted from "is this safe" into "is this tidy" |
+| Feature work | A comment's `body` had no rule on it, so any member who could see the task could rewrite or delete somebody else's words; `edited_at` was writable by the client that was meant to be unable to claim it | A rule written for one of two entities that store the same shape — and a docblock describing a guarantee nothing enforced |
 
-The last one is the most useful of the nine. It was introduced *by* a security fix, it broke a
+Nine of those came out of a review; the last came out of putting a pencil on a comment, which is
+worth its own line: the rule was missing for as long as nothing in the interface asked for it, and
+the thing that found it was somebody finally asking.
+
+The deploy one is the most useful of the ten. It was introduced *by* a security fix, it broke a
 working deployment, and the test suite stayed green because every test used an address invented for
 the test rather than the one the project ships. There are now two guards against exactly that: the
 SMTP suite runs against the shipped default, and a check reads the `KOLIBRI_MAIL_FROM` fallback out

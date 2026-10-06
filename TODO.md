@@ -288,6 +288,91 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       sentence is worse than one that says the sentence it was about is gone. Anchored passages are
       underlined in the page and painted onto the rendering after the fact, because a highlight is a
       view of a comment rather than part of the document.
+- [x] **A comment can be rewritten by whoever left it**, and says that it was. `edited_at` is the
+      server's, stamped when the body changes — `updated_at` cannot answer the question, because a
+      reaction moves that too. The affordance is the one chat messages have had; what was missing
+      was the *rule* behind it, and the rule is why this entry is longer than the feature.
+      **Nothing guarded a comment's body at all.** It was an ordinary synced field, so
+      `PATCH /api/comments/<id>` rewrote a colleague's sentence under the colleague's name, and
+      `DELETE` removed it, for any member who could see the task. Nothing in the interface offered
+      either — the screen only ever showed the author a pencil — which is exactly what kept it open
+      for as long as it was: the hole was invisible from every screen and reachable from every
+      client. `comment-edit.test.ts` asks through the door that was wrong rather than through the
+      function.
+      **A reaction stayed allowed, and became the thing worth checking.** Your own name in a list
+      beside somebody's words is not a change to them, so a non-author may still write `reactions` —
+      and comments were the half of that pair nobody reconciled. A doctored map could clear
+      everybody else's reactions off a comment while the identical write was refused on a message.
+      `reconcileReactions` is in `shared/modules/work/reactions.ts` now and both rules call it.
+      **A note left through a public share link is nobody's to rewrite.** It has no account behind
+      it, so "only the author" names nobody — and the answer is not "then anybody". It can be
+      deleted by an admin or owner, who can also revoke the link, and rewritten by no one.
+      **`edited_at` was the client's to claim, on comments and on messages both.** The docblock in
+      `chat.ts` had said "stamped here rather than trusted" since messages became editable; the
+      column sat in the entity's `fields`, which is last-writer-wins and therefore the client's, so
+      the stamp was applied *in addition to* whatever arrived. A `PATCH` carrying nothing but
+      `edited_at` marked a message nobody had touched, and one carrying a date in the past buried a
+      real edit. It is `serverOnly` on both now, which is the line the two docblocks had always
+      described. Found by writing the test for comments; true of chat the whole time.
+      **Both halves are one function now.** The comment rules started as a copy of the message
+      rules, and the two findings above are what a copy is for: one was in both halves, and a third
+      — a fixed JSON column handed back to the pushing client as the raw stored string where an
+      object is declared, so an `anchor` correction made the quoted passage vanish from the comment
+      until the next full pull — was in the half that had no counterpart. `settleAuthored` in
+      `write-path/repo.ts` now carries the stamp, the reconcile and the fixed-field loop; each
+      module supplies only the list of columns an edit may not touch.
+- [x] **The wiki can be tidied, and the tree says what it is.** Five findings, each of them a thing
+      the tree used to draw a confident wrong answer about rather than merely stay quiet on:
+      a page whose parent was archived, deleted or made a template (it reappears at the top level as
+      though somebody put it there); two pages answering to one title (a `[[link]]` resolves to
+      whichever was written first, so every link meant for the other lands elsewhere and nothing
+      says so); a page started and never filled; a page nothing points at; and one nobody has
+      touched in six months, which is often simply true of a finished document and is therefore
+      reported rather than acted on. The arithmetic is `web/modules/pages/tidy.ts`, pure and tested
+      without a browser like `pagetree.ts` beside it, and the screen is a list with an offer next to
+      it rather than a Fix button: a wiki that tidies itself is a wiki that loses a draft.
+      **The archive and the trash moved onto that screen.** They answer the same question — what is
+      not in the tree, and what of it do I still want — and three screens each answering a third of
+      it is how the answer goes stale. The archive view was a second mode of the index; the deleted
+      pages were two screens away under another heading, read through `listAll`, the one reader that
+      does not filter tombstones out.
+      **Several pages at once.** Checkboxes, shift-click across the tree in drawing order, and one
+      bar: archive, delete, label, assign a project, or move the lot under another page. Sub-pages
+      are counted and offered as a *named* action rather than cascaded silently — archiving a parent
+      and leaving its children live is how the first finding above gets made.
+      **Four things found by reviewing the above.** The bulk bar called a `useMemo` *after* its
+      `if (!selected.length) return null`, so the first tick of a checkbox ran one hook more than
+      the render before and React threw the whole screen into the error boundary — every static
+      check green, and no browser script had ever pressed Select, which is now a step in
+      `smoke.mjs`. The `detached` finding could never fire for a *deleted* parent, because the
+      screen built its comparison list with `list()`, the one reader that drops tombstones, while
+      its own copy promised "archived, deleted or turned into a template". A page whose body is one
+      image read as "nothing written yet", because `pageExcerpt` extracts text — offered under a bar
+      with Delete in it. And the count on the Tidy up button summed the findings *and* the archive
+      while the screen reports the findings alone, over a list already narrowed by the label filter;
+      it is a label now, since getting it right would have meant a third full parse of every page
+      body on the index for a badge.
+      **And four things the tree itself was not saying.** A line per level, because indentation
+      alone is not a structure and at the third level a reader counts pixels. A count behind a shut
+      chevron, because a page with eleven sub-pages and a page with one looked identical closed.
+      Folds that survive navigation and a reload, kept on the device and never synced, for the
+      reason the project tree keeps its own: two people fighting over a chevron is what syncing it
+      would mean. And a filter that draws each match *with the path to it*, because the answer to
+      "where is the leave policy" is the path and not the row.
+- [x] **The tree sits beside the page**, from 1400px, remembered per device. `PageOutline` decided
+      the other way about an *outline* and the reasoning still holds — a sticky aside that takes
+      width from the reading column is a bad trade — so this takes none: the column keeps its 820px
+      measure exactly, the aside lives in the gutter a wide screen already wastes, and below that
+      width it is not rendered at all.
+      **1400 is the promise, and it was written as 1280 and not measured.** 248px of sidebar + 24
+      padding + 244 aside + 28 gap + 820 column + 24 padding is 1388, so at 1320px the column came
+      out **752px** — the aside taking 68px off the prose, which is the exact trade the paragraph
+      above says it does not make. Moving the 820px measure off the centred box and onto the column
+      also left the prose flush against the left edge at every width where the aside is absent:
+      128px of dead space at 1220px, and the line 64px left of where it had always sat. Both
+      measured in a browser at 1100/1220/1279/1320/1399/1400/1440/1500/1600/1920px, where the column
+      is now 820px at every one of them. `check:responsive` looks for overflow, not for alignment,
+      which is why neither showed up in a check.
 - [x] **Page extras that make a wiki a wiki**: labels and filtering by them, watching a page,
       a version *diff*, page templates, the `access` column exposed, and export as a markdown
       bundle (the page and everything under it). PDF is deliberately not built — see below.
@@ -1497,7 +1582,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **59** the list carries; the other undroppable-looking eight turned out to be something else
+      **60** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while

@@ -83,6 +83,22 @@ const packageId = await page.evaluate(async () => {
 });
 if (!packageId) throw new Error('no package to open — the catalogue fixture built none');
 
+/*
+ * A page to open, because the *detail* is the screen that grew an aside.
+ *
+ * From 1280px the tree sits beside the text, which is a flex row holding a
+ * fixed column and a measured one — and the whole promise of it is that the
+ * reading column is not narrowed to make room. That promise is a width
+ * question, so it belongs to this script rather than to a walkthrough that
+ * only ever opens one size.
+ */
+const pageId = await page.evaluate(async () => {
+  const workspace = localStorage.getItem('kolibri.workspace');
+  const body = await (await fetch(`/api/workspaces/${workspace}/pages`, { credentials: 'include' })).json();
+  return (body.pages ?? body)[0]?.id;
+});
+if (!pageId) throw new Error('no page to open — the seed built none');
+
 const SCREENS = [
   ['my work', '/'],
   ['project', `/projects/${project}`],
@@ -92,6 +108,10 @@ const SCREENS = [
   ['search', '/search?q=design'],
   ['chat', '/chat'],
   ['pages', '/pages'],
+  // Four counts in a row, a path beside every title, and a bar that may be up:
+  // the densest row this wiki draws, and the one most likely to come apart.
+  ['pages: tidying up', '/pages/tidy'],
+  ['page', `/pages/${pageId}`],
   ['teams', '/teams'],
   ['planner', '/planner'],
   ['portfolio', '/portfolio'],

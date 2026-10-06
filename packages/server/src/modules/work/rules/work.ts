@@ -6,10 +6,15 @@
  * permission check and is skipped for the server's own writes.
  */
 
-import { ENTITIES, ENTITY_NAMES, type EntityName, isDoneGroup, type ProjectVocabulary, relocate } from '@kolibri/shared';
+import {
+  ENTITIES, ENTITY_NAMES, type EntityName, isDoneGroup, type ProjectVocabulary, relocate,
+} from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
-import { type EntityRule, parseIds, wouldLoop, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
+import {
+  canSeePage, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored, wouldLoop, writeEntity,
+  type WriteOpts,
+} from '../../../kernel/write-path/repo.ts';
 
 const asId = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
@@ -172,6 +177,70 @@ function cascadeProject(project: Row, restoring: boolean, opts: WriteOpts): void
   for (const child of children) write('project', String(child.id));
 }
 
+/**
+ * Whether this person may change this comment.
+ *
+ * Written the day comments became editable, and the hole it closes predates
+ * that: `body` was an ordinary synced field with no rule on it at all, so
+ * `PATCH /api/comments/<id>` from any member who could see the task rewrote
+ * a colleague's words under that colleague's name — and `DELETE` removed them.
+ * Nothing in the interface offered it, which is exactly why it survived: the
+ * screen only ever showed the pencil to the author, and the screen is not the
+ * only way in. The matching rule for a message has been in `chat.ts` since
+ * messages were editable, and this is deliberately the same shape.
+ *
+ * Three cases, because a comment has one a message does not:
+ *
+ * - **Your own.** Anything. That is what editing is.
+ * - **Somebody else's.** A reaction and nothing else — your own name in a list
+ *   beside their words is not a change to them. Anything alongside it is an
+ *   edit, including the `deleted_at` a delete arrives as.
+ * - **A guest's**, left through a public share link, with no account behind it.
+ *   Nobody may rewrite it: there is no author to be, and putting words in an
+ *   outsider's mouth under the name they typed is worse than either of the
+ *   above. It still has to be removable — a share link is a door to strangers —
+ *   so an admin or owner may delete it, and only delete it.
+ */
+function guardCommentWrite(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
+  if (!existing) return;
+  const reactingOnly = Object.keys(values).every((field) => field === 'reactions');
+  const seen = existing.task_id
+    ? canSeeTask(opts.actorId, String(existing.task_id))
+    : canSeePage(opts.actorId, String(existing.page_id));
+
+  if (existing.author_id) {
+    if (existing.author_id === opts.actorId) return;
+    if (!reactingOnly) throw forbidden('Only the author can change a comment');
+    // The carve-out is checked rather than assumed: the row reached this
+    // person's device through the pull filter or it did not, and a write
+    // arriving for one that did not is not a reaction.
+    if (!seen) throw forbidden('That comment is not yours to see');
+    return;
+  }
+
+  const deletingOnly = Object.keys(values).every((field) => field === 'deleted_at');
+  if (!seen) throw forbidden('That comment is not yours to see');
+  if (reactingOnly) return;
+  if (!deletingOnly) throw forbidden('A note left from outside cannot be rewritten');
+  if (!isWorkspaceAdmin(String(existing.workspace_id), opts.actorId)) {
+    throw forbidden('Only an admin can remove a note left from outside');
+  }
+}
+
+/**
+ * A comment is written once and then it is somebody's words.
+ *
+ * Which columns an edit may not touch, and nothing else: the stamping of
+ * `edited_at`, the parsing of a fixed JSON column on the way back to the
+ * client, and the reconciling of the reactions map are `settleAuthored` in the
+ * kernel, shared with the one other entity that is somebody's words. Its
+ * docblock says what the two copies cost.
+ *
+ * `anchor` is in the list on purpose: moving it would silently reattach
+ * somebody else's remark to a sentence they never read.
+ */
+const COMMENT_FIXED = ['task_id', 'page_id', 'parent_id', 'author_id', 'guest_name', 'anchor'] as const;
+
 export const workRules = {
   entities: ['task', 'project', 'comment', 'attachment', 'view', 'field'],
   defaults(entity, id, values, opts, setForced) {
@@ -204,6 +273,7 @@ export const workRules = {
   },
   guards(entity, id, values, existing, opts) {
     if (entity === 'task' && values.state_id !== undefined) guardTransition(String(values.state_id), opts);
+    if (entity === 'comment') guardCommentWrite(values, existing, opts);
   },
   invariants(entity, id, values, existing, forced, opts) {
     /**
@@ -350,6 +420,7 @@ export const workRules = {
       }
     }
     if (entity === 'task') applyTaskInvariants(values, existing, forced);
+    if (entity === 'comment' && existing) settleAuthored('comment', values, existing, forced, opts, COMMENT_FIXED);
   },
   effects(entity, row, before, changed, opts) {
     if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);

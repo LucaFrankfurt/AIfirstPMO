@@ -50,6 +50,7 @@ const REACHED_ELSEWHERE: Record<string, string> = {
   '/projects/new': 'the More screen and the sidebar’s + beside the projects heading',
   '/settings/*': 'the More screen and the account menu',
   '/pages/new': 'a `[[link]]` to a page nobody has written, and the wiki index’s list of those',
+  '/pages/tidy': 'a button in the wiki index’s header, which carries the count of what it would say',
 };
 
 /**

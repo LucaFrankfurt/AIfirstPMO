@@ -5,7 +5,7 @@ import { Header } from '../../../kernel/design-system/chrome';
 import { TaskRow } from '../task-parts';
 import { TaskViews, useVisibleTasks, ViewControls } from '../views';
 import { DEFAULT_VIEW, type ViewConfig } from '../task-parts';
-import { useSelection } from '../selection';
+import { useSelection } from '../../../kernel/design-system/selection';
 import { SelectionBar } from '../selection-bar';
 import { Avatar, Empty, Icon } from '../../../kernel/design-system/ui';
 import { Stat } from '../../planning/insights';

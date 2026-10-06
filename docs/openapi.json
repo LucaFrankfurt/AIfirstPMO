@@ -1022,6 +1022,14 @@
             ],
             "readOnly": true
           },
+          "edited_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Stamped by the server when the body changes, never taken from a client. The same column a message carries, for the same reason: \"edited\" is a claim about this server's clock, and a comment that can be rewritten has to say that it was. `updated_at` cannot answer it — a reaction moves that too.",
+            "readOnly": true
+          },
           "guest_name": {
             "type": [
               "string",
@@ -2230,7 +2238,8 @@
               "number",
               "null"
             ],
-            "description": "Stamped by the server when the body changes, never taken from a client."
+            "description": "Stamped by the server when the body changes, never taken from a client.",
+            "readOnly": true
           },
           "id": {
             "type": "string",

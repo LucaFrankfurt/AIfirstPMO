@@ -31,6 +31,7 @@ export * from './kernel/search/terms.ts';
 export * from './modules/work/quickadd.ts';
 export * from './modules/work/query.ts';
 export * from './modules/work/relocate.ts';
+export * from './modules/work/reactions.ts';
 export * as crdt from './modules/pages/text-crdt.ts';
 export type { CrdtState } from './modules/pages/text-crdt.ts';
 export { CLOCK_HEADER, Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './kernel/registry/hlc.ts';

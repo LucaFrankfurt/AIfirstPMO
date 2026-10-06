@@ -17,13 +17,9 @@
 import { canManageMembers, directMembers, normaliseChannelName } from '@kolibri/shared';
 import { get, type Row } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
-import { canSeeChannel, type EntityRule, parseIds, resendUser, safeJson, type WriteOpts } from '../../../kernel/write-path/repo.ts';
-
-const isWorkspaceAdmin = (workspaceId: string, userId: string): boolean => !!get(
-  `SELECT 1 FROM workspace_members
-    WHERE workspace_id = ? AND user_id = ? AND role IN ('owner', 'admin') AND deleted_at IS NULL`,
-  workspaceId, userId,
-);
+import {
+  canSeeChannel, type EntityRule, isWorkspaceAdmin, parseIds, resendUser, settleAuthored, type WriteOpts,
+} from '../../../kernel/write-path/repo.ts';
 /**
  * A message belongs where its conversation belongs.
  *
@@ -98,69 +94,14 @@ function applyChannelInvariants(id: string, values: Record<string, unknown>, exi
 /**
  * A message is written once and then it is somebody's words.
  *
- * The body may be edited by its author — that is what `edited_at` records, and
- * it is stamped here rather than trusted, because "edited" is a claim about
- * this server's clock. Everything else about a message is fixed: it cannot
- * change channel, it cannot change who said it, and it cannot change what it
- * answered — an edit rewrites the words, not the conversation around them.
+ * Which columns an edit may not touch, and nothing else — `settleAuthored` in
+ * the kernel does the rest, shared with the one other entity that is somebody's
+ * words. It cannot change channel, it cannot change who said it, and it cannot
+ * change what it answered: an edit rewrites the words, not the conversation
+ * around them.
  */
-function applyMessageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts): void {
-  if (!existing) return;
-  for (const fixed of ['channel_id', 'author_id', 'reply_to'] as const) {
-    if (values[fixed] !== undefined && values[fixed] !== existing[fixed]) {
-      values[fixed] = existing[fixed];
-      forced[fixed] = existing[fixed];
-    }
-  }
-  if (values.body !== undefined && String(values.body) !== String(existing.body ?? '')) {
-    values.edited_at = Date.now();
-    forced.edited_at = values.edited_at;
-  }
-  if (values.reactions !== undefined && !opts.system) {
-    const settled = JSON.stringify(reconcileReactions(values.reactions, existing.reactions, opts.actorId));
-    if (settled !== values.reactions) {
-      values.reactions = settled;
-      forced.reactions = JSON.parse(settled);
-    }
-  }
-}
-/**
- * A reaction is your own name in a list, and only yours is yours to move.
- *
- * The client sends the whole map because that is the field it holds, and a
- * field merges last-writer-wins — so two people reacting in the same moment
- * used to end with one of the two reactions, and an offline device could
- * arrive holding a map from before somebody else's. Worse, nothing stopped a
- * doctored map from removing everybody else's reactions, because "only the
- * reactions field changed" was the whole of the check.
- *
- * So the incoming map is not taken as the answer. It is read for one thing —
- * whether *this* person is on each emoji — and everybody else's entries are
- * carried across from the row as it stands. Concurrent reactions merge, and
- * the only reaction a write can move is the writer's own.
- */
-function reconcileReactions(incoming: unknown, existing: unknown, actorId: string): Record<string, string[]> {
-  const before = parseReactionMap(existing);
-  const wanted = parseReactionMap(incoming);
-  const merged: Record<string, string[]> = {};
-  for (const emoji of new Set([...Object.keys(before), ...Object.keys(wanted)])) {
-    const others = (before[emoji] ?? []).filter((userId) => userId !== actorId);
-    const people = (wanted[emoji] ?? []).includes(actorId) ? [...others, actorId] : others;
-    // An emoji nobody uses any more leaves rather than lingering as an empty
-    // list, so the row does not fill up with invisible entries.
-    if (people.length) merged[emoji] = people;
-  }
-  return merged;
-}
-function parseReactionMap(value: unknown): Record<string, string[]> {
-  const raw = typeof value === 'string' ? safeJson(value) : value;
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {};
-  const out: Record<string, string[]> = {};
-  for (const [emoji, people] of Object.entries(raw as Record<string, unknown>)) {
-    if (Array.isArray(people)) out[emoji] = [...new Set(people.map(String))];
-  }
-  return out;
-}
+const MESSAGE_FIXED = ['channel_id', 'author_id', 'reply_to'] as const;
+
 /**
  * Who may change a conversation.
  *
@@ -322,7 +263,7 @@ export const chatRules = {
   },
   invariants(entity, id, values, existing, forced, opts) {
     if (entity === 'channel') applyChannelInvariants(id, values, existing, forced);
-    if (entity === 'message') applyMessageInvariants(values, existing, forced, opts);
+    if (entity === 'message' && existing) settleAuthored('message', values, existing, forced, opts, MESSAGE_FIXED);
     if (entity === 'message' || entity === 'channelRead') followChannelWorkspace(values, existing);
   },
   effects(entity, row, before, changed, opts) {

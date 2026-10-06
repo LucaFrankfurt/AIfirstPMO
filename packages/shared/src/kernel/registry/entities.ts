@@ -503,7 +503,18 @@ export const ENTITIES = {
   },
   comment: {
     table: 'comments',
-    fields: ['workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'guest_name', 'reactions', 'anchor'],
+    fields: [
+      'workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'guest_name', 'reactions', 'anchor',
+    ],
+    /**
+     * `edited_at` is the server's to write, and it took a test to make that
+     * true. Both this and `message.edited_at` sat in `fields`, which is
+     * last-writer-wins and therefore the client's — so a `PATCH` carrying
+     * nothing but `edited_at` stamped a comment nobody had edited, and one
+     * carrying a date in the past buried a real rewrite. The rule the two
+     * docblocks in `work.ts` and `chat.ts` had always claimed is this line.
+     */
+    serverOnly: ['edited_at'],
     json: ['reactions', 'anchor'],
   },
   attachment: {
@@ -629,7 +640,9 @@ export const ENTITIES = {
   },
   message: {
     table: 'messages',
-    fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'reactions', 'edited_at'],
+    fields: ['workspace_id', 'channel_id', 'author_id', 'body', 'reply_to', 'reactions'],
+    /** The server's, for the reason `comment.edited_at` above is. */
+    serverOnly: ['edited_at'],
     json: ['reactions'],
     crossWorkspace: true,
   },
