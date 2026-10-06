@@ -504,7 +504,12 @@ function MailboxRowEditor({ mailbox, credential, providers, redirectUri, onPassw
             </div>
           )}
 
-          <div className="flex items-center gap-2">
+          {/* `flex-wrap`, because three buttons do not fit a 340px screen: the
+              last one hung 4px past `main` and gave the whole content area a
+              sideways scrollbar on a phone. Four pixels is small enough that
+              `check:responsive` read it as deliberate and said nothing, which
+              is the half of that check this change also fixes. */}
+          <div className="flex flex-wrap items-center gap-2">
             <Button disabled={busy || !signedIn} onClick={() => run('test')}>{t('mailbox.test')}</Button>
             <Button disabled={busy || !signedIn} onClick={() => run('sync')}>{t('mailbox.syncNow')}</Button>
             <Button variant="ghost" onClick={onRemove}>{t('mailbox.disconnect')}</Button>

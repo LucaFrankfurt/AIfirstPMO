@@ -29,6 +29,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { compareOrder, type Page } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
+import { cn } from '../../kernel/design-system/cn';
 import { Icon } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
 import { navCount, navItem } from '../../kernel/design-system/ui/nav';
@@ -194,7 +195,7 @@ function TreeRow({ page, depth, shared }: { page: Page; depth: number; shared: S
         )}
         {selection && <SelectBox id={page.id} order={order} selection={selection} label={page.title || t('common.untitled')} />}
         <button
-          className={navItem({ active: activeId === page.id })}
+          className={cn(navItem({ active: activeId === page.id }), 'page-row-main')}
           style={scaffold ? { opacity: 0.55 } : undefined}
           onClick={() => navigate(`/pages/${page.id}`)}
         >

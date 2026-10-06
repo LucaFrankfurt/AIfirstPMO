@@ -173,12 +173,36 @@ const SCREENS = [
  * box was enough. Three pixels is the line between "someone meant this" and
  * "something rounded wrong".
  *
+ * **And a chasm**, which is the half this was missing. Anything over three
+ * pixels was read as deliberate and waved through, so boxes scrolled sideways
+ * with every check green: the wiki's aside by 49px, because `overflow-y: auto`
+ * had quietly made its other axis `auto` too and a tree row was wider than the
+ * column; `main` by 124px on a 340px phone, because the "recently edited" cards
+ * are grid items, whose automatic minimum is their content — the title inside
+ * truncated and the card did not; and `main` again by 4px with the mailbox
+ * editor open, one pixel past the window above. None of them is a rounding
+ * error and none of them showed up here.
+ *
+ * So sideways is reported at any size now, and the boxes that really do scroll
+ * sideways are named rather than inferred from how far they scroll — which is
+ * what `CLAUDE.md` asks for anyway: named exceptions, never counted
+ * thresholds. The window above survives on the vertical axis, where the tab
+ * strips it was written for still live.
+ *
  * **The tab you are on.** A strip that scrolls can hold the active tab off the
  * end of itself: on a phone `?tab=settings` opened with the strip at zero, the
  * settings page below and no underline anywhere on screen.
  */
 const oddities = () => {
   const out = [];
+  /* The boxes that scroll sideways because somebody decided they should, each
+     with the decision written beside its rule in `app.css`: a tab strip too
+     long for a phone; a table, "the one layout that may be wider than the
+     screen"; the planner's grid, which is a timeline; and the header, which "on
+     narrow screens scrolls instead of squeezing the title away" and hides its
+     own scrollbar to do it. Found by measuring rather than guessed — anything
+     not on this list scrolling sideways is a finding, however far it goes. */
+  const MEANT_TO = ['tabs', 'table-wrap', 'planner-scroll', 'header'];
   for (const el of document.querySelectorAll('*')) {
     const cs = getComputedStyle(el);
     const scrolls = (v) => v === 'auto' || v === 'scroll';
@@ -186,7 +210,9 @@ const oddities = () => {
     const y = el.scrollHeight - el.clientHeight;
     const x = el.scrollWidth - el.clientWidth;
     if (scrolls(cs.overflowY) && y > 0 && y <= 3) out.push(`${name()} scrolls ${y}px vertically`);
-    if (scrolls(cs.overflowX) && x > 0 && x <= 3) out.push(`${name()} scrolls ${x}px sideways`);
+    if (scrolls(cs.overflowX) && x > 0 && !MEANT_TO.some((c) => el.classList.contains(c))) {
+      out.push(`${name()} scrolls ${x}px sideways`);
+    }
   }
 
   for (const strip of document.querySelectorAll('.tabs')) {

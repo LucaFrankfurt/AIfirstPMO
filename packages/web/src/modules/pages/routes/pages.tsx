@@ -35,6 +35,7 @@ import { navItem } from '../../../kernel/design-system/ui/nav';
 import { chipDot } from '../../../kernel/design-system/ui/chip';
 import { useSelection } from '../../../kernel/design-system/selection';
 import { useT } from '../../../kernel/i18n/i18n';
+import { cn } from '../../../kernel/design-system/cn';
 import { useMinute } from '../../../kernel/design-system/minute';
 
 /**
@@ -266,7 +267,13 @@ export function PagesIndex() {
                 <Link
                   key={page.id}
                   to={`/pages/${page.id}`}
-                  className="flex flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
+                  // `min-w-0`, because a grid item's automatic minimum is its
+                  // content: the title inside truncates, but the *card* was
+                  // sized to the untruncated title and pushed the track wider
+                  // than the column. Measured at 340px with a real handbook's
+                  // titles — a 452px card in a 340px screen, and `main` scrolling
+                  // sideways by 124px on a phone.
+                  className="flex min-w-0 flex-col gap-1 rounded-[var(--radius)] border border-line bg-raised p-3.5 text-left transition-colors hover:border-line-strong hover:bg-hover outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
                 >
                   <span className="flex items-center gap-2">
                     <span aria-hidden="true">{page.icon ?? '📄'}</span>
@@ -355,7 +362,7 @@ export function PagesIndex() {
                     to={`/pages/new?title=${encodeURIComponent(entry.title)}`}
                     className="page-row"
                   >
-                    <span className={navItem()}>
+                    <span className={cn(navItem(), 'page-row-main')}>
                       {/* The app's own pencil rather than a `✎` character: a
                           glyph the reader's font may or may not have looked
                           like a paperclip in one of the three it fell back to. */}
