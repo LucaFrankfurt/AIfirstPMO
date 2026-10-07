@@ -1,9 +1,9 @@
 import { Fragment, useMemo, useState } from 'react';
-import type { Field, Filters, Layout, Task } from '@kolibri/shared';
+import type { Field, Filters, Layout, StateGroup, Task } from '@kolibri/shared';
 import {
   FIELD_ANSWERED, FIELD_EMPTY, emptyValue, fieldChoices, fieldMatches, fieldValueId,
   countFilters, formatFieldValue, isDoneGroup, isGroupable, matchesTerms, orderKey,
-  parseTerms, PRIORITIES, readFieldValue,
+  parseTerms, passesFilters, PRIORITIES, readFieldValue,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { byOrder, create, update } from '../../kernel/sync/mutations';
@@ -11,7 +11,7 @@ import { currentLocale, priorityKey, useT, type TranslationKey } from '../../ker
 import { shortDate, today } from '../../kernel/design-system/format';
 import { HORIZON_DAYS, plusDays } from './overview';
 import { idFrom, isDrag, startDrag, STATE_DRAG, TASK_DRAG } from '../../kernel/design-system/drag';
-import { useCanWrite, useMemberMap, useMembers, useSession } from '../../kernel/identity/session';
+import { useCanWrite, useMemberMap, useMembers } from '../../kernel/identity/session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
   useCycles, useLabels, useModules, useStates,
@@ -62,6 +62,10 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
     // repeated: the tile is a way into this list, and a count that disagreed
     // with the rows it opened would be worse than no tile at all.
     const horizon = plusDays(day, HORIZON_DAYS);
+    // The clock and the state table, read once for the whole pass and handed
+    // to the shared predicate. `groupOf` goes through `byId` as it always did;
+    // what moved down is the arithmetic, not the lookup.
+    const at = { groupOf: (id: string) => byId('state', id)?.group_key as StateGroup | undefined, day, horizon };
     // Answers are read once for the whole pass rather than per task: a project
     // with a few hundred tasks and half a dozen fields is a few thousand rows,
     // and this runs on every keystroke in the search box.
@@ -77,41 +81,11 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
       if (task.archived) return false;
       const state = byId('state', task.state_id);
       if (!view.showDone && isDoneGroup(state?.group_key)) return false;
-      if (filters.state?.length && !filters.state.includes(task.state_id)) return false;
-      if (filters.group?.length && !filters.group.includes(state?.group_key as any)) return false;
-      if (filters.priority?.length && !filters.priority.includes(task.priority)) return false;
-      if (filters.project?.length && !filters.project.includes(task.project_id)) return false;
-      if (filters.cycle?.length && !filters.cycle.includes(task.cycle_id ?? '')) return false;
-      if (filters.module?.length && !filters.module.includes(task.module_id ?? '')) return false;
-      if (filters.assignee?.length && !filters.assignee.some((id) => (task.assignees ?? []).includes(id))) return false;
-      if (filters.label?.length && !filters.label.some((id) => (task.labels ?? []).includes(id))) return false;
-      // The same questions the other way round. Written out beside the
-      // positive ones rather than derived from them: a loop over field names
-      // would be shorter and would not survive the next field that needs a
-      // rule of its own, the way `assignee` and `label` already do.
-      const not = filters.not;
-      if (not) {
-        if (not.state?.includes(task.state_id)) return false;
-        if (not.group?.includes(state?.group_key as any)) return false;
-        if (not.priority?.includes(task.priority)) return false;
-        if (not.project?.includes(task.project_id)) return false;
-        if (not.cycle?.includes(task.cycle_id ?? '')) return false;
-        if (not.module?.includes(task.module_id ?? '')) return false;
-        // A list: excluded when *any* of the task's values is named. "Not
-        // assigned to Ada" means the ones Ada is not on, including the ones
-        // she shares with somebody else.
-        if (not.assignee?.some((id) => (task.assignees ?? []).includes(id))) return false;
-        if (not.label?.some((id) => (task.labels ?? []).includes(id))) return false;
-      }
-      if (filters.due === 'overdue' && !(task.due_date && task.due_date < day)) return false;
-      if (filters.due === 'today' && task.due_date !== day) return false;
-      if (filters.due === 'none' && task.due_date) return false;
-      // `due <= 7d` has parsed to this bucket since the query language was
-      // written, and nothing ever acted on it: the filter was accepted, the
-      // chip appeared, and every task stayed on screen. Overdue work is its own
-      // bucket and stays out of this one — "the coming week" is what somebody
-      // asking for it means, and a task from last month is not an answer to it.
-      if (filters.due === 'week' && !(task.due_date && task.due_date >= day && task.due_date <= horizon)) return false;
+      // Every structured clause, read by the one function that knows what a
+      // `Filters` means. It used to be written out here, and the search screen
+      // read three of its keys by hand — so "the same filter" meant two things
+      // depending on which box you had typed it into.
+      if (!passesFilters(task, filters, at)) return false;
       // The same grammar the search box reads, rather than one `includes` over
       // a lower-cased line. That is not a refinement: `prufen` did not find
       // `prüfen`, `des rev` did not find `Design review`, and `FEE 1` did not
@@ -209,7 +183,6 @@ export function ViewControls({
   const modules = useModules(projectId);
   const members = useMembers();
   const fields = useFields(projectId);
-  const { workspaceId } = useSession();
 
   const toggle = <K extends keyof Filters>(key: K, value: string) => {
     const current = (view.filters[key] as string[] | undefined) ?? [];
@@ -288,7 +261,6 @@ export function ViewControls({
       {saveable && <SavedViews view={view} onChange={onChange} projectId={projectId} />}
       <QueryBox
         filters={view.filters}
-        workspaceId={workspaceId}
         projectId={projectId}
         onChange={(filters) => onChange({ ...view, filters })}
       />

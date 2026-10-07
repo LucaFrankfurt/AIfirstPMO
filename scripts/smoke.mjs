@@ -49,7 +49,7 @@ const LABELS = {
     taskParent: 'Parent',
     reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
-    query: 'Query', apply: 'Apply', assignees: 'Assignees', filterBox: 'Filter…',
+    assignees: 'Assignees', filterBox: 'Filter…',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
     mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes',
@@ -68,7 +68,7 @@ const LABELS = {
     taskParent: 'Übergeordnet',
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
-    query: 'Abfrage', apply: 'Anwenden', assignees: 'Zuständig', filterBox: 'Filtern…',
+    assignees: 'Zuständig', filterBox: 'Filtern…',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
     mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer',
@@ -87,7 +87,7 @@ const LABELS = {
     taskParent: 'Tâche parente',
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
-    query: 'Requête', apply: 'Appliquer', assignees: 'Assignés', filterBox: 'Filtrer…',
+    assignees: 'Assignés', filterBox: 'Filtrer…',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
     mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail',
@@ -1699,7 +1699,7 @@ await step('search: prose finds work, and @ offers the people', async () => {
  * afterwards, and shorter, and that reopening the box shows the search back
  * with its quotes on.
  */
-await step('the query box applies a filter, and the screen survives it', async () => {
+await step('one box, two places: the header filters and the search finds', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await closeTour(page);
   // `.my-work-list` and not `.task-row` anywhere: the overdue bucket above the
@@ -1716,17 +1716,18 @@ await step('the query box applies a filter, and the screen survives it', async (
   const phrase = first.replace(/^\S+\s+/, '').match(/^[\p{L}\p{N}]+ [\p{L}\p{N}]+/u)?.[0];
   if (!identifier || !phrase) throw new Error(`could not read a task out of "${first}"`);
 
+  const field = page.locator('.header input[type=text]').first();
+  await field.waitFor({ timeout: 5000 });
+
   const apply = async (query) => {
-    await page.click(`button:has-text("${LABELS.query}")`);
-    await page.waitForSelector('.sheet textarea', { timeout: 5000 });
-    await page.locator('.sheet textarea').first().fill(query);
-    await page.click(`.sheet button:has-text("${LABELS.apply}")`);
-    await page.waitForTimeout(800);
-    // The sheet closes onto the list rather than onto an error screen. It did
-    // not, for as long as this box has existed: Apply wrote `field: undefined`
-    // into the filter and the badge that counts it handed that to
-    // `Object.values`. Unit tests for what the box parses and prints could not
-    // see it, because nothing had ever pressed the button.
+    await field.fill(query);
+    // Longer than the field's own settle, which is what makes it a filter.
+    await page.waitForTimeout(900);
+    // The list is still a list rather than an error screen. It was not, for as
+    // long as this box has existed: applying wrote `field: undefined` into the
+    // filter and the badge that counts it handed that to `Object.values`. Unit
+    // tests for what the box parses and prints could not see it, because
+    // nothing had ever typed into the real one.
     if (await page.locator('button:has-text("Reload"), button:has-text("Neu laden"), button:has-text("Recharger")').count()) {
       throw new Error(`applying "${query}" took the screen down`);
     }
@@ -1745,19 +1746,54 @@ await step('the query box applies a filter, and the screen survives it', async (
   const some = await apply(`"${phrase}"`);
   if (!(some >= 1 && some <= before)) throw new Error(`"${phrase}" left ${some} of ${before} rows`);
 
-  // Reopened, the box says what it is filtering by — quotes and all, because
-  // they are what makes it a phrase rather than two loose words.
-  await page.click(`button:has-text("${LABELS.query}")`);
-  await page.waitForSelector('.sheet textarea');
-  const shown = await page.locator('.sheet textarea').first().inputValue();
-  if (!shown.includes(`"${phrase}"`)) throw new Error(`the box came back as "${shown}"`);
-  await page.keyboard.press('Escape');
-  await page.waitForTimeout(300);
-  console.log(`     ${before} rows · ${identifier} -> 1 · "${phrase}" -> ${some} · box reopened as ${JSON.stringify(shown)}`);
+  /*
+   * The half that only a browser can be asked: a name is *picked*, not typed.
+   *
+   * The list hangs in a portal, because the header is `overflow-x: auto` and
+   * would otherwise clip it — and the first version of that portal broke
+   * picking outright. The box closes its list when a pointer goes down outside
+   * itself, and once the list is portalled out it *is* outside itself: every
+   * click dismissed the list under the pointer and the field kept the bare `@`.
+   * Nothing static could see it. This is what sees it.
+   */
+  await field.fill('@');
+  await page.waitForSelector('[role=option]', { timeout: 5000 });
+  const offered = await page.locator('[role=option]').count();
+  const panel = await page.locator('[role=listbox]').first().boundingBox();
+  const header = await page.locator('.header').first().boundingBox();
+  if (!(panel.y + panel.height > header.y + header.height)) {
+    throw new Error('the list of names is drawn inside the header, which clips it');
+  }
+  await page.locator('[role=option]').first().click();
+  await page.waitForTimeout(500);
+  const carried = await field.inputValue();
+  if (carried.trim().length <= 1) throw new Error(`picking a name left the field as "${carried}"`);
+  console.log(`     ${before} rows · ${identifier} -> 1 · "${phrase}" -> ${some} · ${offered} names offered · picked into ${JSON.stringify(carried.trim())}`);
 
   // Put it back, so the filter does not follow the rest of the walk around.
   const restored = await apply('');
   if (restored !== before) throw new Error(`clearing left ${restored} of ${before} rows`);
+
+  /*
+   * And the same sentence in the other box.
+   *
+   * `state`, `priority` and `due` were plain words to the search screen until
+   * the two boxes started sharing one reading of a line; a clause typed here
+   * searched for its own letters and found nothing. This asks the question the
+   * feature is for: does the language mean the same thing in both places.
+   */
+  await page.goto(`${base}/search?q=${encodeURIComponent('priority = urgent')}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1600);
+  const urgent = await page.locator('.task-row').count();
+  if (urgent < 1) throw new Error('a clause typed into the search box found nothing');
+
+  // A name nobody has is still prose, in both boxes, and not an error.
+  await page.goto(`${base}/search?q=${encodeURIComponent('state = Dnoe')}`, { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(1400);
+  if (!(await page.locator('main').innerText()).includes('Dnoe')) {
+    throw new Error('the search box swallowed a clause it could not resolve');
+  }
+  console.log(`     search: "priority = urgent" -> ${urgent} tasks · an unresolvable state is named`);
 });
 
 await step('search: a phrase, an exclusion, and a task by its own name', async () => {

@@ -15,28 +15,33 @@
  *
  * Which names the box recognises lives in `../search-query`; what the rest of
  * the text asks for lives in `@kolibri/shared`, because the server compiles the
- * same terms. This file is the screen.
+ * same terms. The box itself is `../search-box`, because the task list's header
+ * stands the same one up over its own list. This file is the screen.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  excerpt, identifiersIn, matchesTerms, pageExcerpt, parseTerms, termsKey, type Task,
+  excerpt, identifiersIn, matchesTerms, pageExcerpt, parseTerms, passesFilters, printQuery,
+  termsKey, type StateGroup, type Task,
 } from '@kolibri/shared';
 import { Header } from '../../design-system/chrome';
 import { TaskRow } from '../../../modules/work/task-parts';
-import { Avatar, Empty, Icon, useToast } from '../../design-system/ui';
+import { Empty, Icon, useToast } from '../../design-system/ui';
 import { Chip, chipDot } from '../../design-system/ui/chip';
-import { Input } from '../../design-system/ui/field';
 import { api } from '../../sync/api';
-import { cn } from '../../design-system/cn';
 import { useT, type TranslationKey } from '../../i18n/i18n';
 import { useOpenTask } from '../../design-system/navigation';
 import { byId, list, useQuery } from '../../sync/store';
 import {
-  applySuggestion, parseQuery, removeFacet, suggest, TRIGGER_OF,
-  type Facet, type FacetKind, type FacetOption,
+  narrowsByFilter, onlyWorkCanAnswer, readQuery, removeFacet, TRIGGER_OF,
+  type Facet,
 } from '../search-query';
-import { useMembers, useSession } from '../../identity/session';
+import { FACET_LABEL, SearchBox, useFacetOptions, useVocabulary } from '../search-box';
+// A route composes: the horizon `due = week` means is the one *My work* puts a
+// figure on, and a second count of seven days is a second answer to it.
+import { HORIZON_DAYS, plusDays } from '../../../modules/work/overview';
+import { today } from '../../design-system/format';
+import { useSession } from '../../identity/session';
 
 interface Hit {
   kind: string;
@@ -102,215 +107,6 @@ const taskOf = (hit: Hit): string | null => (hit.kind === 'task' ? hit.id
   : hit.kind === 'comment' ? byId('comment', hit.id)?.task_id ?? null
     : null);
 
-const FACET_LABEL: Record<FacetKind, TranslationKey> = {
-  person: 'search.facetPerson', label: 'search.facetLabel', project: 'search.facetProject',
-};
-
-const FACET_HEADING: Record<FacetKind, TranslationKey> = {
-  person: 'search.suggestPeople', label: 'search.suggestLabels', project: 'search.suggestProjects',
-};
-
-/* ------------------------------------------------------------- vocabulary */
-
-/**
- * Every name the box will recognise.
- *
- * Deduplicated by name: two projects may each have a label called "Bug", and
- * somebody filtering by `#Bug` means both — one chip, both ids behind it.
- */
-function useFacetOptions(): FacetOption[] {
-  const { workspaceId } = useSession();
-  const members = useMembers();
-  const labels = useQuery(() => list('label', (label) => label.workspace_id === workspaceId), [workspaceId]);
-  const projects = useQuery(
-    () => list('project', (project) => project.workspace_id === workspaceId && !project.archived),
-    [workspaceId],
-  );
-
-  return useMemo(() => {
-    const byName = new Map<string, FacetOption>();
-    const add = (option: FacetOption) => {
-      if (!option.name.trim()) return;
-      const key = `${option.kind}:${option.name.toLowerCase()}`;
-      const existing = byName.get(key);
-      if (existing) existing.ids.push(...option.ids);
-      else byName.set(key, option);
-    };
-    for (const member of members) add({ kind: 'person', ids: [member.id], name: member.name, hint: member.email });
-    for (const label of labels) add({ kind: 'label', ids: [label.id], name: label.name, color: label.color });
-    for (const project of projects) add({ kind: 'project', ids: [project.id], name: project.name, hint: project.key });
-    return [...byName.values()];
-  }, [members, labels, projects]);
-}
-
-/* ------------------------------------------------------------------- box */
-
-/**
- * The box itself: an ordinary text field that happens to know some names.
- *
- * It is a combobox only while a list is open — the rest of the time it is a
- * search field and announces itself as one, which is the truth and also what
- * makes the popup worth noticing when it does appear.
- */
-function SearchBox({
-  value, onChange, onSubmit, options, autoFocus,
-}: {
-  value: string;
-  onChange: (next: string) => void;
-  /** Enter with no list open. What a typed identifier is a short cut *to*. */
-  onSubmit?: () => void;
-  options: FacetOption[];
-  autoFocus?: boolean;
-}) {
-  const t = useT();
-  const boxRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const pendingCaret = useRef<number | null>(null);
-  const [caret, setCaret] = useState(value.length);
-  const [dismissed, setDismissed] = useState(false);
-  const [active, setActive] = useState(0);
-
-  // Pressing anywhere else puts the list away. On `pointerdown` rather than on
-  // the field losing focus, because on a phone the focus goes *first* and the
-  // list would be gone before the tap that was aimed at it ever landed.
-  useEffect(() => {
-    const onPointerDown = (event: PointerEvent) => {
-      setDismissed(!boxRef.current?.contains(event.target as Node));
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, []);
-
-  const suggestion = useMemo(
-    () => (dismissed ? null : suggest(value, caret, options)),
-    [dismissed, value, caret, options],
-  );
-
-  // The highlight goes back to the top whenever the list is a different list.
-  useEffect(() => setActive(0), [suggestion?.trigger.start, suggestion?.trigger.term]);
-
-  // Putting a name into a controlled input moves the caret to the end of it,
-  // so the caret is restored after the value has actually landed — not in the
-  // handler, where the field still holds the old text.
-  useEffect(() => {
-    const at = pendingCaret.current;
-    if (at == null) return;
-    pendingCaret.current = null;
-    const element = inputRef.current;
-    element?.focus();
-    element?.setSelectionRange(at, at);
-    setCaret(at);
-  }, [value]);
-
-  const sync = (element: HTMLInputElement) => setCaret(element.selectionStart ?? element.value.length);
-
-  const choose = (option: FacetOption) => {
-    if (!suggestion) return;
-    const next = applySuggestion(value, suggestion.trigger, option);
-    pendingCaret.current = next.caret;
-    onChange(next.value);
-  };
-
-  const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === 'Escape' && suggestion) {
-      event.preventDefault();
-      event.stopPropagation();
-      setDismissed(true);
-      return;
-    }
-    // Enter while a name is being offered picks the name; that list is the more
-    // immediate thing on screen and taking it away would be the surprise.
-    if (event.key === 'Enter' && !suggestion) {
-      event.preventDefault();
-      onSubmit?.();
-      return;
-    }
-    if (!suggestion) return;
-    const count = suggestion.options.length;
-    if (event.key === 'ArrowDown') {
-      event.preventDefault();
-      setActive((current) => (current + 1) % count);
-    } else if (event.key === 'ArrowUp') {
-      event.preventDefault();
-      setActive((current) => (current - 1 + count) % count);
-    } else if (event.key === 'Enter' || event.key === 'Tab') {
-      event.preventDefault();
-      choose(suggestion.options[active] ?? suggestion.options[0]);
-    }
-  };
-
-  return (
-    <div className="relative" ref={boxRef}>
-      <Input
-        ref={inputRef}
-        autoFocus={autoFocus}
-        type="text"
-        role={suggestion ? 'combobox' : undefined}
-        aria-expanded={suggestion ? true : undefined}
-        aria-controls={suggestion ? 'search-suggestions' : undefined}
-        aria-autocomplete={suggestion ? 'list' : undefined}
-        aria-activedescendant={suggestion ? `search-suggestion-${active}` : undefined}
-        aria-label={t('search.title')}
-        placeholder={t('search.placeholder')}
-        value={value}
-        className="text-base"
-        onChange={(event) => {
-          setDismissed(false);
-          onChange(event.target.value);
-          sync(event.target);
-        }}
-        onSelect={(event) => sync(event.currentTarget)}
-        onKeyDown={onKeyDown}
-      />
-      {suggestion && (
-        <div
-          id="search-suggestions"
-          role="listbox"
-          aria-label={t(FACET_HEADING[suggestion.trigger.kind])}
-          className="absolute inset-x-0 top-full z-30 mt-1 overflow-hidden rounded-[var(--radius)] border border-line bg-raised p-1 shadow-[var(--shadow)]"
-        >
-          <div className="px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-            {t(FACET_HEADING[suggestion.trigger.kind])}
-          </div>
-          {suggestion.options.map((option, index) => (
-            <button
-              key={`${option.kind}-${option.ids.join('-')}`}
-              id={`search-suggestion-${index}`}
-              type="button"
-              role="option"
-              aria-selected={index === active}
-              className={cn(
-                'flex w-full cursor-pointer items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 text-left text-[13.5px] text-fg',
-                index === active && 'bg-hover',
-              )}
-              // The field keeps the focus, so the list does not close under the
-              // pointer before the click it was aimed at ever arrives.
-              onMouseDown={(event) => event.preventDefault()}
-              onPointerEnter={() => setActive(index)}
-              onClick={() => choose(option)}
-            >
-              <FacetGlyph option={option} />
-              <span className="min-w-0 flex-1 truncate">{option.name}</span>
-              {option.hint && <span className="mono truncate text-[11.5px] text-muted">{option.hint}</span>}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FacetGlyph({ option }: { option: FacetOption }) {
-  if (option.kind === 'person') {
-    const user = byId('user', option.ids[0]);
-    return <Avatar user={user ?? { id: option.ids[0], name: option.name }} size={20} />;
-  }
-  if (option.kind === 'label') {
-    return <span className={cn(chipDot, 'mx-[6px]')} style={{ background: option.color ?? 'var(--fg-muted)' }} />;
-  }
-  return <Icon name="folder" size={15} />;
-}
-
 /* ---------------------------------------------------------------- results */
 
 export function Search() {
@@ -320,6 +116,7 @@ export function Search() {
   const openTask = useOpenTask();
   const toast = useToast();
   const options = useFacetOptions();
+  const vocabulary = useVocabulary();
 
   // The query lives in the URL, so a search can be linked, reloaded, and
   // arrived at from ⌘K with the words already in it.
@@ -343,9 +140,19 @@ export function Search() {
     return () => clearTimeout(handle);
   }, [input, setParams]);
 
-  const { text, facets } = useMemo(() => parseQuery(input, options), [input, options]);
+  // One reading of the line, the same one the task header does. What this
+  // screen adds is where the answers come from, not what the sentence means.
+  const { text, facets, filters, errors } = useMemo(
+    () => readQuery(input, options, vocabulary), [input, options, vocabulary],
+  );
   const terms = useMemo(() => parseTerms(text), [text]);
-  const facetKey = facets.map((facet) => `${facet.kind}:${facet.ids.join('|')}`).join(',');
+  // The filter as text, which is a stable key for it and is already the one
+  // answer to "do these two mean the same thing".
+  const filterKey = useMemo(() => printQuery(filters, vocabulary), [filters, vocabulary]);
+  const at = useMemo(
+    () => ({ groupOf: (id: string) => byId('state', id)?.group_key as StateGroup | undefined, day: today(), horizon: plusDays(today(), HORIZON_DAYS) }),
+    [filterKey],
+  );
   const wordKey = termsKey(terms);
   /**
    * Whether anything was asked *for*, as opposed to asked against.
@@ -357,9 +164,9 @@ export function Search() {
    * exclusions is not even valid FTS5.
    */
   const wanted = terms.some((term) => !term.negated);
-  const asked = wanted || facets.length > 0;
-  /** A person or a label is a thing only work can have. */
-  const workOnly = facets.some((facet) => facet.kind !== 'project');
+  const asked = wanted || narrowsByFilter(filters);
+  /** A person, a label, a state, a due date — things only work can have. */
+  const workOnly = onlyWorkCanAnswer(filters);
 
   /**
    * The tasks the query named outright, rather than described.
@@ -381,21 +188,15 @@ export function Search() {
 
   const tasks = useQuery(() => {
     if (!asked) return [];
-    const sets = (kind: FacetKind) => facets.filter((facet) => facet.kind === kind).map((facet) => new Set(facet.ids));
-    const people = sets('person');
-    const labels = sets('label');
-    const projects = sets('project');
     const titled = (task: Task) => matchesTerms(`${task.identifier} ${task.title}`, terms);
     return list('task', (task) => task.workspace_id === workspaceId && !task.archived
-      && people.every((set) => (task.assignees ?? []).some((id) => set.has(id)))
-      && labels.every((set) => (task.labels ?? []).some((id) => set.has(id)))
-      && projects.every((set) => set.has(task.project_id))
+      && passesFilters(task, filters, at)
       && matchesTerms(`${task.identifier} ${task.title} ${task.description ?? ''}`, terms))
       // A word in the title beats the same word buried in a description, and
       // among equals the one somebody touched last week is the likelier one.
       .sort((a, b) => Number(titled(b)) - Number(titled(a)) || b.updated_at - a.updated_at)
       .slice(0, 50);
-  }, [workspaceId, wordKey, facetKey, asked]);
+  }, [workspaceId, wordKey, filterKey, asked]);
 
   // The same filters, without the words. A comment found by the server sits on
   // a task whose *title* need not contain the search at all, so asking whether
@@ -403,30 +204,28 @@ export function Search() {
   // whether it passed the filters is the actual question.
   const scope = useQuery(() => {
     if (!workOnly) return null;
-    const sets = (kind: FacetKind) => facets.filter((facet) => facet.kind === kind).map((facet) => new Set(facet.ids));
-    const people = sets('person');
-    const labels = sets('label');
-    const projects = sets('project');
     return new Set(list('task', (task) => task.workspace_id === workspaceId && !task.archived
-      && people.every((set) => (task.assignees ?? []).some((id) => set.has(id)))
-      && labels.every((set) => (task.labels ?? []).some((id) => set.has(id)))
-      && projects.every((set) => set.has(task.project_id))).map((task) => task.id));
-  }, [workspaceId, facetKey, workOnly]);
+      && passesFilters(task, filters, at)).map((task) => task.id));
+  }, [workspaceId, filterKey, workOnly]);
 
   const local = useQuery<Hit[]>(() => {
     if (!wanted || workOnly) return [];
-    const projects = facets.filter((facet) => facet.kind === 'project').map((facet) => new Set(facet.ids));
-    const inScope = (projectId: string | null) => projects.every((set) => projectId && set.has(projectId));
+    // A project is the one filter a page can answer, so it is the one that
+    // still narrows here. Read off `filters` rather than the facets, because
+    // `+Website` and `project = WEB` are the same ask and this screen no
+    // longer knows which one was typed.
+    const wantedProjects = new Set(filters.project ?? []);
+    const inScope = (projectId: string | null) => !wantedProjects.size || (!!projectId && wantedProjects.has(projectId));
     const pages = list('page', (page) => page.workspace_id === workspaceId && !page.archived
       && inScope(page.project_id ?? null) && matchesTerms(page.title, terms)).slice(0, 12);
     const found = list('project', (project) => project.workspace_id === workspaceId && !project.archived
-      && (!projects.length || projects.every((set) => set.has(project.id)))
+      && inScope(project.id)
       && matchesTerms(`${project.key} ${project.name}`, terms)).slice(0, 8);
     return [
       ...pages.map((page) => ({ kind: 'page', id: page.id, title: page.title, snippet: pageExcerpt(page.content, page.format, 90), projectId: page.project_id ?? null })),
       ...found.map((project) => ({ kind: 'project', id: project.id, title: `${project.icon ?? ''} ${project.name}`.trim(), snippet: excerpt(project.description ?? '', 90), projectId: project.id })),
     ];
-  }, [workspaceId, wordKey, facetKey, workOnly, wanted]);
+  }, [workspaceId, wordKey, filterKey, workOnly, wanted]);
 
   const [remote, setRemote] = useState<Hit[]>([]);
   const [waiting, setWaiting] = useState(false);
@@ -495,7 +294,7 @@ export function Search() {
     return KIND_ORDER
       .map((kind) => ({ kind, hits: hits.filter((hit) => hit.kind === kind) }))
       .filter((section) => section.hits.length);
-  }, [tasks, local, remote, facetKey, scope, exactIds]);
+  }, [tasks, local, remote, filterKey, scope, exactIds]);
 
   const total = exact.length + sections.reduce((sum, section) => sum + section.hits.length, 0);
 
@@ -537,6 +336,21 @@ export function Search() {
           // the results are already on screen: there is no "go" to press.
           onSubmit={() => exact[0] && openTask({ id: exact[0].id })}
         />
+
+        {/* A clause that could not be resolved says so here, exactly as it does
+            in the task header — one language means one answer when it is typed
+            wrongly, not a sentence that is explained on one screen and silently
+            ignored on the other. The rest of the line still searches. */}
+        {errors.length > 0 && (
+          <ul className="mb-0 mt-2 list-none p-0 text-[12.5px] text-danger">
+            {errors.map((error) => (
+              <li key={`${error.at}-${error.message}`} className="mb-1 flex items-start gap-1.5">
+                <Icon name="bolt" size={13} />
+                <span>{error.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {facets.length > 0 && (
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">

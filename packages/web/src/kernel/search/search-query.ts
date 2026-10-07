@@ -22,7 +22,10 @@
  *
  * No React here on purpose: this is the part worth testing.
  */
-import { fold } from '@kolibri/shared';
+import {
+  fold, parseQuery,
+  type Filters, type QueryError, type QueryVocabulary,
+} from '@kolibri/shared';
 
 export type FacetKind = 'person' | 'label' | 'project';
 
@@ -75,14 +78,14 @@ export interface Suggestion {
 const isBoundary = (char: string | undefined): boolean => char === undefined || /[\s(,;]/.test(char);
 
 /**
- * Read the whole box: which names are in it, and what is left over.
+ * Lift the names out of the box: which ones are in it, and what is left over.
  *
  * A trigger character only counts at the start of a word, so an e-mail address
  * in a search is an e-mail address, and it only counts when a name it was
  * given actually follows — the longest one, so "@Anna Schmidt" beats a
  * colleague called "Anna" and the surname does not fall out into the text.
  */
-export function parseQuery(input: string, options: FacetOption[]): ParsedQuery {
+export function parseFacets(input: string, options: FacetOption[]): ParsedQuery {
   const facets: Facet[] = [];
   let text = '';
   let index = 0;
@@ -201,3 +204,76 @@ export function applySuggestion(input: string, trigger: Trigger, option: FacetOp
 export function removeFacet(input: string, facet: Facet): string {
   return `${input.slice(0, facet.start)}${input.slice(facet.end)}`.replace(/\s+/g, ' ').trim();
 }
+
+/* ------------------------------------------------------- the whole line */
+
+/**
+ * Which `Filters` key each picked name writes.
+ *
+ * This is the hinge of the whole thing: a name picked from the list and a
+ * clause typed by hand are the *same* filter afterwards, so `@Anna` and
+ * `assignee = Anna` cannot drift apart however either one was produced.
+ */
+const FILTER_OF: Record<FacetKind, 'assignee' | 'label' | 'project'> = {
+  person: 'assignee', label: 'label', project: 'project',
+};
+
+export interface Query extends ParsedQuery {
+  /** Everything the line asks of a task — the clauses and the names together. */
+  filters: Filters;
+  errors: QueryError[];
+}
+
+/**
+ * One line, read once, for both boxes.
+ *
+ * The names come out first, because they are picked and therefore certain;
+ * what is left is read as clauses, and whatever is not a clause is prose. All
+ * three end up in one `Filters`, which is what `passesFilters` answers and what
+ * a saved view holds — so the header's box and the search screen cannot mean
+ * different things by the same sentence any more.
+ *
+ * **Two of the same name now mean "either", where the search screen used to
+ * mean "both".** `@anna @bob` filtered to the tasks they *share* here, because
+ * this screen grew its own matcher: `people.every(...)`. Nowhere else in the
+ * product does a repeated filter narrow that way — the menus, the saved views,
+ * the server's own view query and `assignee in (anna, bob)` all read a list as
+ * "is one of" — and `Filters` cannot express the other reading at all. Keeping
+ * it would have meant keeping two matchers, which is the thing this change is
+ * for. It is a change in behaviour on one screen, and it is the only one.
+ */
+export function readQuery(input: string, options: FacetOption[], vocabulary: QueryVocabulary): Query {
+  const { text: rest, facets } = parseFacets(input, options);
+  const { filters, errors } = parseQuery(rest, vocabulary);
+
+  for (const facet of facets) {
+    const key = FILTER_OF[facet.kind];
+    filters[key] = [...new Set([...(filters[key] ?? []), ...facet.ids])];
+  }
+
+  return { text: filters.text ?? '', facets, filters, errors };
+}
+
+/**
+ * Whether the line asks something only a task could answer.
+ *
+ * A project is not that: pages and projects sit in one too. Everything else —
+ * a state, an assignee, a label, a due date — is a question a page cannot be
+ * asked, so a search carrying one is a search for work, and the other kinds of
+ * hit are not thin answers to it but wrong ones.
+ */
+export const onlyWorkCanAnswer = (filters: Filters): boolean =>
+  WORK_KEYS.some((key) => filters[key]?.length || filters.not?.[key]?.length) || !!filters.due;
+
+const WORK_KEYS = ['state', 'group', 'priority', 'cycle', 'module', 'assignee', 'label'] as const;
+
+/**
+ * Whether the line narrows by anything but its words.
+ *
+ * `countFilters` cannot answer this: it counts `text` as a filter, which is
+ * right for the badge over a list that is already on screen and wrong for a
+ * search, where a line of nothing but words has not narrowed anything — it *is*
+ * the search.
+ */
+export const narrowsByFilter = (filters: Filters): boolean =>
+  onlyWorkCanAnswer(filters) || !!filters.project?.length || !!filters.not?.project?.length;
