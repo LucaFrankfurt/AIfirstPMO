@@ -56,7 +56,7 @@ const LABELS = {
     comment: 'Comment', editComment: 'Edit this comment', edited: 'edited',
     tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
     archive: 'Archive', duplicateTitles: 'Two pages, one title',
-    bulkOrganise: 'Organise', unarchive: 'Unarchive',
+    bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -75,7 +75,7 @@ const LABELS = {
     comment: 'Kommentieren', editComment: 'Diesen Kommentar bearbeiten', edited: 'bearbeitet',
     tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
     archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
-    bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen',
+    bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -94,7 +94,7 @@ const LABELS = {
     comment: 'Commenter', editComment: 'Modifier ce commentaire', edited: 'modifié',
     tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
     archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
-    bulkOrganise: 'Ranger', unarchive: 'Désarchiver',
+    bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette',
   },
 }[locale];
 
@@ -113,6 +113,30 @@ const closeSheets = async (target) => {
 };
 
 /** The first-run tour opens over everything; every later step needs it gone. */
+/**
+ * The page statuses the demo workspace was seeded with — and why they are not
+ * in `LABELS` beside the interface words.
+ *
+ * A rung is a *row*, seeded once in the language of whoever created the
+ * workspace, and an ordinary editable row afterwards. The demo's creator has
+ * no locale, so these are English on every leg of this walkthrough — exactly as
+ * `Team handbook` is. Translating them here is the mistake this comment exists
+ * to stop: the German leg looked for `Entwurf`, found `Draft`, and reported
+ * that the page menu offered no rungs at all.
+ */
+const RUNGS = { draft: 'Draft', final: 'Final' };
+
+/**
+ * A rung in a menu, ticked or not.
+ *
+ * The menus mark the rung a page is already on with a `✓`, so an anchored
+ * `^Final$` matches only while the page is somewhere else — which made this
+ * pass on one leg of the walkthrough and fail on the next, purely because the
+ * two legs had selected different rows.
+ */
+const rungItem = (target, name) =>
+  target.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${name}\\s*✓?$`) });
+
 const closeTour = async (target) => {
   if (await target.locator('.sheet:has(.tour-h)').count()) {
     await target.keyboard.press('Escape');
@@ -1148,7 +1172,16 @@ await step('the wiki reports what is untidy, and the tree can be filtered and fo
   await page.waitForTimeout(300);
   const offered = await page.locator('[role="menu"] [role="menuitem"], .menu [role="menuitem"]').count();
   if (!offered) throw new Error('the Organise menu offered nothing');
-  console.log('     organise menu offers:', offered);
+  /*
+   * The ladder is in that menu too, which is the one thing about the page
+   * status only a browser can be asked: it is read out of a *seeded* table, so
+   * an empty menu here means the workspace never got its rungs — and that is a
+   * bootstrap failure no unit test can see, because the seeding happens on a
+   * real workspace being created.
+   */
+  const rungs = await rungItem(page, RUNGS.final).count();
+  if (!rungs) throw new Error(`the Organise menu offers no page statuses — the workspace has no ladder`);
+  console.log('     organise menu offers:', offered, '· including the ladder');
   await page.keyboard.press('Escape');
 
   // Archive the one page that is selected, and read it back off the screen.
@@ -1699,6 +1732,68 @@ await step('search: prose finds work, and @ offers the people', async () => {
  * afterwards, and shorter, and that reopening the box shows the search back
  * with its quotes on.
  */
+await step('a page says how finished it is, and the word can be changed', async () => {
+  await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.page-row', { timeout: 8000 });
+
+  /*
+   * The ladder is seeded per workspace, so the first thing worth asserting is
+   * that it exists at all — a bootstrap that never ran leaves every page with
+   * no status and every one of these assertions passing vacuously.
+   */
+  const before = await page.locator('.page-row').count();
+
+  // The demo puts the handbook on the settled rung, so there is something to
+  // read rather than three identical drafts.
+  await page.locator('.page-row-main:has-text("Team handbook")').first().click();
+  await page.waitForTimeout(900);
+  const chips = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+  if (!chips.includes(RUNGS.final)) {
+    throw new Error(`the page does not say which rung it is on: ${chips.slice(0, 120)}`);
+  }
+
+  // Changed through the page's own menu, and read back off the chip.
+  await page.locator('.header button').nth(1).click();
+  await page.waitForTimeout(400);
+  const draft = rungItem(page, RUNGS.draft).first();
+  if (!await draft.count()) throw new Error('the page menu offers no rungs to move to');
+  await draft.click();
+  await page.waitForTimeout(900);
+  const moved = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
+  if (!moved.includes(RUNGS.draft)) throw new Error(`the chip did not follow the menu: ${moved.slice(0, 120)}`);
+  console.log(`     ${RUNGS.final} -> ${RUNGS.draft} on the handbook`);
+
+  /*
+   * And the filter, which is the half that makes the word useful: a wiki where
+   * the status is only visible once a page is open is a wiki where nobody ever
+   * asks "what is still a draft".
+   */
+  await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.page-row', { timeout: 8000 });
+  await page.locator('.header button')
+    .filter({ hasText: new RegExp(`${LABELS.filterPages}|${RUNGS.final}`) }).first().click();
+  await page.waitForTimeout(350);
+  const pick = rungItem(page, RUNGS.final).first();
+  if (!await pick.count()) throw new Error('the filter offers no rungs');
+  await pick.click();
+  await page.waitForTimeout(800);
+  const left = await page.locator('.page-row').count();
+  if (!(left > 0 && left < before)) throw new Error(`filtering by a rung left ${left} of ${before} rows`);
+  console.log(`     filtered to ${RUNGS.final}: ${left} of ${before} rows`);
+
+  // Put the handbook back, so the next walkthrough reads the wiki this one did.
+  await page.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.locator('.page-row-main:has-text("Team handbook")').first().click();
+  await page.waitForTimeout(800);
+  await page.locator('.header button').nth(1).click();
+  await page.waitForTimeout(400);
+  await rungItem(page, RUNGS.final).first().click();
+  await page.waitForTimeout(700);
+});
+
 await step('one box, two places: the header filters and the search finds', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });
   await closeTour(page);

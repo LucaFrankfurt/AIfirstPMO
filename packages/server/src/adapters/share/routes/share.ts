@@ -63,6 +63,12 @@ function document_(title: string, body: string, workspace: string, writable = fa
   th, td { border-bottom: 1px solid var(--line); padding: 7px 10px; text-align: start; vertical-align: top; }
   th { font-size: 12.5px; color: var(--muted); font-weight: 600; }
   .meta { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
+  /* A page that is not finished says so to the stranger holding the link. The
+     same shape as the blockquote above, because it is the same gesture and this
+     document defines its own four colours — a fifth invented here would be a
+     variable nothing sets. */
+  .status-notice { border-inline-start: 3px solid var(--line); padding-inline-start: 12px;
+    margin: 0 0 22px; font-size: 13px; color: var(--muted); }
   .foot { color: var(--muted); font-size: 12.5px; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 14px; }
   .done td:first-child { text-decoration: line-through; color: var(--muted); }
   .pill { display: inline-block; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; }
@@ -202,9 +208,30 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
 
   const section = (row: Row, level: number): string => target(row, level) + written(row);
 
+  /*
+   * What an unfinished page tells the stranger reading it.
+   *
+   * This is the destination the whole status feature is most for: inside the
+   * workspace a draft is surrounded by context, and on a link somebody was sent
+   * it is just a document — one that gets quoted back as though it were settled.
+   * The kind is read, never the name, so a workspace that renamed its rungs
+   * keeps the notice.
+   *
+   * In English like the `Updated` line above it. This document has no reader to
+   * ask for a language and never has had; translating one sentence of it would
+   * make the page half-German and settle nothing.
+   */
+  const rung = page.status_id
+    ? get<Row>(`SELECT name, kind FROM page_statuses WHERE id = ? AND deleted_at IS NULL`, page.status_id)
+    : null;
+  const unfinished = rung && rung.kind !== 'final'
+    ? `<p class="status-notice">${escape(String(rung.name))} — this text has not been signed off.</p>`
+    : '';
+
   return [
     target(page, 1),
     `<p class="meta">Updated ${new Date(Number(page.updated_at)).toISOString().slice(0, 10)}</p>`,
+    unfinished,
     written(page),
     ...children.map((child) => section(child, 2)),
     noteBox(share, notice),

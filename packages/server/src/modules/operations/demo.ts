@@ -201,9 +201,22 @@ export function seedDemoData(): boolean {
     });
   }
 
+  /*
+   * The demo's pages are not all drafts, because a wiki where everything says
+   * the same thing teaches nothing about the word. The handbook and the
+   * supplier's document are settled, the incident runbook is being read by
+   * somebody, and the API principles page is still a draft — which is also the
+   * one the default would have given it anyway, so one page here proves the
+   * default and three prove the ladder.
+   */
+  const rung = (kind: string): string | null =>
+    (get<Row>(`SELECT id FROM page_statuses WHERE workspace_id = ? AND kind = ? AND deleted_at IS NULL`, ws, kind)?.id as string) ?? null;
+  const settled = rung('final');
+  const reading = rung('review');
+
   const handbook = uid();
   writeEntity('page', handbook, {
-    workspace_id: ws, title: 'Team handbook', icon: '📗', access: 'workspace', created_by: ada,
+    workspace_id: ws, title: 'Team handbook', icon: '📗', access: 'workspace', created_by: ada, status_id: settled,
     content: `# Team handbook
 
 Welcome to Kolibri. This page is a normal wiki page — edit it, nest pages under it, drop images into it.
@@ -223,7 +236,7 @@ Welcome to Kolibri. This page is a normal wiki page — edit it, nest pages unde
   }, { workspaceId: ws, actorId: ada, hlc: hlc(), system: true });
 
   writeEntity('page', uid(), {
-    workspace_id: ws, parent_id: handbook, title: 'Incident response', icon: '🚨', created_by: grace,
+    workspace_id: ws, parent_id: handbook, title: 'Incident response', icon: '🚨', created_by: grace, status_id: reading,
     content: `# Incident response
 
 1. Declare the incident in the team channel.
@@ -243,7 +256,7 @@ Welcome to Kolibri. This page is a normal wiki page — edit it, nest pages unde
    */
   writeEntity('page', uid(), {
     workspace_id: ws, parent_id: handbook, title: 'Support hours (from the supplier)', icon: '📄',
-    created_by: grace, format: 'html',
+    created_by: grace, format: 'html', status_id: settled,
     content: `<h2>Support hours</h2>
 <p>Imported from the supplier's own document, kept as it was written.</p>
 <table>

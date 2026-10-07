@@ -209,3 +209,54 @@ describe('the whole report', () => {
     assert.equal(tidyPages(looped, { now: NOW }).findings.length >= 0, true);
   });
 });
+
+/**
+ * A review nobody finished.
+ *
+ * The one finding that is about a *promise* rather than about the tree: the
+ * other five are visible in the wiki itself if somebody looks hard enough,
+ * while "Grace asked for this to be read four weeks ago" is visible nowhere at
+ * all. The cases below pin the two things that make it trustworthy — it reads
+ * the kind and never a name, and it does not fire for the page a workspace
+ * simply left on a draft.
+ */
+describe('a review that stopped moving', () => {
+  const reviewed = (over: Partial<TidyPage> & { id: string }) =>
+    page({ statusKind: 'review', ...over });
+
+  it('reports a page that has sat in review', () => {
+    assert.deepEqual(ids([reviewed({ id: 'a', updated_at: NOW - 40 * DAY })], 'inReview'), ['a']);
+  });
+
+  it('leaves a review that is still moving alone', () => {
+    assert.deepEqual(ids([reviewed({ id: 'a', updated_at: NOW - 5 * DAY })], 'inReview'), []);
+  });
+
+  /** A draft nobody touched is `stale`, which is a different sentence. */
+  it('says nothing about a draft or a finished page, however old', () => {
+    const old = { updated_at: NOW - 400 * DAY };
+    const pages = [
+      page({ id: 'draft', statusKind: 'draft', ...old }),
+      page({ id: 'final', statusKind: 'final', ...old }),
+      page({ id: 'none', ...old }),
+    ];
+    assert.deepEqual(ids(pages, 'inReview'), []);
+    // All three are stale, which is the finding that *is* about the date.
+    assert.deepEqual(ids(pages, 'stale'), ['draft', 'final', 'none']);
+  });
+
+  it('takes the threshold from the caller, like the stale one does', () => {
+    const one = [reviewed({ id: 'a', updated_at: NOW - 10 * DAY })];
+    assert.deepEqual(ids(one, 'inReview', { reviewDays: 7 }), ['a']);
+    assert.deepEqual(ids(one, 'inReview', { reviewDays: 90 }), []);
+  });
+
+  /**
+   * Where it sits among the others, which `byPage` and the screen both read.
+   * One page that is wrong in four ways at once, so the order is the finding.
+   */
+  it('is worked through after the content findings and before stale', () => {
+    const report = tidyPages([reviewed({ id: 'a', content: '', updated_at: NOW - 400 * DAY })], { now: NOW });
+    assert.deepEqual(report.byPage.get('a'), ['empty', 'isolated', 'inReview', 'stale']);
+  });
+});

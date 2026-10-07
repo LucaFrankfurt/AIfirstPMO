@@ -1,4 +1,4 @@
-import { Clock, ENVIRONMENTS, orderKeys, type StateGroup } from '@kolibri/shared';
+import { Clock, ENVIRONMENTS, orderKeys, type PageStatusKind, type StateGroup } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../platform/db/index.ts';
 import { conflict } from '../platform/http.ts';
 import { translatorFor, type ServerKey } from '../i18n/i18n.ts';
@@ -45,6 +45,61 @@ const DEFAULT_LABELS: { name: ServerKey; color: string }[] = [
   { name: 'seed.labelImprovement', color: '#0ea5e9' },
   { name: 'seed.labelDocumentation', color: '#14b8a6' },
 ];
+
+/**
+ * The ladder a workspace starts with for how finished a page is.
+ *
+ * Translated like `DEFAULT_STATES` and unlike `ENVIRONMENTS`, and the rule is
+ * the same one stated below: a state is a word people read, an environment is
+ * a word a machine is handed. Nobody passes a page status to a CLI.
+ *
+ * Three, and the `kind` beside each is what everything downstream reads — the
+ * export marker, the tidy screen, the default for a new page — so a workspace
+ * may rename or recolour all three, add a fourth, or delete one, and none of
+ * that changes what the rest of the product understands.
+ */
+export const DEFAULT_PAGE_STATUSES: { name: ServerKey; kind: PageStatusKind; color: string }[] = [
+  { name: 'seed.pageStatusDraft', kind: 'draft', color: '#94a3b8' },
+  { name: 'seed.pageStatusReview', kind: 'review', color: '#f59e0b' },
+  { name: 'seed.pageStatusFinal', kind: 'final', color: '#10b981' },
+];
+
+export function seedPageStatuses(workspaceId: string, actorId: string): void {
+  const translate = translatorFor(actorId);
+  const orders = orderKeys(DEFAULT_PAGE_STATUSES.length);
+  DEFAULT_PAGE_STATUSES.forEach((status, index) => {
+    writeEntity('pageStatus', uid(), {
+      workspace_id: workspaceId,
+      name: translate(status.name),
+      kind: status.kind,
+      color: status.color,
+      sort_order: orders[index],
+    }, { workspaceId, actorId, hlc: serverClock.now(), system: true });
+  });
+}
+
+/**
+ * The same three, for the workspaces that existed before there were any.
+ *
+ * Exactly the shape `backfillEnvironments` has, for the reason given there:
+ * `installEffects` is the one thing every entry point that can write already
+ * calls once. Additive and skippable — a workspace with one status, even a
+ * single renamed one, is left alone, because somebody who deleted the rest
+ * meant to.
+ *
+ * What it deliberately does *not* do is write an id into the pages that
+ * already exist. They keep `status_id` NULL and `statusOf` reads that as the
+ * draft; stamping the whole wiki would have been this feature claiming an
+ * editorial decision on behalf of everybody who ever wrote a page.
+ */
+export function backfillPageStatuses(): void {
+  const workspaces = all<Row>(
+    `SELECT w.id, w.owner_id FROM workspaces w
+      WHERE w.deleted_at IS NULL
+        AND NOT EXISTS (SELECT 1 FROM page_statuses s WHERE s.workspace_id = w.id)`,
+  );
+  for (const workspace of workspaces) seedPageStatuses(String(workspace.id), String(workspace.owner_id ?? ''));
+}
 
 /**
  * The environments a workspace starts with, and why they are those four words.
@@ -105,6 +160,7 @@ export function createWorkspace(name: string, ownerId: string, slugHint?: string
     );
     addMember(id, ownerId, 'owner');
     seedEnvironments(id, ownerId);
+    seedPageStatuses(id, ownerId);
     return get<Row>(`SELECT * FROM workspaces WHERE id = ?`, id)!;
   });
 }

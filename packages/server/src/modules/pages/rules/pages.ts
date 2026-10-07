@@ -5,7 +5,10 @@
  * merge; the snapshot is what makes the losing half findable afterwards.
  */
 
-import { crdt, linkableTitle, pageKey, renameLinks, type CrdtState, type PageFormat } from '@kolibri/shared';
+import {
+  crdt, defaultStatus, linkableTitle, PAGE_STATUS_KINDS, pageKey, renameLinks,
+  type CrdtState, type EntityName, type PageFormat, type PageStatus, type PageStatusKind,
+} from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
@@ -157,12 +160,76 @@ function followRename(page: Row, was: string, next: string, opts: WriteOpts): vo
   }
 }
 
+/**
+ * The rung a new page starts on, settled here rather than in the editor.
+ *
+ * Every door a page can arrive through — the editor, a template, an import,
+ * `create_page` over MCP, plain REST — comes past this one, and a default that
+ * lived in the client would be a default three of those five never applied.
+ * Read from the workspace's own ladder, so a workspace that renamed, recoloured
+ * or reordered its rungs gets what *it* calls a draft.
+ *
+ * Silent when the ladder is empty: a workspace may delete every status, and
+ * `statusOf` already answers for a page that has none. Inventing a row here to
+ * have something to point at would put back what somebody deleted on purpose.
+ */
+function startingStatus(workspaceId: string): string | null {
+  const rows = all<Row>(
+    `SELECT id, kind, sort_order FROM page_statuses
+      WHERE workspace_id = ? AND deleted_at IS NULL`,
+    workspaceId,
+  );
+  return defaultStatus(rows as unknown as PageStatus[])?.id ?? null;
+}
+
+/**
+ * A rung has to be one of the three kinds, and a page has to point at a rung
+ * of its own workspace.
+ *
+ * Both corrected rather than refused, which is the line `environmentRules`
+ * already draws and for the same reason: an unknown kind is the shape of an
+ * older client or a hand-written API call, and a status id from another
+ * workspace is the shape of a copy-paste. Neither is somebody trying
+ * something, and a 400 to a sync batch is a device that stops syncing.
+ *
+ * A status that simply no longer exists is left alone on purpose — `statusOf`
+ * reads a dangling id as the draft, so deleting a rung does not have to walk
+ * every page that stood on it.
+ */
+function settlePageStatus(entity: EntityName, values: Record<string, unknown>, forced: Record<string, unknown>, opts: WriteOpts): void {
+  if (entity === 'pageStatus') {
+    if (values.kind !== undefined && !PAGE_STATUS_KINDS.includes(values.kind as PageStatusKind)) {
+      values.kind = 'draft';
+      forced.kind = 'draft';
+    }
+    return;
+  }
+  if (values.status_id === undefined || !values.status_id) return;
+  const status = get<Row>(
+    `SELECT workspace_id FROM page_statuses WHERE id = ? AND deleted_at IS NULL`, values.status_id,
+  );
+  if (status && String(status.workspace_id) === String(opts.workspaceId)) return;
+  values.status_id = null;
+  forced.status_id = null;
+}
+
 export const pageRules = {
-  entities: ['page'],
+  entities: ['page', 'pageStatus'],
   defaults(entity, id, values, opts, setForced) {
-    if (entity === 'page' && !values.created_by) setForced('created_by', opts.actorId);
+    if (entity !== 'page') return;
+    if (!values.created_by) setForced('created_by', opts.actorId);
+    // `=== undefined` and not falsy: a client that deliberately sends `null`
+    // is saying "no status", which a workspace with no ladder is entitled to
+    // mean, and a default that overrode it would make that unsayable. This hook
+    // is `applyCreateDefaults`, so there is no need to ask whether this is a
+    // create — it is one.
+    if (values.status_id === undefined) {
+      const start = startingStatus(String(values.workspace_id ?? opts.workspaceId ?? ''));
+      if (start) setForced('status_id', start);
+    }
   },
   invariants(entity, id, values, existing, forced, opts) {
+    settlePageStatus(entity, values, forced, opts);
     if (entity === 'page') applyPageInvariants(values, existing, forced);
   },
   effects(entity, row, before, changed, opts) {

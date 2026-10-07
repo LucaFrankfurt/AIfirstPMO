@@ -8,8 +8,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Page } from '@kolibri/shared';
 import {
-  collapse, diffLines, diffSummary, escapeHtml, htmlToMarkdown, renderMarkdown, sanitizeHtml, type DiffLine,
+  collapse, diffLines, diffSummary, escapeHtml, htmlToMarkdown, renderMarkdown, sanitizeHtml, statusOf,
+  type DiffLine,
 } from '@kolibri/shared';
+import { usePageStatuses } from './status';
 import { api } from '../../kernel/sync/api';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
@@ -475,7 +477,19 @@ export function PageHistory({ page, onClose, onCompare }: {
  */
 function pageTree(
   page: Page,
-  say: { author: (page: Page) => string | null; heading: (page: Page) => string },
+  say: {
+    author: (page: Page) => string | null;
+    heading: (page: Page) => string;
+    /**
+     * What an unfinished page says about itself once it is outside.
+     *
+     * One option rather than two call sites, because the export and the print
+     * are the same document with different destinations — and a draft that
+     * admitted to being one in the PDF but not in the .html would be the kind
+     * of half-promise that is worse than none.
+     */
+    notice?: (page: Page) => string | null;
+  },
 ): string {
   const seen = new Set<string>();
   const section = (current: Page, depth: number): string => {
@@ -485,9 +499,11 @@ function pageTree(
     const children = list('page', (child) => child.parent_id === current.id && !child.archived)
       .sort(byOrder) as Page[];
     const author = say.author(current);
+    const notice = say.notice?.(current);
     return [
       `<h${level} id="page-${escapeHtml(current.id)}">${escapeHtml(say.heading(current))}</h${level}>`,
       author ? `<p class="meta">${escapeHtml(author)}</p>` : '',
+      notice ? `<p class="status-notice">${escapeHtml(notice)}</p>` : '',
       // The one place the two page formats meet. Both end as markup this file
       // then wraps; neither is trusted more than the other — markdown is
       // escaped as it is rendered, HTML goes through the allowlist, and the
@@ -551,6 +567,11 @@ export function useExport(): (page: Page, as: 'markdown' | 'html') => void {
   const t = useT();
   const toast = useToast();
   const members = useMemberMap();
+  const statuses = usePageStatuses();
+  const notice = (one: Page) => {
+    const status = statusOf(one, statuses);
+    return !status || status.kind === 'final' ? null : t('page.statusNotFinal', { status: status.name });
+  };
 
   return (page, as) => {
     const author = (one: Page) => {
@@ -566,7 +587,7 @@ export function useExport(): (page: Page, as: 'markdown' | 'html') => void {
         : '';
       const heading = (one: Page) => `${one.icon ?? ''} ${one.title || t('common.untitled')}`.trim();
       download(
-        printable(escapeHtml(page.title || t('common.untitled')), contents + pageTree(page, { author, heading })),
+        printable(escapeHtml(page.title || t('common.untitled')), contents + pageTree(page, { author, heading, notice })),
         'text/html',
         fileName(page, 'html'),
       );
@@ -580,11 +601,16 @@ export function useExport(): (page: Page, as: 'markdown' | 'html') => void {
       const heading = '#'.repeat(Math.min(depth + 1, 6));
       const children = list('page', (child) => child.parent_id === current.id && !child.archived).sort(byOrder) as Page[];
       const said = author(current);
+      const warning = notice(current);
       return [
         `${heading} ${current.icon ?? ''} ${current.title}`.trim(),
         '',
         said ? `*${said}*` : '',
         '',
+        // A blockquote, because markdown has no other way to set a line apart
+        // and the file is read by whatever the recipient opens it in.
+        warning ? `> ${warning}` : '',
+        warning ? '' : '',
         current.format === 'html' ? htmlToMarkdown(current.content ?? '') : (current.content ?? ''),
         '',
         ...children.map((child) => write(child, depth + 1, seen)),
@@ -609,6 +635,7 @@ export function usePrint(): (page: Page) => void {
   const t = useT();
   const toast = useToast();
   const members = useMemberMap();
+  const statuses = usePageStatuses();
 
   return (page) => {
     const body = pageTree(page, {
@@ -617,6 +644,10 @@ export function usePrint(): (page: Page) => void {
         return name ? `${t('page.byAuthor', { name })} · ${shortDate(one.updated_at)}` : null;
       },
       heading: (one) => `${one.icon ?? ''} ${one.title || t('common.untitled')}`.trim(),
+      notice: (one) => {
+        const status = statusOf(one, statuses);
+        return !status || status.kind === 'final' ? null : t('page.statusNotFinal', { status: status.name });
+      },
     });
 
     const win = window.open('', '_blank');
@@ -647,6 +678,10 @@ const printable = (title: string, body: string): string => `<!doctype html>
   h1, h2, h3 { break-after: avoid; }
   p, ul, ol, pre, blockquote, table { margin: 0 0 12px; break-inside: avoid; }
   .meta { color: #6b7280; font-size: 12px; margin: 0 0 14px; }
+  /* Printed as well as shown: a draft leaving the workspace on paper is the
+     case this is most for, so no \`@media screen\` around it. */
+  .status-notice { border-left: 3px solid #9ca3af; background: #f7f8fa; padding: 8px 12px;
+    margin: 0 0 14px; font-size: 12px; color: #4b5563; }
   .toc { margin: 0 0 22px; padding: 12px 16px; background: #f7f8fa; border-radius: 8px; }
   .toc h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 0 0 6px; color: #6b7280; }
   .toc ol { margin: 0; padding-inline-start: 18px; }

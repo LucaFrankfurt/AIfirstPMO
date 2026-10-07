@@ -73,7 +73,43 @@ function lastOrder(workspaceId: string, parentId: string | null): string {
   return orderKey((last?.sort_order as string | null) ?? null, null);
 }
 
+/**
+ * The rung a name asks for, in this workspace's own ladder.
+ *
+ * By name because that is what an assistant has been told — "mark it final" —
+ * and by id because that is what `list_page_statuses` hands back. Unresolvable
+ * is an error rather than a silent draft: a page quietly left on the wrong rung
+ * is the one failure this feature exists to prevent.
+ */
+function findStatus(wanted: string, workspaceId: string): Row {
+  const rungs = all<Row>(
+    `SELECT id, name, kind FROM page_statuses WHERE workspace_id = ? AND deleted_at IS NULL`, workspaceId,
+  );
+  const want = wanted.trim().toLowerCase();
+  const found = rungs.find((rung) => String(rung.id) === wanted)
+    ?? rungs.find((rung) => String(rung.name).toLowerCase() === want)
+    // The kind as a last resort, so `final` works in a workspace that calls it
+    // something else — which is the word an assistant is most likely to be given.
+    ?? rungs.find((rung) => String(rung.kind) === want);
+  if (!found) {
+    throw new Error(`No page status here is called "${wanted}". ${rungs.map((rung) => rung.name).join(', ') || 'This workspace has none.'}`);
+  }
+  return found;
+}
+
 export const pageTools: ToolDef[] = [
+  {
+    name: 'list_page_statuses',
+    title: 'List page statuses',
+    description: 'The rungs this workspace uses for how finished a page is, in its own order. `kind` is what the product reads — draft, review or final — whatever the rung is called.',
+    readOnly: true,
+    schema: { type: 'object', properties: { workspace_id: { type: 'string' } } },
+    run: (args, ctx) => all<Row>(
+      `SELECT id, name, kind, color, sort_order FROM page_statuses
+        WHERE workspace_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+      workspaceOf(args, ctx),
+    ),
+  },
   {
     name: 'list_pages',
     title: 'List pages',
@@ -108,7 +144,8 @@ export const pageTools: ToolDef[] = [
       const under = parent && parent !== 'root' ? findPage(parent, workspaceId, ctx).id : null;
       const level = parent ? (under ? 'AND parent_id = ?' : 'AND parent_id IS NULL') : '';
       return all<Row>(
-        `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, format FROM pages
+        `SELECT id, title, icon, project_id, parent_id, sort_order, updated_at, created_by, is_template, format,
+            (SELECT name FROM page_statuses WHERE id = pages.status_id) AS status FROM pages
           WHERE workspace_id = ? ${project ? 'AND project_id = ?' : ''} ${level} AND deleted_at IS NULL AND archived = 0
             ${templates ? '' : 'AND is_template = 0'}
             ${visiblePagesSql()}
@@ -169,6 +206,10 @@ export const pageTools: ToolDef[] = [
           type: 'string', enum: ['markdown', 'html'],
           description: 'What `content` is written in. Markdown unless said otherwise; HTML is rendered through an allowlist, so a script or a style block in it is dropped rather than stored and refused.',
         },
+        status: {
+          type: 'string',
+          description: "How finished it is — a rung's name, its id, or one of `draft`, `review`, `final`. Left out, it starts on the workspace's draft.",
+        },
       },
     },
     run: (args, ctx) => {
@@ -184,6 +225,9 @@ export const pageTools: ToolDef[] = [
         content: String(args.content ?? ''),
         format: str(args.format) === 'html' ? 'html' : 'markdown',
         created_by: ctx.auth.userId,
+        // Only when asked for. Left undefined, the write path's own default
+        // puts it on the workspace's draft — one answer, not two.
+        ...(args.status === undefined ? {} : { status_id: findStatus(String(args.status), workspaceId).id }),
       }, writeOpts(workspaceId, ctx));
       return serialize('page', row);
     },
@@ -207,6 +251,10 @@ export const pageTools: ToolDef[] = [
           type: 'string',
           description: "Move it under this page — id or exact title. `root` takes it back to the top level.",
         },
+        status: {
+          type: 'string',
+          description: "Move it to this rung — a name, an id, or one of `draft`, `review`, `final`.",
+        },
         workspace_id: { type: 'string' },
       },
     },
@@ -227,6 +275,7 @@ export const pageTools: ToolDef[] = [
         ? renameFollowers(String(page.id), workspaceId, String(page.title ?? ''), String(args.title)).length
         : 0;
       if (args.title !== undefined) patch.title = String(args.title);
+      if (args.status !== undefined) patch.status_id = findStatus(String(args.status), workspaceId).id;
       if (args.content !== undefined) patch.content = String(args.content);
       if (args.append) patch.content = `${page.content ?? ''}\n\n${args.append}`;
       if (args.icon !== undefined) patch.icon = str(args.icon) ?? null;

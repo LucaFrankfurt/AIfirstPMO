@@ -35,6 +35,15 @@ export interface TidyPage {
   parent_id: string | null;
   updated_at: number;
   created_at?: number;
+  /**
+   * What the page's rung *means* — never its name.
+   *
+   * Resolved by the caller with `kindOf`, so this file holds no opinion about
+   * what a workspace calls anything and keeps working when somebody renames
+   * "Im Review" to "Gegenlesen". Absent on a caller that has no ladder, which
+   * simply means the finding below never fires.
+   */
+  statusKind?: string | null;
 }
 
 /**
@@ -44,7 +53,7 @@ export interface TidyPage {
  * write, so the screen offers to archive or open them and never to fix them in
  * bulk — a wiki that tidies itself is a wiki that loses a draft.
  */
-export type Problem = 'detached' | 'duplicate' | 'empty' | 'isolated' | 'stale';
+export type Problem = 'detached' | 'duplicate' | 'empty' | 'isolated' | 'stale' | 'inReview';
 
 /**
  * The order the findings are worked through, and the argument for it.
@@ -53,13 +62,25 @@ export type Problem = 'detached' | 'duplicate' | 'empty' | 'isolated' | 'stale';
  * lying: the page draws at the top level as though somebody put it there.
  * `duplicate` second because it silently moves links — the consequence lands
  * on *other* pages, which is what makes it hard to notice. Then the two about
- * content, and `stale` last, because "nobody has touched it" is the one that
- * is often simply true of a finished document.
+ * content, then `inReview`, which is somebody waiting on somebody, and `stale`
+ * last, because "nobody has touched it" is the one that is often simply true
+ * of a finished document.
  */
-export const PROBLEMS: readonly Problem[] = ['detached', 'duplicate', 'empty', 'isolated', 'stale'];
+export const PROBLEMS: readonly Problem[] = ['detached', 'duplicate', 'empty', 'isolated', 'inReview', 'stale'];
 
 /** A page nobody has edited in this long is worth a second look, not a verdict. */
 export const STALE_DAYS = 180;
+
+/**
+ * How long a page may sit on a `review` rung before it is worth saying so.
+ *
+ * Far shorter than `STALE_DAYS`, and the difference is the whole point: a
+ * finished document nobody touched for six months is usually fine, while a page
+ * somebody *asked* to have read and nobody came back to is a promise that has
+ * been broken for a month. The two numbers measure the same elapsed time and
+ * mean opposite things by it.
+ */
+export const REVIEW_DAYS = 30;
 
 export interface Finding<T> {
   problem: Problem;
@@ -118,10 +139,11 @@ const isEmpty = (page: TidyPage): boolean =>
  */
 export function tidyPages<T extends TidyPage>(
   pages: readonly T[],
-  options: { all?: readonly TidyPage[]; now?: number; staleDays?: number } = {},
+  options: { all?: readonly TidyPage[]; now?: number; staleDays?: number; reviewDays?: number } = {},
 ): Tidied<T> {
   const now = options.now ?? Date.now();
   const staleAfter = (options.staleDays ?? STALE_DAYS) * 24 * 60 * 60 * 1000;
+  const reviewAfter = (options.reviewDays ?? REVIEW_DAYS) * 24 * 60 * 60 * 1000;
   const live = new Set(pages.map((page) => page.id));
   const known = new Set((options.all ?? pages).map((page) => page.id));
   const hasChildren = new Set(pages.map((page) => page.parent_id).filter((id): id is string => !!id));
@@ -161,6 +183,11 @@ export function tidyPages<T extends TidyPage>(
       && !(links.in.get(page.id) ?? []).length
     ) note('isolated', page);
     if (now - page.updated_at > staleAfter) note('stale', page);
+    // Measured from the last edit, which is the only date a page carries. That
+    // is a little generous — somebody who puts a page up for review and then
+    // fixes a typo starts the clock again — and generous is the right side to
+    // err on for a finding whose remedy is to go and nudge a colleague.
+    if (page.statusKind === 'review' && now - page.updated_at > reviewAfter) note('inReview', page);
   }
 
   // Grouped so the pages that share a title sit together: a list of nine rows

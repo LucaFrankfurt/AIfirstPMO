@@ -22,7 +22,7 @@
  *   decided for somebody.
  */
 import { useMemo } from 'react';
-import type { Label, Page } from '@kolibri/shared';
+import { statusOf, type Label, type Page } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -33,6 +33,7 @@ import { navCount } from '../../kernel/design-system/ui/nav';
 import { chipDot } from '../../kernel/design-system/ui/chip';
 import { Icon, MenuButton, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
 import { descendantsOf } from './pagetree';
+import { usePageStatuses } from './status';
 import { movePage, movePageToTop } from './page-parts';
 
 /**
@@ -47,6 +48,7 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
   const { workspaceId } = useSession();
   const labels = useQuery(() => list('label', (label) => !label.project_id) as Label[], [workspaceId]);
   const projects = useQuery(() => list('project', (project) => !project.archived), [workspaceId]);
+  const statuses = usePageStatuses();
 
   const selected = useMemo(() => pages.filter((page) => selection.has(page.id)), [pages, selection]);
   /**
@@ -174,6 +176,16 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
       onSelect: () => moveUnder(page),
     })),
     { id: 'under-none', section: t('page.bulkMoveUnder'), label: t('page.bulkTopLevel'), onSelect: () => moveUnder(null) },
+    ...statuses.map((status) => ({
+      id: `status-${status.id}`,
+      section: t('page.bulkStatus'),
+      label: status.name,
+      icon: <span className={chipDot} style={{ background: status.color }} />,
+      // Ticked only when *every* page in the selection is on this rung: a tick
+      // that meant "some of them" would be a tick nobody could act on.
+      hint: selected.every((page) => statusOf(page, statuses)?.id === status.id) ? '✓' : undefined,
+      onSelect: () => applyTo(selected, { status_id: status.id }),
+    })),
     ...labels.map((label) => ({
       id: `label-${label.id}`,
       section: t('page.labels'),

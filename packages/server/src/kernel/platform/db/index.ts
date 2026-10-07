@@ -135,6 +135,18 @@ for (const [table, column, definition] of [
   // that it was. NULL on every comment that predates the column is right: none
   // of them was ever edited, because nothing could edit one.
   ['comments', 'edited_at', 'INTEGER'],
+  /*
+   * How finished a page is.
+   *
+   * NULL rather than a default pointing at a row, and that is the whole
+   * migration: there is no id to default to here — the statuses are per
+   * workspace and are seeded by `backfillPageStatuses`, which runs later and
+   * in the write path. A page that predates the feature therefore keeps NULL,
+   * and `statusOf` reads NULL as the workspace's draft. Writing a real id into
+   * every existing page would have claimed an editorial decision nobody made,
+   * and would have had to pick one per workspace from inside a pragma loop.
+   */
+  ['pages', 'status_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

@@ -45,6 +45,7 @@ export type EntityName =
   | 'decision'
   | 'decisionOption'
   | 'decisionVote'
+  | 'pageStatus'
   | 'page'
   | 'comment'
   | 'attachment'
@@ -429,12 +430,25 @@ export const ENTITIES = {
     ],
     json: ['projects'],
   },
+  /**
+   * How finished a page is, in a workspace's own words.
+   *
+   * Workspace-scoped where `state` is project-scoped, because a wiki crosses
+   * projects: the handbook belongs to nobody and still has to be somewhere on
+   * the ladder. `kind` travels beside `name` so that renaming a rung does not
+   * take its meaning with it — the export marker and the tidy screen ask the
+   * kind, never the word.
+   */
+  pageStatus: {
+    table: 'page_statuses',
+    fields: ['workspace_id', 'name', 'kind', 'color', 'sort_order'],
+  },
   page: {
     table: 'pages',
     fields: [
       'workspace_id', 'project_id', 'parent_id', 'title', 'icon', 'content', 'format', 'body',
       'sort_order', 'archived', 'access', 'labels', 'watchers', 'is_template',
-      'created_by', 'cover_url',
+      'created_by', 'cover_url', 'status_id',
     ],
     json: ['labels', 'watchers', 'body'],
     /**
@@ -806,6 +820,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   decisionOption: 'decision-options',
   decisionVote: 'decision-votes',
   module: 'modules',
+  pageStatus: 'page-statuses',
   page: 'pages',
   comment: 'comments',
   attachment: 'attachments',
