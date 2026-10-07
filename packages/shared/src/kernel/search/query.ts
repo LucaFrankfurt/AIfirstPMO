@@ -29,7 +29,7 @@
  * and in order to find anything at all. Three ways of saying "that is not how
  * anybody types", in the one box that is shown a filter and asked to search.
  */
-import { PRIORITIES, STATE_GROUPS, type Filters, type Priority, type StateGroup } from '../../kernel/registry/types.ts';
+import { PRIORITIES, STATE_GROUPS, type Filters, type Priority, type StateGroup } from '../registry/types.ts';
 
 /** What names mean, in this workspace, in this project. */
 export interface QueryVocabulary {
@@ -309,10 +309,19 @@ export function parseQuery(input: string, vocabulary: QueryVocabulary = {}): Que
         || (entry.key && fold(String(entry.key)) === want)
         || (entry.email && fold(String(entry.email)) === want)
         || entry.id === value.text);
-      if (matches.length === 1) {
-        resolved.push(matches[0].id);
-      } else if (matches.length > 1) {
-        fail(`More than one ${key} is called "${value.text}" — use its id, or rename one`, value);
+      if (matches.length) {
+        // A name several rows share means *all* of them, which is the rule the
+        // picked half of this language has always followed: `useFacetOptions`
+        // merges two projects' "Bug" into one chip carrying both ids, because
+        // "a search that silently picked one of the two would be wrong in a way
+        // nobody could see". Typing the same name used to be an error instead —
+        // `More than one state is called "Done" — use its id, or rename one` —
+        // which was survivable while clauses only ever ran inside one project,
+        // where there is one Done. The moment the search screen started reading
+        // them, the most ordinary sentence anybody types became an error with
+        // no id on screen to follow the advice with, and `#Bug` and
+        // `label = Bug` meant different things in the same box.
+        resolved.push(...matches.map((entry) => entry.id));
       } else {
         fail(`No ${key} here is called "${value.text}"`, value);
         // Reported *and* kept. Dropping the clause would quietly widen the
@@ -387,14 +396,46 @@ const quote = (value: string): string => (value.includes('"') ? `'${value.replac
 /** A value that needs no quotes: no space, no bracket, no operator. */
 const bare = (value: string): string => (/^[\w.@-]+$/.test(value) ? value : quote(value));
 
-const nameOf = (
-  id: string,
-  list: { id: string; name: string }[] | undefined,
+/**
+ * The words for a set of ids — each one chosen so that reading it back lands
+ * on exactly this set again.
+ *
+ * A name is the readable form and the one anybody wants to see. It is only
+ * safe, though, when it belongs to one row: two projects each have a cycle
+ * called "Cycle 2026-10", and a reader that resolves a shared name to all of
+ * them (which is what the picked `#Bug` has always meant) would turn a filter
+ * on *one* of them into a filter on both. That is not a cosmetic difference —
+ * the box and the menus are supposed to be two views of one thing, and the
+ * board's own filter stopped being clearable the moment this widened: toggling
+ * a cycle off removed the id the menu knew about and left the twin behind.
+ *
+ * So a shared name is printed only when the filter holds *every* row that
+ * answers to it, where reading it back is exact. Otherwise the id is printed:
+ * uglier, and the only form that survives.
+ *
+ * It also stops a set of twins printing as `in ("X", "X")`, which said the
+ * same word twice and meant two different things by it.
+ */
+const namesFor = (
+  ids: string[],
+  rows: { id: string; name: string }[] | undefined,
   meId: string | undefined,
-): string => {
-  if (id === '') return 'none';
-  if (id === meId) return 'me';
-  return list?.find((entry) => entry.id === id)?.name ?? id;
+): string[] => {
+  const chosen = new Set(ids);
+  const covered = new Set<string>();
+  const out: string[] = [];
+  for (const id of ids) {
+    if (id === '') { out.push('none'); continue; }
+    if (id === meId) { out.push('me'); continue; }
+    const entry = rows?.find((row) => row.id === id);
+    if (!entry) { out.push(id); continue; }
+    const twins = rows!.filter((row) => fold(row.name) === fold(entry.name));
+    if (twins.length === 1) { out.push(entry.name); continue; }
+    if (!twins.every((row) => chosen.has(row.id))) { out.push(id); continue; }
+    const name = fold(entry.name);
+    if (!covered.has(name)) { covered.add(name); out.push(entry.name); }
+  }
+  return out;
 };
 
 /**
@@ -412,7 +453,8 @@ export function printQuery(filters: Filters, vocabulary: QueryVocabulary = {}): 
     if (!ids?.length) return;
     const words = key === 'priority' || key === 'group'
       ? ids
-      : ids.map((id) => nameOf(id, vocabulary[LOOKUP[key]!] as { id: string; name: string }[] | undefined, vocabulary.meId));
+      : namesFor(ids, vocabulary[LOOKUP[key]!] as { id: string; name: string }[] | undefined, vocabulary.meId);
+    if (!words.length) return;
     const value = words.length === 1 ? bare(words[0]) : `(${words.map(bare).join(', ')})`;
     const operator = words.length === 1 ? (negated ? '!=' : '=') : (negated ? 'not in' : 'in');
     clauses.push(`${key} ${operator} ${value}`);

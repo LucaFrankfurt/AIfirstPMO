@@ -317,3 +317,87 @@ describe('counting what a filter asks', () => {
     assert.equal(countFilters(applied), 2);
   });
 });
+
+/**
+ * A name two rows share.
+ *
+ * The picked half of this language has always answered "both" — `useFacetOptions`
+ * merges them into one chip carrying both ids. The typed half used to answer
+ * with an error, which nobody could act on once clauses reached a screen that
+ * sees every project at once: there is a Done in each of them, and no id on
+ * screen to use instead.
+ */
+describe('a name more than one row answers to', () => {
+  const twins: QueryVocabulary = {
+    states: [
+      { id: 's-done-a', name: 'Done', group_key: 'completed' },
+      { id: 's-done-b', name: 'Done', group_key: 'completed' },
+      { id: 's-todo', name: 'Todo', group_key: 'unstarted' },
+    ],
+    labels: [{ id: 'l-a', name: 'Bug' }, { id: 'l-b', name: 'Bug' }],
+  };
+
+  it('means all of them, as the picked name does', () => {
+    assert.deepEqual(parseQuery('state = Done', twins).filters.state, ['s-done-a', 's-done-b']);
+    assert.deepEqual(parseQuery('label = Bug', twins).filters.label, ['l-a', 'l-b']);
+  });
+
+  it('says nothing is wrong, because nothing is', () => {
+    assert.deepEqual(parseQuery('state = Done', twins).errors, []);
+  });
+
+  it('still excludes all of them when the clause is a negation', () => {
+    assert.deepEqual(parseQuery('state != Done', twins).filters.not?.state, ['s-done-a', 's-done-b']);
+  });
+
+  it('leaves a name nobody answers to as the error it was', () => {
+    const parsed = parseQuery('state = Dnoe', twins);
+    assert.equal(parsed.errors.length, 1);
+    assert.match(parsed.errors[0].message, /Dnoe/);
+  });
+});
+
+/**
+ * The round trip, where a name is not enough.
+ *
+ * `printQuery` writes names because names are readable, and `parseQuery` now
+ * reads a shared name as all the rows that answer to it. Those two are only
+ * compatible while the printer never writes a name that would come back wider
+ * than it went out — which it did, and the board's filter stopped clearing:
+ * the menu set one cycle, the field read it back as two, and toggling it off
+ * removed the one the menu knew about and left the twin.
+ */
+describe('printing a name two rows answer to', () => {
+  const twins: QueryVocabulary = {
+    cycles: [
+      { id: 'c-web', name: 'Cycle 2026-10' },
+      { id: 'c-app', name: 'Cycle 2026-10' },
+      { id: 'c-old', name: 'Cycle 2026-09' },
+    ],
+  };
+  const back = (filters: Parameters<typeof printQuery>[0]) =>
+    parseQuery(printQuery(filters, twins), twins).filters;
+
+  it('writes the id when the filter holds only one of them', () => {
+    assert.equal(printQuery({ cycle: ['c-web'] }, twins), 'cycle = c-web');
+    assert.deepEqual(back({ cycle: ['c-web'] }).cycle, ['c-web']);
+  });
+
+  it('writes the name once when the filter holds all of them', () => {
+    assert.equal(printQuery({ cycle: ['c-web', 'c-app'] }, twins), 'cycle = "Cycle 2026-10"');
+    assert.deepEqual(back({ cycle: ['c-web', 'c-app'] }).cycle, ['c-web', 'c-app']);
+  });
+
+  it('still writes a name nobody shares', () => {
+    assert.equal(printQuery({ cycle: ['c-old'] }, twins), 'cycle = "Cycle 2026-09"');
+    assert.deepEqual(back({ cycle: ['c-old'] }).cycle, ['c-old']);
+  });
+
+  it('never says the same word twice and means two things by it', () => {
+    assert.ok(!printQuery({ cycle: ['c-web', 'c-app'] }, twins).includes('", "'));
+  });
+
+  it('round-trips a mixture', () => {
+    assert.deepEqual(back({ cycle: ['c-web', 'c-old'] }).cycle, ['c-web', 'c-old']);
+  });
+});
