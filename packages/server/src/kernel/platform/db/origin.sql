@@ -1492,3 +1492,17 @@ CREATE TABLE backup_deliveries (
   delivered    TEXT,
   delivered_at INTEGER
 );
+
+CREATE TABLE page_statuses (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'draft',
+  color        TEXT NOT NULL DEFAULT '#94a3b8',
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);

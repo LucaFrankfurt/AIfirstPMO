@@ -18,7 +18,7 @@
  * has something to be measured against. It is idempotent, so calling it twice
  * (a test that boots the server and also seeds) is not a bug.
  */
-import { backfillEnvironments } from './kernel/write-path/bootstrap.ts';
+import { backfillEnvironments, backfillPageStatuses } from './kernel/write-path/bootstrap.ts';
 import { installAutomations } from './modules/automation/automation.ts';
 import { installNotifications } from './modules/notifications/effects.ts';
 import { installWebhookEvents } from './adapters/webhooks/effects.ts';
@@ -87,10 +87,11 @@ export function installEffects(): void {
   ]) onEntity(rule);
 
   /*
-   * Not an effect, and here because this is the one thing every entry point
-   * that can write already calls exactly once. A workspace made before
-   * environments existed gets the same four a new one is seeded with; one that
-   * already has any is left alone.
+   * Not effects, and here because this is the one thing every entry point that
+   * can write already calls exactly once. A workspace made before environments
+   * or page statuses existed gets the same rows a new one is seeded with; one
+   * that already has any is left alone.
    */
   backfillEnvironments();
+  backfillPageStatuses();
 }

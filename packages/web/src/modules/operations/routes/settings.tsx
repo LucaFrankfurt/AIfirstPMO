@@ -21,6 +21,7 @@ import { cn } from '../../../kernel/design-system/cn';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { RateSettings } from '../../time/rates';
+import { PageStatusSettings } from '../../pages/status';
 import { MailboxSettings } from '../../mail/settings';
 import { Chip, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { TelegramConnection } from '../../../adapters/telegram/telegram';
@@ -700,6 +701,8 @@ function WorkspaceSettings() {
           {t('action.create')}
         </Button>
       </div>
+
+      <PageStatusSettings />
     </>
   );
 }

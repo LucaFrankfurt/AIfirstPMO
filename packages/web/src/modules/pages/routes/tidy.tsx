@@ -22,7 +22,7 @@
  */
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { matchesTerms, parseTerms, type Page } from '@kolibri/shared';
+import { matchesTerms, parseTerms, statusOf, type Page } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { cn } from '../../../kernel/design-system/cn';
@@ -38,6 +38,7 @@ import { navItem } from '../../../kernel/design-system/ui/nav';
 import { Empty, Icon, useToast } from '../../../kernel/design-system/ui';
 import { useMinute } from '../../../kernel/design-system/minute';
 import { STALE_DAYS, tidyPages, type Problem } from '../tidy';
+import { usePageStatuses } from '../status';
 import { trailsOf } from '../pagetree';
 import { PageBulkBar } from '../page-bulk';
 
@@ -47,6 +48,7 @@ const SAYS: Record<Problem, { title: TranslationKey; why: TranslationKey }> = {
   duplicate: { title: 'problem.duplicate', why: 'problem.duplicateWhy' },
   empty: { title: 'problem.empty', why: 'problem.emptyWhy' },
   isolated: { title: 'problem.isolated', why: 'problem.isolatedWhy' },
+  inReview: { title: 'problem.inReview', why: 'problem.inReviewWhy' },
   stale: { title: 'problem.stale', why: 'problem.staleWhy' },
 };
 
@@ -100,6 +102,7 @@ export function PagesTidy() {
   const selection = useSelection();
   const [query, setQuery] = useState('');
 
+  const statuses = usePageStatuses();
   /** The tree: what the findings are about. Templates and the archive are not in it. */
   const pages = useQuery(
     () => list('page', (page) => page.workspace_id === workspaceId && !page.archived && !page.is_template) as Page[],
@@ -137,7 +140,18 @@ export function PagesTidy() {
     [known],
   );
 
-  const report = useMemo(() => tidyPages(pages, { all: known }), [pages, known]);
+  /*
+   * The rung is resolved here and handed down as a *kind*, so `tidy.ts` stays
+   * arithmetic with no opinion about what a workspace calls anything. Resolved
+   * with `statusOf` rather than read off the column, because a page that never
+   * had a status stands on the draft — and a review that was never explicitly
+   * set is not one.
+   */
+  const judged = useMemo(
+    () => pages.map((page) => ({ ...page, statusKind: statusOf(page, statuses)?.kind ?? null })),
+    [pages, statuses],
+  );
+  const report = useMemo(() => tidyPages(judged, { all: known }), [judged, known]);
   /**
    * Where each reported page sits, worked out once for the whole screen.
    *

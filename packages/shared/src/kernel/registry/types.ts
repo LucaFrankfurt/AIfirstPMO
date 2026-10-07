@@ -14,6 +14,20 @@ export const PRIORITIES = ['urgent', 'high', 'medium', 'low', 'none'] as const;
 export type Priority = (typeof PRIORITIES)[number];
 
 export const STATE_GROUPS = ['backlog', 'unstarted', 'started', 'completed', 'cancelled'] as const;
+
+/**
+ * What a page status *means*, underneath whatever it is called.
+ *
+ * The names are a workspace's own — "Entwurf", "Freigegeben", "v2 pending" —
+ * so nothing downstream may read them. Three things do need to know more than
+ * the order: the export marker (anything not `final` says so when it leaves),
+ * the tidy screen's finding (a `review` nobody finished), and a new page's
+ * default (the first `draft`). `group_key` on a task state is the same device
+ * for the same reason, and this is deliberately its smaller cousin: three
+ * kinds, not five, because a wiki page is not a workflow.
+ */
+export const PAGE_STATUS_KINDS = ['draft', 'review', 'final'] as const;
+export type PageStatusKind = (typeof PAGE_STATUS_KINDS)[number];
 export type StateGroup = (typeof STATE_GROUPS)[number];
 
 export const WORKSPACE_ROLES = ['owner', 'admin', 'member', 'guest'] as const;
@@ -977,6 +991,23 @@ export interface Module extends Base {
 /** What a page's text is written in. Anything else is refused on the way in. */
 export type PageFormat = 'markdown' | 'html';
 
+/**
+ * One rung of a workspace's own ladder for how finished a page is.
+ *
+ * A workspace's, not a project's: a wiki crosses projects, and the handbook
+ * page that belongs to nobody would otherwise have no ladder to stand on. That
+ * is the one way this differs from `State`, which it is otherwise modelled on
+ * — including the `kind` beside the name, so renaming "Review" to "Gegenlesen"
+ * does not stop the tidy screen recognising it.
+ */
+export interface PageStatus extends Base {
+  workspace_id: ID;
+  name: string;
+  kind: PageStatusKind;
+  color: string;
+  sort_order: string;
+}
+
 export interface Page extends Base {
   workspace_id: ID;
   project_id: ID | null;
@@ -1016,6 +1047,16 @@ export interface Page extends Base {
   is_template: number;
   created_by: ID;
   cover_url: string | null;
+  /**
+   * How finished this page is — a row in `page_statuses`, not a word.
+   *
+   * Null on every page written before there were any, and on a page whose
+   * status somebody deleted. `statusOf` reads that as the workspace's draft,
+   * which is the honest answer: a page nobody has said anything about is a
+   * draft, and the alternative — rewriting every row to point at a status the
+   * moment the feature shipped — would claim an editorial decision nobody made.
+   */
+  status_id: ID | null;
 }
 
 /**
@@ -2108,6 +2149,7 @@ export interface EntityMap {
   decision: Decision;
   decisionOption: DecisionOption;
   decisionVote: DecisionVote;
+  pageStatus: PageStatus;
   page: Page;
   comment: Comment;
   attachment: Attachment;

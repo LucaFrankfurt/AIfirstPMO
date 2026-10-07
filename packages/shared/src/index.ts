@@ -19,6 +19,7 @@ export * from './modules/pages/escape.ts';
 export * from './modules/pages/html.ts';
 export * from './modules/pages/markdown.ts';
 export * from './modules/pages/links.ts';
+export * from './modules/pages/status.ts';
 export * from './modules/pages/editor.ts';
 export * from './modules/pages/anchor.ts';
 export * from './adapters/webhooks/foreign.ts';

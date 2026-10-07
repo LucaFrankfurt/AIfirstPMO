@@ -3082,6 +3082,21 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * ever narrowed to make room for it, which is what makes it a different trade
  * rather than the same one with a nicer name.
  */
+/* What a page says about itself when it leaves the workspace.
+   On the share document, the export and the print, never on the page itself:
+   inside the app the chip in the header already says it, and a banner over
+   every draft in a wiki full of drafts is a banner nobody reads. The colour is
+   the workspace's own, so the stripe matches the chip it is standing in for. */
+.status-notice {
+  border-inline-start: 3px solid var(--line-strong);
+  background: var(--bg-sunken);
+  padding: 8px 12px;
+  margin: 0 0 16px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12.5px;
+  color: var(--fg-soft);
+}
+
 .page-with-tree {
   display: flex;
   gap: 28px;

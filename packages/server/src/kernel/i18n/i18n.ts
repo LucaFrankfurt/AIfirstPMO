@@ -100,6 +100,9 @@ const en = {
   'seed.labelFeature': 'feature',
   'seed.labelImprovement': 'improvement',
   'seed.labelDocumentation': 'documentation',
+  'seed.pageStatusDraft': 'Draft',
+  'seed.pageStatusReview': 'In review',
+  'seed.pageStatusFinal': 'Final',
 
   /* The feedback template and rule every new project starts with. */
   'seed.feedbackTemplate': 'Feedback request',
@@ -192,6 +195,9 @@ const de: Catalogue = {
   'seed.labelFeature': 'Feature',
   'seed.labelImprovement': 'Verbesserung',
   'seed.labelDocumentation': 'Dokumentation',
+  'seed.pageStatusDraft': 'Entwurf',
+  'seed.pageStatusReview': 'Im Review',
+  'seed.pageStatusFinal': 'Final',
 
   'seed.feedbackTemplate': 'Feedback anfordern',
   'seed.feedbackTitle': 'Feedback: {identifier} {title}',
@@ -289,6 +295,9 @@ const fr: Catalogue = {
   'seed.labelFeature': 'fonctionnalité',
   'seed.labelImprovement': 'amélioration',
   'seed.labelDocumentation': 'documentation',
+  'seed.pageStatusDraft': 'Brouillon',
+  'seed.pageStatusReview': 'En relecture',
+  'seed.pageStatusFinal': 'Final',
 
   'seed.feedbackTemplate': 'Demande de retour',
   'seed.feedbackTitle': 'Retour : {identifier} {title}',

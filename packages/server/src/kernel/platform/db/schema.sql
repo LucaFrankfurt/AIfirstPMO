@@ -998,6 +998,27 @@ CREATE TABLE IF NOT EXISTS task_relations (
 CREATE INDEX IF NOT EXISTS relations_seq ON task_relations (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS relations_task ON task_relations (task_id);
 
+-- How finished a page is, in a workspace's own words. The workspace's and not
+-- a project's, because a wiki crosses projects: the handbook belongs to nobody
+-- and still has to stand somewhere on the ladder. `kind` travels beside `name`
+-- so renaming a rung does not take its meaning with it — the export marker and
+-- the tidy screen ask the kind, never the word.
+CREATE TABLE IF NOT EXISTS page_statuses (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  kind         TEXT NOT NULL DEFAULT 'draft',
+  color        TEXT NOT NULL DEFAULT '#94a3b8',
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS page_statuses_seq ON page_statuses (workspace_id, seq);
+
+
 CREATE TABLE IF NOT EXISTS pages (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -1025,6 +1046,10 @@ CREATE TABLE IF NOT EXISTS pages (
   is_template  INTEGER NOT NULL DEFAULT 0,
   created_by   TEXT,
   cover_url    TEXT,
+  -- How finished the page is: a row in `page_statuses`. NULL on every page
+  -- written before there were any, and read as the workspace's draft — see
+  -- `statusOf`. Not a word, so renaming a rung does not rewrite the wiki.
+  status_id    TEXT,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,

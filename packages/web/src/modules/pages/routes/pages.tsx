@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   formatHtml, htmlOutline, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
-  type Anchor, type Page, type PageFormat,
+  statusOf, type Anchor, type Page, type PageFormat,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { Comments } from '../../work/comments';
@@ -11,6 +11,7 @@ import {
   useCover, useExport, usePageLabels, usePrint, useWatching,
 } from '../page-parts';
 import { pagesMatching } from '../pagetree';
+import { PageStatusChip, statusItems, usePageStatuses } from '../status';
 import { PageTree, foldableIds, usePageFolds } from '../PageTree';
 import { PageBulkBar } from '../page-bulk';
 import { HEADING_PREFIX, useBacklinks, usePageGraph, useRenamePage, useTrail, useUnwritten } from '../page-links';
@@ -125,6 +126,9 @@ export function PagesIndex() {
   const all = useQuery(() => list('page', (p) => p.workspace_id === workspaceId && !p.archived), [workspaceId]);
   const labels = useQuery(() => list('label', (label) => !label.project_id), [workspaceId]);
   const [filter, setFilter] = useState<string>('');
+  /** The rung to show, or '' for all of them. */
+  const [rung, setRung] = useState<string>('');
+  const statuses = usePageStatuses();
   const [importing, setImporting] = useState(false);
   const canWrite = useCanWrite();
 
@@ -145,8 +149,14 @@ export function PagesIndex() {
   // and a handbook with three half-written templates in it reads as a mess.
   const templates = useMemo(() => all.filter((page) => page.is_template), [all]);
   const pages = useMemo(
-    () => all.filter((page) => !page.is_template && (!filter || (page.labels ?? []).includes(filter))) as Page[],
-    [all, filter],
+    () => all.filter((page) => !page.is_template
+      && (!filter || (page.labels ?? []).includes(filter))
+      // By the rung a page *stands on*, which is not the same as its column:
+      // a page that never had a status stands on the draft, and a filter that
+      // asked the column would have hidden exactly the pages this feature was
+      // built to find.
+      && (!rung || statusOf(page, statuses)?.id === rung)) as Page[],
+    [all, filter, rung, statuses],
   );
   const recent = useMemo(() => [...pages].sort((a, b) => b.updated_at - a.updated_at).slice(0, 6), [pages]);
   const inUse = useMemo(() => {
@@ -203,23 +213,40 @@ export function PagesIndex() {
           <Icon name="archive" size={14} />
           <span className="hide-sm">{t('page.tidy')}</span>
         </Button>
-        {inUse.length > 0 && (
+        {/* One filter button with two sections rather than two buttons. This
+            header is one row 52px tall and scrolls sideways when it does not
+            fit; a second control here costs more than the second question is
+            worth, and the two narrow the same list. */}
+        {(inUse.length > 0 || statuses.length > 0) && (
           <MenuButton
             variant="secondary" size="sm"
             items={[
-              { id: 'all', label: t('page.allPages'), hint: filter ? undefined : '✓', onSelect: () => setFilter('') },
+              { id: 'all', label: t('page.allPages'), hint: filter || rung ? undefined : '✓',
+                onSelect: () => { setFilter(''); setRung(''); } },
               ...inUse.map((label) => ({
                 id: label.id,
                 section: t('page.filterByLabel'),
                 label: label.name,
                 icon: <span className={chipDot} style={{ background: label.color }} />,
                 hint: filter === label.id ? '✓' : undefined,
-                onSelect: () => setFilter(label.id),
+                onSelect: () => setFilter(filter === label.id ? '' : label.id),
+              })),
+              ...statuses.map((status) => ({
+                id: `status-${status.id}`,
+                section: t('page.status'),
+                label: status.name,
+                icon: <span className={chipDot} style={{ background: status.color }} />,
+                hint: rung === status.id ? '✓' : undefined,
+                onSelect: () => setRung(rung === status.id ? '' : status.id),
               })),
             ]}
           >
             <Icon name="filter" size={14} />
-            <span className="hide-sm">{filter ? byId('label', filter)?.name ?? t('page.filterByLabel') : t('page.filterByLabel')}</span>
+            <span className="hide-sm">
+              {filter ? byId('label', filter)?.name ?? t('page.filterByLabel')
+                : rung ? statuses.find((status) => status.id === rung)?.name ?? t('page.status')
+                  : t('page.filterByLabel')}
+            </span>
           </MenuButton>
         )}
         {templates.length > 0 && (
@@ -278,6 +305,7 @@ export function PagesIndex() {
                   <span className="flex items-center gap-2">
                     <span aria-hidden="true">{page.icon ?? '📄'}</span>
                     <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
+                    <PageStatusChip page={page} dot />
                   </span>
                   <p className="m-0 text-[12.5px] text-muted">{pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
                   <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
@@ -415,6 +443,7 @@ export function PageDetail() {
   const backlinks = useBacklinks(id);
   const rename = useRenamePage();
   const labels = usePageLabels((page ?? { project_id: null }) as any);
+  const statuses = usePageStatuses();
   const { watching, toggle: toggleWatch } = useWatching((page ?? { id, watchers: [] }) as any);
   const cover = useCover((page ?? { id, cover_url: null }) as any);
   const exportPage = useExport();
@@ -624,6 +653,7 @@ export function PageDetail() {
             ...cover.items(t('page.cover')),
             ...moveItems(page, workspaceId, t('page.move')),
             ...labelItems(page, labels, t('page.labels')),
+            ...statusItems(page, statuses, t('page.status')),
             ...(['workspace', 'project', 'private'] as const).map((access) => ({
               id: `access-${access}`,
               section: t('page.access'),
@@ -744,7 +774,13 @@ export function PageDetail() {
               {watching && <span>· {t('page.watching')}</span>}
               {!!page.is_template && <span>· {t('page.template')}</span>}
             </div>
-            <div className="flex items-center flex-wrap gap-1.5 mb-3.5"><PageLabelChips page={page} /></div>
+            {/* Beside the labels rather than in the line of grey text above:
+                the status is a thing somebody sets, and the chips are where the
+                things somebody sets already live. */}
+            <div className="flex items-center flex-wrap gap-1.5 mb-3.5">
+              <PageStatusChip page={page} />
+              <PageLabelChips page={page} />
+            </div>
             <PageOutline source={page.content ?? ''} format={page.format} />
             {page.content?.trim()
               ? (
