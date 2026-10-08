@@ -18,7 +18,7 @@ import {
   type BaseGroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
-import { Avatar, AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack, Empty, Icon, MenuButton, PriorityBars, StateDot, isMenuGroup, type MenuEntry, type MenuGroup } from '../../kernel/design-system/ui';
 import { QueryBox } from './query-box';
 import { SavedViews } from './saved-views';
 import { SelectBox, type Selection } from '../../kernel/design-system/selection';
@@ -133,13 +133,13 @@ export function useVisibleTasks(tasks: Task[], view: ViewConfig): Task[] {
  * an answer, and is there not. That is what somebody actually wants from
  * "steps to reproduce": which bugs are missing them.
  */
-function fieldFilterItems(
+function fieldFilterGroup(
   field: Field,
   view: ViewConfig,
   t: ReturnType<typeof useT>,
   members: { id: string; name: string }[],
   toggle: (fieldId: string, value: string) => void,
-): MenuItem[] {
+): MenuGroup {
   const chosen = view.filters.field?.[field.id] ?? [];
   const choices: { value: string; label: string }[] = field.kind === 'person'
     ? members.map((member) => ({ value: member.id, label: member.name }))
@@ -154,13 +154,19 @@ function fieldFilterItems(
       { value: FIELD_EMPTY, label: t('field.noAnswer') },
     ];
 
-  return [...choices, ...tail].map(({ value, label }) => ({
-    id: `field-${field.id}-${value || 'empty'}`,
-    section: field.name,
-    label,
-    hint: chosen.includes(value) ? '✓' : undefined,
-    onSelect: () => toggle(field.id, value),
-  }));
+  const rows = [...choices, ...tail];
+  return {
+    id: `field-${field.id}`,
+    label: field.name,
+    hint: chosen.length ? String(chosen.length) : undefined,
+    search: rows.length > 8,
+    items: rows.map(({ value, label }) => ({
+      id: `field-${field.id}-${value || 'empty'}`,
+      label,
+      hint: chosen.includes(value) ? '✓' : undefined,
+      onSelect: () => toggle(field.id, value),
+    })),
+  };
 }
 
 export function ViewControls({
@@ -202,53 +208,103 @@ export function ViewControls({
     });
   };
 
-  const filterItems: MenuItem[] = [
-    ...states.map((state) => ({
-      id: `state-${state.id}`,
-      section: t('view.groupState'),
-      label: state.name,
-      hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
-      icon: <StateDot group={state.group_key} color={state.color} />,
-      onSelect: () => toggle('state', state.id),
-    })),
-    ...PRIORITIES.map((priority) => ({
-      id: `priority-${priority}`,
-      section: t('view.groupPriority'),
-      label: t(priorityKey(priority)),
-      hint: view.filters.priority?.includes(priority) ? '✓' : undefined,
-      onSelect: () => toggle('priority', priority),
-    })),
-    ...members.map((member) => ({
-      id: `assignee-${member.id}`,
-      section: t('view.groupAssignee'),
-      label: member.name,
-      hint: view.filters.assignee?.includes(member.id) ? '✓' : undefined,
-      onSelect: () => toggle('assignee', member.id),
-    })),
-    ...labels.map((label) => ({
-      id: `label-${label.id}`,
-      section: t('view.groupLabel'),
-      label: label.name,
-      hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
-      onSelect: () => toggle('label', label.id),
-    })),
-    ...cycles.map((cycle) => ({
-      id: `cycle-${cycle.id}`,
-      section: t('task.cycle'),
-      label: cycle.name,
-      hint: view.filters.cycle?.includes(cycle.id) ? '✓' : undefined,
-      onSelect: () => toggle('cycle', cycle.id),
-    })),
-    ...modules.map((module) => ({
-      id: `module-${module.id}`,
-      section: t('task.module'),
-      label: module.name,
-      hint: view.filters.module?.includes(module.id) ? '✓' : undefined,
-      onSelect: () => toggle('module', module.id),
-    })),
-    ...fields.flatMap((field) => fieldFilterItems(field, view, t, members, toggleField)),
+  /**
+   * One drawer per question, rather than six lists poured into one menu.
+   *
+   * This was 49 rows with 983px of it below the fold — the longest menu in the
+   * app, and it already *had* a search box, which is what settled the argument:
+   * the length was never about search. Six answerable questions became six
+   * rows, each opening onto its own list.
+   *
+   * `count` on the row is what the drawer saves you opening it for. A filter
+   * nobody can see is a list that looks wrong for no reason, and the badge on
+   * the button only ever said how many questions were answered, never which.
+   */
+  const chosen = (key: keyof Filters): string | undefined => {
+    const on = (view.filters[key] as string[] | undefined)?.length ?? 0;
+    return on ? String(on) : undefined;
+  };
+
+  const filterItems: MenuEntry[] = [
+    {
+      id: 'f-state',
+      label: t('view.groupState'),
+      hint: chosen('state'),
+      search: states.length > 8,
+      items: states.map((state) => ({
+        id: `state-${state.id}`,
+        label: state.name,
+        hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
+        icon: <StateDot group={state.group_key} color={state.color} />,
+        onSelect: () => toggle('state', state.id),
+      })),
+    },
+    {
+      id: 'f-priority',
+      label: t('view.groupPriority'),
+      hint: chosen('priority'),
+      items: PRIORITIES.map((priority) => ({
+        id: `priority-${priority}`,
+        label: t(priorityKey(priority)),
+        hint: view.filters.priority?.includes(priority) ? '✓' : undefined,
+        onSelect: () => toggle('priority', priority),
+      })),
+    },
+    {
+      id: 'f-assignee',
+      label: t('view.groupAssignee'),
+      hint: chosen('assignee'),
+      search: members.length > 8,
+      items: members.map((member) => ({
+        id: `assignee-${member.id}`,
+        label: member.name,
+        hint: view.filters.assignee?.includes(member.id) ? '✓' : undefined,
+        onSelect: () => toggle('assignee', member.id),
+      })),
+    },
+    {
+      id: 'f-label',
+      label: t('view.groupLabel'),
+      hint: chosen('label'),
+      search: labels.length > 8,
+      items: labels.map((label) => ({
+        id: `label-${label.id}`,
+        label: label.name,
+        hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
+        onSelect: () => toggle('label', label.id),
+      })),
+    },
+    {
+      id: 'f-cycle',
+      label: t('task.cycle'),
+      hint: chosen('cycle'),
+      search: cycles.length > 8,
+      items: cycles.map((cycle) => ({
+        id: `cycle-${cycle.id}`,
+        label: cycle.name,
+        hint: view.filters.cycle?.includes(cycle.id) ? '✓' : undefined,
+        onSelect: () => toggle('cycle', cycle.id),
+      })),
+    },
+    {
+      id: 'f-module',
+      label: t('task.module'),
+      hint: chosen('module'),
+      search: modules.length > 8,
+      items: modules.map((module) => ({
+        id: `module-${module.id}`,
+        label: module.name,
+        hint: view.filters.module?.includes(module.id) ? '✓' : undefined,
+        onSelect: () => toggle('module', module.id),
+      })),
+    },
+    // One drawer per custom field, for the same reason: a project with six
+    // fields used to add six more lists to the bottom of this one.
+    ...fields.map((field) => fieldFilterGroup(field, view, t, members, toggleField)),
     { id: 'clear', section: t('view.reset'), label: t('view.clearFilters'), onSelect: () => onChange({ ...view, filters: {} }) },
-  ];
+    // A drawer with nothing in it is a row that opens onto an apology: a
+    // workspace with no cycles should not be offered a cycle filter.
+  ].filter((entry) => !isMenuGroup(entry) || entry.items.length > 0);
 
   const activeFilters = countFilters(view.filters);
 

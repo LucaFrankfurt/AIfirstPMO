@@ -629,22 +629,32 @@ export function PageDetail() {
               onSelect: () => showTree(!aside) },
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
-            { id: 'export-md', section: t('page.download'), label: t('page.export'), icon: <Icon name="page" size={14} />,
-              onSelect: () => exportPage(page, 'markdown') },
-            { id: 'export-html', section: t('page.download'), label: t('page.exportHtml'), icon: <Icon name="page" size={14} />,
-              onSelect: () => exportPage(page, 'html') },
-            { id: 'print', section: t('page.download'), label: t('page.print'), icon: <Icon name="page" size={14} />,
-              onSelect: () => printPage(page) },
-            ...(['markdown', 'html'] as const).map((one) => ({
-              id: `format-${one}`,
-              section: t('page.format'),
-              label: t(one === 'html' ? 'page.formatHtml' : 'page.formatMarkdown'),
+            // Three ways out of the same door, so one row rather than three.
+            {
+              id: 'download',
+              label: t('page.download'),
+              icon: <Icon name="page" size={14} />,
+              items: [
+                { id: 'export-md', label: t('page.export'), onSelect: () => exportPage(page, 'markdown') },
+                { id: 'export-html', label: t('page.exportHtml'), onSelect: () => exportPage(page, 'html') },
+                { id: 'print', label: t('page.print'), onSelect: () => printPage(page) },
+              ],
+            },
+            {
+              id: 'format',
+              label: t('page.format'),
+              icon: <Icon name="code" size={14} />,
               // Coalesced, because a page mirrored into this browser before the
               // column existed carries no format at all, and every reader of it
               // has to agree that means markdown.
-              hint: (page.format ?? 'markdown') === one ? '✓' : undefined,
-              onSelect: () => { void convert(one); },
-            })),
+              hint: t((page.format ?? 'markdown') === 'html' ? 'page.formatHtml' : 'page.formatMarkdown'),
+              items: (['markdown', 'html'] as const).map((one) => ({
+                id: `format-${one}`,
+                label: t(one === 'html' ? 'page.formatHtml' : 'page.formatMarkdown'),
+                hint: (page.format ?? 'markdown') === one ? '✓' : undefined,
+                onSelect: () => { void convert(one); },
+              })),
+            },
             { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
               onSelect: () => setSharing(true) },
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
@@ -652,34 +662,49 @@ export function PageDetail() {
               onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
             ...cover.items(t('page.cover')),
             ...moveItems(page, workspaceId, t('page.move')),
-            ...labelItems(page, labels, t('page.labels')),
-            ...statusItems(page, statuses, t('page.status')),
-            ...(['workspace', 'project', 'private'] as const).map((access) => ({
-              id: `access-${access}`,
-              section: t('page.access'),
-              label: t(ACCESS_KEY[access]),
-              hint: page.access === access ? '✓' : undefined,
-              onSelect: () => {
-                // `project` access on a page that belongs to no project would
-                // hide it from everybody, including its author.
-                if (access === 'project' && !page.project_id) {
-                  toast(t('page.accessNeedsProject'));
-                  return;
-                }
-                update('page', id, { access });
-              },
-            })),
+            labelItems(page, labels, t('page.labels')),
+            statusItems(page, statuses, t('page.status')),
+            {
+              id: 'access',
+              label: t('page.access'),
+              icon: <Icon name="lock" size={14} />,
+              hint: t(ACCESS_KEY[page.access]),
+              items: (['workspace', 'project', 'private'] as const).map((access) => ({
+                id: `access-${access}`,
+                label: t(ACCESS_KEY[access]),
+                hint: page.access === access ? '✓' : undefined,
+                onSelect: () => {
+                  // `project` access on a page that belongs to no project would
+                  // hide it from everybody, including its author.
+                  if (access === 'project' && !page.project_id) {
+                    toast(t('page.accessNeedsProject'));
+                    return;
+                  }
+                  update('page', id, { access });
+                },
+              })),
+            },
+            {
+              id: 'project',
+              label: t('page.moveToProject'),
+              icon: <Icon name="folder" size={14} />,
+              hint: page.project_id ? byId('project', page.project_id)?.name : t('page.workspaceLevel'),
+              search: projects.length > 8,
+              items: [
+                ...projects.map((project) => ({
+                  id: `move-${project.id}`,
+                  label: `${project.icon ?? ''} ${project.name}`.trim(),
+                  hint: page.project_id === project.id ? '✓' : undefined,
+                  onSelect: () => update('page', id, { project_id: project.id }),
+                })),
+                { id: 'move-none', label: t('page.workspaceLevel'), hint: page.project_id ? undefined : '✓',
+                  onSelect: () => update('page', id, { project_id: null }) },
+              ],
+            },
             { id: 'copy', label: t('action.copyLink'), icon: <Icon name="link" size={14} />, onSelect: () => {
               void navigator.clipboard?.writeText(`${location.origin}/pages/${id}`);
               toast(t('common.copied'));
             } },
-            ...projects.map((project) => ({
-              id: `move-${project.id}`,
-              section: t('page.moveToProject'),
-              label: `${project.icon ?? ''} ${project.name}`.trim(),
-              onSelect: () => update('page', id, { project_id: project.id }),
-            })),
-            { id: 'move-none', section: t('page.moveToProject'), label: t('page.workspaceLevel'), onSelect: () => update('page', id, { project_id: null }) },
             { id: 'archive', section: t('module.danger'), label: page.archived ? t('action.unarchive') : t('action.archive'),
               onSelect: () => update('page', id, { archived: page.archived ? 0 : 1 }) },
             { id: 'delete', section: t('module.danger'), label: t('page.delete'), danger: true, onSelect: async () => {

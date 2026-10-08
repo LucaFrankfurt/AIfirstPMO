@@ -209,12 +209,13 @@ jobs:
       # `npm run check:*` for a while and only ever run by hand, which is the
       # same as not running — each of them was failing on main by the time
       # they were first pointed at it.
-      - name: Stylesheet, names, contrast and widths
+      - name: Stylesheet, names, contrast, widths and menus
         run: |
           npm run check:css
           npm run check:a11y
           npm run check:contrast
           npm run check:responsive
+          npm run check:menus
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
 

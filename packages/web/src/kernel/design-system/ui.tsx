@@ -20,7 +20,10 @@ import { priorityKey, useT } from '../i18n/i18n';
 import type { GuideTarget } from '../../modules/guide/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
-import { Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from './ui/menu';
+import {
+  Menu, MenuContent, MenuItem, MenuLabel, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger,
+} from './ui/menu';
+import { isGroup, menuMatches } from './menu-search';
 import { buttonVariants, hasText } from './ui/button';
 import { Input } from './ui/field';
 import { cn } from './cn';
@@ -291,8 +294,92 @@ export interface MenuItem {
   icon?: ReactNode;
   danger?: boolean;
   onSelect?: () => void;
+  /** A heading above the row. For a handful of commands that belong together. */
   section?: string;
 }
+
+/**
+ * A drawer of rows, for a list that grows with the workspace.
+ *
+ * The distinction this makes is the whole point: a `section` is a heading over
+ * a few commands that belong together, and a group is a *list* — labels,
+ * projects, people, states — which is where menus got their length. The page's
+ * own menu was 39 rows on a three-project demo, 1140px of it below the fold,
+ * and what had scrolled away were the commands.
+ *
+ * A group is named by its caller rather than decided by a count, because a
+ * count is a budget somebody spends: the question is not "is this list long
+ * today" but "does this list grow with the workspace".
+ */
+export interface MenuGroup {
+  id: string;
+  /** The word on the row that opens the drawer. */
+  label: string;
+  icon?: ReactNode;
+  /** Shown on that row — usually what is chosen now. */
+  hint?: string;
+  items: MenuItem[];
+  /** A search box inside, for a drawer that can hold a hundred names. */
+  search?: boolean;
+  /** What the drawer says when it is empty. */
+  empty?: string;
+}
+
+export type MenuEntry = MenuItem | MenuGroup;
+
+/** Whether an entry is a drawer. The one place anything asks. */
+export const isMenuGroup = (entry: MenuEntry): entry is MenuGroup => isGroup(entry);
+
+/** One drawer and its rows. Its own search box, and its own state for it. */
+function MenuDrawer({ group }: { group: MenuGroup }) {
+  const t = useT();
+  const [query, setQuery] = useState('');
+  const terms = useMemo(() => parseTerms(query), [query]);
+  const rows = useMemo(
+    () => (terms.length
+      ? group.items.filter((item) => matchesTerms(`${typeof item.label === 'string' ? item.label : ''} ${item.hint ?? ''}`, terms))
+      : group.items),
+    [group.items, terms],
+  );
+  return (
+    <MenuSub onOpenChange={(open) => { if (!open) setQuery(''); }}>
+      <MenuSubTrigger>
+        {group.icon}
+        <span className="flex-1 min-w-0 truncate">{group.label}</span>
+        {group.hint && <span className="text-[11.5px] text-muted truncate max-w-[9rem]">{group.hint}</span>}
+        <Icon name="chevronRight" size={13} />
+      </MenuSubTrigger>
+      <MenuSubContent>
+        {group.search && (
+          <Input
+            className="mb-1 h-8 text-[13px]"
+            placeholder={t('common.filterPlaceholder')}
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            onKeyDown={(event) => {
+              if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp', 'Tab'].includes(event.key)) event.stopPropagation();
+            }}
+          />
+        )}
+        {rows.length === 0 && (
+          <div className="px-2 py-2 text-[12.5px] text-muted">{group.empty ?? t('common.nothingHere')}</div>
+        )}
+        {rows.map((item) => (
+          <MenuItemRow key={item.id} item={item} />
+        ))}
+      </MenuSubContent>
+    </MenuSub>
+  );
+}
+
+/** One row, wherever it is standing. */
+const MenuItemRow = ({ item }: { item: MenuItem }) => (
+  <MenuItem danger={item.danger} onSelect={() => item.onSelect?.()}>
+    {item.icon}
+    <span className="flex-1 min-w-0 truncate">{item.label}</span>
+    {item.hint && <span className="text-[11.5px] text-muted">{item.hint}</span>}
+  </MenuItem>
+);
 
 /**
  * A menu, anchored to the button that opens it.
@@ -307,11 +394,16 @@ export interface MenuItem {
  * filtering when a list is forty people long. Keys typed in it are kept from
  * the menu's own typeahead, which would otherwise move the highlight while
  * somebody is trying to type a name.
+ *
+ * `items` may now hold drawers as well as rows — see `MenuGroup`. A search
+ * flattens them, so typing never requires knowing which drawer something was
+ * filed in; `menuMatches` beside this is that rule, and is tested without a
+ * browser.
  */
 export function MenuButton({
   items, children, className, variant = 'ghost', size = 'default', title, label, search, disabled, empty,
 }: {
-  items: MenuItem[];
+  items: MenuEntry[];
   children: ReactNode;
   /** Extra classes. The look of the trigger comes from `variant` and `size`. */
   className?: string;
@@ -339,9 +431,7 @@ export function MenuButton({
    * words also stand on their own now, so "muller jorg" finds him too.
    */
   const terms = useMemo(() => parseTerms(query), [query]);
-  const filtered = useMemo(() => (terms.length
-    ? items.filter((item) => matchesTerms(`${typeof item.label === 'string' ? item.label : ''} ${item.hint ?? ''}`, terms))
-    : items), [items, terms]);
+  const filtered = useMemo(() => menuMatches(items, terms), [items, terms]);
 
   let lastSection: string | undefined;
   return (
@@ -378,17 +468,17 @@ export function MenuButton({
         {filtered.length === 0 && (
           <div className="px-2 py-2 text-[12.5px] text-muted">{empty ?? t('common.nothingHere')}</div>
         )}
-        {filtered.map((item) => {
-          const header = item.section && item.section !== lastSection ? item.section : null;
-          lastSection = item.section;
+        {filtered.map((entry) => {
+          if (isGroup(entry)) {
+            lastSection = undefined;
+            return <MenuDrawer key={entry.id} group={entry} />;
+          }
+          const header = entry.section && entry.section !== lastSection ? entry.section : null;
+          lastSection = entry.section;
           return (
-            <Fragment key={item.id}>
+            <Fragment key={entry.id}>
               {header && <MenuLabel>{header}</MenuLabel>}
-              <MenuItem danger={item.danger} onSelect={() => item.onSelect?.()}>
-                {item.icon}
-                <span className="flex-1 min-w-0 truncate">{item.label}</span>
-                {item.hint && <span className="text-[11.5px] text-muted">{item.hint}</span>}
-              </MenuItem>
+              <MenuItemRow item={entry} />
             </Fragment>
           );
         })}

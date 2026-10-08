@@ -15,7 +15,7 @@ import type { Selection } from '../../kernel/design-system/selection';
 import { useLabels, useStates } from './task-parts';
 import { Button } from '../../kernel/design-system/ui/button';
 import { navCount } from '../../kernel/design-system/ui/nav';
-import { Avatar, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuEntry, type MenuItem } from '../../kernel/design-system/ui';
 
 /**
  * The bar that appears once something is selected. Fixed to the bottom, above
@@ -76,21 +76,38 @@ export function SelectionBar({ selection, tasks }: { selection: Selection; tasks
     { id: 'none', section: t('select.clearSection'), label: t('select.unassign'), onSelect: () => applyToAll({ assignees: [] }, done) },
   ];
 
-  const labelItems: MenuItem[] = [
-    ...labels.map((label) => ({
-      id: label.id,
-      label: label.name,
-      onSelect: () => applyToAll(
-        (task) => ({ labels: [...new Set([...(task.labels ?? []), label.id])] }),
-        done,
-      ),
-    })),
-    ...labels.map((label) => ({
-      id: `remove-${label.id}`,
-      section: t('select.removeLabelSection'),
-      label: label.name,
-      onSelect: () => applyToAll((task) => ({ labels: (task.labels ?? []).filter((id) => id !== label.id) }), done),
-    })),
+  /*
+   * Two drawers, because this menu listed every label *twice* — once to add and
+   * once to take away. A workspace with sixty-four of them opened a menu of a
+   * hundred and twenty-eight rows, where the second half was the first half
+   * again and the only thing saying so was a heading that had scrolled past.
+   */
+  const labelItems: MenuEntry[] = [
+    {
+      id: 'add',
+      label: t('select.addLabelSection'),
+      icon: <Icon name="plus" size={14} />,
+      search: labels.length > 8,
+      items: labels.map((label) => ({
+        id: label.id,
+        label: label.name,
+        onSelect: () => applyToAll(
+          (task) => ({ labels: [...new Set([...(task.labels ?? []), label.id])] }),
+          done,
+        ),
+      })),
+    },
+    {
+      id: 'remove',
+      label: t('select.removeLabelSection'),
+      icon: <Icon name="close" size={14} />,
+      search: labels.length > 8,
+      items: labels.map((label) => ({
+        id: `remove-${label.id}`,
+        label: label.name,
+        onSelect: () => applyToAll((task) => ({ labels: (task.labels ?? []).filter((id) => id !== label.id) }), done),
+      })),
+    },
   ];
 
   const cycleItems: MenuItem[] = [

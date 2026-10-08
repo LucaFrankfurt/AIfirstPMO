@@ -22,7 +22,7 @@ import { pull } from '../../kernel/sync/sync';
 import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
-import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
 import { downscale } from './Markdown';
 import { useMinute } from '../../kernel/design-system/minute';
 
@@ -69,26 +69,44 @@ export function labelItems(
   page: Page,
   labels: { id: string; name: string; color: string; project_id?: string | null }[],
   section: string,
-): MenuItem[] {
+): MenuGroup {
   const ordered = [...labels].sort((a, b) => {
     if (!a.project_id !== !b.project_id) return a.project_id ? 1 : -1;
     return a.name.localeCompare(b.name);
   });
-  return ordered.map((label) => ({
-    id: `label-${label.id}`,
-    section,
-    label: label.name,
-    icon: <span className={chipDot} style={{ background: label.color }} />,
-    hint: (page.labels ?? []).includes(label.id)
-      ? '✓'
-      : label.project_id ? byId('project', label.project_id)?.name : undefined,
-    onSelect: () => {
-      const current = page.labels ?? [];
-      update('page', page.id, {
-        labels: current.includes(label.id) ? current.filter((id) => id !== label.id) : [...current, label.id],
-      });
-    },
-  }));
+  const on = page.labels ?? [];
+  return {
+    id: 'labels',
+    label: section,
+    icon: <Icon name="tag" size={14} />,
+    // How many are on it already, so the drawer does not have to be opened to
+    // find out — which is most of what anybody opened it for.
+    hint: on.length ? String(on.length) : undefined,
+    search: ordered.length > 8,
+    items: ordered.map((label) => ({
+      id: `label-${label.id}`,
+      label: label.name,
+      icon: <span className={chipDot} style={{ background: label.color }} />,
+      /*
+       * The project *and* the tick, not one or the other.
+       *
+       * Eight projects each seeded a label called "Bug", so the name alone
+       * names nothing — the project is the only thing telling the eight apart,
+       * and dropping it as soon as one is chosen would hide which of the eight
+       * is on the page. The search reads this line too, so `bug website` finds
+       * the one that is wanted.
+       */
+      hint: [
+        on.includes(label.id) ? '✓' : null,
+        label.project_id ? byId('project', label.project_id)?.name : null,
+      ].filter(Boolean).join(' ') || undefined,
+      onSelect: () => {
+        update('page', page.id, {
+          labels: on.includes(label.id) ? on.filter((id) => id !== label.id) : [...on, label.id],
+        });
+      },
+    })),
+  };
 }
 
 /* ------------------------------------------------------------ watching */
@@ -232,36 +250,40 @@ export function movePageToTop(pageId: string, workspaceId: string): boolean {
  * Which of them are possible is `moveTargets`; what they are called and what
  * they do when picked is here.
  */
-export function moveItems(page: Page, workspaceId: string, section: string): MenuItem[] {
+export function moveItems(page: Page, workspaceId: string, section: string): MenuGroup[] {
   const targets = moveTargets(page.id, movable(workspaceId));
   const move = (target: string, zone: DropZone) => () => { movePage(page.id, target, zone, workspaceId); };
   const items: MenuItem[] = [];
 
   if (targets.up) {
     items.push({
-      id: 'move-up', section, label: <MoveLabel k="page.moveUp" />, icon: <Icon name="chevronUp" size={14} />,
+      id: 'move-up', label: <MoveLabel k="page.moveUp" />, icon: <Icon name="chevronUp" size={14} />,
       onSelect: move(targets.up, 'before'),
     });
   }
   if (targets.in) {
     items.push({
-      id: 'move-in', section, label: <MoveLabel k="page.moveIn" />, icon: <Icon name="chevronRight" size={14} />,
+      id: 'move-in', label: <MoveLabel k="page.moveIn" />, icon: <Icon name="chevronRight" size={14} />,
       onSelect: move(targets.in, 'inside'),
     });
   }
   if (targets.down) {
     items.push({
-      id: 'move-down', section, label: <MoveLabel k="page.moveDown" />, icon: <Icon name="chevronDown" size={14} />,
+      id: 'move-down', label: <MoveLabel k="page.moveDown" />, icon: <Icon name="chevronDown" size={14} />,
       onSelect: move(targets.down, 'after'),
     });
   }
   if (targets.out) {
     items.push({
-      id: 'move-out', section, label: <MoveLabel k="page.moveOut" />, icon: <Icon name="chevronLeft" size={14} />,
+      id: 'move-out', label: <MoveLabel k="page.moveOut" />, icon: <Icon name="chevronLeft" size={14} />,
       onSelect: move(targets.out, 'after'),
     });
   }
-  return items;
+  // Nothing at all at the top of a flat wiki, which is a drawer worth not
+  // drawing rather than one that opens onto an apology.
+  return items.length
+    ? [{ id: 'move', label: section, icon: <Icon name="hierarchy" size={14} />, items }]
+    : [];
 }
 
 /** A menu label is rendered, so it can call the hook a plain string cannot. */
