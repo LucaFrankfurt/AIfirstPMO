@@ -24,13 +24,27 @@ export const MenuLabel = ({ className, ...props }: ComponentProps<typeof Primiti
   <Primitive.Label className={cn('px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted', className)} {...props} />
 );
 
-export function MenuContent({ className, sideOffset = 6, ...props }: ComponentProps<typeof Primitive.Content>) {
+/**
+ * `sheet` is the shape for a window too narrow to hang a menu off a button.
+ *
+ * It only adds a class. The positioning is undone in the stylesheet, because
+ * the element that has to be moved is not this one: Radix wraps it in a popper
+ * whose `transform` makes it the containing block for everything inside, so
+ * `position: fixed` on the content is fixed *to the wrapper* and goes nowhere.
+ * `.menu-sheet` in `app.css` reaches that wrapper through `:has()`.
+ *
+ * The class carries no width of its own and no media query: it is put on only
+ * while `useNarrow()` says so, which keeps that number in one place instead of
+ * stating it again here in a language that cannot read it.
+ */
+export function MenuContent({ className, sideOffset = 6, sheet, ...props }: ComponentProps<typeof Primitive.Content> & { sheet?: boolean }) {
   return (
     <Primitive.Portal>
       <Primitive.Content
         sideOffset={sideOffset}
         collisionPadding={10}
         className={cn(
+          sheet && 'menu-sheet',
           // The window, and not a number. `24rem` was chosen when a menu was
           // where a workspace's labels, projects and people were all poured,
           // and scrolling was the only way any of it fitted; it also meant a

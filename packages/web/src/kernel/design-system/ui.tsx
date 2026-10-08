@@ -21,9 +21,10 @@ import type { GuideTarget } from '../../modules/guide/guide';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import { Button } from './ui/button';
 import {
-  Menu, MenuContent, MenuItem, MenuLabel, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger,
+  Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuSub, MenuSubContent, MenuSubTrigger, MenuTrigger,
 } from './ui/menu';
 import { isGroup, menuMatches } from './menu-search';
+import { useNarrow } from './narrow';
 import { buttonVariants, hasText } from './ui/button';
 import { Input } from './ui/field';
 import { cn } from './cn';
@@ -330,8 +331,20 @@ export type MenuEntry = MenuItem | MenuGroup;
 /** Whether an entry is a drawer. The one place anything asks. */
 export const isMenuGroup = (entry: MenuEntry): entry is MenuGroup => isGroup(entry);
 
-/** One drawer and its rows. Its own search box, and its own state for it. */
-function MenuDrawer({ group }: { group: MenuGroup }) {
+/**
+ * The rows inside a drawer, with the drawer's own search box.
+ *
+ * One body, two shapes around it. On a window wide enough the drawer stands
+ * beside the menu (`MenuDrawer`); on a phone it replaces the menu's contents
+ * in place, because beside does not exist there. What is *in* the drawer is
+ * the same thing either way, so it is written once — the alternative was two
+ * copies of a search box, and the one in the shape nobody tests is the one
+ * that stops folding accents.
+ *
+ * Its query lives here rather than above, so closing a drawer clears it:
+ * unmounting is the reset, and neither shape has to remember to do it.
+ */
+function DrawerRows({ group }: { group: MenuGroup }) {
   const t = useT();
   const [query, setQuery] = useState('');
   const terms = useMemo(() => parseTerms(query), [query]);
@@ -342,35 +355,68 @@ function MenuDrawer({ group }: { group: MenuGroup }) {
     [group.items, terms],
   );
   return (
-    <MenuSub onOpenChange={(open) => { if (!open) setQuery(''); }}>
-      <MenuSubTrigger>
-        {group.icon}
-        <span className="flex-1 min-w-0 truncate">{group.label}</span>
-        {group.hint && <span className="text-[11.5px] text-muted truncate max-w-[9rem]">{group.hint}</span>}
-        <Icon name="chevronRight" size={13} />
-      </MenuSubTrigger>
+    <>
+      {group.search && (
+        <Input
+          className="mb-1 h-8 text-[13px]"
+          placeholder={t('common.filterPlaceholder')}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp', 'Tab'].includes(event.key)) event.stopPropagation();
+          }}
+        />
+      )}
+      {rows.length === 0 && (
+        <div className="px-2 py-2 text-[12.5px] text-muted">{group.empty ?? t('common.nothingHere')}</div>
+      )}
+      {rows.map((item) => (
+        <MenuItemRow key={item.id} item={item} />
+      ))}
+    </>
+  );
+}
+
+/** What a drawer's row says, in either shape: its word, what is chosen, a chevron. */
+const drawerFace = (group: MenuGroup) => (
+  <>
+    {group.icon}
+    <span className="flex-1 min-w-0 truncate">{group.label}</span>
+    {group.hint && <span className="text-[11.5px] text-muted truncate max-w-[9rem]">{group.hint}</span>}
+    <Icon name="chevronRight" size={13} />
+  </>
+);
+
+/** A drawer that opens beside the menu. The shape for a window with room. */
+function MenuDrawer({ group }: { group: MenuGroup }) {
+  return (
+    <MenuSub>
+      <MenuSubTrigger data-drawer={group.id}>{drawerFace(group)}</MenuSubTrigger>
       <MenuSubContent>
-        {group.search && (
-          <Input
-            className="mb-1 h-8 text-[13px]"
-            placeholder={t('common.filterPlaceholder')}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp', 'Tab'].includes(event.key)) event.stopPropagation();
-            }}
-          />
-        )}
-        {rows.length === 0 && (
-          <div className="px-2 py-2 text-[12.5px] text-muted">{group.empty ?? t('common.nothingHere')}</div>
-        )}
-        {rows.map((item) => (
-          <MenuItemRow key={item.id} item={item} />
-        ))}
+        <DrawerRows group={group} />
       </MenuSubContent>
     </MenuSub>
   );
 }
+
+/**
+ * A drawer that opens *into* the menu. The shape for a phone.
+ *
+ * `preventDefault` is the whole trick: a menu item closes the menu when it is
+ * chosen, and this one is not a choice, it is a step further in.
+ *
+ * It carries the same `data-drawer` as the row that opens one sideways, so
+ * `check:menus` opens both shapes with one selector — a check that could only
+ * find the desktop shape is a check that would have gone on missing this.
+ */
+const MenuDrillRow = ({ group, open }: { group: MenuGroup; open: () => void }) => (
+  <MenuItem
+    data-drawer={group.id}
+    onSelect={(event) => { event.preventDefault(); open(); }}
+  >
+    {drawerFace(group)}
+  </MenuItem>
+);
 
 /** One row, wherever it is standing. */
 const MenuItemRow = ({ item }: { item: MenuItem }) => (
@@ -433,9 +479,37 @@ export function MenuButton({
   const terms = useMemo(() => parseTerms(query), [query]);
   const filtered = useMemo(() => menuMatches(items, terms), [items, terms]);
 
+  /*
+   * On a phone a drawer opens into the menu rather than beside it, so the menu
+   * has a *level*: either the entries it was given, or the rows of one drawer.
+   * Held by id rather than by the group itself, because `items` is rebuilt on
+   * every render by most callers and holding the object would pin a stale one.
+   */
+  const narrow = useNarrow();
+  const [drilled, setDrilled] = useState<string | null>(null);
+  const level = drilled ? items.find((entry) => isGroup(entry) && entry.id === drilled) as MenuGroup | undefined : undefined;
+
+  /*
+   * Stepping in unmounts the row that was focused, and focus falls to
+   * `<body>` — where arrow keys do nothing and Escape closes the page's
+   * dialog instead of the menu. So the new level takes the focus itself.
+   *
+   * Found by the class rather than by an id of ours: Radix puts its own id on
+   * the content and points the trigger's `aria-controls` at it, so an id
+   * passed down here wins the spread and leaves that attribute naming an
+   * element that does not exist — a menu a screen reader is told about and
+   * cannot find. Only one sheet is ever open, so the class is enough.
+   */
+  useEffect(() => {
+    // A window dragged wide while a drawer is open: the drawer has somewhere
+    // to go now, so the menu goes back to showing what it was asked to show.
+    if (!narrow) { setDrilled(null); return; }
+    document.querySelector<HTMLElement>('.menu-sheet [role=menuitem]')?.focus();
+  }, [drilled, narrow]);
+
   let lastSection: string | undefined;
   return (
-    <Menu onOpenChange={(open) => { if (!open) setQuery(''); }}>
+    <Menu onOpenChange={(open) => { if (!open) { setQuery(''); setDrilled(null); } }}>
       <MenuTrigger asChild>
         <button
           className={cn(buttonVariants({ variant, size }), className)}
@@ -450,38 +524,54 @@ export function MenuButton({
           {children}
         </button>
       </MenuTrigger>
-      <MenuContent align="start">
-        {search && (
-          <Input
-            className="mb-1 h-8 text-[13px]"
-            autoFocus
-            placeholder={t('common.filterPlaceholder')}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              // Everything except the keys that mean "leave the box": otherwise
-              // the menu's typeahead moves the highlight as somebody types.
-              if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp', 'Tab'].includes(event.key)) event.stopPropagation();
-            }}
-          />
+      <MenuContent align="start" sheet={narrow}>
+        {level ? (
+          <>
+            {/* The way out, and the only thing on the level that says where you are. */}
+            <MenuItem onSelect={(event) => { event.preventDefault(); setDrilled(null); }}>
+              <Icon name="chevronLeft" size={13} />
+              <span className="flex-1 min-w-0 truncate font-medium">{level.label}</span>
+            </MenuItem>
+            <MenuSeparator />
+            <DrawerRows group={level} />
+          </>
+        ) : (
+          <>
+            {search && (
+              <Input
+                className="mb-1 h-8 text-[13px]"
+                autoFocus
+                placeholder={t('common.filterPlaceholder')}
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  // Everything except the keys that mean "leave the box": otherwise
+                  // the menu's typeahead moves the highlight as somebody types.
+                  if (!['Escape', 'Enter', 'ArrowDown', 'ArrowUp', 'Tab'].includes(event.key)) event.stopPropagation();
+                }}
+              />
+            )}
+            {filtered.length === 0 && (
+              <div className="px-2 py-2 text-[12.5px] text-muted">{empty ?? t('common.nothingHere')}</div>
+            )}
+            {filtered.map((entry) => {
+              if (isGroup(entry)) {
+                lastSection = undefined;
+                return narrow
+                  ? <MenuDrillRow key={entry.id} group={entry} open={() => setDrilled(entry.id)} />
+                  : <MenuDrawer key={entry.id} group={entry} />;
+              }
+              const header = entry.section && entry.section !== lastSection ? entry.section : null;
+              lastSection = entry.section;
+              return (
+                <Fragment key={entry.id}>
+                  {header && <MenuLabel>{header}</MenuLabel>}
+                  <MenuItemRow item={entry} />
+                </Fragment>
+              );
+            })}
+          </>
         )}
-        {filtered.length === 0 && (
-          <div className="px-2 py-2 text-[12.5px] text-muted">{empty ?? t('common.nothingHere')}</div>
-        )}
-        {filtered.map((entry) => {
-          if (isGroup(entry)) {
-            lastSection = undefined;
-            return <MenuDrawer key={entry.id} group={entry} />;
-          }
-          const header = entry.section && entry.section !== lastSection ? entry.section : null;
-          lastSection = entry.section;
-          return (
-            <Fragment key={entry.id}>
-              {header && <MenuLabel>{header}</MenuLabel>}
-              <MenuItemRow item={entry} />
-            </Fragment>
-          );
-        })}
       </MenuContent>
     </Menu>
   );

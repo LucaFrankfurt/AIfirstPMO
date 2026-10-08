@@ -3757,3 +3757,55 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   padding: 9px 11px;
   font-size: 12.5px;
 }
+
+/*
+ * A menu that comes up from the bottom edge, for a window with no room beside.
+ *
+ * The drawers added in #129 were measured at 1400×900 and nowhere else. On a
+ * 390px phone every one of the app's nineteen drawers opened *outside* the
+ * window — between 35px and 147px past the left edge — because a drawer stands
+ * beside the menu it belongs to and 310px of menu plus 208px of drawer do not
+ * fit across 390px. The screenshot that reported it showed a search box with
+ * its left half cut off by the edge of the glass.
+ *
+ * So below `SHEET_BELOW` (`narrow.ts`, which is the only place that width is
+ * written) a menu stops hanging off its button: it is the full width of the
+ * screen, sitting on the bottom edge where a thumb is, and a drawer opens into
+ * it instead of beside it.
+ *
+ * It has to reach the *wrapper*, not the content. Radix wraps a menu in a
+ * popper element carrying a `transform`, and a transform makes an element the
+ * containing block for `position: fixed` inside it — so fixing the content
+ * fixes it to the wrapper, which is exactly where it already was. `:has()`
+ * selects the wrapper by what it is holding; this cost an afternoon to find
+ * the first time, which is why it is written down.
+ *
+ * No media query on purpose: the class is only ever on the element while
+ * `useNarrow()` says the window is narrow, so the width lives in one language
+ * instead of two that cannot check each other.
+ */
+[data-radix-popper-content-wrapper]:has(> .menu-sheet) {
+  position: fixed !important;
+  inset: auto 0 0 0 !important;
+  transform: none !important;
+  min-width: 0 !important;
+  max-width: none !important;
+}
+
+.menu-sheet {
+  width: 100%;
+  max-width: none;
+  /* Enough for a long drawer to be worth scrolling, little enough that what is
+     underneath still says which screen this menu belongs to. */
+  max-height: 72vh;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border-bottom: none;
+  /* The home indicator sits over the last row otherwise. */
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+
+/* A row meant for a thumb rather than a pointer: 12px over a 20px line is a
+   44px target, which is the size both platforms' guidelines ask for. The
+   dropdown's own 6px rows are 32px, which is a mouse's business, not a
+   thumb's. */
+.menu-sheet [role='menuitem'] { padding-top: 12px; padding-bottom: 12px; }

@@ -2032,6 +2032,104 @@ await step('mobile layout', async () => {
   await mobile.close();
 });
 
+/**
+ * A menu on a phone: the sheet, the step in, and whether a tap in there acts.
+ *
+ * `check:menus` measures the geometry of all of this at 390px — that nothing
+ * stands outside the window, that the way back works — but it deliberately
+ * changes nothing, so the one thing it cannot answer is whether a row *inside*
+ * a drawer still does what it says. That matters here more than it looks: on a
+ * phone a drawer row is an ordinary menu item that calls `preventDefault` to
+ * stay open, and the rows beneath it are ordinary menu items that must not.
+ * Get that wrong in either direction and the menu either closes on the way in
+ * or never closes at all, and every geometric check stays green.
+ *
+ * It puts the rung back, because the steps after this one share the workspace.
+ */
+await step('a drawer on a phone opens into the menu, and a tap in it acts', async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale });
+  const m = await phone.newPage();
+  await m.goto(base, { waitUntil: 'domcontentloaded' });
+  await m.evaluate((value) => localStorage.setItem('kolibri.locale', value), locale);
+  await m.goto(base, { waitUntil: 'networkidle' });
+  await m.fill('#email', 'ada@kolibri.dev');
+  await m.fill('#password', 'kolibri-demo');
+  await m.click('button[type=submit]');
+  await m.waitForSelector('.tabbar', { timeout: 15000 });
+  await closeTour(m);
+
+  await m.goto(`${base}/pages`, { waitUntil: 'networkidle' });
+  await closeTour(m);
+  await m.waitForSelector('.page-row', { timeout: 8000 });
+  await m.locator('.page-row-main:has-text("Team handbook")').first().click();
+  await m.waitForTimeout(900);
+
+  /*
+   * The rung it starts on, asserted rather than assumed: setting `draft` on a
+   * page that is already a draft proves nothing, and that is exactly how this
+   * step would pass while the drawer did nothing at all.
+   */
+  const first = (await m.locator('main').innerText()).replace(/\s+/g, ' ');
+  if (!first.includes(RUNGS.final)) {
+    throw new Error(`the handbook is not on ${RUNGS.final} to begin with, so this proves nothing: ${first.slice(0, 120)}`);
+  }
+
+  // The menu button in the page's own header, not the tab bar's.
+  await m.locator('.header button').nth(1).click();
+  await m.waitForTimeout(450);
+
+  /*
+   * The sheet stands on the bottom edge at the full width of the screen. This
+   * is the half of the report `check:menus` would pass either way: a menu
+   * hanging off its button fits a 390px window too — it just has nowhere to
+   * put a drawer, which is how all nineteen of them ended up outside it.
+   */
+  const sheet = m.locator('[role=menu]').first();
+  const shape = await sheet.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return { left: Math.round(box.left), width: Math.round(box.width), bottom: Math.round(innerHeight - box.bottom) };
+  });
+  if (shape.left !== 0 || shape.width !== 390 || shape.bottom > 1) {
+    throw new Error(`the menu is not a sheet: left ${shape.left}, width ${shape.width}, ${shape.bottom}px off the bottom`);
+  }
+
+  // One level in, and the drawer is the menu rather than something beside it.
+  const drawers = await sheet.locator('[data-drawer]').count();
+  await sheet.locator('[data-drawer]').filter({ hasText: new RegExp(`^${LABELS.statusDrawer}`) }).first().click();
+  await m.waitForTimeout(350);
+  if (await m.locator('[role=menu]').count() !== 1) {
+    throw new Error('stepping into a drawer opened a second pane — on a phone it is supposed to replace the one it is in');
+  }
+
+  const rung = rungItem(m.locator('[role=menu]').first(), RUNGS.draft).first();
+  if (!await rung.count()) throw new Error('the drawer offers no rungs to move to');
+  await rung.click();
+  await m.waitForTimeout(900);
+  const moved = (await m.locator('main').innerText()).replace(/\s+/g, ' ');
+  if (!moved.includes(RUNGS.draft)) throw new Error(`a tap inside the drawer did nothing: ${moved.slice(0, 120)}`);
+  console.log(`     sheet ${shape.width}px wide on the bottom edge · ${drawers} drawers · stepped in and set ${RUNGS.draft}`);
+
+  /*
+   * And back onto the rung the demo seeds it on.
+   *
+   * Not housekeeping: the step before this one ends by putting the handbook
+   * back on `final` for exactly the same reason, and the German leg runs
+   * against the database the English leg left behind. Getting this wrong cost
+   * a run — the leg that failed was the *other* language, three steps earlier,
+   * with a message about a rung that said nothing about a phone.
+   */
+  await m.locator('.header button').nth(1).click();
+  await m.waitForTimeout(450);
+  await m.locator('[role=menu] [data-drawer]').filter({ hasText: new RegExp(`^${LABELS.statusDrawer}`) }).first().click();
+  await m.waitForTimeout(350);
+  await rungItem(m.locator('[role=menu]').first(), RUNGS.final).first().click();
+  await m.waitForTimeout(700);
+  const back = (await m.locator('main').innerText()).replace(/\s+/g, ' ');
+  if (!back.includes(RUNGS.final)) throw new Error(`left the handbook off ${RUNGS.final}: ${back.slice(0, 120)}`);
+  await m.screenshot({ path: `${shots}/8-mobile-menu.png` });
+  await phone.close();
+});
+
 await step('offline mode', async () => {
   await ctx.setOffline(true);
   await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' }).catch(() => {});
