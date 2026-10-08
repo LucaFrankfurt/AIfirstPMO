@@ -31,7 +31,7 @@ import type { Selection } from '../../kernel/design-system/selection';
 import { Button } from '../../kernel/design-system/ui/button';
 import { navCount } from '../../kernel/design-system/ui/nav';
 import { chipDot } from '../../kernel/design-system/ui/chip';
-import { Icon, MenuButton, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Icon, MenuButton, useConfirm, useToast, type MenuEntry } from '../../kernel/design-system/ui';
 import { descendantsOf } from './pagetree';
 import { usePageStatuses } from './status';
 import { movePage, movePageToTop } from './page-parts';
@@ -168,41 +168,73 @@ export function PageBulkBar({ selection, pages }: { selection: Selection; pages:
     selection.clear();
   };
 
-  const items: MenuItem[] = [
-    ...targets.map((page) => ({
-      id: `under-${page.id}`,
-      section: t('page.bulkMoveUnder'),
-      label: `${page.icon ?? '📄'} ${page.title || t('common.untitled')}`,
-      onSelect: () => moveUnder(page),
-    })),
-    { id: 'under-none', section: t('page.bulkMoveUnder'), label: t('page.bulkTopLevel'), onSelect: () => moveUnder(null) },
-    ...statuses.map((status) => ({
-      id: `status-${status.id}`,
-      section: t('page.bulkStatus'),
-      label: status.name,
-      icon: <span className={chipDot} style={{ background: status.color }} />,
-      // Ticked only when *every* page in the selection is on this rung: a tick
-      // that meant "some of them" would be a tick nobody could act on.
-      hint: selected.every((page) => statusOf(page, statuses)?.id === status.id) ? '✓' : undefined,
-      onSelect: () => applyTo(selected, { status_id: status.id }),
-    })),
-    ...labels.map((label) => ({
-      id: `label-${label.id}`,
-      section: t('page.labels'),
-      label: label.name,
-      icon: <span className={chipDot} style={{ background: label.color }} />,
-      hint: selected.every((page) => (page.labels ?? []).includes(label.id)) ? '✓' : undefined,
-      onSelect: () => toggleLabel(label),
-    })),
-    ...projects.map((project) => ({
-      id: `project-${project.id}`,
-      section: t('page.moveToProject'),
-      label: `${project.icon ?? ''} ${project.name}`.trim(),
-      onSelect: () => applyTo(selected, { project_id: project.id }),
-    })),
-    { id: 'project-none', section: t('page.moveToProject'), label: t('page.workspaceLevel'),
-      onSelect: () => applyTo(selected, { project_id: null }) },
-  ];
+  /*
+   * Four drawers, not four lists poured into one menu.
+   *
+   * This is the bar's only menu and it carried every page in the wiki, every
+   * rung, every label and every project at once — the same shape the page's own
+   * menu had, and the one `check:menus` now refuses. The bar cannot be reached
+   * by that check (it needs a selection first), so this is the half that is
+   * kept honest by reading rather than by measuring.
+   */
+  const items: MenuEntry[] = [
+    {
+      id: 'under',
+      label: t('page.bulkMoveUnder'),
+      icon: <Icon name="hierarchy" size={14} />,
+      search: targets.length > 8,
+      items: [
+        ...targets.map((page) => ({
+          id: `under-${page.id}`,
+          label: `${page.icon ?? '📄'} ${page.title || t('common.untitled')}`,
+          onSelect: () => moveUnder(page),
+        })),
+        { id: 'under-none', label: t('page.bulkTopLevel'), onSelect: () => moveUnder(null) },
+      ],
+    },
+    {
+      id: 'status',
+      label: t('page.bulkStatus'),
+      icon: <Icon name="check" size={14} />,
+      items: statuses.map((status) => ({
+        id: `status-${status.id}`,
+        label: status.name,
+        icon: <span className={chipDot} style={{ background: status.color }} />,
+        // Ticked only when *every* page in the selection is on this rung: a tick
+        // that meant "some of them" would be a tick nobody could act on.
+        hint: selected.every((page) => statusOf(page, statuses)?.id === status.id) ? '✓' : undefined,
+        onSelect: () => applyTo(selected, { status_id: status.id }),
+      })),
+    },
+    {
+      id: 'labels',
+      label: t('page.labels'),
+      icon: <Icon name="tag" size={14} />,
+      search: labels.length > 8,
+      items: labels.map((label) => ({
+        id: `label-${label.id}`,
+        label: label.name,
+        icon: <span className={chipDot} style={{ background: label.color }} />,
+        hint: selected.every((page) => (page.labels ?? []).includes(label.id)) ? '✓' : undefined,
+        onSelect: () => toggleLabel(label),
+      })),
+    },
+    {
+      id: 'project',
+      label: t('page.moveToProject'),
+      icon: <Icon name="folder" size={14} />,
+      search: projects.length > 8,
+      items: [
+        ...projects.map((project) => ({
+          id: `project-${project.id}`,
+          label: `${project.icon ?? ''} ${project.name}`.trim(),
+          onSelect: () => applyTo(selected, { project_id: project.id }),
+        })),
+        { id: 'project-none', label: t('page.workspaceLevel'),
+          onSelect: () => applyTo(selected, { project_id: null }) },
+      ],
+    },
+  ].filter((entry) => entry.items.length > 0);
 
   return (
     <>

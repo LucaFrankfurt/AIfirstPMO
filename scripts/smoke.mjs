@@ -56,7 +56,7 @@ const LABELS = {
     comment: 'Comment', editComment: 'Edit this comment', edited: 'edited',
     tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
     archive: 'Archive', duplicateTitles: 'Two pages, one title',
-    bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label',
+    bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label', statusDrawer: 'Status', bulkStatusDrawer: 'Set the status',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -75,7 +75,7 @@ const LABELS = {
     comment: 'Kommentieren', editComment: 'Diesen Kommentar bearbeiten', edited: 'bearbeitet',
     tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
     archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
-    bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern',
+    bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern', statusDrawer: 'Status', bulkStatusDrawer: 'Status setzen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -94,7 +94,7 @@ const LABELS = {
     comment: 'Commenter', editComment: 'Modifier ce commentaire', edited: 'modifié',
     tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
     archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
-    bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette',
+    bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette', statusDrawer: 'Statut', bulkStatusDrawer: 'Définir le statut',
   },
 }[locale];
 
@@ -134,6 +134,23 @@ const RUNGS = { draft: 'Draft', final: 'Final' };
  * pass on one leg of the walkthrough and fail on the next, purely because the
  * two legs had selected different rows.
  */
+/**
+ * Pick a row that lives in a drawer.
+ *
+ * The filter menu used to pour every state, person, label, cycle and module
+ * into one list — 195 rows on a workspace with eight projects — and each is a
+ * drawer now. So the gesture is two: open the drawer, then the row. Written
+ * once because four steps below make it, and because the first version of this
+ * walkthrough clicked straight at the row and timed out in both languages.
+ */
+const pickInDrawer = async (target, drawer, name) => {
+  await target.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${drawer}`) }).first().click();
+  await target.waitForTimeout(250);
+  // The last menu on screen is the drawer: a name may appear in the one behind
+  // it too, and clicking that one closes the drawer instead of choosing.
+  await target.locator('[role=menu]').last().getByRole('menuitem', { name }).first().click();
+};
+
 const rungItem = (target, name) =>
   target.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${name}\\s*✓?$`) });
 
@@ -317,7 +334,7 @@ for (const kind of ['cycle', 'module']) {
     const all = await page.locator('.task-card').count();
 
     await page.click(`button:has-text("${LABELS.filter}")`);
-    await page.getByRole('menuitem', { name: named }).click();
+    await pickInDrawer(page, title, named);
     await page.waitForTimeout(600);
     const kept = await page.locator('.task-card').count();
     const chips = await page.locator(`.task-card span[title="${title}"]`).count();
@@ -326,7 +343,7 @@ for (const kind of ['cycle', 'module']) {
 
     // The same click takes it off again, so the rest of the run reads a whole board.
     await page.click(`button:has-text("${LABELS.filter}")`);
-    await page.getByRole('menuitem', { name: named }).click();
+    await pickInDrawer(page, title, named);
     await page.waitForTimeout(400);
     if (await page.locator('.task-card').count() !== all) throw new Error('clearing the filter did not restore the board');
     console.log(`     ${named}: ${kept} of ${all} cards`);
@@ -1179,7 +1196,9 @@ await step('the wiki reports what is untidy, and the tree can be filtered and fo
    * bootstrap failure no unit test can see, because the seeding happens on a
    * real workspace being created.
    */
-  const rungs = await rungItem(page, RUNGS.final).count();
+  await page.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${LABELS.bulkStatusDrawer}`) }).first().click();
+  await page.waitForTimeout(250);
+  const rungs = await rungItem(page.locator('[role=menu]').last(), RUNGS.final).count();
   if (!rungs) throw new Error(`the Organise menu offers no page statuses — the workspace has no ladder`);
   console.log('     organise menu offers:', offered, '· including the ladder');
   await page.keyboard.press('Escape');
@@ -1756,7 +1775,9 @@ await step('a page says how finished it is, and the word can be changed', async 
   // Changed through the page's own menu, and read back off the chip.
   await page.locator('.header button').nth(1).click();
   await page.waitForTimeout(400);
-  const draft = rungItem(page, RUNGS.draft).first();
+  await page.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${LABELS.statusDrawer}`) }).first().click();
+  await page.waitForTimeout(250);
+  const draft = rungItem(page.locator('[role=menu]').last(), RUNGS.draft).first();
   if (!await draft.count()) throw new Error('the page menu offers no rungs to move to');
   await draft.click();
   await page.waitForTimeout(900);
@@ -1790,7 +1811,9 @@ await step('a page says how finished it is, and the word can be changed', async 
   await page.waitForTimeout(800);
   await page.locator('.header button').nth(1).click();
   await page.waitForTimeout(400);
-  await rungItem(page, RUNGS.final).first().click();
+  await page.locator('[role=menuitem]').filter({ hasText: new RegExp(`^${LABELS.statusDrawer}`) }).first().click();
+  await page.waitForTimeout(250);
+  await rungItem(page.locator('[role=menu]').last(), RUNGS.final).first().click();
   await page.waitForTimeout(700);
 });
 

@@ -23,7 +23,7 @@ import {
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { list, useQuery } from '../../kernel/sync/store';
 import { create, remove, update } from '../../kernel/sync/mutations';
-import { Icon, useConfirm, type MenuItem } from '../../kernel/design-system/ui';
+import { Icon, useConfirm, type MenuGroup } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../kernel/design-system/ui/section';
@@ -98,19 +98,26 @@ export function PageStatusNotice({ page }: { page: Pick<Page, 'status_id'> }) {
  * with no status at all — "none" is what a workspace with an empty ladder
  * means, not something anybody should reach by clicking twice.
  */
-export function statusItems(page: Page, statuses: PageStatus[], section: string): MenuItem[] {
+export function statusItems(page: Page, statuses: PageStatus[], section: string): MenuGroup {
   const current = statusOf(page, statuses);
-  return statuses.map((status) => ({
-    id: `status-${status.id}`,
-    section,
-    label: status.name,
-    icon: <span className={chipDot} style={{ background: status.color }} />,
-    hint: current?.id === status.id ? '✓' : undefined,
-    onSelect: () => {
-      if (page.status_id === status.id) return;
-      update('page', page.id, { status_id: status.id });
-    },
-  }));
+  return {
+    id: 'status',
+    label: section,
+    icon: <Icon name="check" size={14} />,
+    // The rung it stands on, on the row that opens the drawer: the question
+    // "how finished is this" is answered without opening anything.
+    hint: current?.name,
+    items: statuses.map((status) => ({
+      id: `status-${status.id}`,
+      label: status.name,
+      icon: <span className={chipDot} style={{ background: status.color }} />,
+      hint: current?.id === status.id ? '✓' : undefined,
+      onSelect: () => {
+        if (page.status_id === status.id) return;
+        update('page', page.id, { status_id: status.id });
+      },
+    })),
+  };
 }
 
 /**

@@ -446,22 +446,29 @@ export function TaskCard({
               variant="ghost" size="iconSm"
               title={t('task.moveTo')}
               items={[
+                // The columns stay flat: this is the one a card's menu is
+                // opened for many times a day, and a board has as many columns
+                // as it has, which is a number somebody chose and can see.
                 ...(moveTargets && moveTargets.length > 1 ? moveTargets.map((target) => ({
                   id: target.id,
                   section: t('task.moveTo'),
                   label: target.title,
                   onSelect: target.onSelect,
                 })) : []),
-                // The same move the drag makes, for every device that cannot
-                // drag. Second, because moving between columns is the thing
-                // somebody opens this menu for many times a day and changing
-                // project is the thing they do once.
-                ...projects.map((project) => ({
-                  id: `project-${project.id}`,
-                  section: t('task.moveToProject'),
-                  label: project.name,
-                  onSelect: () => refile(task.id, project.id),
-                })),
+                // The projects are a drawer: they grow with the workspace, and
+                // changing project is the thing somebody does once — second
+                // here for the same reason it was second before.
+                ...(projects.length ? [{
+                  id: 'refile',
+                  label: t('task.moveToProject'),
+                  icon: <Icon name="folder" size={14} />,
+                  search: projects.length > 8,
+                  items: projects.map((project) => ({
+                    id: `project-${project.id}`,
+                    label: project.name,
+                    onSelect: () => refile(task.id, project.id),
+                  })),
+                }] : []),
               ]}
             >
               <Icon name="dots" size={13} />

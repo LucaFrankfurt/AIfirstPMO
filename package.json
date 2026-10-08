@@ -44,7 +44,8 @@
     "check:responsive": "node scripts/responsive.mjs",
     "check:contrast": "node scripts/contrast.mjs",
     "check:a11y": "node scripts/a11y.mjs",
-    "check:clocks": "node scripts/clocks.mjs"
+    "check:clocks": "node scripts/clocks.mjs",
+    "check:menus": "node scripts/menus.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

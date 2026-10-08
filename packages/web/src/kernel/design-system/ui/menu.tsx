@@ -31,7 +31,14 @@ export function MenuContent({ className, sideOffset = 6, ...props }: ComponentPr
         sideOffset={sideOffset}
         collisionPadding={10}
         className={cn(
-          'menu z-50 min-w-[13rem] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto',
+          // The window, and not a number. `24rem` was chosen when a menu was
+          // where a workspace's labels, projects and people were all poured,
+          // and scrolling was the only way any of it fitted; it also meant a
+          // menu could hide half of itself and look fine. Now the lists live in
+          // drawers and `check:menus` holds every top level to fitting — so the
+          // cap's job is to stop a menu running off a short window, not to
+          // absorb a menu that is too long.
+          'menu z-50 min-w-[13rem] max-h-[var(--radix-dropdown-menu-content-available-height)] overflow-y-auto',
           'rounded-[var(--radius)] border border-line bg-raised p-1 text-[13.5px] shadow-[var(--shadow)]',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
@@ -56,6 +63,55 @@ export function MenuItem({ className, danger, ...props }: ComponentProps<typeof 
       )}
       {...props}
     />
+  );
+}
+
+/* ------------------------------------------------------------- submenus */
+
+/**
+ * A drawer off the side of a menu.
+ *
+ * Here because a menu was doing two jobs at once: carrying *commands* — add a
+ * sub-page, archive, delete — and carrying *values* out of lists that grow
+ * with the workspace, which is where all the length came from. The page's own
+ * menu measured 39 rows with 1140px of it below the fold on a demo workspace
+ * of three projects, and the commands were the part that had scrolled away.
+ *
+ * A drawer keeps the list reachable and stops it setting the length of the
+ * menu it hangs off. The list inside may scroll; the menu in front of it is
+ * supposed to fit, which is what `check:menus` holds it to.
+ */
+export const MenuSub = Primitive.Sub;
+
+export const MenuSubTrigger = ({ className, ...props }: ComponentProps<typeof Primitive.SubTrigger>) => (
+  <Primitive.SubTrigger
+    className={cn(
+      'flex cursor-pointer select-none items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5 outline-none text-fg',
+      // `data-[state=open]` as well as highlighted: the row that opened the
+      // drawer stays marked while the pointer is inside it, or the trail back
+      // out of a submenu is a row that looks like nothing.
+      'data-[highlighted]:bg-hover data-[state=open]:bg-hover',
+      className,
+    )}
+    {...props}
+  />
+);
+
+export function MenuSubContent({ className, sideOffset = 4, ...props }: ComponentProps<typeof Primitive.SubContent>) {
+  return (
+    <Primitive.Portal>
+      <Primitive.SubContent
+        sideOffset={sideOffset}
+        collisionPadding={10}
+        className={cn(
+          'menu z-50 min-w-[13rem] max-h-[min(24rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto',
+          'rounded-[var(--radius)] border border-line bg-raised p-1 text-[13.5px] shadow-[var(--shadow)]',
+          'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
+          className,
+        )}
+        {...props}
+      />
+    </Primitive.Portal>
   );
 }
 

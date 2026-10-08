@@ -1271,6 +1271,7 @@ export const fr: Catalogue = {
   'select.clearSection': 'Effacer',
   'select.unassign': 'Personne',
   'select.noCycle': 'Aucun cycle',
+  'select.addLabelSection': 'Ajouter une étiquette',
   'select.removeLabelSection': 'Retirer l’étiquette',
   'select.mixedProjects': 'Plusieurs projets — les états et les étiquettes diffèrent d’un projet à l’autre',
   'select.applied_one': '{count} tâche modifiée',

@@ -1268,6 +1268,7 @@ export const de: Catalogue = {
   'select.clearSection': 'Leeren',
   'select.unassign': 'Niemand',
   'select.noCycle': 'Kein Zyklus',
+  'select.addLabelSection': 'Label hinzufügen',
   'select.removeLabelSection': 'Label entfernen',
   'select.mixedProjects': 'Mehrere Projekte — Status und Labels gehören zum Projekt',
   'select.applied_one': '{count} Aufgabe geändert',

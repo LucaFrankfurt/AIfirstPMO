@@ -354,9 +354,9 @@ footer {
 
   <div class="tally">
 <!-- generated: tally -->
-    <div><span class="v num">315</span><span class="k">source files</span></div>
+    <div><span class="v num">316</span><span class="k">source files</span></div>
     <div><span class="v num">43</span><span class="k">modules</span></div>
-    <div><span class="v num">102 177</span><span class="k">lines</span></div>
+    <div><span class="v num">102 566</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">58</span><span class="k">entities</span></div>
     <div><span class="v num">140</span><span class="k">endpoints</span></div>
@@ -428,7 +428,7 @@ footer {
 <!-- ══════════════════════════════════════════════ 02 inventory ══ -->
 <section id="inventory">
 <!-- generated: files -->
-  <span class="eyebrow">02 — All 315 files, sorted</span>
+  <span class="eyebrow">02 — All 316 files, sorted</span>
 <!-- end -->
   <h2>The inventory</h2>
   <div class="stack">
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 28 258 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 49 757 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 22 027 lines, 22%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 28 481 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 49 923 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 22 027 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 135 lines, 2%</span>
 <!-- end -->
     </div>
@@ -626,7 +626,7 @@ footer {
           <code>task-parts.tsx</code>, which both files already imported <code>GroupBy</code> from.
         </p>
         <p class="fix"><strong>Closed by step 10.</strong> The folder of 53 components is
-          <code>kernel/design-system</code> now — 27 files, the primitives under <code>ui/</code> —
+          <code>kernel/design-system</code> now — 28 files, the primitives under <code>ui/</code> —
           and the cross-capability imports it worried about are no longer invisible: a project page
           hosting the KPI and budget panels is a row in the table further down, kept acyclic by
           rule 6.</p>
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 9 886 lines is three
-      catalogues of 2 956 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 9 889 lines is three
+      catalogues of 2 957 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1414,18 +1414,18 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":9886,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3121},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":9889,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3122},
 {"ring":"kernel","name":"registry","flag":"","files":5,"lines":3512,"biggest":"kernel/registry/types.ts","biggestLines":2432},
+{"ring":"kernel","name":"design-system","flag":"","files":28,"lines":2565,"biggest":"kernel/design-system/ui.tsx","biggestLines":627},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2393,"biggest":"kernel/write-path/repo.ts","biggestLines":1131},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2348,"biggest":"kernel/search/query.ts","biggestLines":489},
-{"ring":"kernel","name":"design-system","flag":"","files":27,"lines":2345,"biggest":"kernel/design-system/ui.tsx","biggestLines":537},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2301,"biggest":"kernel/platform/env.ts","biggestLines":650},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2284,"biggest":"kernel/identity/routes/auth.ts","biggestLines":559},
 {"ring":"kernel","name":"sync","flag":"","files":8,"lines":2024,"biggest":"kernel/sync/routes/sync.ts","biggestLines":558},
 {"ring":"kernel","name":"files","flag":"","files":6,"lines":841,"biggest":"kernel/files/zip.ts","biggestLines":315},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
-{"ring":"capability","name":"pages","flag":"","files":27,"lines":9062,"biggest":"modules/pages/Markdown.tsx","biggestLines":1001},
-{"ring":"capability","name":"work","flag":"","files":24,"lines":6002,"biggest":"modules/work/views.tsx","biggestLines":988},
+{"ring":"capability","name":"pages","flag":"","files":27,"lines":9148,"biggest":"modules/pages/Markdown.tsx","biggestLines":1001},
+{"ring":"capability","name":"work","flag":"","files":24,"lines":6082,"biggest":"modules/work/views.tsx","biggestLines":1044},
 {"ring":"capability","name":"products","flag":"products","files":4,"lines":5321,"biggest":"modules/products/routes/products.tsx","biggestLines":2864},
 {"ring":"capability","name":"planning","flag":"","files":11,"lines":4354,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1583},
 {"ring":"capability","name":"operations","flag":"","files":11,"lines":3776,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1096},

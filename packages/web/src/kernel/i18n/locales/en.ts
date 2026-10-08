@@ -1274,6 +1274,7 @@ export const en = {
   'select.clearSection': 'Clear',
   'select.unassign': 'Nobody',
   'select.noCycle': 'No cycle',
+  'select.addLabelSection': 'Add a label',
   'select.removeLabelSection': 'Remove label',
   'select.mixedProjects': 'Several projects — states and labels differ per project',
   'select.applied_one': 'Changed {count} task',

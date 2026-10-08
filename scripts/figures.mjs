@@ -425,8 +425,11 @@ const FIGURES = [
     claims: [{ file: 'README.md', pattern: prose('custom fields in (nine|\\d+) kinds') }],
   },
   {
-    what: 'screens check:responsive walks',
-    actual: between(read('scripts/responsive.mjs'), 'const SCREENS = [', '\n];')
+    // In `walk.mjs` since `check:menus` started walking the same list: two
+    // checks, one set of screens, and this figure follows the list rather than
+    // the check that happened to hold it first.
+    what: 'screens the browser checks walk',
+    actual: between(read('scripts/walk.mjs'), 'const SCREENS = [', '\n  ];')
       .split('\n').filter((line) => line.trim().startsWith('[')).length,
     claims: [{ file: 'README.md', pattern: prose('(\\d+) screens, 340px') }],
   },
