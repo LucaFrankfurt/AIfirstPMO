@@ -75,6 +75,28 @@ const TRIGGERS = 'button[aria-haspopup="menu"]';
  */
 const DRAWERS = '[data-drawer]';
 
+/**
+ * A menu that is *open*, rather than one that happens to be in the document.
+ *
+ * `[role=menu]` alone was the bug underneath a bug. A menu Radix is animating
+ * shut is still in the DOM for the length of its exit, and it is portalled
+ * earlier than the one that replaced it — so `[role=menu]` taken in document
+ * order hands back the pane that is leaving. Its rows are the old drawer's,
+ * which carry no `data-drawer`, so the next drawer is simply not there and the
+ * click waits out its timeout.
+ *
+ * On a laptop this costs nothing while the machine is quick enough that the
+ * exit has finished before the next look. On a CI runner it does not: seven
+ * drawers across three screens went unopened, and before the shortfall was
+ * made a finding they went unopened *silently*. Reproduced here by throttling
+ * the browser's CPU eightfold, which turns it from a thing that happens on
+ * somebody else's machine into a thing that happens on this one.
+ *
+ * `data-state` is Radix's own answer to the question, and the same attribute
+ * the stylesheet animates on.
+ */
+const OPEN_MENU = '[role=menu][data-state=open]';
+
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
 /*
  * Signed in wide, then narrowed.
@@ -178,7 +200,7 @@ for (const window of WINDOWS) {
           return null;
         }
         await page.waitForTimeout(200);
-        const pane = page.locator('[role=menu]').first();
+        const pane = page.locator(OPEN_MENU).first();
         return (await pane.count()) ? pane : null;
       };
 
@@ -227,17 +249,13 @@ for (const window of WINDOWS) {
        * working would strand this check, and it says so rather than passing.
        *
        * Re-opened from the button whenever the step out did not land back on
-       * the top level, which it does not always: on a phone the drawer *is*
-       * the menu, and an Escape that arrives while the sheet is still
-       * animating leaves it one level in. The rows there carry no
-       * `data-drawer`, so the next one would simply not be found.
+       * the top level — a cheap guard against a drawer that takes the whole
+       * menu with it, and against reading the rows of a level this is not on.
        *
-       * That is not a hypothetical. The first CI run of this check opened 33
-       * drawers where the same tree opened 38 on a laptop — five it silently
-       * skipped on a slower machine, under a green tick, which is the exact
-       * failure this whole change is about. So the shortfall is now the
-       * finding: the loop makes sure it is standing where it thinks it is,
-       * and anything it still could not open is counted and reported below.
+       * The shortfall is a finding rather than a `continue`, because it was
+       * one: the first CI run opened 33 drawers where the same tree opened 38
+       * here, and said nothing. Five unchecked drawers under a green tick is
+       * the exact failure this whole change is about.
        */
       let missed = 0;
       for (let d = 0; d < inside; d++) {
@@ -262,7 +280,7 @@ for (const window of WINDOWS) {
          * laptop, and the menu itself on a phone, where stepping in replaces
          * what the menu was showing.
          */
-        const panes = page.locator('[role=menu]');
+        const panes = page.locator(OPEN_MENU);
         const opened = panes.nth((await panes.count()) - 1);
         if (await opened.count()) {
           drawers += 1;
