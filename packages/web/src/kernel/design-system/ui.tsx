@@ -39,6 +39,8 @@ const PATHS = {
   mail: 'M3 6h18v12H3zM3 7l9 6 9-6',
   search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM21 21l-4.3-4.3',
   plus: 'M12 5v14M5 12h14',
+  // Its partner, for the pair of zoom keys over a diagram.
+  minus: 'M5 12h14',
   check: 'M4 12.5 9 17.5 20 6.5',
   close: 'M6 6l12 12M18 6 6 18',
   chevronDown: 'M6 9l6 6 6-6',

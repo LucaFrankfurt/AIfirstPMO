@@ -1844,6 +1844,13 @@ export const de: Catalogue = {
   'module.danger': 'Achtung',
 
   /* --------------------------------------------------------------- pages */
+  'page.diagramOpen': 'Diagramm öffnen, um es genau anzusehen',
+  'page.diagramTitle': 'Diagramm',
+  'page.diagramCanvas': 'Diagramm — ziehen zum Verschieben, scrollen zum Zoomen',
+  'page.diagramIn': 'Vergrößern',
+  'page.diagramOut': 'Verkleinern',
+  'page.diagramFit': 'Einpassen',
+  'page.diagramHint': 'Scrollen zoomt, Ziehen verschiebt, Doppelklick geht hinein und wieder heraus. + und − zoomen, Pfeile verschieben, 0 passt ein.',
   'page.listTitle': 'Seiten',
   'page.new': 'Neue Seite',
   'page.emptyTitle': 'Noch keine Seiten',

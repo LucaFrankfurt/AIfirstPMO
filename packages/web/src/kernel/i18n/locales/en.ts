@@ -1850,6 +1850,13 @@ export const en = {
   'module.danger': 'Danger',
 
   /* --------------------------------------------------------------- pages */
+  'page.diagramOpen': 'Open the diagram, to look closely',
+  'page.diagramTitle': 'Diagram',
+  'page.diagramCanvas': 'Diagram — drag to move, scroll to zoom',
+  'page.diagramIn': 'Zoom in',
+  'page.diagramOut': 'Zoom out',
+  'page.diagramFit': 'Fit',
+  'page.diagramHint': 'Scroll to zoom, drag to move, double-click to go in and back out. + and − zoom, arrows move, 0 fits.',
   'page.listTitle': 'Pages',
   'page.new': 'New page',
   'page.emptyTitle': 'No pages yet',

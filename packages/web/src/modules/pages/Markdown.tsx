@@ -9,6 +9,7 @@ import {
 import { api } from '../../kernel/sync/api';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMermaid } from './mermaid';
+import { DiagramViewer } from './diagram';
 import { HEADING_PREFIX, usePageBody, usePageHref } from './page-links';
 import { backgroundOf } from '../../kernel/design-system/navigation';
 import { useMembers, useSession } from '../../kernel/identity/session';
@@ -106,6 +107,7 @@ export function Markdown({ source, className = '', onChange, asPage }: {
    */
   onChange?: (next: string) => void;
 }) {
+  const t = useT();
   const refs = useMarkdownRefs(asPage);
   const options = useMemo(() => ({ ...refs, interactiveTasks: !!onChange }), [refs, onChange]);
   const html = useMemo(() => renderMarkdown(source ?? '', options), [source, options]);
@@ -140,10 +142,25 @@ export function Markdown({ source, className = '', onChange, asPage }: {
   const { open, lightbox } = useLightbox();
   // ...and diagrams are upgraded the same way, for the same reason.
   const host = useRef<HTMLDivElement>(null);
-  useMermaid(host, html);
+  useMermaid(host, html, t('page.diagramOpen'));
+
+  /*
+   * Which diagram is open, held as the node itself.
+   *
+   * The viewer clones what is on the page rather than drawing again, so what
+   * it needs is the element — and this is the only place that has it, because
+   * the markup is a string React owns and there is nothing to hand a prop to.
+   */
+  const [opened, setOpened] = useState<SVGElement | null>(null);
 
   const follow = useInAppLinks();
   const click = (event: React.MouseEvent<HTMLDivElement>) => {
+    const enlarge = (event.target as HTMLElement).closest?.('.md-diagram-open');
+    if (enlarge) {
+      event.preventDefault();
+      setOpened(enlarge.parentElement?.querySelector('svg') ?? null);
+      return;
+    }
     open(event);
     // A checkbox does not open a lightbox and is not a link: it is answered
     // here, and the default is prevented so the box waits for the state to come
@@ -163,6 +180,7 @@ export function Markdown({ source, className = '', onChange, asPage }: {
     <>
       <div ref={host} className={`md ${className}`} onClick={click} dangerouslySetInnerHTML={inner} />
       {lightbox}
+      <DiagramViewer svg={opened} onClose={() => setOpened(null)} />
     </>
   );
 }
