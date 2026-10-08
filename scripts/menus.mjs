@@ -149,6 +149,9 @@ async function shut(page) {
 let failures = 0;
 let menus = 0;
 let drawers = 0;
+/* Every drawer this walk *should* have opened, so a count that quietly comes
+   out short is visible beside the one that did. */
+let expected = 0;
 
 for (const window of WINDOWS) {
   await page.setViewportSize({ width: window.width, height: window.height });
@@ -212,6 +215,7 @@ for (const window of WINDOWS) {
       }
 
       const inside = await pane.locator(DRAWERS).count();
+      expected += inside;
 
       /*
        * One step out per drawer, rather than closing and starting again.
@@ -222,18 +226,33 @@ for (const window of WINDOWS) {
        * the way out is walked as often as the way in: a back row that stopped
        * working would strand this check, and it says so rather than passing.
        *
-       * Still re-opened whenever a step out loses the menu — correctness
-       * first, and a cheap guard against a drawer that closes everything.
+       * Re-opened from the button whenever the step out did not land back on
+       * the top level, which it does not always: on a phone the drawer *is*
+       * the menu, and an Escape that arrives while the sheet is still
+       * animating leaves it one level in. The rows there carry no
+       * `data-drawer`, so the next one would simply not be found.
+       *
+       * That is not a hypothetical. The first CI run of this check opened 33
+       * drawers where the same tree opened 38 on a laptop — five it silently
+       * skipped on a slower machine, under a green tick, which is the exact
+       * failure this whole change is about. So the shortfall is now the
+       * finding: the loop makes sure it is standing where it thinks it is,
+       * and anything it still could not open is counted and reported below.
        */
+      let missed = 0;
       for (let d = 0; d < inside; d++) {
-        if (!(await pane.isVisible().catch(() => false))) {
+        const standing = (await pane.isVisible().catch(() => false))
+          && (await pane.locator(DRAWERS).count()) === inside;
+        if (!standing) {
+          await shut(page);
           pane = await open();
           if (!pane) break;
         }
         const row = pane.locator(DRAWERS).nth(d);
         try {
-          await row.click({ timeout: 1200 });
+          await row.click({ timeout: 2000 });
         } catch {
+          missed += 1;
           continue;
         }
         await page.waitForTimeout(200);
@@ -260,6 +279,10 @@ for (const window of WINDOWS) {
         await page.keyboard.press('Escape');
         await page.waitForTimeout(120);
       }
+      if (missed) {
+        failures += 1;
+        found.push(`${await name()}: ${missed} of ${inside} drawers could not be opened, so they went unchecked`);
+      }
       await shut(page);
     }
 
@@ -284,4 +307,4 @@ if (failures) {
   console.log('menu: that is what `useNarrow` and `.menu-sheet` are for.');
   process.exit(1);
 }
-console.log(`every one of ${menus} menus fits the window it opens in, and so does each of their ${drawers} drawers`);
+console.log(`every one of ${menus} menus fits the window it opens in, and so does each of their ${drawers} drawers (${expected} to open)`);
