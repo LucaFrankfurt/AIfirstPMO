@@ -18,9 +18,15 @@ import { cn } from '../cn';
 export const Dialog = Primitive.Root;
 export const DialogTrigger = Primitive.Trigger;
 
+/**
+ * `full` is for a dialog whose content *is* the point — a diagram you have
+ * opened in order to get close to it. `wide` widens a form; this one takes the
+ * window, because the measurement that made it necessary was a picture drawn
+ * at 0.28 of its own size.
+ */
 export function DialogContent({
-  className, children, wide, closeLabel, ...props
-}: ComponentProps<typeof Primitive.Content> & { wide?: boolean; closeLabel: string }) {
+  className, children, wide, full, closeLabel, ...props
+}: ComponentProps<typeof Primitive.Content> & { wide?: boolean; full?: boolean; closeLabel: string }) {
   return (
     <Primitive.Portal>
       <Primitive.Overlay
@@ -32,7 +38,9 @@ export function DialogContent({
           'inset-x-0 bottom-0 max-h-[92dvh] rounded-t-[var(--radius-lg)] border-t border-line',
           'sm:inset-x-auto sm:bottom-auto sm:left-1/2 sm:top-1/2 sm:max-h-[86dvh] sm:-translate-x-1/2 sm:-translate-y-1/2',
           'sm:rounded-[var(--radius-lg)] sm:border',
-          wide ? 'sm:w-[min(940px,94vw)]' : 'sm:w-[min(560px,94vw)]',
+          full
+            ? 'inset-x-2 bottom-2 top-2 max-h-none rounded-[var(--radius-lg)] border sm:inset-4 sm:w-auto sm:max-h-none sm:translate-x-0 sm:translate-y-0 sm:left-4 sm:top-4'
+            : wide ? 'sm:w-[min(940px,94vw)]' : 'sm:w-[min(560px,94vw)]',
           'data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:animate-none',
           className,
         )}

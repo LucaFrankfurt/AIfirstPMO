@@ -42,6 +42,15 @@ function subscribe(onChange: () => void): () => void {
 
 export const useDark = (): boolean => useSyncExternalStore(subscribe, darkNow, () => false);
 
+/**
+ * The label comes from the translation catalogue and is written into an
+ * attribute, so it is escaped here rather than trusted — the catalogue is ours
+ * today, and an attribute built by string concatenation is the kind of thing
+ * that stops being ours quietly.
+ */
+const escapeAttribute = (text: string): string =>
+  text.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 /** Mermaid wants a unique id per drawing and does not care which. */
 let seq = 0;
 
@@ -59,7 +68,7 @@ const WAITING = 'pre.md-mermaid:not([data-drawn])';
  * the markup underneath changes — including when the change was React undoing
  * the last drawing.
  */
-export function useMermaid(host: RefObject<HTMLElement | null>, html: string): void {
+export function useMermaid(host: RefObject<HTMLElement | null>, html: string, openLabel?: string): void {
   const dark = useDark();
 
   useEffect(() => {
@@ -127,7 +136,25 @@ export function useMermaid(host: RefObject<HTMLElement | null>, html: string): v
             // drawing that lands somewhere no longer on the page is thrown
             // away — the observer has already asked for the next one.
             if (!live || !node.isConnected) continue;
-            node.insertAdjacentHTML('beforeend', `<div class="md-diagram">${svg}</div>`);
+            /*
+             * The drawing, and a way into it.
+             *
+             * A complex diagram is drawn at whatever fraction of itself fits
+             * the 820px reading column — measured at **0.28** on the one that
+             * was reported, which is 16px labels rendered at 4.4. The page
+             * keeps that small map on purpose; this button is the other half,
+             * and it is a real `<button>` rather than a click handler on the
+             * picture so that it is reachable by tab and announced as what it
+             * is. Written here, with the drawing, because React owns this
+             * subtree and puts back only what the redraw puts back.
+             */
+            const open = openLabel
+              ? `<button type="button" class="md-diagram-open" aria-label="${escapeAttribute(openLabel)}">`
+                + '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"'
+                + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+                + '<path d="M9 3H3v6M15 21h6v-6M3 3l7 7M21 21l-7-7"/></svg></button>'
+              : '';
+            node.insertAdjacentHTML('beforeend', `<div class="md-diagram">${svg}${open}</div>`);
             node.dataset.drawn = 'true';
           } catch {
             // A diagram half-typed is a draft, not an error worth a banner. The
@@ -158,5 +185,5 @@ export function useMermaid(host: RefObject<HTMLElement | null>, html: string): v
       live = false;
       observer.disconnect();
     };
-  }, [host, html, dark]);
+  }, [host, html, dark, openLabel]);
 }

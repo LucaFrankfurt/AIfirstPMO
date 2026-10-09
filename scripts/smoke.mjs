@@ -2130,6 +2130,115 @@ await step('a drawer on a phone opens into the menu, and a tap in it acts', asyn
   await phone.close();
 });
 
+/**
+ * A diagram too big for the column, and the way in to read it.
+ *
+ * Measured before this existed: the diagram on the page that prompted it is
+ * 2968×1185 in its own units and was drawn into the 820px reading column at
+ * **0.28**, which renders mermaid's 16px labels at 4.4. It could not even be
+ * scrolled — `max-width: 100%` shrinks rather than overflows — and widening
+ * the window changed nothing, because the column is 820px at every width.
+ *
+ * None of the browser checks can see this: `check:responsive` and
+ * `check:menus` do not open dialogs, and a diagram is not a menu. So the
+ * walkthrough does what a reader does — notice it is too small, open it, and
+ * get closer.
+ *
+ * The demo seeds no diagram, so this makes one. A page more is what the
+ * tidying step above already does, and nothing after this counts them.
+ */
+await step('a diagram too small to read opens at a size you can read', async () => {
+  const source = [
+    'flowchart LR',
+    '  subgraph A[Externe Dienste]',
+    '    GP[Google Places] --> ST[Stripe Tax]',
+    '    IM[IMAP / Caddy TLS] --> MM[Mailhammer]',
+    '  end',
+    '  subgraph B[Plattform]',
+    '    SA[Superadmin-App] --> MO[Module: Website - Rewards]',
+    '    MO --> BE[Betrieb: Salon - Spa - Studio]',
+    '    BE --> BB[Buchung & Betriebsstammdaten]',
+    '    EK[Endkunde] --> BB',
+    '    SA --> VA[Vertrag & Abrechnung]',
+    '  end',
+    '  subgraph C[Vertrieb]',
+    '    DS[Dunning & Scoring] --> CR[CRM: Kontakt - Opportunity]',
+    '    CR --> PM[Partner - Membership - Provision]',
+    '    VP[Vertriebspartner] --> CR',
+    '  end',
+    '  GP --> SA',
+    '  VA --> ST',
+    '  BB --> UM[Vertriebsstruktur - Umsatzsplit]',
+    '  UM --> PM',
+    '  CR -.-> BE',
+  ].join('\n');
+
+  const id = await page.evaluate(async ({ text }) => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const made = await (await fetch(`/api/workspaces/${workspace}/pages`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ title: 'Smoke: Systemlandschaft' }),
+    })).json();
+    const pid = made.id ?? made.page?.id;
+    // The title is what the create takes; the text is a second write.
+    await fetch(`/api/pages/${pid}`, {
+      method: 'PATCH', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({ content: `# Systemlandschaft\n\n\`\`\`mermaid\n${text}\n\`\`\`\n` }),
+    });
+    return pid;
+  }, { text: source });
+
+  await page.goto(`${base}/pages/${id}`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  // Mermaid is never in the bundle; the chunk is fetched the first time a
+  // screen actually holds a diagram, so this is the one wait that is real.
+  await page.waitForSelector('.md-diagram svg', { timeout: 25000 });
+  await page.waitForTimeout(600);
+
+  const measure = async (where) => page.evaluate((sel) => {
+    const svg = document.querySelector(sel);
+    if (!svg) return null;
+    const box = svg.getBoundingClientRect();
+    const view = (svg.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number);
+    return { width: Math.round(box.width), scale: view[2] ? box.width / view[2] : 0 };
+  }, where);
+
+  const small = await measure('.md-diagram svg');
+  if (!small || small.scale > 0.6) {
+    throw new Error(`this diagram is not the squeezed case the viewer is for: ${JSON.stringify(small)}`);
+  }
+
+  await page.locator('.md-diagram-open').first().click();
+  await page.waitForTimeout(900);
+  const open = await measure('.diagram-stage svg');
+  if (!open) throw new Error('the diagram did not open');
+  if (!(open.scale > small.scale * 1.4)) {
+    throw new Error(`opened no larger than the page: ${small.scale.toFixed(2)} → ${open.scale.toFixed(2)}`);
+  }
+
+  /* And it goes further than fitting, which is the whole of "zoom". */
+  await page.locator('.diagram-frame').click({ position: { x: 300, y: 200 } });
+  await page.keyboard.press('+');
+  await page.keyboard.press('+');
+  await page.waitForTimeout(300);
+  const closer = await measure('.diagram-stage svg');
+  if (!(closer.scale > open.scale * 1.2)) {
+    throw new Error(`the zoom keys did nothing: ${open.scale.toFixed(2)} → ${closer.scale.toFixed(2)}`);
+  }
+  // ...and back to where it opened, so one key undoes any amount of poking.
+  await page.keyboard.press('0');
+  await page.waitForTimeout(300);
+  const fitted = await measure('.diagram-stage svg');
+  if (Math.abs(fitted.scale - open.scale) > 0.02) {
+    throw new Error(`0 did not put it back: ${open.scale.toFixed(2)} vs ${fitted.scale.toFixed(2)}`);
+  }
+
+  console.log(`     on the page ${small.scale.toFixed(2)} \u00d7 \u2192 opened ${open.scale.toFixed(2)} \u00d7, zoomed ${closer.scale.toFixed(2)} \u00d7, and 0 fits again`);
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
+  if (await page.locator('.diagram-frame').count()) throw new Error('Escape left the viewer open');
+});
+
 await step('offline mode', async () => {
   await ctx.setOffline(true);
   await page.goto(`${base}/`, { waitUntil: 'domcontentloaded' }).catch(() => {});

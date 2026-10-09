@@ -1845,6 +1845,13 @@ export const fr: Catalogue = {
   'module.danger': 'Zone sensible',
 
   /* --------------------------------------------------------------- pages */
+  'page.diagramOpen': 'Ouvrir le diagramme pour le regarder de près',
+  'page.diagramTitle': 'Diagramme',
+  'page.diagramCanvas': 'Diagramme — glisser pour déplacer, défiler pour zoomer',
+  'page.diagramIn': 'Agrandir',
+  'page.diagramOut': 'Réduire',
+  'page.diagramFit': 'Ajuster',
+  'page.diagramHint': 'Défiler pour zoomer, glisser pour déplacer, double-clic pour entrer et revenir. + et − zooment, les flèches déplacent, 0 ajuste.',
   'page.listTitle': 'Pages',
   'page.new': 'Nouvelle page',
   'page.emptyTitle': 'Aucune page pour l’instant',
