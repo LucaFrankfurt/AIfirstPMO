@@ -23,7 +23,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { useT } from '../../kernel/i18n/i18n';
 import { Icon } from '../../kernel/design-system/ui';
 import { Dialog, DialogContent, DialogTitle } from '../../kernel/design-system/ui/dialog';
-import { centre, fit, hold, STEP, wheelFactor, zoomAt, type Size, type View } from './zoom';
+import {
+  centre, fit, grip, hold, pinch, STEP, wheelFactor, zoomAt,
+  type Grip, type Size, type View,
+} from './zoom';
 
 /**
  * Give a cloned drawing its own name, everywhere the drawing uses it.
@@ -144,20 +147,84 @@ export function DiagramViewer({ svg, onClose }: { svg: SVGElement | null; onClos
     return () => box.removeEventListener('wheel', on);
   }, [svg, frame, picture]);
 
-  /** Dragging, on pointer events so a finger and a mouse are the same code. */
+  /*
+   * One finger drags, two pinch — and a mouse is a finger as far as this goes.
+   *
+   * Pointer events rather than touch events for exactly that reason: the drag
+   * below is the same code for a mouse, a stylus and a thumb, and only the
+   * *count* decides which gesture is happening. `touch-action: none` on the
+   * frame is what makes it possible at all — without it the browser takes the
+   * pinch for itself and zooms the whole page, dialog and all.
+   */
+  const touches = useRef(new Map<number, { x: number; y: number }>());
   const drag = useRef<{ id: number; x: number; y: number } | null>(null);
+  /*
+   * The pose the fingers landed in, and the view at that moment.
+   *
+   * Every move is measured from here rather than from the previous frame: two
+   * fingers on glass jitter, and chaining corrections accumulates the jitter
+   * until pinching in and back out does not return to where it began.
+   */
+  const gesture = useRef<{ from: Grip; view: View } | null>(null);
+
+  /** Where the fingers are, in the frame's own coordinates. */
+  const poseNow = (): Grip | null => {
+    const [a, b] = [...touches.current.values()];
+    const box = frame?.getBoundingClientRect();
+    if (!a || !b || !box) return null;
+    return grip(
+      { x: a.x - box.left, y: a.y - box.top },
+      { x: b.x - box.left, y: b.y - box.top },
+    );
+  };
+
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
-    drag.current = { id: event.pointerId, x: event.clientX - view.x, y: event.clientY - view.y };
+    touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
     event.currentTarget.setPointerCapture(event.pointerId);
+    if (touches.current.size >= 2) {
+      // A second finger ends the drag the first one started, rather than both
+      // running and fighting over the same offset.
+      drag.current = null;
+      const from = poseNow();
+      if (from) gesture.current = { from, view };
+      return;
+    }
+    drag.current = { id: event.pointerId, x: event.clientX - view.x, y: event.clientY - view.y };
   };
+
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!touches.current.has(event.pointerId)) return;
+    touches.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+
+    if (touches.current.size >= 2) {
+      const started = gesture.current;
+      const to = poseNow();
+      if (started && to) setView(hold(pinch(started.view, started.from, to), picture, frameSize()));
+      return;
+    }
     const from = drag.current;
     if (!from || from.id !== event.pointerId) return;
     setView((was) => hold({ scale: was.scale, x: event.clientX - from.x, y: event.clientY - from.y }, picture, frameSize()));
   };
+
+  /**
+   * Lifting one of two fingers hands the gesture back to the other.
+   *
+   * Without this the finger still on the glass carries the offset it had
+   * before the pinch, and the diagram jumps the moment the second one leaves —
+   * which reads as the viewer losing its place rather than as a gesture
+   * ending.
+   */
   const endDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    touches.current.delete(event.pointerId);
     if (drag.current?.id === event.pointerId) drag.current = null;
+    if (touches.current.size < 2) gesture.current = null;
+    const [last] = [...touches.current.entries()];
+    if (last) {
+      const [id, at] = last;
+      drag.current = { id, x: at.x - view.x, y: at.y - view.y };
+    }
   };
 
   /**

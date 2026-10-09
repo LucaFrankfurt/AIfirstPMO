@@ -2147,6 +2147,9 @@ await step('a drawer on a phone opens into the menu, and a tap in it acts', asyn
  * The demo seeds no diagram, so this makes one. A page more is what the
  * tidying step above already does, and nothing after this counts them.
  */
+/** The page the step below makes, so the phone step after it opens the same one. */
+let diagramPage = '';
+
 await step('a diagram too small to read opens at a size you can read', async () => {
   const source = [
     'flowchart LR',
@@ -2187,6 +2190,8 @@ await step('a diagram too small to read opens at a size you can read', async () 
     });
     return pid;
   }, { text: source });
+
+  diagramPage = id;
 
   await page.goto(`${base}/pages/${id}`, { waitUntil: 'networkidle' });
   await closeTour(page);
@@ -2237,6 +2242,109 @@ await step('a diagram too small to read opens at a size you can read', async () 
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
   if (await page.locator('.diagram-frame').count()) throw new Error('Escape left the viewer open');
+});
+
+/**
+ * And the gesture a hand reaches for first on glass.
+ *
+ * The viewer shipped with a wheel, a drag and keys, all of which Playwright
+ * sends as a mouse — so "it works on a phone" was an inference, and the one
+ * thing nobody had actually done was put two fingers on it. This does, through
+ * CDP's own touch events rather than synthesised ones, because a synthetic
+ * `PointerEvent` carries no live pointer and `setPointerCapture` throws on it:
+ * the code under test would take a path no real finger takes.
+ *
+ * Four things, and the third is the one that is easy to get wrong: two fingers
+ * that keep their distance are a *drag*, not a zoom of 1.0 that quietly resets
+ * the position.
+ */
+await step('two fingers zoom a diagram on a phone', async () => {
+  const phone = await browser.newContext({
+    viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, locale,
+  });
+  const m = await phone.newPage();
+  const cdp = await phone.newCDPSession(m);
+  await m.goto(base, { waitUntil: 'domcontentloaded' });
+  await m.evaluate((value) => localStorage.setItem('kolibri.locale', value), locale);
+  await m.goto(base, { waitUntil: 'networkidle' });
+  await m.fill('#email', 'ada@kolibri.dev');
+  await m.fill('#password', 'kolibri-demo');
+  await m.click('button[type=submit]');
+  await m.waitForSelector('.tabbar', { timeout: 15000 });
+  await closeTour(m);
+
+  await m.goto(`${base}/pages/${diagramPage}`, { waitUntil: 'networkidle' });
+  await closeTour(m);
+  await m.waitForSelector('.md-diagram svg', { timeout: 25000 });
+  await m.waitForTimeout(500);
+  await m.locator('.md-diagram-open').first().click();
+  await m.waitForTimeout(900);
+
+  const read = async () => m.evaluate(() => {
+    const svg = document.querySelector('.diagram-stage svg');
+    const frame = document.querySelector('.diagram-frame');
+    if (!svg || !frame) return null;
+    const box = svg.getBoundingClientRect();
+    const seen = frame.getBoundingClientRect();
+    const view = (svg.getAttribute('viewBox') ?? '').split(/[\s,]+/).map(Number);
+    return { scale: view[2] ? box.width / view[2] : 0, y: Math.round(box.top - seen.top) };
+  });
+
+  /** Both fingers travel from one pose to the other, in steps, like a hand. */
+  const gesture = async (from, to, steps = 10) => {
+    const send = (type, points) => cdp.send('Input.dispatchTouchEvent', {
+      type, touchPoints: points.map((point, at) => ({ x: point.x, y: point.y, id: at + 1 })),
+    });
+    await send('touchStart', from);
+    await m.waitForTimeout(60);
+    for (let n = 1; n <= steps; n++) {
+      const part = n / steps;
+      await send('touchMove', from.map((point, at) => ({
+        x: point.x + (to[at].x - point.x) * part,
+        y: point.y + (to[at].y - point.y) * part,
+      })));
+      await m.waitForTimeout(25);
+    }
+    await send('touchEnd', []);
+    await m.waitForTimeout(250);
+  };
+
+  const opened = await read();
+  if (!opened) throw new Error('the diagram did not open on the phone');
+
+  await gesture([{ x: 160, y: 420 }, { x: 230, y: 420 }], [{ x: 60, y: 420 }, { x: 330, y: 420 }]);
+  const apart = await read();
+  if (!(apart.scale > opened.scale * 1.5)) {
+    throw new Error(`two fingers apart did not magnify: ${opened.scale.toFixed(2)} → ${apart.scale.toFixed(2)}`);
+  }
+
+  await gesture([{ x: 60, y: 420 }, { x: 330, y: 420 }], [{ x: 170, y: 420 }, { x: 220, y: 420 }]);
+  const together = await read();
+  if (!(together.scale < apart.scale * 0.7)) {
+    throw new Error(`two fingers together did not shrink: ${apart.scale.toFixed(2)} → ${together.scale.toFixed(2)}`);
+  }
+
+  /* Keeping their distance and walking 200px down: a drag, at the same scale. */
+  await gesture([{ x: 150, y: 300 }, { x: 250, y: 300 }], [{ x: 150, y: 500 }, { x: 250, y: 500 }]);
+  const carried = await read();
+  if (Math.abs(carried.scale - together.scale) > 0.01) {
+    throw new Error(`a two-finger drag changed the scale: ${together.scale.toFixed(2)} → ${carried.scale.toFixed(2)}`);
+  }
+  if (Math.abs((carried.y - together.y) - 200) > 12) {
+    throw new Error(`a two-finger drag moved ${carried.y - together.y}px where the fingers moved 200`);
+  }
+
+  /* ...and one finger still drags, which the second finger must not have taken. */
+  const before = await read();
+  await gesture([{ x: 200, y: 300 }], [{ x: 280, y: 400 }]);
+  const after = await read();
+  if (Math.abs((after.y - before.y) - 100) > 12) {
+    throw new Error(`one finger moved it ${after.y - before.y}px where the finger moved 100`);
+  }
+
+  console.log(`     pinched ${opened.scale.toFixed(2)} \u2192 ${apart.scale.toFixed(2)} \u2192 ${together.scale.toFixed(2)} \u00d7, carried 200px at one scale, one finger still drags`);
+  await m.screenshot({ path: `${shots}/9-pinch.png` });
+  await phone.close();
 });
 
 await step('offline mode', async () => {

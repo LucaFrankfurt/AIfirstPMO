@@ -105,6 +105,46 @@ export function hold(view: View, picture: Size, frame: Size): View {
   };
 }
 
+/**
+ * Two fingers, as one thing: where they are between them, and how far apart.
+ *
+ * Spread is the distance; the midpoint is what the gesture is *about*, because
+ * a pinch is not only a zoom — fingers that move together across the glass
+ * also drag, and a viewer that only read the distance would zoom correctly and
+ * refuse to follow the hand.
+ */
+export interface Grip {
+  x: number;
+  y: number;
+  spread: number;
+}
+
+export const grip = (a: { x: number; y: number }, b: { x: number; y: number }): Grip => ({
+  x: (a.x + b.x) / 2,
+  y: (a.y + b.y) / 2,
+  spread: Math.hypot(a.x - b.x, a.y - b.y),
+});
+
+/**
+ * From one two-finger pose to another, in one step.
+ *
+ * Both halves at once: the picture point that was under the midpoint when the
+ * fingers landed is still under the midpoint wherever it has moved to. Zoom
+ * about where they started, then carry the result by how far the middle went.
+ *
+ * Applied from the pose at the start of the gesture rather than from the last
+ * frame. Two fingers on glass jitter, and chaining a hundred small corrections
+ * accumulates every rounding — pinching in and back out would not return to
+ * where it began, which is the thing a hand notices and cannot describe.
+ *
+ * A spread of zero is two fingers in one place: a real reading, and no scale
+ * to be had from it, so it only carries.
+ */
+export function pinch(view: View, from: Grip, to: Grip): View {
+  const zoomed = zoomAt(view, from, from.spread > 0 ? to.spread / from.spread : 1);
+  return { scale: zoomed.scale, x: zoomed.x + (to.x - from.x), y: zoomed.y + (to.y - from.y) };
+}
+
 /** One notch of a wheel or a key, as a multiplier. */
 export const STEP = 1.2;
 
