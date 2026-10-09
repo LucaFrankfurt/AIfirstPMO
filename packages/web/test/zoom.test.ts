@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import {
-  centre, clampScale, fit, hold, MAX_SCALE, MIN_SCALE, wheelFactor, zoomAt,
+  centre, clampScale, fit, grip, hold, MAX_SCALE, MIN_SCALE, pinch, wheelFactor, zoomAt,
 } from '../src/modules/pages/zoom.ts';
 
 /** The diagram from the report, and an ordinary laptop window. */
@@ -107,5 +107,75 @@ describe('dragging it about', () => {
   it('leaves a view that is already in the window alone', () => {
     const view = fit(PICTURE, FRAME);
     assert.deepEqual(hold(view, PICTURE, FRAME), view);
+  });
+});
+
+describe('two fingers', () => {
+  const view = centre({ scale: 1, x: 0, y: 0 }, PICTURE, FRAME);
+  /** Where a picture point ends up on the glass, which is what a hand judges. */
+  const on = (v: typeof view, point: { x: number; y: number }) => ({
+    x: point.x * v.scale + v.x,
+    y: point.y * v.scale + v.y,
+  });
+  /** ...and the reverse: what is under a point on the glass. */
+  const under = (v: typeof view, at: { x: number; y: number }) => ({
+    x: (at.x - v.x) / v.scale,
+    y: (at.y - v.y) / v.scale,
+  });
+
+  it('reads a pose off two points', () => {
+    const pose = grip({ x: 100, y: 100 }, { x: 400, y: 500 });
+    assert.deepEqual([pose.x, pose.y], [250, 300]);
+    assert.equal(pose.spread, 500);
+  });
+
+  it('magnifies as the fingers go apart and shrinks as they come together', () => {
+    const from = grip({ x: 500, y: 400 }, { x: 700, y: 400 });
+    assert.ok(pinch(view, from, grip({ x: 400, y: 400 }, { x: 800, y: 400 })).scale > view.scale);
+    assert.ok(pinch(view, from, grip({ x: 580, y: 400 }, { x: 620, y: 400 })).scale < view.scale);
+  });
+
+  /**
+   * The whole of what makes it feel like paper: whatever was between the
+   * fingers when they landed is still between them wherever they end up.
+   */
+  it('keeps what is between the fingers between the fingers', () => {
+    const from = grip({ x: 500, y: 400 }, { x: 700, y: 400 });
+    const held = under(view, from);
+    // Spread apart and walked across the glass at the same time.
+    const to = grip({ x: 250, y: 250 }, { x: 750, y: 350 });
+    const after = pinch(view, from, to);
+    const where = on(after, held);
+    assert.ok(Math.abs(where.x - to.x) < 0.01 && Math.abs(where.y - to.y) < 0.01,
+      `it slipped: wanted ${JSON.stringify(to)}, got ${JSON.stringify(where)}`);
+  });
+
+  /** Two fingers that keep their distance are a drag, not a zoom. */
+  it('carries without zooming when the spread does not change', () => {
+    const from = grip({ x: 500, y: 400 }, { x: 700, y: 400 });
+    const to = grip({ x: 540, y: 460 }, { x: 740, y: 460 });
+    const after = pinch(view, from, to);
+    assert.equal(after.scale, view.scale);
+    assert.deepEqual([after.x - view.x, after.y - view.y], [40, 60]);
+  });
+
+  /**
+   * Both fingers in one place. A real reading off real glass, and a divisor
+   * this would otherwise hand `Infinity` and a diagram that vanishes.
+   */
+  it('survives two fingers landing on the same spot', () => {
+    const from = grip({ x: 600, y: 400 }, { x: 600, y: 400 });
+    const after = pinch(view, from, grip({ x: 650, y: 420 }, { x: 650, y: 420 }));
+    assert.equal(after.scale, view.scale);
+    assert.ok(Number.isFinite(after.x) && Number.isFinite(after.y));
+  });
+
+  /** Pinched in and back out, the picture is where it started. */
+  it('comes back to where it was', () => {
+    const from = grip({ x: 500, y: 400 }, { x: 700, y: 400 });
+    const out = grip({ x: 300, y: 400 }, { x: 900, y: 400 });
+    const back = pinch(pinch(view, from, out), out, from);
+    assert.ok(Math.abs(back.scale - view.scale) < 1e-9, `scale drifted to ${back.scale}`);
+    assert.ok(Math.abs(back.x - view.x) < 1e-9 && Math.abs(back.y - view.y) < 1e-9);
   });
 });
