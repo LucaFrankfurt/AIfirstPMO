@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { Clock, timestampOf } from '@kolibri/shared';
+import { Clock, crdt, timestampOf } from '@kolibri/shared';
 import { directFetch, installBrowser, net, settle } from './browser.ts';
 
 // Before anything from `src/lib` is loaded: those modules read `localStorage`
@@ -348,6 +348,94 @@ describe('the store itself', () => {
     assert.equal(row.title, 'From the server');
     assert.equal(row.description, 'typed here', 'a field the response left out is not a field that was cleared');
     store.tables.task.delete(id);
+  });
+});
+
+/**
+ * The bug this was written for: the page rendered the new draft and the
+ * editor opened on the old one, on the same screen, for as long as the device
+ * lived.
+ *
+ * Two halves, each sound on its own. The server rebuilt a page's CRDT with
+ * `fromText` on every whole-document write, and `fromText` mints the same
+ * character identities every call — so the second rebuild named the same
+ * characters as the first and disagreed about what letters they were. The
+ * client then *merged* that into what it had, unconditionally, and a merge
+ * keeps the identity it already holds. Everything but the editor reads
+ * `content`, so the page looked right and only the textarea was wrong.
+ *
+ * It needs the real client against the real server, because neither half is
+ * visible from inside the other.
+ */
+describe('a page rewritten whole by somebody else', () => {
+  let pageId = '';
+
+  it('is what the editor opens on, not the version this device saw first', async () => {
+    const page = await otherDevice(`/api/workspaces/${workspaceId}/pages`, {
+      title: 'Applikationsverantwortlichkeiten',
+      content: 'Stand 09.10.2026 — Entwurf.\n',
+    });
+    pageId = page.id;
+    await sync.pull();
+    await settle(20);
+    assert.equal(crdt.textOf(store.byId('page', pageId)!.body), 'Stand 09.10.2026 — Entwurf.\n');
+
+    // An agent over MCP, a script over the API: a whole document, no CRDT.
+    await otherDevice(`/api/pages/${pageId}`, { content: 'Stand 10.10.2026 — Entwurf.\n' }, 'PATCH');
+    await sync.pull();
+    await settle(20);
+
+    const row = store.byId('page', pageId)!;
+    assert.equal(row.content, 'Stand 10.10.2026 — Entwurf.\n', 'what every screen but the editor renders');
+    assert.equal(crdt.textOf(row.body), row.content, 'and what the editor renders — these used to disagree');
+  });
+
+  it('is put right on a device already holding the bad copy, which no pull could do', async () => {
+    // Not a made-up state: this is what the old pair actually produced and is
+    // sitting in people's IndexedDB now — the rebuild for a long first draft
+    // merged with the rebuild for a shorter second one, the two disagreeing
+    // about every character they both name, and the overhang of the longer
+    // one left behind with nothing to say it has gone.
+    //
+    // This shape is the reason the repair has to be a repair. A state whose
+    // ids mean one thing here and another thing on the server cannot be
+    // merged back into line by anything: the tombstones the server sends land
+    // on whichever letters this device happens to have under those ids.
+    const row = store.byId('page', pageId)!;
+    const asItWent = crdt.merge(
+      crdt.fromText('Stand 01.10.2026 — Entwurf, viel ausführlicher und länger.\n', 'server'),
+      crdt.fromText(String(row.content), 'server'),
+    );
+    store.tables.page.set(pageId, { ...row, body: asItWent });
+    assert.notEqual(crdt.textOf(asItWent), row.content, 'the editor and the page disagree');
+    assert.notEqual(
+      crdt.textOf(crdt.merge(asItWent, row.body)), row.content,
+      'and the row the server holds cannot merge it back into line — that is the point',
+    );
+
+    // A delta pull will never mention this page again — the server did not
+    // change it. Reading the row back is the only thing that can.
+    await sync.resync('page', pageId);
+    await settle(20);
+
+    assert.equal(crdt.textOf(store.byId('page', pageId)!.body), 'Stand 10.10.2026 — Entwurf.\n');
+  });
+
+  it('leaves a copy alone while this device still has something unsent for it', async () => {
+    net.online = false;
+    const typed = crdt.edit(store.byId('page', pageId)!.body, 'Stand 10.10.2026 — Entwurf.\nUnd noch ein Satz.\n', 'here');
+    mutations.update('page', pageId, { body: typed });
+
+    await sync.resync('page', pageId);
+    assert.match(
+      crdt.textOf(store.byId('page', pageId)!.body), /noch ein Satz/,
+      'a repair must never be a way to lose what is still queued',
+    );
+
+    net.online = true;
+    await sync.flush();
+    await settle(30);
+    assert.equal(sync.getStatus().pending, 0);
   });
 });
 

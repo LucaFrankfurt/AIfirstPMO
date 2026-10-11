@@ -165,8 +165,27 @@ export const useRow = <K extends EntityName>(entity: K, id: string | null | unde
 
 /* ------------------------------------------------------------------ writes */
 
-/** Apply a server changeset (pull result or push echo). */
-export function applyChanges(changes: ChangeSet): void {
+/**
+ * Whether this device is still holding a change to a row that the server has
+ * not seen. `sync.ts` answers it from the outbox; the default is "no", which
+ * is what a changeset applied outside the engine — a test, a hand-fed row —
+ * means.
+ */
+export type Unsent = (entity: EntityName, id: string) => boolean;
+
+/**
+ * Apply a server changeset (pull result or push echo).
+ *
+ * A merged field is *combined* with what is here only while this device has
+ * something unsent for that row. That used to be unconditional, and the
+ * unconditional version is why a device could not be told it was wrong: a
+ * local CRDT state that had gone bad — see `replacementBody` on the server —
+ * survived every pull of the corrected row, because merging a state into a
+ * broken one keeps the broken one. With nothing of ours in flight there is
+ * nothing to protect and the row that arrived is simply the truth, which is
+ * also what makes re-reading a row (`resync`) able to repair anything at all.
+ */
+export function applyChanges(changes: ChangeSet, unsent: Unsent = () => false): void {
   let touched = false;
   for (const entity of ENTITY_NAMES) {
     const rows = (changes as Record<string, any[]>)[entity];
@@ -175,10 +194,18 @@ export function applyChanges(changes: ChangeSet): void {
     const merging = entityDef(entity)?.crdt;
     for (const row of rows) {
       const existing = table.get(row.id);
-      // A merged field is combined rather than overwritten, here as well as on
-      // the server: a device with an unsent edit must not lose it to the row
-      // coming back from a pull, which is exactly when it would happen.
-      if (existing && merging) for (const field of merging) row[field] = crdt.merge(existing[field], row[field]);
+      // The merge is what stops a page somebody is typing into losing the
+      // paragraph to the row coming back from a pull — which is exactly when
+      // it would happen, and only while that paragraph is still queued.
+      if (existing && merging) {
+        for (const field of merging) {
+          const incoming = row[field];
+          // A changeset that does not carry the field at all — a push echo is
+          // only the values the server decided — must not read as "cleared".
+          if (incoming === undefined || incoming === null) row[field] = existing[field] ?? incoming;
+          else if (unsent(entity, row.id)) row[field] = crdt.merge(existing[field], incoming);
+        }
+      }
       table.set(row.id, existing ? { ...existing, ...row } : row);
     }
     bump(entity);
