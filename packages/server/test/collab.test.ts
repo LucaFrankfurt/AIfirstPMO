@@ -140,6 +140,76 @@ describe('two people at once', () => {
   });
 });
 
+describe('a page rewritten whole, twice', () => {
+  /*
+   * The shape of a real bug. An agent rewrote a page over MCP, the page read
+   * correctly everywhere — and the editor, the only screen that renders the
+   * CRDT rather than the text, opened on the previous draft and would not stop.
+   *
+   * The cause was `fromText` on the second write: it mints `server:0,
+   * server:1, …` every time, so the two states named the same characters and
+   * disagreed about what letter each one was. `crdt.merge` keeps the identity
+   * it already holds, so the device that had the first version kept it, and no
+   * amount of pulling could shift it. What a replacement has to do instead is
+   * *tombstone* what it replaces.
+   */
+  const seen = (text: string) => crdt.fromText(text, 'server');
+
+  it('leaves a state that supersedes the one a device already has', async () => {
+    const page = await makePage('Stand 09.10.2026 — Entwurf.\n');
+    const onTheDevice = bodyOf(page.id)!;
+    await patch(`/api/pages/${page.id}`, { content: 'Stand 10.10.2026 — Entwurf.\n' });
+
+    assert.equal(
+      crdt.textOf(crdt.merge(onTheDevice, bodyOf(page.id))),
+      'Stand 10.10.2026 — Entwurf.\n',
+      'a device holding the old state lands on the new text, not beside it',
+    );
+  });
+
+  it('says the same thing whichever way round the two are merged', async () => {
+    const page = await makePage('first\n');
+    const onTheDevice = bodyOf(page.id)!;
+    await patch(`/api/pages/${page.id}`, { content: 'second\n' });
+    const after = bodyOf(page.id)!;
+
+    assert.equal(crdt.textOf(crdt.merge(onTheDevice, after)), crdt.textOf(crdt.merge(after, onTheDevice)));
+  });
+
+  it('supersedes the seed a device makes for itself from the text alone', async () => {
+    // A page from before any of this: the device has `content` and no state,
+    // and seeds one the same way the server would — see `pages/collab.ts`.
+    const page = await makePage('an older page\n');
+    const seededOnTheDevice = seen('an older page\n');
+    await patch(`/api/pages/${page.id}`, { content: 'rewritten\n' });
+
+    assert.equal(crdt.textOf(crdt.merge(seededOnTheDevice, bodyOf(page.id))), 'rewritten\n');
+  });
+
+  it('still keeps a paragraph the device had not sent yet', async () => {
+    const page = await makePage('shared line\n');
+    const typing = crdt.edit(bodyOf(page.id)!, 'shared line\nnot sent yet\n', 'device-a');
+    await patch(`/api/pages/${page.id}`, { content: 'shared line, rewritten\n' });
+
+    const merged = crdt.textOf(crdt.merge(typing, bodyOf(page.id)));
+    assert.match(merged, /not sent yet/, 'a replacement is not a reason to lose an unsent edit');
+    assert.match(merged, /rewritten/);
+  });
+
+  it('does not grow a new document on every rewrite', async () => {
+    const page = await makePage('# Title\n\nA paragraph that stays.\n');
+    for (let n = 0; n < 8; n++) {
+      await patch(`/api/pages/${page.id}`, { content: `# Title\n\nA paragraph that stays.\n\nRevision ${n}.\n` });
+    }
+    const state = bodyOf(page.id)!;
+    assert.equal(crdt.textOf(state), '# Title\n\nA paragraph that stays.\n\nRevision 7.\n');
+    assert.ok(
+      crdt.sizeOf(state) < 8 * '# Title\n\nA paragraph that stays.\n'.length,
+      'the unchanged prefix is kept rather than retyped — tombstones are only what changed',
+    );
+  });
+});
+
 describe('everything else that reads a page', () => {
   it('sees the merged text — search, sharing, export and the API all read `content`', async () => {
     const page = await makePage('nothing findable\n');

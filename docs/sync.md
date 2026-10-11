@@ -259,7 +259,12 @@ in name only.
 
 So `pages.body` carries a **text CRDT**, and the write path merges it instead of replacing it. The
 registry says so — `crdt: ['body']` on the page entity — and both the server and the client store
-honour it.
+honour it, though not in quite the same way. The server always merges: a body arriving from a
+device is one of several contributions and none of them is the loser. A device merges only while
+it is holding something the server has not seen, because the merge is there to protect an unsent
+paragraph and there is nothing else it can protect — with an empty outbox the row that arrived is
+simply what the page is. See *A copy that has gone wrong*, below, for the day that distinction was
+not being drawn.
 
 **Why a state-based one.** This engine syncs *rows*, and every row reaches every device exactly once
 in any order. That is an unusually good fit for a state-based CRDT, where merging two states is a
@@ -279,6 +284,29 @@ whole proof.
 export, the share document, the markdown renderer, the REST API, MCP — carries on reading plain
 text and knows nothing about any of this. A `content` written on its own, by the API or an import,
 *replaces* the CRDT: whoever sent a whole document meant the whole document.
+
+A replacement is written as an **edit of the state that is there**, never as a fresh one. The
+distinction is invisible on the server and was a bug everywhere else: a fresh state mints the
+identities `server:0, server:1, …` every time, so two rebuilds of one page named the same
+characters and disagreed about which letters they were — and a merge keeps the identity it already
+holds, since an id it has seen is by definition not news. Editing instead tombstones what went and
+gives what arrived clocks nobody has used, which is what makes the replacement survive the merge on
+the other side.
+
+### A copy that has gone wrong
+
+The server never stores a page whose `body` and `content` disagree; it derives one from the other
+on every write. A device can still end up holding one, and did: for as long as a replacement was
+written as a fresh state, a page rewritten twice over MCP or the API left every device that had
+seen the first version *rendering* the second and *editing* the first. Only the editor reads the
+CRDT, so nothing else on the screen looked wrong.
+
+Such a copy cannot be merged back into line — merging a sound state into a broken one keeps the
+broken one, and the tombstones that arrive land on whichever letters this device happens to have
+under those ids. A delta pull will not mention the page again either, because the server did not
+change it. So the editor checks the two halves when it opens a page, and a disagreement with
+nothing queued means `resync`: read the row back and take it whole. That is the only repair there
+is, and it is the reason the client's merge is conditional.
 
 ### What it does not do
 

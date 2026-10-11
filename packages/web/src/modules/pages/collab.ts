@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { crdt, type CrdtState } from '@kolibri/shared';
 import { update } from '../../kernel/sync/mutations';
-import { agentId } from '../../kernel/sync/sync';
+import { agentId, resync } from '../../kernel/sync/sync';
 
 /** How long typing rests before it becomes a CRDT state and a synced row. */
 const SETTLE_MS = 700;
@@ -91,6 +91,34 @@ export function useCollaborativeText(
     // job, and re-running this one would throw away what is being typed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageId]);
+
+  /**
+   * The one check that catches a body this device is holding wrongly.
+   *
+   * The server never stores a page whose CRDT and whose text disagree — it
+   * derives one from the other on every write. So on this screen, with nothing
+   * of ours still queued and nothing being typed, a disagreement is not news
+   * from anywhere: it is this copy being wrong, and no pull will correct it,
+   * because merging the good state into the bad one keeps the bad one. It was
+   * reachable — a page rewritten over MCP or the API twice left every device
+   * that had seen the first version rendering the second and *editing* the
+   * first, silently, for ever (`replacementBody`, server side, is the cause and
+   * the fix). `resync` throws this copy away and reads the row back.
+   *
+   * On opening only, and never mid-edit. Between a save going up and the pull
+   * coming back the two halves are briefly allowed to disagree, and that is the
+   * ordinary case rather than a fault.
+   */
+  const examined = useRef('');
+  useEffect(() => {
+    // Not `[pageId]` alone: on a cold start the row arrives from the pull
+    // *after* this screen is on it, and the check would have run against no
+    // page at all. The ref is what keeps it to once per page, since reading
+    // the whole text out of the CRDT is not free.
+    if (!stored || editing || examined.current === pageId) return;
+    examined.current = pageId;
+    if (crdt.textOf(stored) !== content) void resync('page', pageId);
+  }, [pageId, stored, editing, content]);
 
   /**
    * A change from somewhere else.

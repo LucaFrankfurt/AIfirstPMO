@@ -14,6 +14,7 @@
  */
 import assert from 'node:assert/strict';
 import { describe, it, beforeEach } from 'node:test';
+import { crdt } from '@kolibri/shared';
 import { installBrowser } from './browser.ts';
 
 installBrowser();
@@ -132,5 +133,62 @@ describe('every write marks its table', () => {
     run();
     assert.deepEqual([watchTask.runs, watchLabel.runs], [5, 2], 'a reset clears every table');
     assert.equal(tables.task.size, 0);
+  });
+});
+
+/**
+ * A page body is the one field that is merged rather than replaced, and the
+ * rule for *when* it is merged is the whole of this.
+ *
+ * The bug behind it: a page rewritten whole twice over the API or MCP used to
+ * leave every device that had seen the first version editing it for ever. The
+ * server rebuilt the CRDT with `fromText` each time, which mints the same
+ * character identities every call — so the second state named the same
+ * characters as the first and gave them different letters, and a merge keeps
+ * the identity it already has. The page *rendered* correctly, because
+ * everything but the editor reads `content`. Nothing could pull the device out
+ * of it, because merging the good state into the bad one keeps the bad one.
+ */
+describe('a merged field', () => {
+  const body = (text: string) => crdt.fromText(text, 'server');
+  const page = (text: string, state = body(text)) =>
+    ({ id: 'p1', workspace_id: 'w', title: 'Page', content: text, body: state });
+
+  it('keeps what is still queued, because that is what the merge is for', () => {
+    reset();
+    applyChanges({ page: [page('one\n')] } as any);
+    const mine = crdt.edit(byId('page', 'p1')!.body, 'one\nmine\n', 'device-a');
+    patchLocal('page', 'p1', { body: mine });
+
+    const theirs = crdt.edit(body('one\n'), 'one\ntheirs\n', 'device-b');
+    applyChanges({ page: [page('one\ntheirs\n', theirs)] } as any, () => true);
+
+    const text = crdt.textOf(byId('page', 'p1')!.body);
+    assert.match(text, /mine/, 'the unsent paragraph survived the pull');
+    assert.match(text, /theirs/, 'and so did the one that arrived');
+  });
+
+  it('takes what arrived when nothing is queued, so a bad copy can be corrected', () => {
+    reset();
+    applyChanges({ page: [page('Stand 09.10.2026\n')] } as any);
+    // What a second whole-document write used to look like on the wire: a
+    // state minting `server:0…` all over again, which the old unconditional
+    // merge could only read as "characters I already have".
+    applyChanges({ page: [page('Stand 10.10.2026\n')] } as any);
+
+    assert.equal(
+      crdt.textOf(byId('page', 'p1')!.body), 'Stand 10.10.2026\n',
+      'the row that arrived is the truth when this device is holding nothing',
+    );
+  });
+
+  it('is not cleared by a changeset that does not carry it', () => {
+    reset();
+    applyChanges({ page: [page('text\n')] } as any);
+    // A push echo is only the values the server decided — here, the title.
+    applyChanges({ page: [{ id: 'p1', title: 'Renamed' }] } as any);
+
+    assert.equal(byId('page', 'p1')!.title, 'Renamed');
+    assert.equal(crdt.textOf(byId('page', 'p1')!.body), 'text\n', 'and the body is still there');
   });
 });

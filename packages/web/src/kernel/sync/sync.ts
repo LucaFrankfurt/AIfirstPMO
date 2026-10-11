@@ -158,7 +158,7 @@ export function pull(): Promise<void> {
           reset();
           await idb.clearAll();
         }
-        applyChanges(response.changes);
+        applyChanges(response.changes, isPendingRow);
         await persist(response.changes);
         const before = cursor;
         cursor = response.cursor;
@@ -236,7 +236,7 @@ export async function flush(): Promise<void> {
       await undo(batch.filter((mutation) => response.rejected.some((r) => r.id === mutation.id)));
     }
     // The server may have decided values for us (task identifiers, defaults).
-    applyChanges(response.patched);
+    applyChanges(response.patched, isPendingRow);
     await persist(response.patched);
 
     setStatus({ pending: outbox.length, state: outbox.length ? 'syncing' : 'synced', lastSyncedAt: Date.now() });
@@ -245,6 +245,46 @@ export async function flush(): Promise<void> {
     else await pull();
   } catch (err) {
     handleError(err);
+  }
+}
+
+/**
+ * Read one row back from the server and take it as it is.
+ *
+ * A pull is a delta, so a row the server did not change is a row no pull will
+ * ever mention again — and that is the hole this fills. Two callers need it
+ * and they need the same thing: `undo` below, for a write the server refused,
+ * and `resync` for a row this device has reason to believe it holds wrongly.
+ *
+ * Deliberately *not* merged into what is here. The point of asking is that the
+ * local copy is not trusted, and the outbox is empty of it by the time either
+ * caller asks — `flush` drops a mutation before it undoes it, and `resync`
+ * checks.
+ */
+async function reread(entity: EntityName, id: string): Promise<void> {
+  const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[entity]}/${id}`);
+  applyChanges({ [entity]: [row] } as ChangeSet);
+  await persist({ [entity]: [row] } as ChangeSet);
+}
+
+/**
+ * Throw away what this device holds for one row and take the server's.
+ *
+ * For the caller that can *tell* its copy is wrong — a page whose CRDT and
+ * whose text disagree, say, which the server never stores and which no merge
+ * can repair, because merging a good state into a bad one keeps the bad one.
+ * Nothing happens while the row is still queued: then the disagreement is just
+ * this device being ahead, which is the ordinary case and not a fault.
+ *
+ * Quiet on failure. It is a repair, not a write somebody is waiting on, and
+ * the screen it was called from is no worse off than before it tried.
+ */
+export async function resync(entity: EntityName, id: string): Promise<void> {
+  if (isPendingRow(entity, id)) return;
+  try {
+    await reread(entity, id);
+  } catch {
+    /* offline, or gone — the next attempt is the next time somebody looks */
   }
 }
 
@@ -262,9 +302,7 @@ async function undo(rejected: Mutation[]): Promise<void> {
     if (seen.has(key)) continue;
     seen.add(key);
     try {
-      const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[mutation.entity]}/${mutation.entityId}`);
-      applyChanges({ [mutation.entity]: [row] } as ChangeSet);
-      await persist({ [mutation.entity]: [row] } as ChangeSet);
+      await reread(mutation.entity, mutation.entityId);
     } catch (error) {
       /*
        * A row the server does not have, because it refused to create it.

@@ -50,10 +50,12 @@ const VERSION_WINDOW_MS = 10 * 60 * 1000;
  *   whatever the merged state reads as, and any `content` sent alongside is
  *   ignored — it was computed before the merge and is now out of date.
  * - A **`content`** on its own means somebody who does not: the API, MCP, an
- *   import, a rule. That is a replacement and it says so — the CRDT is rebuilt
- *   from the text, because a caller who sent a whole document meant the whole
- *   document, and quietly merging it into somebody's half-finished paragraph
- *   would be the surprising reading of it.
+ *   import, a rule. That is a replacement and it says so — the CRDT is written
+ *   to read as the text, because a caller who sent a whole document meant the
+ *   whole document, and quietly merging it into somebody's half-finished
+ *   paragraph would be the surprising reading of it. `replacementBody` below
+ *   is where that is done, and why it is a replacement *of* the old state
+ *   rather than a new one beside it.
  */
 function applyPageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   if (values.format !== undefined) {
@@ -68,16 +70,56 @@ function applyPageInvariants(values: Record<string, unknown>, existing: Row | un
     return;
   }
   if (values.content !== undefined) {
-    const state = crdt.fromText(String(values.content ?? ''), 'server');
+    const state = replacementBody(existing, String(values.content ?? ''));
     values.body = JSON.stringify(state);
     forced.body = state;
   } else if (existing && !existing.body && existing.content) {
     // A page written before any of this existed gets its CRDT the first time
     // anything else about it is touched, rather than on a migration that would
     // have to rewrite every row at once.
-    values.body = JSON.stringify(crdt.fromText(String(existing.content), 'server'));
+    values.body = JSON.stringify(seedBody(String(existing.content)));
   }
 }
+/**
+ * The state a page has when its text arrives with no CRDT behind it.
+ *
+ * `'server'` is a *shared* agent name on purpose: a device that has the text
+ * but not yet the state seeds itself the same way (`pages/collab.ts`), and two
+ * replicas that independently seed the same text have to agree about it
+ * character for character or the first merge invents a document neither of
+ * them has.
+ */
+const seedBody = (text: string): CrdtState => crdt.fromText(text, 'server');
+
+/**
+ * The state for a whole document that replaces whatever is there.
+ *
+ * This is `crdt.edit` rather than `crdt.fromText`, and the difference is a bug
+ * that reached a reader. `fromText` mints the identities `server:0, server:1,
+ * …` every time it is called, so two rebuilds of the same page named *the same
+ * characters* and gave them different letters — and `crdt.merge` keeps the one
+ * it already has, because an identity it has already seen is by definition not
+ * news. The server was therefore right, and every device that had seen the
+ * earlier text went on holding it for ever: the page read correctly everywhere
+ * it is rendered from `content`, and the editor — the one screen that reads the
+ * CRDT — opened on the old draft. Nothing in the merge could notice, since
+ * "this id means a different letter on your side" is not a state the model
+ * admits.
+ *
+ * Editing the existing state instead says what a replacement actually means:
+ * what went is tombstoned, what arrived gets clocks nobody has used, and a
+ * replica merging the two lands on the text that was written. The common
+ * prefix and suffix are kept, so the usual one-line edit over MCP stays a
+ * one-line edit rather than a whole new document.
+ */
+function replacementBody(existing: Row | undefined, text: string): CrdtState {
+  const before = safeCrdt(existing?.body)
+    // A page with text and no state yet: the replacement has to supersede the
+    // seed, because that is what any device holding the page already has.
+    ?? (existing?.content ? seedBody(String(existing.content)) : null);
+  return before ? crdt.edit(before, text, 'server') : seedBody(text);
+}
+
 function snapshotPage(before: Row, actorId: string): void {
   if (!before.content) return;
   const latest = get<Row>(
