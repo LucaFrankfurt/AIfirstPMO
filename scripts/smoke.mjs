@@ -57,6 +57,7 @@ const LABELS = {
     tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
     archive: 'Archive', duplicateTitles: 'Two pages, one title',
     bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label', statusDrawer: 'Status', bulkStatusDrawer: 'Set the status',
+    edit: 'Edit',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -76,6 +77,7 @@ const LABELS = {
     tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
     archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
     bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern', statusDrawer: 'Status', bulkStatusDrawer: 'Status setzen',
+    edit: 'Bearbeiten',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -95,6 +97,7 @@ const LABELS = {
     tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
     archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
     bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette', statusDrawer: 'Statut', bulkStatusDrawer: 'Définir le statut',
+    edit: 'Modifier',
   },
 }[locale];
 
@@ -1602,6 +1605,66 @@ await step('editor: Enter continues a list, and a box can be ticked', async () =
   if (ticked.includes('- [x] one')) throw new Error('ticking one box ticked another');
   console.log('     the list wrote itself, and the box that was clicked is the box that changed');
   await box.fill('');
+});
+
+/**
+ * A checklist in a page, ticked where it is read.
+ *
+ * It was inert here until the tick had somewhere honest to go. A page's body is
+ * a CRDT, and the only way to write that field used to be to replace it — which
+ * for a tick means tombstoning every character of the document to change one,
+ * and losing whatever somebody else had typed meanwhile. So the box was drawn
+ * disabled and the answer was "open the editor".
+ *
+ * What a browser has to prove is the half a unit test cannot: that the click
+ * reaches `crdt.edit` rather than a replacement, and therefore that the *two
+ * halves of the row still agree afterwards*. `content` is what every screen
+ * renders; the CRDT is what the editor opens on. They disagreed once before,
+ * for weeks, and nothing but a screen noticed — so this step reads both.
+ */
+await step('a box in a page is ticked where it is read, and the editor agrees', async () => {
+  const id = await page.evaluate(async () => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const made = await (await fetch(`/api/workspaces/${workspace}/pages`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'include',
+      body: JSON.stringify({
+        title: `Smoke: Abnahme ${Date.now()}`,
+        content: '# Abnahme\n\n- [ ] Server\n- [ ] Client\n\nDer Satz darunter bleibt, wie er ist.\n',
+      }),
+    })).json();
+    return made.id ?? made.page?.id;
+  });
+  if (!id) throw new Error('the fixture page reached no server row');
+
+  await page.goto(`${base}/pages/${id}`, { waitUntil: 'networkidle' });
+  await closeTour(page);
+  await page.waitForSelector('.annotatable .md input[type=checkbox]', { timeout: 8000 });
+  const boxes = page.locator('.annotatable .md input[type=checkbox]');
+  if (await boxes.first().isDisabled()) throw new Error('the page offers a checkbox nobody can tick');
+
+  // The second one, so "the box that was clicked is the box that changed" is a
+  // claim with something to be wrong about.
+  await boxes.nth(1).click();
+  await page.waitForTimeout(600);
+
+  const stored = await page.evaluate(
+    (pid) => fetch(`/api/pages/${pid}`, { credentials: 'include' }).then((res) => res.json()),
+    id,
+  );
+  const text = String(stored.content ?? '');
+  if (!text.includes('- [x] Client')) throw new Error(`the tick never reached the server: ${JSON.stringify(text)}`);
+  if (text.includes('- [x] Server')) throw new Error('ticking one box ticked another');
+  if (!text.includes('Der Satz darunter bleibt')) throw new Error('the rest of the page did not survive the tick');
+
+  // The editor is the one screen that reads the CRDT rather than `content`.
+  // If the tick had gone in as a replacement this is where it would show.
+  await page.locator(`button:has-text("${LABELS.edit}")`).first().click();
+  await page.waitForSelector('.page-reading textarea', { timeout: 8000 });
+  const editing = await page.locator('.page-reading textarea').inputValue();
+  if (!editing.includes('- [x] Client') || editing.includes('- [x] Server')) {
+    throw new Error(`the editor disagrees with the page: ${JSON.stringify(editing)}`);
+  }
+  console.log('     ticked in the page, same in `content` and in the CRDT the editor opens on');
 });
 
 /**

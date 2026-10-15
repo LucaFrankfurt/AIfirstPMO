@@ -492,7 +492,7 @@ export function PageDetail() {
   // The body is a CRDT, so two people typing at once is a merge rather than a
   // race. Everything else on this screen still reads `page.content`, which the
   // server derives from it.
-  const { text: content, setText: setContent, fieldRef, flush, merged } = useCollaborativeText(
+  const { text: content, setText: setContent, fieldRef, flush, rewrite, merged } = useCollaborativeText(
     id, page?.body, page?.content ?? '', editing,
   );
 
@@ -812,7 +812,26 @@ export function PageDetail() {
                 <div className="annotatable" ref={setBody}>
                   {page.format === 'html'
                     ? <HtmlView source={page.content} asPage />
-                    : <Markdown source={page.content} asPage />}
+                    : (
+                      /*
+                       * Ticked where it is read, like a checklist in a task.
+                       *
+                       * It was inert here for as long as the body has been a
+                       * CRDT, and the reason was sound while the only way to
+                       * write this field was to replace it: a tick sent as a
+                       * whole document tombstones every character of it, so two
+                       * people with the page open would have lost each other's
+                       * paragraph to a box. `rewrite` is the missing half —
+                       * the tick goes through `crdt.edit`, which is what a
+                       * keystroke does. An HTML page stays inert: there the
+                       * allowlist draws a picture of a state, not a control.
+                       */
+                      <Markdown
+                        source={page.content}
+                        asPage
+                        onChange={canWrite ? rewrite : undefined}
+                      />
+                    )}
                   {bubble}
                 </div>
               )

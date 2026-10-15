@@ -99,11 +99,15 @@ export function Markdown({ source, className = '', onChange, asPage }: {
    * Given, the checkboxes can be ticked where they are rendered and this is
    * called with the rewritten markdown.
    *
-   * Only where the reader owns the text. A checklist in a task description is
-   * meant to be ticked off, and making somebody open an editor to do it is the
-   * kind of friction that ends with the checklist going stale. Somebody else's
-   * chat message is the opposite case, and stays read-only — the one thing you
-   * may do to another person's words here is react to them.
+   * Only where the reader owns the text. A checklist in a task description or
+   * in a page is meant to be ticked off, and making somebody open an editor to
+   * do it is the kind of friction that ends with the checklist going stale.
+   * Somebody else's chat message is the opposite case, and stays read-only —
+   * the one thing you may do to another person's words here is react to them.
+   *
+   * What the caller does with the rewritten markdown is the caller's business,
+   * and on a page it is not a plain write: see `rewrite` in `collab.ts`, where
+   * a tick becomes an edit of the CRDT rather than a replacement of it.
    */
   onChange?: (next: string) => void;
 }) {
