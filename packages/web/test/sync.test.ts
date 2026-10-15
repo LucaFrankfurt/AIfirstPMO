@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { Clock, crdt, timestampOf } from '@kolibri/shared';
+import { Clock, crdt, timestampOf, toggleTask } from '@kolibri/shared';
 import { directFetch, installBrowser, net, settle } from './browser.ts';
 
 // Before anything from `src/lib` is loaded: those modules read `localStorage`
@@ -436,6 +436,68 @@ describe('a page rewritten whole by somebody else', () => {
     await sync.flush();
     await settle(30);
     assert.equal(sync.getStatus().pending, 0);
+  });
+});
+
+describe('a box ticked in the page as it is read', () => {
+  /*
+   * The page view ticks a checkbox by writing the body the way the editor does
+   * — `crdt.edit` of the merged state, with the text alongside it — and these
+   * two cases are why it has to.
+   *
+   * A tick is one character. Sent as a *replacement*, it is a whole new
+   * document that happens to differ by that character, and the second case
+   * below is what that costs somebody who was writing at the time. The first
+   * is the same minute, done the way the code does it.
+   */
+  const checklist = '- [ ] Server\n- [ ] Client\n';
+
+  it('keeps the paragraph somebody else was writing while it was ticked', async () => {
+    const made = await otherDevice(`/api/workspaces/${workspaceId}/pages`, { title: 'Abnahme', content: checklist });
+    await sync.pull();
+    await settle(20);
+    const base = store.byId('page', made.id)!.body;
+
+    // This device, on a train: tick the second box, exactly as `rewrite` does.
+    net.online = false;
+    const ticked = toggleTask(crdt.textOf(base), 1);
+    mutations.update('page', made.id, { body: crdt.edit(base, ticked, 'here'), content: ticked });
+
+    // Meanwhile somebody with the editor open adds a sentence under it.
+    const theirs = crdt.edit(base, `${checklist}\nNoch ein Absatz.\n`, 'other');
+    await otherDevice(`/api/pages/${made.id}`, { body: JSON.stringify(theirs) }, 'PATCH');
+
+    net.online = true;
+    await sync.flush();
+    await sync.pull();
+    await settle(30);
+
+    const row = store.byId('page', made.id)!;
+    assert.match(row.content, /- \[x\] Client/, 'the tick survived');
+    assert.doesNotMatch(row.content, /- \[x\] Server/, 'and only the box that was clicked');
+    assert.match(row.content, /Noch ein Absatz/, 'so did the sentence written at the same time');
+    assert.equal(crdt.textOf(row.body), row.content, 'and the two halves of the row still agree');
+  });
+
+  it('would have eaten it, had the tick been sent as a whole document', async () => {
+    // Not a hypothetical: `content` on its own is a replacement and says so —
+    // `replacementBody` on the server tombstones what was there. That is right
+    // for MCP and the API, who mean the document they sent, and wrong for a
+    // checkbox, who means one character.
+    const made = await otherDevice(`/api/workspaces/${workspaceId}/pages`, { title: 'Abnahme, falsch', content: checklist });
+    await sync.pull();
+    await settle(20);
+    const base = store.byId('page', made.id)!.body;
+
+    const theirs = crdt.edit(base, `${checklist}\nNoch ein Absatz.\n`, 'other');
+    await otherDevice(`/api/pages/${made.id}`, { body: JSON.stringify(theirs) }, 'PATCH');
+
+    const asReplacement = toggleTask(crdt.textOf(base), 1);
+    await otherDevice(`/api/pages/${made.id}`, { content: asReplacement }, 'PATCH');
+
+    const onServer = await otherDevice(`/api/pages/${made.id}`);
+    assert.match(String(onServer.content), /- \[x\] Client/);
+    assert.doesNotMatch(String(onServer.content), /Noch ein Absatz/, 'their sentence is gone — this is the cost');
   });
 });
 

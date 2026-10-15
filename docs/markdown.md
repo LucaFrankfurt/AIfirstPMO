@@ -139,8 +139,18 @@ Every checklist renders. Whether it can be **ticked in place** depends on where 
 |---|---|---|
 | Task description | **Yes** | It is your checklist and ticking it should not require opening an editor |
 | The editor's own preview | **Yes** | You are already editing |
-| Page body | No — edit the text | The body is a CRDT; a tick has to go through the same merge as a keystroke |
+| Page body | **Yes**, with write access | The body is a CRDT, so the tick goes through the same `crdt.edit` a keystroke does |
+| A page on a share link | No | A stranger on a URL is reading, not working |
+| An HTML page | No | There a checkbox is a picture of a state: the allowlist draws it disabled, and the way back would be a rewrite of the markup rather than of one character |
 | Comments, chat | No | The one thing you may do to somebody else's words here is react to them |
+
+**How a page's tick works, and why it is worth a sentence.** A page body is also a text CRDT, and
+the only way to write that field used to be to replace it whole — which for one character means
+tombstoning the entire document, and losing whatever somebody else was typing at that moment. So the
+box was drawn inert and the answer was "open the editor". It is now an edit of the merged state, the
+same call the editor makes when typing settles: two people with the page open keep both the tick and
+the paragraph. `packages/web/test/sync.test.ts` holds that minute from both sides — once done the
+way the code does it, and once as a replacement, to show what it would have cost.
 
 A checkbox inside a blockquote is drawn **inert everywhere**. Ticking one rewrites the source by
 counting boxes from the top, and that counter cannot see past a `>` — so rather than let a click

@@ -35,6 +35,19 @@ export interface Collab {
   fieldRef: { current: HTMLTextAreaElement | null };
   /** Push whatever is pending now — on closing the editor, say. */
   flush: () => void;
+  /**
+   * A rewrite of the text that did not come from the textarea: ticking a
+   * checkbox in the page as it is read.
+   *
+   * It exists because the alternative was to write `content` straight out, and
+   * on this one field that is not a small shortcut. A page's `content` has to
+   * keep saying what its CRDT says — the server derives one from the other on
+   * every write — so a tick sent as a replacement would be read as *a whole new
+   * document*, tombstoning every character of a paragraph somebody else may be
+   * halfway through. Sent through `crdt.edit`, a tick is what it looks like:
+   * one character, merged like a keystroke.
+   */
+  rewrite: (next: string) => void;
   /** True while somebody else's change is being taken in, for a quiet marker. */
   merged: boolean;
 }
@@ -81,6 +94,29 @@ export function useCollaborativeText(
     timer.current = null;
     if (editing) commit();
   }, [commit, editing]);
+
+  /**
+   * Apply a rewrite to the merged state and send it.
+   *
+   * `commit` first, which in the reading view is a no-op — nothing is being
+   * typed, so the diff against the base is empty and the state comes back
+   * unchanged. It is there for the case that is not supposed to happen: called
+   * while somebody types, it folds the tail in rather than dropping it.
+   *
+   * `content` goes alongside the state although the server recomputes it from
+   * the state anyway. The two agree character for character, and sending it is
+   * what makes the box tick *now* on the device that clicked it — the reading
+   * view renders `content`, and waiting for the round trip to come back would
+   * be a checkbox that does nothing on a train.
+   */
+  const rewrite = useCallback((next: string) => {
+    const from = commit();
+    const state = crdt.edit(from, next, agent);
+    if (state === from) return;
+    base.current = state;
+    put(next);
+    update('page', pageId, { body: state, content: next });
+  }, [agent, commit, pageId, put]);
 
   // Opening the page, or a different one: start from what is stored.
   useEffect(() => {
@@ -178,5 +214,5 @@ export function useCollaborativeText(
     };
   }, [text, editing, commit]);
 
-  return { text, setText: put, fieldRef, flush, merged };
+  return { text, setText: put, fieldRef, flush, rewrite, merged };
 }
