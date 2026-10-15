@@ -1688,6 +1688,20 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .md img { max-width: 100%; border-radius: var(--radius); border: 1px solid var(--line); display: block; margin: 10px 0; }
 .md hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
 .md .md-tag { color: var(--accent); }
+/* A progress bar, `{48%}` in the source. The number sits beside the track
+   rather than inside it: a bar whose fill is thin has nowhere to put a label,
+   and the number is the part that still works where this stylesheet does not
+   reach — an exported file, a mail client, a terminal reading the markdown. */
+.md .md-bar { display: inline-flex; align-items: center; gap: 7px; vertical-align: -1px; }
+.md .md-bar-track { display: inline-block; width: 88px; height: 7px; border-radius: 99px; background: var(--bg-active); overflow: hidden; }
+.md .md-bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+.md .md-bar-value { font-size: 12.5px; color: var(--fg-soft); font-variant-numeric: tabular-nums; }
+/* Three colours the author chose by writing the word. Nothing here reads the
+   number: a threshold would be this stylesheet deciding that 30% of a project
+   is bad news. */
+.md .md-bar-ok .md-bar-fill { background: var(--ok); }
+.md .md-bar-warn .md-bar-fill { background: var(--warn); }
+.md .md-bar-danger .md-bar-fill { background: var(--danger); }
 /* A reference to a task or a project. A chip rather than an underlined link:
    in a chat line it is a thing being named, and the sentence around it should
    still read as a sentence. */

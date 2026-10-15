@@ -70,9 +70,19 @@ describe('sanitizeHtml refuses', () => {
     );
   });
 
-  it('allows only an alignment through style', () => {
+  it('allows only an alignment and a bar’s width through style', () => {
     assert.equal(sanitizeHtml('<td style="text-align:right">7</td>'), '<td style="text-align:right">7</td>');
     assert.equal(sanitizeHtml('<div style="position:fixed;top:0">x</div>'), '<div>x</div>');
+    // Converting a markdown page to HTML renders it once, so a bar arrives here
+    // as the span the markdown renderer wrote. Dropped, the track came out
+    // empty beside a number that still said 48%.
+    assert.equal(
+      sanitizeHtml('<span class="md-bar-fill" style="width:48.5%"></span>'),
+      '<span class="md-bar-fill" style="width:48.5%"></span>',
+    );
+    assert.equal(sanitizeHtml('<span style="width:48px">x</span>'), '<span>x</span>');
+    assert.equal(sanitizeHtml('<span style="width:4800%">x</span>'), '<span>x</span>');
+    assert.equal(sanitizeHtml('<span style="width:50%;position:fixed">x</span>'), '<span>x</span>');
   });
 
   it('drops an id unless the caller gave it a namespace to live in', () => {
@@ -170,6 +180,19 @@ describe('htmlToMarkdown', () => {
   it('keeps a link and an image', () => {
     assert.equal(md('<p><a href="https://x.example">x</a></p>'), '[x](https://x.example)');
     assert.equal(md('<p><img src="/f/1.png" alt="a"></p>'), '![a](/f/1.png)');
+  });
+
+  /*
+   * The round trip a page makes when somebody changes their mind twice:
+   * markdown → HTML (rendered once) → markdown. The bar has to survive it, or
+   * `{48%}` comes back as the three characters `48%` and the bar is gone with
+   * no way to tell it was ever there.
+   */
+  it('turns a progress bar back into its braces', () => {
+    assert.equal(md(renderMarkdown('{48%}')), '{48%}');
+    assert.equal(md(renderMarkdown('{3/8}')), '{3/8}');
+    assert.equal(md(renderMarkdown('{92% ok}')), '{92% ok}');
+    assert.equal(md(renderMarkdown('Rollout {60% warn} heute')), 'Rollout {60% warn} heute');
   });
 
   it('keeps the words of a link it cannot follow', () => {

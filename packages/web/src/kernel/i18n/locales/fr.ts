@@ -2606,6 +2606,8 @@ export const fr: Catalogue = {
   'editor.cmdTable': 'Tableau',
   'editor.cmdTableHint': 'Deux colonnes pour commencer',
   'editor.cmdDivider': 'Séparateur',
+  'editor.cmdBar': 'Barre de progression',
+  'editor.cmdBarHint': 'Une part, en barre : {48%} ou {3/8}',
   'editor.cmdDividerHint': 'Un trait en travers',
   'editor.cmdDiagram': 'Diagramme',
   'editor.cmdDiagramHint': 'Mermaid, dessiné en écrivant',

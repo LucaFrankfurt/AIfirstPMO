@@ -2606,6 +2606,8 @@ export const de: Catalogue = {
   'editor.cmdTable': 'Tabelle',
   'editor.cmdTableHint': 'Zwei Spalten zum Anfangen',
   'editor.cmdDivider': 'Trennlinie',
+  'editor.cmdBar': 'Fortschrittsbalken',
+  'editor.cmdBarHint': 'Ein Anteil als Balken: {48%} oder {3/8}',
   'editor.cmdDividerHint': 'Ein Strich quer',
   'editor.cmdDiagram': 'Diagramm',
   'editor.cmdDiagramHint': 'Mermaid, beim Schreiben gezeichnet',

@@ -40,8 +40,13 @@ function document_(title: string, body: string, workspace: string, writable = fa
 <title>${escape(title)}</title>
 <style>
   :root { color-scheme: light dark; --fg: #14161a; --muted: #6b7280; --line: #e5e7eb; --bg: #fff; --accent: #5b5bd6; }
+  /* Three more, for the one piece of markup whose colour carries meaning: a
+     progress bar the author marked ok, warn or danger. Same values as the
+     app's tokens, written out because this document deliberately loads nothing. */
+  :root { --ok: #097756; --warn: #9a580d; --danger: #ca2525; }
   @media (prefers-color-scheme: dark) {
     :root { --fg: #e7e9ee; --muted: #9aa1ad; --line: #2a2e37; --bg: #14161a; }
+    :root { --ok: #26a27c; --warn: #d97706; --danger: #e06d6e; }
   }
   * { box-sizing: border-box; }
   body {
@@ -64,11 +69,23 @@ function document_(title: string, body: string, workspace: string, writable = fa
   th { font-size: 12.5px; color: var(--muted); font-weight: 600; }
   .meta { color: var(--muted); font-size: 13px; margin: 0 0 26px; }
   /* A page that is not finished says so to the stranger holding the link. The
-     same shape as the blockquote above, because it is the same gesture and this
-     document defines its own four colours — a fifth invented here would be a
-     variable nothing sets. */
+     same shape as the blockquote above, because it is the same gesture and every
+     colour this document uses is one it sets a few lines up — one invented here
+     would be a variable nothing sets. */
   .status-notice { border-inline-start: 3px solid var(--line); padding-inline-start: 12px;
     margin: 0 0 22px; font-size: 13px; color: var(--muted); }
+  /* A progress bar, {48%} in the page's markdown. Repeated here rather than
+     shared with the app's stylesheet, which this document is the one page in
+     Kolibri that never loads — and a bar whose track has no styles at all is an
+     invisible nothing beside a number, on the one screen a stranger sees. */
+  .md-bar { display: inline-flex; align-items: center; gap: 7px; vertical-align: -1px; }
+  .md-bar-track { display: inline-block; width: 88px; height: 7px; border-radius: 99px;
+    background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
+  .md-bar-fill { display: block; height: 100%; border-radius: 99px; background: var(--accent); }
+  .md-bar-value { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .md-bar-ok .md-bar-fill { background: var(--ok); }
+  .md-bar-warn .md-bar-fill { background: var(--warn); }
+  .md-bar-danger .md-bar-fill { background: var(--danger); }
   .foot { color: var(--muted); font-size: 12.5px; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 14px; }
   .done td:first-child { text-decoration: line-through; color: var(--muted); }
   .pill { display: inline-block; font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; }
@@ -99,6 +116,9 @@ function document_(title: string, body: string, workspace: string, writable = fa
     p, ul, ol, pre, blockquote, table, tr { break-inside: avoid; }
     pre { white-space: pre-wrap; }
     .foot { border-color: #ddd; }
+    /* A bar is a filled box and nothing else, so the one thing a printer drops
+       by default is the whole of it. */
+    .md-bar-track, .md-bar-fill { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   }
 </style>
 </head>

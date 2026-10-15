@@ -319,6 +319,9 @@ const COMMANDS: Command[] = [
   { id: 'code', title: 'editor.cmdCode', hint: 'editor.cmdCodeHint', icon: '</>', text: '```\n\n```\n', caret: 4 },
   { id: 'table', title: 'editor.cmdTable', hint: 'editor.cmdTableHint', icon: '▦', text: '| | |\n| --- | --- |\n| | |\n', caret: 2 },
   { id: 'divider', title: 'editor.cmdDivider', hint: 'editor.cmdDividerHint', icon: '—', text: '---\n' },
+  // A whole bar rather than an empty one, so the preview shows what was picked,
+  // and the caret lands behind the number — backspace and a figure is the edit.
+  { id: 'bar', title: 'editor.cmdBar', hint: 'editor.cmdBarHint', icon: '▰', text: '{50%}', caret: 3 },
   { id: 'diagram', title: 'editor.cmdDiagram', hint: 'editor.cmdDiagramHint', icon: '◇', text: '```mermaid\nflowchart LR\n  A[Start] --> B[Ende]\n```\n', caret: 11 },
   // `![[` and no more: the `[[` tracker takes over from the next keystroke and
   // offers the pages, which is a better answer than a second list of titles.
