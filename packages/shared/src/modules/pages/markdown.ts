@@ -183,6 +183,66 @@ function references(html: string, refs: MarkdownOptions): string {
  */
 const BREAK = '';
 
+/**
+ * A share of something, drawn as a bar: `{48%}`, `{3/8}`, `{92% ok}`.
+ *
+ * It exists because of the workaround it replaces. Wanting a bar in a page,
+ * somebody wrote `![](https://geps.dev/progress/48)` — and the browser refused
+ * the image, because `img-src` is `'self' data: blob:` and will stay that way:
+ * a self-hosted work OS that renders a third party's picture of your numbers
+ * has told that third party what your numbers are, and shows nothing at all on
+ * a train. The bar a page wants is three spans and a width, so it is three
+ * spans and a width.
+ *
+ * Two spellings, because both are what people already write: a percentage, and
+ * a fraction — `{3/8}` reads as three of eight and is drawn at 37.5%. A decimal
+ * comma is accepted (`{48,5%}`), since the maintainer writes German and so do
+ * the documents.
+ *
+ * **The colour is the author's, never a threshold.** `ok`, `warn` and `danger`
+ * are the three words, and nothing is inferred from the number: 20% of a long
+ * project is not in trouble, and 90% of a budget is not a success. The one
+ * thing read off the number is that past 100% the bar is full — the label still
+ * says `{120%}`, because a clamped bar that also clamped its number would be
+ * the renderer deciding what is true.
+ *
+ * Only the *width* reaches an attribute, and only as a number this function
+ * computed. The label is put back as the author typed it, and the pattern
+ * admits nothing but digits, a separator and the `%` or `/` — so there is no
+ * path from the document into the `style`.
+ */
+const BAR = /\{(\d{1,6}(?:[.,]\d{1,2})?)\s*(%|\/\s*\d{1,6}(?:[.,]\d{1,2})?)(?:\s+(ok|warn|danger))?\}/g;
+
+/** `48,5` and `48.5` are the same number; only the label remembers which. */
+const amount = (text: string): number => Number(text.replace(',', '.'));
+
+function bars(html: string): string {
+  // Anchors and images whole first, the way `references` does it and for a
+  // sharper version of the same reason. A URL may contain braces, and
+  // `https://e.com/a{1/2}b` had the bar drawn *inside its own href* — markup in
+  // an attribute, which breaks the attribute and the link with it. The cost is
+  // that a bar cannot be a link's label, which nobody has ever wanted.
+  const links: string[] = [];
+  const held = html.replace(/<a\b[^>]*>[\s\S]*?<\/a>|<img\b[^>]*>/g, (match) => {
+    links.push(match);
+    return `\u{E004}${links.length - 1}\u{E004}`;
+  });
+
+  return held.replace(BAR, (match, left: string, unit: string, state: string | undefined) => {
+    const top = amount(left);
+    const whole = unit === '%' ? 100 : amount(unit.slice(1).trim());
+    // A fraction of nothing has no bar to draw. Left as the text it was, which
+    // is the rule every unresolved thing in this file follows.
+    if (!Number.isFinite(top) || !Number.isFinite(whole) || whole <= 0) return match;
+    const share = Math.min(100, Math.max(0, (top / whole) * 100));
+    const width = Math.round(share * 10) / 10;
+    const label = unit === '%' ? `${left}%` : `${left}/${unit.slice(1).trim()}`;
+    return `<span class="md-bar${state ? ` md-bar-${state}` : ''}">`
+      + `<span class="md-bar-track"><span class="md-bar-fill" style="width:${width}%"></span></span>`
+      + `<span class="md-bar-value">${label}</span></span>`;
+  }).replace(/\u{E004}(\d+)\u{E004}/gu, (_, index: string) => links[Number(index)]);
+}
+
 function inline(text: string, refs?: MarkdownOptions): string {
   let out = escapeHtml(text);
 
@@ -221,6 +281,10 @@ function inline(text: string, refs?: MarkdownOptions): string {
   });
 
   out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+  // After the links, so a URL that happens to hold braces is already an anchor
+  // and is left alone; before the emphasis rules, which have nothing to say
+  // about braces either way.
+  out = bars(out);
   // Bold before italic, and both spelled so the other may sit inside them: the
   // old `[^*]+` could not cross the `*` in `**bold *and* italic**`, so a reader
   // got the asterisks instead of the emphasis. A lone `*` is ordinary text to
@@ -651,6 +715,10 @@ export function excerpt(source: string, max = 140): string {
     .replace(/\[\[([^[\]|\n]+)(?:\|([^[\]\n]*))?\]\]/g, (_, title: string, alias: string | undefined) =>
       (alias?.trim() || title.trim()))
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    // A bar reads as its number: `{3/8}` is "3/8". Before the punctuation sweep
+    // below, which takes the `-` out of a fraction's braces and leaves them.
+    .replace(BAR, (_, left: string, unit: string) =>
+      (unit === '%' ? `${left}%` : `${left}/${unit.slice(1).trim()}`))
     .replace(/[#>*_`~|-]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();

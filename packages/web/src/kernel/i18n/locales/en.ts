@@ -2612,6 +2612,8 @@ export const en = {
   'editor.cmdTable': 'Table',
   'editor.cmdTableHint': 'Two columns to start',
   'editor.cmdDivider': 'Divider',
+  'editor.cmdBar': 'Progress bar',
+  'editor.cmdBarHint': 'A share, as a bar: {48%} or {3/8}',
   'editor.cmdDividerHint': 'A line across',
   'editor.cmdDiagram': 'Diagram',
   'editor.cmdDiagramHint': 'Mermaid, drawn as you write',

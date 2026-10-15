@@ -219,7 +219,7 @@ failure: a diagram nobody can render should still be a diagram somebody can read
 
 ## Kolibri's own additions
 
-These are the four things that are not in any other markdown, and each exists because it is what
+These are the five things that are not in any other markdown, and each exists because it is what
 people write anyway.
 
 | You type | It becomes | Where |
@@ -228,6 +228,7 @@ people write anyway.
 | `#WEB` | A link to that project | Same |
 | `#anything-else` | A tag, styled but not linked | Everywhere |
 | `@ada` | Notifies that person | Comments, chat, page bodies, task descriptions |
+| `{48%}` | A progress bar | Everywhere |
 
 **A reference is only linked when the key is real.** The pattern is not `[A-Z]+-\d+`, because that
 also matches `UTF-8`, `COVID-19` and `ISO-8601` — and a sentence about an encoding standard should
@@ -248,6 +249,52 @@ sentence would be a mention.
 Only handles that are **newly added** notify. A page autosaves as you type, and re-notifying
 everybody named in it on every keystroke is the fastest way to make people turn notifications off.
 
+### Progress bars
+
+| You type | You get |
+|---|---|
+| `{48%}` | A bar at 48%, with `48%` beside it |
+| `{3/8}` | The same bar at 37.5%, labelled `3/8` |
+| `{48,5%}` | A decimal comma is a decimal point |
+| `{92% ok}` | Green |
+| `{60% warn}` | Amber |
+| `{12% danger}` | Red |
+
+It is **inline**, which is the point: a status column in a table is where most of these get written,
+and a block-level bar could not go there.
+
+```markdown
+| Thema    | Stand       |
+|----------|-------------|
+| Rollout  | {48%}       |
+| Budget   | {83% warn}  |
+| Migration| {3/8}       |
+```
+
+Four things it deliberately does not do:
+
+- **It never picks the colour for you.** No threshold anywhere reads the number, because there is no
+  honest one to pick: 20% of a long project is not in trouble and 90% of a budget is not a success.
+  The three words are the author's judgement, written down.
+- **Past 100% the bar is full and the number is not.** `{120%}` draws a full bar and says `120%`. A
+  clamped bar that also clamped its label would be the renderer deciding what is true.
+- **A number without a unit is not a bar.** `{48}` and `{todo}` stay as you typed them — those are
+  what a template or a formula looks like — and `{3/0}` has no share to draw.
+- **A URL keeps its braces.** `https://e.com/a{1/2}b` stays one link: anchors and images are held
+  aside before the rule runs, the same way a task reference is kept out of them.
+
+The number is beside the bar rather than inside it, and that is what makes the syntax survive where
+nothing renders it: in an export, in a mail, in `git diff`, `{48%}` still says 48%. A card or a
+search snippet shows `48%` too, because `excerpt` reads the braces rather than stripping them into
+visible punctuation.
+
+**Why this exists at all**: the obvious workaround is blocked, and will stay blocked. An external
+image service — `![](https://geps.dev/progress/48)` — is refused by the Content-Security-Policy,
+whose `img-src` is `'self' data: blob:`. That is not an oversight to file around: a self-hosted work
+OS that fetches a third party's picture of your numbers has told that third party what your numbers
+are, and shows an empty box on a train. A bar is three `<span>`s and a width, so it is three
+`<span>`s and a width.
+
 ---
 
 ## What the editor does while you type
@@ -263,7 +310,7 @@ pure, testable, and doing nothing at all unless the line asks for it.
 | **Tab** / **Shift-Tab** in a list | Two spaces on or off every line the selection touches |
 | **Tab** outside a list | An ordinary indent, which is what somebody writing code wants |
 | Paste or drop an image | Downscaled, uploaded, and written in as `![…](…)` |
-| **`/`** at the start of a line | A menu of blocks: heading, list, checklist, quote, code, table, divider, diagram, page embed |
+| **`/`** at the start of a line | A menu of blocks: heading, list, checklist, quote, code, table, divider, progress bar, diagram, page embed |
 | Paste a **document** | A copy out of a browser, a mail or a word processor arrives as markdown — headings, lists, links and tables kept |
 
 The last one is worth a sentence. Every clipboard carries two flavours of what was copied, and the
@@ -311,7 +358,10 @@ The order is the argument:
    vocabulary.
 3. **Check every URL against a four-scheme allowlist** before it reaches an `href` or a `src`.
 4. **Put attributes in from a fixed set of values.** Table alignment is one of three words chosen
-   three lines above where it is written, not something copied out of the document.
+   three lines above where it is written, not something copied out of the document. The one rule
+   that writes a `style` is the progress bar, and what it writes is a percentage the renderer
+   divided out — the pattern behind it admits digits, a separator and `%` or `/`, so there is no
+   path from the document into the attribute.
 
 That is why there is no sanitiser in the dependency list: there is nothing to sanitise, because
 nothing dangerous is ever constructed. External links additionally carry `rel="noopener
@@ -351,8 +401,9 @@ stated in full. It is an **allowlist**, in
    about `onclick` is needed: there is no rule admitting it.
 4. **Check every URL** with the same four-scheme allowlist markdown uses. `javascript:` and `data:`
    are refused, and the link keeps its words rather than losing the sentence with the href.
-5. **Two attributes are narrowed further than "allowed".** `style` may say `text-align` and nothing
-   else. `class` may only be a code block's `language-…` or the renderer's own `md-…`: the app's
+5. **Two attributes are narrowed further than "allowed".** `style` may say `text-align`, or how
+   full a progress bar is — a percentage, rewritten out of the number rather than copied — and
+   nothing else. `class` may only be a code block's `language-…` or the renderer's own `md-…`: the app's
    stylesheet is on the same document, so `class="fixed inset-0 z-50"` on a `<div>` is a page
    painting itself over the interface with no script involved — the attack every sanitiser that
    thinks only about scripts lets straight through.
@@ -391,6 +442,7 @@ from before, so it is one **Restore** away either way.
 | **A card or a search snippet** | `pageExcerpt` takes the tags out, the way `excerpt` takes the markup out of markdown — on the card, in a search result and in the command palette, which for a while all read the raw markup and matched on `div` |
 | **`[[Onboarding]]`** | resolves inside an HTML page too, in text runs only — never inside `<a>`, `<code>` or `<pre>`. It has to: `linkGraph` reads those links out of any page's text, so one that rendered as four literal brackets was a link the wiki counted and the reader could not follow |
 | **`![[Onboarding]]`** | embedding an HTML page draws the page, through the allowlist. Read as markdown it drew a wall of escaped tags |
+| **`{48%}`** | survives the trip to an HTML page and back: the bar is three spans the allowlist keeps, including the width — without that a converted page had an empty track beside a number that still said 48% |
 | **Export as markdown** | An HTML page is converted on the way out, so a markdown bundle is markdown all the way through |
 | **A share link** | The server renders it through the same allowlist. A stranger on a URL is the one audience that cannot be assumed to be a colleague |
 | **MCP** | `create_page` and `update_page` take `format`. `update_page` changes the flag and does **not** convert the text — an assistant that means to change the language should send the body in it |

@@ -165,6 +165,100 @@ describe('the rules a writer will actually trip over', () => {
 });
 
 /**
+ * The bar, which exists because the obvious workaround is blocked.
+ *
+ * A page wanting a progress bar used to reach for `geps.dev/progress/48` as an
+ * image, and the browser refused it: `img-src` is `'self' data: blob:` and is
+ * not going to grow an exception for a service that would learn the numbers it
+ * draws. So the dialect draws it, and these are the claims
+ * `docs/markdown.md` makes about how.
+ */
+describe('a progress bar', () => {
+  it('draws a percentage as a track, a fill and the number', () => {
+    assert.equal(
+      md('{48%}'),
+      '<p><span class="md-bar"><span class="md-bar-track">'
+      + '<span class="md-bar-fill" style="width:48%"></span></span>'
+      + '<span class="md-bar-value">48%</span></span></p>',
+    );
+  });
+
+  it('reads a fraction as the share it is', () => {
+    assert.match(md('{3/8}'), /style="width:37\.5%"/);
+    assert.match(md('{3/8}'), /<span class="md-bar-value">3\/8<\/span>/);
+  });
+
+  it('takes a decimal comma, because the documents here are German', () => {
+    assert.match(md('{48,5%}'), /style="width:48\.5%"/);
+    // The label keeps the author's spelling; only the attribute is normalised.
+    assert.match(md('{48,5%}'), />48,5%</);
+  });
+
+  it('colours only on a word, never on the number', () => {
+    assert.match(md('{92% ok}'), /class="md-bar md-bar-ok"/);
+    assert.match(md('{60% warn}'), /class="md-bar md-bar-warn"/);
+    assert.match(md('{12% danger}'), /class="md-bar md-bar-danger"/);
+    // 12% of a long project is not bad news, and nothing in the renderer says
+    // it is: with no word, the bar is the accent colour at any value.
+    assert.equal(md('{12%}').includes('md-bar-danger'), false);
+  });
+
+  it('fills the bar past full and still says what the number was', () => {
+    assert.match(md('{120%}'), /style="width:100%"/);
+    assert.match(md('{120%}'), />120%</);
+    assert.match(md('{9/4}'), /style="width:100%"/);
+  });
+
+  it('draws an empty track at nothing, rather than a sliver', () => {
+    assert.match(md('{0%}'), /style="width:0%"/);
+    assert.match(md('{0/8}'), /style="width:0%"/);
+  });
+
+  it('leaves alone what is not one', () => {
+    // No unit is a number in braces, which is what a template or a formula
+    // looks like; a fraction of nothing has no bar to draw; and a code span
+    // wins here as it does everywhere.
+    assert.equal(md('{48}'), '<p>{48}</p>');
+    assert.equal(md('{todo}'), '<p>{todo}</p>');
+    assert.equal(md('{3/0}'), '<p>{3/0}</p>');
+    assert.match(md('`{48%}`'), /<code>\{48%\}<\/code>/);
+  });
+
+  /*
+   * Found while reading the diff, and worth keeping: a URL is allowed to hold
+   * braces, and with the rule applied to the whole string the bar was drawn
+   * inside the `href` — markup in an attribute, which breaks the attribute and
+   * the link with it. Anchors and images are held aside now, as `references`
+   * has always held them.
+   */
+  it('leaves a URL that happens to contain braces alone', () => {
+    assert.equal(
+      md('https://e.com/a{1/2}b'),
+      '<p><a href="https://e.com/a{1/2}b" target="_blank" rel="noopener noreferrer">https://e.com/a{1/2}b</a></p>',
+    );
+    assert.match(md('![x](/f/{1/2}.png)'), /<img src="\/f\/\{1\/2\}\.png"/);
+    assert.doesNotMatch(md('https://e.com/a{1/2}b'), /md-bar/);
+  });
+
+  it('puts nothing but its own computed width in an attribute', () => {
+    // The whole safety argument of this file is that the document never
+    // reaches an attribute. A bar is the one rule here that writes a `style`.
+    const html = md('{48% ok} and {1/3 warn}');
+    assert.deepEqual(
+      [...html.matchAll(/style="([^"]*)"/g)].map((match) => match[1]),
+      ['width:48%', 'width:33.3%'],
+    );
+  });
+
+  it('works where a status actually gets written', () => {
+    // In a table cell, which is the reason this is an inline rule rather than a
+    // block: a status column is where somebody wants eight of these.
+    assert.match(md('| Ziel | Stand |\n| --- | --- |\n| Rollout | {48%} |'), /<td><span class="md-bar"/);
+    assert.match(md('- Rollout {48%}'), /<li>Rollout <span class="md-bar"/);
+  });
+});
+
+/**
  * The other half of the rule: rendered where there is room, stripped where
  * there is not.
  *
@@ -190,6 +284,13 @@ describe('the one-line summary a card shows', () => {
   it('drops an image and a fenced block entirely', () => {
     assert.equal(excerpt('An ![image](/f.png) and text'), 'An and text');
     assert.equal(excerpt('```js\nconst x = 1;\n```\nAfter the code'), 'After the code');
+  });
+
+  it('reads a progress bar as its number', () => {
+    // `{48%}` left whole would put braces on a card; stripped by the
+    // punctuation sweep it would have left them standing and taken the dash
+    // out of the fraction.
+    assert.equal(excerpt('Rollout {48%} und Umzug {3/8}'), 'Rollout 48% und Umzug 3/8');
   });
 
   it('truncates with an ellipsis, and says nothing about nothing', () => {

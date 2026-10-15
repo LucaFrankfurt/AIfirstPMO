@@ -277,8 +277,21 @@ const GLOBAL = ['title', 'lang', 'dir', 'class', 'id', 'style'] as const;
  */
 const CLASS_SHAPE = /^(?:language-[\w+#.-]{1,24}|md-[\w-]{1,24})$/;
 
-/** The only declaration a page may set, and the only four values it may set it to. */
+/** One of the two declarations a page may set, and the only four values it may set it to. */
 const ALIGNMENT = /^\s*text-align\s*:\s*(left|right|center|justify)\s*;?\s*$/i;
+
+/**
+ * The second declaration: how full a progress bar is.
+ *
+ * `{48%}` in markdown renders as a `md-bar-fill` span sized by a `style`, and
+ * **⋯ → Written in → HTML** converts a page by rendering it once — so without
+ * this every bar on a converted page became an empty track that confidently
+ * said 48% beside it. A percentage on a span can do nothing: there is no
+ * `position` here, no `z-index`, and the number is written back out of the
+ * match rather than copied, so the value in the attribute is one this file
+ * produced.
+ */
+const BAR_WIDTH = /^\s*width\s*:\s*(\d{1,3}(?:\.\d)?)\s*%\s*;?\s*$/;
 
 const NUMBER = /^\d{1,4}$/;
 
@@ -353,8 +366,11 @@ function attributeFor(tag: string, name: string, raw: string, opts: SanitizeOpti
     }
     case 'id':
       return opts.idPrefix && /^[\w-]{1,64}$/.test(value) ? `id="${escapeHtml(opts.idPrefix + value)}"` : null;
-    case 'style':
-      return ALIGNMENT.test(value) ? `style="text-align:${value.split(':')[1].replace(/[^a-z]/gi, '')}"` : null;
+    case 'style': {
+      if (ALIGNMENT.test(value)) return `style="text-align:${value.split(':')[1].replace(/[^a-z]/gi, '')}"`;
+      const bar = BAR_WIDTH.exec(value);
+      return bar && Number(bar[1]) <= 100 ? `style="width:${Number(bar[1])}%"` : null;
+    }
     case 'dir':
       return /^(ltr|rtl|auto)$/i.test(value) ? `dir="${value.toLowerCase()}"` : null;
     case 'type':
@@ -670,6 +686,22 @@ function inline(nodes: HtmlNode[]): string {
         break;
       }
       case 'br': out += '  \n'; break;
+      /*
+       * A progress bar goes back to its braces, not to its number.
+       *
+       * The markup is this repository's own — three spans `renderMarkdown`
+       * wrote — so the conversion can read it back exactly. Without this,
+       * changing a page's mind twice (markdown → HTML → markdown) turned every
+       * `{48%}` into the text `48%`, and the bars were gone for good.
+       */
+      case 'span': {
+        const classes = (node.attrs.class ?? '').split(/\s+/);
+        if (!classes.includes('md-bar')) { out += inner; break; }
+        const state = classes.find((one) => ['md-bar-ok', 'md-bar-warn', 'md-bar-danger'].includes(one));
+        const label = inner.trim();
+        out += label ? `{${label}${state ? ` ${state.slice('md-bar-'.length)}` : ''}}` : '';
+        break;
+      }
       case 'img': {
         const url = safeUrl(node.attrs.src ?? '');
         if (url) out += `![${unescapeEntities(node.attrs.alt ?? '').replace(/[[\]]/g, '')}](${url})`;
