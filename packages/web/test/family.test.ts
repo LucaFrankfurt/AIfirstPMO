@@ -11,13 +11,20 @@
  * The last case in each group is the one that matters: a tree that *already*
  * loops, because two devices each made a legal move while offline. Refusing to
  * create one is not enough if finding one hangs the screen.
+ *
+ * The walk itself moved down into `@kolibri/shared` when moving a task between
+ * projects needed it too — the mutation that takes the sub-tree along sits in
+ * a ring the client's design system leans on, not the reverse. The cases stayed
+ * here, where they already were and where nothing about them is client-specific
+ * beyond the suite they run in; `markdown` and `html` are tested from this side
+ * for the same reason.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { ancestry, descendants, wouldLoop, type Node } from '../src/kernel/design-system/family.ts';
+import { ancestry, descendants, wouldLoop, type Nested } from '@kolibri/shared';
 
 /** epic ▸ story ▸ chore ▸ detail, and a `loner` off to one side. */
-const TREE: Node[] = [
+const TREE: Nested[] = [
   { id: 'epic', parent_id: null },
   { id: 'story', parent_id: 'epic' },
   { id: 'sibling', parent_id: 'epic' },
@@ -27,7 +34,7 @@ const TREE: Node[] = [
 ];
 
 /** Two tasks each other's parent — legal on two devices, impossible on one. */
-const LOOPED: Node[] = [
+const LOOPED: Nested[] = [
   { id: 'a', parent_id: 'b' },
   { id: 'b', parent_id: 'a' },
   { id: 'under', parent_id: 'a' },

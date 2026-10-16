@@ -4,7 +4,7 @@ import { api } from '../../kernel/sync/api';
 import { useTabStrip } from '../../kernel/design-system/tab-strip';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
-import { byId, list, useQuery, useRow } from '../../kernel/sync/store';
+import { list, useQuery, useRow } from '../../kernel/sync/store';
 import { createTask, remove, update } from '../../kernel/sync/mutations';
 import { useCanWrite, useFeature, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { TaskReviewPanel } from '../ai-review/task-review';
@@ -16,7 +16,7 @@ import { TaskTime } from '../time/time';
 import { TaskFields } from './fields';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, ParentPicker, ParentTrail,
-  PriorityPicker, StatePicker, stateOf,
+  PriorityPicker, ProjectPicker, StatePicker, stateOf,
 } from './task-parts';
 import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Input, Select } from '../../kernel/design-system/ui/field';
@@ -50,7 +50,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   );
   const attachments = useQuery(() => list('attachment', (a) => a.task_id === taskId), [taskId]);
   const subtasks = useQuery(() => list('task', (t) => t.parent_id === taskId), [taskId]);
-  const project = byId('project', task?.project_id);
   const state = task ? stateOf(task) : undefined;
   const hasDescription = !!task?.description?.trim();
 
@@ -100,7 +99,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           <span className="flex items-center gap-1.5">
             <StateDot group={state?.group_key} color={state?.color} />
             <span className="mono text-muted">{task.identifier}</span>
-            {project && <span className="text-muted truncate">· {project.name}</span>}
           </span>
         }
       >
@@ -124,6 +122,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           <CyclePicker task={task} />
           <ModulePicker task={task} />
           <ParentPicker task={task} />
+          <ProjectPicker task={task} />
           <MenuButton
             variant="ghost" size="sm"
             label={t('common.moreActions')}

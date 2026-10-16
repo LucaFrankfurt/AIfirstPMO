@@ -1,10 +1,9 @@
 import { Fragment } from 'react';
 import {
-  PRIORITIES, coversProject, fieldKeys, isDoneGroup, mayEnter,
+  PRIORITIES, ancestry, coversProject, descendants, fieldKeys, isDoneGroup, mayEnter,
   type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../../kernel/sync/store';
-import { ancestry, descendants } from '../../kernel/design-system/family';
 import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../../kernel/sync/mutations';
 import { dueClass, shortDate } from '../../kernel/design-system/format';
 import { groupKey, priorityKey, useT, type Translate } from '../../kernel/i18n/i18n';
@@ -20,11 +19,15 @@ import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, useToast
 /**
  * Filing a task under a different project, with the sentence that says so.
  *
- * One function for the two ways in, because they are the same act: dropping a
- * card on a project in the sidebar, and choosing one from the card's own menu.
- * The menu is not a convenience — a phone has no HTML5 drag and a keyboard has
- * no drag at all, and a move that exists only for a mouse is a move most of
- * this app's screens cannot make.
+ * One function for every way in, because they are the same act: dropping a
+ * card on a project in the sidebar, choosing one from the card's own menu, and
+ * picking one in the sheet. Only the first of those is a drag, and it is the
+ * one that reaches the fewest people — a phone has no HTML5 drag and a
+ * keyboard has none at all, so a move that exists only for a mouse is a move
+ * most of this app's screens cannot make. The board was also the only screen
+ * that offered any of it: a task opened from a list, a table, a search, a
+ * calendar or a pasted link had no way out of its project at all, which is
+ * what `ProjectPicker` below is for.
  *
  * It says what happened out loud because the card leaves the board it was on.
  * A row vanishing with nothing said reads as a deletion.
@@ -35,8 +38,15 @@ export function useRefile(): (taskId: string, projectId: string) => void {
   return (taskId, projectId) => {
     const task = byId('task', taskId);
     const destination = byId('project', projectId);
-    if (!task || !destination || !moveTaskToProject(task, projectId)) return;
-    toast(t('task.movedToProject', { task: task.identifier, project: destination.name }));
+    if (!task || !destination) return;
+    const moved = moveTaskToProject(task, projectId);
+    if (!moved) return;
+    // The sub-tasks came too, and saying so is the point: the card that left
+    // the board is the one somebody dragged, and the other three rows that
+    // left with it are not on screen to be noticed.
+    toast(moved > 1
+      ? t('task.movedWithSubtasks', { task: task.identifier, project: destination.name, count: moved - 1 })
+      : t('task.movedToProject', { task: task.identifier, project: destination.name }));
   };
 }
 
@@ -222,6 +232,48 @@ export function ParentPicker({ task }: { task: Task }) {
       {current
         ? <span className="truncate">{current.identifier}</span>
         : <span className="hidden sm:inline">{t('task.noParent')}</span>}
+    </MenuButton>
+  );
+}
+
+/**
+ * Which project this task is filed in, as a control rather than a caption.
+ *
+ * The sheet is the one screen every view can reach — a row in a list, a cell
+ * in a table, a search hit, a day in the calendar, a link somebody pasted —
+ * and for a long time it was the one screen that could not change this. Moving
+ * work between projects meant finding it on a board first.
+ *
+ * It sits with the other pickers rather than in the overflow menu because it
+ * is the same kind of answer they are: where this task belongs. The sheet's
+ * title used to repeat the project name beside the identifier; it does not any
+ * more, because this says it and this can be clicked.
+ *
+ * `useRefile` does the move, so the sheet, the card menu and the sidebar drop
+ * cannot disagree about what one is.
+ */
+export function ProjectPicker({ task }: { task: Task }) {
+  const t = useT();
+  const refile = useRefile();
+  const projects = useProjectTargets(task);
+  const current = useQuery(() => byId('project', task.project_id), [task.project_id]);
+
+  const items: MenuItem[] = projects.map((project) => ({
+    id: project.id,
+    label: project.name,
+    onSelect: () => refile(task.id, project.id),
+  }));
+
+  return (
+    <MenuButton
+      items={items}
+      variant="ghost" size="sm"
+      search={projects.length > 8}
+      title={t('task.moveToProject')}
+      empty={t('task.noProjectTargets')}
+    >
+      <Icon name="folder" size={14} />
+      <span className="truncate">{current?.name ?? t('task.project')}</span>
     </MenuButton>
   );
 }

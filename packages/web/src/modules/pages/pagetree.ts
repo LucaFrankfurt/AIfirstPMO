@@ -12,8 +12,7 @@
  * sibling. Nothing wrote it after a page was created until now, which is why
  * the tree could only ever be in the order things happened to be made.
  */
-import { compareOrder, matchesTerms, orderKey, parseTerms } from '@kolibri/shared';
-import { wouldLoop } from '../../kernel/design-system/family';
+import { compareOrder, matchesTerms, orderKey, parseTerms, wouldLoop } from '@kolibri/shared';
 
 /**
  * Which third of a row a drop was released over, and therefore what it means.

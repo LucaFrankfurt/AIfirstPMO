@@ -178,6 +178,129 @@ function cascadeProject(project: Row, restoring: boolean, opts: WriteOpts): void
 }
 
 /**
+ * A task that changed projects, and everything on it that belonged to the old
+ * one.
+ *
+ * The interface performs the move itself so the board reacts without a round
+ * trip; this is the same rule applied where the interface is not the caller —
+ * a `PATCH {project_id}` over REST, an MCP call, an import, an automation,
+ * any of which would otherwise leave the row in a column its new board does
+ * not have and wearing labels nothing can render.
+ *
+ * Each field is checked rather than overwritten, so a client that already did
+ * the work is left alone and only what is actually wrong comes back `forced`.
+ */
+function settleProjectMove(
+  values: Record<string, unknown>, existing: Row, forced: Record<string, unknown>,
+): void {
+  const destination = String(values.project_id);
+
+  /**
+   * A container holds projects, not tasks — so nothing may be moved into one.
+   *
+   * The rule itself is old: a project with tasks in it is refused the flag, a
+   * few lines further down. The hole was the other direction. Nothing stopped
+   * a `PATCH {project_id: <a container>}`, and the interface's own guard is in
+   * `moveTaskToProject`, which REST, MCP, an import and an automation all go
+   * around. A container renders a list of projects and no board at all, so the
+   * task arrived somewhere with no screen that shows it.
+   *
+   * Refused the way the flag is, through `forced` rather than a throw: this
+   * write may be one row of a batch from a device that has been away.
+   */
+  if (Number(get<Row>(`SELECT is_container FROM projects WHERE id = ?`, destination)?.is_container ?? 0) === 1) {
+    values.project_id = existing.project_id;
+    forced.project_id = values.project_id;
+    return;
+  }
+
+  const landing = relocate(
+    {
+      state_id: asId(existing.state_id),
+      labels: parseIds(existing.labels),
+      cycle_id: asId(existing.cycle_id),
+      module_id: asId(existing.module_id),
+    },
+    vocabularyOf(String(existing.project_id)),
+    vocabularyOf(destination),
+  );
+  const effective = (field: string): unknown => (values[field] !== undefined ? values[field] : existing[field]);
+  const belongs = (table: 'states' | 'labels', value: unknown): boolean =>
+    typeof value === 'string' && !!get<Row>(
+      `SELECT 1 AS found FROM ${table} WHERE id = ? AND project_id = ? AND deleted_at IS NULL`,
+      value, destination,
+    );
+
+  /**
+   * The same question for a cycle or a module, which are not one project's.
+   *
+   * Both may cover several projects or all of them, so `project_id = ?` is
+   * the wrong test: a shared fortnight has no owner at all, so a task moved
+   * from Web to Mobile *inside that fortnight* failed the check and was
+   * silently dropped out of it. Nobody would have attributed that to the
+   * move. `coversProject` is the rule in TypeScript; this is it in SQL.
+   */
+  const covers = (table: 'cycles' | 'modules', value: unknown): boolean =>
+    typeof value === 'string' && !!get<Row>(
+      `SELECT 1 AS found FROM ${table}
+        WHERE id = ? AND deleted_at IS NULL
+          AND ((json_array_length(projects) = 0 AND (project_id IS NULL OR project_id = ?))
+               OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value = ?))`,
+      value, destination, destination,
+    );
+  const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
+
+  if (!belongs('states', effective('state_id'))) settle('state_id', landing.state_id);
+  if (parseIds(effective('labels')).some((label) => !belongs('labels', label))) {
+    settle('labels', JSON.stringify(landing.labels));
+  }
+  // Cleared only when the destination really is outside them — a shared one
+  // follows the task across, which is the whole point of it being shared.
+  if (asId(effective('cycle_id')) && !covers('cycles', effective('cycle_id'))) settle('cycle_id', null);
+  if (asId(effective('module_id')) && !covers('modules', effective('module_id'))) settle('module_id', null);
+}
+
+/**
+ * The sub-tasks of a task that moved, which go where their parent went.
+ *
+ * A sub-task is not filed on its own: it is part of the piece of work above
+ * it, and the only screen that lists it beside its siblings is that parent's.
+ * Leaving the children behind splits one job across two boards — each child
+ * still in the old project, each breadcrumb pointing at a parent that is no
+ * longer there, and each child's state, labels and cycle still the old
+ * project's while the parent's are the new one's.
+ *
+ * The whole sub-tree rather than the floor below, walked here rather than left
+ * to each child's own effect to continue. A child that is *already* in the
+ * destination needs no write, and no write means no effect — so recursing that
+ * way would stop at it and leave its own children behind, which is the one
+ * shape the client would have moved. `seen` is what makes a tree that arrived
+ * looped from two offline devices terminate rather than spin; `descendants` in
+ * `@kolibri/shared` is the same walk over a list, and the client calls that.
+ *
+ * Not `system`, because this *is* a change somebody made and each child's own
+ * history should say so. `silent` for the reason the project cascade is: the
+ * parent's own write publishes last, and one nudge is enough for a client to
+ * pull the lot.
+ */
+function followParent(task: Row, opts: WriteOpts): void {
+  const destination = String(task.project_id);
+  const seen = new Set<string>([String(task.id)]);
+  const queue = [String(task.id)];
+
+  while (queue.length) {
+    for (const child of all<Row>(`SELECT id, project_id FROM tasks WHERE parent_id = ? AND deleted_at IS NULL`, queue.shift())) {
+      const id = String(child.id);
+      if (seen.has(id)) continue;
+      seen.add(id);
+      queue.push(id);
+      if (String(child.project_id) === destination) continue;
+      writeEntity('task', id, { project_id: destination }, { ...opts, op: 'upsert', silent: true });
+    }
+  }
+}
+
+/**
  * Whether this person may change this comment.
  *
  * Written the day comments became editable, and the hole it closes predates
@@ -297,65 +420,13 @@ export const workRules = {
       }
     }
     /**
-     * A task that changed projects, and everything on it that belonged to the old
-     * one.
-     *
-     * The interface performs the move itself so the board reacts without a round
-     * trip; this is the same rule applied where the interface is not the caller —
-     * a `PATCH {project_id}` over REST, an MCP call, an import, an automation,
-     * any of which would otherwise leave the row in a column its new board does
-     * not have and wearing labels nothing can render.
-     *
-     * Each field is checked rather than overwritten, so a client that already did
-     * the work is left alone and only what is actually wrong comes back `forced`.
+     * A task that changed projects. `settleProjectMove` is the whole of it —
+     * extracted because this hook is long enough already, and because the rule
+     * has a refusal in front of it now.
      */
     if (entity === 'task' && existing && typeof values.project_id === 'string'
         && values.project_id !== existing.project_id) {
-      const destination = values.project_id;
-      const landing = relocate(
-        {
-          state_id: asId(existing.state_id),
-          labels: parseIds(existing.labels),
-          cycle_id: asId(existing.cycle_id),
-          module_id: asId(existing.module_id),
-        },
-        vocabularyOf(String(existing.project_id)),
-        vocabularyOf(destination),
-      );
-      const effective = (field: string): unknown => (values[field] !== undefined ? values[field] : existing[field]);
-      const belongs = (table: 'states' | 'labels', value: unknown): boolean =>
-        typeof value === 'string' && !!get<Row>(
-          `SELECT 1 AS found FROM ${table} WHERE id = ? AND project_id = ? AND deleted_at IS NULL`,
-          value, destination,
-        );
-
-      /**
-       * The same question for a cycle or a module, which are not one project's.
-       *
-       * Both may cover several projects or all of them, so `project_id = ?` is
-       * the wrong test: a shared fortnight has no owner at all, so a task moved
-       * from Web to Mobile *inside that fortnight* failed the check and was
-       * silently dropped out of it. Nobody would have attributed that to the
-       * move. `coversProject` is the rule in TypeScript; this is it in SQL.
-       */
-      const covers = (table: 'cycles' | 'modules', value: unknown): boolean =>
-        typeof value === 'string' && !!get<Row>(
-          `SELECT 1 AS found FROM ${table}
-            WHERE id = ? AND deleted_at IS NULL
-              AND ((json_array_length(projects) = 0 AND (project_id IS NULL OR project_id = ?))
-                   OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value = ?))`,
-          value, destination, destination,
-        );
-      const settle = (field: string, value: unknown) => { values[field] = value; forced[field] = value; };
-
-      if (!belongs('states', effective('state_id'))) settle('state_id', landing.state_id);
-      if (parseIds(effective('labels')).some((label) => !belongs('labels', label))) {
-        settle('labels', JSON.stringify(landing.labels));
-      }
-      // Cleared only when the destination really is outside them — a shared one
-      // follows the task across, which is the whole point of it being shared.
-      if (asId(effective('cycle_id')) && !covers('cycles', effective('cycle_id'))) settle('cycle_id', null);
-      if (asId(effective('module_id')) && !covers('modules', effective('module_id'))) settle('module_id', null);
+      settleProjectMove(values, existing, forced);
     }
     // A project cannot sit under itself, directly or at any remove. Two devices
     // can each make a legal move that is a loop together, so this is checked on
@@ -424,6 +495,11 @@ export const workRules = {
   },
   effects(entity, row, before, changed, opts) {
     if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
+    // A sub-task is filed where its parent is filed. The transition, not the
+    // state, for the same reason the project cascade below reads `before`.
+    if (entity === 'task' && before && !row.deleted_at && row.project_id !== before.project_id) {
+      followParent(row, opts);
+    }
     // The transition, not the state: an edit to an already-deleted project
     // must not cascade a second time, and `before` is the only thing that
     // knows which way this write went.

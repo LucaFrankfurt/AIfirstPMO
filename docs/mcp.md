@@ -520,7 +520,7 @@ is inclusive to the end of the day it names.
 | Tool | Notes |
 |---|---|
 | `create_task` | project + title required — unless `quick_add` carries both; **labels that do not exist yet are created**, which is why `list_labels` is worth calling first |
-| `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` |
+| `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` — and `project`, which **files the task under another project**: its state and labels are re-resolved there by meaning rather than by name, a cycle or module the destination is outside of is cleared, its sub-tasks follow it, and its identifier does not change. Anything else in the same call is read against the project it is moving *to*, so `{project: "API", state: "Doing"}` means the destination's column. A container is refused out loud, because it holds projects rather than tasks |
 | `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
 | `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
 | `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |

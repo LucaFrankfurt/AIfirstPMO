@@ -52,6 +52,7 @@ const LABELS = {
     assignees: 'Assignees', filterBox: 'Filter…',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
+    moveToProject: 'Move to project', selectRow: 'Select this task', list: 'List',
     mailFeature: 'Connected mailboxes', mailboxesTab: 'Mailboxes',
     comment: 'Comment', editComment: 'Edit this comment', edited: 'edited',
     tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
@@ -72,6 +73,7 @@ const LABELS = {
     assignees: 'Zuständig', filterBox: 'Filtern…',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
+    moveToProject: 'In Projekt verschieben', selectRow: 'Diese Aufgabe auswählen', list: 'Liste',
     mailFeature: 'Verbundene Postfächer', mailboxesTab: 'Postfächer',
     comment: 'Kommentieren', editComment: 'Diesen Kommentar bearbeiten', edited: 'bearbeitet',
     tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
@@ -92,6 +94,7 @@ const LABELS = {
     assignees: 'Assignés', filterBox: 'Filtrer…',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
+    moveToProject: 'Déplacer vers un projet', selectRow: 'Sélectionner cette tâche', list: 'Liste',
     mailFeature: 'Boîtes mail connectées', mailboxesTab: 'Boîtes mail',
     comment: 'Commenter', editComment: 'Modifier ce commentaire', edited: 'modifié',
     tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
@@ -556,6 +559,170 @@ await step('a card dragged onto a project in the sidebar is filed there', async 
   const stuck = await faded();
   if (stuck.length) throw new Error(`greyed out after a refused drop: ${stuck.join(', ')}`);
   if (await page.locator('.drop-line').count()) throw new Error('a drop line outlived the drag');
+});
+
+/**
+ * The move, from a screen that is not a board.
+ *
+ * The drag above is the oldest way in and reaches the fewest people: a phone
+ * has no HTML5 drag, a keyboard has none at all, and the card it starts from
+ * only exists on one of five layouts. A task opened from a list, a table, a
+ * search hit, the calendar, My work or a pasted link had no way out of its
+ * project at all — the rule had been in `@kolibri/shared` for as long as the
+ * drag had, and six screens could not reach it.
+ *
+ * So this is the same move through the sheet's own picker, and it checks the
+ * part a unit test cannot: that the control is on the screen, that the menu is
+ * built from the projects that can hold a task, and that the sub-task made in
+ * the same breath went with its parent rather than staying behind on a board
+ * nobody would think to look at.
+ */
+await step('a task filed from the sheet takes its sub-tasks with it', async () => {
+  await page.keyboard.press('Escape');
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.waitForTimeout(600);
+
+  await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
+  await page.waitForSelector('.sheet');
+  await page.fill('.sheet input >> nth=0', 'Smoke: refiled from the sheet');
+  await page.click(`button:has-text("${LABELS.createTask}")`);
+  await page.waitForTimeout(1400);
+
+  await page.locator('.task-card, .task-row').filter({ hasText: 'Smoke: refiled from the sheet' }).first().click();
+  await page.waitForSelector('.sheet', { timeout: 6000 });
+  await page.waitForTimeout(500);
+  const parent = (await page.locator('.sheet .mono').first().innerText()).trim();
+
+  await page.getByPlaceholder(LABELS.addSubtask).fill('Smoke: and its part');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(1200);
+
+  const picker = page.locator(`.sheet button[title="${LABELS.moveToProject}"]`);
+  if (!(await picker.count())) throw new Error('the sheet offers no way to change the project');
+  const was = (await picker.innerText()).trim();
+  if (!was.includes('Website')) throw new Error(`the picker says "${was}" rather than the project it is in`);
+
+  await picker.click();
+  await page.waitForTimeout(400);
+  const offered = page.locator('[role=menuitem], [role=menuitemradio]');
+  const names = (await offered.allInnerTexts()).map((one) => one.trim()).filter(Boolean);
+  // Its own project is not a destination, and neither is a container.
+  if (names.some((one) => one === 'Website')) throw new Error('the picker offered the project it is already in');
+  const target = offered.filter({ hasText: 'Public API' }).first();
+  if (!(await target.count())) throw new Error(`no destination to pick from: ${names.join(', ')}`);
+  await target.click();
+  await page.waitForTimeout(1500);
+
+  if (!(await page.locator(`.sheet button[title="${LABELS.moveToProject}"]`).innerText()).includes('Public API')) {
+    throw new Error('the sheet still shows the project it left');
+  }
+
+  /*
+   * And the server agrees about both rows — the half a local move cannot
+   * prove. The sub-task is the one that was silently left behind: it is not on
+   * the screen that performed the move, so nothing about the sheet would have
+   * shown it staying put.
+   */
+  const landed = await page.evaluate(async (identifier) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    const rows = await json(`/api/workspaces/${ws}/tasks?limit=400`);
+    const tasks = rows.tasks ?? rows;
+    const projects = await json(`/api/workspaces/${ws}/projects`);
+    const states = await json(`/api/workspaces/${ws}/states`);
+    const name = (id) => (projects.projects ?? projects).find((one) => one.id === id)?.name ?? '(gone)';
+    const where = (task) => {
+      const state = (states.states ?? states).find((one) => one.id === task.state_id);
+      return {
+        identifier: task.identifier,
+        project: name(task.project_id),
+        stateBelongsHere: !!state && state.project_id === task.project_id,
+      };
+    };
+    const top = tasks.find((one) => one.identifier === identifier);
+    const child = tasks.find((one) => one.title === 'Smoke: and its part');
+    return { top: top && where(top), child: child && where(child) };
+  }, parent);
+
+  if (!landed.top) throw new Error(`${parent} is not on the server at all`);
+  if (landed.top.project !== 'Public API') throw new Error(`${parent} was filed under ${landed.top.project}`);
+  if (!landed.top.stateBelongsHere) throw new Error('it landed in a column belonging to the project it left');
+  if (!landed.child) throw new Error('the sub-task is not on the server at all');
+  if (landed.child.project !== 'Public API') throw new Error(`the sub-task stayed in ${landed.child.project}`);
+  if (!landed.child.stateBelongsHere) throw new Error('the sub-task kept a column of the project it left');
+  if (!/^WEB-/.test(landed.top.identifier)) throw new Error(`the identifier became ${landed.top.identifier}`);
+  console.log('     ', landed.top.identifier, 'and', landed.child.identifier, 'are both in Public API');
+});
+
+/**
+ * The same move for a selection, which is the one bulk action that works
+ * across projects.
+ *
+ * State, labels and a cycle are a project's own vocabulary and the bar hides
+ * them for a mixed selection; "file all of this over there" means the same
+ * thing whatever the rows start out as, and a mixed selection is exactly when
+ * somebody is tidying up.
+ *
+ * Its two tasks are made here and ticked by name, for the reason the drag step
+ * gives: a step that consumes what a later one reads is a step that passes
+ * once. It leaves the project on the layout it found it on for the same reason.
+ */
+await step('a selection is filed elsewhere in one go', async () => {
+  await page.keyboard.press('Escape');
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.waitForTimeout(600);
+
+  const titles = ['Smoke: two of a kind', 'Smoke: and the other one'];
+  for (const title of titles) {
+    await page.click(`.sidebar button:has-text("${LABELS.newTask}")`);
+    await page.waitForSelector('.sheet');
+    await page.fill('.sheet input >> nth=0', title);
+    await page.click(`button:has-text("${LABELS.createTask}")`);
+    await page.waitForTimeout(1200);
+    await page.keyboard.press('Escape');
+  }
+
+  await page.click(`button[aria-pressed][title="${LABELS.list}"]`);
+  await page.waitForSelector('.task-row', { timeout: 6000 });
+
+  const picked = [];
+  for (const title of titles) {
+    const row = page.locator('.task-row').filter({ hasText: title }).first();
+    await row.waitFor({ timeout: 6000 });
+    // A list row spells its identifier in `.id`; only a board card uses `.mono`.
+    picked.push((await row.locator('.id').first().innerText()).trim());
+    await row.locator(`input[aria-label="${LABELS.selectRow}"]`).check();
+  }
+
+  const bar = page.locator('.selection-bar');
+  await bar.waitFor({ timeout: 5000 });
+  const button = bar.locator(`button[title="${LABELS.moveToProject}"]`);
+  if (!(await button.count())) throw new Error('the selection bar offers no project');
+  await button.click();
+  await page.waitForTimeout(400);
+  await page.locator('[role=menuitem], [role=menuitemradio]').filter({ hasText: 'Mobile app' }).first().click();
+  await page.waitForTimeout(1600);
+
+  if (await page.locator('.selection-bar').count()) throw new Error('the selection outlived the move');
+
+  const stranded = await page.evaluate(async (identifiers) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    const rows = await json(`/api/workspaces/${ws}/tasks?limit=400`);
+    const projects = await json(`/api/workspaces/${ws}/projects`);
+    const mobile = (projects.projects ?? projects).find((one) => one.name === 'Mobile app')?.id;
+    return (rows.tasks ?? rows)
+      .filter((task) => identifiers.includes(task.identifier) && task.project_id !== mobile)
+      .map((task) => task.identifier);
+  }, picked);
+  if (stranded.length) throw new Error(`still where they were: ${stranded.join(', ')}`);
+  console.log('     ', picked.join(' and '), 'are in Mobile app');
+
+  // Left on the layout the step before it was using.
+  await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
+  await page.waitForSelector('.board-column', { timeout: 6000 });
 });
 
 /**
