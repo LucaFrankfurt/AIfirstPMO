@@ -1,5 +1,5 @@
 /**
- * Which tasks may be a task's parent.
+ * The walk over anything in this product that nests.
  *
  * A task tree that loops is not a tree: `A` under `B` under `A` makes a cycle,
  * and every walk over it — the breadcrumb, a roll-up, anything that asks "and
@@ -7,16 +7,27 @@
  * build one by hand until the parent became something a person could set, so
  * nothing had to say no.
  *
- * Kept apart from the store lookup, like the route parsing next door, because
- * this is the half with the edge cases and the half worth testing without a
- * browser: a task is not its own parent, nor its child's, nor its
- * grandchild's — and a tree that already loops, because two devices each made a
- * legal move offline, has to terminate rather than hang the screen that finds
- * it.
+ * Kept apart from the store lookup because this is the half with the edge
+ * cases and the half worth testing without a browser: a task is not its own
+ * parent, nor its child's, nor its grandchild's — and a tree that already
+ * loops, because two devices each made a legal move offline, has to terminate
+ * rather than hang the screen that finds it.
+ *
+ * It lived in the client until a task's *move* needed it too. Filing a task
+ * under another project takes its sub-tree with it, and the mutation that does
+ * that sits in a ring the client's design system is allowed to lean on rather
+ * than the other way round — so the choice was a second copy of the walk or
+ * this one, further down. `CLAUDE.md` is explicit about which: prefer moving
+ * the shared thing down over rearranging its callers. Nothing here was changed
+ * on the way, beyond the type's name: `Node` is too common a word for a
+ * barrel that exports a hundred of them and shadows the DOM's.
+ *
+ * The server asks the same questions of SQL rather than of a list — see
+ * `wouldLoop` in `write-path/repo.ts`, which is this file's twin and says so.
  */
 
-/** The least a task has to say for the walk to work. */
-export interface Node {
+/** The least a row has to say for the walk to work. */
+export interface Nested {
   id: string;
   parent_id: string | null;
 }
@@ -28,7 +39,7 @@ export interface Node {
  * level, so a deep tree costs one pass. `seen` is what makes an already-looped
  * tree terminate instead of spinning.
  */
-export function descendants(rootId: string, tasks: Node[]): Set<string> {
+export function descendants(rootId: string, tasks: Nested[]): Set<string> {
   const children = new Map<string, string[]>();
   for (const task of tasks) {
     if (!task.parent_id) continue;
@@ -55,7 +66,7 @@ export function descendants(rootId: string, tasks: Node[]): Set<string> {
  * the tree rather than its size — and it answers `true` for a task offered
  * itself, which is the case somebody actually clicks.
  */
-export function wouldLoop(taskId: string, parentId: string | null, tasks: Node[]): boolean {
+export function wouldLoop(taskId: string, parentId: string | null, tasks: Nested[]): boolean {
   if (!parentId) return false;
   if (parentId === taskId) return true;
   const byId = new Map(tasks.map((task) => [task.id, task]));
@@ -75,7 +86,7 @@ export function wouldLoop(taskId: string, parentId: string | null, tasks: Node[]
  * Bounded by `seen` for the same reason as the others: a row that arrived
  * already in a loop should draw a short breadcrumb, not freeze the sheet.
  */
-export function ancestry(taskId: string, tasks: Node[]): string[] {
+export function ancestry(taskId: string, tasks: Nested[]): string[] {
   const byId = new Map(tasks.map((task) => [task.id, task]));
   const chain: string[] = [taskId];
   const seen = new Set<string>([taskId]);

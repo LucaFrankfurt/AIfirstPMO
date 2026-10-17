@@ -4,7 +4,7 @@
  * round trip, online or off.
  */
 import {
-  compareOrder, orderKey, relocate,
+  compareOrder, descendants, orderKey, relocate,
   type EntityName, type PageFormat, type Priority, type ProjectVocabulary, type Task,
 } from '@kolibri/shared';
 import { now } from './clock';
@@ -117,7 +117,7 @@ function vocabularyOf(projectId: string): ProjectVocabulary {
 }
 
 /**
- * File a task under a different project.
+ * File a task under a different project, sub-tasks and all.
  *
  * Applied locally rather than left to the server, for the same reason a new
  * task is: the board has to lose the card and the destination has to gain it
@@ -125,25 +125,55 @@ function vocabularyOf(projectId: string): ProjectVocabulary {
  * same rule when the change arrives, so a client that is out of date about the
  * destination's columns cannot leave the row in one that does not exist.
  *
- * Returns false when there is nothing to do, so the caller can stay quiet about
- * a drop onto the project the task was already in.
+ * **The sub-tree moves, not the one card.** A sub-task is not filed on its
+ * own — it is part of the work above it, and the only list that shows it
+ * beside its siblings is that parent's. Leaving the children behind splits one
+ * job across two boards, each child wearing the old project's columns and
+ * labels and a breadcrumb pointing at a parent that is no longer there. The
+ * server does the same thing for a move that does not come from here; see
+ * `followParent` in the work rules.
+ *
+ * Returns how many tasks moved, so the caller can name the number — and zero
+ * when there was nothing to do, which is how a drop onto the project the task
+ * was already in stays quiet.
  */
-export function moveTaskToProject(task: Task, projectId: string): boolean {
+export function moveTaskToProject(task: Task, projectId: string): number {
   const destination = byId('project', projectId);
-  if (!destination || destination.archived || destination.is_container) return false;
-  if (task.project_id === projectId) return false;
+  if (!destination || destination.archived || destination.is_container) return 0;
+  if (task.project_id === projectId) return 0;
 
-  const first = list('task', (t) => t.project_id === projectId).sort(byOrder)[0];
-  update('task', task.id, {
-    ...relocate(task, vocabularyOf(task.project_id), vocabularyOf(projectId)),
-    project_id: projectId,
-    // It arrives at the top of its new project rather than wherever its old key
-    // happens to fall: two projects' orderings are unrelated, and a task
-    // landing in the middle of a list it has never been in is a task nobody
-    // sees arrive.
-    sort_order: orderKey(null, first?.sort_order ?? null),
-  });
-  return true;
+  // Every task in the mirror, not just this project's: a sub-tree may already
+  // span two projects, because a parent could be moved before this walk
+  // existed and `parent_id` has never been required to stay in one place.
+  const moving = [...descendants(task.id, list('task'))]
+    .map((id) => byId('task', id))
+    .filter((row): row is Task => !!row && row.project_id !== projectId);
+
+  const to = vocabularyOf(projectId);
+  const vocabularies = new Map<string, ProjectVocabulary>();
+  const from = (id: string): ProjectVocabulary => {
+    let known = vocabularies.get(id);
+    if (!known) vocabularies.set(id, known = vocabularyOf(id));
+    return known;
+  };
+
+  // They arrive at the top of their new project rather than wherever their old
+  // keys happen to fall: two projects' orderings are unrelated, and a task
+  // landing in the middle of a list it has never been in is a task nobody sees
+  // arrive. `descendants` answers parents before children, so the keys below
+  // keep the tree's own order rather than inverting it.
+  const top = list('task', (row) => row.project_id === projectId).sort(byOrder)[0]?.sort_order ?? null;
+  let previous: string | null = null;
+
+  for (const row of moving) {
+    previous = orderKey(previous, top);
+    update('task', row.id, {
+      ...relocate(row, from(row.project_id), to),
+      project_id: projectId,
+      sort_order: previous,
+    });
+  }
+  return moving.length;
 }
 
 export function toggleAssignee(task: Task, userId: string): void {

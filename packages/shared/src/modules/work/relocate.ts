@@ -25,7 +25,20 @@
  * - **`parent_id` and relations.** A task may already block a task in another
  *   project — the model has always allowed that, and it is useful. Moving a
  *   task is a filing decision, not a statement about what depends on it.
+ *
+ *   The *children* are a different question, and they do move: a sub-task is
+ *   part of the work above it rather than a filing of its own, so the sub-tree
+ *   follows. That is not this function's job — it answers for one task — but
+ *   both callers walk the tree and call it per row. See `moveTaskToProject` in
+ *   the client's mutations and `followParent` in the server's work rules.
  * - **Assignees.** People belong to the workspace, not to a project.
+ * - **Time already logged.** An entry carries the project it was booked
+ *   against, and that project is where the hours went. Rewriting them would
+ *   move money between two budgets to tidy a board.
+ * - **The old project's custom field values.** They stay on the row, unread by
+ *   a screen that only ever shows the current project's fields — and they are
+ *   still there, answered, if the task is ever filed back. Clearing them would
+ *   throw away something somebody typed to make a move look tidier.
  */
 import { compareOrder } from '../../kernel/registry/order.ts';
 import type { ID, StateGroup } from '../../kernel/registry/types.ts';

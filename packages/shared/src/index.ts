@@ -1,6 +1,7 @@
 export * from './kernel/registry/types.ts';
 export * from './kernel/registry/entities.ts';
 export * from './kernel/registry/order.ts';
+export * from './kernel/registry/family.ts';
 export * from './modules/work/duration.ts';
 export * from './adapters/transfer/csv.ts';
 export * from './adapters/transfer/import.ts';

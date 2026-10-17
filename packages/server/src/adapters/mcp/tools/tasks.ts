@@ -306,12 +306,16 @@ export const taskTools: ToolDef[] = [
   {
     name: 'update_task',
     title: 'Update task',
-    description: 'Change any field of a task: title, description, state, priority, assignees, dates, cycle, module, parent.',
+    description: 'Change any field of a task: title, description, state, priority, assignees, dates, cycle, module, parent — and the project it is filed in.',
     schema: {
       type: 'object',
       required: ['task'],
       properties: {
         task: { type: 'string' },
+        project: {
+          type: 'string',
+          description: 'File the task under another project — id, key or name. Its state and labels are re-resolved there by meaning rather than by name, a cycle or module the destination is outside of is cleared, its sub-tasks follow it, and its identifier does not change.',
+        },
         title: { type: 'string' },
         description: { type: 'string' },
         state: { type: 'string' },
@@ -336,7 +340,28 @@ export const taskTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       const task = findTask(String(args.task), workspaceId, ctx);
+      /**
+       * The destination, resolved before anything else is.
+       *
+       * Everything project-scoped in this call has to be read against the
+       * project the task is *going to*, not the one it is leaving:
+       * `update_task(task, {project: 'API', state: 'Doing'})` means the API
+       * project's "Doing", and resolving it against the old project either
+       * finds the wrong column or refuses a name that does exist. The move and
+       * the fields arrive in one call because that is one edit to whoever is
+       * making it.
+       */
+      const destination = args.project === undefined
+        ? undefined
+        : findProject(String(args.project), workspaceId, ctx);
+      // A container holds projects, not tasks. The write path refuses this as
+      // well — through `forced`, which an assistant would read as success.
+      if (destination && Number(destination.is_container ?? 0) === 1) {
+        throw new McpError(`${destination.name} is a container — it holds projects, not tasks`);
+      }
+      const scope = String(destination?.id ?? task.project_id);
       const patch: Record<string, unknown> = {};
+      if (destination && destination.id !== task.project_id) patch.project_id = destination.id;
       if (args.title !== undefined) patch.title = String(args.title);
       if (args.description !== undefined) patch.description = args.description;
       if (args.priority !== undefined) patch.priority = args.priority;
@@ -347,9 +372,9 @@ export const taskTools: ToolDef[] = [
       if (args.estimate !== undefined) patch.estimate = args.estimate;
       if (args.archived !== undefined) patch.archived = args.archived ? 1 : 0;
       if (args.assignees !== undefined) patch.assignees = resolveUsers(workspaceId, args.assignees);
-      if (args.labels !== undefined) patch.labels = resolveLabels(workspaceId, task.project_id, args.labels, ctx);
+      if (args.labels !== undefined) patch.labels = resolveLabels(workspaceId, scope, args.labels, ctx);
       if (args.state !== undefined) {
-        const state = resolveState(task.project_id, String(args.state));
+        const state = resolveState(scope, String(args.state));
         if (!state) throw new McpError(`No state matching "${args.state}" in this project`);
         patch.state_id = state.id;
       }

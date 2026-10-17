@@ -664,6 +664,42 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       lands there. It used to append to the end of the target
       column. Fractional indexing already supports inserting between two neighbours — the drop
       handler just needs the index under the cursor.
+- [x] **A task can be moved to another project from anywhere, and it takes its sub-tasks.**
+      The rule for the move has been in `@kolibri/shared` since the board learned to drop a card on
+      a project in the sidebar: re-resolve everything scoped to the old project against the new one
+      — the column by *meaning* rather than by name, so "In Arbeit" lands in "Doing"; labels by the
+      word they spell; a cycle or module cleared unless it covers the destination too — and keep the
+      identifier, because `WEB-3` is an address somebody pasted into a commit message.
+      **What was missing was every way in but one.** The move lived on the board card's own menu and
+      on an HTML5 drag onto the sidebar, so a task opened from a list, a table, a search hit, the
+      calendar, My Work or a pasted link could not leave its project at all, a selection of forty
+      could not be refiled in one go, and `update_task` over MCP could change every field of a task
+      except the one that decides which board it is on. The sheet has a `ProjectPicker` beside its
+      other pickers now, the selection bar has the one menu there that does *not* need the rows to
+      share a project — "file all of this over there" means the same thing whatever they start out
+      as, and a mixed selection is exactly when somebody is tidying — and `update_task` takes
+      `project`, resolving anything else in the same call against the project the task is moving
+      *to*, because `{project: "API", state: "Doing"}` means the destination's column.
+      **The sub-tasks follow.** They did not, and the result was one job split across two boards:
+      the parent on the new one, its children on the old one, each still wearing the old project's
+      column and each breadcrumb pointing at a parent that had left. A sub-task is part of the work
+      above it rather than a filing of its own. The client walks the sub-tree so the board reacts
+      without a round trip, and `followParent` in the work rules does the same for a `PATCH` that
+      never came from a screen — each child's write recursing into its own children, terminating on
+      "already in the destination", which is what makes a tree that arrived looped from two offline
+      devices return rather than hang.
+      That walk is why `ancestry`/`descendants`/`wouldLoop` moved down out of the client's design
+      system into `@kolibri/shared`: the mutation that needs it sits in a ring the design system
+      leans on rather than the other way round, so the choice was a second copy of the walk or one
+      copy further down, and `CLAUDE.md` is explicit about which.
+      **And a container is refused.** A project with tasks in it has always been refused the
+      container flag; nothing stopped the move in the other direction, and a container draws a list
+      of projects rather than a board — so the task arrived somewhere with no screen that shows it.
+      Through `forced` on the write path, where a batch from a device that has been away must not
+      fail; out loud over MCP, where an assistant would read a corrected field as success.
+      Deliberately untouched: relations, assignees, the hours already booked against the old
+      project, and that project's custom field values — which are still answered if the task is ever
+      filed back.
 - [x] **Comment reactions.** Six of them, counted, with who reacted in the tooltip.
 - [x] **Gantt layout, and the scheduling behind it.** All five layouts are built. Bars are dragged
       to move and resized at the edges, `blocks` relations are drawn as arrows, and moving a task
