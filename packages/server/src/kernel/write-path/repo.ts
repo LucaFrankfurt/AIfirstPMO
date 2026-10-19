@@ -5,6 +5,7 @@ import {
   findMentions as mentionsIn,
   hlcGreater,
   htmlText,
+  projectScope,
   reconcileReactions,
   type CrdtState,
   type EntityName,
@@ -720,6 +721,42 @@ export function parseIds(value: unknown): string[] {
     try { return (JSON.parse(value) as unknown[]).filter((v): v is string => typeof v === 'string'); } catch { return []; }
   }
   return [];
+}
+
+/**
+ * The canonical `project_id`/`projects` pair, for the four entities scoped that
+ * way: a cycle, a milestone, a KPI and a budget.
+ *
+ * `projectScope` in `@kolibri/shared` is the rule — one project's own, a named
+ * few, or every project, and never the fourth combination of an owner *and* a
+ * list. This is the half the write path needs around it: read the list off a
+ * patch where it may be an array or already-encoded JSON, and put the pair back
+ * through `forced` so a client that sent something else is told rather than
+ * silently disagreed with.
+ *
+ * Here rather than in each rule because it was written twice already, letter
+ * for letter, in `kpis.ts` and `budgets.ts` — and a cycle and a milestone, the
+ * two entities whose *scope* is the thing people actually edit, had it in
+ * neither. The scope docblock has always claimed the server normalises on the
+ * way in; for half the entities it says that about, it did not.
+ */
+export function settleProjectScope(
+  values: Record<string, unknown>, forced: Record<string, unknown>,
+): void {
+  if (values.project_id === undefined && values.projects === undefined) return;
+  const scope = projectScope({
+    project: (values.project_id as string | null) ?? null,
+    projects: parseIds(values.projects),
+  });
+  if (values.project_id !== scope.project_id) {
+    values.project_id = scope.project_id;
+    forced.project_id = scope.project_id;
+  }
+  const encoded = JSON.stringify(scope.projects);
+  if (values.projects !== encoded) {
+    values.projects = encoded;
+    forced.projects = encoded;
+  }
 }
 
 /* ------------------------------------------------------------- visibility */

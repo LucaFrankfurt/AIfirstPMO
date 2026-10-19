@@ -49,6 +49,7 @@ const LABELS = {
     taskParent: 'Parent',
     reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
+    cancel: 'Cancel', confirmTitle: 'Are you sure?', moreActions: 'More actions', tasksTab: 'Tasks',
     assignees: 'Assignees', filterBox: 'Filter…',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
@@ -70,6 +71,7 @@ const LABELS = {
     taskParent: 'Übergeordnet',
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
+    cancel: 'Abbrechen', confirmTitle: 'Sicher?', moreActions: 'Weitere Aktionen', tasksTab: 'Aufgaben',
     assignees: 'Zuständig', filterBox: 'Filtern…',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
@@ -91,6 +93,7 @@ const LABELS = {
     taskParent: 'Tâche parente',
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
+    cancel: 'Annuler', confirmTitle: 'Confirmer ?', moreActions: 'Autres actions', tasksTab: 'Tâches',
     assignees: 'Assignés', filterBox: 'Filtrer…',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
@@ -384,6 +387,143 @@ await step('a cycle board does not repeat the cycle on every card', async () => 
   await page.click('.sidebar a:has-text("Website")');
   await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
   await page.waitForSelector('.board-column', { timeout: 5000 });
+});
+
+/**
+ * Widening a cycle to a second project, and what it says about the work.
+ *
+ * The toggle used to render only while a cycle was being made, on the argument
+ * that re-scoping a running one can strand work. That left the interface with
+ * no way at all to add a project to a fortnight — the answer to "and Mobile is
+ * in this sprint too" was to delete the cycle and build it again, which strands
+ * everything in it rather than the part that no longer fits.
+ *
+ * Driven here rather than left to a unit test because the two halves that
+ * matter are both on screen: that the control is there on an *existing* cycle
+ * with the stored scope already selected, and that narrowing it names the tasks
+ * it would leave behind before the save rather than after. The server is asked
+ * at the end, because a scope that only the local store believes in is the
+ * failure this would otherwise hide.
+ */
+await step('an existing cycle can be re-scoped, and says what that costs', async () => {
+  await page.keyboard.press('Escape');
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.waitForTimeout(600);
+
+  /* Its own cycle and its own tasks: a step that re-scopes something a later
+     step reads is a step that passes once. The work goes in from the API — the
+     point here is the warning, not data entry. */
+  const label = `Smoke: re-scoped ${Date.now().toString(36)}`;
+  const built = await page.evaluate(async (name) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const call = async (path, body) => {
+      const response = await fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: body ? { 'content-type': 'application/json' } : {},
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return response.json();
+    };
+    const all = await call(`/api/workspaces/${ws}/projects`);
+    const projects = all.projects ?? all;
+    const web = projects.find((one) => one.name === 'Website');
+    const api = projects.find((one) => one.name === 'Public API');
+    const cycle = await call(`/api/workspaces/${ws}/cycles`, {
+      project_id: null, projects: [web.id, api.id], name,
+      start_date: '2026-11-01', end_date: '2026-11-14',
+    });
+    const risked = await call(`/api/workspaces/${ws}/tasks`, {
+      project_id: api.id, title: 'Smoke: would be stranded', cycle_id: cycle.id,
+    });
+    const kept = await call(`/api/workspaces/${ws}/tasks`, {
+      project_id: web.id, title: 'Smoke: stays covered', cycle_id: cycle.id,
+    });
+    return { web: web.id, cycleId: cycle.id, risked: risked.identifier, kept: kept.identifier };
+  }, label);
+
+  // The rows were made behind the client's back, so it has to pull them.
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.sidebar', { timeout: 15000 });
+  await page.waitForTimeout(2500);
+  await closeTour(page);
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.click(`.tabs button:has-text("${LABELS.cycles}")`);
+  await page.waitForSelector('.grid > div', { timeout: 6000 });
+
+  const card = page.locator('.grid > div').filter({ hasText: label }).first();
+  await card.locator(`button[aria-label="${LABELS.moreActions}"]`).click();
+  await page.getByRole('menuitem', { name: LABELS.edit }).click();
+  await page.waitForSelector('.sheet #c-scope', { timeout: 6000 });
+
+  // The stored scope, read back: a cycle two projects run reopens on "chosen".
+  const shown = await page.locator('.sheet #c-scope').inputValue();
+  if (shown !== 'some') throw new Error(`a shared cycle reopened on "${shown}" rather than its own scope`);
+
+  await page.locator('.sheet .check-row').filter({ hasText: 'Public API' }).locator('input').uncheck();
+  await page.waitForTimeout(600);
+
+  const sheet = await page.locator('.sheet').innerText();
+  if (!sheet.includes(built.risked)) throw new Error(`the warning does not name ${built.risked}`);
+  if (sheet.includes(built.kept)) throw new Error(`the warning names ${built.kept}, whose project is still covered`);
+
+  /* The confirm is a second Sheet over the editor, so the one to press is the
+     last on screen. Declining first, because a warning nobody can back out of
+     is not a warning. */
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.save }).click();
+  await page.waitForSelector('.sheet:has-text("' + LABELS.confirmTitle + '")', { timeout: 6000 });
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.cancel }).click();
+  await page.waitForTimeout(1200);
+
+  const afterCancel = await page.evaluate(async (id) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const rows = await (await fetch(`/api/workspaces/${ws}/cycles`, { credentials: 'include' })).json();
+    const cycle = (rows.cycles ?? rows).find((one) => one.id === id);
+    return (cycle.projects ?? []).length;
+  }, built.cycleId);
+  if (afterCancel !== 2) throw new Error(`declining the confirm re-scoped it anyway (${afterCancel} projects)`);
+
+  // And now through.
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.save }).click();
+  await page.waitForTimeout(700);
+  if (await page.locator('.sheet').count() > 1) {
+    await page.locator('.sheet').last().getByRole('button', { name: LABELS.save }).click();
+  }
+  await page.waitForTimeout(1800);
+
+  const landed = await page.evaluate(async (info) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    const rows = await json(`/api/workspaces/${ws}/cycles`);
+    const cycle = (rows.cycles ?? rows).find((one) => one.id === info.cycleId);
+    const tasks = await json(`/api/workspaces/${ws}/tasks?limit=400`);
+    const mine = (tasks.tasks ?? tasks).filter((one) => [info.risked, info.kept].includes(one.identifier));
+    return {
+      owner: cycle.project_id,
+      shared: (cycle.projects ?? []).length,
+      stillIn: mine.filter((one) => one.cycle_id === info.cycleId).map((one) => one.identifier),
+    };
+  }, built);
+
+  if (landed.shared) throw new Error(`a list of one should have collapsed to an owner, got ${landed.shared}`);
+  if (landed.owner !== built.web) throw new Error('the cycle did not narrow to the project that was left ticked');
+  /* The whole point of the warning: it tells you, it does not tidy up for you.
+     A task taken out of a sprint as a side effect of an edit is the data loss
+     the old create-only toggle was avoiding. */
+  if (landed.stillIn.length !== 2) {
+    throw new Error(`work was taken out of the cycle: ${landed.stillIn.join(', ') || 'none left'}`);
+  }
+  console.log(`      ${built.risked} is still in the cycle its project left, and ${built.kept} is untouched`);
+
+  /* Back where the walkthrough was. The sidebar link alone is not enough:
+     this step ends on the Cycles tab, and the layout toggle lives on Tasks. */
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.click(`.tabs button:has-text("${LABELS.tasksTab}")`);
+  await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
+  await page.waitForSelector('.board-column', { timeout: 6000 });
 });
 
 /**

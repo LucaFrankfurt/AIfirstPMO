@@ -127,15 +127,16 @@ export const planningTools: ToolDef[] = [
         }
         patch.status = status;
       }
-      /* Re-scoping. Offered here and not in the interface, where the toggle is
-         create-only: an assistant asked to "add Mobile to the fortnight" has
-         somewhere to do it, and gets told what it did to the work.
+      /* Re-scoping. The interface can do this too now — its toggle was
+         create-only when this was written, which made an assistant the only
+         way to widen a fortnight to a second project.
 
          Tasks already in the cycle are **not** touched. Dropping a project
          could orphan its tasks from a cycle somebody deliberately put them in,
          and doing that silently as a side effect of an edit is the kind of
-         data loss nobody attributes to the right action. The count comes back
-         instead, so the caller can decide. */
+         data loss nobody attributes to the right action. The names come back
+         instead, so the caller can decide; the sheet shows the same list
+         before the save rather than after it. */
       let stranded: Row[] = [];
       if (args.project !== undefined || args.projects !== undefined) {
         const scope = resolveScope(args, workspaceId, ctx);

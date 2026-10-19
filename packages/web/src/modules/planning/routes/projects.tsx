@@ -618,23 +618,63 @@ function Cycles({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * Making a cycle, and changing one — including what it covers.
+ *
+ * The scope used to be create-only, on the argument that re-scoping a running
+ * cycle can strand work and that doing so behind a dropdown which looks like a
+ * setting is how data goes missing without anybody attributing it to the click.
+ * The argument was right about the danger and wrong about the remedy: it left
+ * the only way to widen a fortnight to a second project an MCP call, so the
+ * answer to "add Mobile to this sprint" in the interface was to delete the
+ * cycle and build it again — which strands *everything* in it rather than the
+ * part that no longer fits.
+ *
+ * So the control is here, and the consequence is on screen *before* the save
+ * rather than reported after it: the tasks that would be left in a cycle their
+ * project is no longer covered by are named, by identifier, as the scope is
+ * chosen. Named rather than counted, for the reason `update_cycle` names them —
+ * "3 tasks" is a number somebody then has to go and find.
+ *
+ * Nothing is moved either way. A task keeps its `cycle_id`; dropping a project
+ * out of a cycle is a decision about the cycle, and taking somebody's task out
+ * of a sprint is a different decision that is not this form's to make. The
+ * server applies the same rule, so an import and an assistant land the same
+ * shape — see `settleProjectScope` and the planning rules.
+ */
 function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycleId?: string; onClose: () => void }) {
   const t = useT();
   const cycle = useRow('cycle', cycleId);
+  const { confirm, dialog } = useConfirm();
   const [form, setForm] = useState({
     name: cycle?.name ?? '',
     description: cycle?.description ?? '',
     start_date: cycle?.start_date ?? today(),
     end_date: cycle?.end_date ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
   });
-  /* Scope is chosen once, when the cycle is made, and not changed here.
-     Re-scoping a running cycle can strand work — tasks in a project the cycle
-     no longer covers — and doing that behind a dropdown that looks like a
-     setting is how data goes missing without anybody attributing it to the
-     click. `update_cycle` over MCP will do it and reports what it stranded;
-     this form does not offer it. */
-  const [scope, setScope] = useState<'this' | 'some' | 'all'>('this');
-  const [picked, setPicked] = useState<string[]>([projectId]);
+
+  /*
+   * The stored pair read back as the three choices the form offers — the
+   * inverse of `projectScope`, which is what the save writes.
+   *
+   * A cycle this tab can show either names this project or names none, so
+   * `project_id` set is almost always "this project". Almost: a cycle reached
+   * by a link after the project was re-filed could name another one, and
+   * calling that "this project" would quietly move it on the next save. It
+   * comes out as the list of one it is, which `projectScope` stores back as
+   * the owner it was.
+   */
+  const listed = cycle?.projects ?? [];
+  const owner = cycle?.project_id ?? null;
+  const [scope, setScope] = useState<'this' | 'some' | 'all'>(() => {
+    if (!cycleId) return 'this';
+    if (listed.length) return 'some';
+    return owner ? (owner === projectId ? 'this' : 'some') : 'all';
+  });
+  const [picked, setPicked] = useState<string[]>(
+    () => (listed.length ? [...listed] : [owner ?? projectId]),
+  );
+
   /* The same list QuickAdd offers, and scoped the same way: this workspace's
      (the local store holds the ones from before a switch too), not archived,
      and no containers — a container holds projects rather than tasks, so it is
@@ -646,60 +686,84 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     [workspaceId],
   );
 
-  const save = () => {
+  const chosen = scope === 'this' ? { project: projectId }
+    : scope === 'all' ? {}
+      : { projects: picked };
+  const settled = projectScope(chosen);
+
+  /*
+   * The work this scope would leave behind, by identifier.
+   *
+   * Only ever on an edit — a cycle being made holds nothing yet. `coversProject`
+   * is the same function the server's SQL mirrors, so what this warns about and
+   * what `update_cycle` reports cannot disagree.
+   */
+  const stranded = useQuery(
+    () => (cycleId
+      ? list('task', (task) => task.cycle_id === cycleId && !coversProject(settled, task.project_id))
+      : []),
+    [cycleId, settled.project_id, settled.projects.join(',')],
+  );
+
+  const save = async () => {
     if (!form.name.trim()) return;
+    if (scope === 'some' && !picked.length) return;
     if (cycleId) {
-      update('cycle', cycleId, form);
+      /* Asked once, and only when there is actually something to lose: the
+         names are already on screen, and this is the deliberate second step a
+         delete has. The label is given because `confirm` says "Delete" by
+         default and nothing here is deleted — a danger button reading "Delete"
+         over a sentence promising nothing is removed is a contradiction the
+         reader has to resolve under time pressure. */
+      if (stranded.length
+        && !(await confirm(t('cycle.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
+      update('cycle', cycleId, { ...form, ...settled });
     } else {
       // `projectScope` is what the server would apply anyway; applying it here
       // too means the row this device writes into its own store is already the
       // canonical shape, rather than one that changes under it on the next pull.
-      const chosen = scope === 'this' ? { project: projectId }
-        : scope === 'all' ? {}
-          : { projects: picked };
-      create('cycle', { ...form, ...projectScope(chosen) });
+      create('cycle', { ...form, ...settled });
     }
     onClose();
   };
 
   return (
-    <Sheet
-      title={cycleId ? t('cycle.edit') : t('cycle.new')}
-      onClose={onClose}
-      footer={(
-        <Button
-          variant="primary"
-          onClick={save}
-          disabled={!form.name.trim() || (!cycleId && scope === 'some' && !picked.length)}
-        >
-          {t('action.save')}
-        </Button>
-      )}
-    >
-      <div className="field">
-        <label htmlFor="c-name">{t('cycle.name')}</label>
-        <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
-      </div>
-      <div className="field-row">
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="c-start">{t('cycle.starts')}</label>
-          <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
+    <>
+      <Sheet
+        title={cycleId ? t('cycle.edit') : t('cycle.new')}
+        onClose={onClose}
+        footer={(
+          <Button
+            variant="primary"
+            onClick={() => void save()}
+            disabled={!form.name.trim() || (scope === 'some' && !picked.length)}
+          >
+            {t('action.save')}
+          </Button>
+        )}
+      >
+        <div className="field">
+          <label htmlFor="c-name">{t('cycle.name')}</label>
+          <Input id="c-name" autoFocus value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} />
         </div>
-        <div className="field flex-1 min-w-0">
-          <label htmlFor="c-end">{t('cycle.ends')}</label>
-          <Input id="c-end" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
+        <div className="field-row">
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="c-start">{t('cycle.starts')}</label>
+            <Input id="c-start" type="date" value={form.start_date ?? ''} onChange={(event) => setForm({ ...form, start_date: event.target.value })} />
+          </div>
+          <div className="field flex-1 min-w-0">
+            <label htmlFor="c-end">{t('cycle.ends')}</label>
+            <Input id="c-end" type="date" value={form.end_date ?? ''} onChange={(event) => setForm({ ...form, end_date: event.target.value })} />
+          </div>
         </div>
-      </div>
-      <div className="field">
-        <label>{t('cycle.goal')}</label>
-        <MarkdownEditor
-          value={form.description ?? ''} minHeight={90}
-          onChange={(value) => setForm({ ...form, description: value })}
-        />
-      </div>
+        <div className="field">
+          <label>{t('cycle.goal')}</label>
+          <MarkdownEditor
+            value={form.description ?? ''} minHeight={90}
+            onChange={(value) => setForm({ ...form, description: value })}
+          />
+        </div>
 
-      {/* Offered only when making one — see the note on `scope` above. */}
-      {!cycleId && (
         <div className="field">
           <label htmlFor="c-scope">{t('cycle.scope')}</label>
           <Select id="c-scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
@@ -733,9 +797,32 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
               {!picked.length && <span className="text-[12px] text-danger">{t('cycle.scopePickOne')}</span>}
             </div>
           )}
+
+          {/* What it would cost, while the choice is still being made. Nothing
+              is removed — said plainly, because "stranded" otherwise reads as
+              "deleted" to the person about to press Save. */}
+          {stranded.length > 0 && (
+            <div className="mt-2.5 rounded-[var(--radius-sm)] border border-line bg-sunken p-2.5">
+              <strong className="block text-[12.5px] text-danger">
+                {t('cycle.scopeStrandTitle', { count: stranded.length })}
+              </strong>
+              <span className="mt-1 flex flex-wrap items-center gap-1.5">
+                {stranded.slice(0, 12).map((task) => (
+                  <span className={chipVariants()} key={task.id} title={task.title}>
+                    <span className="mono">{task.identifier}</span>
+                  </span>
+                ))}
+                {stranded.length > 12 && (
+                  <span className="text-[12px] text-muted">{t('cycle.scopeStrandMore', { count: stranded.length - 12 })}</span>
+                )}
+              </span>
+              <span className="mt-1.5 block text-[12px] text-muted">{t('cycle.scopeStrandHint')}</span>
+            </div>
+          )}
         </div>
-      )}
-    </Sheet>
+      </Sheet>
+      {dialog}
+    </>
   );
 }
 
@@ -847,11 +934,15 @@ function Modules({ projectId }: { projectId: string }) {
     [workspaceId],
   );
   const [name, setName] = useState('');
-  /* Chosen when the module is made and not changed here, as a cycle's is.
-     Narrowing a running milestone strands the dropped projects' work in it, and
-     doing that behind a control that looks like a setting is how data goes
-     missing without anybody attributing it to the click. `update_module` over
-     MCP will do it and reports what it stranded. */
+  /* Chosen when the milestone is made, and not changed here — which a cycle's
+     scope no longer is, so this is now the odd one out rather than the pair.
+     The same remedy applies: narrowing a running milestone strands the dropped
+     projects' work in it, and a control that says so before the save, naming
+     the tasks the way `CycleEditor` above does, is what this needs. It wants
+     an editor of its own first; a milestone is edited through a card and a
+     menu, not a sheet, and a warning has nowhere to sit on a card.
+     `update_module` over MCP will re-scope one today and reports what it
+     stranded. */
   const [scope, setScope] = useState<'this' | 'some' | 'all'>('this');
   const [picked, setPicked] = useState<string[]>([projectId]);
 

@@ -1,15 +1,20 @@
 /**
- * Dates that move other dates.
+ * Dates that move other dates, and what a cycle or a milestone covers.
  *
  * A task's dates changing, or a `blocks` link gaining a wait, moves everything
  * downstream of it. The interface already does this itself so a Gantt works
  * offline; this is the same rule where the interface is not the caller — a
  * `PATCH` over REST, an MCP call, an import, an automation.
+ *
+ * The scope of a cycle and a milestone is the other half, and it is here for
+ * the same reason: those two are the entities whose scope somebody actually
+ * edits, and until the interface could edit it, only MCP normalised it on the
+ * way in. See `settleProjectScope`.
  */
 
 import { reschedule } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
-import { type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
+import { type EntityRule, settleProjectScope, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 
 let cascading = false;
 
@@ -92,12 +97,26 @@ function cascadeSchedule(row: Row, opts: WriteOpts): void {
 
 
 export const planningRules = {
-  entities: ['task', 'relation', 'timeEntry'],
+  entities: ['task', 'relation', 'timeEntry', 'cycle', 'module'],
   defaults(entity, id, values, opts, setForced) {
     if (entity === 'timeEntry') {
       setForced('user_id', opts.actorId);
       if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
     }
+  },
+  /**
+   * What a cycle or a milestone covers, stored one way.
+   *
+   * On a create as well as an edit, because an import and a seeded workspace
+   * come through the same door. Nothing here moves work: a task whose project
+   * the cycle no longer covers keeps its `cycle_id`, which is the rule
+   * `update_cycle` over MCP states and reports on, and the one the interface
+   * now shows before the save rather than after. Dropping a project out of a
+   * cycle is a filing decision about the cycle; taking somebody's task out of
+   * a sprint is a different decision, and not one to make as a side effect.
+   */
+  invariants(entity, id, values, existing, forced) {
+    if (entity === 'cycle' || entity === 'module') settleProjectScope(values, forced);
   },
   effects(entity, row, before, changed, opts) {
     if (entity === 'task' && (changed.start_date !== undefined || changed.due_date !== undefined)) {

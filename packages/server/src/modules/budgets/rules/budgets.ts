@@ -7,9 +7,9 @@
  * and `lib/wiring.ts` for where they are hung on.
  */
 
-import { type Allocation, BUDGET_STATUS, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, type EntityName, normaliseAllocations, projectScope, SPEND_STAGES } from '@kolibri/shared';
+import { type Allocation, BUDGET_STATUS, COST_CATEGORIES, COST_CONFIDENCE, COST_KINDS, COST_RECURRENCES, type EntityName, normaliseAllocations, SPEND_STAGES } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
-import { type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
+import { type EntityRule, settleProjectScope, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 
 /** The four tables a budget is made of. */
 const BUDGET_ENTITIES = new Set<EntityName>(['budget', 'budgetLine', 'budgetActual', 'budgetScenario']);
@@ -56,19 +56,7 @@ function applyBudgetInvariants(entity: EntityName, values: Record<string, unknow
   };
 
   if (entity === 'budget') {
-    // The fourth combination — an owner *and* a list — is never stored, so no
-    // reader downstream has to decide which of two fields wins.
-    if (values.project_id !== undefined || values.projects !== undefined) {
-      let listed: unknown = values.projects;
-      if (typeof listed === 'string') { try { listed = JSON.parse(listed); } catch { listed = []; } }
-      const scope = projectScope({
-        project: (values.project_id as string | null) ?? null,
-        projects: Array.isArray(listed) ? listed.filter((row): row is string => typeof row === 'string') : [],
-      });
-      if (values.project_id !== scope.project_id) settle('project_id', scope.project_id);
-      const encoded = JSON.stringify(scope.projects);
-      if (values.projects !== encoded) settle('projects', encoded);
-    }
+    settleProjectScope(values, forced);
     oneOf('status', BUDGET_STATUS, 'draft');
     whole('approved');
     // ISO 4217 is three letters, upper case. A currency this server has never
