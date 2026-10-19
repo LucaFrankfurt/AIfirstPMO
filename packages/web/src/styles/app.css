@@ -1141,20 +1141,31 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .planner-scroll { display: flex; overflow: auto; border: 1px solid var(--line); border-radius: var(--radius-sm); }
 .planner-names { position: sticky; inset-inline-start: 0; z-index: 2; flex: none; width: 180px; background: var(--bg); border-inline-end: 1px solid var(--line); }
 .planner-head { height: 24px; position: relative; border-bottom: 1px solid var(--line); background: var(--bg); }
+.planner-plot .planner-head, .planner-rows { width: 100%; }
 .planner-name { display: flex; align-items: center; gap: 7px; padding: 0 10px; font-size: 12.5px; overflow: hidden; border-bottom: 1px solid var(--line); }
 .planner-name .truncate { min-width: 0; flex: 1; }
-.planner-plot { position: relative; flex: none; }
+/* Grows into whatever the names column leaves, never shrinks below its days.
+   A four-week window is 348px of timeline; without this it was 348px of lane
+   in a full-width box, with the row rules and the today line stopping in
+   mid-air and the weeks control appearing to shift the view rather than
+   lengthen it. The days stay 12px — what grows is empty timeline. */
+.planner-plot { position: relative; flex: 1 0 auto; }
 .planner-week {
   position: absolute; top: 0; height: 24px; display: flex; align-items: center; padding-inline-start: 5px;
   font-size: 11px; color: var(--fg-muted); border-inline-start: 1px solid var(--line); overflow: hidden; white-space: nowrap;
 }
 .planner-rows { position: relative; }
 .planner-today { position: absolute; inset-block: 0; width: 1px; background: var(--accent); opacity: .55; z-index: 3; }
-.planner-lane { position: absolute; border-bottom: 1px solid var(--line); }
+.planner-lane { position: absolute; inset-inline: 0; border-bottom: 1px solid var(--line); }
 /* The load strip: one block per day at the foot of the lane, darker the more is
    running. Under the bars rather than behind them, so neither hides the other. */
 .planner-load { position: absolute; bottom: 2px; height: 5px; background: var(--chart-1); }
 .planner-load.over { background: var(--danger); }
+/* The busiest day in a person's row, against the comfortable figure above. Over
+   the line it is said in weight as well as colour, and the title says it in
+   words — the same rule the load strip follows. */
+.planner-peak { font-size: 11.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+.planner-peak.over { color: var(--danger); font-weight: 650; }
 /* 24px tall and never narrower than 24 wide. A bar's *length* means something —
    it is how long the task runs — so a one-day bar is allowed to be short, but
    not so short that dragging it is a game of accuracy. It grows rightwards past

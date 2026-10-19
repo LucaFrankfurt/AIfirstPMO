@@ -74,8 +74,38 @@ export function Planner() {
   const [limit, setLimit] = useState(() => Number(localStorage.getItem(LIMIT_KEY)) || 3);
   const [drag, setDrag] = useState<{ id: string; x: number; y: number; days: number; lane: string | null } | null>(null);
   const board = useRef<HTMLDivElement>(null);
+  const plot = useRef<HTMLDivElement>(null);
+  /**
+   * How wide the timeline is actually drawn.
+   *
+   * Its *content* is the window in days — four weeks is 29 days is 348px — and
+   * for a short window that left the lanes stopping a third of the way across a
+   * full-width box: row rules ending in mid-air, the today line ending with
+   * them, and a name clipped at an edge with empty space beyond it. Changing
+   * the weeks moved that edge, which is what made the control feel like it was
+   * shifting the view rather than lengthening it.
+   *
+   * So the plot grows to fill what is there (`flex: 1 0 auto`, never shrinking
+   * below its days) and the lanes span it. The days stay 12px either way — the
+   * extra is empty timeline, not a stretched one. Measured rather than
+   * computed, because what is left over depends on a sidebar that folds.
+   */
+  const [drawn, setDrawn] = useState(0);
 
   useEffect(() => { localStorage.setItem(LIMIT_KEY, String(limit)); }, [limit]);
+
+  useEffect(() => {
+    const element = plot.current;
+    if (!element) return;
+    const measure = () => setDrawn(element.clientWidth);
+    measure();
+    // Guarded: this runs in a browser, and the one place that renders it
+    // without one is a test environment that has no observer to give.
+    if (typeof ResizeObserver === 'undefined') return;
+    const watching = new ResizeObserver(measure);
+    watching.observe(element);
+    return () => watching.disconnect();
+  }, []);
 
   const tasks = useQuery(
     () => list('task', (task) => !task.archived && (!!task.start_date || !!task.due_date)),
@@ -213,6 +243,8 @@ export function Planner() {
   if (!members.length) return <Empty emoji="👥" title={t('planner.emptyTitle')} hint={t('planner.emptyHint')} guide="teams" />;
 
   const width = totalDays * DAY_WIDTH;
+  // What the lanes are drawn across: the days, or the box, whichever is wider.
+  const room = Math.max(width, drawn);
   const nowX = x(today());
 
   return (
@@ -243,17 +275,40 @@ export function Planner() {
       <div className="planner-scroll" ref={board}>
         <div className="planner-names">
           <div className="planner-head" />
-          {lanes.map((lane) => (
-            <div className="planner-name" key={lane.id} style={{ height: lane.height }}>
-              {lane.user ? <Avatar user={lane.user} size={20} /> : <Icon name="inbox" size={15} />}
-              <span className="truncate">{lane.name}</span>
-              <span className="text-muted text-[11.5px]">{lane.tasks.length}</span>
-            </div>
-          ))}
+          {lanes.map((lane) => {
+            /*
+             * The busiest day, not the pile.
+             *
+             * This used to be `lane.tasks.length` — everything of theirs in the
+             * window — which is the one number the comfortable figure above has
+             * nothing to say about. Somebody typing a 3 into a control called
+             * "comfortable at once" and watching a 12 sit there concluded, not
+             * unreasonably, that the control did nothing: it only ever tinted a
+             * 5px strip, and only on the days actually over the line.
+             *
+             * So the number beside a name is now what the figure is about, and
+             * it answers to it. The window's total is in the title, where it is
+             * still there to be read — and the title is also what keeps this
+             * from being said in colour alone.
+             */
+            const peak = Math.max(0, ...(load.get(lane.id) ?? [0]));
+            return (
+              <div className="planner-name" key={lane.id} style={{ height: lane.height }}>
+                {lane.user ? <Avatar user={lane.user} size={20} /> : <Icon name="inbox" size={15} />}
+                <span className="truncate">{lane.name}</span>
+                <span
+                  className={`planner-peak${peak > limit ? ' over' : ''}`}
+                  title={t('planner.peak', { peak, count: lane.tasks.length })}
+                >
+                  {peak}
+                </span>
+              </div>
+            );
+          })}
         </div>
 
-        <div className="planner-plot" style={{ width }}>
-          <div className="planner-head" style={{ width }}>
+        <div className="planner-plot" ref={plot} style={{ minWidth: width }}>
+          <div className="planner-head" style={{ minWidth: width }}>
             {Array.from({ length: weeks }, (_, index) => {
               const date = addDays(from, index * 7);
               return (
@@ -264,11 +319,11 @@ export function Planner() {
             })}
           </div>
 
-          <div className="planner-rows" style={{ width, height: totalHeight }}>
+          <div className="planner-rows" style={{ minWidth: width, height: totalHeight }}>
             {nowX >= 0 && nowX <= width && <span className="planner-today" style={{ insetInlineStart: nowX }} aria-hidden="true" />}
 
             {lanes.map((lane) => (
-              <div className="planner-lane" key={lane.id} data-lane={lane.id} style={{ top: lane.top, height: lane.height, width }}>
+              <div className="planner-lane" key={lane.id} data-lane={lane.id} style={{ top: lane.top, height: lane.height }}>
                 {/* The load strip: one block per day, darker the more is running.
                     Over the comfortable number it takes the warning colour and
                     the row says so in its title, never in colour alone. */}
@@ -300,7 +355,7 @@ export function Planner() {
                      otherwise in the gap before the next bar on this row, which
                      is what stops it being drawn over its neighbour. */
                   const next = lane.after.get(task.id);
-                  const gap = (next === undefined ? width : x(next)) - (left + barWidth) - 6;
+                  const gap = (next === undefined ? room : x(next)) - (left + barWidth) - 6;
                   const beside = barWidth < INSIDE && gap >= BESIDE;
                   const name = `${task.identifier} ${task.title}`;
 

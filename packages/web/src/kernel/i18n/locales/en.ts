@@ -1683,6 +1683,7 @@ export const en = {
   'planner.weeks': 'Weeks',
   'planner.unassigned': 'Nobody yet',
   'planner.loadOn': '{date}: {count} running',
+  'planner.peak': 'Busiest day: {peak} at once · {count} in this window',
   'planner.nothingDated': 'Nothing in this window has dates yet, so there is nothing to lay out. Give a task a start or a due date and it appears here.',
   'planner.emptyTitle': 'Nobody to plan for yet',
   'planner.emptyHint': 'Invite the team and their work shows up here, one row each.',

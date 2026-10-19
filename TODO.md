@@ -703,6 +703,26 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       and shared; only the wording differs, so the strings are handed in. A `t()` key built from a
       prefix would be a key no catalogue check can see, which is why they are passed rather than
       composed.
+- [x] **And its two controls do something you can see.**
+      Both were reported as broken, and both were telling the truth quietly.
+      **The weeks.** A window is drawn at 12px a day, so four weeks is 348px of timeline in a box as
+      wide as the screen. The lanes stopped where the timeline did: row rules ending in mid-air, the
+      today line ending with them, a name clipped at that edge with 604px of nothing past it —
+      measured, at 1540px with four weeks; 268px at eight. Changing the weeks moved that edge, which
+      is why the control read as *shifting* the view rather than lengthening it. The plot fills the
+      box now and the lanes span it. The days stay 12px: what grows is empty timeline, not a
+      stretched one, because a bar's length is still the task's length. The width is measured rather
+      than computed, since what is left over depends on a sidebar that folds.
+      **The comfortable figure.** It only ever tinted a 5px strip, and only on the days actually
+      over it — so on a team under the line it changed nothing at all, and the one number beside each
+      name was `tasks.length`, the pile in the window, which is the quantity the figure has nothing
+      to say about. Somebody typing a 3 and watching a 12 sit there concluded it did nothing. That
+      number is the **busiest day** now and answers to the figure: with the seeded workspace's peak
+      of 3, a figure of 2 marks two people and a figure of 3 marks none. The window's total moved to
+      the title, which is also what keeps this from being said in colour alone.
+      Both are held by a browser step that measures rather than looks — the dead space was visible
+      to a person and to no check in the repository. Watched to fail on the old build first: *"4
+      weeks left 604px of dead space beside the lanes"*.
 - [x] **The team planner says what the work is, not just that there is some.**
       A bar in the planner is as long as the task runs. Most tasks have a due date and no start
       date, which is one day, which is 12px — widened to 24 by the floor that keeps it a thumb-sized

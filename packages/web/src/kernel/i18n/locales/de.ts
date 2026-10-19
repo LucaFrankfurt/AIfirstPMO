@@ -1677,6 +1677,7 @@ export const de: Catalogue = {
   'planner.weeks': 'Wochen',
   'planner.unassigned': 'Noch niemand',
   'planner.loadOn': '{date}: {count} laufend',
+  'planner.peak': 'Spitze: {peak} gleichzeitig · {count} in diesem Zeitraum',
   'planner.nothingDated': 'In diesem Zeitraum hat noch nichts ein Datum, also gibt es nichts zu planen. Sobald eine Aufgabe ein Start- oder Fälligkeitsdatum hat, erscheint sie hier.',
   'planner.emptyTitle': 'Noch niemand zu verplanen',
   'planner.emptyHint': 'Lade das Team ein, dann steht hier die Arbeit — eine Zeile pro Person.',

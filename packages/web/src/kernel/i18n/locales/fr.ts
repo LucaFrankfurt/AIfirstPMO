@@ -1679,6 +1679,7 @@ export const fr: Catalogue = {
   'planner.weeks': 'Semaines',
   'planner.unassigned': 'Personne encore',
   'planner.loadOn': '{date} : {count} en cours',
+  'planner.peak': 'Jour le plus chargé : {peak} à la fois · {count} sur cette période',
   'planner.nothingDated': 'Rien dans cette fenêtre n’a encore de dates, il n’y a donc rien à disposer. Donnez à une tâche une date de début ou d’échéance et elle apparaîtra ici.',
   'planner.emptyTitle': 'Personne à planifier pour l’instant',
   'planner.emptyHint': 'Invitez l’équipe et son travail apparaît ici, une ligne par personne.',
