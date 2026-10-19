@@ -1168,6 +1168,15 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .planner-bar.dragging { cursor: grabbing; box-shadow: var(--shadow); z-index: 4; }
 .planner-bar:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+/* The name of a task whose bar is too narrow to hold one — most of them, since
+   a task with a due date and no start date runs for one day. Beside the bar
+   rather than inside it, clipped to the gap before whatever is next on the row.
+   Not a target: the bar is what you press, and stretching the button out to fit
+   a caption would make it claim days the task does not run. */
+.planner-tag {
+  position: absolute; height: 24px; display: flex; align-items: center;
+  font-size: 11.5px; color: var(--fg-muted); white-space: nowrap; pointer-events: none;
+}
 
 /* ---------------------------------------------------------------- roadmap */
 

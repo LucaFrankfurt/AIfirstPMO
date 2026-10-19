@@ -13,7 +13,7 @@
  * by whoever is looking, because it is their judgement, not a property of the
  * data.
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   addDays, daysBetween, packRows, moveTask as planMove, span,
   type Dependency, type Task,
@@ -31,6 +31,23 @@ const DAY_WIDTH = 12;
 const SUB = 28;   // one stacked bar: 24px tall, 4px of air beneath it
 /** The load strip at the foot of every lane. */
 const STRIP = 10;
+/**
+ * The two widths that decide where a task's name is drawn.
+ *
+ * A bar is as long as the task runs, and most tasks here have a due date and no
+ * start date — which is one day, which is 12px, which the 24px floor below
+ * widens to a thumb. A name inside that is a sliver of one letter, and the
+ * planner's own name column says *who*, not what: unlike the Gantt, there is no
+ * second place reading the title. So a name too big for its bar is drawn beside
+ * it instead, in the gap before whatever is next on that row.
+ *
+ * `INSIDE` is where a truncated name still says something — 72px is the 24px of
+ * dot, gap and padding plus about six characters. `BESIDE` is the least gap
+ * worth spending on one: under that, the row is busy enough that a name would
+ * land on the next bar, and the tooltip is the honest answer.
+ */
+const INSIDE = 72;
+const BESIDE = 44;
 const UNASSIGNED = '__nobody__';
 const LIMIT_KEY = 'kolibri.planner-limit';
 
@@ -41,6 +58,8 @@ interface Lane {
   tasks: Task[];
   /** Which row inside the lane each task sits on, so two at once do not overlap. */
   row: Map<string, number>;
+  /** Where the next bar on the same row starts, for a name drawn beside one. */
+  after: Map<string, string>;
   rows: number;
   top: number;
   height: number;
@@ -82,7 +101,10 @@ export function Planner() {
   );
 
   const lanes = useMemo<Lane[]>(() => {
-    const empty = () => ({ tasks: [] as Task[], row: new Map<string, number>(), rows: 1, top: 0, height: 0 });
+    const empty = () => ({
+      tasks: [] as Task[], row: new Map<string, number>(), after: new Map<string, string>(),
+      rows: 1, top: 0, height: 0,
+    });
     const out: Lane[] = members.map((user) => ({ id: user.id, name: user.name, user, ...empty() }));
     const nobody: Lane = { id: UNASSIGNED, name: t('planner.unassigned'), ...empty() };
     const byUser = new Map(out.map((lane) => [lane.id, lane]));
@@ -100,6 +122,16 @@ export function Planner() {
       const packed = packRows(lane.tasks);
       lane.row = packed.row;
       lane.rows = packed.rows;
+      /* Who is next along each row. `lane.tasks` is already in start order, so
+         the first task seen on a row after this one is the one that limits how
+         far its name may reach. */
+      const lastOnRow = new Map<number, Task>();
+      for (const task of lane.tasks) {
+        const index = packed.row.get(task.id) ?? 0;
+        const previous = lastOnRow.get(index);
+        if (previous) lane.after.set(previous.id, span(task)!.start);
+        lastOnRow.set(index, task);
+      }
       lane.top = top;
       lane.height = packed.rows * SUB + STRIP;
       top += lane.height;
@@ -258,27 +290,52 @@ export function Planner() {
                     ? { start: addDays(bounds.start, drag!.days), end: addDays(bounds.end, drag!.days) }
                     : bounds;
                   const left = x(shifted.start);
-                  const barWidth = Math.max(DAY_WIDTH, (daysBetween(shifted.start, shifted.end) + 1) * DAY_WIDTH);
+                  // The 24px floor is the thumb-sized target the bar has to be;
+                  // past that its length is the task's length and means it.
+                  const barWidth = Math.max(24, (daysBetween(shifted.start, shifted.end) + 1) * DAY_WIDTH);
                   const state = byId('state', task.state_id);
+                  const top = (lane.row.get(task.id) ?? 0) * SUB + 2;
+
+                  /* Where the name goes. Inside when the bar can hold one;
+                     otherwise in the gap before the next bar on this row, which
+                     is what stops it being drawn over its neighbour. */
+                  const next = lane.after.get(task.id);
+                  const gap = (next === undefined ? width : x(next)) - (left + barWidth) - 6;
+                  const beside = barWidth < INSIDE && gap >= BESIDE;
+                  const name = `${task.identifier} ${task.title}`;
+
                   return (
-                    <button
-                      key={`${lane.id}-${task.id}`}
-                      className={`planner-bar${dragging ? ' dragging' : ''}`}
-                      style={{
-                        insetInlineStart: left,
-                        width: barWidth,
-                        top: (lane.row.get(task.id) ?? 0) * SUB + 2,
-                      }}
-                      title={`${task.identifier} ${task.title} · ${shortDate(bounds.start)} – ${shortDate(bounds.end)}`}
-                      onPointerDown={(event) => {
-                        if (!canWrite) return;
-                        event.preventDefault();
-                        setDrag({ id: task.id, x: event.clientX, y: event.clientY, days: 0, lane: null });
-                      }}
-                    >
-                      <StateDot group={state?.group_key} color={state?.color} size={7} />
-                      <span className="truncate">{task.title}</span>
-                    </button>
+                    <Fragment key={`${lane.id}-${task.id}`}>
+                      <button
+                        className={`planner-bar${dragging ? ' dragging' : ''}`}
+                        style={{ insetInlineStart: left, width: barWidth, top }}
+                        title={`${name} · ${shortDate(bounds.start)} – ${shortDate(bounds.end)}`}
+                        // Spelled out rather than left to `title`: a bar too
+                        // narrow for its name has no text at all inside it, and
+                        // a screen reader would read a row of "button".
+                        aria-label={name}
+                        onPointerDown={(event) => {
+                          if (!canWrite) return;
+                          event.preventDefault();
+                          setDrag({ id: task.id, x: event.clientX, y: event.clientY, days: 0, lane: null });
+                        }}
+                      >
+                        <StateDot group={state?.group_key} color={state?.color} size={7} />
+                        {barWidth >= INSIDE && <span className="truncate">{task.title}</span>}
+                      </button>
+                      {beside && (
+                        /* Not inside the button: it would stretch the target
+                           past the days the task actually runs, and this is a
+                           caption rather than something to press. */
+                        <span
+                          className="planner-tag truncate"
+                          style={{ insetInlineStart: left + barWidth + 4, maxWidth: gap, top }}
+                          aria-hidden="true"
+                        >
+                          {task.title}
+                        </span>
+                      )}
+                    </Fragment>
                   );
                 })}
               </div>

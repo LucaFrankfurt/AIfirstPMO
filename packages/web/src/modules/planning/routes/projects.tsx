@@ -1,8 +1,8 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, projectScope, orderKey,
-  STATE_GROUPS,
+  DEFAULT_WORKING_DAYS, coversProject, dueTone, excerpt, isDoneGroup, orderKey,
+  STATE_GROUPS, type ProjectScope,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
 import { QuickAdd } from '../../work/QuickAdd';
@@ -13,6 +13,7 @@ import { SelectionBar } from '../../work/selection-bar';
 import { ProjectTime } from '../../time/time';
 import { ForeignImportSheet, ImportSheet, type Inspection } from '../../../adapters/transfer/import';
 import { ProjectInsights } from '../insights';
+import { ProjectScopeField, useScopeChoice } from '../scope-field';
 /**
  * The KPI panels a project page and a milestone page host.
  *
@@ -652,62 +653,12 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
     start_date: cycle?.start_date ?? today(),
     end_date: cycle?.end_date ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
   });
-
-  /*
-   * The stored pair read back as the three choices the form offers — the
-   * inverse of `projectScope`, which is what the save writes.
-   *
-   * A cycle this tab can show either names this project or names none, so
-   * `project_id` set is almost always "this project". Almost: a cycle reached
-   * by a link after the project was re-filed could name another one, and
-   * calling that "this project" would quietly move it on the next save. It
-   * comes out as the list of one it is, which `projectScope` stores back as
-   * the owner it was.
-   */
-  const listed = cycle?.projects ?? [];
-  const owner = cycle?.project_id ?? null;
-  const [scope, setScope] = useState<'this' | 'some' | 'all'>(() => {
-    if (!cycleId) return 'this';
-    if (listed.length) return 'some';
-    return owner ? (owner === projectId ? 'this' : 'some') : 'all';
-  });
-  const [picked, setPicked] = useState<string[]>(
-    () => (listed.length ? [...listed] : [owner ?? projectId]),
-  );
-
-  /* The same list QuickAdd offers, and scoped the same way: this workspace's
-     (the local store holds the ones from before a switch too), not archived,
-     and no containers — a container holds projects rather than tasks, so it is
-     not somewhere a cycle's work can be. */
-  const { workspaceId } = useSession();
-  const projects = useQuery(
-    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_container)
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    [workspaceId],
-  );
-
-  const chosen = scope === 'this' ? { project: projectId }
-    : scope === 'all' ? {}
-      : { projects: picked };
-  const settled = projectScope(chosen);
-
-  /*
-   * The work this scope would leave behind, by identifier.
-   *
-   * Only ever on an edit — a cycle being made holds nothing yet. `coversProject`
-   * is the same function the server's SQL mirrors, so what this warns about and
-   * what `update_cycle` reports cannot disagree.
-   */
-  const stranded = useQuery(
-    () => (cycleId
-      ? list('task', (task) => task.cycle_id === cycleId && !coversProject(settled, task.project_id))
-      : []),
-    [cycleId, settled.project_id, settled.projects.join(',')],
-  );
+  const choice = useScopeChoice(cycleId ? cycle : undefined, projectId);
+  const projects = useScopeTargets();
+  const stranded = useStranded('cycle_id', cycleId, choice.settled);
 
   const save = async () => {
-    if (!form.name.trim()) return;
-    if (scope === 'some' && !picked.length) return;
+    if (!form.name.trim() || choice.incomplete) return;
     if (cycleId) {
       /* Asked once, and only when there is actually something to lose: the
          names are already on screen, and this is the deliberate second step a
@@ -717,12 +668,12 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
          reader has to resolve under time pressure. */
       if (stranded.length
         && !(await confirm(t('cycle.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
-      update('cycle', cycleId, { ...form, ...settled });
+      update('cycle', cycleId, { ...form, ...choice.settled });
     } else {
       // `projectScope` is what the server would apply anyway; applying it here
       // too means the row this device writes into its own store is already the
       // canonical shape, rather than one that changes under it on the next pull.
-      create('cycle', { ...form, ...settled });
+      create('cycle', { ...form, ...choice.settled });
     }
     onClose();
   };
@@ -733,11 +684,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
         title={cycleId ? t('cycle.edit') : t('cycle.new')}
         onClose={onClose}
         footer={(
-          <Button
-            variant="primary"
-            onClick={() => void save()}
-            disabled={!form.name.trim() || (scope === 'some' && !picked.length)}
-          >
+          <Button variant="primary" onClick={() => void save()} disabled={!form.name.trim() || choice.incomplete}>
             {t('action.save')}
           </Button>
         )}
@@ -764,65 +711,136 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
           />
         </div>
 
-        <div className="field">
-          <label htmlFor="c-scope">{t('cycle.scope')}</label>
-          <Select id="c-scope" value={scope} onChange={(event) => setScope(event.target.value as typeof scope)}>
-            <option value="this">{t('cycle.scopeThis')}</option>
-            <option value="some">{t('cycle.scopeSome')}</option>
-            <option value="all">{t('cycle.scopeAll')}</option>
-          </Select>
-          <span className="text-[12px] text-muted mt-1">
-            {scope === 'this' ? t('cycle.scopeThisHint') : scope === 'all' ? t('cycle.scopeAllHint') : t('cycle.scopeSomeHint')}
-          </span>
-
-          {scope === 'some' && (
-            <div className="mt-2 grid gap-1">
-              {projects.map((project) => (
-                <label className="check-row" key={project.id}>
-                  <input
-                    type="checkbox"
-                    checked={picked.includes(project.id)}
-                    onChange={(event) => setPicked(
-                      event.target.checked
-                        ? [...picked, project.id]
-                        : picked.filter((id) => id !== project.id),
-                    )}
-                  />
-                  <span>{project.icon} {project.name}</span>
-                </label>
-              ))}
-              {/* One project chosen from the list is the same cycle as "just
-                  this project", and `projectScope` stores it that way — so the
-                  empty case is the only one worth refusing. */}
-              {!picked.length && <span className="text-[12px] text-danger">{t('cycle.scopePickOne')}</span>}
-            </div>
-          )}
-
-          {/* What it would cost, while the choice is still being made. Nothing
-              is removed — said plainly, because "stranded" otherwise reads as
-              "deleted" to the person about to press Save. */}
-          {stranded.length > 0 && (
-            <div className="mt-2.5 rounded-[var(--radius-sm)] border border-line bg-sunken p-2.5">
-              <strong className="block text-[12.5px] text-danger">
-                {t('cycle.scopeStrandTitle', { count: stranded.length })}
-              </strong>
-              <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                {stranded.slice(0, 12).map((task) => (
-                  <span className={chipVariants()} key={task.id} title={task.title}>
-                    <span className="mono">{task.identifier}</span>
-                  </span>
-                ))}
-                {stranded.length > 12 && (
-                  <span className="text-[12px] text-muted">{t('cycle.scopeStrandMore', { count: stranded.length - 12 })}</span>
-                )}
-              </span>
-              <span className="mt-1.5 block text-[12px] text-muted">{t('cycle.scopeStrandHint')}</span>
-            </div>
-          )}
-        </div>
+        <ProjectScopeField
+          id="c-scope"
+          scope={choice.scope} onScope={choice.setScope}
+          picked={choice.picked} onPicked={choice.setPicked}
+          projects={projects}
+          stranded={stranded}
+          labels={{
+            legend: t('cycle.scope'),
+            this: t('cycle.scopeThis'), some: t('cycle.scopeSome'), all: t('cycle.scopeAll'),
+            thisHint: t('cycle.scopeThisHint'), someHint: t('cycle.scopeSomeHint'), allHint: t('cycle.scopeAllHint'),
+            pickOne: t('cycle.scopePickOne'),
+            strandTitle: t('cycle.scopeStrandTitle', { count: stranded.length }),
+            strandMore: t('cycle.scopeStrandMore', { count: stranded.length - 12 }),
+            strandHint: t('cycle.scopeStrandHint'),
+          }}
+        />
       </Sheet>
       {dialog}
     </>
+  );
+}
+
+/**
+ * Making a milestone, and changing one — including what it covers.
+ *
+ * A milestone was the odd one out: its scope was chosen on the inline form that
+ * creates it and never again, because it is otherwise edited through a card and
+ * a menu, and the warning a re-scope needs has nowhere to sit on a card. So it
+ * has a sheet now, for the same three fields a cycle's has — the name, the date
+ * it is aimed at, and who works on it.
+ *
+ * `update_module` over MCP has always been able to re-scope one and report what
+ * it stranded; this is the same move where the caller is a person.
+ */
+function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; moduleId?: string; onClose: () => void }) {
+  const t = useT();
+  const module_ = useRow('module', moduleId);
+  const { confirm, dialog } = useConfirm();
+  const [name, setName] = useState(module_?.name ?? '');
+  const [target, setTarget] = useState(module_?.target_date ?? '');
+  const choice = useScopeChoice(moduleId ? module_ : undefined, projectId);
+  const projects = useScopeTargets();
+  const stranded = useStranded('module_id', moduleId, choice.settled);
+
+  const save = async () => {
+    if (!name.trim() || choice.incomplete) return;
+    const fields = { name: name.trim(), target_date: target || null };
+    if (moduleId) {
+      if (stranded.length
+        && !(await confirm(t('module.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
+      update('module', moduleId, { ...fields, ...choice.settled });
+    } else {
+      create('module', { ...fields, ...choice.settled, status: 'planned', sort_order: orderKey(null, null) });
+    }
+    onClose();
+  };
+
+  return (
+    <>
+      <Sheet
+        title={moduleId ? t('module.edit') : t('module.new')}
+        onClose={onClose}
+        footer={(
+          <Button variant="primary" onClick={() => void save()} disabled={!name.trim() || choice.incomplete}>
+            {t('action.save')}
+          </Button>
+        )}
+      >
+        <div className="field">
+          <label htmlFor="m-name">{t('module.name')}</label>
+          <Input id="m-name" autoFocus value={name} onChange={(event) => setName(event.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="m-target">{t('module.target')}</label>
+          <Input id="m-target" type="date" value={target ?? ''} onChange={(event) => setTarget(event.target.value)} />
+        </div>
+
+        <ProjectScopeField
+          id="m-scope"
+          scope={choice.scope} onScope={choice.setScope}
+          picked={choice.picked} onPicked={choice.setPicked}
+          projects={projects}
+          stranded={stranded}
+          labels={{
+            legend: t('module.scope'),
+            this: t('module.scopeThis'), some: t('module.scopeSome'), all: t('module.scopeAll'),
+            thisHint: t('module.scopeThisHint'), someHint: t('module.scopeSomeHint'), allHint: t('module.scopeAllHint'),
+            pickOne: t('module.scopePickOne'),
+            strandTitle: t('module.scopeStrandTitle', { count: stranded.length }),
+            strandMore: t('module.scopeStrandMore', { count: stranded.length - 12 }),
+            strandHint: t('module.scopeStrandHint'),
+          }}
+        />
+      </Sheet>
+      {dialog}
+    </>
+  );
+}
+
+/**
+ * The projects a cycle or a milestone could be given to.
+ *
+ * The same list QuickAdd offers, and scoped the same way: this workspace's (the
+ * local store holds the ones from before a switch too), not archived, and no
+ * containers — a container holds projects rather than tasks, so it is not
+ * somewhere a cycle's work can be.
+ */
+function useScopeTargets() {
+  const { workspaceId } = useSession();
+  return useQuery(
+    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_container)
+      .sort((a, b) => a.name.localeCompare(b.name)),
+    [workspaceId],
+  );
+}
+
+/**
+ * The work a chosen scope would leave behind.
+ *
+ * Only ever on an edit — a cycle or a milestone being made holds nothing yet.
+ * `coversProject` is the same function the server's SQL mirrors, so what this
+ * warns about and what `update_cycle` reports cannot disagree.
+ */
+function useStranded(field: 'cycle_id' | 'module_id', id: string | undefined, settled: ProjectScope) {
+  const projects = (settled.projects ?? []).join(',');
+  return useQuery(
+    () => (id
+      ? list('task', (task) => task[field] === id && !coversProject(settled, task.project_id))
+      : []),
+    [field, id, settled.project_id, projects],
   );
 }
 
@@ -924,89 +942,23 @@ function Modules({ projectId }: { projectId: string }) {
   const t = useT();
   const navigate = useNavigate();
   const members = useMembers();
-  const { workspaceId } = useSession();
   // This project's own, plus the ones it shares — the same rule, and the same
   // function, the Cycles tab beside it follows.
   const modules = useQuery(() => list('module', (m) => coversProject(m, projectId)), [projectId]);
-  const projects = useQuery(
-    () => list('project', (p) => p.workspace_id === workspaceId && !p.archived && !p.is_container)
-      .sort((a, b) => a.name.localeCompare(b.name)),
-    [workspaceId],
-  );
-  const [name, setName] = useState('');
-  /* Chosen when the milestone is made, and not changed here — which a cycle's
-     scope no longer is, so this is now the odd one out rather than the pair.
-     The same remedy applies: narrowing a running milestone strands the dropped
-     projects' work in it, and a control that says so before the save, naming
-     the tasks the way `CycleEditor` above does, is what this needs. It wants
-     an editor of its own first; a milestone is edited through a card and a
-     menu, not a sheet, and a warning has nowhere to sit on a card.
-     `update_module` over MCP will re-scope one today and reports what it
-     stranded. */
-  const [scope, setScope] = useState<'this' | 'some' | 'all'>('this');
-  const [picked, setPicked] = useState<string[]>([projectId]);
+  /* A sheet rather than the one-line form this used to be. A milestone's scope
+     was choosable here and nowhere else, so it could never be changed; moving
+     the whole thing into an editor is what gives the warning somewhere to sit,
+     and gives the name and the target date one place instead of two. */
+  const [editing, setEditing] = useState<string | 'new' | null>(null);
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <div className="flex items-center gap-2 mb-3">
         <h2 className="text-[15px]">{t('module.title')}</h2>
         <span className="text-muted text-[12.5px]">{t('module.subtitle')}</span>
+        <span className="flex-1 min-w-0" />
+        <Button size="sm" onClick={() => setEditing('new')}><Icon name="plus" size={14} /> {t('module.new')}</Button>
       </div>
-
-      <form
-        className="mb-3.5"
-        onSubmit={(event) => {
-          event.preventDefault();
-          if (!name.trim()) return;
-          if (scope === 'some' && !picked.length) return;
-          const chosen = scope === 'this' ? { project: projectId }
-            : scope === 'all' ? {}
-              : { projects: picked };
-          create('module', {
-            ...projectScope(chosen), name: name.trim(), status: 'planned', sort_order: orderKey(null, null),
-          });
-          setName('');
-          setScope('this');
-          setPicked([projectId]);
-        }}
-      >
-        <div className="flex items-center gap-2">
-          <Input placeholder={t('module.placeholder')} value={name} onChange={(event) => setName(event.target.value)} />
-          <Select
-            aria-label={t('module.scope')}
-            value={scope}
-            style={{ width: 168 }}
-            onChange={(event) => setScope(event.target.value as typeof scope)}
-          >
-            <option value="this">{t('module.scopeThis')}</option>
-            <option value="some">{t('module.scopeSome')}</option>
-            <option value="all">{t('module.scopeAll')}</option>
-          </Select>
-          <Button type="submit"><Icon name="plus" size={14} /></Button>
-        </div>
-        <span className="text-[12px] text-muted mt-1 block">
-          {scope === 'this' ? t('module.scopeThisHint') : scope === 'all' ? t('module.scopeAllHint') : t('module.scopeSomeHint')}
-        </span>
-        {scope === 'some' && (
-          <div className="mt-2 grid gap-1">
-            {projects.map((project) => (
-              <label className="check-row" key={project.id}>
-                <input
-                  type="checkbox"
-                  checked={picked.includes(project.id)}
-                  onChange={(event) => setPicked(
-                    event.target.checked ? [...picked, project.id] : picked.filter((id) => id !== project.id),
-                  )}
-                />
-                <span>{project.icon} {project.name}</span>
-              </label>
-            ))}
-            {/* One project chosen from the list is the same module as "just
-                this project", and `projectScope` stores it that way. */}
-            {!picked.length && <span className="text-[12px] text-danger">{t('module.scopePickOne')}</span>}
-          </div>
-        )}
-      </form>
 
       {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
 
@@ -1038,6 +990,7 @@ function Modules({ projectId }: { projectId: string }) {
                   variant="ghost" size="iconSm"
                   label={t('common.moreActions')}
                   items={[
+                    { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(module.id) },
                     ...members.map((member) => ({
                       id: member.id, section: t('project.lead'), label: member.name,
                       onSelect: () => update('module', module.id, { lead_id: member.id }),
@@ -1063,6 +1016,14 @@ function Modules({ projectId }: { projectId: string }) {
           );
         })}
       </div>
+
+      {editing && (
+        <ModuleEditor
+          projectId={projectId}
+          moduleId={editing === 'new' ? undefined : editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

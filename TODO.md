@@ -693,10 +693,35 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       over REST, a sync push or an import could store the shape the docblock says does not exist.
       One copy now, `settleProjectScope` in the write path, called by all four — which is also why
       the editable toggle is safe to hand to a form.
-      Still open: **a milestone**. It is scoped by the same pair and goes through the same rule now,
-      but it is edited through a card and a menu rather than a sheet, and the warning a re-scope
-      needs has nowhere to sit on a card. It wants an editor of its own first; `update_module` over
-      MCP re-scopes one today and reports what it stranded.
+      **A milestone followed**, and needed one step more. It had no editor at all: the name went in
+      a text box, the target date was an input on its card, and the scope was a dropdown beside the
+      box that vanished on submit — so there was nowhere for the warning to sit, which is why the
+      cycle got this first. It has a sheet now, the cycle's twin, reached from the card's menu.
+      The scope control and the warning are **one component**, `ProjectScopeField`, because the
+      second copy was about to be written letter for letter: reading the stored pair back as a
+      choice, writing the choice back as a pair, and counting what falls outside it are mechanical
+      and shared; only the wording differs, so the strings are handed in. A `t()` key built from a
+      prefix would be a key no catalogue check can see, which is why they are passed rather than
+      composed.
+- [x] **The team planner says what the work is, not just that there is some.**
+      A bar in the planner is as long as the task runs. Most tasks have a due date and no start
+      date, which is one day, which is 12px — widened to 24 by the floor that keeps it a thumb-sized
+      target. Inside those 24px sat a 7px state dot, 14px of padding and 5px of gap, and then the
+      title, with nothing left to draw it in: every short task rendered as a pill containing a
+      sliver of one letter. On the seeded workspace that was **9 bars of 18**; on a real one, where
+      almost nothing carries a start date, it was nearly all of them — a screen of confetti where a
+      plan should be.
+      The Gantt had already met this and written it down — *"a label inside a bar three days wide is
+      a sliver of a letter"* — and solved it by dropping the label, because its own name column
+      still says which task each row is. The planner's name column says **who**, not what, so
+      dropping the label leaves nothing anywhere. So the name moves *beside* the bar instead, into
+      the gap before whatever is next on that row, clipped to that gap so it can never be drawn over
+      its neighbour. Where even that will not fit, there is no label and the tooltip is the honest
+      answer; the bar carries an `aria-label` either way, because a bar too narrow for its name has
+      no text inside it at all and a screen reader would otherwise read a row of "button".
+      Deliberately **not** changed: the 24px floor, which is the minimum target size `a11y.mjs`
+      checks for, and the rule that a bar's length is the task's length. Widening a one-day bar to
+      fit its name would be a chart telling a lie to be readable.
 - [x] **A task can be moved to another project from anywhere, and it takes its sub-tasks.**
       The rule for the move has been in `@kolibri/shared` since the board learned to drop a card on
       a project in the sidebar: re-resolve everything scoped to the old project against the new one
