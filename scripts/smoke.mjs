@@ -1840,7 +1840,25 @@ await step('chat: a message can point at a task and a project', async () => {
   const offered = await page.locator('.mention-menu button').first().innerText();
   await page.keyboard.press('Enter');
   const typed = await page.locator('.chat-composer textarea').inputValue();
-  if (!typed.includes('WEB-3')) throw new Error(`the menu put in "${typed}"`);
+  /*
+   * Which task the menu chose is not this step's business — that a reference
+   * goes in as a bare token and comes back as a link is.
+   *
+   * It used to be spelled `WEB-3` here and asserted three times over, which
+   * held only while the workspace had under thirty tasks in that project: the
+   * menu is a prefix search, so once `WEB-30` exists it is offered above
+   * `WEB-3` for the same keystrokes and Enter takes it. Both walkthroughs run
+   * against one seeded instance, so the German one inherits everything the
+   * English one made and crosses that line first — which is how adding two
+   * steps elsewhere in this file turned this one red, with a message about a
+   * reference that was never wrong.
+   *
+   * `includes('WEB-3')` did not catch it either, because `WEB-31` contains
+   * `WEB-3`. So the identifier is read back from what was inserted, and every
+   * assertion below is made against that.
+   */
+  const picked = typed.match(/WEB-\d+/)?.[0];
+  if (!picked) throw new Error(`the menu put in "${typed}" rather than an identifier`);
   if (typed.includes('](')) throw new Error('a reference went in as a link, not as what somebody would type');
 
   await page.locator('.chat-composer textarea').type('and #WEB, but not UTF-8 or NOPE-1.', { delay: 5 });
@@ -1849,7 +1867,7 @@ await step('chat: a message can point at a task and a project', async () => {
   const said = page.locator('.chat-message').last();
   const refs = await said.locator('a.md-ref').evaluateAll((links) => links.map((a) => `${a.textContent}→${a.getAttribute('href')}`));
   if (refs.length !== 2) throw new Error(`expected a task and a project, got ${JSON.stringify(refs)}`);
-  if (!refs[0].startsWith('WEB-3→/t/WEB-3')) throw new Error(`the task reference is ${refs[0]}`);
+  if (refs[0] !== `${picked}→/t/${picked}`) throw new Error(`the task reference is ${refs[0]}, not ${picked}`);
   if (!refs[1].startsWith('#WEB→/projects/')) throw new Error(`the project reference is ${refs[1]}`);
   const html = await said.locator('.body').innerHTML();
   if (!html.includes('UTF-8') || !html.includes('NOPE-1')) throw new Error('the message lost some of its text');
@@ -1859,7 +1877,7 @@ await step('chat: a message can point at a task and a project', async () => {
   // And following one opens the task over the conversation rather than reloading.
   await said.locator('a.md-ref').first().click();
   await page.waitForTimeout(900);
-  if (!page.url().endsWith('/t/WEB-3')) throw new Error(`clicking the reference went to ${page.url()}`);
+  if (!page.url().endsWith(`/t/${picked}`)) throw new Error(`clicking the reference went to ${page.url()}`);
   await page.waitForSelector('.sheet', { timeout: 5000 });
   await page.keyboard.press('Escape');
 });
