@@ -50,6 +50,7 @@ const LABELS = {
     reviewSection: 'Review', reviewFeature: 'Task reviews',
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
     cancel: 'Cancel', confirmTitle: 'Are you sure?', moreActions: 'More actions', tasksTab: 'Tasks',
+    modulesTab: 'Modules', newModule: 'New module',
     assignees: 'Assignees', filterBox: 'Filter…',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
@@ -72,6 +73,7 @@ const LABELS = {
     reviewSection: 'Review', reviewFeature: 'Aufgaben-Reviews',
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
     cancel: 'Abbrechen', confirmTitle: 'Sicher?', moreActions: 'Weitere Aktionen', tasksTab: 'Aufgaben',
+    modulesTab: 'Module', newModule: 'Neues Modul',
     assignees: 'Zuständig', filterBox: 'Filtern…',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
@@ -94,6 +96,7 @@ const LABELS = {
     reviewSection: 'Relecture', reviewFeature: 'Relectures de tâches',
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
     cancel: 'Annuler', confirmTitle: 'Confirmer ?', moreActions: 'Autres actions', tasksTab: 'Tâches',
+    modulesTab: 'Modules', newModule: 'Nouveau module',
     assignees: 'Assignés', filterBox: 'Filtrer…',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
@@ -793,6 +796,127 @@ await step('a task filed from the sheet takes its sub-tasks with it', async () =
   if (!landed.child.stateBelongsHere) throw new Error('the sub-task kept a column of the project it left');
   if (!/^WEB-/.test(landed.top.identifier)) throw new Error(`the identifier became ${landed.top.identifier}`);
   console.log('     ', landed.top.identifier, 'and', landed.child.identifier, 'are both in Public API');
+});
+
+/**
+ * And the same for a milestone, which had the gap one step longer.
+ *
+ * A milestone's scope was chosen on the one-line form that made it and never
+ * again, because it had no editor at all: the name went in a text box, the
+ * target date was an input on the card, and the scope was a dropdown beside the
+ * box that vanished on submit. So there was nowhere for a warning to sit, which
+ * is the reason the cycle got this first. It has a sheet now, the cycle's twin.
+ *
+ * Checked the same way and for the same reason: that the control is there on an
+ * *existing* milestone with its stored scope selected, and that narrowing it
+ * names what it would leave behind before the save rather than after.
+ */
+await step('an existing milestone can be re-scoped, and says what that costs', async () => {
+  await page.keyboard.press('Escape');
+
+  const label = `Smoke: milestone ${Date.now().toString(36)}`;
+  const built = await page.evaluate(async (name) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const call = async (path, body) => {
+      const response = await fetch(path, {
+        method: body ? 'POST' : 'GET',
+        headers: body ? { 'content-type': 'application/json' } : {},
+        credentials: 'include',
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      return response.json();
+    };
+    const all = await call(`/api/workspaces/${ws}/projects`);
+    const projects = all.projects ?? all;
+    const web = projects.find((one) => one.name === 'Website');
+    const api = projects.find((one) => one.name === 'Public API');
+    const milestone = await call(`/api/workspaces/${ws}/modules`, {
+      project_id: null, projects: [web.id, api.id], name,
+    });
+    const risked = await call(`/api/workspaces/${ws}/tasks`, {
+      project_id: api.id, title: 'Smoke: milestone work at risk', module_id: milestone.id,
+    });
+    const kept = await call(`/api/workspaces/${ws}/tasks`, {
+      project_id: web.id, title: 'Smoke: milestone work kept', module_id: milestone.id,
+    });
+    return { web: web.id, moduleId: milestone.id, risked: risked.identifier, kept: kept.identifier };
+  }, label);
+
+  await page.reload({ waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.sidebar', { timeout: 15000 });
+  await page.waitForTimeout(2500);
+  await closeTour(page);
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.click(`.tabs button:has-text("${LABELS.modulesTab}")`);
+  await page.waitForSelector('.grid > div', { timeout: 6000 });
+
+  // The tab leads with a button now; the scope used to be a dropdown beside a
+  // text box, which is why it could only ever be set once.
+  if (!(await page.locator('button', { hasText: LABELS.newModule }).count())) {
+    throw new Error('the Modules tab offers no way to make one');
+  }
+
+  const card = page.locator('.grid > div').filter({ hasText: label }).first();
+  await card.locator(`button[aria-label="${LABELS.moreActions}"]`).click();
+  await page.getByRole('menuitem', { name: LABELS.edit }).click();
+  await page.waitForSelector('.sheet #m-scope', { timeout: 6000 });
+
+  const shown = await page.locator('.sheet #m-scope').inputValue();
+  if (shown !== 'some') throw new Error(`a shared milestone reopened on "${shown}" rather than its own scope`);
+
+  await page.locator('.sheet .check-row').filter({ hasText: 'Public API' }).locator('input').uncheck();
+  await page.waitForTimeout(600);
+
+  const sheet = await page.locator('.sheet').innerText();
+  if (!sheet.includes(built.risked)) throw new Error(`the warning does not name ${built.risked}`);
+  if (sheet.includes(built.kept)) throw new Error(`the warning names ${built.kept}, whose project is still covered`);
+
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.save }).click();
+  await page.waitForSelector('.sheet:has-text("' + LABELS.confirmTitle + '")', { timeout: 6000 });
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.cancel }).click();
+  await page.waitForTimeout(1200);
+
+  const afterCancel = await page.evaluate(async (id) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const rows = await (await fetch(`/api/workspaces/${ws}/modules`, { credentials: 'include' })).json();
+    return ((rows.modules ?? rows).find((one) => one.id === id).projects ?? []).length;
+  }, built.moduleId);
+  if (afterCancel !== 2) throw new Error(`declining the confirm re-scoped it anyway (${afterCancel} projects)`);
+
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.save }).click();
+  await page.waitForTimeout(700);
+  if (await page.locator('.sheet').count() > 1) {
+    await page.locator('.sheet').last().getByRole('button', { name: LABELS.save }).click();
+  }
+  await page.waitForTimeout(1800);
+
+  const landed = await page.evaluate(async (info) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    const rows = await json(`/api/workspaces/${ws}/modules`);
+    const milestone = (rows.modules ?? rows).find((one) => one.id === info.moduleId);
+    const tasks = await json(`/api/workspaces/${ws}/tasks?limit=400`);
+    const mine = (tasks.tasks ?? tasks).filter((one) => [info.risked, info.kept].includes(one.identifier));
+    return {
+      owner: milestone.project_id,
+      shared: (milestone.projects ?? []).length,
+      stillIn: mine.filter((one) => one.module_id === info.moduleId).map((one) => one.identifier),
+    };
+  }, built);
+
+  if (landed.shared) throw new Error(`a list of one should have collapsed to an owner, got ${landed.shared}`);
+  if (landed.owner !== built.web) throw new Error('the milestone did not narrow to the project left ticked');
+  if (landed.stillIn.length !== 2) {
+    throw new Error(`work was taken out of the milestone: ${landed.stillIn.join(', ') || 'none left'}`);
+  }
+  console.log(`      ${built.risked} is still in the milestone its project left, and ${built.kept} is untouched`);
+
+  await page.click('.sidebar a:has-text("Website")');
+  await page.waitForSelector('.tabs');
+  await page.click(`.tabs button:has-text("${LABELS.tasksTab}")`);
+  await page.click(`button[aria-pressed][title="${LABELS.board}"]`);
+  await page.waitForSelector('.board-column', { timeout: 6000 });
 });
 
 /**

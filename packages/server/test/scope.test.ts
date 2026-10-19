@@ -178,12 +178,11 @@ describe('the work in a cycle that was re-scoped', () => {
 });
 
 /**
- * A milestone is scoped by the same pair and now goes through the same rule.
+ * A milestone is scoped by the same pair and goes through the same rule.
  *
- * Its own editor cannot re-scope one yet — a milestone is edited through a card
- * and a menu rather than a sheet, and the warning a re-scope needs has nowhere
- * to sit on a card. The write path does not depend on that: REST, a sync push,
- * an import and `update_module` all reach these columns today.
+ * It has its own editor now, the cycle's twin, so the interface reaches these
+ * columns as well as REST, a sync push, an import and `update_module` — which
+ * is why they are checked here rather than left to the cycle's cases above.
  */
 describe('a milestone', () => {
   it('is normalised the same way a cycle is', async () => {
