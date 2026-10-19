@@ -51,6 +51,7 @@ const LABELS = {
     filter: 'Filter', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Open cycle',
     cancel: 'Cancel', confirmTitle: 'Are you sure?', moreActions: 'More actions', tasksTab: 'Tasks',
     modulesTab: 'Modules', newModule: 'New module',
+    plannerWeeks: 'Weeks', plannerLimit: 'Comfortable at once',
     assignees: 'Assignees', filterBox: 'Filter…',
     moveColumn: 'Move column', moveLeft: 'Move left', moveRight: 'Move right',
     addSubtask: 'Add a sub-task',
@@ -74,6 +75,7 @@ const LABELS = {
     filter: 'Filter', module: 'Modul', cycle: 'Zyklus', cycles: 'Zyklen', openCycle: 'Zyklus öffnen',
     cancel: 'Abbrechen', confirmTitle: 'Sicher?', moreActions: 'Weitere Aktionen', tasksTab: 'Aufgaben',
     modulesTab: 'Module', newModule: 'Neues Modul',
+    plannerWeeks: 'Wochen', plannerLimit: 'Gleichzeitig machbar',
     assignees: 'Zuständig', filterBox: 'Filtern…',
     moveColumn: 'Spalte verschieben', moveLeft: 'Nach links', moveRight: 'Nach rechts',
     addSubtask: 'Teilaufgabe hinzufügen',
@@ -97,6 +99,7 @@ const LABELS = {
     filter: 'Filtrer', module: 'Module', cycle: 'Cycle', cycles: 'Cycles', openCycle: 'Ouvrir le cycle',
     cancel: 'Annuler', confirmTitle: 'Confirmer ?', moreActions: 'Autres actions', tasksTab: 'Tâches',
     modulesTab: 'Modules', newModule: 'Nouveau module',
+    plannerWeeks: 'Semaines', plannerLimit: 'Confortable à la fois',
     assignees: 'Assignés', filterBox: 'Filtrer…',
     moveColumn: 'Déplacer la colonne', moveLeft: 'Vers la gauche', moveRight: 'Vers la droite',
     addSubtask: 'Ajouter une sous-tâche',
@@ -2249,6 +2252,75 @@ await step('search: prose finds work, and @ offers the people', async () => {
  * reaches from the local mirror through the pinned block to the task sheet, and
  * every layer in between has to agree about what `WEB-3` means.
  */
+/**
+ * The planner's two controls, which both read as doing nothing.
+ *
+ * **The weeks.** A window is drawn at 12px a day, so four weeks is 348px of
+ * timeline — and the box it sits in is as wide as the screen. The lanes used to
+ * stop at the timeline's end, leaving row rules ending in mid-air, a today line
+ * ending with them, and names clipped at an edge with empty space past it.
+ * Changing the weeks moved that edge, so the control looked like it shifted the
+ * view rather than lengthening it. The plot fills the box now; what grows is
+ * empty timeline, and the days stay 12px.
+ *
+ * **The comfortable figure.** It only ever tinted a 5px strip on the days
+ * actually over it, so on a team under the line it changed nothing visible and
+ * read as broken. The number beside each name is the busiest day now, and it
+ * answers to the figure.
+ *
+ * Both are measured rather than eyeballed: a screenshot would have shown the
+ * dead space to a person and to nothing else.
+ */
+await step('the planner fills its box, and the comfortable figure marks who is over', async () => {
+  await page.keyboard.press('Escape');
+  await page.goto(`${base}/planner`, { waitUntil: 'domcontentloaded' });
+  await page.waitForSelector('.planner-scroll', { timeout: 10000 });
+  await page.waitForTimeout(1500);
+
+  const weeks = page.getByLabel(LABELS.plannerWeeks);
+
+  // A short window is the one that used to leave the box half empty.
+  for (const span of ['4', '8']) {
+    await weeks.selectOption(span);
+    await page.waitForTimeout(700);
+    const fit = await page.evaluate(() => {
+      const scroll = document.querySelector('.planner-scroll');
+      const names = document.querySelector('.planner-names');
+      const lane = document.querySelector('.planner-lane');
+      if (!lane) return null;
+      const over = scroll.scrollWidth > scroll.clientWidth + 1;
+      const dead = Math.round(
+        scroll.getBoundingClientRect().width - names.getBoundingClientRect().width - lane.getBoundingClientRect().width,
+      );
+      return { over, dead };
+    });
+    if (!fit) throw new Error('the planner drew no lanes to measure');
+    // Either it is wider than the box and scrolls, or it fills it. Four pixels
+    // of slack for a scrollbar and the sub-pixel rounding of a flex row.
+    if (!fit.over && fit.dead > 4) throw new Error(`${span} weeks left ${fit.dead}px of dead space beside the lanes`);
+  }
+
+  const limitBox = page.getByLabel(LABELS.plannerLimit);
+  const marked = async (value) => {
+    await limitBox.fill(value);
+    await page.waitForTimeout(600);
+    return page.locator('.planner-peak.over').count();
+  };
+  const peaks = await page.locator('.planner-peak').evaluateAll((els) => els.map((el) => Number(el.textContent)));
+  const busiest = Math.max(0, ...peaks);
+  if (!busiest) throw new Error('nobody in the seeded workspace has two tasks at once to count');
+
+  // Under the busiest day somebody is over; at it, nobody is.
+  const tight = await marked(String(busiest - 1));
+  const loose = await marked(String(busiest));
+  if (!tight) throw new Error(`a figure of ${busiest - 1} marked nobody, with a busiest day of ${busiest}`);
+  if (loose) throw new Error(`a figure of ${busiest} still marked ${loose} people`);
+  console.log(`     busiest day ${busiest} · ${tight} over the line at ${busiest - 1}, none at ${busiest}`);
+
+  await limitBox.fill('3');
+  await page.waitForTimeout(400);
+});
+
 /**
  * The query box, pressed rather than only typed into.
  *
