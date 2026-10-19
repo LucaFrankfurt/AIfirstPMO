@@ -403,6 +403,12 @@ cycle, for you to move or widen rather than discover missing later. That list ho
 your token can see, for the same reason the reports do — a private project's identifiers are not
 in it, and its tasks are not moved either.
 
+The interface does this too now, and the same way: its cycle sheet names the tasks that would be
+left behind *while the scope is being chosen*, rather than reporting them after the save, and
+nothing is moved either. Its toggle used to render only while a cycle was being made, which made
+this tool the only way to widen a fortnight to a second project — so an answer worth knowing if you
+read an older transcript: "use `update_cycle`, the app cannot" is no longer true.
+
 Each review says which kind it is:
 
 | Field | Means |

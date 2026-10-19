@@ -7,9 +7,9 @@
  * than in the write path or in planning.
  */
 
-import { type EntityName, MEASURE_CADENCES, MEASURE_DIRECTIONS, MEASURE_UNITS, projectScope } from '@kolibri/shared';
+import { type EntityName, MEASURE_CADENCES, MEASURE_DIRECTIONS, MEASURE_UNITS } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
-import { type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
+import { type EntityRule, settleProjectScope, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 
 /** The three tables a KPI is made of. */
 const KPI_ENTITIES = new Set<EntityName>(['kpi', 'kpiTarget', 'kpiReading']);
@@ -56,17 +56,7 @@ function applyKpiInvariants(
   };
 
   if (entity === 'kpi') {
-    if (values.project_id !== undefined || values.projects !== undefined) {
-      let listed: unknown = values.projects;
-      if (typeof listed === 'string') { try { listed = JSON.parse(listed); } catch { listed = []; } }
-      const scope = projectScope({
-        project: (values.project_id as string | null) ?? null,
-        projects: Array.isArray(listed) ? listed.filter((row): row is string => typeof row === 'string') : [],
-      });
-      if (values.project_id !== scope.project_id) settle('project_id', scope.project_id);
-      const encoded = JSON.stringify(scope.projects);
-      if (values.projects !== encoded) settle('projects', encoded);
-    }
+    settleProjectScope(values, forced);
     oneOf('unit', MEASURE_UNITS, 'number');
     oneOf('direction', MEASURE_DIRECTIONS, 'up');
     oneOf('cadence', MEASURE_CADENCES, 'monthly');

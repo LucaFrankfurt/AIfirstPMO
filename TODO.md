@@ -664,6 +664,39 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       lands there. It used to append to the end of the target
       column. Fractional indexing already supports inserting between two neighbours — the drop
       handler just needs the index under the cursor.
+- [x] **A cycle's scope can be changed after it exists, and the interface says what that costs.**
+      The model has carried shared cycles from the start — `project_id` set is one project's own,
+      `project_id` null with an empty `projects` is every project, a list is exactly those — and the
+      sheet let somebody choose between the three *once*, while making one. After that the toggle
+      was gone, on the argument that re-scoping a running cycle can strand work and that doing so
+      behind a control which looks like a setting is how data goes missing without anybody
+      attributing it to the click.
+      **The argument was right about the danger and wrong about the remedy.** It left the interface
+      with no way at all to add a project to a fortnight, so the answer to "Mobile is in this sprint
+      too" was either an MCP call or deleting the cycle and building it again — and rebuilding it
+      strands *everything* in it rather than the part that no longer fits. The remedy is to show the
+      cost rather than withhold the control: the sheet now names the tasks that would be left in a
+      cycle their project is no longer covered by, by identifier, **while the scope is being
+      chosen**, and asks once more on the way out. Named rather than counted, for the reason
+      `update_cycle` names them — "3 tasks" is a number somebody then has to go and find.
+      Nothing is moved either way, which is the half worth being explicit about: a task keeps its
+      `cycle_id`. Dropping a project out of a cycle is a decision about the cycle; taking somebody's
+      task out of a sprint is a different decision and not one to make as a side effect of an edit.
+      The confirm says so, and its button says "Save" rather than the default "Delete", because a
+      danger button reading "Delete" over a sentence promising nothing is removed is a contradiction
+      the reader has to resolve under time pressure.
+      **And the write path now normalises what it always claimed to.** `scope.ts` has said since it
+      was written that the fourth combination — an owner *and* a list — is never stored, because
+      then every reader has to decide which of the two fields wins. That was true of a KPI and a
+      budget, whose rules each carried their own letter-for-letter copy of the normalisation, and
+      false of a cycle and a milestone, where only MCP did it in its own argument parsing. A `PATCH`
+      over REST, a sync push or an import could store the shape the docblock says does not exist.
+      One copy now, `settleProjectScope` in the write path, called by all four — which is also why
+      the editable toggle is safe to hand to a form.
+      Still open: **a milestone**. It is scoped by the same pair and goes through the same rule now,
+      but it is edited through a card and a menu rather than a sheet, and the warning a re-scope
+      needs has nowhere to sit on a card. It wants an editor of its own first; `update_module` over
+      MCP re-scopes one today and reports what it stranded.
 - [x] **A task can be moved to another project from anywhere, and it takes its sub-tasks.**
       The rule for the move has been in `@kolibri/shared` since the board learned to drop a card on
       a project in the sidebar: re-resolve everything scoped to the old project against the new one
