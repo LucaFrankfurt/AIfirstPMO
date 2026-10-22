@@ -1,5 +1,6 @@
 import {
   ENTITIES,
+  attachmentSubject,
   crdt,
   entityDef,
   findMentions as mentionsIn,
@@ -7,6 +8,7 @@ import {
   htmlText,
   projectScope,
   reconcileReactions,
+  type AttachmentSubject,
   type CrdtState,
   type EntityName,
 } from '@kolibri/shared';
@@ -813,19 +815,49 @@ export function resendUser(userId: string): void {
  * — a line names its budget and nothing else, so without this a workspace
  * member holding a budget id could read the plan for a project they are not on.
  */
-export function canSeeBudget(userId: string, budgetId: string | null | undefined): boolean {
-  if (!budgetId) return false;
-  const budget = get<Row>(`SELECT * FROM budgets WHERE id = ? AND deleted_at IS NULL`, budgetId);
-  if (!budget) return false;
+export const canSeeBudget = (userId: string, budgetId: string | null | undefined): boolean =>
+  canSeeScoped(userId, 'budgets', budgetId);
+
+/**
+ * The three-state project scope, once, for the four tables that have it.
+ *
+ * `budgets`, `kpis`, `cycles` and `modules` carry the same pair of columns and
+ * mean the same three things by them — see `coversProject` in
+ * `@kolibri/shared`, which is this rule read from the other end. It was two
+ * byte-identical functions here until a fifth caller wanted the cycle and the
+ * module as well, and four copies of a visibility rule is how the halves drift.
+ *
+ * Membership is the test for a row that covers everything, so a workspace-wide
+ * budget answers yes to every member and no to everybody else. The table name
+ * is interpolated and is never a caller's string: the four are named by the
+ * callers below and by `SCOPED_SUBJECTS`.
+ *
+ * `liveOnly` is the one thing the two callers disagree about, and it is a
+ * parameter rather than a second function because they disagree about one
+ * clause. `canSeeBudget` and `canSeeKpi` have always refused a deleted row and
+ * go on doing so — the budget screens treat a tombstone as gone. `canSeeSubject`
+ * must not, because an attachment inherits its subject's *visibility* and not
+ * its subject's existence: nothing cascades a delete to an attachment, so a
+ * file on a budget in the trash still has to reach the devices that hold it or
+ * restoring the budget comes back empty. `canSeeTask` and `canSeePage` record
+ * the same decision in their own docblocks.
+ */
+function canSeeScoped(
+  userId: string, table: 'budgets' | 'kpis' | 'cycles' | 'modules', id: string | null | undefined,
+  liveOnly = true,
+): boolean {
+  if (!id) return false;
+  const row = get<Row>(`SELECT * FROM ${table} WHERE id = ?${liveOnly ? ' AND deleted_at IS NULL' : ''}`, id);
+  if (!row) return false;
   const member = get(
     `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
-    budget.workspace_id, userId,
+    row.workspace_id, userId,
   );
   if (!member) return false;
-  const listed = parseIds(budget.projects);
+  const listed = parseIds(row.projects);
   if (listed.length) return listed.some((projectId) => canSeeProject(userId, projectId));
   // No list and no owner is the whole workspace, and membership was the test.
-  return budget.project_id ? canSeeProject(userId, String(budget.project_id)) : true;
+  return row.project_id ? canSeeProject(userId, String(row.project_id)) : true;
 }
 
 /**
@@ -835,19 +867,8 @@ export function canSeeBudget(userId: string, budgetId: string | null | undefined
  * move is a number the team should be able to see: a target everybody is
  * working toward and nobody may read is a target in name only.
  */
-export function canSeeKpi(userId: string, kpiId: string | null | undefined): boolean {
-  if (!kpiId) return false;
-  const kpi = get<Row>(`SELECT * FROM kpis WHERE id = ? AND deleted_at IS NULL`, kpiId);
-  if (!kpi) return false;
-  const member = get(
-    `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
-    kpi.workspace_id, userId,
-  );
-  if (!member) return false;
-  const listed = parseIds(kpi.projects);
-  if (listed.length) return listed.some((projectId) => canSeeProject(userId, projectId));
-  return kpi.project_id ? canSeeProject(userId, String(kpi.project_id)) : true;
-}
+export const canSeeKpi = (userId: string, kpiId: string | null | undefined): boolean =>
+  canSeeScoped(userId, 'kpis', kpiId);
 
 /** The budget a line, an actual or a scenario hangs off. */
 export const budgetOf = (row: Row): string | null => (row.budget_id as string | null) ?? null;
@@ -1116,6 +1137,117 @@ export const visiblePageSql = (column: string, workspace = '?', user = '?'): str
                   OR pg.project_id IN (${visibleProjectsSql(workspace, user)})))`;
 
 /**
+ * The subjects whose visibility is their own three-state project scope.
+ *
+ * Named here beside the rule rather than inferred from the columns, for the
+ * reason `TASK_BOUND` in `routes/entities.ts` is named: "has `projects` and
+ * `project_id`" is a fact about four tables, and a list of four is easier to
+ * check against the schema than a predicate is.
+ */
+const SCOPED_SUBJECTS = {
+  cycle: 'cycles',
+  module: 'modules',
+  kpi: 'kpis',
+  budget: 'budgets',
+} as const;
+
+/**
+ * Subjects that belong to the whole workspace, and the table that holds them.
+ *
+ * A product and a component carry no project at all — the pull filter has no
+ * clause for either, so a device mirrors every one in the workspace — which
+ * makes membership the whole of the rule.
+ */
+const WORKSPACE_SUBJECTS = {
+  product: 'products',
+  component: 'components',
+} as const;
+
+/**
+ * Membership of the workspace the row is in.
+ *
+ * The whole rule for a product and a component, and the second half of it for a
+ * decision that belongs to no project. It is asked rather than assumed, and the
+ * row still has to exist, for the reason `canSeeProject` above has a paragraph
+ * about: an id is a claim about a row anywhere in the database, and every caller
+ * here *does* scope by workspace first — which is exactly what was true on the
+ * day that stopped being enough.
+ */
+function canSeeWorkspaceRow(userId: string, table: 'products' | 'components' | 'decisions', id: string): boolean {
+  const row = get<Row>(`SELECT workspace_id FROM ${table} WHERE id = ?`, id);
+  if (!row) return false;
+  return !!get(
+    `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+    row.workspace_id, userId,
+  );
+}
+
+/**
+ * Whether somebody may see the thing a file is attached to.
+ *
+ * **This is the rule, and there is one of it.** An attachment has never had a
+ * visibility of its own — it inherits whatever it hangs on — and that sentence
+ * used to be implemented four times: in the pull filter, in the REST guard, in
+ * `canSeeFile` below, and in MCP's `findAttachment`. Each copy walked
+ * `task_id`, then `page_id`, then `comment_id`, and each one ended in a
+ * `return true` for the case its author had not thought about. Two of those
+ * `return true`s were disclosures, both recorded in `TODO.md`.
+ *
+ * So every door now asks this, and a subject that is not named in
+ * `ATTACHMENT_SUBJECTS` cannot be attached to in the first place. A kind with
+ * no case here is a **refusal** rather than a fall-through: that is the whole
+ * lesson of the two bugs, and it is why the `default` is `false` and not the
+ * other thing.
+ *
+ * `deleted_at` is deliberately not asked about, matching `canSeeTask` and
+ * `canSeePage`: a deleted decision's attachments still have to reach the
+ * devices that hold them, or a restore from the trash comes back empty.
+ */
+export function canSeeSubject(userId: string, kind: AttachmentSubject, id: string): boolean {
+  switch (kind) {
+    case 'task':
+      return canSeeTask(userId, id);
+    case 'page':
+      return canSeePage(userId, id);
+    case 'comment': {
+      // A comment hangs off one of the other two, so it is the only subject
+      // that asks this question again one floor down. A comment on neither is
+      // not a thing the write path can produce.
+      const comment = get<Row>(`SELECT task_id, page_id FROM comments WHERE id = ?`, id);
+      if (!comment) return false;
+      if (comment.task_id) return canSeeTask(userId, String(comment.task_id));
+      if (comment.page_id) return canSeePage(userId, String(comment.page_id));
+      return false;
+    }
+    case 'project':
+      return canSeeProject(userId, id);
+    case 'decision': {
+      const decision = get<Row>(`SELECT project_id FROM decisions WHERE id = ?`, id);
+      if (!decision) return false;
+      // A decision with no project is the workspace's, which is the pull
+      // filter's reading of the same column — and `canSeeProject(null)` answers
+      // `true` without asking whose workspace it is, so the membership half is
+      // asked here rather than left to the caller.
+      return decision.project_id
+        ? canSeeProject(userId, String(decision.project_id))
+        : canSeeWorkspaceRow(userId, 'decisions', id);
+    }
+    case 'cycle':
+    case 'module':
+    case 'kpi':
+    case 'budget':
+      // `liveOnly: false` — see the paragraph in `canSeeScoped` and the
+      // `deleted_at` note in this function's own docblock.
+      return canSeeScoped(userId, SCOPED_SUBJECTS[kind], id, false);
+    case 'product':
+    case 'component':
+      return canSeeWorkspaceRow(userId, WORKSPACE_SUBJECTS[kind], id);
+    default:
+      return false;
+  }
+}
+
+/**
  * Whether somebody may fetch the bytes behind a hash.
  *
  * The file route asked only whether the hash had a row in a workspace of
@@ -1131,10 +1263,14 @@ export const visiblePageSql = (column: string, workspace = '?', user = '?'): str
  * the one that was there before. Requiring an attachment row would have made
  * every avatar on the instance a 403.
  *
- * **A page-bound attachment is deliberately still open**, which is what the
- * pull filter does with it too — a page carries its own `access` column and
- * answers for itself, and wiring that in here is a second question this change
- * does not answer. It is written down rather than quietly handled.
+ * It used to walk the three link columns itself and ended in a `return true`
+ * for anything it did not recognise — which is how a page-bound attachment came
+ * to be served to the whole workspace. The walk is now `attachmentSubject` and
+ * the rule is `canSeeSubject`, both of them in one place, and an unrecognised
+ * subject is a refusal. A row whose `subject_kind` this build cannot name reads
+ * as *no* subject, so it counts for nothing here rather than for everything:
+ * `some` over an empty answer is `false`, and a hash with no usable row left
+ * falls to the loose-bytes case above only when it never had one.
  *
  * The join is `checksum` and never `url`. A client may write `url` — it is a
  * registry field — so a member could otherwise mint an attachment row on a
@@ -1145,23 +1281,16 @@ export const visiblePageSql = (column: string, workspace = '?', user = '?'): str
  */
 export function canSeeFile(userId: string, hash: string): boolean {
   const rows = all<Row>(
-    `SELECT task_id, page_id, comment_id FROM attachments WHERE checksum = ? AND deleted_at IS NULL`,
+    `SELECT task_id, page_id, comment_id, subject_kind, subject_id FROM attachments
+      WHERE checksum = ? AND deleted_at IS NULL`,
     hash,
   );
   if (!rows.length) return true;
   return rows.some((row) => {
-    if (row.task_id) return canSeeTask(userId, String(row.task_id));
-    if (row.page_id) return canSeePage(userId, String(row.page_id));
-    if (row.comment_id) {
-      const comment = get<Row>(`SELECT task_id, page_id FROM comments WHERE id = ?`, row.comment_id);
-      if (!comment) return false;
-      // A comment on a page is the page's business, like the page itself — and
-      // that sentence used to be a comment above a `return true`, which is the
-      // whole of what went wrong.
-      if (comment.task_id) return canSeeTask(userId, String(comment.task_id));
-      if (comment.page_id) return canSeePage(userId, String(comment.page_id));
-      return true;
-    }
-    return true;
+    const subject = attachmentSubject(row);
+    // An attachment row that names nothing is the loose case again — one row of
+    // it rather than none — and it is the avatar, not a refusal.
+    if (!subject) return !row.subject_kind && !row.subject_id;
+    return canSeeSubject(userId, subject.kind, subject.id);
   });
 }

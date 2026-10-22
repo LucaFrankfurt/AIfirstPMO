@@ -36,6 +36,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
+import { Attachments } from '../../../kernel/files/Attachments';
 import { monthName, shortDate, today } from '../../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
@@ -1476,6 +1477,12 @@ function BudgetSettings({ budget }: { budget: Budget }) {
   return (
     <div className="mx-auto max-w-[720px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <BudgetFields budget={budget} onChange={(patch) => update('budget', budget.id, patch)} disabled={!canWrite} />
+
+      {/* The paperwork behind the money: the approved plan, the quote, the
+          invoice somebody is going to be asked about. `record_spend` writes the
+          number and had nowhere to put the document the number came off. */}
+      <Attachments on={{ kind: 'budget', id: budget.id }} className="mt-4 mb-4" />
+
       {canWrite && (
         <>
           <SectionHeading>{t('action.delete')}</SectionHeading>

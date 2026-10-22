@@ -7,13 +7,14 @@
  */
 
 import {
-  ENTITIES, ENTITY_NAMES, type EntityName, isDoneGroup, type ProjectVocabulary, relocate,
+  ENTITIES, ENTITY_NAMES, LINK_COLUMNS, type EntityName, attachmentSubject, isAttachmentSubject, isDoneGroup,
+  type ProjectVocabulary, relocate, soleLink,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import {
-  canSeePage, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored, wouldLoop, writeEntity,
-  type WriteOpts,
+  canSeePage, canSeeSubject, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored, wouldLoop,
+  writeEntity, type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
 
 const asId = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -364,6 +365,60 @@ function guardCommentWrite(values: Record<string, unknown>, existing: Row | unde
  */
 const COMMENT_FIXED = ['task_id', 'page_id', 'parent_id', 'author_id', 'guest_name', 'anchor'] as const;
 
+/**
+ * You cannot hang a file on something you cannot open.
+ *
+ * `storeFile` is not the only way an attachment row appears. A client may
+ * `POST /api/workspaces/:ws/attachments` with any body the registry accepts,
+ * and a phone that was offline pushes the same row through sync — so the upload
+ * route checking the subject would leave two doors that do not. This is the
+ * third door and the one they all go through.
+ *
+ * What it buys is not the bytes: those are `canSeeFile`'s business and are
+ * content-addressed anyway. It is that a member cannot *file* something into a
+ * project they are not on, where the people who are on it will read it as
+ * theirs — and cannot move an existing attachment out of a task they may see
+ * into one they may not, which is the half a create-only check would miss.
+ *
+ * An unnamed subject is allowed and is the loose case: `storeFile` writes an
+ * avatar and a pasted image with no link at all. An unknown `subject_kind` is
+ * refused by name rather than ignored, because a row this build cannot resolve
+ * is invisible to every reader — it would be written, mirrored to nobody, and
+ * shown nowhere, which looks exactly like the upload having failed.
+ *
+ * Skipped for `opts.system`, like every other guard: an import, a restore or a
+ * project copy is the server moving its own rows and has already decided.
+ */
+function guardAttachmentWrite(
+  values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts,
+): void {
+  if (values.subject_kind !== undefined && values.subject_kind !== null && !isAttachmentSubject(values.subject_kind)) {
+    throw badRequest(`${String(values.subject_kind)} is not something a file can be attached to`);
+  }
+  // The row as it will be, not as it arrived: a patch that names no link at all
+  // leaves the existing one standing, and that is the subject to ask about.
+  const subject = attachmentSubject({ ...existing, ...values });
+  if (!subject) return;
+  /*
+   * In this workspace, and then visible in it.
+   *
+   * Two questions, because the second does not imply the first: a private
+   * project refuses a stranger, but a product belongs to its whole workspace,
+   * so `canSeeSubject` alone would let somebody who is in two workspaces file a
+   * row in one against a row in the other. Nothing would *see* that row — the
+   * pull scopes the subject to the workspace too — which is the reason to
+   * refuse it rather than to shrug: a row no reader can resolve looks exactly
+   * like the upload having failed.
+   */
+  const row = get<Row>(`SELECT workspace_id FROM ${ENTITIES[subject.kind].table} WHERE id = ?`, subject.id);
+  if (!row || row.workspace_id !== opts.workspaceId) {
+    throw badRequest(`There is no ${subject.kind} ${subject.id} in this workspace`);
+  }
+  if (!canSeeSubject(opts.actorId, subject.kind, subject.id)) {
+    throw forbidden(`That ${subject.kind} is not yours`);
+  }
+}
+
 export const workRules = {
   entities: ['task', 'project', 'comment', 'attachment', 'view', 'field'],
   defaults(entity, id, values, opts, setForced) {
@@ -397,8 +452,34 @@ export const workRules = {
   guards(entity, id, values, existing, opts) {
     if (entity === 'task' && values.state_id !== undefined) guardTransition(String(values.state_id), opts);
     if (entity === 'comment') guardCommentWrite(values, existing, opts);
+    if (entity === 'attachment') guardAttachmentWrite(values, existing, opts);
   },
   invariants(entity, id, values, existing, forced, opts) {
+    /**
+     * Exactly one of the five link columns, every time.
+     *
+     * Two legal spellings of one attachment would mean the task's own Files
+     * section misses it, the project export's three `EXISTS` miss it, and
+     * `storeFile`'s de-duplication writes a second row for the same bytes. So
+     * `soleLink` reduces whatever arrived to the single link
+     * `attachmentSubject` reads — see `registry/attachments.ts`, which is the
+     * only code that knows which kinds have a column of their own.
+     *
+     * Asked of the row **as it will be** and not of the write alone: a `PATCH`
+     * that names only `subject_id` means "the same kind, a different id", and
+     * reading the write on its own would see no kind and clear the link
+     * altogether.
+     *
+     * Through `forced`, so a device that sent another spelling is told what was
+     * written rather than going on believing its own copy.
+     */
+    if (entity === 'attachment' && LINK_COLUMNS.some((column) => values[column] !== undefined)) {
+      const sole = soleLink({ ...existing, ...values });
+      if (sole) {
+        Object.assign(values, sole);
+        Object.assign(forced, sole);
+      }
+    }
     /**
      * A sub-task cannot sit under itself, directly or at any remove.
      *

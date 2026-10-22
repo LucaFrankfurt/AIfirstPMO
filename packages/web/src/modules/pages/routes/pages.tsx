@@ -19,6 +19,7 @@ import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
 import { HtmlEditor, HtmlView } from '../Html';
 import { ImportPages } from '../import';
+import { Attachments } from '../../../kernel/files/Attachments';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { ShareSheet } from '../../share/share';
 import { useHighlights, useSelectionAnchor } from '../annotate';
@@ -781,8 +782,8 @@ export function PageDetail() {
               />
             </div>
             {page.format === 'html'
-              ? <HtmlEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} />
-              : <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ page_id: id }} fieldRef={fieldRef} />}
+              ? <HtmlEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} />
+              : <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} fieldRef={fieldRef} />}
             {/* Quiet, and only while it is true: somebody wanting to know why a
                 sentence appeared under their cursor should be able to find out,
                 and nobody else should have to look at it. */}
@@ -870,6 +871,13 @@ export function PageDetail() {
             ))}
           </section>
         )}
+
+        {/* What is attached, above the discussion and below the page.
+            `page_id` has been a column on `attachments` since the table was
+            written and the only way to fill it was to paste an image into the
+            body — so a page could carry a picture and could not carry the
+            spreadsheet the picture was of. */}
+        {!editing && <Attachments on={{ kind: 'page', id }} className="mt-7" />}
 
         {/* Last, and only while reading: the page is the point, the thread is
             what people said about it — and mid-edit it is simply in the way. */}

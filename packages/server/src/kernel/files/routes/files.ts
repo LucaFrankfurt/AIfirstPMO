@@ -1,11 +1,47 @@
+import { type AttachmentSubject, isAttachmentSubject } from '@kolibri/shared';
 import { all, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
 import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, decodeParam, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
 import { contentDisposition, disposition } from '../mime.ts';
 import * as storage from '../storage.ts';
-import { canSeeFile } from '../../write-path/repo.ts';
+import { canSeeFile, canSeeSubject } from '../../write-path/repo.ts';
 import { safeName, storeFile } from '../uploads.ts';
+
+/**
+ * Which one thing this upload is being hung on, out of the query string.
+ *
+ * `task_id`, `page_id` and `comment_id` are the three spellings this route has
+ * always taken and every client in the wild sends; `subject` and `subject_id`
+ * are the pair that says everything else — a decision, a budget, a component.
+ * Both forms arrive here and leave as one `{ kind, id }`, which is what an
+ * attachment row actually holds.
+ *
+ * Two of anything is a refusal rather than a precedence rule. A request naming
+ * both a task and a page is a client that has made a mistake, and picking the
+ * first would file the file somewhere the caller did not ask for and then
+ * report success — the worst of the three available answers.
+ */
+function subjectFrom(query: URLSearchParams): { kind: AttachmentSubject; id: string } | null {
+  const named: [AttachmentSubject, string | null][] = [
+    ['task', query.get('task_id')],
+    ['page', query.get('page_id')],
+    ['comment', query.get('comment_id')],
+  ];
+  const found = named.filter(([, id]) => !!id).map(([kind, id]) => ({ kind, id: String(id) }));
+
+  const id = query.get('subject_id');
+  if (id) {
+    const kind = query.get('subject');
+    if (!isAttachmentSubject(kind)) {
+      throw badRequest(`\`subject\` is ${kind ? `not something a file can be attached to: ${kind}` : 'missing'}`);
+    }
+    found.push({ kind, id });
+  }
+
+  if (found.length > 1) throw badRequest('An upload hangs on one thing, and this names several');
+  return found[0] ?? null;
+}
 
 export function registerFileRoutes(router: Router): void {
   /**
@@ -20,6 +56,27 @@ export function registerFileRoutes(router: Router): void {
 
     const mime = (ctx.req.headers['content-type'] ?? 'application/octet-stream').split(';')[0].trim();
     const name = decodeParam(String(ctx.req.headers['x-filename'] ?? 'upload'), 'x-filename');
+    /*
+     * Whose task, page or decision it is, asked before a byte is read.
+     *
+     * This route used to check workspace membership and nothing else, so a
+     * member could file a screenshot into a private project they are not on —
+     * where the people who *are* on it would then read it as theirs. The write
+     * path refuses it too — `guardAttachmentWrite` in `work.ts`, which every
+     * door including a sync push comes through, and which `storeFile` below
+     * therefore also runs. It is asked here as well so that the refusal lands
+     * *before* `readBody`: saying no afterwards means having accepted
+     * twenty-five megabytes in order to throw them away.
+     *
+     * An upload naming nothing stays allowed. That is the avatar, the workspace
+     * logo and an image pasted into a chat message, and membership is the whole
+     * of the rule those have ever had.
+     */
+    const subject = subjectFrom(ctx.query);
+    if (subject && !canSeeSubject(auth.userId, subject.kind, subject.id)) {
+      throw forbidden(`That ${subject.kind} is not yours`);
+    }
+
     const body = await readBody(ctx.req, env.maxUploadBytes);
     if (!body.length) throw badRequest('Empty upload');
 
@@ -27,9 +84,7 @@ export function registerFileRoutes(router: Router): void {
       workspaceId: ctx.params.ws,
       userId: auth.userId,
       name, mime, body,
-      taskId: ctx.query.get('task_id'),
-      pageId: ctx.query.get('page_id'),
-      commentId: ctx.query.get('comment_id'),
+      subject,
       thumbUrl: ctx.query.get('thumb_url'),
     });
   });

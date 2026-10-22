@@ -370,12 +370,40 @@ curl -X POST "$URL/api/workspaces/$WS/files?task_id=$TASK" \
 ```
 
 Content is addressed by SHA-256, so uploading the same file twice costs one row and no extra bytes.
-Passing `task_id`, `page_id` or `comment_id` also creates the attachment record that shows up in the
-UI; without it you just get a URL to embed in markdown.
+
+### What a file hangs on
+
+Naming something in the query string also creates the attachment record that shows up in the UI;
+without it you just get a URL to embed in markdown. Three spellings, and a request may use only one
+of them — naming two is a **400**, because filing the file under the first and reporting success is
+the worst of the available answers:
+
+| query | what it attaches to |
+|---|---|
+| `task_id=…` | a task |
+| `page_id=…` | a page |
+| `comment_id=…` | a comment |
+| `subject=<kind>&subject_id=…` | anything else: `project`, `decision`, `cycle`, `module`, `kpi`, `budget`, `product`, `component` |
+
+The three named ones are columns on `attachments` and the pair is one column each for the kind and
+the id — two spellings of one link, because a fourth, fifth and sixth named column would have meant
+a fourth, fifth and sixth copy of the rule about who may see the row. `subject=task` is accepted and
+written as `task_id`, so a row never carries both.
+
+An upload against something you cannot see is a **403**, and so is a `POST /api/workspaces/:ws/attachments`
+or a `PATCH` that moves one there: an attachment has no visibility of its own, it inherits whatever
+it hangs on, and that rule is one function on the server rather than one per door.
+
+`DELETE /api/attachments/:id` detaches a file. It is soft — the row goes to the trash and a `PATCH`
+with `deleted_at: null` brings it back — and it never deletes the stored bytes: storage is
+content-addressed, so the same screenshot on two things is one blob with two rows, and removing the
+blob would take the file out from under the other one. Sweeping blobs nothing points at any more is
+a separate job.
 
 Downloads (`GET /files/:hash/:name`) require a session or token and membership in the owning
-workspace. Only a safe list of types is served inline; everything else downloads with
-`Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`.
+workspace, **and** that you may see something the bytes are attached to. Only a safe list of types is
+served inline; everything else downloads with `Content-Disposition: attachment` and
+`X-Content-Type-Options: nosniff`.
 
 The browser client downscales images to 2000px WebP before upload, so a phone photo does not push
 12 MB through a mobile connection.

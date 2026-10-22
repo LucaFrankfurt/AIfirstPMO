@@ -41,6 +41,7 @@ import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
+import { Attachments } from '../../../kernel/files/Attachments';
 import { categoryKey } from '../../budgets/budget';
 import { shortDate, today } from '../../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
@@ -1392,6 +1393,11 @@ function Overview({ product, entry }: { product: Product; entry: CatalogueEntry 
       </div>
 
       <Contributors product={product} contributors={contributors} />
+
+      {/* The datasheet, the price list as it went out, the licence terms. A
+          catalogue that can model a price to the basis point and cannot hold
+          the PDF the price was quoted in is only half a catalogue. */}
+      <Attachments on={{ kind: 'product', id: product.id }} />
 
       <div>
         <SectionHeading>{t('product.retention')}</SectionHeading>

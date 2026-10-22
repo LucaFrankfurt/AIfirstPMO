@@ -122,7 +122,16 @@ export const api = {
     workspaceId: string,
     file: Blob,
     name: string,
-    link?: { task_id?: string; page_id?: string; comment_id?: string; thumb_url?: string },
+    /**
+     * What to hang it on, already in the endpoint's own spelling.
+     *
+     * A flat bag of query parameters rather than a subject, because that is all
+     * this function does with it — and because `uploadLink` in `kernel/files`
+     * is the one place that knows a task is `task_id` and a decision is
+     * `subject` plus `subject_id`. Two places knowing it is how they come to
+     * disagree.
+     */
+    link?: Record<string, string | undefined>,
   ) => {
     const query = new URLSearchParams(Object.entries(link ?? {}).filter(([, v]) => !!v) as [string, string][]);
     return request<{ url: string; hash: string; name: string; mime: string; size: number; width?: number; height?: number; attachment?: any }>(

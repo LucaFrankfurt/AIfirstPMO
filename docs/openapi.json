@@ -93,6 +93,33 @@
           "size": {
             "type": "number"
           },
+          "subject_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "subject_kind": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "task",
+              "page",
+              "comment",
+              "project",
+              "decision",
+              "cycle",
+              "module",
+              "kpi",
+              "budget",
+              "product",
+              "component",
+              null
+            ],
+            "description": "Anything else a file may hang on — a decision, a budget, a component. Never one of the three above, and never set alongside one of them: `soleLink` reduces whatever a write names to the single link every reader reads, so nobody has to ask which of two fields wins. See `kernel/registry/attachments.ts`."
+          },
           "task_id": {
             "type": [
               "string",
@@ -2560,8 +2587,8 @@
           "access": {
             "type": "string",
             "enum": [
-              "workspace",
               "project",
+              "workspace",
               "private"
             ]
           },
@@ -3755,22 +3782,30 @@
           "entity": {
             "type": "string",
             "enum": [
+              "task",
+              "page",
+              "comment",
+              "project",
+              "decision",
+              "cycle",
+              "module",
+              "kpi",
+              "budget",
+              "product",
+              "component",
               "user",
               "team",
               "member",
               "channel",
-              "project",
               "teamMember",
               "projectMember",
               "state",
               "field",
               "fieldValue",
               "baseline",
-              "budget",
               "budgetLine",
               "budgetActual",
               "budgetScenario",
-              "product",
               "productGroup",
               "productPrice",
               "productCost",
@@ -3781,23 +3816,15 @@
               "productScenario",
               "rate",
               "vendor",
-              "component",
               "move",
               "share",
               "label",
-              "task",
               "relation",
-              "cycle",
-              "module",
-              "kpi",
               "kpiTarget",
               "kpiReading",
-              "decision",
               "decisionOption",
               "decisionVote",
               "pageStatus",
-              "page",
-              "comment",
               "attachment",
               "view",
               "timeEntry",
@@ -3976,8 +4003,8 @@
           "access": {
             "type": "string",
             "enum": [
-              "workspace",
               "project",
+              "workspace",
               "private"
             ],
             "description": "Who it is for. `private` means its author and nobody else, ever."
@@ -4564,8 +4591,8 @@
           "kind": {
             "type": "string",
             "enum": [
-              "review",
               "task",
+              "review",
               "feedback",
               "bug",
               "checklist"

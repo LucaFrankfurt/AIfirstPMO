@@ -1,6 +1,6 @@
 import {
-  ENTITIES, IMPORT_FIELDS, REST_ENTITIES, canReadMailbox, convert, detectFormat, guessMapping, isCrossWorkspace,
-  isGuestWritable, parseCsv,
+  ENTITIES, IMPORT_FIELDS, REST_ENTITIES, attachmentSubject, canReadMailbox, convert, detectFormat, guessMapping,
+  isCrossWorkspace, isGuestWritable, parseCsv,
   type EntityName, type ImportField, type Mapping, type WorkspaceRole,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../platform/db/index.ts';
@@ -15,8 +15,8 @@ import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import {
-  canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, canSeeTask, deleteEntity, pageIsVisible, parseIds, serialize,
-  visibleTaskSql, writeEntity,
+  canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, canSeeSubject, canSeeTask, deleteEntity, pageIsVisible,
+  parseIds, serialize, visibleTaskSql, writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
@@ -38,15 +38,24 @@ const projectOf = (entity: EntityName, row: Row): string | null =>
   (entity === 'project' ? row.id : row.project_id) ?? null;
 
 /**
- * The three rows that hang off a task and carry no `project_id` of their own.
+ * The two rows that hang off a task and carry no `project_id` of their own.
  *
  * `projectOf` above asked them for a column they do not have, so the guard
  * below refused nobody on them — see `canSeeTask` in `repo.ts` for what that
  * opened and why the pull filter had it right all along. Named here rather
  * than derived, because "has `task_id` and no `project_id`" is a fact about
- * three tables and a list of three is easier to check than a predicate.
+ * these tables and a short list is easier to check than a predicate.
+ *
+ * An attachment used to be the third. It is not any more, and the difference is
+ * a refusal this door did not make: `row.task_id == null` was *true* for a file
+ * on a private page, so `GET`, `PATCH` and `DELETE /api/attachments/:id` were
+ * open to every member of the workspace — the name of the file, and the right
+ * to detach it. The pull filter and the bytes route had both been taught the
+ * page half (see `canSeeFile` in `repo.ts`); this one had not, which is the
+ * third time the same question has been answered differently depending on the
+ * door. It now asks `canSeeSubject`, which is that question with one answer.
  */
-const TASK_BOUND = new Set<EntityName>(['comment', 'attachment', 'relation']);
+const TASK_BOUND = new Set<EntityName>(['comment', 'relation']);
 
 /**
  * Whether this row is one this person may have at all.
@@ -56,9 +65,24 @@ const TASK_BOUND = new Set<EntityName>(['comment', 'attachment', 'relation']);
  * this replaced, one door answering differently from another.
  */
 function visibleRow(userId: string, entity: EntityName, row: Row): boolean {
-  // A comment or an attachment with no task hangs off a page, whose own access
-  // rule is `guardPage`; a relation always has a task. Exactly the pull
-  // filter's reading of the same three tables.
+  /*
+   * An attachment has no visibility of its own: it is whatever it hangs on.
+   *
+   * One rule, in `repo.ts`, shared with the pull filter, the bytes route and
+   * MCP. A row that names no subject is the loose case — an avatar, a workspace
+   * logo — and stays the workspace's, which membership has already settled by
+   * the time this is asked. A row naming a subject this build cannot resolve is
+   * refused rather than waved through; that fall-through is what cost the two
+   * disclosures in `TODO.md`.
+   */
+  if (entity === 'attachment') {
+    const subject = attachmentSubject(row);
+    if (!subject) return !row.subject_kind && !row.subject_id;
+    return canSeeSubject(userId, subject.kind, subject.id);
+  }
+  // A comment with no task hangs off a page, whose own access rule is
+  // `guardPage`; a relation always has a task. Exactly the pull filter's
+  // reading of the same two tables.
   if (TASK_BOUND.has(entity)) return row.task_id == null || canSeeTask(userId, String(row.task_id));
   return canSeeProject(userId, projectOf(entity, row));
 }

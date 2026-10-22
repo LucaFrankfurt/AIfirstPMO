@@ -203,16 +203,26 @@ export function exportProject(workspaceId: string, projectId: string, options: E
     workspaceId,
   ).map((user) => ({ id: String(user.id), name: String(user.name), email: String(user.email) }));
 
-  /* Everything hung off this project's tasks, pages and comments. Written as
-     three `EXISTS` rather than three `IN` so the query stays sane on a project
-     with thirty thousand tasks in it. */
+  /* Everything hung off this project's tasks, pages and comments — and off the
+     project, its cycles and its modules, which are the other rows this document
+     carries. Written as `IN` over indexed sub-queries so it stays sane on a
+     project with thirty thousand tasks in it.
+
+     Deliberately *not* every subject a file may hang on. A decision, a budget
+     and a KPI are in no project document, so an attachment naming one would
+     import as a paperclip onto a row that is not in the file — which is the
+     thing the `attachments` docblock above says is worse than an honest
+     omission. When those rows learn to travel, this clause follows them. */
   const attachments = live(
     'attachments',
     `(task_id IN (SELECT id FROM tasks WHERE project_id = ?1)
       OR page_id IN (SELECT id FROM pages WHERE project_id = ?1)
       OR comment_id IN (SELECT c.id FROM comments c
                          WHERE c.task_id IN (SELECT id FROM tasks WHERE project_id = ?1)
-                            OR c.page_id IN (SELECT id FROM pages WHERE project_id = ?1)))`,
+                            OR c.page_id IN (SELECT id FROM pages WHERE project_id = ?1))
+      OR (subject_kind = 'project' AND subject_id = ?1)
+      OR (subject_kind = 'cycle' AND subject_id IN (SELECT id FROM cycles WHERE project_id = ?1))
+      OR (subject_kind = 'module' AND subject_id IN (SELECT id FROM modules WHERE project_id = ?1)))`,
     projectId,
   );
 
@@ -634,7 +644,13 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
       const task = to(row.task_id);
       const page = to(row.page_id);
       const comment = to(row.comment_id);
-      if (!task && !page && !comment) continue;
+      // The generic subject is remapped the same way and dropped the same way:
+      // its id came from another instance, so without a new one it would point
+      // at nothing. `to` answers `undefined` for a row the document did not
+      // bring, which is why "no subject at all" is the test below rather than
+      // "no `subject_id` in the file".
+      const subject = to(row.subject_id);
+      if (!task && !page && !comment && !subject) continue;
       // The hash is the identity of the bytes, so a surviving attachment keeps
       // the same URL it had on the instance it came from. One that did not
       // survive is left out rather than written as a paperclip onto a 404.
@@ -642,6 +658,7 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
       if (!hash || missingFiles.includes(hash)) continue;
       write('attachment', row, {
         task_id: task, page_id: page, comment_id: comment,
+        subject_kind: subject ? row.subject_kind : null, subject_id: subject ?? null,
         uploaded_by: who(row.uploaded_by) ?? actorId,
         // A thumbnail whose bytes did not come is dropped on its own; the
         // attachment is still there and still opens.

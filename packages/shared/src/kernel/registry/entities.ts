@@ -531,11 +531,20 @@ export const ENTITIES = {
     serverOnly: ['edited_at'],
     json: ['reactions', 'anchor'],
   },
+  /**
+   * A file, and the one thing it hangs on.
+   *
+   * Five columns say that one thing and exactly one of them is set:
+   * `task_id`, `page_id` and `comment_id` for the three that have always had
+   * their own, and `subject_kind` / `subject_id` for everything else a file may
+   * be attached to. `attachments.ts` in this directory is the only code that
+   * picks between the two spellings, and says why both exist.
+   */
   attachment: {
     table: 'attachments',
     fields: [
-      'workspace_id', 'task_id', 'page_id', 'comment_id', 'name', 'mime', 'size',
-      'url', 'thumb_url', 'width', 'height', 'uploaded_by',
+      'workspace_id', 'task_id', 'page_id', 'comment_id', 'subject_kind', 'subject_id',
+      'name', 'mime', 'size', 'url', 'thumb_url', 'width', 'height', 'uploaded_by',
     ],
   },
   view: {

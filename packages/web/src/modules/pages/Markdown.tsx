@@ -6,7 +6,7 @@ import {
   type Edit, type MarkdownOptions,
 } from '@kolibri/shared';
 
-import { api } from '../../kernel/sync/api';
+import { useUploads, type AttachTo } from '../../kernel/files/uploads';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMermaid } from './mermaid';
 import { DiagramViewer } from './diagram';
@@ -16,7 +16,7 @@ import { useMembers, useSession } from '../../kernel/identity/session';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
 import { cn } from '../../kernel/design-system/cn';
-import { Avatar, Icon, useLightbox, useToast } from '../../kernel/design-system/ui';
+import { Avatar, Icon, useLightbox } from '../../kernel/design-system/ui';
 import { Textarea } from '../../kernel/design-system/ui/field';
 
 /**
@@ -189,45 +189,6 @@ export function Markdown({ source, className = '', onChange, asPage }: {
   );
 }
 
-/**
- * Putting a file into the workspace, wherever an editor wants one.
- *
- * Shared by the markdown editor and the HTML one, which need the same three
- * things — downscale a photograph so a phone does not push twelve megabytes
- * through a mobile connection, upload it against the page or task it belongs
- * to, and say so when it fails — and differ only in what they write afterwards.
- * Whatever succeeded is returned even when a later file fails, because losing
- * four uploads to the fifth one's timeout is worse than an incomplete paste.
- */
-export function useUploads(attachTo?: { task_id?: string; page_id?: string }): {
-  busy: boolean;
-  take: (files: File[]) => Promise<{ url: string; name: string; image: boolean }[]>;
-} {
-  const t = useT();
-  const toast = useToast();
-  const { workspaceId } = useSession();
-  const [busy, setBusy] = useState(false);
-
-  const take = async (files: File[]) => {
-    const done: { url: string; name: string; image: boolean }[] = [];
-    if (!files.length || !workspaceId) return done;
-    setBusy(true);
-    try {
-      for (const file of files) {
-        const image = file.type.startsWith('image/');
-        const result = await api.upload(workspaceId, image ? await downscale(file) : file, file.name, attachTo);
-        done.push({ url: result.url, name: file.name, image });
-      }
-    } catch (err) {
-      toast(err instanceof Error ? t('editor.uploadFailedReason', { reason: err.message }) : t('editor.uploadFailed'));
-    } finally {
-      setBusy(false);
-    }
-    return done;
-  };
-
-  return { busy, take };
-}
 
 interface EditorProps {
   value: string;
@@ -235,8 +196,8 @@ interface EditorProps {
   placeholder?: string;
   minHeight?: number;
   autoFocus?: boolean;
-  /** Attach uploaded images to this task/page. */
-  attachTo?: { task_id?: string; page_id?: string };
+  /** Hang uploaded images on this task, page, decision — whatever is being edited. */
+  attachTo?: AttachTo | null;
   onSubmit?: () => void;
   /**
    * Enter submits, the way a conversation expects — Shift+Enter breaks a line
@@ -998,28 +959,4 @@ export function MarkdownEditor({ value, onChange, placeholder, minHeight = 150, 
   );
 }
 
-/**
- * Resize an image on the client. Keeps uploads small on mobile connections and
- * means the server never needs an image library.
- */
-export async function downscale(file: File, maxSide = 2000, quality = 0.82): Promise<Blob> {
-  if (!file.type.startsWith('image/') || file.type === 'image/gif' || file.type === 'image/svg+xml') return file;
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    if (scale === 1 && file.size < 900_000) return file;
 
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const context = canvas.getContext('2d');
-    if (!context) return file;
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-
-    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/webp', quality));
-    return blob && blob.size < file.size ? blob : file;
-  } catch {
-    return file;
-  }
-}

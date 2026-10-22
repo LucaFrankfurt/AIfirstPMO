@@ -28,7 +28,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { escapeHtml, formatHtml, sanitizeHtml } from '@kolibri/shared';
 
-import { useInAppLinks, useUploads } from './Markdown';
+import { useInAppLinks } from './Markdown';
+import { useUploads, type AttachTo } from '../../kernel/files/uploads';
 import { HEADING_PREFIX, usePageHref } from './page-links';
 import { cn } from '../../kernel/design-system/cn';
 import { buttonVariants } from '../../kernel/design-system/ui/button';
@@ -117,7 +118,7 @@ export function HtmlEditor({ value, onChange, minHeight = 420, attachTo }: {
   value: string;
   onChange: (next: string) => void;
   minHeight?: number;
-  attachTo?: { task_id?: string; page_id?: string };
+  attachTo?: AttachTo | null;
 }) {
   const t = useT();
   const [source, setSource] = useState(false);

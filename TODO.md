@@ -83,9 +83,43 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       `canSeeBudget`, `visiblePageSql` beside `visibleTaskSql`, and the REST guard, MCP's
       `canSeePage` and the pull filter all defer to them. Five spellings became one and two SQL
       shadows of it — which is what `CLAUDE.md` means by preferring to move the shared thing down.
+      The walk itself went the same way later, when a file learned to hang on a decision: see
+      `canSeeSubject` in the entry below, and the third copy of this rule that was still wrong.
       `page-files.test.ts` asks the question through the door that was wrong rather than through the
       function, including the two cases that had to keep working: a page everybody may read, and
       bytes that hang off no attachment row at all, which is every avatar and workspace logo.
+- [x] **A file can hang on anything, and can be taken off again — and the fourth door is shut.**
+      Attachments reached a task, a page and a comment, and each of those was a column; a page could
+      carry a pasted screenshot and could not carry the spreadsheet the screenshot was of, and a
+      decision, a budget or a contract on a component had nowhere at all. Anything that is not one of
+      the three now hangs off a `subject_kind` / `subject_id` pair named in one list,
+      `ATTACHMENT_SUBJECTS` — `project`, `decision`, `cycle`, `module`, `kpi`, `budget`, `product`,
+      `component` — and the three keep their columns because they are indexed, because every client's
+      IndexedDB already holds rows shaped that way, and because two legal spellings of one link would
+      make the task's own Files section miss half of them. `attachmentLink` writes one spelling and
+      `attachmentSubject` reads it; the write path moves `subject_kind: 'task'` back onto `task_id`
+      rather than refusing it, so no reader has to decide which field wins.
+      The fix inside the feature is the part worth recording. The rule *an attachment is as private
+      as whatever it hangs on* had been written four times — the pull filter, the REST guard,
+      `canSeeFile`, MCP's `findAttachment` — and the two entries above are two of those copies
+      falling off the end of their own walk. **The third was still wrong:** `visibleRow` in
+      `routes/entities.ts` read `row.task_id == null` as "nothing to check", so `GET`, `PATCH` and
+      `DELETE /api/attachments/:id` were open to every member of the workspace for any file on a
+      private page — the name of the file, and the right to detach it. A sixth column would have been
+      a fifth copy, so there is now one: `canSeeSubject` in `repo.ts`, which every door asks, and
+      whose `default` is a refusal rather than the other thing. The pull filter asks each subject's
+      **own** clause under an alias instead of a second one written for files, so if a decision stops
+      reaching a device the file attached to it stops with it — it is the same string.
+      Attaching is guarded too, in the write path rather than only on the upload route, because a
+      phone that was offline pushes the same row through sync: you cannot file something into a
+      project you are not on, and cannot move an existing attachment into one. Removing a file is a
+      tombstone on the row and never a delete of the bytes — storage is content-addressed, so the
+      same screenshot on two things is one blob with two rows. `attachments.test.ts` asks all of it
+      through the doors rather than through the function, and fails on three cases against the old
+      `visibleRow`, which is how the gap above was measured rather than argued.
+      Not done: a decision's, budget's or KPI's attachments do not travel in a project export,
+      because those rows do not either — an attachment naming a row that is not in the file is the
+      paperclip-onto-a-404 the export already refuses to write. A project's, cycle's and module's do.
 - [x] **No request can end the process.** Found while turning a 500 into a 400 for a file name that
       will not decode, and much worse than that: the router decodes path parameters, and static
       serving decodes the path, before the one `catch` in `index.ts` was reached — and the listener
@@ -1691,7 +1725,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **61** the list carries; the other undroppable-looking eight turned out to be something else
+      **63** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
