@@ -711,7 +711,11 @@ describe('kolibri api', () => {
     const still = await fetch(`${base}${one.url}`, { headers: { authorization: `Bearer ${apiToken}` } });
     assert.equal(still.status, 200, 'the stored bytes are shared and stay put');
 
-    assert.match(JSON.stringify(await callTool('list_attachments', {})), /Pass `task` or `page`/);
+    // Naming nothing is a refusal that says every way of naming something —
+    // there are three now, since a file hangs off a decision or a budget as
+    // readily as off a task.
+    const nothing = JSON.stringify(await callTool('list_attachments', {}));
+    for (const way of ['`task`', '`page`', '`subject`']) assert.match(nothing, new RegExp(way.replace(/[`]/g, '`')));
   });
 
   /**

@@ -1,6 +1,7 @@
 import {
   ENTITY_NAMES,
   ENTITIES,
+  GENERIC_SUBJECTS,
   entityDef,
   isCrossWorkspace,
   isGuestWritable,
@@ -69,9 +70,47 @@ interface Scope {
   userId: string;
 }
 
-/** Extra WHERE clause per entity so a pull never returns rows the user may not see. */
-function filterFor(entity: EntityName): string {
-  const table = ENTITIES[entity].table;
+/**
+ * "The subject this file hangs on reaches this device" — one `EXISTS` per kind.
+ *
+ * Generated from `GENERIC_SUBJECTS` and from each subject's own clause, so the
+ * list of what may carry a file lives in `@kolibri/shared` and the rule about
+ * who may see one lives wherever it already lived. Nothing about files is
+ * decided here.
+ *
+ * A comment is skipped even though it is a subject: it is one of the three with
+ * a column of its own, so `subject_kind` never holds it — and a comment-bound
+ * attachment is covered by the two clauses beside this one, through the comment
+ * the same way the comment itself is.
+ *
+ * **No `deleted_at` on the subject**, which is deliberate and was wrong in the
+ * first draft of this. An attachment inherits its subject's *visibility*, not
+ * its subject's existence — the same decision `canSeeTask` and `canSeePage`
+ * record, and `visibleTaskSql` beside this clause does not ask either. Nothing
+ * cascades a delete to an attachment, so adding the condition would mean a
+ * device that first synced while a decision sat in the trash got the decision
+ * and none of its files, and restoring it would never bring them: the rows'
+ * `seq` has not moved, so that device would not be sent them again. "I restored
+ * it and the files are gone" is a worse answer than mirroring a row whose
+ * parent is in the trash — which is, after all, where the restore button is.
+ */
+const subjectVisibleSql = (table: string): string => GENERIC_SUBJECTS
+  .map((kind) => `(${table}.subject_kind = '${kind}'
+                   AND EXISTS (SELECT 1 FROM ${ENTITIES[kind].table} sub
+                                WHERE sub.id = ${table}.subject_id
+                                  AND sub.workspace_id = ?1
+                                  ${filterFor(kind, 'sub')}))`)
+  .join('\n OR ');
+
+/**
+ * Extra WHERE clause per entity so a pull never returns rows the user may not see.
+ *
+ * `table` is overridable because one case asks this function about a *different*
+ * entity under an alias: an attachment's clause is its subject's clause, and
+ * nothing else. See `case 'attachment'` below for why that recursion is the
+ * point rather than a trick.
+ */
+function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): string {
   switch (entity) {
     // Somebody in this workspace — or somebody you are in a direct conversation
     // with, who may be in none of yours. Without the second half their name
@@ -324,14 +363,36 @@ function filterFor(entity: EntityName): string {
      * were the other half of that, and `canSeeFile` in `repo.ts` is where they
      * were answered wrongly; this is the same rule at the other door.
      *
-     * Neither id is the one door: an attachment can hang off a task, off a page
-     * or off a comment, and one that hangs off nothing at all is an avatar or a
-     * workspace logo and belongs to everybody.
+     * Neither id is the one door: a comment can hang off a task or off a page,
+     * and one that hangs off nothing at all is an avatar or a workspace logo
+     * and belongs to everybody.
      */
     case 'comment':
-    case 'attachment':
       return `AND (${table}.task_id IS NULL OR ${visibleTaskSql(`${table}.task_id`, '?1', '?2')})
               AND (${table}.page_id IS NULL OR ${visiblePageSql(`${table}.page_id`, '?1', '?2')})`;
+    /*
+     * An attachment is the same, plus everything else a file may hang on.
+     *
+     * The three named columns keep their two clauses above, and the generic
+     * `subject_kind` / `subject_id` pair gets one `EXISTS` per kind — built by
+     * **asking this same function** for the subject's own clause under an
+     * alias, rather than by writing a second rule about who may see a decision.
+     *
+     * That recursion is the whole design. A fifth named column would have meant
+     * a fifth hand-written clause here, and the two disclosures recorded above
+     * were both a clause that had been written out once too often and had
+     * stopped agreeing with its original. This cannot drift: if a decision
+     * stops reaching a device, the file attached to it stops with it, because
+     * it is the same string.
+     *
+     * A kind this build cannot name matches none of the branches and so does
+     * not travel, which is the safe direction: `canSeeFile` refuses the bytes
+     * behind such a row too.
+     */
+    case 'attachment':
+      return `AND (${table}.task_id IS NULL OR ${visibleTaskSql(`${table}.task_id`, '?1', '?2')})
+              AND (${table}.page_id IS NULL OR ${visiblePageSql(`${table}.page_id`, '?1', '?2')})
+              AND (${table}.subject_id IS NULL OR ${subjectVisibleSql(table)})`;
     case 'relation':
       return `AND ${visibleTaskSql(`${table}.task_id`, '?1', '?2')}`;
     default:

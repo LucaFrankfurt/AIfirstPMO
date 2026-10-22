@@ -1,9 +1,13 @@
 /**
- * Bytes hung off a task, a page or a comment.
+ * Bytes hung off a task, a page, a comment — or anything else in
+ * `ATTACHMENT_SUBJECTS`.
  */
+import {
+  ATTACHMENT_SUBJECTS, ENTITIES, type AttachmentSubject, attachmentLink, attachmentSubject, isAttachmentSubject,
+} from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
-import { canSeeFile, deleteEntity } from '../../../kernel/write-path/repo.ts';
+import { canSeeFile, canSeeSubject, deleteEntity } from '../../../kernel/write-path/repo.ts';
 import { storeFile } from '../../../kernel/files/uploads.ts';
 import * as storage from '../../../kernel/files/storage.ts';
 import { findPage, findTask, type McpCtx, McpError, mimeFromName, requireWrite, str, ToolAnswer, type ToolDef, workspaceOf, writeOpts } from '../kit.ts';
@@ -48,18 +52,57 @@ const FILE_URL = /\/files\/([0-9a-f]{64})(?:[/?#]|$)/i;
 const BARE_HASH = /^[0-9a-f]{64}$/i;
 
 /**
+ * The thing a file is being hung on, by kind and id.
+ *
+ * An id and not a reference, which is the one place this tool group is less
+ * forgiving than the rest of MCP: `findTask` takes `WEB-12` and `findBudget`
+ * takes a name, and there is no such spelling for nine kinds at once. Writing a
+ * finder per kind would have been nine more copies of "may this token see one
+ * of these" — which is the exact mistake the rest of this file is a correction
+ * of. The listing tools hand out ids, so a caller always has one.
+ *
+ * Two questions, both of them asked: the row is in *this* workspace, and
+ * `canSeeSubject` says yes. The first is not implied by the second — a private
+ * project refuses a stranger, but a product belongs to the whole workspace, so
+ * without the workspace check an id from somewhere else would resolve.
+ */
+function findSubject(
+  kind: AttachmentSubject, id: string, workspaceId: string, ctx: McpCtx,
+): { kind: AttachmentSubject; id: string } {
+  const row = get<Row>(`SELECT workspace_id FROM ${ENTITIES[kind].table} WHERE id = ? AND deleted_at IS NULL`, id);
+  if (!row || row.workspace_id !== workspaceId) throw new McpError(`No ${kind} ${id} in this workspace`);
+  if (!canSeeSubject(ctx.auth.userId, kind, id)) throw new McpError(`That ${kind} is not yours`);
+  return { kind, id };
+}
+
+/** The `subject` / `subject_id` pair off a tool's arguments, or nothing. */
+function subjectArg(args: Record<string, unknown>, workspaceId: string, ctx: McpCtx):
+{ kind: AttachmentSubject; id: string } | null {
+  const id = str(args.subject_id);
+  const kind = str(args.subject);
+  if (!id && !kind) return null;
+  if (!id || !kind) throw new McpError('`subject` and `subject_id` go together — give both or neither');
+  if (!isAttachmentSubject(kind)) {
+    throw new McpError(`\`subject\` is one of ${ATTACHMENT_SUBJECTS.join(', ')}, not "${kind}"`);
+  }
+  return findSubject(kind, id, workspaceId, ctx);
+}
+
+/**
  * An attachment, and whether this token may have it.
  *
- * An attachment inherits the privacy of whatever it hangs on — and it can hang
- * on a task, a page, or a comment, which itself hangs on one of the other two.
- * `findTask` and `findPage` refuse a private one, so calling them *is* the
- * check.
+ * An attachment inherits the privacy of whatever it hangs on, and this is the
+ * one question it asks: `canSeeSubject` is the same function the pull filter,
+ * the REST guard and the bytes route go through.
  *
- * This was written inline in `delete_attachment`, where the task branch alone
- * was the whole of it for a while — which left files on private pages deletable
- * by people who could not read the page. Reading them back is the same question
- * asked by a second tool, and a second copy of an answer that has already been
- * wrong once is how the halves drift apart.
+ * It used to walk the link columns here and call `findTask` / `findPage` itself,
+ * and before that the task branch alone was the whole of it — which left files
+ * on private pages deletable by people who could not read the page. A second
+ * copy of an answer that has already been wrong once is how the halves drift
+ * apart, and this file had two of them. Now it has none.
+ *
+ * A row naming a subject this build cannot resolve is refused rather than
+ * waved through, which is the direction the two fixed disclosures were wrong in.
  */
 function findAttachment(id: string, workspaceId: string, ctx: McpCtx): Row {
   const row = get<Row>(
@@ -67,12 +110,16 @@ function findAttachment(id: string, workspaceId: string, ctx: McpCtx): Row {
     id, workspaceId,
   );
   if (!row) throw new McpError(`Attachment ${id} not found`);
-  if (row.task_id) findTask(String(row.task_id), workspaceId, ctx);
-  if (row.page_id) findPage(String(row.page_id), workspaceId, ctx);
-  if (row.comment_id) {
-    const comment = get<Row>(`SELECT task_id, page_id FROM comments WHERE id = ?`, row.comment_id);
-    if (comment?.task_id) findTask(String(comment.task_id), workspaceId, ctx);
-    if (comment?.page_id) findPage(String(comment.page_id), workspaceId, ctx);
+  const subject = attachmentSubject(row);
+  if (!subject) {
+    // Nothing to inherit from: an avatar or a pasted image, which belongs to
+    // the workspace this token is already scoped to. An *unrecognised* subject
+    // is not that case and is refused.
+    if (row.subject_kind || row.subject_id) throw new McpError(`Attachment ${id} is filed under something unknown`);
+    return row;
+  }
+  if (!canSeeSubject(ctx.auth.userId, subject.kind, subject.id)) {
+    throw new McpError(`Attachment ${id} is attached to something you cannot see`);
   }
   return row;
 }
@@ -115,27 +162,24 @@ function hashOf(row: Row): string {
 /**
  * May this token have these bytes, when all it named was the file?
  *
- * `canSeeFile` is the rule `GET /files/:hash/*` applies, and it is a floor
- * rather than the answer. It walks the attachment rows carrying these bytes and
- * asks whether *any* of them is one you may see — which is right, since a file
- * on a task you can read is yours to read however else it is also filed — but
- * it answers `true` for a page-bound row without looking at the page. That gap
- * is deliberate and recorded in TODO.md: a page carries its own `access`
- * column, and teaching `canSeeFile` what `guardPage` knows is a second rule
- * about a second column.
+ * `canSeeFile` is the rule `GET /files/:hash/*` applies, and it now answers the
+ * same question this does — both of them walk the attachment rows carrying
+ * these bytes and ask `canSeeSubject` about each, which is right: a file on a
+ * task you can read is yours to read however else it is also filed.
  *
- * It cannot be inherited here, because this tool has two doors into one file.
- * Naming the attachment runs the walk in `findAttachment`, which refuses a
- * private page; naming the URL would not have, and a URL is a hash with a name
- * on the end. One tool answering "no" and "here you are" to the same bytes
- * depending on which argument you used is worse than either rule on its own —
- * it is the shape of every access bug this file has already had.
+ * It is still not simply called, and the reason is this tool's two doors into
+ * one file. Naming the attachment runs `findAttachment`, which refuses what is
+ * filed under something unknown; naming the URL would not, and a URL is a hash
+ * with a name on the end. One tool answering "no" and "here you are" to the
+ * same bytes depending on which argument you used is worse than either rule on
+ * its own — it is the shape of every access bug this file has already had. So
+ * the rows go through the function the other door uses, and the two cannot
+ * disagree.
  *
- * So the rows are walked with the same function the other door uses. A hash
- * with no rows at all falls back to `canSeeFile`, which is the case that must
- * not get stricter: an avatar, a workspace logo, an image pasted into a chat
- * message are stored with no attachment row, and requiring one would make every
- * avatar a refusal.
+ * A hash with no rows at all falls back to `canSeeFile`, which is the case that
+ * must not get stricter: an avatar, a workspace logo, an image pasted into a
+ * chat message are stored with no attachment row, and requiring one would make
+ * every avatar a refusal.
  */
 function mayRead(hash: string, workspaceId: string, ctx: McpCtx): boolean {
   const rows = all<Row>(
@@ -159,7 +203,7 @@ function mayRead(hash: string, workspaceId: string, ctx: McpCtx): boolean {
 export const attachmentTools: ToolDef[] = [
   {
     /**
-     * Put a file on a task.
+     * Put a file on a task, a page, a decision — anything with a Files section.
      *
      * The gap this closes is not a convenience. An assistant could already
      * write a task, comment on it and move it, but anything it *produced* — a
@@ -175,13 +219,20 @@ export const attachmentTools: ToolDef[] = [
      * before decoding rather than after.
      */
     name: 'upload_attachment',
-    title: 'Attach a file to a task',
-    description: "Upload a file and attach it to a task, where it appears in the task's Files section. Content is base64. Use this for anything you have produced — a report, an export, an image — rather than pasting it into a comment.",
+    title: 'Attach a file',
+    description: "Upload a file and attach it to a task, a page, a decision or anything else that has a Files section. Content is base64. Use this for anything you have produced — a report, an export, an image — rather than pasting it into a comment.",
     schema: {
       type: 'object',
-      required: ['task', 'name', 'content_base64'],
+      required: ['name', 'content_base64'],
       properties: {
         task: { type: 'string', description: 'Task id or identifier, e.g. WEB-12' },
+        page: { type: 'string', description: 'Page id — one of `task`, `page` or the `subject` pair' },
+        subject: {
+          type: 'string',
+          enum: [...ATTACHMENT_SUBJECTS],
+          description: 'Anything else to attach it to, with `subject_id`: a decision, a project, a budget, a KPI, a cycle, a module, a product, a component.',
+        },
+        subject_id: { type: 'string', description: 'Id of that thing, as list_decisions, list_budgets and the rest hand it out.' },
         name: { type: 'string', description: 'File name as it should appear, e.g. "burndown.csv"' },
         content_base64: { type: 'string', description: 'The file, base64 encoded' },
         mime: {
@@ -194,7 +245,26 @@ export const attachmentTools: ToolDef[] = [
     run: async (args, ctx) => {
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
-      const task = findTask(String(args.task), workspaceId, ctx);
+      /*
+       * Where it goes, and the three spellings for saying so.
+       *
+       * `task` stays required-in-practice for the caller that has only ever
+       * sent that — it was the only argument this tool had — but it is no
+       * longer required by the schema, because a file on a decision is the
+       * point of the pair. Exactly one, for `subjectFrom`'s reason in
+       * `routes/files.ts`: naming two is a mistake, and filing the file under
+       * the first of them and reporting success is the worst answer available.
+       */
+      const subject = (() => {
+        const named = [
+          str(args.task) ? { kind: 'task' as const, id: String(findTask(String(args.task), workspaceId, ctx).id) } : null,
+          str(args.page) ? { kind: 'page' as const, id: String(findPage(String(args.page), workspaceId, ctx).id) } : null,
+          subjectArg(args, workspaceId, ctx),
+        ].filter((one) => !!one);
+        if (named.length > 1) throw new McpError('A file hangs on one thing — give `task`, `page` or `subject`, not several');
+        if (!named.length) throw new McpError('Where does it go? Give `task`, `page`, or `subject` with `subject_id`');
+        return named[0]!;
+      })();
 
       const name = str(args.name);
       if (!name) throw new McpError('A file needs a name');
@@ -241,11 +311,23 @@ export const attachmentTools: ToolDef[] = [
         name,
         mime: str(args.mime) ?? mimeFromName(name),
         body,
-        taskId: String(task.id),
+        subject,
       });
 
       return {
-        task: task.identifier,
+        /*
+         * `task` for a task, still, and `attached_to` either way.
+         *
+         * This tool only ever put a file on a task and answered with the
+         * identifier, and a caller reading that field predates every other
+         * subject — dropping it to make the answer tidier would break a client
+         * to say something it already knew. So the identifier stays where it
+         * was and the general answer is beside it.
+         */
+        ...(subject.kind === 'task'
+          ? { task: get<Row>(`SELECT identifier FROM tasks WHERE id = ?`, subject.id)?.identifier }
+          : {}),
+        attached_to: subject,
         name: stored.name,
         mime: stored.mime,
         size: stored.size,
@@ -258,9 +340,9 @@ export const attachmentTools: ToolDef[] = [
     /**
      * What is already attached, and where to fetch it.
      *
-     * `page` as well as `task`, because the model hangs attachments off either
-     * and a tool that could only see half of them would send an assistant
-     * looking for a file that is plainly there.
+     * Every kind of subject and not only a task, because the interface hangs
+     * files off all of them now and a tool that could see half of them would
+     * send an assistant looking for a file that is plainly there.
      *
      * The URL is the same one the interface uses and needs the same
      * credentials — it is not a public link, and an object-store deployment
@@ -268,13 +350,19 @@ export const attachmentTools: ToolDef[] = [
      */
     name: 'list_attachments',
     title: 'List attachments',
-    description: "Files attached to a task or a page, with the URL to fetch each. The URL needs the same authorisation as this call — it is not a public link.",
+    description: "Files attached to a task, a page, a decision or anything else with a Files section, with the URL to fetch each. The URL needs the same authorisation as this call — it is not a public link.",
     readOnly: true,
     schema: {
       type: 'object',
       properties: {
         task: { type: 'string', description: 'Task id or identifier' },
-        page: { type: 'string', description: 'Page id — give this or `task`, not both' },
+        page: { type: 'string', description: 'Page id — give one of these, not several' },
+        subject: {
+          type: 'string',
+          enum: [...ATTACHMENT_SUBJECTS],
+          description: 'Anything else, with `subject_id`: a decision, a project, a budget, a KPI, a cycle, a module, a product, a component.',
+        },
+        subject_id: { type: 'string', description: 'Id of that thing.' },
         workspace_id: { type: 'string' },
       },
     },
@@ -282,19 +370,26 @@ export const attachmentTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       const taskRef = str(args.task);
       const pageRef = str(args.page);
-      if (!taskRef && !pageRef) throw new McpError('Which one? Pass `task` or `page`');
-      if (taskRef && pageRef) throw new McpError('Pass `task` or `page`, not both');
+      const named = [
+        taskRef ? { kind: 'task' as const, id: String(findTask(taskRef, workspaceId, ctx).id) } : null,
+        pageRef ? { kind: 'page' as const, id: String(findPage(pageRef, workspaceId, ctx).id) } : null,
+        subjectArg(args, workspaceId, ctx),
+      ].filter((one) => !!one);
+      if (named.length > 1) throw new McpError('One at a time — give `task`, `page` or `subject`, not several');
+      if (!named.length) throw new McpError('Which one? Pass `task`, `page`, or `subject` with `subject_id`');
 
-      // Both branches carry the owner's access rule: a private task's project
-      // and a private page refuse here exactly as get_task and get_page do —
-      // an attachment listing is the page's content with a download URL on it.
-      const where: [string, string] = taskRef
-        ? ['task_id', String(findTask(taskRef, workspaceId, ctx).id)]
-        : ['page_id', String(findPage(String(pageRef), workspaceId, ctx).id)];
+      // Every branch carries the owner's access rule — a private task's
+      // project, a private page, a budget scoped to projects this token is not
+      // on — because `findTask`, `findPage` and `findSubject` all refuse before
+      // this line. An attachment listing is the thing's content with a download
+      // URL on it.
+      const subject = named[0]!;
+      const link = attachmentLink(subject.kind, subject.id);
+      const where = Object.keys(link).map((column) => `${column} = ?`).join(' AND ');
 
       return all<Row>(
-        `SELECT * FROM attachments WHERE workspace_id = ? AND ${where[0]} = ? AND deleted_at IS NULL ORDER BY created_at`,
-        workspaceId, where[1],
+        `SELECT * FROM attachments WHERE workspace_id = ? AND ${where} AND deleted_at IS NULL ORDER BY created_at`,
+        workspaceId, ...Object.values(link),
       ).map((row) => ({
         id: String(row.id),
         name: String(row.name),
@@ -339,7 +434,7 @@ export const attachmentTools: ToolDef[] = [
      */
     name: 'get_attachment',
     title: 'Read an attachment',
-    description: "The contents of a file attached to a task or a page — an image comes back as an image, so this is how you look at a screenshot or a mockup somebody attached. Text files come back as text. Name it with `attachment` (the id from list_attachments or get_task) or with `file` (the /files/… URL an image in a description points at).",
+    description: "The contents of an attached file — an image comes back as an image, so this is how you look at a screenshot or a mockup somebody attached. Text files come back as text. Name it with `attachment` (the id from list_attachments or get_task) or with `file` (the /files/… URL an image in a description points at).",
     readOnly: true,
     schema: {
       type: 'object',
@@ -464,7 +559,7 @@ export const attachmentTools: ToolDef[] = [
      */
     name: 'delete_attachment',
     title: 'Delete attachment',
-    description: 'Remove a file from the task or page it is attached to. Soft — it goes to the trash and can be restored. The stored bytes are shared and are not deleted.',
+    description: 'Remove a file from whatever it is attached to. Soft — it goes to the trash and can be restored. The stored bytes are shared and are not deleted.',
     destructive: true,
     schema: {
       type: 'object',

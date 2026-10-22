@@ -1156,12 +1156,28 @@ CREATE TABLE IF NOT EXISTS comments (
 CREATE INDEX IF NOT EXISTS comments_seq ON comments (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS comments_task ON comments (task_id);
 
+-- A file, and the one thing it hangs on.
+--
+-- Three of the five link columns are named — `task_id`, `page_id`,
+-- `comment_id` — and the fourth and fifth are the pair that says everything
+-- else: a decision, a budget, a component, whatever `ATTACHMENT_SUBJECTS` in
+-- `@kolibri/shared` lists. The alternative was a sixth named column, and then a
+-- seventh, each one a fresh copy of the rule about who may see the row in the
+-- pull filter, the REST guard, `canSeeFile` and MCP. Four copies of one
+-- question is the shape every access bug here has had.
+--
+-- Exactly one of the five is ever set, and a generic spelling of one of the
+-- three named kinds is moved back onto its column on the way in, so no reader
+-- has to decide which field wins. `registry/attachments.ts` is where both of
+-- those promises are kept.
 CREATE TABLE IF NOT EXISTS attachments (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
   task_id      TEXT,
   page_id      TEXT,
   comment_id   TEXT,
+  subject_kind TEXT,
+  subject_id   TEXT,
   name         TEXT NOT NULL,
   mime         TEXT NOT NULL DEFAULT 'application/octet-stream',
   size         INTEGER NOT NULL DEFAULT 0,
@@ -1179,6 +1195,11 @@ CREATE TABLE IF NOT EXISTS attachments (
 );
 CREATE INDEX IF NOT EXISTS attachments_seq ON attachments (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS attachments_task ON attachments (task_id);
+CREATE INDEX IF NOT EXISTS attachments_page ON attachments (page_id);
+-- The index over (subject_kind, subject_id) is in `db/index.ts` and not here,
+-- because this file runs before the columns are added to an existing database.
+-- That is not a style choice; it is the difference between an upgrade that
+-- boots and one that dies at import with `no such column`.
 
 -- Time actually spent, as opposed to `tasks.estimate`, which is time guessed.
 -- One row per stretch of work. A row with `started_at` set and no minutes yet

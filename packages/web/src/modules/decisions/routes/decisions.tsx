@@ -23,6 +23,7 @@ import { create, remove, update } from '../../../kernel/sync/mutations';
 import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useCanWrite, useFeature, useMe } from '../../../kernel/identity/session';
 import { Ballot, useBallot } from '../ballot';
+import { Attachments } from '../../../kernel/files/Attachments';
 import {
   DecisionCard, DecisionFields, DecisionForm, DecisionState, byUrgency, modeKey, visibilityKey,
 } from '../decision-parts';
@@ -131,6 +132,12 @@ export function DecisionDetail() {
         {decision.description && <p className="text-[13px]">{decision.description}</p>}
 
         <Ballot decision={decision} />
+
+        {/* What the question is being decided *on*: the quote, the benchmark,
+            the architecture note somebody wrote. A vote taken without the paper
+            in front of it is the thing this records, and the record was the one
+            place the paper could not go. */}
+        <Attachments on={{ kind: 'decision', id: decision.id }} />
 
         {/*
           * The options are editable while the vote is open and not after.

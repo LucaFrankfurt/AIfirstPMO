@@ -147,6 +147,17 @@ for (const [table, column, definition] of [
    * and would have had to pick one per workspace from inside a pragma loop.
    */
   ['pages', 'status_id', 'TEXT'],
+  /*
+   * What a file hangs on, when it is not a task, a page or a comment.
+   *
+   * NULL on everything that predates the pair, and that is exactly right: every
+   * attachment written before it had one of the three named columns set, and
+   * `attachmentSubject` reads those first. So an upgraded database needs no
+   * backfill at all — there is nothing to move, and nothing that was loose
+   * becomes attached.
+   */
+  ['attachments', 'subject_kind', 'TEXT'],
+  ['attachments', 'subject_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
@@ -168,6 +179,10 @@ db.exec(`CREATE UNIQUE INDEX IF NOT EXISTS users_calendar_token ON users (calend
  * database.
  */
 db.exec(`CREATE INDEX IF NOT EXISTS activities_secret ON activities (secret_id, created_at)`);
+// The same reason, for the pair that says what a file hangs on when it is not a
+// task, a page or a comment. Both columns, because every reader names both: a
+// decision's Files section asks for one kind and one id, never a kind alone.
+db.exec(`CREATE INDEX IF NOT EXISTS attachments_subject ON attachments (subject_kind, subject_id)`);
 
 /*
  * `attachments.checksum`, filled in for the rows that pre-date it being used.

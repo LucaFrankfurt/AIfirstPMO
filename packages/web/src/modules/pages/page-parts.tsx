@@ -23,7 +23,7 @@ import { useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Avatar, Icon, Sheet, useConfirm, useToast, type MenuGroup, type MenuItem } from '../../kernel/design-system/ui';
-import { downscale } from './Markdown';
+import { downscale, uploadLink } from '../../kernel/files/uploads';
 import { useMinute } from '../../kernel/design-system/minute';
 
 /* -------------------------------------------------------------- labels */
@@ -311,7 +311,9 @@ export function useCover(page: Page): { input: React.ReactNode; items: (section:
     if (!file || !workspaceId) return;
     setBusy(true);
     try {
-      const result = await api.upload(workspaceId, await downscale(file, 2400), file.name, { page_id: page.id });
+      const result = await api.upload(
+        workspaceId, await downscale(file, 2400), file.name, uploadLink({ kind: 'page', id: page.id }),
+      );
       update('page', page.id, { cover_url: result.url });
     } catch (err) {
       toast(err instanceof Error ? t('editor.uploadFailedReason', { reason: err.message }) : t('editor.uploadFailed'));

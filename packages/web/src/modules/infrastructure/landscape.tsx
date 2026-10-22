@@ -23,6 +23,7 @@ import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
 import { MoneyInput } from '../../kernel/design-system/ui/money';
+import { Attachments } from '../../kernel/files/Attachments';
 
 export const kindKey = (kind: string): TranslationKey => `estate.kind.${kind}` as TranslationKey;
 export const envKey = (env: string): TranslationKey => `estate.env.${env}` as TranslationKey;
@@ -350,6 +351,15 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         <label htmlFor="c-note">{t('budget.adjNote')}</label>
         <Textarea id="c-note" rows={2} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} />
       </div>
+
+      {/* The contract, the renewal notice, the licence key's paperwork — the
+          register's reason for existing is answering "what are we paying for
+          and until when", and the answer is usually a PDF.
+
+          Only for a component that exists. There is no id to hang a file on
+          until this sheet has been saved once, and an upload that quietly went
+          nowhere would be worse than the paperclip not being there yet. */}
+      {component && <Attachments on={{ kind: 'component', id: component.id }} className="mt-1" />}
     </Sheet>
   );
 }

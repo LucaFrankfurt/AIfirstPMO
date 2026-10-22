@@ -10,6 +10,7 @@
  * the route impossible to replace. See `docs/modules.md`.
  */
 import { createHash } from 'node:crypto';
+import { attachmentLink, type AttachmentSubject } from '@kolibri/shared';
 import { get, run, type Row } from '../platform/db/index.ts';
 import { imageSize } from './imagesize.ts';
 import { serverClock } from '../write-path/bootstrap.ts';
@@ -27,10 +28,16 @@ export interface StoreFile {
   name: string;
   mime: string;
   body: Buffer;
-  /** Attach it to one of these; with none, the bytes are stored and only a URL comes back. */
-  taskId?: string | null;
-  pageId?: string | null;
-  commentId?: string | null;
+  /**
+   * What to hang it on; with none, the bytes are stored and only a URL comes back.
+   *
+   * One subject, named as a kind and an id, because that is what an attachment
+   * row holds — the three columns and the generic pair are two spellings of the
+   * same single link, and `attachmentLink` is the only code that picks between
+   * them. This used to be three optional ids, which made "exactly one of these"
+   * a thing every caller had to get right and nothing could check.
+   */
+  subject?: { kind: AttachmentSubject; id: string } | null;
   thumbUrl?: string | null;
 }
 
@@ -77,9 +84,10 @@ export async function storeFile(input: StoreFile): Promise<Record<string, unknow
 
   const url = `/files/${hash}/${encodeURIComponent(name)}`;
 
-  // Linking the blob to a task/page creates the attachment row that shows up
-  // in the UI; a bare upload (e.g. an inline image) just returns the URL.
-  if (input.taskId || input.pageId || input.commentId) {
+  // Linking the blob to a subject creates the attachment row that shows up in
+  // the UI; a bare upload (e.g. an inline image) just returns the URL.
+  if (input.subject) {
+    const link = attachmentLink(input.subject.kind, input.subject.id);
     /*
      * The third question, and it is the same shape as the two above.
      *
@@ -108,9 +116,11 @@ export async function storeFile(input: StoreFile): Promise<Record<string, unknow
     const existing = get<Row>(
       `SELECT * FROM attachments
         WHERE workspace_id = ? AND checksum = ? AND deleted_at IS NULL
-          AND task_id IS ? AND page_id IS ? AND comment_id IS ?`,
+          AND task_id IS ? AND page_id IS ? AND comment_id IS ?
+          AND subject_kind IS ? AND subject_id IS ?`,
       input.workspaceId, hash,
-      input.taskId ?? null, input.pageId ?? null, input.commentId ?? null,
+      link.task_id ?? null, link.page_id ?? null, link.comment_id ?? null,
+      link.subject_kind ?? null, link.subject_id ?? null,
     );
     if (existing) {
       return {
@@ -122,7 +132,7 @@ export async function storeFile(input: StoreFile): Promise<Record<string, unknow
 
     const { row } = writeEntity('attachment', uid(), {
       workspace_id: input.workspaceId,
-      task_id: input.taskId ?? null, page_id: input.pageId ?? null, comment_id: input.commentId ?? null,
+      ...link,
       name, mime: input.mime, size: input.body.length, url,
       thumb_url: input.thumbUrl ?? null,
       width: size?.width ?? null, height: size?.height ?? null,

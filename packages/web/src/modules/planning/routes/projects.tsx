@@ -58,6 +58,7 @@ import { EmojiPicker } from '../../../kernel/design-system/ui/emoji-picker';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
 import { Chip, chipDot, chipVariants } from '../../../kernel/design-system/ui/chip';
 import { Triage, useNewIntakeCount } from '../../intake/intake';
+import { Attachments } from '../../../kernel/files/Attachments';
 
 const VIEW_KEY = (projectId: string) => `kolibri.view.${projectId}`;
 
@@ -929,6 +930,10 @@ export function CyclePage() {
           <Progress value={burndown.done} total={burndown.total} />
           {cycle.description && <div className="mt-2 text-[12.5px]"><Markdown source={cycle.description} /></div>}
         </div>
+        {/* The sprint's own papers: the retro notes, the demo recording, the
+            capacity sheet somebody built it from. Above the tasks, because it
+            is about the cycle and the list below is about the work. */}
+        <Attachments on={{ kind: 'cycle', id: cycle.id }} className="mb-3.5" />
         <TaskViews tasks={visible} view={view} projectId={cycle.project_id ?? undefined} onOpen={openTask} implied={{ cycleId: cycle.id }} />
       </div>
       {adding && <QuickAdd projectId={cycle.project_id ?? undefined} cycleId={id} onClose={() => setAdding(false)} />}
@@ -1076,12 +1081,16 @@ export function ModulePage() {
           <div className="mb-3.5">
             <MarkdownEditor
               value={module.description ?? ''} minHeight={130} autoFocus
+              attachTo={{ kind: 'module', id: module.id }}
               onChange={(value) => update('module', module.id, { description: value })}
             />
           </div>
         ) : module.description ? (
           <div className="mb-3.5"><Markdown source={module.description} /></div>
         ) : null}
+        {/* What the milestone is being judged against: the spec, the signed
+            acceptance criteria, the screenshots from the review. */}
+        <Attachments on={{ kind: 'module', id: module.id }} className="mb-3.5" />
         <TaskViews tasks={visible} view={view} projectId={module.project_id ?? undefined} onOpen={openTask} implied={{ moduleId: module.id }} />
         {/* A milestone is described by what gets built; this is what has to be
             *true* by the time it lands. Renders nothing when nothing has been
@@ -1292,9 +1301,17 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         <label>{t('project.description')}</label>
         <MarkdownEditor
           value={project.description ?? ''} minHeight={110}
+          attachTo={{ kind: 'project', id: projectId }}
           onChange={(value) => update('project', projectId, { description: value })}
         />
       </div>
+
+      {/* The project's own papers — the statement of work, the brief, the
+          signed quote. Under the description because that is the other place
+          the project describes itself, and in Settings rather than on the task
+          list because a contract is read twice a year and the board is read
+          twice an hour. */}
+      <Attachments on={{ kind: 'project', id: projectId }} className="mb-4" />
 
       {/*
         Both of these could only ever be chosen once, at the moment the project

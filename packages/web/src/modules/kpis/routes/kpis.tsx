@@ -31,6 +31,7 @@ import { Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
+import { Attachments } from '../../../kernel/files/Attachments';
 import { shortDate, today } from '../../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
@@ -295,6 +296,11 @@ function Overview({ kpi, readings, targets, modules }: {
       ) : (
         <Empty emoji="📈" title={t('kpi.noReadings')} hint={t('kpi.noReadingsHint')} />
       )}
+
+      {/* Where the number came from. A KPI is an assertion about a measurement,
+          and the export, the dashboard screenshot or the survey behind it is
+          the only thing that makes the assertion checkable a year later. */}
+      <Attachments on={{ kind: 'kpi', id: kpi.id }} />
     </div>
   );
 }

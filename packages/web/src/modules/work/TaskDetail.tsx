@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Task } from '@kolibri/shared';
 import { api } from '../../kernel/sync/api';
 import { useTabStrip } from '../../kernel/design-system/tab-strip';
@@ -6,14 +6,15 @@ import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery, useRow } from '../../kernel/sync/store';
 import { createTask, remove, update } from '../../kernel/sync/mutations';
-import { useCanWrite, useFeature, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
+import { useCanWrite, useFeature, useMe, useMemberMap } from '../../kernel/identity/session';
 import { TaskReviewPanel } from '../ai-review/task-review';
 import { TaskDecisions } from '../decisions/decision-parts';
-import { Markdown, MarkdownEditor, downscale } from '../pages/Markdown';
+import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
 import { TaskTime } from '../time/time';
 import { TaskFields } from './fields';
+import { Attachments } from '../../kernel/files/Attachments';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, ParentPicker, ParentTrail,
   PriorityPicker, ProjectPicker, StatePicker, stateOf,
@@ -30,7 +31,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const t = useT();
   const task = useRow('task', taskId);
   const me = useMe();
-  const { workspaceId } = useSession();
   const members = useMemberMap();
   const toast = useToast();
   const { confirm, dialog } = useConfirm();
@@ -42,13 +42,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const strip = useTabStrip(tab);
   const [activity, setActivity] = useState<any[]>([]);
   const [newSubtask, setNewSubtask] = useState('');
-  const fileInput = useRef<HTMLInputElement>(null);
 
   const comments = useQuery(
     () => list('comment', (c) => c.task_id === taskId).sort((a, b) => a.created_at - b.created_at),
     [taskId],
   );
-  const attachments = useQuery(() => list('attachment', (a) => a.task_id === taskId), [taskId]);
   const subtasks = useQuery(() => list('task', (t) => t.parent_id === taskId), [taskId]);
   const state = task ? stateOf(task) : undefined;
   const hasDescription = !!task?.description?.trim();
@@ -78,17 +76,6 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
     const next = title.trim();
     if (next && next !== task.title) update('task', task.id, { title: next });
   };
-
-  async function uploadFiles(files: File[]): Promise<void> {
-    for (const file of files) {
-      try {
-        const payload = await downscale(file);
-        await api.upload(workspaceId, payload, file.name, { task_id: task!.id });
-      } catch (err) {
-        toast(err instanceof Error ? err.message : t('editor.uploadFailed'));
-      }
-    }
-  }
 
   return (
     <>
@@ -212,7 +199,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </div>
           {editingDescription ? (
             <>
-              <MarkdownEditor value={description} onChange={setDescription} attachTo={{ task_id: task.id }} autoFocus />
+              <MarkdownEditor value={description} onChange={setDescription} attachTo={{ kind: 'task', id: task.id }} autoFocus />
               <div className="flex items-center gap-2 mt-2">
                 <Button variant="primary" size="sm"
                   onClick={() => {
@@ -286,33 +273,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
 
         <Relations task={task} onOpen={onOpen} />
 
-        {/* attachments */}
-        <section className="mb-[18px]">
-          <div className="flex items-center gap-2 mb-1.5">
-            <strong className="text-[13.5px]">{t('task.files')}</strong>
-            <span className="flex-1 min-w-0" />
-            <Button variant="ghost" size="sm" onClick={() => fileInput.current?.click()}>
-              <Icon name="attach" size={14} /> {t('task.attach')}
-            </Button>
-            <input
-              ref={fileInput} type="file" hidden multiple
-              onChange={(event) => {
-                void uploadFiles([...(event.target.files ?? [])]);
-                event.target.value = '';
-              }}
-            />
-          </div>
-          {attachments.length === 0 && <span className="text-muted text-[12.5px]">{t('task.noFiles')}</span>}
-          <div className="flex flex-col gap-1.5">
-            {attachments.map((file) => (
-              <a className="attachment" key={file.id} href={file.url} target="_blank" rel="noreferrer">
-                {file.mime?.startsWith('image/') ? <img src={file.url} alt="" /> : <Icon name="page" />}
-                <span className="flex-1 min-w-0 truncate">{file.name}</span>
-                <span className="text-muted">{Math.max(1, Math.round((file.size ?? 0) / 1024))} KB</span>
-              </a>
-            ))}
-          </div>
-        </section>
+        {/* The paperclip, which used to be written out here and is now the one
+            component every screen with files uses. It gained a way to remove
+            one in the move: this list had no delete at all, so a screenshot
+            attached to the wrong task could only be got rid of over MCP. */}
+        <Attachments on={{ kind: 'task', id: task.id }} className="mb-[18px]" />
 
         {/* What is being decided about this task. Under the sub-tasks and above
             the discussion, because a ballot is a question that has already been

@@ -280,7 +280,7 @@ always called it. `billing` still works and is documented as the older spelling.
 | `list_labels` | labels with the count of open tasks carrying each; `project` narrows to that project's own plus the workspace-wide ones |
 | `list_states` | a project's workflow states in board order, each with its `group`, colour, task count, and which one is the default |
 | `list_page_statuses` | how finished a page may be, in the workspace's own words and order. The names belong to the workspace; `kind` — `draft`, `review` or `final` — is what the product reads, so an assistant told "mark it final" has a word to resolve against |
-| `list_attachments` | files on a task or a page, with the URL to fetch each |
+| `list_attachments` | files on a task, a page, a decision or anything else with a Files section, with the URL to fetch each |
 | `get_attachment` | the file itself — **an image comes back as an image**, so a screenshot on a task can actually be looked at |
 | `project_status` | counts by state group and priority, overdue list, unassigned count, active cycle, recent activity |
 | `my_work` | the token owner's open tasks, split into overdue / today / upcoming / unscheduled |
@@ -529,7 +529,7 @@ is inclusive to the end of the day it names.
 | `update_task` | any field, including `state`, `assignees`, `cycle`, `module`, `due_date`, `archived` — and `project`, which **files the task under another project**: its state and labels are re-resolved there by meaning rather than by name, a cycle or module the destination is outside of is cleared, its sub-tasks follow it, and its identifier does not change. Anything else in the same call is read against the project it is moving *to*, so `{project: "API", state: "Doing"}` means the destination's column. A container is refused out loud, because it holds projects rather than tasks |
 | `create_tasks_batch` | up to 100 tasks in one call, as **one transaction** — a rejected entry takes the whole batch with it, so a retry cannot double what already went in |
 | `create_task_relation` | `blocks`, `blocked_by`, `relates_to`, `duplicates`, `duplicated_by` — written once, in the direction given |
-| `upload_attachment` | base64 bytes onto a task, where they appear in its Files section |
+| `upload_attachment` | base64 bytes onto a task, a page or anything else with a Files section |
 | `delete_attachment` | detaches a file; soft, and the shared bytes stay put |
 | `create_state` / `update_state` | add a board column, or change its name, colour, group or WIP limit |
 | `update_cycle` / `delete_cycle` | edit a sprint's dates, name and which projects run it; deleting is soft and keeps the tasks |
@@ -784,10 +784,18 @@ build a ten-task ring without ever seeing it.
 
 ### Attachments
 
-`upload_attachment` puts bytes on a task, where they appear in its own Files section rather than
-somewhere only an assistant knows about. It closes a real gap: an assistant could already write,
-comment and move tasks, but anything it *produced* — a CSV, a generated report, an image — had
-nowhere to go except pasted into a comment as text.
+`upload_attachment` puts bytes on a task, a page, a decision — anything with a Files section — where
+they appear beside the work rather than somewhere only an assistant knows about. It closes a real
+gap: an assistant could already write, comment and move tasks, but anything it *produced* — a CSV, a
+generated report, an image — had nowhere to go except pasted into a comment as text.
+
+Where it goes has three spellings, and a call may use one of them: `task`, `page`, or `subject` with
+`subject_id`. `subject` is one of `project`, `decision`, `cycle`, `module`, `kpi`, `budget`,
+`product`, `component` — and it takes an **id**, not a reference. That is the one place this tool
+group is less forgiving than the rest of the surface: `find_task` takes `WEB-12` and `find_budget`
+takes a name, and there is no such spelling for nine kinds at once. Writing a finder per kind would
+have been nine more copies of "may this token see one of these", which is the mistake the rest of
+these tools are a correction of. Every listing hands out ids, so a caller always has one.
 
 Content is base64, because MCP carries JSON. That is a genuine cost — the encoding adds a third
 again, and the whole thing is a string in memory at both ends — so the upload limit
@@ -801,15 +809,17 @@ with nothing anywhere saying so.
 
 ### Attachments, listed and removed
 
-`list_attachments` takes a `task` **or** a `page` — the model hangs files off either, and a tool that
-could only see half of them would send an assistant looking for a file that is plainly there. The
-URLs it returns need the same authorisation as the call; they are not public links, and on an
-object-store deployment they become short-lived signed URLs at the moment they are followed.
+`list_attachments` takes the same three spellings, one at a time — the interface hangs files off all
+of them, and a tool that could see half of them would send an assistant looking for a file that is
+plainly there. The URLs it returns need the same authorisation as the call; they are not public
+links, and on an object-store deployment they become short-lived signed URLs at the moment they are
+followed.
 
-`delete_attachment` removes the attachment — the row that puts the file on the task — and **not the
+`delete_attachment` removes the attachment — the row that puts the file on the thing — and **not the
 bytes**. Storage is content-addressed and shared: the same file uploaded to two workspaces is one
 blob with two rows, so deleting the blob would take it out from under somebody else. Sweeping blobs
-that nothing points at any more is a separate job.
+that nothing points at any more is a separate job. It is soft, like every other delete here: the row
+goes to the trash and can be restored.
 
 ### Attachments, read back
 
@@ -846,15 +856,18 @@ which is the thing being asked about when somebody says "the diagram in the desc
 the caller map it back through a listing to find the id of a row whose URL it already has would be
 a request whose only purpose is to work around the argument.
 
-Neither is a capability, and the two doors give the same answer. The `attachment` branch runs the
-walk that refuses a private task's or a private page's file; the `file` branch runs it over every
-attachment carrying those bytes, because a URL is a hash with a name on the end and one tool saying
-"no" to the id and "here you are" to the URL would be worse than either rule alone. That is
-deliberately **stricter than `GET /files/:hash/*`**, which asks `canSeeFile` — a rule that answers
-for the task half of the question and, as recorded in `TODO.md`, not yet for the page half. A hash
-with no attachment row at all falls back to exactly what the route does, which is the case that must
-not get stricter: an avatar, a workspace logo and an image pasted into a chat message are stored with
-no row, and requiring one would make every avatar a refusal.
+Neither is a capability, and the two doors give the same answer. The `attachment` branch asks
+`canSeeSubject` about the one row named; the `file` branch asks it about every attachment carrying
+those bytes, because a URL is a hash with a name on the end and one tool saying "no" to the id and
+"here you are" to the URL would be worse than either rule alone.
+
+`canSeeSubject` is also what `GET /files/:hash/*`, the pull filter and plain REST ask, so there is
+one rule rather than four — which is the correction, not a tidying. Three of those four doors had
+been written separately, each ending in a `return true` for a case its author had not thought of; two
+of those fall-throughs were disclosures and are recorded in `TODO.md`. A hash with no attachment row
+at all is still the workspace's, which is the case that must not get stricter: an avatar, a workspace
+logo and an image pasted into a chat message are stored with no row, and requiring one would make
+every avatar a refusal.
 
 ### Labels and project metadata
 

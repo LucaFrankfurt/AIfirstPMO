@@ -12,7 +12,7 @@ import { AuditLog, Webhooks } from '../admin';
 import { tokenScope } from '../tokens';
 import { Backups, PersonalExport, WorkspaceTransfer } from '../../../adapters/transfer/data';
 import { Sessions, TwoFactor } from '../../../kernel/identity/security';
-import { downscale } from '../../pages/Markdown';
+import { downscale } from '../../../kernel/files/uploads';
 import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../../../kernel/i18n/i18n';
 import { PushToggle } from '../../../adapters/push/push';
 import { Button } from '../../../kernel/design-system/ui/button';

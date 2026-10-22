@@ -24,6 +24,7 @@ import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Avatar, Icon, useConfirm } from '../../kernel/design-system/ui';
 import { Reactions, ReactionPicker } from './reactions';
+import type { AttachTo } from '../../kernel/files/uploads';
 import { useMinute } from '../../kernel/design-system/minute';
 
 /** Exactly one of the two, which is also how the row is stored. */
@@ -73,6 +74,16 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   }, [anchor]);
 
   const key = target.task_id ?? target.page_id;
+  /*
+   * An image pasted into a comment hangs off the thing being discussed, not off
+   * the comment — which is what this has always done, now said in the one
+   * spelling every upload uses. `comment` is a subject too, and it is the one
+   * the *sent* comment's own attachments carry; a paste happens before there is
+   * a comment to carry anything.
+   */
+  const attachTo: AttachTo = target.task_id
+    ? { kind: 'task', id: target.task_id }
+    : { kind: 'page', id: target.page_id! };
 
   // An open editor belongs to the thread it was opened in. The draft below
   // deliberately survives a trip to another page — somebody who typed it meant
@@ -179,7 +190,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                     onChange={(body) => setEditing({ id: entry.id, body })}
                     minHeight={70}
                     autoFocus
-                    attachTo={target}
+                    attachTo={attachTo}
                     onSubmit={saveEdit}
                   />
                   <div className="flex items-center gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
@@ -220,7 +231,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           onChange={setDraft}
           minHeight={70}
           placeholder={t('task.commentPlaceholder')}
-          attachTo={target}
+          attachTo={attachTo}
           onSubmit={send}
         />
         <div className="flex items-center gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>

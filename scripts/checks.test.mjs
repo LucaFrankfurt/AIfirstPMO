@@ -216,7 +216,22 @@ const BREAKS = [
     script: 'modules.mjs',
     break: (t) => t.prepend('packages/server/src/kernel/i18n/i18n.ts',
       "import { registerBackend as __probe } from '../files/storage.ts';\nvoid __probe;\n"),
-    says: /module cycle: kernel\/files <-> kernel\/i18n/,
+    /*
+     * Both named, not named adjacently.
+     *
+     * This used to read `kernel/files <-> kernel/i18n`, which was true when
+     * `files` was server-only and had two edges. A module is the ring and the
+     * name across every package, so the client's own upload code joined it —
+     * and the client reaches for `i18n`, `sync`, `identity` and the design
+     * system, which closes a loop through six modules rather than two. The
+     * finding is the same finding; the path through it is longer.
+     *
+     * So the assertion is the property: a cycle is reported, and the two
+     * modules the break wired together are in it. Pinning the path meant
+     * pinning how many other kernel modules `files` happens to touch, which is
+     * not what this case is about.
+     */
+    says: /module cycle: (?=[^\n]*kernel\/files)(?=[^\n]*kernel\/i18n)/,
   },
   {
     what: 'a port nothing fills any more',

@@ -1,4 +1,5 @@
 import type { EntityName } from './entities.ts';
+import type { AttachmentSubject } from './attachments.ts';
 import type { CrdtState } from '../../modules/pages/text-crdt.ts';
 import type { HLC } from './hlc.ts';
 import type { Anchor } from '../../modules/pages/anchor.ts';
@@ -1157,6 +1158,16 @@ export interface Attachment extends Base {
   task_id: ID | null;
   page_id: ID | null;
   comment_id: ID | null;
+  /**
+   * Anything else a file may hang on — a decision, a budget, a component.
+   *
+   * Never one of the three above, and never set alongside one of them:
+   * `soleLink` reduces whatever a write names to the single link every reader
+   * reads, so nobody has to ask which of two fields wins. See
+   * `kernel/registry/attachments.ts`.
+   */
+  subject_kind: AttachmentSubject | null;
+  subject_id: ID | null;
   name: string;
   mime: string;
   size: number;

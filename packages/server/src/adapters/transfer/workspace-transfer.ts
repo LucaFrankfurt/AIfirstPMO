@@ -138,16 +138,23 @@ export function exportWorkspace(workspaceId: string, options: WorkspaceExportOpt
     ? live('messages', `channel_id IN (${channels.map(() => '?').join(', ')})`, ...channels.map((channel) => channel.id))
     : [];
 
-  /* Attachments hung off the workspace-level pages and their comments. The
-     projects' own are inside their own documents. */
-  const attachments = pageIds.length
-    ? live(
-      'attachments',
-      `page_id IN (${pageIds.map(() => '?').join(', ')})
-        OR comment_id IN (SELECT id FROM comments WHERE page_id IN (${pageIds.map(() => '?').join(', ')}))`,
-      ...pageIds, ...pageIds,
-    )
-    : [];
+  /* Attachments hung off the workspace-level pages and their comments, and off
+     the cycles and modules several projects run — which are the rows this
+     document carries that no project's does. The projects' own are inside their
+     own documents. */
+  const attachments = live(
+    'attachments',
+    `workspace_id = ?
+      AND (${pageIds.length
+    ? `page_id IN (${pageIds.map(() => '?').join(', ')})
+           OR comment_id IN (SELECT id FROM comments WHERE page_id IN (${pageIds.map(() => '?').join(', ')}))
+           OR `
+    : ''}(subject_kind IN ('cycle', 'module')
+            AND subject_id IN (SELECT id FROM cycles WHERE workspace_id = ? AND project_id IS NULL
+                               UNION ALL
+                               SELECT id FROM modules WHERE workspace_id = ? AND project_id IS NULL)))`,
+    workspaceId, ...pageIds, ...pageIds, workspaceId, workspaceId,
+  );
 
   /* Dependencies whose two ends are in two different projects. Neither
      project's document can hold one — `exportProject` drops it on purpose,
@@ -479,11 +486,15 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
   for (const row of doc.attachments ?? []) {
     const page = to(row.page_id);
     const comment = to(row.comment_id);
-    if (!page && !comment) continue;
+    // A shared cycle or module, remapped like the other two: the id in the file
+    // is the old instance's, and without a new one the row points at nothing.
+    const subject = to(row.subject_id);
+    if (!page && !comment && !subject) continue;
     const [hash] = hashesIn(row.url);
     if (!hash || missingHere.includes(hash)) continue;
     write('attachment', row, {
       page_id: page, comment_id: comment, task_id: null,
+      subject_kind: subject ? row.subject_kind : null, subject_id: subject ?? null,
       uploaded_by: who(row.uploaded_by) ?? actorId,
     });
     bump('attachments');
