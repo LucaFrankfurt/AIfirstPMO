@@ -107,7 +107,12 @@ is: open AND cycle = none
 Clauses join with `AND` — writing it is optional, `state = Todo priority =
 urgent` works. A **bare word** with no operator is a text search, which is what
 somebody typing into a filter box means nine times in ten. `none` (or `empty`,
-or `nobody`) is the empty answer: `assignee = none` is the unassigned ones.
+or `nobody`) is the empty answer: `assignee = none` is the unassigned ones, and
+it stands beside a name like any other answer — `assignee in (me, none)` is
+yours and nobody's, which is the list somebody triaging wants. The filter menu
+offers the same thing as a row, *Unassigned*, at the end of the people. For a
+list field (`assignee`, `label`) the empty answer means *the list is empty*;
+until it did, `assignee = none` filtered every task away.
 
 ### What it deliberately cannot do
 

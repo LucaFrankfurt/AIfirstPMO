@@ -62,6 +62,7 @@ const LABELS = {
     archive: 'Archive', duplicateTitles: 'Two pages, one title',
     bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label', statusDrawer: 'Status', bulkStatusDrawer: 'Set the status',
     edit: 'Edit', deleteTask: 'Delete task', confirmDelete: 'Delete',
+    assigneeDrawer: 'Assignee', unassigned: 'Unassigned', clearFilters: 'Clear all filters',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -86,6 +87,7 @@ const LABELS = {
     archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
     bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern', statusDrawer: 'Status', bulkStatusDrawer: 'Status setzen',
     edit: 'Bearbeiten', deleteTask: 'Aufgabe löschen', confirmDelete: 'Löschen',
+    assigneeDrawer: 'Zuständigkeit', unassigned: 'Niemand zuständig', clearFilters: 'Alle Filter zurücksetzen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -110,6 +112,7 @@ const LABELS = {
     archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
     bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette', statusDrawer: 'Statut', bulkStatusDrawer: 'Définir le statut',
     edit: 'Modifier', deleteTask: 'Supprimer la tâche', confirmDelete: 'Supprimer',
+    assigneeDrawer: 'Assigné', unassigned: 'Non assignée', clearFilters: 'Effacer tous les filtres',
   },
 }[locale];
 
@@ -350,6 +353,8 @@ for (const kind of ['cycle', 'module']) {
 
     await page.click(`button:has-text("${LABELS.filter}")`);
     await pickInDrawer(page, title, named);
+    // A filter row leaves the menu open for the next tick; this step wants one.
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(600);
     const kept = await page.locator('.task-card').count();
     const chips = await page.locator(`.task-card span[title="${title}"]`).count();
@@ -359,11 +364,98 @@ for (const kind of ['cycle', 'module']) {
     // The same click takes it off again, so the rest of the run reads a whole board.
     await page.click(`button:has-text("${LABELS.filter}")`);
     await pickInDrawer(page, title, named);
+    await page.keyboard.press('Escape');
     await page.waitForTimeout(400);
     if (await page.locator('.task-card').count() !== all) throw new Error('clearing the filter did not restore the board');
     console.log(`     ${named}: ${kept} of ${all} cards`);
   });
 }
+
+/**
+ * The assignee filter takes several answers in one visit, and "nobody" is one.
+ *
+ * Both promises hang on the menu staying open: a filter row used to close it,
+ * so a second person meant a second trip. And "nobody" filtered every card
+ * away — `assignee = none` parsed to an answer the matcher never read — which
+ * is why this reads the faces on the cards it keeps rather than settling for
+ * some having been kept.
+ *
+ * The seed has no open task without somebody on it, so the step files one and
+ * deletes it again: an empty answer is what "nobody" *should* give on that
+ * board, and a step that passed on an empty board would prove nothing.
+ */
+await step('assignee filter: nobody, then a person beside it, in one visit', async () => {
+  const cards = page.locator('.board .task-card');
+  const api = (path, method = 'GET', body) => page.evaluate(async ({ path, method, body }) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const response = await fetch(path.replace('{ws}', ws), {
+      method, credentials: 'include',
+      headers: body ? { 'content-type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return response.status === 204 ? null : response.json();
+  }, { path, method, body });
+
+  // Escape closes the menu and its drawer; the next click waits until they
+  // are gone, or it lands on a menu that is still on its way out.
+  const closeMenu = async () => {
+    await page.keyboard.press('Escape');
+    await page.locator('[role=menu]').first().waitFor({ state: 'detached', timeout: 3000 });
+  };
+
+  const projects = await api('/api/workspaces/{ws}/projects');
+  const website = (projects.projects ?? projects).find((one) => one.name === 'Website');
+  const before = await cards.count();
+  const orphan = await api('/api/workspaces/{ws}/tasks', 'POST', { project_id: website.id, title: 'Nobody has picked this up' });
+  try {
+    await page.waitForFunction((n) => document.querySelectorAll('.board .task-card').length > n, before, { timeout: 8000 });
+    const all = await cards.count();
+    const name = await page.locator('.board .task-card .avatar[title]').first().getAttribute('title');
+    const faces = () => cards.evaluateAll((els) => els.map((el) =>
+      [...el.querySelectorAll('.avatar[title]')].map((face) => face.getAttribute('title'))));
+
+    await page.click(`button:has-text("${LABELS.filter}")`);
+    await pickInDrawer(page, LABELS.assigneeDrawer, LABELS.unassigned);
+    await page.waitForTimeout(500);
+    const nobody = await faces();
+    if (!nobody.length) throw new Error('"nobody" filtered every card away, the one nobody is on included');
+    if (nobody.some((card) => card.length)) throw new Error('a card with somebody on it passed "nobody"');
+
+    const drawer = page.locator('[role=menu]').last();
+    if (!(await drawer.isVisible())) throw new Error('the menu closed after the first tick');
+    await rungItem(drawer, name).first().click();
+    await page.waitForTimeout(500);
+    const both = await faces();
+    if (both.length <= nobody.length) throw new Error(`adding ${name} kept ${both.length}, no more than nobody's ${nobody.length}`);
+    if (both.some((card) => card.length && !card.includes(name))) throw new Error(`a card ${name} is not on passed`);
+    await closeMenu();
+
+    // Both off again in one visit, so the rest of the run reads a whole board.
+    await page.click(`button:has-text("${LABELS.filter}")`);
+    await pickInDrawer(page, LABELS.assigneeDrawer, LABELS.unassigned);
+    await rungItem(page.locator('[role=menu]').last(), name).first().click();
+    await closeMenu();
+    await page.waitForTimeout(400);
+    if (await cards.count() !== all) throw new Error('taking both off did not restore the board');
+    console.log(`     nobody: ${nobody.length} of ${all} cards, with ${name}: ${both.length}`);
+  } finally {
+    // Whatever happened above, the next step gets a closed menu, no filter
+    // and the board the seed made. Every part of it is allowed to fail: an
+    // error thrown from here would replace the one that says what went wrong.
+    const quietly = (promise) => promise.catch(() => {});
+    for (let tries = 0; tries < 4 && await page.locator('[role=menu]').count(); tries += 1) {
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(150);
+    }
+    if (await page.locator('.board .task-card').count() < before + 1) {
+      await quietly(page.click(`button:has-text("${LABELS.filter}")`, { timeout: 3000 }));
+      await quietly(page.getByRole('menuitem', { name: LABELS.clearFilters }).click({ timeout: 3000 }));
+      await page.keyboard.press('Escape');
+    }
+    await quietly(api(`/api/tasks/${orphan.id}`, 'DELETE'));
+    await quietly(page.waitForFunction((n) => document.querySelectorAll('.board .task-card').length === n, before, { timeout: 8000 }));
+  }
+});
 
 /**
  * And the chip knows where it is. A cycle's own board is every task in that

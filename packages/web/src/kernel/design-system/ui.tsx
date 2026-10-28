@@ -315,6 +315,15 @@ export interface MenuItem {
   onSelect?: () => void;
   /** A heading above the row. For a handful of commands that belong together. */
   section?: string;
+  /**
+   * Leave the menu open after this row is chosen.
+   *
+   * For a row that ticks something in a list rather than doing something: a
+   * filter of three people took three trips through the menu, because every
+   * row closed it — the list behind changed after the first, and the menu
+   * that would have taken the second was gone.
+   */
+  keepOpen?: boolean;
 }
 
 /**
@@ -438,7 +447,13 @@ const MenuDrillRow = ({ group, open }: { group: MenuGroup; open: () => void }) =
 
 /** One row, wherever it is standing. */
 const MenuItemRow = ({ item }: { item: MenuItem }) => (
-  <MenuItem danger={item.danger} onSelect={() => item.onSelect?.()}>
+  <MenuItem
+    danger={item.danger}
+    onSelect={(event) => {
+      if (item.keepOpen) event.preventDefault();
+      item.onSelect?.();
+    }}
+  >
     {item.icon}
     <span className="flex-1 min-w-0 truncate">{item.label}</span>
     {item.hint && <span className="text-[11.5px] text-muted">{item.hint}</span>}
@@ -465,7 +480,7 @@ const MenuItemRow = ({ item }: { item: MenuItem }) => (
  * browser.
  */
 export function MenuButton({
-  items, children, className, variant = 'ghost', size = 'default', title, label, search, disabled, empty,
+  items, children, className, variant = 'ghost', size = 'default', title, label, search, disabled, empty, align = 'start',
 }: {
   items: MenuEntry[];
   children: ReactNode;
@@ -482,6 +497,15 @@ export function MenuButton({
   search?: boolean;
   disabled?: boolean;
   empty?: string;
+  /**
+   * Which edge of the button the menu hangs from.
+   *
+   * `end` for a button whose words change while its menu is open and that
+   * grows from its right edge — the filter button in a header is both. Hung
+   * from the left, the menu jumped by the width of the count the first tick
+   * added, and the drawer that tick was made in closed under the pointer.
+   */
+  align?: 'start' | 'end';
 }) {
   const t = useT();
   const [query, setQuery] = useState('');
@@ -542,7 +566,7 @@ export function MenuButton({
           {children}
         </button>
       </MenuTrigger>
-      <MenuContent align="start" sheet={narrow}>
+      <MenuContent align={align} sheet={narrow}>
         {level ? (
           <>
             {/* The way out, and the only thing on the level that says where you are. */}

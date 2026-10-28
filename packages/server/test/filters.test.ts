@@ -71,6 +71,35 @@ describe('what a filter asks of a task', () => {
     assert.equal(passes({ module: ['m1'] }, { module_id: 'm1' }), true);
   });
 
+  /*
+   * `assignee = none` parsed to `['']` from the start, and an empty list never
+   * holds `''` — so "nobody is on it" filtered every task away, the unassigned
+   * ones included, and `!= none` let every task through. Found when the filter
+   * menu was asked for an "Unassigned" row and the row would have shown an
+   * empty board.
+   */
+  it('reads the empty answer on a list as "nothing in it"', () => {
+    assert.equal(passes({ assignee: [''] }, { assignees: [] }), true, 'nobody on it');
+    assert.equal(passes({ assignee: [''] }), false, 'Ada is on it');
+    assert.equal(passes({ label: [''] }, { labels: [] }), true);
+    assert.equal(passes({ label: [''] }), false);
+    // A row written before the column was a list reads as empty too.
+    assert.equal(passes({ assignee: [''] }, { assignees: undefined as unknown as string[] }), true);
+  });
+
+  it('lets the empty answer stand beside a person, which is the filter somebody triaging wants', () => {
+    // "Mine, or nobody's yet."
+    assert.equal(passes({ assignee: ['u-ada', ''] }), true);
+    assert.equal(passes({ assignee: ['u-ada', ''] }, { assignees: [] }), true);
+    assert.equal(passes({ assignee: ['u-ada', ''] }, { assignees: ['u-grace'] }), false);
+  });
+
+  it('turns the empty answer round with `not`: somebody is on it', () => {
+    assert.equal(passes({ not: { assignee: [''] } }), true);
+    assert.equal(passes({ not: { assignee: [''] } }, { assignees: [] }), false);
+    assert.equal(passes({ not: { label: [''] } }, { labels: [] }), false);
+  });
+
   describe('the four due buckets', () => {
     it('overdue is before today, and a task with no date is not overdue', () => {
       assert.equal(passes({ due: 'overdue' }, { due_date: '2026-03-09' }), true);

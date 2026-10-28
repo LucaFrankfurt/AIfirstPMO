@@ -243,6 +243,36 @@ describe('a shared task list', () => {
     assert.equal(body.includes('Somewhere else'), false, 'a shared link showing more than the view is a leak by another name');
   });
 
+  /*
+   * `tasksMatching` read the single-valued keys and the `not` lists, and
+   * passed over `assignee` and `label` when they asked "is one of" — so a view
+   * of one person's work, shared, showed a stranger the whole project. Found
+   * while teaching the board's filter to say "nobody", which is the other half
+   * of this: the empty answer has to mean the same thing here as on the board.
+   */
+  it('honours who is on a task and what it carries, "nobody" and "no label" included', async () => {
+    const me = (await ok('/api/session')).user.id;
+    const label = await ok(`/api/workspaces/${workspaceId}/labels`, { project_id: projectId, name: 'Hotfix' });
+    await ok(`/api/workspaces/${workspaceId}/tasks`, {
+      project_id: projectId, title: 'Ada is on this', assignees: [me], labels: [label.id],
+    });
+    await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Nobody is on this' });
+    const shared = async (filters: Record<string, unknown>) => {
+      const view = await ok(`/api/workspaces/${workspaceId}/views`, { project_id: projectId, name: 'People', filters });
+      const share = await makeShare({ kind: 'tasks', project_id: projectId, view_id: view.id, include_done: 1 });
+      const body = await (await open(`/s/${share.token}`)).text();
+      return { ada: body.includes('Ada is on this'), nobody: body.includes('Nobody is on this') };
+    };
+
+    assert.deepEqual(await shared({ assignee: [me] }), { ada: true, nobody: false }, 'one person’s work, and only theirs');
+    assert.deepEqual(await shared({ assignee: [''] }), { ada: false, nobody: true }, 'nobody on it');
+    assert.deepEqual(await shared({ assignee: [me, ''] }), { ada: true, nobody: true }, 'mine, or nobody’s yet');
+    assert.deepEqual(await shared({ not: { assignee: [''] } }), { ada: true, nobody: false }, 'somebody on it');
+    assert.deepEqual(await shared({ label: [label.id] }), { ada: true, nobody: false });
+    assert.deepEqual(await shared({ label: [''] }), { ada: false, nobody: true }, 'no label at all');
+    assert.deepEqual(await shared({ not: { label: [label.id] } }), { ada: false, nobody: true });
+  });
+
   it('filters on a custom field, including the two questions a note can answer', async () => {
     const severity = await ok(`/api/workspaces/${workspaceId}/fields`, {
       project_id: projectId, name: 'Severity', kind: 'select', options: ['Low', 'High'],

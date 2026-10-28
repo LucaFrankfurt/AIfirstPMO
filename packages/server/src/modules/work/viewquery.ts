@@ -39,6 +39,27 @@ const COLUMNS: Record<string, string> = {
   project: 'project_id', priority: 'priority',
 };
 
+/**
+ * Whether a JSON list column holds any of `values`, as SQL — `holdsAny` in
+ * shared's `kernel/search/filters.ts`, spelt for SQLite, and it has to stay the
+ * same question.
+ *
+ * `''` is the empty answer: nobody on it, no label. A list never contains it,
+ * so it is asked as "the list is empty" rather than looked for. The ids go
+ * through `json_each` for the reason the `assignedTo` clause below gives: a
+ * `LIKE` on the text would let one id match the prefix of another.
+ */
+function listHolds(column: 'assignees' | 'labels', values: string[], params: unknown[]): string {
+  const clauses: string[] = [];
+  if (values.includes('')) clauses.push(`json_array_length(COALESCE(t.${column}, '[]')) = 0`);
+  const ids = values.filter((value) => value !== '');
+  if (ids.length) {
+    clauses.push(`EXISTS (SELECT 1 FROM json_each(t.${column}) WHERE json_each.value IN (${ids.map(() => '?').join(', ')}))`);
+    params.push(...ids);
+  }
+  return `(${clauses.join(' OR ')})`;
+}
+
 /** A view's `filters` column, which is JSON and may be anything at all. */
 export const readFilters = (raw: unknown): Filters => {
   try {
@@ -79,6 +100,15 @@ export function tasksMatching(query: ViewQuery): Row[] {
     where.push(`t.${column} IN (${values.map(() => '?').join(', ')})`);
     params.push(...values.map(String));
   }
+  // The two lists, which `COLUMNS` cannot name because a task holds several of
+  // each. They were simply skipped when they asked "is one of" — only the
+  // `not` form below was ever written — so a view of one person's work, shared
+  // or subscribed to, handed over the whole project.
+  for (const key of ['assignee', 'label'] as const) {
+    const values = query.filters?.[key];
+    if (!Array.isArray(values) || !values.length) continue;
+    where.push(listHolds(key === 'assignee' ? 'assignees' : 'labels', values.map(String), params));
+  }
 
   // The same questions the other way round. `IS NOT` rather than `NOT IN`,
   // because SQL's `NOT IN` is false rather than true when the column is null —
@@ -97,10 +127,7 @@ export function tasksMatching(query: ViewQuery): Row[] {
   for (const key of ['assignee', 'label'] as const) {
     const values = not[key];
     if (!Array.isArray(values) || !values.length) continue;
-    const column = key === 'assignee' ? 'assignees' : 'labels';
-    where.push(`NOT EXISTS (SELECT 1 FROM json_each(t.${column})
-      WHERE json_each.value IN (${values.map(() => '?').join(', ')}))`);
-    params.push(...values.map(String));
+    where.push(`NOT ${listHolds(key === 'assignee' ? 'assignees' : 'labels', values.map(String), params)}`);
   }
 
   // Custom fields live in a table of their own. Each field is a separate

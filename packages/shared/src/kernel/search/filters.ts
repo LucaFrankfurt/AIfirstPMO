@@ -33,6 +33,19 @@ export interface FilterLookup {
   horizon: string;
 }
 
+/**
+ * Whether a field that holds a list answers any of `wanted`.
+ *
+ * `''` is the empty answer — nobody on it, no label — and asks whether the
+ * list is empty. `query.ts` has written it for `assignee = none` since the
+ * language was written, and nothing here read it: an empty list never holds
+ * `''`, so "nobody" filtered every task away and `!= none` filtered none. The
+ * single-valued fields never had the problem, because `cycle_id ?? ''` *is*
+ * the empty answer; a list has to be asked.
+ */
+const holdsAny = (values: string[] | undefined, wanted: string[]): boolean =>
+  wanted.some((id) => (id === '' ? !(values ?? []).length : (values ?? []).includes(id)));
+
 export function passesFilters(task: Task, filters: Filters, at: FilterLookup): boolean {
   const group = at.groupOf(task.state_id);
 
@@ -42,8 +55,8 @@ export function passesFilters(task: Task, filters: Filters, at: FilterLookup): b
   if (filters.project?.length && !filters.project.includes(task.project_id)) return false;
   if (filters.cycle?.length && !filters.cycle.includes(task.cycle_id ?? '')) return false;
   if (filters.module?.length && !filters.module.includes(task.module_id ?? '')) return false;
-  if (filters.assignee?.length && !filters.assignee.some((id) => (task.assignees ?? []).includes(id))) return false;
-  if (filters.label?.length && !filters.label.some((id) => (task.labels ?? []).includes(id))) return false;
+  if (filters.assignee?.length && !holdsAny(task.assignees, filters.assignee)) return false;
+  if (filters.label?.length && !holdsAny(task.labels, filters.label)) return false;
 
   // The same questions the other way round. Written out beside the positive
   // ones rather than derived from them: a loop over field names would be
@@ -59,8 +72,8 @@ export function passesFilters(task: Task, filters: Filters, at: FilterLookup): b
     if (not.module?.includes(task.module_id ?? '')) return false;
     // A list: excluded when *any* of the task's values is named. "Not assigned
     // to Ada" means the ones Ada is not on, including the ones she shares.
-    if (not.assignee?.some((id) => (task.assignees ?? []).includes(id))) return false;
-    if (not.label?.some((id) => (task.labels ?? []).includes(id))) return false;
+    if (not.assignee && holdsAny(task.assignees, not.assignee)) return false;
+    if (not.label && holdsAny(task.labels, not.label)) return false;
   }
 
   if (filters.due === 'overdue' && !(task.due_date && task.due_date < at.day)) return false;

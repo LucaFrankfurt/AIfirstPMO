@@ -165,6 +165,7 @@ function fieldFilterGroup(
       label,
       hint: chosen.includes(value) ? '✓' : undefined,
       onSelect: () => toggle(field.id, value),
+      keepOpen: true,
     })),
   };
 }
@@ -237,6 +238,7 @@ export function ViewControls({
         hint: view.filters.state?.includes(state.id) ? '✓' : undefined,
         icon: <StateDot group={state.group_key} color={state.color} />,
         onSelect: () => toggle('state', state.id),
+        keepOpen: true,
       })),
     },
     {
@@ -248,6 +250,7 @@ export function ViewControls({
         label: t(priorityKey(priority)),
         hint: view.filters.priority?.includes(priority) ? '✓' : undefined,
         onSelect: () => toggle('priority', priority),
+        keepOpen: true,
       })),
     },
     {
@@ -255,12 +258,25 @@ export function ViewControls({
       label: t('view.groupAssignee'),
       hint: chosen('assignee'),
       search: members.length > 8,
-      items: members.map((member) => ({
-        id: `assignee-${member.id}`,
-        label: member.name,
-        hint: view.filters.assignee?.includes(member.id) ? '✓' : undefined,
-        onSelect: () => toggle('assignee', member.id),
-      })),
+      items: [
+        ...members.map((member) => ({
+          id: `assignee-${member.id}`,
+          label: member.name,
+          hint: view.filters.assignee?.includes(member.id) ? '✓' : undefined,
+          onSelect: () => toggle('assignee', member.id),
+          keepOpen: true,
+        })),
+        // The empty answer, last — where grouping by assignee puts it and
+        // where a field's "no answer" stands. `assignee = none` in the box
+        // above is the same filter, written down.
+        {
+          id: 'assignee-none',
+          label: t('task.unassigned'),
+          hint: view.filters.assignee?.includes('') ? '✓' : undefined,
+          onSelect: () => toggle('assignee', ''),
+          keepOpen: true,
+        },
+      ],
     },
     {
       id: 'f-label',
@@ -272,6 +288,7 @@ export function ViewControls({
         label: label.name,
         hint: view.filters.label?.includes(label.id) ? '✓' : undefined,
         onSelect: () => toggle('label', label.id),
+        keepOpen: true,
       })),
     },
     {
@@ -284,6 +301,7 @@ export function ViewControls({
         label: cycle.name,
         hint: view.filters.cycle?.includes(cycle.id) ? '✓' : undefined,
         onSelect: () => toggle('cycle', cycle.id),
+        keepOpen: true,
       })),
     },
     {
@@ -296,6 +314,7 @@ export function ViewControls({
         label: module.name,
         hint: view.filters.module?.includes(module.id) ? '✓' : undefined,
         onSelect: () => toggle('module', module.id),
+        keepOpen: true,
       })),
     },
     // One drawer per custom field, for the same reason: a project with six
@@ -355,6 +374,10 @@ export function ViewControls({
       <MenuButton
         variant="secondary" size="sm"
         search
+        // Hung from the edge that stays put: the count after the first tick
+        // widens the button leftwards, and a menu hung from the left edge
+        // jumped with it and shut the drawer the tick was made in.
+        align="end"
         items={filterItems}
       >
         <Icon name="filter" size={14} />
