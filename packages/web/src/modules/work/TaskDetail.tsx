@@ -5,7 +5,7 @@ import { useTabStrip } from '../../kernel/design-system/tab-strip';
 import { relativeTime, shortDate } from '../../kernel/design-system/format';
 import { useT } from '../../kernel/i18n/i18n';
 import { list, useQuery, useRow } from '../../kernel/sync/store';
-import { createTask, remove, update } from '../../kernel/sync/mutations';
+import { createTask, update } from '../../kernel/sync/mutations';
 import { useCanWrite, useFeature, useMe, useMemberMap } from '../../kernel/identity/session';
 import { TaskReviewPanel } from '../ai-review/task-review';
 import { TaskDecisions } from '../decisions/decision-parts';
@@ -18,9 +18,9 @@ import { TaskFields } from './fields';
 import { Attachments } from '../../kernel/files/Attachments';
 import {
   AssigneePicker, CyclePicker, DateField, LabelChips, LabelPicker, ModulePicker, ParentPicker, ParentTrail,
-  PriorityPicker, ProjectPicker, StatePicker, stateOf,
+  PriorityPicker, ProjectPicker, StatePicker, stateOf, useDeleteTask,
 } from './task-parts';
-import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
+import { Avatar, Empty, Icon, MenuButton, Sheet, StateDot, useToast } from '../../kernel/design-system/ui';
 import { Input, Select } from '../../kernel/design-system/ui/field';
 import { Button } from '../../kernel/design-system/ui/button';
 import { useMinute } from '../../kernel/design-system/minute';
@@ -34,7 +34,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
   const me = useMe();
   const members = useMemberMap();
   const toast = useToast();
-  const { confirm, dialog } = useConfirm();
+  const removal = useDeleteTask();
 
   const [title, setTitle] = useState(task?.title ?? '');
   const [editingDescription, setEditingDescription] = useState(false);
@@ -132,10 +132,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             { id: 'archive', label: task.archived ? t('action.unarchive') : t('action.archive'), icon: <Icon name="archive" size={14} />,
                 onSelect: () => update('task', task.id, { archived: task.archived ? 0 : 1 }) },
               { id: 'delete', label: t('task.delete'), icon: <Icon name="trash" size={14} />, danger: true, onSelect: async () => {
-                if (await confirm(t('task.deleteConfirm', { identifier: task.identifier }))) {
-                  remove('task', task.id);
-                  onClose();
-                }
+                if (await removal.ask(task)) onClose();
               } },
             ]}
           >
@@ -334,7 +331,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           {task.labels?.length ? <span className="flex items-center gap-2 flex-wrap mt-1.5"><LabelChips ids={task.labels} projectId={task.project_id} /></span> : null}
         </div>
       </Sheet>
-      {dialog}
+      {removal.dialog}
     </>
   );
 }

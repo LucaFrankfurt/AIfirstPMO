@@ -1,10 +1,10 @@
-import { Fragment } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import {
   PRIORITIES, ancestry, coversProject, descendants, fieldKeys, isDoneGroup, mayEnter,
   type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
 import { byId, list, useQuery } from '../../kernel/sync/store';
-import { byOrder, moveTaskToProject, toggleAssignee, toggleLabel, update } from '../../kernel/sync/mutations';
+import { byOrder, moveTaskToProject, remove, restore, toggleAssignee, toggleLabel, update } from '../../kernel/sync/mutations';
 import { dueClass, shortDate } from '../../kernel/design-system/format';
 import { groupKey, priorityKey, useT, type Translate } from '../../kernel/i18n/i18n';
 import { useMemberMap, useMembers, useSession } from '../../kernel/identity/session';
@@ -12,7 +12,7 @@ import { EMPTY_SELECTION, SelectBox, useLongPressSelect, type Selection } from '
 import { Input } from '../../kernel/design-system/ui/field';
 import { cn } from '../../kernel/design-system/cn';
 import { Chip, chipDot, chipVariants } from '../../kernel/design-system/ui/chip';
-import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, useToast, type MenuItem } from '../../kernel/design-system/ui';
+import { Avatar, AvatarStack, Icon, MenuButton, PriorityBars, StateDot, useConfirm, useToast, type MenuItem } from '../../kernel/design-system/ui';
 
 /* ------------------------------------------------------------------ moving */
 
@@ -48,6 +48,43 @@ export function useRefile(): (taskId: string, projectId: string) => void {
       ? t('task.movedWithSubtasks', { task: task.identifier, project: destination.name, count: moved - 1 })
       : t('task.movedToProject', { task: task.identifier, project: destination.name }));
   };
+}
+
+/**
+ * Deleting a task, with the sentence that says what happens to the rest.
+ *
+ * One function for the sheet's menu and the card's, for the reason `useRefile`
+ * is one: they are the same act. The board had no way to delete at all — a
+ * duplicate could only be cancelled, and then sat in every list, count and
+ * search as work somebody decided not to do.
+ *
+ * The confirmation counts the sub-tasks because the one before it promised
+ * they would be hidden, and nothing ever hid them: the server tombstones the
+ * one row, and the children stay on the board with a parent that is gone.
+ * They are not re-parented here either — `parent_id` still names the deleted
+ * task, which is what puts them back under it when it is restored.
+ *
+ * The toast can take it back, because a menu row is one slip away from the row
+ * beside it. Undo is a restore, the same write the trash makes.
+ */
+export function useDeleteTask(): { ask: (task: Task) => Promise<boolean>; dialog: ReactNode } {
+  const t = useT();
+  const toast = useToast();
+  const { confirm, dialog } = useConfirm();
+  const ask = async (task: Task) => {
+    const children = list('task', (row) => row.parent_id === task.id).length;
+    const message = children
+      ? t('task.deleteConfirmSubtasks', { identifier: task.identifier, count: children })
+      : t('task.deleteConfirm', { identifier: task.identifier });
+    if (!(await confirm(message))) return false;
+    remove('task', task.id);
+    toast(t('task.deleted', { identifier: task.identifier }), {
+      label: t('action.undo'),
+      run: () => restore('task', task.id),
+    });
+    return true;
+  };
+  return { ask, dialog };
 }
 
 /** Where a task could go instead — every project that can hold one. */
@@ -443,7 +480,7 @@ export function TaskRow({
 }
 
 export function TaskCard({
-  task, onOpen, onDragStart, onDragEnd, dragging, moveTargets, implied,
+  task, onOpen, onDragStart, onDragEnd, dragging, moveTargets, onDelete, implied,
 }: {
   task: Task;
   onOpen: (task: Task) => void;
@@ -461,6 +498,12 @@ export function TaskCard({
   dragging?: boolean;
   /** Columns this card can be moved to — the touch alternative to dragging. */
   moveTargets?: { id: string; title: string; onSelect: () => void }[];
+  /**
+   * Asks, then deletes. Absent for somebody who may not write — the board
+   * decides that, as it does for its columns — and the menu then has no row
+   * for it, rather than a row the server will refuse.
+   */
+  onDelete?: () => void;
   /** What the screen around the card already says. See `Implied`. */
   implied?: Implied;
 }) {
@@ -492,11 +535,13 @@ export function TaskCard({
         <span className="mono text-muted">{task.identifier}</span>
         <span className="flex-1 min-w-0" />
         {task.priority !== 'none' && <PriorityBars priority={task.priority} />}
-        {(moveTargets && moveTargets.length > 1) || projects.length ? (
+        {(moveTargets && moveTargets.length > 1) || projects.length || onDelete ? (
           <span onClick={(event) => event.stopPropagation()}>
             <MenuButton
               variant="ghost" size="iconSm"
-              title={t('task.moveTo')}
+              // Not "Move to" once a delete is in it: the title is the button's
+              // only name, and nobody looks for a delete under a word for moving.
+              title={onDelete ? t('common.moreActions') : t('task.moveTo')}
               items={[
                 // The columns stay flat: this is the one a card's menu is
                 // opened for many times a day, and a board has as many columns
@@ -520,6 +565,14 @@ export function TaskCard({
                     label: project.name,
                     onSelect: () => refile(task.id, project.id),
                   })),
+                }] : []),
+                // Last, and red: the one row here that is not a move.
+                ...(onDelete ? [{
+                  id: 'delete',
+                  label: t('task.delete'),
+                  icon: <Icon name="trash" size={14} />,
+                  danger: true,
+                  onSelect: onDelete,
                 }] : []),
               ]}
             >

@@ -61,7 +61,7 @@ const LABELS = {
     tidy: 'Tidy up', findPage: 'Find a page by title', selectPages: 'Select pages',
     archive: 'Archive', duplicateTitles: 'Two pages, one title',
     bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label', statusDrawer: 'Status', bulkStatusDrawer: 'Set the status',
-    edit: 'Edit',
+    edit: 'Edit', deleteTask: 'Delete task', confirmDelete: 'Delete',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -85,7 +85,7 @@ const LABELS = {
     tidy: 'Aufräumen', findPage: 'Seite nach Titel finden', selectPages: 'Seiten auswählen',
     archive: 'Archivieren', duplicateTitles: 'Zwei Seiten, ein Titel',
     bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern', statusDrawer: 'Status', bulkStatusDrawer: 'Status setzen',
-    edit: 'Bearbeiten',
+    edit: 'Bearbeiten', deleteTask: 'Aufgabe löschen', confirmDelete: 'Löschen',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -109,7 +109,7 @@ const LABELS = {
     tidy: 'Ranger', findPage: 'Trouver une page par son titre', selectPages: 'Sélectionner des pages',
     archive: 'Archiver', duplicateTitles: 'Deux pages, un titre',
     bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette', statusDrawer: 'Statut', bulkStatusDrawer: 'Définir le statut',
-    edit: 'Modifier',
+    edit: 'Modifier', deleteTask: 'Supprimer la tâche', confirmDelete: 'Supprimer',
   },
 }[locale];
 
@@ -556,6 +556,57 @@ await step('reorder board columns and put them back', async () => {
   const restored = await names();
   if (restored.join('|') !== before.join('|')) throw new Error('moving back did not restore the order');
   console.log(`     ${before[0]} ⇄ ${before[1]} and back`);
+});
+
+/**
+ * A card can be deleted from its own menu.
+ *
+ * The board had no way to delete at all, so a duplicate could only be
+ * cancelled — and a cancelled task stays in every list, count and search as
+ * work somebody chose not to do. Declined first, because a confirmation nobody
+ * can back out of is not one; then through, and back from the toast, so the
+ * board ends the step as it began. The last card rather than the first: the
+ * next step opens the first one.
+ */
+await step('delete a card from its menu, decline once, undo from the toast', async () => {
+  const identifier = (await page.locator('.board .task-card .mono').last().innerText()).trim();
+  const card = page.locator(`.board .task-card:has(.mono:text-is("${identifier}"))`);
+  const listed = () => page.evaluate(async (id) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const rows = await (await fetch(`/api/workspaces/${ws}/tasks?limit=400`, { credentials: 'include' })).json();
+    return (rows.tasks ?? rows).some((one) => one.identifier === id);
+  }, identifier);
+  // The write goes through the outbox, so the server is asked until it agrees.
+  const serverSays = async (want) => {
+    for (let tries = 0; tries < 25; tries += 1) {
+      if (await listed() === want) return true;
+      await page.waitForTimeout(300);
+    }
+    return false;
+  };
+  const ask = async () => {
+    await card.locator(`button[aria-label="${LABELS.moreActions}"]`).click();
+    await page.getByRole('menuitem', { name: LABELS.deleteTask }).click();
+    await page.waitForSelector(`.sheet:has-text("${LABELS.confirmTitle}")`, { timeout: 5000 });
+  };
+
+  await ask();
+  const question = await page.locator('.sheet').last().innerText();
+  if (!question.includes(identifier)) throw new Error(`the confirmation does not name ${identifier}: "${question}"`);
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.cancel }).click();
+  await page.waitForTimeout(600);
+  if (!(await card.count())) throw new Error('declining deleted the card anyway');
+
+  await ask();
+  await page.locator('.sheet').last().getByRole('button', { name: LABELS.confirmDelete, exact: true }).click();
+  await page.waitForTimeout(400);
+  if (await card.count()) throw new Error(`${identifier} is still on the board`);
+  if (!(await serverSays(false))) throw new Error(`the server still lists ${identifier}`);
+
+  await page.locator(`.toast:has-text("${identifier}") button`).click();
+  await card.waitFor({ timeout: 5000 });
+  if (!(await serverSays(true))) throw new Error(`undo put ${identifier} back on the board but not on the server`);
+  console.log(`     ${identifier}: declined, deleted, back from the toast`);
 });
 
 await step('open task detail + comment', async () => {

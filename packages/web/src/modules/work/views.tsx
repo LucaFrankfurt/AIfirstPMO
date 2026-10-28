@@ -14,7 +14,7 @@ import { idFrom, isDrag, startDrag, STATE_DRAG, TASK_DRAG } from '../../kernel/d
 import { useCanWrite, useMemberMap, useMembers } from '../../kernel/identity/session';
 import {
   fieldGroupId, groupedField, groupTasks, LabelChips, TaskCard, TaskRow,
-  useCycles, useLabels, useModules, useStates,
+  useCycles, useDeleteTask, useLabels, useModules, useStates,
   type BaseGroupBy, type Implied, type ViewConfig,
 } from './task-parts';
 import { setFieldValue, useFields } from './fields';
@@ -488,6 +488,8 @@ export function BoardView({
   const [columnDrop, setColumnDrop] = useState<{ id: string; before: boolean } | null>(null);
 
   const canWrite = useCanWrite();
+  /** One confirmation for the whole board, rather than one waiting in every card. */
+  const removal = useDeleteTask();
   /** `null` while the button is a button; a string while it is a field. */
   const [draftColumn, setDraftColumn] = useState<string | null>(null);
 
@@ -676,6 +678,7 @@ export function BoardView({
                   title: target.title,
                   onSelect: () => drop(target.id, task),
                 }))}
+                onDelete={canWrite ? () => void removal.ask(task) : undefined}
                 onDragStart={(event) => {
                   setDragId(task.id);
                   // Typed, so the sidebar can tell a card from a project and
@@ -762,6 +765,7 @@ export function BoardView({
           )}
         </div>
       )}
+      {removal.dialog}
     </div>
   );
 }
