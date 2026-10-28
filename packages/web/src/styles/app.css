@@ -3868,6 +3868,71 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .ballot-count { flex: none; font-size: 12.5px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
 .ballot-note { margin: 0; font-size: 12px; color: var(--fg-muted); }
 
+/* --------------------------------------------------------------- meetings */
+
+/*
+ * A meeting in the list and a point on its agenda are the same surface: the
+ * ballot's card, so the two features that are about the team talking look
+ * like one family.
+ */
+.agenda-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+/* The meeting's title in the list. Sized like the ballot's question, and
+   24px tall so it is a target a thumb can hit on its own. */
+.meeting-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* The number a point is read out by. Fixed width, so a ten-point agenda does
+   not shift every title one character to the right at point ten. */
+.agenda-number {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The point's title is an input that should read as a heading until it is
+   touched: no frame at rest, the field's own frame on hover and focus. */
+.agenda-title { border-color: transparent; background: transparent; font-weight: 600; font-size: 14px; }
+.agenda-title:hover, .agenda-title:focus { border-color: var(--line-strong); background: var(--bg); }
+
+/* The × on a chosen person or project. A button rather than a span with a
+   click handler, so it is in the tab order and has a name; 24px because that
+   is WCAG 2.2's floor, and it still fits inside a 32px chip. */
+.pick-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+.pick-remove:hover { background: var(--bg-active); }
+.pick-remove:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 /* ------------------------------------------------------------------- KPIs */
 
 /*

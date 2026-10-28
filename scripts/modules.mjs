@@ -87,7 +87,7 @@ const RING_OF_DIR = { kernel: 'kernel', modules: 'capability', adapters: 'adapte
 const ABOUT = {
   'i18n': ['Catalogues, plurals, and the locale a person reads in.'],
   'design-system': ['The shell, the palette, and the parts every screen is built from.'],
-  'registry': ['The 58 entities: fields, merge rules, visibility, and what the client mirrors.'],
+  'registry': ['The 60 entities: fields, merge rules, visibility, and what the client mirrors.'],
   'write-path': ['One way in for every write: defaults, invariants, guards, effects, tombstones.'],
   'identity': ['Accounts, sessions, two-factor, workspaces, members and invites.'],
   'platform': ['Configuration, the database handle, the router, ids, the bus.'],
@@ -104,6 +104,7 @@ const ABOUT = {
   'chat': ['Channels, messages, presence, reactions and unread.'],
   'kpis': ['Measures, targets, cadence and the direction that counts as good.', 'kpi'],
   'decisions': ['A question with options on it: who may vote, until when, and whether it is secret.', 'decisions'],
+  'meetings': ['An agenda everybody adds to, notes written together, and the tasks and minutes that come out of it.', 'meetings'],
   'infrastructure': ['Components, vendors, environments, lifecycles and moves.', 'infrastructure'],
   'guide': ['The tour, the diagrams and the help screens.'],
   'time': ['Timesheets, rates, utilisation and what an hour costs.', 'time'],
@@ -678,36 +679,75 @@ const short = (file) => file?.replace(/^(server|web|shared|mcp)\/src\//, '') ?? 
  *
  * Exhaustively, because an exact answer is the whole point — a heuristic that
  * settled for a poor cut would read as evidence for the conclusion it is used
- * to support. The price is `2 ** capabilities`, so it refuses rather than
- * grinds if the ring ever outgrows a size where that is free.
+ * to support.
+ *
+ * **It visits the splits, not every subset.** The first version tried all
+ * `2 ** capabilities` subsets and kept the closed ones, and refused outright at
+ * twenty-one, which is where the twenty-first capability found it. A subset is
+ * only a split if each member's dependencies are in it too, so the walk below
+ * decides the capabilities in dependency order and only ever offers "in" to
+ * one whose dependencies already are. Every leaf it reaches is a split and no
+ * leaf is reached twice, so the work is the number of splits times the number
+ * of capabilities — the figure the document quotes, rather than a power of two
+ * nobody reads.
+ *
+ * The answer is the old one exactly, tie-breaks included: two splits with the
+ * same score are decided as the old loop decided them, by which subset was the
+ * smaller number with capability `i` as bit `i` — see `before`.
  */
 const bestFifthRing = (uses) => {
   const names = [...uses.keys()];
-  if (names.length > 20) {
-    throw new Error(`modules.mjs: ${names.length} capabilities is too many to try every split — `
-      + 'find a method that scales, or drop the figure.');
-  }
-  const bit = new Map(names.map((n, i) => [n, 1 << i]));
-  const needs = names.map((n) => [...uses.get(n).keys()].reduce((m, d) => m | bit.get(d), 0));
-  const whole = (1 << names.length) - 1;
+  const index = new Map(names.map((n, i) => [n, i]));
+  const needs = names.map((n) => [...uses.get(n).keys()].map((d) => index.get(d)));
+
+  // Dependencies first. The graph is acyclic — rule 6 — so this always finishes.
+  const order = [];
+  const placed = new Set();
+  const place = (i) => {
+    if (placed.has(i)) return;
+    placed.add(i);
+    for (const d of needs[i]) place(d);
+    order.push(i);
+  };
+  names.forEach((_, i) => place(i));
+
+  /** Whether `a` was the smaller mask: the highest capability they disagree on is out of `a`. */
+  const before = (a, b) => {
+    for (let i = names.length - 1; i >= 0; i--) if (a[i] !== b[i]) return !a[i];
+    return false;
+  };
+
+  const chosen = new Array(names.length).fill(false);
   let splits = 0;
-  let best = { leaners: -1, size: Infinity, mask: 0 };
-  // Neither end is a split: a ring with nothing in it is not a ring, and one
-  // holding every capability has nothing above it to be a ring *of*.
-  for (let mask = 1; mask < whole; mask++) {
-    let closed = true;
-    for (let i = 0; i < names.length && closed; i++) if (mask & (1 << i)) closed = (needs[i] & ~mask) === 0;
-    if (!closed) continue;
+  let best = { leaners: -1, size: Infinity, members: null };
+
+  const score = (size) => {
+    // Neither end is a split: a ring with nothing in it is not a ring, and one
+    // holding every capability has nothing above it to be a ring *of*.
+    if (size === 0 || size === names.length) return;
     splits += 1;
     let leaners = 0;
-    let size = 0;
-    for (let i = 0; i < names.length; i++) {
-      if (mask & (1 << i)) size += 1;
-      else if (needs[i] & mask) leaners += 1;
+    for (let i = 0; i < names.length; i++) if (!chosen[i] && needs[i].some((d) => chosen[d])) leaners += 1;
+    if (leaners > best.leaners || (leaners === best.leaners
+      && (size < best.size || (size === best.size && before(chosen, best.members))))) {
+      best = { leaners, size, members: [...chosen] };
     }
-    if (leaners > best.leaners || (leaners === best.leaners && size < best.size)) best = { leaners, size, mask };
-  }
-  return { splits, leaners: best.leaners, size: best.size, members: names.filter((n) => best.mask & bit.get(n)) };
+  };
+
+  const walk = (at, size) => {
+    if (at === order.length) return score(size);
+    const i = order[at];
+    chosen[i] = false;
+    walk(at + 1, size);
+    if (needs[i].every((d) => chosen[d])) {
+      chosen[i] = true;
+      walk(at + 1, size + 1);
+      chosen[i] = false;
+    }
+  };
+  walk(0, 0);
+
+  return { splits, leaners: best.leaners, size: best.size, members: names.filter((_, i) => best.members?.[i]) };
 };
 
 /*

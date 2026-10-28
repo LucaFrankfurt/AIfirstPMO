@@ -292,6 +292,12 @@ export function fileTask(
    * between its predecessor and that same bound.
    */
   order?: Map<string, { prev: string | null; bound: string | null }>,
+  /**
+   * Columns the caller knows and `create_task` does not — the agenda point a
+   * task came out of. Part of the one write rather than a second one after it,
+   * so a webhook hears about a task created, not created and then edited.
+   */
+  extra: Record<string, unknown> = {},
 ): Row {
   const quick = str(args.quick_add) ? parseQuickAdd(String(args.quick_add), vocabularyFor(workspaceId)) : null;
   const title = (quick?.title ?? str(args.title) ?? '').trim();
@@ -339,6 +345,7 @@ export function fileTask(
     // release plan ends up missing the thing somebody thought they had added.
     module_id: str(args.module) ? String(findModule(String(args.module), workspaceId, ctx).id) : null,
     sort_order: sort,
+    ...extra,
   }, writeOpts(workspaceId, ctx));
   return row;
 }
@@ -774,7 +781,7 @@ export function requireWrite(ctx: McpCtx, workspaceId: string): void {
  * done something worse than refuse: the row exists, the person who asked
  * believes it was recorded, and no screen will ever show it.
  */
-export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'products' | 'infrastructure' | 'kpi' | 'decisions' | 'mail'): void {
+export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'products' | 'infrastructure' | 'kpi' | 'decisions' | 'meetings' | 'mail'): void {
   if (!hasFeature(workspaceId, name)) {
     const what = {
       time: 'Time tracking',
@@ -783,6 +790,7 @@ export function requireFeature(workspaceId: string, name: 'time' | 'budget' | 'p
       infrastructure: 'The infrastructure register',
       kpi: 'KPIs',
       decisions: 'Decisions',
+      meetings: 'Meetings',
       mail: 'Connected mailboxes',
     }[name];
     throw new McpError(`${what} is switched off in this workspace (Settings → Workspace)`, -32000);

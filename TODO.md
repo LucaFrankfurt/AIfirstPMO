@@ -1622,7 +1622,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 118 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 127 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
@@ -1725,7 +1725,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **63** the list carries; the other undroppable-looking eight turned out to be something else
+      **64** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1774,6 +1774,43 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       feature here where somebody might be *punished* for what the database says. Sealing the column
       would not fix it either — the server has to count, so it has to be able to read. Named rather
       than solved.
+
+## Meetings: what was decided, and what is left open
+
+Built as its own capability behind the `meetings` switch — a meeting, its agenda points, the notes
+in each, tasks filed from a point, carrying the unfinished ones forward, and the minutes as a page;
+two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.md`](docs/meetings.md).
+
+- [x] **The notes are the page's CRDT, not a second one.** `settleCrdtText` in the page rules and
+      `useCollaborativeText` on the client used to know one pair of columns, `body` and `content`;
+      both now take the pair they are given, and an agenda point's `notes_body` and `notes` go
+      through the same code. A second copy of `replacementBody` — the bug its docblock describes was
+      found by a reader — would have been the copy that drifted.
+- [x] **For members, not scoped by project.** One meeting gathers topics from several projects, so a
+      project scope would hide it from half the room. The guest is the line: `case 'meeting'` in the
+      sync filter, the REST guard, and every MCP tool.
+- [x] **A private project's work stays out of what is shared.** `get_meeting` names a task or a
+      project only to somebody who can see it, and the minutes — a workspace page — only what is in a
+      public project. Found by reading the export path, not by a test that failed; there is one now.
+- [x] **A project export does not carry the link to the meeting.** The meeting is not in the
+      document, so `agenda_item_id` would name a point in another workspace on the same instance,
+      and that meeting would then list the imported task.
+- [x] **The split count in `modules.mjs` no longer tries every subset.** It refused at twenty-one
+      capabilities, which is what meetings is; it now walks only the splits and gives the same answer
+      on the old graph, tie-breaks included — checked against the old loop on the real graph and on
+      four hundred random ones. `figures.mjs` spells numbers to ninety-nine, because "Nineteen
+      imports" became twenty-three.
+- [ ] **A recurring series.** A weekly is a meeting and its follow-ups, called one at a time by
+      carrying the agenda forward. A rule would have to say what happens to next week's agenda when
+      this week's meeting moves, and that is a design rather than a column.
+- [ ] **Invitations and notifications.** A meeting is not in the `.ics` feed and nobody is told they
+      were put on one or that a topic was added. Wait for the first person who missed a meeting
+      because of it.
+- [ ] **Search and the workspace export.** Agenda points are not indexed — a point names several
+      projects and the index carries one, which is the budget's problem — and meetings stay behind in
+      a workspace document, as decisions and KPIs do.
+- [ ] **`kolibri doctor --fix` does not compact agenda notes.** It folds the tombstones out of page
+      bodies only. A point's notes are a few hundred characters.
 
 ## The UI port, and what is left of it
 

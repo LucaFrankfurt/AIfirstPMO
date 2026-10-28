@@ -52,6 +52,7 @@ const PATHS = {
   // Bulleted, so the list *layout* is not the same drawing as a menu.
   list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
   calendar: 'M4 7h16v13H4zM4 11h16M8 3v4M16 3v4',
+  agenda: 'M9 3.5h6v3H9zM7.5 5H5v16h14V5h-2.5M8.5 11h7M8.5 15h7M8.5 19h4',
   page: 'M6 3h8l4 4v14H6zM14 3v4h4',
   folder: 'M3 7h6l2 2h10v10H3z',
   users: 'M3 20c0-3 2.7-5 6-5s6 2 6 5M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM16 20c0-2.4 1-3.6 2.5-4.3M17 11a3 3 0 1 0 0-6',

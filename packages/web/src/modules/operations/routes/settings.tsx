@@ -630,6 +630,26 @@ function WorkspaceSettings() {
         </span>
       </label>
 
+      {/* Meetings are for members: a guest is on a project, not in the room
+          where the projects are compared, and the agenda never reaches a
+          guest's device. Saying so here is cheaper than the surprise. */}
+      <label className="check-row">
+        <input
+          type="checkbox"
+          checked={!!workspace?.features?.meetings}
+          disabled={!canEdit}
+          onChange={async (event) => {
+            await api.patch(`/api/workspaces/${workspaceId}`, { features: { meetings: event.target.checked } });
+            await refresh();
+            toast(t('workspace.updated'));
+          }}
+        />
+        <span>
+          <span>{t('workspace.featureMeetings')}</span>
+          <span className="text-[12px] text-muted">{t('workspace.featureMeetingsHint')}</span>
+        </span>
+      </label>
+
       {/* The switch with the most behind it: turning it on means this instance
           holds a credential to somebody else's mail server and a copy of what
           is in it. Switching it off hides the screens and stops MCP reading;

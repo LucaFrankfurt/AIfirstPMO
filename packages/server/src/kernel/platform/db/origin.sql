@@ -1506,3 +1506,41 @@ CREATE TABLE page_statuses (
   seq          INTEGER NOT NULL DEFAULT 0,
   clocks       TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE agenda_items (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  meeting_id   TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  description  TEXT,
+  projects     TEXT NOT NULL DEFAULT '[]',
+  status       TEXT NOT NULL DEFAULT 'open',
+  notes        TEXT,
+  notes_body   TEXT,
+  created_by   TEXT,
+  carried_from TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE TABLE meetings (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  title           TEXT NOT NULL DEFAULT '',
+  description     TEXT,
+  starts_at       INTEGER,
+  location        TEXT,
+  attendees       TEXT NOT NULL DEFAULT '[]',
+  status          TEXT NOT NULL DEFAULT 'planned',
+  minutes_page_id TEXT,
+  created_by      TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  clocks          TEXT NOT NULL DEFAULT '{}'
+);

@@ -114,14 +114,23 @@ const FIGURES = [
     actual: capabilities.edges,
     claims: [{ file: 'docs/modules.md', pattern: prose('capabilities and \\*\\*(\\d+)\\*\\* edges') },
              { file: 'docs/modules.md', pattern: prose('members, (\\d+) edges between them') },
-             { file: 'docs/modules.md', pattern: prose('imports across (\\w+) module pairs') },
+             { file: 'docs/modules.md', pattern: prose('imports across (\\w+(?:-\\w+)?) module pairs') },
              { file: 'docs/module-map.html', pattern: prose('<b>(\\d+) edges</b>') },
-             { file: 'docs/module-map.html', pattern: prose('members and\\s*(\\d+) edges, no cycles') }],
+             { file: 'docs/module-map.html', pattern: prose('members and\\s*(\\d+) edges, no cycles') },
+             // The same pairs, in the page's sentence. It said 15 while the table
+             // under it said 17, and nothing noticed until the twentieth edge.
+             { file: 'docs/module-map.html', pattern: prose('imports across (\\d+) module pairs') }],
   },
   {
     what: 'imports from one capability to another',
     actual: capabilities.imports,
-    claims: [{ file: 'docs/modules.md', pattern: prose('(\\w+) imports across \\w+ module pairs') },
+    /*
+     * The hyphen is not decoration. This sentence starts with the figure, so
+     * the pattern has nothing to its left to anchor on, and a plain `\\w+`
+     * finds "three imports across" inside "Twenty-three imports across" — reads
+     * 3, reports it stale, and `--fix` writes "Twenty-twenty-three".
+     */
+    claims: [{ file: 'docs/modules.md', pattern: prose('(\\w+(?:-\\w+)?) imports across \\w+(?:-\\w+)? module pairs') },
              { file: 'docs/modules.md', pattern: prose('capability → another capability \\| \\d+ \\| (\\d+) \\|') },
              { file: 'docs/module-map.html', pattern: prose('already are — (\\d+) imports across') }],
   },
@@ -130,12 +139,12 @@ const FIGURES = [
     actual: capabilities.mostDependents,
     claims: [{ file: 'docs/modules.md', pattern: prose('and \\*\\*(\\d+)\\*\\* of them lean on it') },
              { file: 'docs/module-map.html', pattern: prose('<b>most leaned-on: (\\d+)</b>') },
-             { file: 'docs/module-map.html', pattern: prose('<code>pages</code>, and (\\d+) of the other') }],
+             { file: 'docs/module-map.html', pattern: prose('<code>pages</code>, and (\\d+) others lean on it') }],
   },
   {
     what: 'capabilities nothing leans on',
     actual: capabilities.independent,
-    claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* — `automation`, `chat`') },
+    claims: [{ file: 'docs/modules.md', pattern: prose('\\*\\*(\\d+)\\*\\* — `automation`, `infrastructure`') },
              { file: 'docs/module-map.html', pattern: prose('<b>(\\d+) leaned on by nobody</b>') }],
   },
   {
@@ -440,7 +449,28 @@ const FIGURES = [
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
   'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen',
   'nineteen', 'twenty'];
-const spell = (n) => WORDS[n] ?? String(n);
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+/**
+ * A number as a word, up to ninety-nine.
+ *
+ * It stopped at twenty, which was where the figures it was written for had
+ * stayed — until the twenty-first capability took "Nineteen imports" to 23,
+ * and `--fix` rewrote a sentence that started with a word as one that starts
+ * with digits. Compound words are hyphenated, the way English writes them.
+ */
+const spell = (n) => {
+  if (n >= 0 && n < WORDS.length) return WORDS[n];
+  if (n > 20 && n < 100) return TENS[Math.floor(n / 10)] + (n % 10 ? `-${WORDS[n % 10]}` : '');
+  return String(n);
+};
+
+/** The other way round. Anything that is not a number this can spell is -1. */
+const unspell = (word) => {
+  const lower = word.toLowerCase();
+  for (let n = 0; n < 100; n++) if (spell(n) === lower) return n;
+  return -1;
+};
 
 // The document writes thousands with a space, as the generated tables do, so a
 // figure over 999 has to be read and written back in that form or it could
@@ -451,7 +481,7 @@ const thousands = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 /** What a figure written like this says. A spelled figure may start a sentence. */
 const value = (stated) => (NUMERAL.test(stated)
   ? Number(stated.replace(/\s/g, ''))
-  : WORDS.indexOf(stated.toLowerCase()));
+  : unspell(stated));
 
 /**
  * `actual`, written the way `stated` was: spelled or in digits, spaced or not,

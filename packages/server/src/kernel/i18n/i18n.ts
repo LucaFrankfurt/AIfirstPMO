@@ -28,6 +28,20 @@ const en = {
   'notify.directMessage': '{name} sent you a message',
   'notify.decision': 'The team is being asked: {question}',
 
+  /* The minutes of a meeting, when an assistant files them as a page. The
+     browser has the same words in its own catalogue; see `MinutesWords`. */
+  'minutes.title': 'Minutes: {title}',
+  'minutes.attendees': 'Attendees',
+  'minutes.projects': 'Projects',
+  'minutes.broughtBy': 'Brought by',
+  'minutes.notes': 'Notes',
+  'minutes.tasks': 'Tasks',
+  'minutes.continued': 'continued from an earlier meeting',
+  'minutes.empty': 'Nothing was on the agenda.',
+  'minutes.open': 'Open',
+  'minutes.discussed': 'Discussed',
+  'minutes.deferred': 'Deferred',
+
   /* Telegram. Short on purpose: these are read on a phone, in a chat, next to
      messages from actual people. */
   'telegram.open': 'Open in Kolibri',
@@ -131,6 +145,18 @@ const de: Catalogue = {
   'notify.directMessage': '{name} hat dir geschrieben',
   'notify.decision': 'Das Team wird gefragt: {question}',
 
+  'minutes.title': 'Protokoll: {title}',
+  'minutes.attendees': 'Teilnehmende',
+  'minutes.projects': 'Projekte',
+  'minutes.broughtBy': 'Eingebracht von',
+  'minutes.notes': 'Notizen',
+  'minutes.tasks': 'Aufgaben',
+  'minutes.continued': 'fortgesetzt aus einem früheren Meeting',
+  'minutes.empty': 'Es stand nichts auf der Agenda.',
+  'minutes.open': 'Offen',
+  'minutes.discussed': 'Besprochen',
+  'minutes.deferred': 'Vertagt',
+
   'telegram.open': 'In Kolibri öffnen',
   'telegram.connected': 'Verbunden. Kolibri schickt deine Benachrichtigungen hierher. Zum Trennen /stop senden.',
   'telegram.disconnected': 'Getrennt. Kolibri schreibt dir hier nicht mehr.',
@@ -230,6 +256,18 @@ const fr: Catalogue = {
   'notify.message': '{name} dans {channel}',
   'notify.directMessage': '{name} vous a envoyé un message',
   'notify.decision': 'L’équipe est consultée : {question}',
+
+  'minutes.title': 'Compte rendu : {title}',
+  'minutes.attendees': 'Participants',
+  'minutes.projects': 'Projets',
+  'minutes.broughtBy': 'Proposé par',
+  'minutes.notes': 'Notes',
+  'minutes.tasks': 'Tâches',
+  'minutes.continued': 'repris d’une réunion précédente',
+  'minutes.empty': 'Rien n’était à l’ordre du jour.',
+  'minutes.open': 'Ouvert',
+  'minutes.discussed': 'Traité',
+  'minutes.deferred': 'Reporté',
 
   'telegram.open': 'Ouvrir dans Kolibri',
   'telegram.connected': 'Connecté. Kolibri enverra vos notifications ici. Envoyez /stop pour vous déconnecter.',

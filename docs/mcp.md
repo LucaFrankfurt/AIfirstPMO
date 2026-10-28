@@ -295,6 +295,8 @@ always called it. `billing` still works and is documented as the older spelling.
 | `kpi_status` | one KPI in full: readings, targets, and both `achieved_pct` and `expected_pct`, so the judgement can be quoted rather than asserted |
 | `list_decisions` | what is being asked, with `state` — open, closed, or **expired**, which is a deadline nobody wrote up rather than a decision nobody made |
 | `decision_result` | one decision in full: counts, shares of the people who voted, and who is leading. `voters` on an option is `null` rather than empty on a secret ballot — a fact you may not have, not an option nobody wanted |
+| `list_meetings` | still open first, soonest first, then the closed ones. `unclosed` is a meeting whose day is over and that nobody closed — it happened, and nobody wrote down what came of it |
+| `get_meeting` | the agenda in order: each point's state, projects, who brought it, its notes and the tasks filed from it. A title several meetings share — a weekly — means the next one still open. A task or a project the caller cannot see is left out, not shown as an id |
 | `project_costs` | one project's share of every budget that charges it — the other direction from `budget_status` |
 | `list_rates` | every hourly rate, newest first — and the history behind each, since a rate is never edited in place |
 | `time_cost` | cost, revenue and margin over logged time, by project and by person, with the hours no rate covered reported separately |
@@ -572,6 +574,13 @@ is inclusive to the end of the day it names.
 | `create_decision` | a question with at least two options. `visibility: anonymous` is a promise about where the rows go and cannot be taken back once anybody has voted |
 | `cast_vote` | vote, or withdraw by voting for what you already hold. A closed or expired ballot refuses rather than quietly dropping it — including a withdrawal |
 | `close_decision` | turn a ballot into a record, or take it up again. Reopening one the clock closed clears the deadline, or it reopens for as long as it takes to read the answer back |
+| `create_meeting` | a time, a place, who is expected and optionally the first topics. `starts_at` is an ISO date-time with its offset; an attendee who matches nobody is left off rather than invented |
+| `update_meeting` | move, rename, change who is expected, or close it with `status: "done"` |
+| `add_agenda_item` | a topic at the end of the agenda, filed under whoever the token belongs to. `projects` takes keys, ids or names — a project that is not there is refused, not dropped |
+| `update_agenda_item` | a point's state, title, description, projects or notes. `append_notes` adds a paragraph and is the one to use while people may be typing in the same point — see below |
+| `create_task_from_agenda_item` | a task that remembers the point it came out of. `project` defaults to the point's first; otherwise it takes what `create_task` takes, in one write |
+| `carry_over_agenda` | what was not discussed goes onto the next meeting, open, and what was still open is marked deferred. No next meeting calls a follow-up a week later. The ids are derived, so running it twice — or after somebody pressed the button — carries nothing twice |
+| `file_meeting_minutes` | the meeting as a wiki page, linked from the meeting; filed again, the same page is rewritten and the previous text stays in its history. Names only the tasks and projects everybody who reads the wiki may see |
 | `set_rate` | what an hour is worth from a date. Adds a rate rather than editing one, so what last quarter cost stays what last quarter cost |
 | `record_component` | add a server, an instance, a subscription. `parent` puts it on a machine; `line` charges it to a budget |
 | `sync_mailbox` | fetch new mail for one mailbox now. Writes nothing; needs a write scope because it reaches out |
@@ -580,6 +589,21 @@ is inclusive to the end of the day it names.
 
 Writes are attributed to the token owner and appear in the activity trail and everyone's live sync
 like any other change. A read-only token gets `This token is read-only` from every write tool.
+
+### Meetings, and the notes people are typing into
+
+An agenda point's notes are a text CRDT, written by everybody in the meeting at once — the same
+merge a page body has. A tool cannot send a CRDT, so it sends text, and text is a *replacement*: the
+write path turns it into the smallest edit that reaches the new text. That is why
+`update_agenda_item` has two fields for one column. `notes` replaces what is there, which is right
+for rewriting a point's minutes after the meeting. `append_notes` reads what is there, adds a
+paragraph and sends the result, so the edit is an insertion at the end — a sentence somebody is
+halfway through above it survives, which is the case an assistant taking minutes *during* a meeting
+is in.
+
+Meetings are for members. A guest's token is refused by every tool here, read-only ones included,
+for the reason the sync filter keeps the agenda off a guest's device: a guest is on a project, not
+in the room where the projects are compared. See [`meetings.md`](meetings.md).
 
 ### The landscape, and the question it will not answer
 

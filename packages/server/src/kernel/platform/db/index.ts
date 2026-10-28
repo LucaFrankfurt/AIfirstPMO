@@ -158,6 +158,11 @@ for (const [table, column, definition] of [
    */
   ['attachments', 'subject_kind', 'TEXT'],
   ['attachments', 'subject_id', 'TEXT'],
+  /*
+   * The agenda point a task came out of. NULL on every task that predates
+   * meetings, which is exactly what each of them is: not from one.
+   */
+  ['tasks', 'agenda_item_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
@@ -183,6 +188,9 @@ db.exec(`CREATE INDEX IF NOT EXISTS activities_secret ON activities (secret_id, 
 // task, a page or a comment. Both columns, because every reader names both: a
 // decision's Files section asks for one kind and one id, never a kind alone.
 db.exec(`CREATE INDEX IF NOT EXISTS attachments_subject ON attachments (subject_kind, subject_id)`);
+// The same reason again: an agenda point lists the tasks that came out of it,
+// and the column it asks by is one the loop above may just have added.
+db.exec(`CREATE INDEX IF NOT EXISTS tasks_agenda_item ON tasks (agenda_item_id)`);
 
 /*
  * `attachments.checksum`, filled in for the rows that pre-date it being used.

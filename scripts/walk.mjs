@@ -7,12 +7,13 @@
  * time somebody added a screen — and the one that is never updated is the one
  * that silently stops checking the new thing.
  *
- * The fixtures are not optional furniture. Mail, decisions, the vault and the
- * catalogue are switched off in a seeded workspace, so without them those
- * screens do not merely go unchecked: they do not exist.
+ * The fixtures are not optional furniture. Mail, decisions, meetings, the vault
+ * and the catalogue are switched off in a seeded workspace, so without them
+ * those screens do not merely go unchecked: they do not exist.
  */
 import { switchOnMail, openMailboxEditor } from './mail-fixture.mjs';
 import { switchOnDecisions } from './ballot-fixture.mjs';
+import { switchOnMeetings } from './meeting-fixture.mjs';
 import { switchOnVault } from './vault-fixture.mjs';
 import { switchOnProducts } from './catalogue-fixture.mjs';
 
@@ -35,6 +36,7 @@ export async function walkable(page, base) {
   // unchecked without this — they do not exist. See `mail-fixture.mjs`.
   await switchOnMail(page);
   await switchOnDecisions(page);
+  const meetingId = await switchOnMeetings(page);
   await switchOnVault(page);
   await switchOnProducts(page);
 
@@ -136,6 +138,12 @@ export async function walkable(page, base) {
     // time — four money columns, two of which a phone drops.
     ['product: package', `/products/${packageId}?tab=package`],
     ['decisions', '/decisions'],
+    // Behind the meetings switch. The detail is the screen worth the width: a
+    // numbered point with a title, a status select and a menu on one row, and
+    // project chips that wrap under it — at 340px that row is the one that
+    // decides whether the select squeezes the title to nothing.
+    ['meetings', '/meetings'],
+    ['meeting', `/meetings/${meetingId}`],
     // Behind the secrets switch, and the widest row on any screen: a name, an
     // environment, a strength pill, a rotation state and two icon buttons, which
     // at 340px is the case that decides whether a table folds or overflows.

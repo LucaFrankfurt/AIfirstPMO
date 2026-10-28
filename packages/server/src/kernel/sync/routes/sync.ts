@@ -40,8 +40,8 @@ const IS_ADMIN = `
              AND wm.role IN ('owner', 'admin') AND wm.deleted_at IS NULL)`;
 
 /**
- * Whether the caller is a member rather than a guest. Used by exactly one
- * entity, and for a sharper reason than the admin clause above.
+ * Whether the caller is a member rather than a guest. Used by the vault and by
+ * meetings, and for a sharper reason than the admin clause above.
  *
  * A guest is an outside collaborator on a project — a client, a contractor's
  * designer. `canSeeProject` will happily let one see a project they were added
@@ -51,7 +51,8 @@ const IS_ADMIN = `
  *
  * Not a role check on the reveal route — that one already refuses a guest.
  * This is the list, which is the disclosure that happens without anybody
- * pressing anything.
+ * pressing anything. A meeting's agenda is the same kind of sentence about the
+ * company, which is why it asks the same question; see `case 'meeting'`.
  */
 const IS_MEMBER = `
   EXISTS (SELECT 1 FROM workspace_members wm
@@ -251,6 +252,24 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
                    AND d.deleted_at IS NULL
                    AND (d.project_id IS NULL OR d.project_id IN (${VISIBLE_PROJECTS}))
                    AND (d.visibility <> 'anonymous' OR ${table}.voter_id = ?2))`;
+    /*
+     * A meeting goes to the members of the workspace, and not to its guests.
+     *
+     * Not scoped by project, which is the decision the whole feature rests on:
+     * one meeting gathers points from several projects, and a weekly that half
+     * its attendees cannot open is not a weekly. The line that *is* drawn is
+     * the guest's — a client or a contractor is on a project, not in the room
+     * where the projects are compared — and it is drawn here, at the pull,
+     * for the reason `secret` draws its own here: a screen that hid the agenda
+     * would leave it sitting in the guest's IndexedDB.
+     */
+    case 'meeting':
+      return `AND ${IS_MEMBER}`;
+    /* A point inherits its meeting's answer, `deleted_at` included. */
+    case 'agendaItem':
+      return `AND ${IS_MEMBER}
+              AND EXISTS (SELECT 1 FROM meetings m
+                           WHERE m.id = ${table}.meeting_id AND m.deleted_at IS NULL)`;
     /*
      * Rates go to owners and admins, and to nobody else.
      *

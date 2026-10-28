@@ -39,6 +39,7 @@ import { budgetRules } from './modules/budgets/rules/budgets.ts';
 import { productRules } from './modules/products/rules/products.ts';
 import { kpiRules } from './modules/kpis/rules/kpis.ts';
 import { decisionRules } from './modules/decisions/rules/decisions.ts';
+import { meetingRules } from './modules/meetings/rules/meetings.ts';
 import { landscapeRules } from './modules/infrastructure/rules/infrastructure.ts';
 import { rateRules } from './modules/time/rules/rates.ts';
 import { workRules } from './modules/work/rules/work.ts';
@@ -83,7 +84,7 @@ export function installEffects(): void {
   for (const rule of [
     workRules, pageRules, chatRules, planningRules,
     budgetRules, productRules, rateRules, kpiRules, landscapeRules,
-    mailRules, secretRules, environmentRules, decisionRules,
+    mailRules, secretRules, environmentRules, decisionRules, meetingRules,
   ]) onEntity(rule);
 
   /*

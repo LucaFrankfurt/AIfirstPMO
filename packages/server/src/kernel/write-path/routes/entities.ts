@@ -216,6 +216,22 @@ function guardBudget(userId: string, entity: EntityName, row: Row): void {
   }
 }
 
+/**
+ * A meeting is for the members of a workspace, on every route that reads one.
+ *
+ * The pull already leaves a guest without them — see `case 'meeting'` in the
+ * sync filter — and the two doors have to agree, because a guest who cannot
+ * pull an agenda but can `GET /api/agenda-items/:id` has no restriction at all.
+ * Writing is already refused to a guest everywhere; this is the reading half.
+ */
+const MEETING_ENTITIES = new Set<EntityName>(['meeting', 'agendaItem']);
+
+function guardMeeting(entity: EntityName, role: WorkspaceRole): void {
+  if (MEETING_ENTITIES.has(entity) && !hasRole(role, 'member')) {
+    throw forbidden('Meetings are for members of the workspace');
+  }
+}
+
 const BUDGET_CHILDREN = new Set<EntityName>(['budgetLine', 'budgetActual', 'budgetScenario']);
 const KPI_CHILDREN = new Set<EntityName>(['kpiTarget', 'kpiReading']);
 
@@ -599,6 +615,7 @@ export function registerEntityRoutes(router: Router): void {
     // than a refusal: they are in the workspace, so "there is nothing here"
     // would read as a fact about the workspace.
     if (entity === 'secret' && !hasRole(role, 'member')) throw forbidden('The vault is for members of the workspace');
+    guardMeeting(entity, role);
     guardRate(ctx, entity, ctx.params.ws);
     const def = ENTITIES[entity];
     // A direct conversation belongs to no workspace, so listing this one has
@@ -760,6 +777,7 @@ export function registerEntityRoutes(router: Router): void {
     guardPage(auth.userId, entity, row);
     guardSecret(auth.userId, entity, row, role);
     guardBudget(auth.userId, entity, row);
+    guardMeeting(entity, role);
     guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     return serialize(entity, row);
@@ -778,6 +796,7 @@ export function registerEntityRoutes(router: Router): void {
     guardPage(auth.userId, entity, row);
     guardSecret(auth.userId, entity, row, role);
     guardBudget(auth.userId, entity, row);
+    guardMeeting(entity, role);
     guardRate(ctx, entity, String(row.workspace_id));
     if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
     const body = await readJson<Record<string, unknown>>(ctx);
@@ -801,6 +820,7 @@ export function registerEntityRoutes(router: Router): void {
     guardPage(auth.userId, entity, row);
     guardSecret(auth.userId, entity, row, role);
     guardBudget(auth.userId, entity, row);
+    guardMeeting(entity, role);
     guardRate(ctx, entity, String(row.workspace_id));
     deleteEntity(entity, ctx.params.id, {
       workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),

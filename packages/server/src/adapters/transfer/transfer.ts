@@ -508,6 +508,11 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
         assignees: whoList(row.assignees),
         subscribers: whoList(row.subscribers),
         created_by: who(row.created_by) ?? actorId,
+        // The meeting a task came out of is not in a project document, so the
+        // id names an agenda point somewhere else — on this instance, in
+        // another workspace, and every meeting there would then list a task
+        // from here. Left as it was on a merge, absent on a new row.
+        agenda_item_id: undefined,
         // The identifier is this project's to allocate; the number comes with it.
         number: undefined,
         identifier: undefined,

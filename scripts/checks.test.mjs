@@ -136,14 +136,18 @@ function tree() {
 const WORDS = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
   'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen',
   'nineteen', 'twenty'];
+const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+/** `figures.mjs` spells to ninety-nine, hyphenated; so does every case that writes one. */
+const spell = (n) => (n < WORDS.length ? WORDS[n] : TENS[Math.floor(n / 10)] + (n % 10 ? `-${WORDS[n % 10]}` : ''));
 const spaced = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
 const otherNumeral = (was) => {
   const next = Number(was.replace(/\s/g, '')) + 1;
   return /\s/.test(was) ? spaced(next) : String(next);
 };
 const otherWord = (was) => {
-  const at = WORDS.indexOf(was.toLowerCase());
-  const next = WORDS[(at + 1) % WORDS.length];
+  let at = 0;
+  while (at < 99 && spell(at) !== was.toLowerCase()) at += 1;
+  const next = spell((at + 1) % 99);
   return was[0] === was[0].toUpperCase() ? next[0].toUpperCase() + next.slice(1) : next;
 };
 
@@ -262,7 +266,7 @@ const BREAKS = [
   {
     what: 'a hand-edited cell in the document’s generated tables',
     script: 'modules.mjs',
-    break: (t) => t.edit('docs/modules.md', '| `chat` | — | — |', '| `chat` | `work` | — |'),
+    break: (t) => t.edit('docs/modules.md', '| `infrastructure` | — | — |', '| `infrastructure` | `work` | — |'),
     says: /docs\/modules\.md: the module tables are out of date/,
   },
   {
@@ -301,7 +305,7 @@ const BREAKS = [
   {
     what: 'a spelled figure at the start of a sentence',
     script: 'figures.mjs',
-    break: (t) => t.restate('docs/modules.md', /([A-Z][a-z]+) imports across/, otherWord),
+    break: (t) => t.restate('docs/modules.md', /([A-Z][a-z]+(?:-[a-z]+)?) imports across/, otherWord),
     says: ({ was, now }) =>
       new RegExp(`imports from one capability to another — says ${now}, is ${was}`),
   },
@@ -525,9 +529,9 @@ describe('and pass on a tree with nothing wrong with it', { concurrency: 2 }, ()
 describe('--fix writes back what was there, in the form it was in', { concurrency: 4 }, () => {
   const restores = [
     ['a plain numeral', /There are \*\*(\d+)\*\* capabilities/, otherNumeral],
-    ['a spelled figure that starts a sentence', /([A-Z][a-z]+) imports across/, otherWord],
+    ['a spelled figure that starts a sentence', /([A-Z][a-z]+(?:-[a-z]+)?) imports across/, otherWord],
     ['a figure with a thousands separator', /Of the \*\*(\d{1,3}(?: \d{3})+)\*\* ways/, otherNumeral],
-    ['a figure written as a word mid-sentence', /imports across ([a-z]+) module pairs/, otherWord],
+    ['a figure written as a word mid-sentence', /imports across ([a-z]+(?:-[a-z]+)?) module pairs/, otherWord],
   ];
   for (const [what, pattern, wrong] of restores) {
     it(what, async () => {
@@ -563,5 +567,28 @@ describe('and stay useful when something else is broken', { concurrency: 2 }, ()
     const { out } = await t.run('figures.mjs');
     assert.doesNotMatch(out, /modules\.mjs printed no module graph/);
     assert.match(out, /figures across \d+ files|STALE/);
+  });
+
+  /*
+   * The split count used to try every subset of the capabilities and refused
+   * at twenty-one, because that is a power of two nobody wants to wait for. The
+   * twenty-first capability — meetings — arrived and `figures.mjs` died on
+   * "printed no module graph". The walk now visits only the splits, so a few
+   * more capabilities are a few more splits; this keeps it that way. The new
+   * ones lean on `pages`, which is the case that grows the count rather than
+   * merely doubling it.
+   */
+  it('modules.mjs still prints the graph with several more capabilities than it has', async () => {
+    const t = tree();
+    const before = JSON.parse((await t.run('modules.mjs', '--graph')).out.split('\n')[0]).capabilities;
+    for (const name of ['almanac', 'beacon', 'compass']) {
+      t.write(`packages/web/src/modules/${name}/${name}.ts`,
+        `import { tidyPages as __probe } from '../pages/tidy';\nvoid __probe;\nexport const ${name} = 1;\n`);
+      t.edit('scripts/modules.mjs', 'const ABOUT = {\n', `const ABOUT = {\n  '${name}': ['A capability for the count.'],\n`);
+    }
+    const { out } = await t.run('modules.mjs', '--graph');
+    const after = JSON.parse(out.split('\n')[0]).capabilities;
+    assert.equal(after.count, before.count + 3);
+    assert.ok(after.splits > before.splits, 'three more capabilities leaning on pages and the splits did not grow');
   });
 });

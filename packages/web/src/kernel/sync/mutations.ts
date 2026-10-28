@@ -57,6 +57,8 @@ export interface NewTask {
   estimate?: number | null;
   /** `weekly:2` and friends — see `scheduler.ts`. */
   recurrence?: string | null;
+  /** The agenda point it came out of, when a meeting is where it was agreed. */
+  agenda_item_id?: string | null;
 }
 
 export function createTask(input: NewTask, actorId: string): string {
@@ -77,6 +79,7 @@ export function createTask(input: NewTask, actorId: string): string {
     due_date: input.due_date ?? null,
     estimate: input.estimate ?? null,
     recurrence: input.recurrence ?? null,
+    agenda_item_id: input.agenda_item_id ?? null,
     archived: 0,
     created_by: actorId,
     // Optimistic placeholder — the server hands back the real identifier.

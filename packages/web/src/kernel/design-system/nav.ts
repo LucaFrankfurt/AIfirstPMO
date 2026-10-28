@@ -47,6 +47,10 @@ export const WORKSPACE_DESTINATIONS: readonly Destination[] = [
   { to: '/pages', icon: 'page', label: 'nav.pages' },
   { to: '/teams', icon: 'users', label: 'nav.teams' },
   { to: '/mail', icon: 'mail', label: 'nav.mail', feature: 'mail' },
+  // With the everyday surfaces rather than under planning: a meeting is
+  // somewhere people write together, every week, the way they do in chat and
+  // in the pages — not a report somebody opens before a steering committee.
+  { to: '/meetings', icon: 'agenda', label: 'nav.meetings', feature: 'meetings' },
   // Beside the pages rather than under planning, because it answers the same
   // question they do — "where is the thing I need to do my work" — and because
   // the whole point of it is to be somewhere people already look, instead of a

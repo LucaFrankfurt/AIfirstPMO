@@ -19,12 +19,30 @@
  *     colleague saving does not send the cursor to the end of the document.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { crdt, type CrdtState } from '@kolibri/shared';
+import { crdt, type CrdtState, type EntityName } from '@kolibri/shared';
 import { update } from '../../kernel/sync/mutations';
 import { agentId, resync } from '../../kernel/sync/sync';
 
 /** How long typing rests before it becomes a CRDT state and a synced row. */
 const SETTLE_MS = 700;
+
+/**
+ * Which row and which two columns are being edited.
+ *
+ * A page's body is the first; the notes on a meeting's agenda point are the
+ * second, and they are written the same way for the same reason — several
+ * people at once, in the room. The columns are named rather than assumed so
+ * that the hard part of this file exists once.
+ */
+export interface CollabTarget {
+  entity: EntityName;
+  /** The column holding the CRDT. */
+  state: string;
+  /** The column holding what it reads as. */
+  text: string;
+}
+
+const PAGE_BODY: CollabTarget = { entity: 'page', state: 'body', text: 'content' };
 
 export interface Collab {
   /** What the textarea shows. */
@@ -53,11 +71,12 @@ export interface Collab {
 }
 
 /**
- * Two-way editing of one page body.
+ * Two-way editing of one page body — or of any other text with a CRDT under
+ * it; see `CollabTarget`.
  *
  * `stored` is the row's CRDT as the local store has it — already merged with
  * everything that has arrived, because the store merges this field rather than
- * overwriting it. `content` is the plain text, used only for a page that has
+ * overwriting it. `content` is the plain text, used only for a row that has
  * never had a CRDT.
  */
 export function useCollaborativeText(
@@ -65,6 +84,7 @@ export function useCollaborativeText(
   stored: CrdtState | null | undefined,
   content: string,
   editing: boolean,
+  target: CollabTarget = PAGE_BODY,
 ): Collab {
   const agent = agentId();
   const base = useRef<CrdtState>(crdt.empty());
@@ -84,10 +104,10 @@ export function useCollaborativeText(
     const next = crdt.edit(base.current, latest.current, agent);
     if (next !== base.current) {
       base.current = next;
-      update('page', pageId, { body: next });
+      update(target.entity, pageId, { [target.state]: next });
     }
     return next;
-  }, [agent, pageId]);
+  }, [agent, pageId, target]);
 
   const flush = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -115,8 +135,8 @@ export function useCollaborativeText(
     if (state === from) return;
     base.current = state;
     put(next);
-    update('page', pageId, { body: state, content: next });
-  }, [agent, commit, pageId, put]);
+    update(target.entity, pageId, { [target.state]: state, [target.text]: next });
+  }, [agent, commit, pageId, put, target]);
 
   // Opening the page, or a different one: start from what is stored.
   useEffect(() => {
@@ -153,8 +173,8 @@ export function useCollaborativeText(
     // the whole text out of the CRDT is not free.
     if (!stored || editing || examined.current === pageId) return;
     examined.current = pageId;
-    if (crdt.textOf(stored) !== content) void resync('page', pageId);
-  }, [pageId, stored, editing, content]);
+    if (crdt.textOf(stored) !== content) void resync(target.entity, pageId);
+  }, [pageId, stored, editing, content, target]);
 
   /**
    * A change from somewhere else.
@@ -195,7 +215,7 @@ export function useCollaborativeText(
       });
     }
     // Our own pending text is now part of `together` but has not been sent.
-    if (mine !== base.current || combined !== incoming) update('page', pageId, { body: together });
+    if (mine !== base.current || combined !== incoming) update(target.entity, pageId, { [target.state]: together });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stored]);
 

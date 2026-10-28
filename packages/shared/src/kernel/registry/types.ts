@@ -489,6 +489,88 @@ export interface DecisionVote extends Base {
   voter_id: ID;
 }
 
+/* ---------------------------------------------------------------- meetings */
+
+/**
+ * Whether a meeting is still ahead of the people in it.
+ *
+ * Two, and the date is not one of them: a meeting whose hour has passed and
+ * that nobody closed is not over, it is one whose minutes nobody wrote. `done`
+ * is what somebody says, the way a decision's `closed` is.
+ */
+export const MEETING_STATUS = ['planned', 'done'] as const;
+export type MeetingStatus = (typeof MEETING_STATUS)[number];
+
+/**
+ * Where a point on the agenda got to.
+ *
+ * `deferred` is a state rather than a deletion because "we did not get to it"
+ * is a fact about the meeting worth keeping — and it is the one carrying a
+ * point over to the next meeting leaves behind. See `carryOver`.
+ */
+export const AGENDA_STATUS = ['open', 'discussed', 'deferred'] as const;
+export type AgendaStatus = (typeof AGENDA_STATUS)[number];
+
+/**
+ * A meeting, and the agenda is its rows.
+ *
+ * Workspace-wide and for members: a meeting gathers points from several
+ * projects at once, so scoping it by one of them would hide it from half the
+ * room. A guest — a client, a contractor — is not in the room; see the sync
+ * filter.
+ */
+export interface Meeting extends Base {
+  workspace_id: ID;
+  title: string;
+  /** What it is for, if that is not obvious from the title. */
+  description: string | null;
+  /** When it starts, as epoch milliseconds. Null while nobody has set a time. */
+  starts_at: number | null;
+  /** A room, or the link to a call. */
+  location: string | null;
+  /** Who is expected, by user id. */
+  attendees: ID[];
+  status: MeetingStatus;
+  /**
+   * The wiki page the minutes were filed as, once they have been.
+   *
+   * A pointer and not a copy: the minutes are an ordinary page with an
+   * ordinary history, so filing them again replaces the text and keeps the
+   * previous version where every other page keeps one.
+   */
+  minutes_page_id: ID | null;
+  created_by: ID | null;
+}
+
+/**
+ * One point on a meeting's agenda.
+ *
+ * Its own row rather than a list on the meeting, so two people adding topics
+ * at once from two devices both end up on the agenda — which is the whole of
+ * "everybody can bring a topic".
+ *
+ * `notes_body` is the notes as a text CRDT and `notes` is what it reads as,
+ * the arrangement a page has with `body` and `content`: several people write
+ * in the same point during the meeting, and a merge rather than a race is
+ * what keeps both of their sentences.
+ */
+export interface AgendaItem extends Base {
+  workspace_id: ID;
+  meeting_id: ID;
+  title: string;
+  description: string | null;
+  /** The projects this point is about. Any number, and none is fine. */
+  projects: ID[];
+  status: AgendaStatus;
+  notes: string | null;
+  notes_body: CrdtState | null;
+  /** Who brought it. The server's to set, the way a ballot's asker is. */
+  created_by: ID | null;
+  /** The point this one continues, when it was carried over from an earlier meeting. */
+  carried_from: ID | null;
+  sort_order: string;
+}
+
 /**
  * What an hour is worth, in the two senses a team needs at once.
  *
@@ -689,6 +771,16 @@ export interface WorkspaceFeatures {
    * that turns it back on finds its ballots where it left them.
    */
   decisions?: boolean;
+  /**
+   * Meetings: an agenda everybody can add to, notes written together, and the
+   * tasks that come out of it.
+   *
+   * Off by default like the rest, though it is the least contentious switch
+   * here: a workspace that already runs its meetings somewhere else should not
+   * find a second, empty agenda in its sidebar. Switching it off hides the
+   * screens and makes MCP refuse; the rows are untouched.
+   */
+  meetings?: boolean;
   /**
    * The catalogue: products, packages, campaigns, what they cost and what they
    * earn.
@@ -947,6 +1039,15 @@ export interface Task extends Base {
   recurrence: string | null;
   /** The task this one was created from, when it is a repeat. */
   recurred_from: ID | null;
+  /**
+   * The agenda point this came out of, when a meeting is where it was agreed.
+   *
+   * On the task rather than as a list on the agenda point, for the reason a
+   * vote is its own row: two people turning the same point into two tasks from
+   * two devices should end up with both, and a list on the point would leave
+   * whichever synced second holding the only one.
+   */
+  agenda_item_id: ID | null;
 }
 
 export interface Relation extends Base {
@@ -2160,6 +2261,8 @@ export interface EntityMap {
   decision: Decision;
   decisionOption: DecisionOption;
   decisionVote: DecisionVote;
+  meeting: Meeting;
+  agendaItem: AgendaItem;
   pageStatus: PageStatus;
   page: Page;
   comment: Comment;

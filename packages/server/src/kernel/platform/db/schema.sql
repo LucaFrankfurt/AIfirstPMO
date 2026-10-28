@@ -940,6 +940,56 @@ CREATE INDEX IF NOT EXISTS decision_votes_seq ON decision_votes (workspace_id, s
 CREATE INDEX IF NOT EXISTS decision_votes_decision ON decision_votes (decision_id, option_id);
 CREATE INDEX IF NOT EXISTS decision_votes_voter ON decision_votes (decision_id, voter_id);
 
+-- A meeting. Workspace-wide and for members — see the sync filter. `status` is
+-- what somebody said, never what the clock says: a meeting whose hour has gone
+-- and that nobody closed is still open. `minutes_page_id` points at the page
+-- the minutes were filed as, once they have been.
+CREATE TABLE IF NOT EXISTS meetings (
+  id              TEXT PRIMARY KEY,
+  workspace_id    TEXT NOT NULL,
+  title           TEXT NOT NULL DEFAULT '',
+  description     TEXT,
+  starts_at       INTEGER,
+  location        TEXT,
+  attendees       TEXT NOT NULL DEFAULT '[]',
+  status          TEXT NOT NULL DEFAULT 'planned',
+  minutes_page_id TEXT,
+  created_by      TEXT,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  deleted_at      INTEGER,
+  seq             INTEGER NOT NULL DEFAULT 0,
+  clocks          TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS meetings_seq ON meetings (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS meetings_starts ON meetings (workspace_id, starts_at);
+
+-- One point on a meeting's agenda. `notes_body` is a text CRDT and `notes` is
+-- what it reads as, the arrangement `pages.body` and `pages.content` have. A
+-- point carried over from an earlier meeting has an id derived from the two —
+-- see `carriedItemId` — and names the point it continues in `carried_from`.
+CREATE TABLE IF NOT EXISTS agenda_items (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  meeting_id   TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  description  TEXT,
+  projects     TEXT NOT NULL DEFAULT '[]',
+  status       TEXT NOT NULL DEFAULT 'open',
+  notes        TEXT,
+  notes_body   TEXT,
+  created_by   TEXT,
+  carried_from TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS agenda_items_seq ON agenda_items (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS agenda_items_meeting ON agenda_items (meeting_id);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -954,6 +1004,8 @@ CREATE TABLE IF NOT EXISTS tasks (
   recurrence   TEXT,
   -- Set on the copy so the chain can be followed back.
   recurred_from TEXT,
+  -- The agenda point this task came out of, when it came out of a meeting.
+  agenda_item_id TEXT,
   priority     TEXT NOT NULL DEFAULT 'none',
   assignees    TEXT NOT NULL DEFAULT '[]',
   labels       TEXT NOT NULL DEFAULT '[]',

@@ -22,8 +22,8 @@ Worth stating first, because it is the reason the gaps below are acceptable:
 - **Offline-first with per-field merge.** Two people editing the same task while one is on a train
   both keep their change. None of the five do this; they are all request/response applications with
   a spinner. Vikunja comes closest by syncing to a calendar client, which is a different thing.
-- **MCP natively.** An assistant is a user with a scoped token, not a plugin or a chat sidebar. 118
-  tools over the same permissions as a person, and a read-only token is refused by all 63 that
+- **MCP natively.** An assistant is a user with a scoped token, not a plugin or a chat sidebar. 127
+  tools over the same permissions as a person, and a read-only token is refused by all 70 that
   write. Jira has AI features; none of the five is an MCP server you can point a client at.
 - **A messenger in the same box**, and made of the same rows — so a message sends from a train and
   arrives when the tunnel ends. None of the five has one: Plane, Vikunja and OpenProject send you to
@@ -121,7 +121,7 @@ money in it.
 |---|---|---|
 | **Invoicing** | Low | Cost, hourly rates and budgets are all built now; turning them into a document with a number and VAT on it is not, and is not planned |
 | **Reports** — cost and utilisation | — | Built: cost, revenue, margin and billable share per project and per person, and a week grid across both |
-| **Meetings** — agenda, minutes, attendees, follow-ups | Medium | Nothing at all. Pages plus a template covers the artefact but not the workflow |
+| ~~**Meetings** — agenda, minutes, attendees, follow-ups~~ | **Done** | An agenda everybody adds to, notes written together, tasks filed from a topic, unfinished topics carried forward, minutes filed as a page — see [`meetings.md`](meetings.md). No recurring series and no calendar invitation, which is where OpenProject is still ahead |
 | **Capacity in hours** | Medium | A team planner is built — a row per person, load counted in tasks running at once. Hours would need estimates to carry a unit, which is a decision about how a team plans |
 | **Type-dependent workflows** | Medium | Type-dependent *fields* are built: a field names the types it is asked on. A workflow that changes per type is not |
 | Forums, news, documents | Depends on audience | Chat covers the forum case better than a forum does |
@@ -158,8 +158,7 @@ two importers. What is left:
 | 3 | **Composable dashboards** — arrange the charts that exist, per person, across projects | Insights and the portfolio already compute everything; what is missing is letting somebody choose the arrangement | medium |
 | 4 | **Transition validators** — required fields, a resolution on close | The per-column *who* rule is built; the *what* rule is not. Small in the schema, fiddly in the interface | medium |
 | 5 | **CalDAV write-back** | The read-only feed covers most of the value. Writing back is a protocol — `PROPFIND`, `REPORT`, ETags, conflicts — not an endpoint | medium–large |
-| 6 | **Meetings** — agenda, minutes, follow-ups that become tasks | Only worth it for the audience that asks for OpenProject by name | medium–large |
-| 7 | **SAML / LDAP** | Asked for by exactly the organisations that will not adopt without it, and by nobody else | large |
+| 6 | **SAML / LDAP** | Asked for by exactly the organisations that will not adopt without it, and by nobody else | large |
 
 ## What has been closed
 
@@ -167,5 +166,5 @@ For anyone reading this against an older revision: saved views, page comments an
 rate limiting and the content policy, multi-select with bulk actions, the table layout, time
 tracking, CSV and foreign import, intake, custom fields, sub-projects and the portfolio, OIDC,
 Gantt with dependency scheduling, the trash browser, presence and typing indicators, the
-accessibility pass, the calendar feed, quick-add syntax, filter-as-text, and the Trello and Todoist
-importers were all on the lists above and are now built. The tables reflect that.
+accessibility pass, the calendar feed, quick-add syntax, filter-as-text, the Trello and Todoist
+importers, and meetings were all on the lists above and are now built. The tables reflect that.

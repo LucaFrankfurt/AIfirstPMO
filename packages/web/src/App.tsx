@@ -38,6 +38,8 @@ const KpiIndex = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ 
 const KpiDetail = lazy(() => import('./modules/kpis/routes/kpis').then((m) => ({ default: m.KpiDetail })));
 const DecisionIndex = lazy(() => import('./modules/decisions/routes/decisions').then((m) => ({ default: m.DecisionIndex })));
 const DecisionDetail = lazy(() => import('./modules/decisions/routes/decisions').then((m) => ({ default: m.DecisionDetail })));
+const MeetingIndex = lazy(() => import('./modules/meetings/routes/meetings').then((m) => ({ default: m.MeetingIndex })));
+const MeetingDetail = lazy(() => import('./modules/meetings/routes/meetings').then((m) => ({ default: m.MeetingDetail })));
 const BudgetIndex = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetIndex })));
 const BudgetDetail = lazy(() => import('./modules/budgets/routes/budgets').then((m) => ({ default: m.BudgetDetail })));
 const ProductIndex = lazy(() => import('./modules/products/routes/products').then((m) => ({ default: m.ProductIndex })));
@@ -160,6 +162,7 @@ export default function App() {
       if (has('mail')) fetchQuietly(() => import('./modules/mail/routes/mail'));
       if (has('kpi')) fetchQuietly(() => import('./modules/kpis/routes/kpis'));
       if (has('decisions')) fetchQuietly(() => import('./modules/decisions/routes/decisions'));
+      if (has('meetings')) fetchQuietly(() => import('./modules/meetings/routes/meetings'));
       if (has('secrets')) fetchQuietly(() => import('./modules/secrets/routes/secrets'));
       if (has('budget')) fetchQuietly(() => import('./modules/budgets/routes/budgets'));
       if (has('products')) fetchQuietly(() => import('./modules/products/routes/products'));
@@ -253,6 +256,8 @@ export default function App() {
           <Route path="/kpis/:id" element={<KpiDetail />} />
           <Route path="/decisions" element={<DecisionIndex />} />
           <Route path="/decisions/:id" element={<DecisionDetail />} />
+          <Route path="/meetings" element={<MeetingIndex />} />
+          <Route path="/meetings/:id" element={<MeetingDetail />} />
           <Route path="/budgets" element={<BudgetIndex />} />
           <Route path="/budgets/:id" element={<BudgetDetail />} />
           <Route path="/products" element={<ProductIndex />} />

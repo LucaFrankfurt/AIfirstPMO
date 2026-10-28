@@ -9,6 +9,7 @@ import { createTask, remove, update } from '../../kernel/sync/mutations';
 import { useCanWrite, useFeature, useMe, useMemberMap } from '../../kernel/identity/session';
 import { TaskReviewPanel } from '../ai-review/task-review';
 import { TaskDecisions } from '../decisions/decision-parts';
+import { TaskAgendaOrigin } from '../meetings/meeting-parts';
 import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Comments } from './comments';
 import { Relations } from './Relations';
@@ -283,6 +284,11 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
             the discussion, because a ballot is a question that has already been
             framed — the comments are where it was still being argued. */}
         <TaskDecisions taskId={task.id} projectId={task.project_id} />
+
+        {/* The meeting it came out of. A task filed in a meeting is a promise
+            made in front of people, and the notes around that promise are what
+            says what was actually meant by the title. */}
+        <TaskAgendaOrigin agendaItemId={task.agenda_item_id} />
 
         {/* discussion */}
         <section>

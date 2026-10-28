@@ -119,6 +119,12 @@ const REFERENCES: [table: string, column: string][] = [
   ['messages', 'body'],
   ['templates', 'description'],
   ['users', 'avatar_url'],
+  // What is written in a meeting is written like a page: a screenshot of the
+  // dashboard everybody was looking at belongs in the notes of the point it
+  // was looked at for.
+  ['meetings', 'description'],
+  ['agenda_items', 'description'],
+  ['agenda_items', 'notes'],
 ];
 
 /**

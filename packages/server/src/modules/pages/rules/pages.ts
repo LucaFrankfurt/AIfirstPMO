@@ -63,21 +63,53 @@ function applyPageInvariants(values: Record<string, unknown>, existing: Row | un
     values.format = format;
     forced.format = format;
   }
-  if (values.body !== undefined && values.body !== null) {
-    const text = crdt.textOf(safeCrdt(values.body));
-    values.content = text;
-    forced.content = text;
+  settleCrdtText(values, existing, forced, PAGE_TEXT);
+}
+
+/**
+ * Which column holds a CRDT and which holds what it reads as.
+ *
+ * A page is the first pair and an agenda point's notes are the second. The
+ * rule between the two columns is the same for both, and it is subtle enough
+ * — see `replacementBody` — that a second copy of it would be the copy that
+ * drifts.
+ */
+export interface CrdtText {
+  state: string;
+  text: string;
+}
+
+const PAGE_TEXT: CrdtText = { state: 'body', text: 'content' };
+
+/**
+ * Keep a text column and the CRDT under it saying the same thing.
+ *
+ * The two directions described above `applyPageInvariants`, for any pair of
+ * columns: a state that arrived decides the text, and a text that arrived on
+ * its own replaces the state.
+ */
+export function settleCrdtText(
+  values: Record<string, unknown>,
+  existing: Row | undefined,
+  forced: Record<string, unknown>,
+  columns: CrdtText,
+): void {
+  const { state, text } = columns;
+  if (values[state] !== undefined && values[state] !== null) {
+    const derived = crdt.textOf(safeCrdt(values[state]));
+    values[text] = derived;
+    forced[text] = derived;
     return;
   }
-  if (values.content !== undefined) {
-    const state = replacementBody(existing, String(values.content ?? ''));
-    values.body = JSON.stringify(state);
-    forced.body = state;
-  } else if (existing && !existing.body && existing.content) {
-    // A page written before any of this existed gets its CRDT the first time
+  if (values[text] !== undefined) {
+    const next = replacementBody(existing, String(values[text] ?? ''), columns);
+    values[state] = JSON.stringify(next);
+    forced[state] = next;
+  } else if (existing && !existing[state] && existing[text]) {
+    // A row written before any of this existed gets its CRDT the first time
     // anything else about it is touched, rather than on a migration that would
     // have to rewrite every row at once.
-    values.body = JSON.stringify(seedBody(String(existing.content)));
+    values[state] = JSON.stringify(seedBody(String(existing[text])));
   }
 }
 /**
@@ -112,11 +144,11 @@ const seedBody = (text: string): CrdtState => crdt.fromText(text, 'server');
  * prefix and suffix are kept, so the usual one-line edit over MCP stays a
  * one-line edit rather than a whole new document.
  */
-function replacementBody(existing: Row | undefined, text: string): CrdtState {
-  const before = safeCrdt(existing?.body)
+function replacementBody(existing: Row | undefined, text: string, columns: CrdtText = PAGE_TEXT): CrdtState {
+  const before = safeCrdt(existing?.[columns.state])
     // A page with text and no state yet: the replacement has to supersede the
     // seed, because that is what any device holding the page already has.
-    ?? (existing?.content ? seedBody(String(existing.content)) : null);
+    ?? (existing?.[columns.text] ? seedBody(String(existing[columns.text])) : null);
   return before ? crdt.edit(before, text, 'server') : seedBody(text);
 }
 

@@ -45,6 +45,8 @@ export type EntityName =
   | 'decision'
   | 'decisionOption'
   | 'decisionVote'
+  | 'meeting'
+  | 'agendaItem'
   | 'pageStatus'
   | 'page'
   | 'comment'
@@ -194,7 +196,7 @@ export const ENTITIES = {
       'workspace_id', 'project_id', 'title', 'description', 'state_id', 'priority',
       'assignees', 'labels', 'parent_id', 'cycle_id', 'module_id', 'estimate',
       'start_date', 'due_date', 'sort_order', 'completed_at', 'archived', 'created_by',
-      'subscribers', 'recurrence', 'recurred_from',
+      'subscribers', 'recurrence', 'recurred_from', 'agenda_item_id',
     ],
     serverOnly: ['number', 'identifier'],
     json: ['assignees', 'labels', 'subscribers'],
@@ -421,6 +423,42 @@ export const ENTITIES = {
     table: 'decision_votes',
     fields: ['workspace_id', 'decision_id', 'option_id'],
     serverOnly: ['voter_id'],
+  },
+  /**
+   * A meeting. `created_by` is the write path's, as a ballot's asker is.
+   *
+   * `minutes_page_id` is an ordinary field rather than a server-only one: the
+   * screen files the minutes as a page itself, offline included, and then says
+   * where it put them. The reference is checked like any other — see
+   * `SCOPED_REFERENCES` in the write path.
+   */
+  meeting: {
+    table: 'meetings',
+    fields: [
+      'workspace_id', 'title', 'description', 'starts_at', 'location', 'attendees',
+      'status', 'minutes_page_id',
+    ],
+    serverOnly: ['created_by'],
+    json: ['attendees'],
+  },
+  /**
+   * One point on an agenda.
+   *
+   * `notes_body` is merged rather than replaced — the same arrangement as a
+   * page's `body`, for the same reason: the minutes are written by several
+   * people at once, during the meeting, and last-writer-wins would keep one of
+   * them. `notes` is what the merged state reads as and is derived by the
+   * write path; see `settleCrdtText`.
+   */
+  agendaItem: {
+    table: 'agenda_items',
+    fields: [
+      'workspace_id', 'meeting_id', 'title', 'description', 'projects', 'status',
+      'notes', 'notes_body', 'carried_from', 'sort_order',
+    ],
+    serverOnly: ['created_by'],
+    json: ['projects', 'notes_body'],
+    crdt: ['notes_body'],
   },
   module: {
     table: 'modules',
@@ -828,6 +866,8 @@ export const COLLECTIONS: Record<EntityName, string> = {
   decision: 'decisions',
   decisionOption: 'decision-options',
   decisionVote: 'decision-votes',
+  meeting: 'meetings',
+  agendaItem: 'agenda-items',
   module: 'modules',
   pageStatus: 'page-statuses',
   page: 'pages',
