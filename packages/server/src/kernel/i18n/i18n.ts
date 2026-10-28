@@ -27,6 +27,7 @@ const en = {
   'notify.message': '{name} in {channel}',
   'notify.directMessage': '{name} sent you a message',
   'notify.decision': 'The team is being asked: {question}',
+  'notify.agenda': 'You are responsible for “{title}” in {meeting}',
 
   /* The minutes of a meeting, when an assistant files them as a page. The
      browser has the same words in its own catalogue; see `MinutesWords`. */
@@ -145,6 +146,7 @@ const de: Catalogue = {
   'notify.message': '{name} in {channel}',
   'notify.directMessage': '{name} hat dir geschrieben',
   'notify.decision': 'Das Team wird gefragt: {question}',
+  'notify.agenda': 'Du bist zuständig für „{title}“ in {meeting}',
 
   'minutes.title': 'Protokoll: {title}',
   'minutes.attendees': 'Teilnehmende',
@@ -258,6 +260,7 @@ const fr: Catalogue = {
   'notify.message': '{name} dans {channel}',
   'notify.directMessage': '{name} vous a envoyé un message',
   'notify.decision': 'L’équipe est consultée : {question}',
+  'notify.agenda': 'Vous êtes responsable de « {title} » dans {meeting}',
 
   'minutes.title': 'Compte rendu : {title}',
   'minutes.attendees': 'Participants',

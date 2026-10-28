@@ -2197,6 +2197,8 @@ export interface Notification extends Base {
   channel_id: ID | null;
   /** The ballot, when it is a question the workspace is being asked. */
   decision_id: ID | null;
+  /** The meeting, when somebody was made responsible for a point on it. */
+  meeting_id: ID | null;
   actor_id: ID | null;
   read_at: number | null;
   archived_at: number | null;

@@ -237,7 +237,7 @@ export const namesMe = (people: Mentionable[], text: string, me: string): boolea
  * channel is a rule nobody can predict — that sentence was in the code while
  * two sets quietly disagreed, which is how this came to be written down.
  */
-export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon'] as const;
+export const IMPORTANT_KINDS = ['assigned', 'mention', 'invite', 'due_soon', 'agenda'] as const;
 
 /**
  * ...and the one kind the *instant* channels add.

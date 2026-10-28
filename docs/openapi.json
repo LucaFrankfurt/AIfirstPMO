@@ -2768,6 +2768,14 @@
             "type": "string",
             "readOnly": true
           },
+          "meeting_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The meeting, when somebody was made responsible for a point on it.",
+            "readOnly": true
+          },
           "page_id": {
             "type": [
               "string",

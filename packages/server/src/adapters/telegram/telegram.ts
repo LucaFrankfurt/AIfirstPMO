@@ -245,6 +245,7 @@ function deepLink(row: Row): string | null {
   // land somebody on a board rather than on the question. See the same ordering
   // in the web inbox and in the email digest — the three lists have to agree.
   if (row.decision_id) return `${env.publicUrl}/decisions/${row.decision_id}`;
+  if (row.meeting_id) return `${env.publicUrl}/meetings/${row.meeting_id}`;
   if (row.project_id) return `${env.publicUrl}/projects/${row.project_id}`;
   return `${env.publicUrl}/inbox`;
 }

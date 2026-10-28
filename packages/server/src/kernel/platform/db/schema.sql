@@ -1572,6 +1572,9 @@ CREATE TABLE IF NOT EXISTS notifications (
   -- a decision has a project too, and the project branch would take somebody to
   -- an intake queue instead of to the question they were asked.
   decision_id  TEXT,
+  -- ...or about a meeting: somebody was made responsible for a point on it.
+  -- Read before `project_id` for the reason `decision_id` is.
+  meeting_id   TEXT,
   actor_id     TEXT,
   read_at      INTEGER,
   archived_at  INTEGER,

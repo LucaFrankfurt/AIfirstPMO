@@ -286,6 +286,7 @@ function renderDigest(user: Row, notifications: Row[]): { subject: string; text:
       // A ballot, which has nowhere else useful to point: the inbox would show
       // the same line the reader is already looking at.
       : notification.decision_id ? link(`/decisions/${notification.decision_id}`)
+      : notification.meeting_id ? link(`/meetings/${notification.meeting_id}`)
       : link('/inbox');
     const actor = notification.actor_id
       ? get<Row>(`SELECT name FROM users WHERE id = ?`, notification.actor_id)?.name

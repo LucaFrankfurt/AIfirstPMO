@@ -47,7 +47,7 @@ const PATHS = {
   chevronUp: 'M6 15l6-6 6 6',
   chevronRight: 'M9 6l6 6-6 6',
   chevronLeft: 'M15 6l-6 6 6 6',
-  dots: 'M12 6h.01M12 12h.01M12 18h.01',
+  dots: 'M12 5h.01M12 12h.01M12 19h.01',
   board: 'M4 4h5v16H4zM10.5 4h5v10h-5zM17 4h3v13h-3z',
   // Bulleted, so the list *layout* is not the same drawing as a menu.
   list: 'M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01',
@@ -121,6 +121,21 @@ const PATHS = {
 const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout', 'reply']);
 
 /**
+ * Icons drawn heavier than the rest, by name.
+ *
+ * The three dots of a "more" menu are the case. They are drawn as round caps
+ * on strokes of no length, so a dot is exactly as wide as the stroke — and at
+ * the shared 1.7 that was one pixel at the 14px most menus use, a faint smudge
+ * in the corner of a task that people reported as "where is the menu". At 4
+ * each dot is the size the rest of the icon set draws a dot at, and they sit
+ * further apart so they still read as three.
+ *
+ * By name, so the fallback for a name nobody drew keeps the old weight: a row
+ * of three quiet dots is the right way for an unknown icon to look.
+ */
+const STROKE: Partial<Record<string, number>> = { dots: 4 };
+
+/**
  * The names above, as a type. `Icon` itself still takes any string — plenty of
  * callers pass a name that came out of the database — but a hard-coded list of
  * icons can be typed against this and a shape that does not exist becomes a
@@ -133,7 +148,7 @@ export function Icon({ name, size = 16, className }: { name: IconName | string; 
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true"
       className={cn(`${className ?? ''}${DIRECTIONAL.has(name) ? ' icon-dir' : ''}`.trim() || undefined, 'flex-none')}
-      stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+      stroke="currentColor" strokeWidth={STROKE[name] ?? 1.7} strokeLinecap="round" strokeLinejoin="round"
      
     >
       <path d={(PATHS as Record<string, string>)[name] ?? PATHS.dots} />

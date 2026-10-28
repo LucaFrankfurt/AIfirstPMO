@@ -167,6 +167,11 @@ for (const [table, column, definition] of [
   // did, which is exactly the case this list is for: `[]` on every point that
   // already exists, which is what each of them had — nobody named.
   ['agenda_items', 'assignees', `TEXT NOT NULL DEFAULT '[]'`],
+  // Where a notification about a meeting points. `decision_id` above is the
+  // reason this one went into the list in the same commit as the code that
+  // writes it: a column the INSERT names and an upgraded database lacks throws
+  // inside the write that triggered it.
+  ['notifications', 'meeting_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

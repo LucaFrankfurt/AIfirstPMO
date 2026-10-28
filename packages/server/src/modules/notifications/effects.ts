@@ -21,6 +21,7 @@ import {
   canSeeProject, displayName, findMentions, onCommitted, parseIds, writeEntity, type WriteOpts,
 } from '../../kernel/write-path/repo.ts';
 import { createNotification } from './notify.ts';
+import { hasFeature } from '../../kernel/platform/features.ts';
 
 /**
  * Notification titles are written in the recipient's language, not the actor's:
@@ -192,6 +193,18 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
     }
   }
 
+  // A point on a meeting tells the people newly responsible for it. Never
+  // fatal, for the reason the ballot's announcement above is not: this runs
+  // inside the write's own transaction, and losing somebody's agenda edit
+  // because telling a colleague about it failed is the worse half.
+  if (entity === 'agendaItem' && changed.assignees !== undefined) {
+    try {
+      tellResponsible(row, before, opts);
+    } catch (error) {
+      console.error('[notify] could not tell who is responsible for an agenda point', error);
+    }
+  }
+
   for (const [userId, payload] of targets) {
     createNotification({
       // A notification about a direct message has to reach somebody who may
@@ -287,6 +300,45 @@ function announce(decisionId: string, opts: WriteOpts): void {
   writeEntity('decision', decisionId, { announced_at: Date.now() }, {
     ...opts, op: undefined, system: true, silent: true,
   });
+}
+
+/**
+ * Somebody was made responsible for a point on a meeting.
+ *
+ * Only the people who were not responsible before, and never the person who
+ * did it — the rule a task's assignees follow. A point carried forward from
+ * the last meeting is compared with the point it continues rather than with
+ * nothing, so pressing "carry forward" does not tell everybody again that they
+ * still own what they already owned; the meeting moved, the responsibility
+ * did not.
+ *
+ * A meeting the workspace has switched off, or one in the trash, tells nobody.
+ * Guests cannot be named in the first place — see the meeting rules — so every
+ * recipient here can open the meeting the notification points at.
+ */
+function tellResponsible(row: Row, before: Row | undefined, opts: WriteOpts): void {
+  if (row.deleted_at || !row.workspace_id || !hasFeature(String(row.workspace_id), 'meetings')) return;
+  const meeting = get<Row>(`SELECT id, title, deleted_at FROM meetings WHERE id = ?`, String(row.meeting_id));
+  if (!meeting || meeting.deleted_at) return;
+
+  const earlier = before
+    ? before.assignees
+    : row.carried_from
+      ? get<Row>(`SELECT assignees FROM agenda_items WHERE id = ?`, String(row.carried_from))?.assignees
+      : null;
+  const previous = new Set(parseIds(earlier));
+  for (const userId of parseIds(row.assignees)) {
+    if (previous.has(userId) || userId === opts.actorId) continue;
+    createNotification({
+      workspaceId: String(row.workspace_id),
+      userId,
+      kind: 'agenda',
+      title: translatorFor(userId)('notify.agenda', { title: String(row.title), meeting: String(meeting.title) }),
+      body: (row.description as string | null) ?? null,
+      meetingId: String(meeting.id),
+      actorId: opts.actorId,
+    });
+  }
 }
 
 /** People who asked to hear about everything in this channel. */

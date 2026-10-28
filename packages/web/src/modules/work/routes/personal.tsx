@@ -261,6 +261,9 @@ export function Inbox() {
                   // take somebody to an intake queue instead of to the question
                   // they were asked.
                   else if (notification.decision_id) navigate(`/decisions/${notification.decision_id}`);
+                  // A point somebody was made responsible for: the meeting it
+                  // is on, which carries no project for the branch below.
+                  else if (notification.meeting_id) navigate(`/meetings/${notification.meeting_id}`);
                   // A report from outside is about a project's queue rather
                   // than a row, so it opens the tab that holds it.
                   else if (notification.project_id) navigate(`/projects/${notification.project_id}?tab=intake`);

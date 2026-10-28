@@ -596,8 +596,9 @@ export function registerEntityRoutes(router: Router): void {
         : row.page_id ? `/pages/${row.page_id}`
           : row.channel_id ? `/chat/${row.channel_id}`
             : row.decision_id ? `/decisions/${row.decision_id}`
-              : row.project_id ? `/projects/${row.project_id}?tab=intake`
-                : '/inbox',
+              : row.meeting_id ? `/meetings/${row.meeting_id}`
+                : row.project_id ? `/projects/${row.project_id}?tab=intake`
+                  : '/inbox',
       unread: Number(get<Row>(
         `SELECT count(*) AS n FROM notifications
           WHERE user_id = ?1 AND read_at IS NULL AND deleted_at IS NULL

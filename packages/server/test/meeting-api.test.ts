@@ -198,6 +198,56 @@ describe('everybody brings topics, and the agenda says truthfully who', () => {
   });
 });
 
+describe('telling somebody they are responsible for a point', () => {
+  let owner: Person;
+  let lin: Person;
+  let grace: Person;
+  let workspace = '';
+
+  before(async () => {
+    const made = await register('meet-tell@example.com');
+    owner = made.person;
+    workspace = made.workspace;
+    await switchOn(workspace, owner);
+    lin = await join('meet-tell-lin@example.com', workspace, owner);
+    grace = await join('meet-tell-grace@example.com', workspace, owner);
+  });
+
+  const inbox = (who: Person) => all<any>(
+    `SELECT * FROM notifications WHERE user_id = ? AND kind = 'agenda' ORDER BY created_at`, who.id,
+  );
+
+  it('tells the people made responsible, and not the person who did it', async () => {
+    const meeting = await newMeeting(workspace, owner, { title: 'Weekly' });
+    const point = await newItem(workspace, owner, meeting.id, { title: 'Pricing page', assignees: [lin.id, owner.id] });
+    const told = inbox(lin);
+    assert.equal(told.length, 1);
+    assert.equal(told[0].meeting_id, meeting.id, 'the notification has to lead to the meeting');
+    assert.match(told[0].title, /Pricing page/);
+    assert.match(told[0].title, /Weekly/);
+    assert.equal(told[0].actor_id, owner.id);
+    assert.equal(inbox(owner).length, 0, 'told about something they did themselves');
+
+    // Adding a second person tells the second person, not the first again.
+    await ok(`/api/agenda-items/${point.id}`, { cookie: owner.cookie, method: 'PATCH', body: { assignees: [lin.id, grace.id] } });
+    assert.equal(inbox(lin).length, 1);
+    assert.equal(inbox(grace).length, 1);
+
+    // The recipient's device receives it, with the meeting to open.
+    const { body } = await call(`/api/sync/pull?workspace=${workspace}&since=0`, { cookie: lin.cookie });
+    assert.ok((body.changes.notification ?? []).some((row: any) => row.kind === 'agenda' && row.meeting_id === meeting.id));
+  });
+
+  it('does not tell anybody again when the point is carried forward', async () => {
+    const meeting = await newMeeting(workspace, owner, { title: 'Carried', starts_at: Date.parse('2026-11-03T10:00:00Z') });
+    await newItem(workspace, owner, meeting.id, { title: 'Still open', assignees: [grace.id] });
+    const before = inbox(grace).length;
+    const carried = await tool(owner.token, 'carry_over_agenda', { meeting: meeting.id });
+    assert.equal(carried.carried, 1);
+    assert.equal(inbox(grace).length, before, 'the meeting moved; the responsibility did not');
+  });
+});
+
 describe('the notes, written by several people at once', () => {
   let owner: Person;
   let workspace = '';

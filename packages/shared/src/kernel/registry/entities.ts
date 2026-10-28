@@ -674,8 +674,8 @@ export const ENTITIES = {
   },
   notification: {
     table: 'notifications',
-    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'decision_id', 'actor_id', 'read_at', 'archived_at'],
-    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'decision_id', 'actor_id'],
+    fields: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'project_id', 'channel_id', 'decision_id', 'meeting_id', 'actor_id', 'read_at', 'archived_at'],
+    serverOnly: ['workspace_id', 'user_id', 'kind', 'title', 'body', 'task_id', 'page_id', 'channel_id', 'decision_id', 'meeting_id', 'actor_id'],
     private: true,
     // A notification about a direct message has no workspace either: it has to
     // reach somebody who may not be in the one it was written from.

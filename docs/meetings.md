@@ -25,6 +25,12 @@ write path takes them off a list that arrives from somewhere else. The same rule
 expected at the meeting. Filing a task from a point starts with the point's first responsible person
 as the assignee, changed in one click.
 
+Being made responsible is a notification of its own kind, `agenda`, and it counts as important —
+the same weight as being assigned a task. It goes to the people newly on the list and never to
+whoever put them there, and it leads to the meeting. Carrying a point forward does not send it
+again: the new point is compared with the one it continues, so a topic deferred for three weeks is
+one notification, not four. See [`notifications.md`](notifications.md).
+
 ## The notes are a merge, not a race
 
 A point's notes are a text CRDT — the same one a page body is (see `text-crdt.ts` and
@@ -134,8 +140,8 @@ are work, and the work is still owed.
 - **No series.** A weekly is a meeting and its follow-ups, each called by carrying the agenda forward.
   A recurrence rule would need an answer to "what happens to next week's agenda when this week's
   moves", and that answer is a design, not a column.
-- **No notification** when somebody adds a topic, is put on a meeting, or is made responsible for a
-  point. Asked for the first time
+- **No notification** when somebody adds a topic or is put on a meeting. Being made responsible for
+  a point does notify — see above. Asked for the first time
   somebody misses a meeting because of it, not before.
 - **Not searchable.** Agenda points are not in the full-text index. The index carries one project per
   row and a point carries several, which is the budget's problem and wants the budget's answer.

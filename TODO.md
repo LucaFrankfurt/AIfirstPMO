@@ -1725,7 +1725,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **65** the list carries; the other undroppable-looking eight turned out to be something else
+      **66** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1809,8 +1809,12 @@ two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.
 - [ ] **A recurring series.** A weekly is a meeting and its follow-ups, called one at a time by
       carrying the agenda forward. A rule would have to say what happens to next week's agenda when
       this week's meeting moves, and that is a design rather than a column.
-- [ ] **Invitations and notifications.** A meeting is not in the `.ics` feed and nobody is told they
-      were put on one, that a topic was added, or that they were made responsible for a point. Wait for the first person who missed a meeting
+- [x] **Being made responsible for a point is a notification.** Kind `agenda`, important, pointing
+      at the meeting through a new `notifications.meeting_id` — read before `project_id` in all four
+      places that turn a notification into a link, for the reason `decision_id` is. Not sent to the
+      person who did it, and not again when a point is carried forward.
+- [ ] **Invitations and other notifications.** A meeting is not in the `.ics` feed and nobody is told
+      they were put on one or that a topic was added. Wait for the first person who missed a meeting
       because of it.
 - [ ] **Search and the workspace export.** Agenda points are not indexed — a point names several
       projects and the index carries one, which is the budget's problem — and meetings stay behind in

@@ -30,6 +30,7 @@ export interface NewNotification {
   projectId?: string | null;
   channelId?: string | null;
   decisionId?: string | null;
+  meetingId?: string | null;
   actorId?: string | null;
 }
 
@@ -61,11 +62,11 @@ export function createNotification(input: NewNotification): string {
   run(
     `INSERT INTO notifications
        (id, workspace_id, user_id, kind, title, body, task_id, page_id, project_id, channel_id,
-        decision_id, actor_id, created_at, updated_at, seq, clocks)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
+        decision_id, meeting_id, actor_id, created_at, updated_at, seq, clocks)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')`,
     id, input.workspaceId, input.userId, input.kind, input.title, input.body ?? null,
     input.taskId ?? null, input.pageId ?? null, input.projectId ?? null, input.channelId ?? null,
-    input.decisionId ?? null, input.actorId ?? null,
+    input.decisionId ?? null, input.meetingId ?? null, input.actorId ?? null,
     now, now, nextSeq(),
   );
 

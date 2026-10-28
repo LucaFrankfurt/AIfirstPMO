@@ -16,6 +16,7 @@ every channel off never means missing something — it just means you have to lo
 | `invite` | You were invited to a workspace (email only — you have no account yet) | yes |
 | `message` | Somebody wrote to you directly, or named you in a channel | instant channels only |
 | `decision` | A ballot was opened that you can vote in | no |
+| `agenda` | Somebody made you responsible for a point on a meeting's agenda — not again when the point is carried to the next meeting | yes |
 
 "Important" is what a channel falls back to when somebody chooses "only what needs me". The in-app
 inbox always gets everything — it is the source of truth, not a channel.
