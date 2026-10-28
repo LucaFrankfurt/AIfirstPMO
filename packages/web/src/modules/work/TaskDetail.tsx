@@ -306,9 +306,13 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
                   <Avatar user={members.get(entry.actor_id)} size={18} />
                   <span className="soft flex-1 min-w-0">
                     <strong>{members.get(entry.actor_id)?.name ?? t('common.someone')}</strong>{' '}
-                    {entry.verb === 'created'
-                      ? t('task.activityCreated')
-                      : t('task.activityChanged', { field: entry.field?.replace('_id', '') ?? t('task.activitySomething') })}
+                    {entry.verb === 'created' ? t('task.activityCreated')
+                      // Both used to fall through to "changed something": the
+                      // delete because nothing here asked for it, the restore
+                      // because nothing wrote one.
+                      : entry.verb === 'deleted' ? t('task.activityDeleted')
+                        : entry.verb === 'restored' ? t('task.activityRestored')
+                          : t('task.activityChanged', { field: entry.field?.replace('_id', '') ?? t('task.activitySomething') })}
                   </span>
                   <span className="text-muted">{relativeTime(entry.created_at)}</span>
                 </div>

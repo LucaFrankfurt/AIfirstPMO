@@ -684,6 +684,14 @@ function recordActivity(entity: EntityName, row: Row, before: Row | undefined, c
     push('deleted', null, null, null);
     return;
   }
+  // The way back had no line of its own. `deleted_at` is not a tracked field,
+  // so a restore wrote nothing, and the trail of a task brought back from the
+  // trash — or by the board's Undo, one click after the delete — ended on
+  // "deleted" under a task that was plainly there.
+  if (!row.deleted_at && before.deleted_at) {
+    push('restored', null, null, null);
+    return;
+  }
   for (const field of Object.keys(changed)) {
     if (!TRACKED_FIELDS.has(field)) continue;
     if (String(before[field] ?? '') === String(row[field] ?? '')) continue;

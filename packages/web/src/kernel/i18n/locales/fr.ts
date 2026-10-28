@@ -176,6 +176,8 @@ export const fr: Catalogue = {
   'task.activityCreated': 'a créé cette tâche',
   'task.activityChanged': 'a modifié {field}',
   'task.activitySomething': 'quelque chose',
+  'task.activityDeleted': 'a supprimé cette tâche',
+  'task.activityRestored': 'a restauré cette tâche',
   'task.addDescription': 'Ajouter une description…',
 
   /* Un modèle relit une tâche — voir components/task-review.tsx */
@@ -1424,6 +1426,7 @@ export const fr: Catalogue = {
   'audit.created': 'a créé',
   'audit.updated': 'a modifié {field}',
   'audit.deleted': 'a supprimé',
+  'audit.restored': 'a restauré',
   'hooks.format': 'Forme du message',
   'hooks.formatKolibri': 'JSON Kolibri (signé)',
   'hooks.inTitle': 'Entrant',

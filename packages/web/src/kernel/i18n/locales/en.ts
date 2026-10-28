@@ -170,6 +170,8 @@ export const en = {
   'task.activityCreated': 'created this task',
   'task.activityChanged': 'changed {field}',
   'task.activitySomething': 'something',
+  'task.activityDeleted': 'deleted this task',
+  'task.activityRestored': 'restored this task',
   'task.addDescription': 'Add a description…',
 
   /* A model reading a task back — see components/task-review.tsx */
@@ -1427,6 +1429,7 @@ export const en = {
   'audit.created': 'created',
   'audit.updated': 'changed {field}',
   'audit.deleted': 'deleted',
+  'audit.restored': 'restored',
   'hooks.format': 'Message shape',
   'hooks.formatKolibri': 'Kolibri JSON (signed)',
   'hooks.inTitle': 'Incoming',

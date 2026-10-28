@@ -58,7 +58,8 @@ export function AuditLog() {
             <span className="flex-1 min-w-0 truncate">
               {entry.verb === 'created' ? t('audit.created')
                 : entry.verb === 'deleted' ? t('audit.deleted')
-                  : t('audit.updated', { field: entry.field ?? '' })}
+                  : entry.verb === 'restored' ? t('audit.restored')
+                    : t('audit.updated', { field: entry.field ?? '' })}
               {' · '}
               {entry.task_identifier ? `${entry.task_identifier} ${entry.task_title ?? ''}` : entry.page_title ?? entry.project_name ?? ''}
             </span>

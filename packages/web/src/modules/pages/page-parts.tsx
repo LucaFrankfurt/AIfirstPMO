@@ -428,6 +428,9 @@ export function PageHistory({ page, onClose, onCompare }: {
   const said = (entry: Extract<Entry, { kind: 'change' }>): string | null => {
     if (entry.verb === 'created') return t('page.changeCreated');
     if (entry.verb === 'deleted') return t('page.changeDeleted');
+    // Out of the trash and out of the archive are the same words to a reader:
+    // it was gone, and somebody brought it back.
+    if (entry.verb === 'restored') return t('page.changeRestored');
     if (entry.field === 'archived') return entry.to === '1' ? t('page.changeArchived') : t('page.changeRestored');
     if (entry.field === 'is_template') return entry.to === '1' ? t('page.changeTemplated') : t('page.changeUntemplated');
     const key = entry.field ? CHANGE_KEY[entry.field] : undefined;

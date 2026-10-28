@@ -169,6 +169,8 @@ export const de: Catalogue = {
   'task.activityCreated': 'hat diese Aufgabe angelegt',
   'task.activityChanged': 'hat {field} geändert',
   'task.activitySomething': 'etwas',
+  'task.activityDeleted': 'hat diese Aufgabe gelöscht',
+  'task.activityRestored': 'hat diese Aufgabe wiederhergestellt',
   'task.addDescription': 'Beschreibung hinzufügen…',
 
   /* Ein Modell liest eine Aufgabe gegen — siehe components/task-review.tsx */
@@ -1421,6 +1423,7 @@ export const de: Catalogue = {
   'audit.created': 'angelegt',
   'audit.updated': '{field} geändert',
   'audit.deleted': 'gelöscht',
+  'audit.restored': 'wiederhergestellt',
   'hooks.format': 'Nachrichtenform',
   'hooks.formatKolibri': 'Kolibri-JSON (signiert)',
   'hooks.inTitle': 'Eingehend',

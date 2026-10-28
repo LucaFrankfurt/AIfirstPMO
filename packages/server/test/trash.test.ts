@@ -14,6 +14,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { Clock } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 const { emptyTrash, purgeable } = await import('../src/modules/trash/trash.ts');
@@ -185,5 +186,42 @@ describe('a retention window', () => {
     await ok(`/api/tasks/${doomed.id}`, undefined, 'DELETE');
     assert.equal(applyRetention(), 0, 'nothing, with no window set');
     assert.ok(get(`SELECT id FROM tasks WHERE id = ?`, doomed.id), 'and the row is still recoverable');
+  });
+});
+
+describe('putting it back', () => {
+  /**
+   * The trail used to end on "deleted". `deleted_at` is not a tracked field,
+   * so a restore wrote nothing at all, and a task brought back from the trash
+   * — or by the board's Undo, one click after the delete — showed a history
+   * whose last word was that it was gone.
+   *
+   * Through the sync push rather than a PATCH, because that is the way both
+   * the trash screen and the Undo take: `restore()` is an outbox write.
+   */
+  const clock = new Clock('trash-test');
+  const push = (entityId: string, patch: Record<string, unknown>, op: 'upsert' | 'delete' = 'upsert') =>
+    ok('/api/sync/push', {
+      workspaceId, clientId: 'trash-test',
+      mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId, op, patch, hlc: clock.now() }],
+    });
+  const trail = (id: string) =>
+    all<any>(`SELECT verb, actor_id FROM activities WHERE task_id = ? ORDER BY created_at, rowid`, id);
+
+  it('records the restore, by whoever restored it, after the delete it undoes', async () => {
+    const task = await makeTask('Deleted by mistake');
+    await push(task.id, {}, 'delete');
+    await push(task.id, { deleted_at: null });
+
+    assert.equal(get<any>(`SELECT deleted_at FROM tasks WHERE id = ?`, task.id)!.deleted_at, null, 'it is back');
+    const verbs = trail(task.id).map((row) => row.verb);
+    assert.deepEqual(verbs, ['created', 'deleted', 'restored']);
+    assert.ok(trail(task.id).every((row) => row.actor_id), 'each line says who');
+  });
+
+  it('writes nothing for a row that was never gone', async () => {
+    const task = await makeTask('Never deleted');
+    await push(task.id, { deleted_at: null, title: 'Never deleted, renamed' });
+    assert.deepEqual(trail(task.id).map((row) => row.verb), ['created', 'updated']);
   });
 });
