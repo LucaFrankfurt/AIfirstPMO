@@ -3235,5 +3235,7 @@ export const de: Catalogue = {
   'misc.noWorkspaceHint': 'Leg in den Einstellungen einen an, dann geht es los.',
   'misc.screenUnavailableTitle': 'Diese Ansicht ist nicht angekommen',
   'misc.screenUnavailableHint': 'Sie wird separat geladen, und das Netz oder eine neue Version kam dazwischen. Ein Neuladen behebt das meistens.',
+  'misc.screenFailedTitle': 'Diese Ansicht ist auf einen Fehler gestoßen',
+  'misc.screenFailedHint': 'Das ist ein Fehler in Kolibri, nicht im Netz. Der Rest funktioniert weiter — eine andere Ansicht öffnen oder neu laden, um es hier noch einmal zu versuchen.',
   'misc.reload': 'Neu laden',
 };

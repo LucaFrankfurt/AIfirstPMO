@@ -83,7 +83,19 @@ function Boot() {
 }
 
 /**
- * What a screen that could not be fetched looks like.
+ * Whether an error is a screen's code failing to arrive, rather than failing.
+ *
+ * The messages are the browsers' own for a dynamic import that did not load —
+ * Chromium, Safari and Firefox spell it three ways — plus the bundlers'
+ * `ChunkLoadError`. Anything else is a bug in a screen, and saying "the
+ * network got in the way" about a bug sends the reader to look at their wifi.
+ */
+const isChunkError = (error: unknown): boolean =>
+  /dynamically imported module|Importing a module script failed|error loading dynamically imported|ChunkLoadError|Loading chunk/i
+    .test(error instanceof Error ? `${error.name} ${error.message}` : String(error));
+
+/**
+ * What a screen that could not be shown looks like.
  *
  * Splitting the optional screens out of the bundle bought a smaller first load
  * and one new way to fail: a chunk can be missing. Two ways, really — the
@@ -92,23 +104,40 @@ function Boot() {
  * common one and reloading genuinely fixes it, which is why the button says so
  * rather than apologising.
  *
+ * It catches every other render error too, because it is the only boundary
+ * around the screens, and it used to describe all of them as a chunk that did
+ * not arrive. The first one it caught that was not — a meeting whose rows this
+ * device had synced before a column existed — read as a network problem, and
+ * stayed on screen through every link in the sidebar, because nothing ever
+ * cleared it: `failed` was set once and the boundary outlives the route. So
+ * the two are told apart, and moving to another screen tries again; one broken
+ * screen should cost that screen, not the whole app until a reload.
+ *
  * A class because that is the only thing React lets catch a render error, and
  * `Empty` does the actual talking so it looks like every other empty screen.
  */
-class ScreenBoundary extends Component<{ children: ReactNode; label: string; hint: string; retry: string }, { failed: boolean }> {
-  state = { failed: false };
+class ScreenBoundary extends Component<
+  { children: ReactNode; screen: string; copy: { missing: [string, string]; broken: [string, string] }; retry: string },
+  { failed: false | 'missing' | 'broken' }
+> {
+  state: { failed: false | 'missing' | 'broken' } = { failed: false };
 
-  static getDerivedStateFromError() {
-    return { failed: true };
+  static getDerivedStateFromError(error: unknown) {
+    return { failed: isChunkError(error) ? 'missing' as const : 'broken' as const };
+  }
+
+  componentDidUpdate(previous: { screen: string }) {
+    if (this.state.failed && previous.screen !== this.props.screen) this.setState({ failed: false });
   }
 
   render() {
     if (!this.state.failed) return this.props.children;
+    const [title, hint] = this.props.copy[this.state.failed];
     return (
       <Empty
-        emoji="📡"
-        title={this.props.label}
-        hint={this.props.hint}
+        emoji={this.state.failed === 'missing' ? '📡' : '🧯'}
+        title={title}
+        hint={hint}
         action={<Button onClick={() => window.location.reload()}>{this.props.retry}</Button>}
       />
     );
@@ -229,8 +258,11 @@ export default function App() {
         {/* The sheet renders over the screen recorded in the router state, so
             the page behind it never flickers or falls back to a 404. */}
         <ScreenBoundary
-          label={t('misc.screenUnavailableTitle')}
-          hint={t('misc.screenUnavailableHint')}
+          screen={(background ?? location).pathname}
+          copy={{
+            missing: [t('misc.screenUnavailableTitle'), t('misc.screenUnavailableHint')],
+            broken: [t('misc.screenFailedTitle'), t('misc.screenFailedHint')],
+          }}
           retry={t('misc.reload')}
         >
         <Suspense fallback={<Boot />}>

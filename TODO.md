@@ -1806,6 +1806,20 @@ two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.
       one, which used to take any member of the workspace including its guests. The column arrived a
       day after the table, so it is in the upgrade list. Carried forward with the point, printed in
       the minutes, and the first one is the default assignee of a task filed from the point.
+- [x] **A device that synced before `assignees` existed crashed the meeting screen.** Its points had
+      no such field — the column came a day after the table, and adding a column moves no row's `seq`,
+      so nothing was sent again — and the people picker read `undefined.includes`. The screen boundary
+      then said "this screen did not arrive", which is its message for a chunk that failed to load,
+      and kept saying it on every other screen until a reload, because nothing ever reset it. Fixed in
+      three places: the points are read through `withLists`; the boundary tells a missing chunk from
+      a broken screen; and it resets when the route changes.
+- [ ] **The class of that bug, rather than the instance.** Any column added to a table that devices
+      already hold behaves the same way, and defensive reads only cover the screens that remember to
+      make them. The thorough answer is in the upgrade loop: when it adds a column to a table that has
+      rows, give each row a new `seq` — one each, never a shared one, because the pull pages by `seq`
+      and a page boundary inside a run of equal values loses rows — so every device is sent the table
+      once and fills the field in. It costs a one-off download of that table per upgrade, which for
+      `tasks` on a large instance is real, and that is a decision rather than a fix.
 - [ ] **A recurring series.** A weekly is a meeting and its follow-ups, called one at a time by
       carrying the agenda forward. A rule would have to say what happens to next week's agenda when
       this week's meeting moves, and that is a design rather than a column.

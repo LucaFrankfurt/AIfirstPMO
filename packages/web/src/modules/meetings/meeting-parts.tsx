@@ -69,9 +69,28 @@ export function useTaggableProjects() {
   );
 }
 
+/**
+ * A point as the screen reads it: every list it carries is a list.
+ *
+ * `assignees` arrived a day after the table did, and the server does not send
+ * a row again because a column was added to it — so a device that synced its
+ * agenda before the upgrade holds every point without the field until somebody
+ * next edits each one. Read straight, that was `undefined.includes` inside the
+ * people picker, and the whole meeting screen went to the error boundary on the
+ * first real instance it reached. Filled in here, where the screen reads its
+ * rows, rather than at every place a list is touched. The row is returned as it
+ * was when nothing is missing, so the notes editor keeps the state it holds.
+ */
+const withLists = (item: AgendaItem): AgendaItem => (Array.isArray(item.assignees) && Array.isArray(item.projects)
+  ? item
+  : { ...item, assignees: item.assignees ?? [], projects: item.projects ?? [] });
+
 /** The live points of a meeting, synced, in agenda order. */
 export function useAgenda(meetingId: string): AgendaItem[] {
-  return useQuery(() => agendaOf(meetingId, list('agendaItem', (item) => item.meeting_id === meetingId)), [meetingId]);
+  return useQuery(
+    () => agendaOf(meetingId, list('agendaItem', (item) => item.meeting_id === meetingId)).map(withLists),
+    [meetingId],
+  );
 }
 
 /* ------------------------------------------------------------------ index */

@@ -356,7 +356,7 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">329</span><span class="k">source files</span></div>
     <div><span class="v num">44</span><span class="k">modules</span></div>
-    <div><span class="v num">108 118</span><span class="k">lines</span></div>
+    <div><span class="v num">108 175</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">60</span><span class="k">entities</span></div>
     <div><span class="v num">140</span><span class="k">endpoints</span></div>
@@ -441,10 +441,10 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 30 244 lines, 28%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 52 934 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 30 250 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 52 953 lines, 49%</span>
       <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 22 796 lines, 21%</span>
-      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 144 lines, 2%</span>
+      <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 176 lines, 2%</span>
 <!-- end -->
     </div>
 
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 10 323 lines is three
-      catalogues of 3 085 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 10 329 lines is three
+      catalogues of 3 087 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1415,7 +1415,7 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":10323,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3252},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":10329,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3254},
 {"ring":"kernel","name":"registry","flag":"","files":7,"lines":3949,"biggest":"kernel/registry/types.ts","biggestLines":2557},
 {"ring":"kernel","name":"design-system","flag":"","files":28,"lines":2662,"biggest":"kernel/design-system/ui.tsx","biggestLines":735},
 {"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2608,"biggest":"kernel/write-path/repo.ts","biggestLines":1301},
@@ -1436,7 +1436,7 @@ const MODULES = [
 {"ring":"capability","name":"kpis","flag":"kpi","files":4,"lines":1857,"biggest":"modules/kpis/routes/kpis.tsx","biggestLines":960},
 {"ring":"capability","name":"infrastructure","flag":"infrastructure","files":4,"lines":1637,"biggest":"modules/infrastructure/landscape.tsx","biggestLines":578},
 {"ring":"capability","name":"guide","flag":"","files":6,"lines":1625,"biggest":"modules/guide/diagrams.tsx","biggestLines":628},
-{"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1583,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":757},
+{"ring":"capability","name":"meetings","flag":"meetings","files":4,"lines":1602,"biggest":"modules/meetings/meeting-parts.tsx","biggestLines":776},
 {"ring":"capability","name":"automation","flag":"","files":3,"lines":1500,"biggest":"modules/automation/settings.tsx","biggestLines":738},
 {"ring":"capability","name":"time","flag":"time","files":6,"lines":1499,"biggest":"modules/time/rates.tsx","biggestLines":581},
 {"ring":"capability","name":"secrets","flag":"secrets","files":6,"lines":1391,"biggest":"modules/secrets/routes/secrets.tsx","biggestLines":494},
@@ -1458,7 +1458,7 @@ const MODULES = [
 {"ring":"adapter","name":"push","flag":"","files":4,"lines":383,"biggest":"adapters/push/push.ts","biggestLines":209},
 {"ring":"adapter","name":"calendar","flag":"","files":2,"lines":359,"biggest":"adapters/calendar/routes/calendar.ts","biggestLines":214},
 {"ring":"adapter","name":"ai","flag":"","files":5,"lines":344,"biggest":"adapters/ai/ai-gemini.ts","biggestLines":127},
-{"ring":"shell","name":"shell","flag":"","files":14,"lines":2144,"biggest":"AppShell.tsx","biggestLines":478}
+{"ring":"shell","name":"shell","flag":"","files":14,"lines":2176,"biggest":"AppShell.tsx","biggestLines":478}
 ];
 /* end */
 

@@ -3229,5 +3229,7 @@ export const fr: Catalogue = {
   'misc.noWorkspaceHint': 'Créez-en un dans les réglages pour commencer.',
   'misc.screenUnavailableTitle': 'Cet écran n’est pas arrivé',
   'misc.screenUnavailableHint': 'Il est chargé séparément, et le réseau ou une nouvelle version s’est interposé. Recharger règle généralement la question.',
+  'misc.screenFailedTitle': 'Cet écran a rencontré une erreur',
+  'misc.screenFailedHint': 'C’est une erreur dans Kolibri, pas dans le réseau. Le reste fonctionne — ouvrir un autre écran, ou recharger pour réessayer celui-ci.',
   'misc.reload': 'Recharger',
 };

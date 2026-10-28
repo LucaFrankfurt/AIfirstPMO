@@ -115,6 +115,12 @@ Each of these passed the typechecker and the suites and was still wrong.
   *record*, listed in that file's `HISTORY` as something the tree said once and cannot be recounted.
   One that is neither is reported by name and fails the build. This exists because the documents had
   drifted in six places at once while looking perfectly confident.
+- **A column added to a table that has already synced reaches no device's copy of its rows.** The
+  upgrade list adds it on the server, but no row's `seq` moves, so a device keeps every row it already
+  had without the field until that row is next edited. A screen that reads a new list field straight
+  crashes on exactly the devices that were there first: `agenda_items.assignees` did, on the first
+  real instance, and the screen boundary called it a network problem. Read a new field defensively
+  where the screen reads its rows — see `withLists` in `modules/meetings/meeting-parts.tsx`.
 - **`noUnusedParameters` is off on purpose.** An unused argument is usually the shape of a callback.
   `noUnusedLocals` is on; an import you stop using breaks the build.
 - **Never skip, disable or quarantine a test to get green**, and never push an empty commit to kick

@@ -3241,6 +3241,8 @@ export const en = {
   'misc.noWorkspaceHint': 'Create one in settings to get started.',
   'misc.screenUnavailableTitle': 'This screen did not arrive',
   'misc.screenUnavailableHint': 'It is fetched separately, and the network or a new version got in the way. Reloading usually settles it.',
+  'misc.screenFailedTitle': 'This screen ran into an error',
+  'misc.screenFailedHint': 'That is a fault in Kolibri, not in the network. The rest of the app still works — open another screen, or reload to try this one again.',
   'misc.reload': 'Reload',
 } as const;
 
