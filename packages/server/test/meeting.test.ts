@@ -28,7 +28,7 @@ function meeting(id: string, over: Partial<Meeting> = {}): Meeting {
 
 function item(id: string, over: Partial<AgendaItem> = {}): AgendaItem {
   return {
-    id, workspace_id: 'w', meeting_id: 'm1', title: id, description: null, projects: [],
+    id, workspace_id: 'w', meeting_id: 'm1', title: id, description: null, projects: [], assignees: [],
     status: 'open', notes: null, notes_body: null, created_by: 'ada', carried_from: null,
     sort_order: 'V', created_at: 1, updated_at: 1, deleted_at: null, seq: 1,
     ...over,
@@ -103,7 +103,7 @@ describe('which meetings are still ahead', () => {
 
 describe('carrying the unfinished points forward', () => {
   const agenda = [
-    item('a', { sort_order: orderKey(null, null), status: 'open', projects: ['p1'], notes: 'said in m1' }),
+    item('a', { sort_order: orderKey(null, null), status: 'open', projects: ['p1'], assignees: ['lin'], notes: 'said in m1' }),
     item('b', { sort_order: orderKey(orderKey(null, null), null), status: 'discussed' }),
     item('c', { sort_order: orderKey(orderKey(orderKey(null, null), null), null), status: 'deferred' }),
   ];
@@ -117,6 +117,7 @@ describe('carrying the unfinished points forward', () => {
     assert.equal(first.status, 'open');
     assert.equal(first.carried_from, 'a');
     assert.deepEqual(first.projects, ['p1']);
+    assert.deepEqual(first.assignees, ['lin'], 'a topic deferred is not a topic handed back');
     assert.equal('notes' in first, false, 'the notes belong to the meeting that had them');
     assert.ok(plan.create[0].patch.sort_order < plan.create[1].patch.sort_order, 'and in the order they had');
   });
@@ -144,7 +145,7 @@ describe('carrying the unfinished points forward', () => {
 describe('the minutes', () => {
   const words: MinutesWords = {
     when: 'Tuesday, 3 November 2026 at 10:00',
-    attendees: 'Attendees', projects: 'Projects', broughtBy: 'Brought by', notes: 'Notes', tasks: 'Tasks',
+    attendees: 'Attendees', projects: 'Projects', assignees: 'Responsible', broughtBy: 'Brought by', notes: 'Notes', tasks: 'Tasks',
     continued: 'continued from an earlier meeting', empty: 'Nothing was on the agenda.',
     status: { open: 'Open', discussed: 'Discussed', deferred: 'Deferred' },
   };
@@ -156,7 +157,7 @@ describe('the minutes', () => {
       meeting: meeting('m', { attendees: ['ada', 'lin', 'nobody'], location: 'Room 2' }),
       items: [
         item('b', { title: 'Pricing page', sort_order: orderKey(orderKey(null, null), null), status: 'deferred', carried_from: 'z' }),
-        item('a', { title: 'Release', sort_order: orderKey(null, null), status: 'discussed', projects: ['p1'], notes: 'Ship on Friday.' }),
+        item('a', { title: 'Release', sort_order: orderKey(null, null), status: 'discussed', projects: ['p1'], assignees: ['lin', 'nobody'], notes: 'Ship on Friday.' }),
       ],
       tasks: [{ agenda_item_id: 'a', identifier: 'WEB-7', title: 'Tag the release', state: 'Todo', assignees: ['Lin'] }],
       people, projects, words,
@@ -164,7 +165,7 @@ describe('the minutes', () => {
     assert.match(text, /\*\*Tuesday, 3 November 2026 at 10:00\*\* · Room 2\n/);
     assert.match(text, /\*\*Attendees:\*\* Ada, Lin\n/, 'an id nobody can name is left out, not printed');
     assert.ok(text.indexOf('## 1. Release') < text.indexOf('## 2. Pricing page'), 'in agenda order');
-    assert.match(text, /_Discussed_ · Projects: WEB · Brought by: Ada/);
+    assert.match(text, /_Discussed_ · Projects: WEB · Responsible: Lin · Brought by: Ada/);
     assert.match(text, /### Notes\n\nShip on Friday\./);
     assert.match(text, /- WEB-7 Tag the release — Todo \(Lin\)/);
     assert.match(text, /_Deferred_ · Brought by: Ada · continued from an earlier meeting/);

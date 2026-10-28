@@ -1053,6 +1053,8 @@ export const de: Catalogue = {
   'meeting.attendees': 'Teilnehmende',
   'meeting.addPerson': 'Person hinzufügen',
   'meeting.removePerson': '{name} entfernen',
+  'meeting.assignees': 'Zuständig',
+  'meeting.addAssignee': 'Zuständige Person hinzufügen',
   'meeting.noTime': 'Kein Termin',
   'meeting.planned': 'Geplant',
   'meeting.done': 'Abgeschlossen',

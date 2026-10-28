@@ -11,11 +11,19 @@ what was said is filed as a page. Off by default; switched on per workspace unde
 | | |
 |---|---|
 | **Meeting** | When, where, who is expected, what it is for, and whether it is still ahead or closed |
-| **Agenda point** | One topic: a title, an optional description, the projects it is about, where it got to — *open*, *discussed* or *deferred* — and its notes. Its own row, so two people adding topics at once from two devices both end up on the agenda |
+| **Agenda point** | One topic: a title, an optional description, the projects it is about, who is responsible for it, where it got to — *open*, *discussed* or *deferred* — and its notes. Its own row, so two people adding topics at once from two devices both end up on the agenda |
 | **Task** | An ordinary task that knows the point it came out of (`tasks.agenda_item_id`). On the task, not as a list on the point, so two tasks filed from one point at once are both kept |
 
 A point records who brought it, and that is the server's to say: `created_by` cannot be written by
 a client, so "everybody can bring a topic" comes with an agenda that is truthful about who did.
+
+Who is **responsible** for a point is a different fact and its own list, `assignees`: the person who
+raises "the pricing page is wrong" is rarely the one who has to fix it, and the agenda wants to say
+both. Any number of people, and none is fine. Only the workspace's members can be named — not its
+guests, for the reason a guest is not sent meetings at all; the picker does not offer them and the
+write path takes them off a list that arrives from somewhere else. The same rule applies to who is
+expected at the meeting. Filing a task from a point starts with the point's first responsible person
+as the assignee, changed in one click.
 
 ## The notes are a merge, not a race
 
@@ -63,7 +71,8 @@ what came of it.
 ## Carrying the unfinished topics forward
 
 Everything that was not *discussed* — open and deferred alike — goes onto the next meeting's agenda,
-at the end and open, in the order it had. What was still *open* is marked *deferred* where it was,
+at the end and open, in the order it had, with the same people responsible for it: a topic deferred
+is not a topic handed back. What was still *open* is marked *deferred* where it was,
 because that is what happened to it. The notes stay where they were written: the new point links
 back to the one it continues (*"Continued from …"*), rather than copying a conversation into a room
 that did not have it.
@@ -82,8 +91,8 @@ A carried point keeps who brought it. Whoever pressed the button at the end of t
 ## The minutes are a page
 
 **File the minutes as a page** writes the meeting up as markdown: the time and place, who was
-expected, and one section per point with its state, its projects, who brought it, the notes, and the
-tasks filed from it. The page is linked from the meeting. Filing again rewrites *the same page* from
+expected, and one section per point with its state, its projects, who is responsible, who brought it,
+the notes, and the tasks filed from it. The page is linked from the meeting. Filing again rewrites *the same page* from
 the meeting as it stands, after asking — somebody may have tidied it by hand — and the previous text
 stays in the page's history like any other edit.
 
@@ -111,8 +120,8 @@ are work, and the work is still owed.
 | `get_meeting` | the agenda in order, with each point's notes, projects, author and tasks. A title several meetings share — a weekly — means the next one still open |
 | `create_meeting` | a time, a place, who is expected, and optionally the first topics |
 | `update_meeting` | move it, rename it, change who is expected, or close it |
-| `add_agenda_item` | a topic at the end of the agenda, as whoever the token belongs to |
-| `update_agenda_item` | state, title, description, projects, and the notes — `append_notes` while people may be typing |
+| `add_agenda_item` | a topic at the end of the agenda, as whoever the token belongs to, optionally with who is responsible |
+| `update_agenda_item` | state, title, description, projects, who is responsible, and the notes — `append_notes` while people may be typing |
 | `create_task_from_agenda_item` | a task that remembers the point; the project defaults to the point's first |
 | `carry_over_agenda` | the button, as a tool — same rows, same ids |
 | `file_meeting_minutes` | the minutes as a page, or the same page rewritten |
@@ -125,7 +134,8 @@ are work, and the work is still owed.
 - **No series.** A weekly is a meeting and its follow-ups, each called by carrying the agenda forward.
   A recurrence rule would need an answer to "what happens to next week's agenda when this week's
   moves", and that answer is a design, not a column.
-- **No notification** when somebody adds a topic or is put on a meeting. Asked for the first time
+- **No notification** when somebody adds a topic, is put on a meeting, or is made responsible for a
+  point. Asked for the first time
   somebody misses a meeting because of it, not before.
 - **Not searchable.** Agenda points are not in the full-text index. The index carries one project per
   row and a point carries several, which is the budget's problem and wants the budget's answer.

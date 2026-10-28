@@ -66,6 +66,9 @@ export async function switchOnMeetings(page) {
         title: 'Release date for the onboarding redesign',
         description: 'Design is signed off; QA wants another two days.',
         projects: project ? [project.id] : [],
+        // Somebody responsible, so the point carries the chip row with a
+        // person in it — a name and a remove button inside a 32px chip.
+        assignees: [me],
         status: 'discussed',
         notes: 'Agreed: ship on Friday. Ada writes the release note, QA checks the empty states first.',
       },

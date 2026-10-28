@@ -163,6 +163,10 @@ for (const [table, column, definition] of [
    * meetings, which is exactly what each of them is: not from one.
    */
   ['tasks', 'agenda_item_id', 'TEXT'],
+  // Who is responsible for a point. The table shipped a day before the column
+  // did, which is exactly the case this list is for: `[]` on every point that
+  // already exists, which is what each of them had — nobody named.
+  ['agenda_items', 'assignees', `TEXT NOT NULL DEFAULT '[]'`],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

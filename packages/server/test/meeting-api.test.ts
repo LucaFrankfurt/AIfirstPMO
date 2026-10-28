@@ -168,6 +168,24 @@ describe('everybody brings topics, and the agenda says truthfully who', () => {
     assert.deepEqual(point.projects, [mine.id]);
   });
 
+  it('makes members responsible for a point, and nobody else', async () => {
+    const sam = await join('meet-topics-sam@example.com', workspace, owner, 'guest');
+    const stranger = await register('meet-topics-stranger@example.com');
+    const meeting = await newMeeting(workspace, owner, { attendees: [owner.id, sam.id] });
+    assert.deepEqual(meeting.attendees, [owner.id], 'a guest expected at a meeting they are never sent');
+
+    const point = await newItem(workspace, lin, meeting.id, {
+      assignees: [lin.id, owner.id, sam.id, stranger.person.id, lin.id],
+    });
+    assert.deepEqual(point.assignees, [lin.id, owner.id],
+      'a guest, a stranger or a duplicate made responsible for a point');
+    // Who brought it is still who brought it: responsibility is a different fact.
+    assert.equal(point.created_by, lin.id);
+
+    const cleared = await ok(`/api/agenda-items/${point.id}`, { cookie: owner.cookie, method: 'PATCH', body: { assignees: [] } });
+    assert.deepEqual(cleared.assignees, []);
+  });
+
   it('refuses a meeting in another workspace as a point’s meeting', async () => {
     const other = await register('meet-topics-cross@example.com');
     await switchOn(other.workspace, other.person);
@@ -326,6 +344,30 @@ describe('what an assistant does with a meeting afterwards', () => {
     assert.deepEqual(meeting.items.map((point: any) => point.title), ['Release date', 'Pricing page', 'Hiring']);
     assert.equal(meeting.starts_at, '2026-11-03T10:00:00.000Z');
     assert.equal(meeting.attendees.length, 1);
+  });
+
+  it('names who is responsible for a point, and refuses a name it cannot place', async () => {
+    const grace = await join('meet-after-grace@example.com', workspace, owner);
+    const guest = await join('meet-after-guest@example.com', workspace, owner, 'guest');
+    // Its own meeting: the cases below count what is on the release weekly.
+    // Undated, so it is never the meeting the carry-over below picks as "next".
+    const planning = await tool(owner.token, 'create_meeting', { title: 'Budget planning' });
+    const added = await tool(owner.token, 'add_agenda_item', {
+      meeting: planning.id, title: 'Budget for Q1', assignees: ['meet-after-grace@example.com'],
+    });
+    assert.deepEqual(added.item.assignees, [grace.id]);
+
+    await assert.rejects(
+      () => tool(owner.token, 'update_agenda_item', { item: added.item.id, assignees: ['Nobody Atall'] }),
+      /Nobody in this workspace matches/,
+    );
+    await assert.rejects(
+      () => tool(owner.token, 'update_agenda_item', { item: added.item.id, assignees: [guest.id] }),
+      /guest/,
+    );
+
+    const read = await tool(owner.token, 'get_meeting', { meeting: planning.id });
+    assert.deepEqual(read.items[0].assignees, ['meet-after-grace']);
   });
 
   it('files a task from a point, in the point’s project, and remembers where it came from', async () => {

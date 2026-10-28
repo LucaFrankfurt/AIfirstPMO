@@ -561,6 +561,15 @@ export interface AgendaItem extends Base {
   description: string | null;
   /** The projects this point is about. Any number, and none is fine. */
   projects: ID[];
+  /**
+   * Who is responsible for the point — presents it, owns the question, takes
+   * it forward. Any number of the workspace's members, and none is fine.
+   *
+   * Not who brought it, which is `created_by` and a fact about the past: the
+   * person who raises "the pricing page is wrong" is rarely the one who has to
+   * fix it, and the agenda wants to say both.
+   */
+  assignees: ID[];
   status: AgendaStatus;
   notes: string | null;
   notes_body: CrdtState | null;

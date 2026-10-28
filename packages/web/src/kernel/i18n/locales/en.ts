@@ -1059,6 +1059,8 @@ export const en = {
   'meeting.attendees': 'Attendees',
   'meeting.addPerson': 'Add a person',
   'meeting.removePerson': 'Remove {name}',
+  'meeting.assignees': 'Responsible',
+  'meeting.addAssignee': 'Make someone responsible',
   'meeting.noTime': 'No time set',
   'meeting.planned': 'Planned',
   'meeting.done': 'Closed',

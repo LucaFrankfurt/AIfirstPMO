@@ -177,7 +177,7 @@ export const carriedItemId = (meetingId: ID, itemId: ID): ID => `${meetingId}.${
 /** What one point becomes in the next meeting. */
 export interface CarriedPoint {
   id: ID;
-  patch: Pick<AgendaItem, 'meeting_id' | 'title' | 'description' | 'projects' | 'status' | 'carried_from' | 'sort_order'>;
+  patch: Pick<AgendaItem, 'meeting_id' | 'title' | 'description' | 'projects' | 'assignees' | 'status' | 'carried_from' | 'sort_order'>;
 }
 
 /**
@@ -216,6 +216,9 @@ export function carryOver(
         title: item.title,
         description: item.description ?? null,
         projects: [...(item.projects ?? [])],
+        // Whoever was responsible for it still is: a topic deferred is not a
+        // topic handed back.
+        assignees: [...(item.assignees ?? [])],
         status: 'open',
         carried_from: item.id,
         sort_order: key,
@@ -243,6 +246,7 @@ export interface MinutesWords {
   when: string;
   attendees: string;
   projects: string;
+  assignees: string;
   broughtBy: string;
   notes: string;
   tasks: string;
@@ -265,8 +269,9 @@ export interface MinutesTask {
  * The minutes of one meeting, as markdown for a page.
  *
  * One section per point, numbered in agenda order, carrying what the screen
- * shows: where it got to, the projects it is about, who brought it, what was
- * written in it and the tasks that came out of it. A point with nothing
+ * shows: where it got to, the projects it is about, who is responsible for
+ * it, who brought it, what was written in it and the tasks that came out of
+ * it. A point with nothing
  * written and nothing filed still gets its heading and its state — "we did not
  * get to it" is a line of minutes too.
  *
@@ -310,6 +315,8 @@ export function minutesMarkdown(input: {
     const facts = [`_${words.status[item.status] ?? words.status.open}_`];
     const named = (item.projects ?? []).map((id) => projects.get(id)).filter((name): name is string => !!name);
     if (named.length) facts.push(`${words.projects}: ${named.join(', ')}`);
+    const owners = (item.assignees ?? []).map((id) => people.get(id)).filter((name): name is string => !!name);
+    if (owners.length) facts.push(`${words.assignees}: ${owners.join(', ')}`);
     const by = item.created_by ? people.get(item.created_by) : undefined;
     if (by) facts.push(`${words.broughtBy}: ${by}`);
     if (item.carried_from) facts.push(words.continued);

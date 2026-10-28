@@ -20,7 +20,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   AGENDA_STATUS, agendaOf, agendaTally, isOverdue, nextAgendaKey, orderKey,
-  type AgendaItem, type AgendaStatus, type Meeting, type MinutesWords, type Task,
+  type AgendaItem, type AgendaStatus, type Meeting, type MinutesWords, type Task, type User,
 } from '@kolibri/shared';
 import { AvatarStack, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -29,8 +29,8 @@ import { Input, Label, Select, Textarea } from '../../kernel/design-system/ui/fi
 import { exactTime, longDate, clockTime } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { create, createTask, remove, update } from '../../kernel/sync/mutations';
-import { list, useQuery, useRow } from '../../kernel/sync/store';
-import { useCanWrite, useFeature, useMe, useMemberMap, useMembers, useSession } from '../../kernel/identity/session';
+import { byId, list, useQuery, useRow } from '../../kernel/sync/store';
+import { useCanWrite, useFeature, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
 import { useCollaborativeText, type CollabTarget } from '../pages/collab';
 import { setTyping, useTypists } from '../chat/presence';
 
@@ -163,15 +163,34 @@ function PickChips({
   );
 }
 
-export function AttendeePicker({ value, onChange, disabled }: { value: string[]; onChange: (next: string[]) => void; disabled?: boolean }) {
+/**
+ * The people a meeting can name: the workspace's members, and not its guests.
+ *
+ * The same line the server draws — a guest is never sent a meeting, so
+ * expecting one at it or making one responsible for a point would put a name
+ * on a screen its owner cannot open. Offering them here and having the write
+ * path take them back off would be a picker that lies for a round trip.
+ */
+export function useMeetingPeople(): User[] {
+  const { workspaceId } = useSession();
+  return useQuery(() => list('member', (member) => member.workspace_id === workspaceId && member.role !== 'guest')
+    .map((member) => byId('user', member.user_id))
+    .filter((user): user is User => !!user)
+    .sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '')), [workspaceId]);
+}
+
+/** Any number of the workspace's members, as chips — who is expected, or who is responsible. */
+export function PeoplePicker({
+  value, onChange, disabled, addLabel,
+}: { value: string[]; onChange: (next: string[]) => void; disabled?: boolean; addLabel: string }) {
   const t = useT();
-  const members = useMembers();
+  const people = useMeetingPeople();
   return (
     <PickChips
       chosen={value}
-      options={members.map((user) => ({ id: user.id, label: user.name ?? user.email ?? user.id }))}
+      options={people.map((user) => ({ id: user.id, label: user.name ?? user.email ?? user.id }))}
       onChange={onChange}
-      addLabel={t('meeting.addPerson')}
+      addLabel={addLabel}
       removeLabel={(name) => t('meeting.removePerson', { name })}
       disabled={disabled}
     />
@@ -232,7 +251,12 @@ export function MeetingFields({
       </div>
       <div className="flex flex-col gap-1.5">
         <span className="text-[12.5px] font-medium text-soft">{t('meeting.attendees')}</span>
-        <AttendeePicker value={meeting.attendees ?? []} onChange={(attendees) => onChange({ attendees })} disabled={disabled} />
+        <PeoplePicker
+          value={meeting.attendees ?? []}
+          onChange={(attendees) => onChange({ attendees })}
+          disabled={disabled}
+          addLabel={t('meeting.addPerson')}
+        />
       </div>
       <Label label={t('meeting.purpose')}>
         <Textarea
@@ -301,6 +325,7 @@ export function AddTopic({ meetingId, agenda }: { meetingId: string; agenda: Age
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [projects, setProjects] = useState<string[]>([]);
+  const [assignees, setAssignees] = useState<string[]>([]);
 
   return (
     <form
@@ -314,6 +339,7 @@ export function AddTopic({ meetingId, agenda }: { meetingId: string; agenda: Age
           title: text,
           description: description.trim() || null,
           projects,
+          assignees,
           status: 'open',
           notes: null,
           notes_body: null,
@@ -324,6 +350,7 @@ export function AddTopic({ meetingId, agenda }: { meetingId: string; agenda: Age
         setTitle('');
         setDescription('');
         setProjects([]);
+        setAssignees([]);
       }}
     >
       <Label label={t('meeting.addTopic')}>
@@ -338,6 +365,7 @@ export function AddTopic({ meetingId, agenda }: { meetingId: string; agenda: Age
             value={description}
             onChange={(event) => setDescription(event.target.value)}
           />
+          <PeoplePicker value={assignees} onChange={setAssignees} addLabel={t('meeting.addAssignee')} />
           <ProjectChips value={projects} onChange={setProjects} />
         </>
       )}
@@ -426,7 +454,7 @@ function PointTasks({ item, canWrite }: { item: AgendaItem; canWrite: boolean })
   const t = useT();
   const me = useMe();
   const toast = useToast();
-  const members = useMembers();
+  const members = useMeetingPeople();
   const projects = useTaggableProjects();
   const tasks = useQuery(() => list('task', (task) => task.agenda_item_id === item.id && !task.deleted_at), [item.id]);
   const [open, setOpen] = useState(false);
@@ -445,7 +473,16 @@ function PointTasks({ item, canWrite }: { item: AgendaItem; canWrite: boolean })
       )}
       {canWrite && !open && (
         <div>
-          <Button size="sm" variant="ghost" onClick={() => setOpen(true)}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              // Whoever is responsible for the point is the likeliest owner of
+              // what comes out of it — a default, changed in one click.
+              setAssignee(item.assignees.find((id) => members.some((user) => user.id === id)) ?? '');
+              setOpen(true);
+            }}
+          >
             <Icon name="plus" size={13} /> {t('meeting.newTask')}
           </Button>
         </div>
@@ -608,7 +645,29 @@ export function AgendaPoint({
         )}
       </div>
 
+      {/* Who is responsible, then what it is about. Each row carries an icon
+          rather than a caption, which would be a fourth label on a card that
+          already has three; the caption is still there for a screen reader. */}
+      {(canWrite || item.assignees.length > 0) && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-muted" title={t('meeting.assignees')}>
+            <Icon name="users" size={14} />
+            <span className="sr-only">{t('meeting.assignees')}</span>
+          </span>
+          <PeoplePicker
+            value={item.assignees}
+            disabled={!canWrite}
+            addLabel={t('meeting.addAssignee')}
+            onChange={(assignees) => update('agendaItem', item.id, { assignees })}
+          />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-muted" title={t('meeting.projects')}>
+          <Icon name="folder" size={14} />
+          <span className="sr-only">{t('meeting.projects')}</span>
+        </span>
         <ProjectChips
           value={item.projects}
           disabled={!canWrite}
@@ -660,6 +719,7 @@ export function useMinutesWords(meeting: Meeting | undefined): MinutesWords {
     when: meeting?.starts_at ? exactTime(meeting.starts_at) : '',
     attendees: t('meeting.attendees'),
     projects: t('meeting.projects'),
+    assignees: t('meeting.assignees'),
     broughtBy: t('meeting.minutesBroughtBy'),
     notes: t('meeting.notes'),
     tasks: t('meeting.tasks'),

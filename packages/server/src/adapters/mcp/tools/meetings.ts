@@ -28,7 +28,7 @@ import { uid } from '../../../kernel/platform/ids.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { localeOf, translatorFor } from '../../../kernel/i18n/i18n.ts';
 import {
-  fileTask, findProject, McpError, namesOf, requireFeature, requireWrite, resolveUsers, safeList, str, taskView,
+  fileTask, findMember, findProject, McpError, namesOf, requireFeature, requireWrite, resolveUsers, safeList, str, taskView,
   type McpCtx, type ToolDef, workspaceOf, writeOpts,
 } from '../kit.ts';
 
@@ -97,6 +97,28 @@ function instant(value: unknown, field: string): number | null {
   return Math.round(at);
 }
 
+/**
+ * People in, user ids out — for who is responsible for a point.
+ *
+ * Refused rather than dropped, for the reason `findMember` gives: a misspelt
+ * name that quietly vanishes reads as "nobody is on this", reported as a
+ * success. A guest is refused too, and by name, because the write path would
+ * otherwise narrow them away just as quietly — a guest is never sent a meeting.
+ */
+function assigneeIds(refs: unknown, workspaceId: string): string[] {
+  const out: string[] = [];
+  for (const ref of Array.isArray(refs) ? refs : []) {
+    const person = findMember(String(ref), workspaceId);
+    const role = get<Row>(
+      `SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
+      workspaceId, String(person.id),
+    )?.role;
+    if (role === 'guest') throw new McpError(`${person.name} is a guest here, and a guest is not sent meetings`);
+    if (!out.includes(String(person.id))) out.push(String(person.id));
+  }
+  return out;
+}
+
 /** Project keys in, project ids out — refused when one is not there, rather than dropped. */
 const projectIds = (refs: unknown, workspaceId: string, ctx: McpCtx): string[] =>
   (Array.isArray(refs) ? refs : []).map((ref) => String(findProject(String(ref), workspaceId, ctx).id));
@@ -156,7 +178,7 @@ function meetingReport(meeting: Meeting, ctx: McpCtx) {
   const items = itemsOf(meeting.id);
   const tasks = tasksFrom(items, meeting.workspace_id, audience);
   const keys = projectKeys(meeting.workspace_id, audience);
-  const names = namesOf(items.map((item) => item.created_by ?? ''));
+  const names = namesOf(items.flatMap((item) => [item.created_by ?? '', ...item.assignees]));
   return {
     ...meetingSummary(meeting),
     description: meeting.description,
@@ -169,6 +191,7 @@ function meetingReport(meeting: Meeting, ctx: McpCtx) {
       // A project the caller cannot see is left out rather than shown as an id:
       // the id is not theirs to have either.
       projects: item.projects.map((id) => keys.get(id)).filter((key): key is string => !!key),
+      assignees: item.assignees.map((id) => names[id] ?? id),
       brought_by: item.created_by ? names[item.created_by] ?? null : null,
       notes: item.notes ?? '',
       carried_from: item.carried_from,
@@ -325,7 +348,9 @@ export const meetingTools: ToolDef[] = [
     title: 'Put a topic on the agenda',
     description:
       'A point at the end of a meeting\'s agenda, as whoever this token belongs to. `projects` are '
-      + 'the projects it is about, by key, id or name — any number, and none is fine.',
+      + 'the projects it is about, by key, id or name — any number, and none is fine. `assignees` are '
+      + 'the people responsible for it, by id, email or name; somebody who matches nobody, or a guest, '
+      + 'is refused rather than left off.',
     schema: {
       type: 'object',
       properties: {
@@ -333,6 +358,7 @@ export const meetingTools: ToolDef[] = [
         title: { type: 'string' },
         description: { type: 'string' },
         projects: { type: 'array', items: { type: 'string' } },
+        assignees: { type: 'array', items: { type: 'string' }, description: 'Who is responsible — ids, emails or names' },
         workspace_id: { type: 'string' },
       },
       required: ['meeting', 'title'],
@@ -347,6 +373,7 @@ export const meetingTools: ToolDef[] = [
         title,
         description: str(args.description) ?? null,
         projects: projectIds(args.projects, workspaceId, ctx),
+        assignees: assigneeIds(args.assignees, workspaceId),
         status: 'open',
         sort_order: nextAgendaKey(itemsOf(meeting.id)),
       }, writeOpts(workspaceId, ctx));
@@ -357,7 +384,8 @@ export const meetingTools: ToolDef[] = [
     name: 'update_agenda_item',
     title: 'Work on an agenda point',
     description:
-      'Change a point\'s state, title, description or projects, or write in its notes. '
+      'Change a point\'s state, title, description, projects or who is responsible for it, or write '
+      + 'in its notes. '
       + '`append_notes` adds a paragraph after what is there and is what to use while people may '
       + 'be typing in the same point; `notes` replaces them, and the previous text is gone from '
       + 'the point. `status` is "open", "discussed" or "deferred".',
@@ -369,6 +397,7 @@ export const meetingTools: ToolDef[] = [
         description: { type: 'string' },
         status: { type: 'string', enum: [...AGENDA_STATUS] },
         projects: { type: 'array', items: { type: 'string' }, description: 'The whole list, replacing the one there' },
+        assignees: { type: 'array', items: { type: 'string' }, description: 'Who is responsible — the whole list, replacing the one there. Empty clears it' },
         notes: { type: 'string', description: 'Replaces the notes' },
         append_notes: { type: 'string', description: 'Added as a new paragraph after the notes' },
         workspace_id: { type: 'string' },
@@ -384,6 +413,7 @@ export const meetingTools: ToolDef[] = [
       if (args.description !== undefined) patch.description = str(args.description) ?? null;
       if (str(args.status)) patch.status = str(args.status) as AgendaStatus;
       if (Array.isArray(args.projects)) patch.projects = projectIds(args.projects, workspaceId, ctx);
+      if (Array.isArray(args.assignees)) patch.assignees = assigneeIds(args.assignees, workspaceId);
       if (typeof args.notes === 'string') patch.notes = args.notes;
       if (str(args.append_notes)) {
         const before = String(patch.notes ?? item.notes ?? '').trimEnd();
@@ -491,7 +521,8 @@ export const meetingTools: ToolDef[] = [
       const items = itemsOf(meeting.id);
       const tasks = tasksFrom(items, workspaceId, 'everybody');
       const people = new Map(Object.entries(namesOf([
-        ...meeting.attendees, ...items.map((item) => item.created_by ?? ''), ...tasks.flatMap((task) => safeList(task.assignees)),
+        ...meeting.attendees, ...items.flatMap((item) => [item.created_by ?? '', ...item.assignees]),
+        ...tasks.flatMap((task) => safeList(task.assignees)),
       ])));
       const states = new Map(all<Row>(`SELECT id, name FROM states WHERE workspace_id = ?`, workspaceId)
         .map((row) => [String(row.id), String(row.name)]));
@@ -511,6 +542,7 @@ export const meetingTools: ToolDef[] = [
           when: spokenTime(meeting.starts_at, ctx.auth.userId),
           attendees: t('minutes.attendees'),
           projects: t('minutes.projects'),
+          assignees: t('minutes.assignees'),
           broughtBy: t('minutes.broughtBy'),
           notes: t('minutes.notes'),
           tasks: t('minutes.tasks'),

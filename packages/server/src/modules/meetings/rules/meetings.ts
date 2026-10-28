@@ -16,9 +16,12 @@
  * send the row to nobody, and the person who added it would be told it was
  * saved.
  *
- * **What a point names is in this workspace.** `projects` and `attendees` are
- * lists, which the write path's reference check does not read, so they are
- * narrowed here to rows that exist where the meeting is.
+ * **What a point names is in this workspace.** `projects`, `attendees` and
+ * `assignees` are lists, which the write path's reference check does not read,
+ * so they are narrowed here to rows that exist where the meeting is. The two
+ * lists of people take members and not guests: a guest is never sent a
+ * meeting, so expecting one at it, or making one responsible for a point on
+ * it, names somebody who cannot open the screen their name is on.
  *
  * **Deleting a meeting takes its agenda, and restoring it brings it back.**
  * The second half is the one a decision does not have yet, and the reason it
@@ -70,6 +73,13 @@ function narrow(
   forced[field] = kept;
 }
 
+/** Somebody who is sent meetings at all: in the workspace, and not as a guest. */
+const isMember = (workspaceId: string, userId: string): boolean => !!get(
+  `SELECT 1 FROM workspace_members
+    WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL AND role IN ('owner', 'admin', 'member')`,
+  workspaceId, userId,
+);
+
 function applyMeetingInvariants(
   entity: string,
   values: Record<string, unknown>,
@@ -91,9 +101,7 @@ function applyMeetingInvariants(
       // instant in 1970, and a meeting there sorts first on every list.
       settle('starts_at', Number.isFinite(at) && at > 0 ? at : null);
     }
-    narrow(values, forced, 'attendees', idsIn(values.attendees), (id) => !!get(
-      `SELECT 1 FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`, workspaceId, id,
-    ));
+    narrow(values, forced, 'attendees', idsIn(values.attendees), (id) => isMember(workspaceId, id));
   }
 
   if (entity === 'agendaItem') {
@@ -101,6 +109,7 @@ function applyMeetingInvariants(
     narrow(values, forced, 'projects', idsIn(values.projects), (id) => !!get(
       `SELECT 1 FROM projects WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`, id, workspaceId,
     ));
+    narrow(values, forced, 'assignees', idsIn(values.assignees), (id) => isMember(workspaceId, id));
     settleCrdtText(values, existing, forced, NOTES);
   }
 }

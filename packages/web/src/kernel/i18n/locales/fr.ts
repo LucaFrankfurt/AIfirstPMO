@@ -1056,6 +1056,8 @@ export const fr: Catalogue = {
   'meeting.attendees': 'Participants',
   'meeting.addPerson': 'Ajouter une personne',
   'meeting.removePerson': 'Retirer {name}',
+  'meeting.assignees': 'Responsables',
+  'meeting.addAssignee': 'Désigner un responsable',
   'meeting.noTime': 'Pas d’heure fixée',
   'meeting.planned': 'Prévue',
   'meeting.done': 'Clôturée',

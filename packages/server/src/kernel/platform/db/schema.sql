@@ -975,6 +975,8 @@ CREATE TABLE IF NOT EXISTS agenda_items (
   title        TEXT NOT NULL DEFAULT '',
   description  TEXT,
   projects     TEXT NOT NULL DEFAULT '[]',
+  -- Who is responsible for the point. Not who brought it — that is `created_by`.
+  assignees    TEXT NOT NULL DEFAULT '[]',
   status       TEXT NOT NULL DEFAULT 'open',
   notes        TEXT,
   notes_body   TEXT,

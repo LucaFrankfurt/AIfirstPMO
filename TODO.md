@@ -1725,7 +1725,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **64** the list carries; the other undroppable-looking eight turned out to be something else
+      **65** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1800,11 +1800,17 @@ two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.
       on the old graph, tie-breaks included — checked against the old loop on the real graph and on
       four hundred random ones. `figures.mjs` spells numbers to ninety-nine, because "Nineteen
       imports" became twenty-three.
+- [x] **Somebody responsible for a point.** `agenda_items.assignees`, any number of members and none
+      is fine — a separate fact from who brought it, which is `created_by`. Guests cannot be named,
+      for the reason they are never sent a meeting; the same rule now applies to who is expected at
+      one, which used to take any member of the workspace including its guests. The column arrived a
+      day after the table, so it is in the upgrade list. Carried forward with the point, printed in
+      the minutes, and the first one is the default assignee of a task filed from the point.
 - [ ] **A recurring series.** A weekly is a meeting and its follow-ups, called one at a time by
       carrying the agenda forward. A rule would have to say what happens to next week's agenda when
       this week's meeting moves, and that is a design rather than a column.
 - [ ] **Invitations and notifications.** A meeting is not in the `.ics` feed and nobody is told they
-      were put on one or that a topic was added. Wait for the first person who missed a meeting
+      were put on one, that a topic was added, or that they were made responsible for a point. Wait for the first person who missed a meeting
       because of it.
 - [ ] **Search and the workspace export.** Agenda points are not indexed — a point names several
       projects and the index carries one, which is the budget's problem — and meetings stay behind in

@@ -453,11 +453,11 @@ export const ENTITIES = {
   agendaItem: {
     table: 'agenda_items',
     fields: [
-      'workspace_id', 'meeting_id', 'title', 'description', 'projects', 'status',
+      'workspace_id', 'meeting_id', 'title', 'description', 'projects', 'assignees', 'status',
       'notes', 'notes_body', 'carried_from', 'sort_order',
     ],
     serverOnly: ['created_by'],
-    json: ['projects', 'notes_body'],
+    json: ['projects', 'assignees', 'notes_body'],
     crdt: ['notes_body'],
   },
   module: {

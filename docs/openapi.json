@@ -46,6 +46,13 @@
         "type": "object",
         "description": "A row of `agenda-items` (table `agenda_items`).",
         "properties": {
+          "assignees": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Who is responsible for the point — presents it, owns the question, takes it forward. Any number of the workspace's members, and none is fine. Not who brought it, which is `created_by` and a fact about the past: the person who raises \"the pricing page is wrong\" is rarely the one who has to fix it, and the agenda wants to say both."
+          },
           "carried_from": {
             "type": [
               "string",
