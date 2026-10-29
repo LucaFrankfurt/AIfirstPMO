@@ -54,7 +54,7 @@ const ics = (ctx: Ctx, body: string, filename: string): undefined => {
 /** The person a feed token belongs to, or nothing. */
 const holder = (token: string): Row | undefined =>
   (token.length >= 16
-    ? get<Row>(`SELECT id, name, locale FROM users WHERE calendar_token = ? AND deleted_at IS NULL`, token)
+    ? get<Row>(`SELECT id, name, locale, timezone FROM users WHERE calendar_token = ? AND deleted_at IS NULL`, token)
     : undefined);
 
 const memberships = (userId: string): string[] =>
@@ -200,6 +200,8 @@ export function registerCalendarRoutes(router: Router): void {
       filters: readFilters(view.filters),
       includeDone: !!view.show_done,
       withDueDate: true,
+      // "Overdue" in the subscriber's calendar, since it is their calendar.
+      zone: user.timezone ? String(user.timezone) : null,
       orderBy: 'due_date',
       limit: 1000,
     });

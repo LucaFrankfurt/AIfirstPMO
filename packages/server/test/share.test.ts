@@ -273,6 +273,97 @@ describe('a shared task list', () => {
     assert.deepEqual(await shared({ not: { label: [label.id] } }), { ada: false, nobody: true });
   });
 
+  /*
+   * The rest of what a view can say. `group`, `due` and `text` were never
+   * translated at all — measured: each of the four showed a task the view
+   * leaves out — and `cycle = none` was translated into an `IN ('')` that a
+   * `NULL` never matches, which showed *fewer*. The board's own function now
+   * has the last word, so the two cannot drift apart again by one of them
+   * learning a key the other has not.
+   */
+  describe('the rest of what a view can say', () => {
+    const titles = ['Alpha started overdue', 'Beta unstarted today', 'Gamma no date', 'Delta next week', 'Epsilon in a sprint'];
+    const utcDay = () => new Date().toISOString().slice(0, 10);
+    const shift = (day: string, count: number) => new Date(Date.parse(`${day}T00:00:00Z`) + count * 86_400_000).toISOString().slice(0, 10);
+    let project = '';
+
+    before(async () => {
+      project = (await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Filtered', key: 'FLT' })).id;
+      const states = await ok(`/api/workspaces/${workspaceId}/states?project_id=${project}`);
+      const started = states.find((state: any) => state.group_key === 'started');
+      const unstarted = states.find((state: any) => state.group_key === 'unstarted');
+      const sprint = await ok(`/api/workspaces/${workspaceId}/cycles`, {
+        project_id: project, name: 'Sprint 1', start_date: '2026-09-01', end_date: '2026-09-14',
+      });
+      const make = (title: string, extra: Record<string, unknown>) =>
+        ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: project, title, state_id: unstarted.id, ...extra });
+      await make(titles[0], { state_id: started.id, due_date: '2020-01-01' });
+      await make(titles[1], { due_date: utcDay() });
+      await make(titles[2], {});
+      await make(titles[3], { due_date: shift(utcDay(), 3) });
+      await make(titles[4], { cycle_id: sprint.id, due_date: shift(utcDay(), 30) });
+    });
+
+    /** Which of the five a shared view of `filters` shows, by first word. */
+    const shown = async (filters: unknown): Promise<string[]> => {
+      const view = await ok(`/api/workspaces/${workspaceId}/views`, { project_id: project, name: 'Slice', filters });
+      const share = await makeShare({ kind: 'tasks', project_id: project, view_id: view.id, include_done: 1 });
+      // A dozen links opened from one address in a few milliseconds is what
+      // the limit is for; this file resets it the same way above.
+      resetRateLimits();
+      const response = await open(`/s/${share.token}`);
+      assert.equal(response.status, 200);
+      const body = await response.text();
+      return titles.filter((title) => body.includes(title)).map((title) => title.split(' ')[0]);
+    };
+
+    it('reads a state group', async () => {
+      assert.deepEqual(await shown({ group: ['started'] }), ['Alpha']);
+    });
+
+    it('reads the four due buckets', async () => {
+      assert.deepEqual(await shown({ due: 'overdue' }), ['Alpha']);
+      assert.deepEqual(await shown({ due: 'today' }), ['Beta']);
+      assert.deepEqual(await shown({ due: 'week' }), ['Beta', 'Delta'], 'today through seven days, overdue left out');
+      assert.deepEqual(await shown({ due: 'none' }), ['Gamma']);
+    });
+
+    it('reads the words the way the board does, an exclusion on its own included', async () => {
+      assert.deepEqual(await shown({ text: 'alpha' }), ['Alpha']);
+      assert.deepEqual(await shown({ text: '-alpha -beta' }), ['Gamma', 'Delta', 'Epsilon']);
+    });
+
+    it('reads `cycle = none` as no cycle, and its `not` as some cycle', async () => {
+      assert.deepEqual(await shown({ cycle: [''] }), ['Alpha', 'Beta', 'Gamma', 'Delta']);
+      assert.deepEqual(await shown({ not: { cycle: [''] } }), ['Epsilon']);
+    });
+
+    it('survives a view whose JSON is not the shape a view has', async () => {
+      // Written through the API by anybody with a token; the page must not fall over on it.
+      assert.deepEqual(await shown({ assignee: 'oops', not: 'x', due: 5, text: 7, state: [1, null] }), ['Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon']);
+    });
+
+    it('reads "today" in the zone of whoever shared it', async () => {
+      // A zone whose day is not UTC's right now, whenever this runs: UTC+14
+      // is already tomorrow from 10:00 UTC on, UTC-11 still yesterday before 11:00.
+      const zone = new Date().getUTCHours() >= 10 ? 'Pacific/Kiritimati' : 'Pacific/Pago_Pago';
+      const there = new Intl.DateTimeFormat('en-CA', { timeZone: zone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(Date.now());
+      await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: project, title: 'Zeta due there today', due_date: there });
+      await ok('/api/me', { timezone: zone }, 'PATCH');
+      try {
+        const view = await ok(`/api/workspaces/${workspaceId}/views`, { project_id: project, name: 'Today there', filters: { due: 'today' } });
+        const share = await makeShare({ kind: 'tasks', project_id: project, view_id: view.id, include_done: 1 });
+        resetRateLimits();
+        const body = await (await open(`/s/${share.token}`)).text();
+        assert.match(body, /Zeta due there today/);
+        assert.notEqual(there, utcDay(), 'the zone was chosen to disagree with UTC');
+        assert.equal(body.includes(titles[1]), false, 'due on the UTC day, which is not today there');
+      } finally {
+        await ok('/api/me', { timezone: null }, 'PATCH');
+      }
+    });
+  });
+
   it('filters on a custom field, including the two questions a note can answer', async () => {
     const severity = await ok(`/api/workspaces/${workspaceId}/fields`, {
       project_id: projectId, name: 'Severity', kind: 'select', options: ['Low', 'High'],

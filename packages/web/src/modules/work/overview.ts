@@ -11,8 +11,10 @@
  * with it, and they are still right on a train.
  */
 
-/** How far ahead "coming up" looks, and how far back "done" remembers. */
-export const HORIZON_DAYS = 7;
+// How far ahead "coming up" looks, and how far back "done" remembers. Shared
+// with the server, which answers `due = week` for a shared link with it.
+import { HORIZON_DAYS } from '@kolibri/shared';
+export { HORIZON_DAYS };
 
 const DAY_MS = 86_400_000;
 

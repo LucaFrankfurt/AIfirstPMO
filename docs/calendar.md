@@ -24,6 +24,14 @@ is a separate feature and is not built.
 A task with no due date is not in the feed at all — there is nothing for a
 calendar to draw.
 
+A saved view resolves to the rows the board would show for it, because the
+board's own `passesFilters` has the last word over the SQL (`viewquery.ts`).
+`due = overdue`, `today` and `week` are read in the subscriber's time zone from
+their profile, UTC without one; a shared link reads them in the zone of whoever
+shared it. Until this was so, a shared or subscribed view skipped `assignee` and
+`label` when they asked "is one of", and `group`, `due` and the words entirely —
+every one of them showed more than the view.
+
 ## VEVENT or VTODO
 
 `VEVENT` by default, because a subscribed calendar is nearly always read by

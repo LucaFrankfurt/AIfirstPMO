@@ -302,6 +302,11 @@ function tasksBody(share: Row): string {
     projectId: share.project_id ? String(share.project_id) : null,
     filters: readFilters(view?.filters),
     includeDone: !!share.include_done,
+    // A stranger's "today" is unknowable; the person who shared the view
+    // decided what "overdue" meant when they made it.
+    zone: share.created_by
+      ? String(get<Row>(`SELECT timezone FROM users WHERE id = ?`, share.created_by)?.timezone ?? '') || null
+      : null,
   });
 
   const people = new Map(

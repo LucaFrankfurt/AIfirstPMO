@@ -23,6 +23,14 @@
  */
 import type { Filters, StateGroup, Task } from '../registry/types.ts';
 
+/**
+ * How far ahead `due = week` looks, and how far back *My work* remembers what
+ * was done. It lived beside that screen's figures, which was right while the
+ * browser was the only thing that asked; a shared link and a calendar feed ask
+ * the same question on the server now, and two sevens are one too many.
+ */
+export const HORIZON_DAYS = 7;
+
 /** What the filters ask about that a task does not carry itself. */
 export interface FilterLookup {
   /** The group a state belongs to — what `is: open` and `group` ask. */
