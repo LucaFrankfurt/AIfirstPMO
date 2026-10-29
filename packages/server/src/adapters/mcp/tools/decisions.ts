@@ -21,7 +21,7 @@ import {
   type McpCtx, type ToolDef, workspaceOf, writeOpts,
 } from '../kit.ts';
 
-const asDecision = (row: Row): Decision => serialize('decision', row) as unknown as Decision;
+export const asDecision = (row: Row): Decision => serialize('decision', row) as unknown as Decision;
 const asOption = (row: Row): DecisionOption => serialize('decisionOption', row) as unknown as DecisionOption;
 const asVote = (row: Row): DecisionVote => serialize('decisionVote', row) as unknown as DecisionVote;
 
@@ -38,12 +38,12 @@ function findDecision(ref: string, workspaceId: string, ctx: McpCtx): Row {
   return found;
 }
 
-const optionsOf = (decisionId: string): DecisionOption[] =>
+export const optionsOf = (decisionId: string): DecisionOption[] =>
   all<Row>(`SELECT * FROM decision_options WHERE decision_id = ? AND deleted_at IS NULL`, decisionId)
     .map(asOption)
     .sort(byBallotOrder);
 
-const votesOf = (decisionId: string): DecisionVote[] =>
+export const votesOf = (decisionId: string): DecisionVote[] =>
   all<Row>(`SELECT * FROM decision_votes WHERE decision_id = ? AND deleted_at IS NULL`, decisionId).map(asVote);
 
 /**
@@ -54,7 +54,7 @@ const votesOf = (decisionId: string): DecisionVote[] =>
  * than an empty list — "nobody voted" and "you may not know who" are different
  * facts and an empty array says the first one.
  */
-function decisionReport(row: Row, viewer: string) {
+export function decisionReport(row: Row, viewer: string) {
   const decision = asDecision(row);
   const options = optionsOf(decision.id);
   const votes = votesOf(decision.id);
@@ -72,6 +72,7 @@ function decisionReport(row: Row, viewer: string) {
     closes_at: decision.closes_at,
     project_id: decision.project_id,
     task_id: decision.task_id,
+    agenda_item_id: decision.agenda_item_id ?? null,
     turnout: result.voters,
     options: result.options.map((count) => ({
       id: count.option.id,
@@ -85,6 +86,47 @@ function decisionReport(row: Row, viewer: string) {
        talk, and reporting one of them would hide exactly that. */
     leading: result.leading.map((count) => count.option.label),
   };
+}
+
+/**
+ * A new decision with its options, as both tools that ask one write it.
+ *
+ * `create_decision` and a meeting's `create_decision_from_agenda_item` differ
+ * only in where the question is taken; "at least two options, in ballot
+ * order" is said once, here.
+ */
+export function askDecision(
+  args: Record<string, any>,
+  workspaceId: string,
+  ctx: McpCtx,
+  where: { task_id: string | null; project_id: string | null; agenda_item_id?: string | null },
+): Row {
+  const labels = (Array.isArray(args.options) ? args.options : []).map((one: unknown) => String(one).trim()).filter(Boolean);
+  if (labels.length < 2) throw new McpError('A decision needs at least two options');
+  const question = str(args.question);
+  if (!question) throw new McpError('What is being asked? Pass `question`');
+
+  const opts = writeOpts(workspaceId, ctx);
+  const id = uid();
+  writeEntity('decision', id, {
+    question,
+    description: str(args.description) ?? null,
+    mode: str(args.mode) ?? 'single',
+    visibility: str(args.visibility) ?? 'open',
+    status: 'open',
+    closes_at: typeof args.closes_at === 'number' ? args.closes_at : null,
+    task_id: where.task_id,
+    project_id: where.project_id,
+    agenda_item_id: where.agenda_item_id ?? null,
+    sort_order: orderKey(),
+  }, opts);
+
+  let previous: string | null = null;
+  for (const label of labels) {
+    previous = orderKey(previous, null);
+    writeEntity('decisionOption', uid(), { decision_id: id, label, description: null, sort_order: previous }, opts);
+  }
+  return get<Row>(`SELECT * FROM decisions WHERE id = ?`, id)!;
 }
 
 export const decisionTools: ToolDef[] = [
@@ -182,31 +224,13 @@ export const decisionTools: ToolDef[] = [
       requireFeature(workspaceId, 'decisions');
       requireWrite(ctx, workspaceId);
 
-      const labels = (Array.isArray(args.options) ? args.options : []).map((one: unknown) => String(one).trim()).filter(Boolean);
-      if (labels.length < 2) throw new McpError('A decision needs at least two options');
-
       const task = args.task ? findTask(String(args.task), workspaceId, ctx) : null;
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
-      const opts = writeOpts(workspaceId, ctx);
-      const id = uid();
-      writeEntity('decision', id, {
-        question: String(args.question).trim(),
-        description: str(args.description) ?? null,
-        mode: str(args.mode) ?? 'single',
-        visibility: str(args.visibility) ?? 'open',
-        status: 'open',
-        closes_at: typeof args.closes_at === 'number' ? args.closes_at : null,
-        task_id: task ? task.id : null,
-        project_id: task ? task.project_id : (project?.id ?? null),
-        sort_order: orderKey(),
-      }, opts);
-
-      let previous: string | null = null;
-      for (const label of labels) {
-        previous = orderKey(previous, null);
-        writeEntity('decisionOption', uid(), { decision_id: id, label, description: null, sort_order: previous }, opts);
-      }
-      return decisionReport(get<Row>(`SELECT * FROM decisions WHERE id = ?`, id)!, ctx.auth.userId);
+      const row = askDecision(args, workspaceId, ctx, {
+        task_id: task ? String(task.id) : null,
+        project_id: task ? String(task.project_id) : (project ? String(project.id) : null),
+      });
+      return decisionReport(row, ctx.auth.userId);
     },
   },
   {

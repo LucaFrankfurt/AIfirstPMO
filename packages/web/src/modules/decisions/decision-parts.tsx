@@ -164,14 +164,24 @@ export function DecisionFields({
  * the empty ballot somebody else's problem.
  */
 export function DecisionForm({
-  taskId = null, projectId = null, onClose, onSaved,
+  taskId = null, projectId = null, agendaItemId = null, scopes, onClose, onSaved,
 }: {
   taskId?: string | null;
   projectId?: string | null;
+  /** The agenda point it is asked at, when a meeting asks it. */
+  agendaItemId?: string | null;
+  /**
+   * Where it may be taken, when the caller lets the person choose: a project,
+   * or `null` for the whole workspace. A meeting offers this and a task does
+   * not — a task's decision is taken in the task's project, and a meeting is
+   * about several.
+   */
+  scopes?: { id: string | null; label: string }[];
   onClose: () => void;
   onSaved: (id: string) => void;
 }) {
   const t = useT();
+  const [scope, setScope] = useState<string | null>(projectId);
   const [draft, setDraft] = useState<Partial<Decision>>({
     question: '',
     description: null,
@@ -199,7 +209,8 @@ export function DecisionForm({
               status: 'open',
               closes_at: draft.closes_at ?? null,
               task_id: taskId,
-              project_id: projectId,
+              project_id: scope,
+              agenda_item_id: agendaItemId,
               sort_order: orderKey(),
             });
             let previous: string | null = null;
@@ -216,6 +227,15 @@ export function DecisionForm({
     >
       <div className="flex flex-col gap-3">
         <DecisionFields decision={draft} onChange={(patch) => setDraft({ ...draft, ...patch })} />
+        {scopes && (
+          // Who can see it follows from this, which is why it is asked rather
+          // than defaulted silently: the whole workspace includes its guests.
+          <Label label={t('decision.scope')} hint={t('decision.scopeHint')}>
+            <Select value={scope ?? ''} onChange={(event) => setScope(event.target.value || null)}>
+              {scopes.map((one) => <option key={one.id ?? ''} value={one.id ?? ''}>{one.label}</option>)}
+            </Select>
+          </Label>
+        )}
         <Label label={t('decision.options')} hint={t('decision.optionsHint')}>
           <div className="flex flex-col gap-1.5">
             {labels.map((label, index) => (
@@ -233,6 +253,31 @@ export function DecisionForm({
         </div>
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * Which meeting a decision was asked at, as a link back to the point.
+ *
+ * Written here from the rows rather than borrowed from the meetings module,
+ * which already leans on this one for the form above: the two depending on
+ * each other would be the knot `check:modules` refuses. Nothing at all when
+ * meetings are off or this device was never sent the meeting — a guest, say.
+ */
+export function DecisionOrigin({ agendaItemId }: { agendaItemId: string | null | undefined }) {
+  const t = useT();
+  const enabled = useFeature('meetings');
+  const item = useRow('agendaItem', agendaItemId);
+  const meeting = useRow('meeting', item?.meeting_id);
+  if (!enabled || !item || item.deleted_at || !meeting || meeting.deleted_at) return null;
+  return (
+    <p className="m-0 flex items-center gap-1.5 text-[12.5px] text-muted">
+      <Icon name="agenda" size={13} />
+      <span>{t('decision.fromMeeting')}</span>
+      <Link to={`/meetings/${meeting.id}#point-${item.id}`} className="min-w-0 truncate">
+        {meeting.title} — {item.title}
+      </Link>
+    </p>
   );
 }
 

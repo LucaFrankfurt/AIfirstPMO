@@ -8,9 +8,11 @@
  *
  * A meeting is worth its own because of what its detail carries: a numbered
  * point whose title is an input dressed as a heading, a status select beside
- * it, project chips with an icon button inside each, the notes field, the
- * tasks filed from the point, and a menu button with no visible label. That is
- * the name rule, the contrast floor and the 340px row in one card.
+ * it, project chips with an icon button inside each, the notes field, a ballot
+ * put to the room at that point, the tasks filed from it, and a menu button
+ * with no visible label — and under the agenda, the outcomes gathering the
+ * decision and the task again with a link back to their point. That is the
+ * name rule, the contrast floor and the 340px row in one card.
  *
  * Idempotent, for the reason the others are: CI runs the walkthroughs first and
  * somebody running a check by hand starts from nothing.
@@ -37,7 +39,8 @@ export async function switchOnMeetings(page) {
     await fetch(`/api/workspaces/${workspace}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ features: { meetings: true } }),
+      // Decisions as well: a point shows its ballot only while they are on.
+      body: JSON.stringify({ features: { meetings: true, decisions: true } }),
     });
 
     // The generic collection answers with a bare array — see the ballot fixture
@@ -87,6 +90,21 @@ export async function switchOnMeetings(page) {
     for (const [index, point] of points.entries()) {
       made.push(await post(`/api/workspaces/${workspace}/agenda-items`, { meeting_id: meeting.id, sort_order: 'VWX'[index], ...point }));
     }
+
+    // A vote put to the room at the first point, with one ballot cast, so the
+    // point carries a ballot with a bar in it and the outcomes a standing.
+    const decision = await post(`/api/workspaces/${workspace}/decisions`, {
+      question: 'Ship on Friday or Monday?',
+      agenda_item_id: made[0].id,
+      project_id: project ? project.id : null,
+      mode: 'single', visibility: 'open', status: 'open', sort_order: 'V',
+    });
+    const friday = await post(`/api/workspaces/${workspace}/decision-options`, { decision_id: decision.id, label: 'Friday', sort_order: 'V' });
+    await post(`/api/workspaces/${workspace}/decision-options`, { decision_id: decision.id, label: 'Monday', sort_order: 'W' });
+    // The id is derived, as `voteId` derives it: one person, one vote per option.
+    await post(`/api/workspaces/${workspace}/decision-votes`, {
+      id: `${decision.id}.${friday.id}.${me}`, decision_id: decision.id, option_id: friday.id,
+    });
 
     // A task filed from the first point, so the point's task list has a row.
     if (project) {

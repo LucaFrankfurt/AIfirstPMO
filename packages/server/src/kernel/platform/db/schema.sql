@@ -878,6 +878,9 @@ CREATE TABLE IF NOT EXISTS decisions (
   workspace_id TEXT NOT NULL,
   project_id   TEXT,
   task_id      TEXT,
+  -- The agenda point it was asked at, if a meeting asked it. Indexed in
+  -- `db/index.ts`, beside `tasks.agenda_item_id`, for the reason given there.
+  agenda_item_id TEXT,
   question     TEXT NOT NULL DEFAULT '',
   description  TEXT,
   mode         TEXT NOT NULL DEFAULT 'single',

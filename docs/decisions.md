@@ -136,6 +136,13 @@ project**, whatever was sent — the sync filter scopes by project alone, so a r
 whose two answers disagree is a vote that reaches the people who cannot see what
 it is about and not the ones who can.
 
+A decision put to a vote at a meeting also carries `agenda_item_id`, the point it
+was asked at — `tasks.agenda_item_id`'s twin. It changes nothing about who sees
+it: the point is a meeting's and members-only, the decision is wherever it was
+taken. That is why the form at a meeting *asks* where, defaulting to the point's
+first project, and says that the whole workspace includes its guests. See
+[`meetings.md`](meetings.md).
+
 Deleting the question takes its options and every vote with it. Deleting the
 *task* does the opposite and leaves the decision standing, undated from the
 work: the same direction a KPI target takes when its milestone goes, and for the
@@ -151,6 +158,7 @@ it.
 | `create_decision` | a question with at least two options |
 | `cast_vote` | vote, or withdraw by voting for what you already hold |
 | `close_decision` | turn a ballot into a record, or take it up again |
+| `create_decision_from_agenda_item` | the same question, asked at a meeting's agenda point — see [`meetings.md`](meetings.md) |
 
 `decision_result` answers `voters: null` on a secret ballot's options rather than
 an empty list. "Nobody chose this" and "you may not know who" are different

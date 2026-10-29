@@ -422,6 +422,13 @@ export interface Decision extends Base {
   project_id: ID | null;
   /** The work it is about, if it is about one. Its project wins over `project_id`. */
   task_id: ID | null;
+  /**
+   * The agenda point it was asked at, when a meeting asked it — the twin of
+   * `Task.agenda_item_id`, and on the decision for the same reason: two
+   * decisions filed from one point at once are both kept. Absent on a device's
+   * copy of a decision synced before the column existed; read it as null.
+   */
+  agenda_item_id?: ID | null;
   question: string;
   description: string | null;
   mode: DecisionMode;

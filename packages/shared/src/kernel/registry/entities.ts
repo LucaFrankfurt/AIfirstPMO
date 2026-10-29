@@ -399,7 +399,7 @@ export const ENTITIES = {
   decision: {
     table: 'decisions',
     fields: [
-      'workspace_id', 'project_id', 'task_id', 'question', 'description',
+      'workspace_id', 'project_id', 'task_id', 'agenda_item_id', 'question', 'description',
       'mode', 'visibility', 'status', 'closes_at', 'sort_order',
     ],
     serverOnly: ['created_by', 'voters', 'announced_at'],

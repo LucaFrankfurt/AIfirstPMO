@@ -25,7 +25,7 @@ import { useCanWrite, useFeature, useMe } from '../../../kernel/identity/session
 import { Ballot, useBallot } from '../ballot';
 import { Attachments } from '../../../kernel/files/Attachments';
 import {
-  DecisionCard, DecisionFields, DecisionForm, DecisionState, byUrgency, modeKey, visibilityKey,
+  DecisionCard, DecisionFields, DecisionForm, DecisionOrigin, DecisionState, byUrgency, modeKey, visibilityKey,
 } from '../decision-parts';
 
 function SwitchedOff() {
@@ -129,6 +129,7 @@ export function DecisionDetail() {
           {decision.task_id && <Link to={`/t/${decision.task_id}`} className="text-[12px]">{byId('task', decision.task_id)?.identifier}</Link>}
         </div>
 
+        <DecisionOrigin agendaItemId={decision.agenda_item_id} />
         {decision.description && <p className="text-[13px]">{decision.description}</p>}
 
         <Ballot decision={decision} />

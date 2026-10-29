@@ -250,6 +250,13 @@ export interface MinutesWords {
   broughtBy: string;
   notes: string;
   tasks: string;
+  decisions: string;
+  /** How a decision ended, in the reader's words — see `decisionLine`. */
+  decided: string;
+  undecided: string;
+  leading: string;
+  tie: string;
+  noVotes: string;
   continued: string;
   empty: string;
   status: Record<AgendaStatus, string>;
@@ -265,13 +272,48 @@ export interface MinutesTask {
   assignees: string[];
 }
 
+/** A decision as the minutes list it, already counted. */
+export interface MinutesDecision {
+  agenda_item_id?: ID | null;
+  question: string;
+  /** Still taking votes when the minutes were written — `isOpen` at that moment. */
+  open: boolean;
+  /**
+   * The options tied at the top, by label; empty when nobody voted. A list for
+   * the reason `DecisionResult.leading` is one: the minutes must not pick a
+   * winner out of a tie the ballot itself refuses to break.
+   */
+  leading: string[];
+}
+
+/**
+ * Where a decision stands, in a few words.
+ *
+ * Closed with one option on top is the case minutes exist for — "decided:
+ * Pro". A closed tie says so instead of naming a winner; an open ballot says
+ * it is open, and who is ahead if anybody is, because the minutes are often
+ * filed while people are still voting. The meeting screen's list of outcomes
+ * says the same words, so the page and the screen cannot describe one ballot
+ * two ways.
+ */
+export function decisionStanding(decision: Pick<MinutesDecision, 'open' | 'leading'>, words: MinutesWords): string {
+  const top = decision.leading.join(' / ');
+  if (decision.open) return top ? `${words.undecided} · ${words.leading}: ${top}` : words.undecided;
+  if (!top) return words.noVotes;
+  return decision.leading.length > 1 ? `${words.tie}: ${top}` : `${words.decided}: ${top}`;
+}
+
+/** One decision as a line of minutes: the question, and where it stood. */
+export const decisionLine = (decision: MinutesDecision, words: MinutesWords): string =>
+  `- ${decision.question.trim() || '—'} — ${decisionStanding(decision, words)}`;
+
 /**
  * The minutes of one meeting, as markdown for a page.
  *
  * One section per point, numbered in agenda order, carrying what the screen
  * shows: where it got to, the projects it is about, who is responsible for
- * it, who brought it, what was written in it and the tasks that came out of
- * it. A point with nothing
+ * it, who brought it, what was written in it, what was decided at it and the
+ * tasks that came out of it. A point with nothing
  * written and nothing filed still gets its heading and its state — "we did not
  * get to it" is a line of minutes too.
  *
@@ -280,8 +322,9 @@ export interface MinutesTask {
  * work was done that the task itself says is not.
  *
  * What is passed in is what gets published. Both callers hand over only the
- * tasks and project names of public projects, because the minutes are a
- * workspace page and a private project's work is not the wiki's to show; a
+ * tasks, decisions and project names of public projects — a decision taken for
+ * the whole workspace counts as one — because the minutes are a workspace page
+ * and a private project's work is not the wiki's to show; a
  * project missing from `projects` is left off the point rather than printed
  * as an id.
  */
@@ -289,6 +332,7 @@ export function minutesMarkdown(input: {
   meeting: Pick<Meeting, 'title' | 'description' | 'location' | 'attendees'>;
   items: readonly AgendaItem[];
   tasks: readonly MinutesTask[];
+  decisions?: readonly MinutesDecision[];
   /** User id -> name. Anybody missing is left out rather than shown as an id. */
   people: ReadonlyMap<ID, string>;
   /** Project id -> how it is called in prose, usually its key. */
@@ -324,6 +368,15 @@ export function minutesMarkdown(input: {
 
     if (item.description?.trim()) lines.push(item.description.trim(), '');
     if (item.notes?.trim()) lines.push(`### ${words.notes}`, '', item.notes.trim(), '');
+
+    // What was decided before who does what: the tasks are usually the
+    // consequence of the decision above them.
+    const asked = (input.decisions ?? []).filter((decision) => decision.agenda_item_id === item.id);
+    if (asked.length) {
+      lines.push(`### ${words.decisions}`, '');
+      for (const decision of asked) lines.push(decisionLine(decision, words));
+      lines.push('');
+    }
 
     const filed = input.tasks.filter((task) => task.agenda_item_id === item.id);
     if (filed.length) {

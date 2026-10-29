@@ -13,6 +13,7 @@
  */
 import { createHash } from 'node:crypto';
 import { chromium } from 'playwright';
+import { switchOnMeetings } from './meeting-fixture.mjs';
 /**
  * The two figures TODO.md quotes about the guide.
  *
@@ -63,6 +64,8 @@ const LABELS = {
     bulkOrganise: 'Organise', unarchive: 'Unarchive', filterPages: 'Filter by label', statusDrawer: 'Status', bulkStatusDrawer: 'Set the status',
     edit: 'Edit', deleteTask: 'Delete task', confirmDelete: 'Delete',
     assigneeDrawer: 'Assignee', unassigned: 'Unassigned', clearFilters: 'Clear all filters',
+    create: 'Create', meetingNewDecision: 'Put to a vote', meetingNewTask: 'File a task', pointRef: 'Point',
+    questionPlaceholder: 'Which of these do we build first?',
   },
   de: {
     board: 'Board', newTask: 'Neue Aufgabe', createTask: 'Aufgabe anlegen', pages: 'Seiten',
@@ -88,6 +91,8 @@ const LABELS = {
     bulkOrganise: 'Einordnen', unarchive: 'Aus dem Archiv holen', filterPages: 'Nach Label filtern', statusDrawer: 'Status', bulkStatusDrawer: 'Status setzen',
     edit: 'Bearbeiten', deleteTask: 'Aufgabe löschen', confirmDelete: 'Löschen',
     assigneeDrawer: 'Zuständigkeit', unassigned: 'Niemand zuständig', clearFilters: 'Alle Filter zurücksetzen',
+    create: 'Anlegen', meetingNewDecision: 'Entscheidung anlegen', meetingNewTask: 'Aufgabe anlegen', pointRef: 'Punkt',
+    questionPlaceholder: 'Was bauen wir zuerst?',
   },
   fr: {
     board: 'Tableau', newTask: 'Nouvelle tâche', createTask: 'Créer la tâche', pages: 'Pages',
@@ -113,6 +118,8 @@ const LABELS = {
     bulkOrganise: 'Ranger', unarchive: 'Désarchiver', filterPages: 'Filtrer par étiquette', statusDrawer: 'Statut', bulkStatusDrawer: 'Définir le statut',
     edit: 'Modifier', deleteTask: 'Supprimer la tâche', confirmDelete: 'Supprimer',
     assigneeDrawer: 'Assigné', unassigned: 'Non assignée', clearFilters: 'Effacer tous les filtres',
+    create: 'Créer', meetingNewDecision: 'Soumettre au vote', meetingNewTask: 'Créer une tâche', pointRef: 'Point',
+    questionPlaceholder: 'Que construisons-nous en premier ?',
   },
 }[locale];
 
@@ -3563,6 +3570,86 @@ await step('the port follows the encryption, unless somebody chose the port', as
   if ((await stored()) !== '10993/tls') throw new Error(`the server has ${await stored()}, not 10993/tls`);
   console.log('     993→143 with the switch, and 10993 left where it was put');
 });
+
+/**
+ * A meeting is where things get decided and handed out, so both are made from
+ * the point being discussed — and both are gathered again under the agenda,
+ * each with the point it came from, because "what did we decide and who does
+ * what" is the question asked of a meeting afterwards.
+ *
+ * The vote is cast on the meeting screen itself: the people who have to decide
+ * are in the room, and a ballot that needs a second screen is one half of them
+ * skip. One question per language, because both walks share one instance.
+ */
+await step('a decision and a task filed from an agenda point, voted on there and gathered as outcomes', async () => {
+  const meetingId = await switchOnMeetings(page);
+  try {
+    await meetingStep(meetingId);
+  } finally {
+    // Both walks run against one instance, and the second must start from the
+    // seed's switches — two more entries in its sidebar are not what it checks.
+    await page.evaluate(async () => {
+      const ws = localStorage.getItem('kolibri.workspace');
+      await fetch(`/api/workspaces/${ws}`, {
+        method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ features: { meetings: false, decisions: false } }),
+      });
+    });
+  }
+});
+
+async function meetingStep(meetingId) {
+  await page.goto(`${base}/meetings/${meetingId}`, { waitUntil: 'domcontentloaded' });
+  const point = page.locator('section.agenda-card').nth(1);
+  await point.waitFor({ timeout: 8000 });
+  const question = `Which pricing copy ships (${locale})?`;
+  const task = `Rewrite the pricing copy (${locale})`;
+
+  await point.getByRole('button', { name: LABELS.meetingNewDecision }).click();
+  const sheet = page.locator('.sheet').last();
+  await sheet.getByPlaceholder(LABELS.questionPlaceholder).fill(question);
+  await sheet.getByPlaceholder('Option 1').fill('Short');
+  await sheet.getByPlaceholder('Option 2').fill('Long');
+  await sheet.getByRole('button', { name: LABELS.create, exact: true }).click();
+  await sheet.waitFor({ state: 'detached', timeout: 5000 });
+
+  const ballot = point.locator('.ballot-card', { hasText: question });
+  await ballot.waitFor({ timeout: 5000 });
+  const short = ballot.locator('.ballot-pick', { hasText: 'Short' });
+  await short.click();
+  await page.waitForFunction((el) => el.getAttribute('aria-pressed') === 'true', await short.elementHandle(), { timeout: 5000 });
+
+  await point.getByRole('button', { name: LABELS.meetingNewTask }).click();
+  await point.locator('form input').first().fill(task);
+  await point.locator('form').getByRole('button', { name: LABELS.create, exact: true }).click();
+
+  const outcomes = page.locator('section[aria-labelledby="meeting-outcomes"]');
+  const decided = outcomes.locator('li', { hasText: question });
+  await decided.waitFor({ timeout: 5000 });
+  const said = await decided.innerText();
+  if (!said.includes(`${LABELS.pointRef} 2`)) throw new Error(`the outcome does not name its point: "${said}"`);
+  if (!said.includes('Short')) throw new Error(`the outcome does not say who is ahead: "${said}"`);
+  const filed = outcomes.locator('li', { hasText: task });
+  await filed.waitFor({ timeout: 5000 });
+  if (!(await filed.innerText()).includes(`${LABELS.pointRef} 2`)) throw new Error('the task in the outcomes does not name its point');
+
+  // And on the server, remembered as having come from that point.
+  const remembered = await page.evaluate(async ({ question, task }) => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const json = async (url) => (await fetch(url, { credentials: 'include' })).json();
+    for (let tries = 0; tries < 20; tries += 1) {
+      const decisions = await json(`/api/workspaces/${ws}/decisions`);
+      const tasks = await json(`/api/workspaces/${ws}/tasks?limit=400`);
+      const d = (decisions.decisions ?? decisions).find((row) => row.question === question);
+      const t = (tasks.tasks ?? tasks).find((row) => row.title === task);
+      if (d?.agenda_item_id && t?.agenda_item_id) return d.agenda_item_id === t.agenda_item_id;
+      await new Promise((done) => setTimeout(done, 300));
+    }
+    return null;
+  }, { question, task });
+  if (remembered !== true) throw new Error(`the server does not tie both to the same point (${remembered})`);
+  console.log(`     point 2: a ballot voted on in the room, a task, both under "${LABELS.pointRef} 2" in the outcomes`);
+}
 
 await step('interface is in the chosen language', async () => {
   await page.goto(`${base}/`, { waitUntil: 'networkidle' });

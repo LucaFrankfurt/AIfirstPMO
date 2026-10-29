@@ -146,6 +146,7 @@ describe('the minutes', () => {
   const words: MinutesWords = {
     when: 'Tuesday, 3 November 2026 at 10:00',
     attendees: 'Attendees', projects: 'Projects', assignees: 'Responsible', broughtBy: 'Brought by', notes: 'Notes', tasks: 'Tasks',
+    decisions: 'Decisions', decided: 'decided', undecided: 'still open', leading: 'ahead', tie: 'tied', noVotes: 'closed without a vote',
     continued: 'continued from an earlier meeting', empty: 'Nothing was on the agenda.',
     status: { open: 'Open', discussed: 'Discussed', deferred: 'Deferred' },
   };
@@ -181,5 +182,28 @@ describe('the minutes', () => {
 
   it('says so when nothing was on the agenda', () => {
     assert.match(minutesMarkdown({ meeting: meeting('m'), items: [], tasks: [], people, projects, words }), /_Nothing was on the agenda\._/);
+  });
+
+  it('says where each decision stands, and never picks a winner out of a tie', () => {
+    const ask = (question: string, open: boolean, leading: string[]) => ({ agenda_item_id: 'a', question, open, leading });
+    const text = minutesMarkdown({
+      meeting: meeting('m'),
+      items: [item('a', { title: 'Release' })],
+      tasks: [{ agenda_item_id: 'a', identifier: 'WEB-7', title: 'Tag the release', state: 'Todo', assignees: [] }],
+      decisions: [
+        ask('Friday or Monday?', false, ['Friday']),
+        ask('Which name?', false, ['Kolibri', 'Hummingbird']),
+        ask('Who signs it off?', false, []),
+        ask('Which tier first?', true, ['Pro']),
+        ask('Dark mode by default?', true, []),
+      ],
+      people, projects, words,
+    });
+    assert.match(text, /- Friday or Monday\? — decided: Friday\n/);
+    assert.match(text, /- Which name\? — tied: Kolibri \/ Hummingbird\n/);
+    assert.match(text, /- Who signs it off\? — closed without a vote\n/);
+    assert.match(text, /- Which tier first\? — still open · ahead: Pro\n/);
+    assert.match(text, /- Dark mode by default\? — still open\n/);
+    assert.ok(text.indexOf('### Decisions') < text.indexOf('### Tasks'), 'what was decided, then who does what');
   });
 });

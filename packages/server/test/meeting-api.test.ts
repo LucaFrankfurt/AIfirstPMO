@@ -515,3 +515,121 @@ describe('what an assistant does with a meeting afterwards', () => {
     assert.deepEqual(closed.meetings.map((one: any) => one.id), [meeting.id]);
   });
 });
+
+describe('a decision put to a vote at a point', () => {
+  /*
+   * The twin of a task filed from a point: it remembers the point, the meeting
+   * lists it, the minutes print where the vote stands, and a report names it
+   * only where the caller could open it. What makes it worth its own block is
+   * the scope — a decision may be taken for the whole workspace, which its
+   * guests read, though they are never sent the meeting.
+   */
+  let owner: Person;
+  let workspace = '';
+  let project: any;
+  let meeting: any;
+
+  const features = (on: boolean) => ok(`/api/workspaces/${workspace}`, {
+    cookie: owner.cookie, method: 'PATCH', body: { features: { meetings: true, decisions: on } },
+  });
+  const pointIn = async (title: string) => (await tool(owner.token, 'get_meeting', { meeting: meeting.id }))
+    .items.find((one: any) => one.title === title);
+
+  before(async () => {
+    const made = await register('meet-decide@example.com');
+    owner = made.person;
+    workspace = made.workspace;
+    await features(true);
+    project = (await ok(`/api/workspaces/${workspace}/projects`, { cookie: owner.cookie }))[0];
+    meeting = await tool(owner.token, 'create_meeting', { title: 'Pricing weekly', starts_at: '2026-11-03T10:00:00Z' });
+  });
+
+  it('asks it in the point’s project, shows it under the point, and prints where the vote stands', async () => {
+    const point = await tool(owner.token, 'add_agenda_item', { meeting: meeting.id, title: 'Tiers', projects: [project.key] });
+    const asked = await tool(owner.token, 'create_decision_from_agenda_item', {
+      item: point.item.id, question: 'Which tier ships first?', options: ['Pro', 'Team'],
+    });
+    assert.equal(asked.project_id, project.id, 'the point’s first project, as a task filed from it would be');
+    assert.equal(asked.agenda_item_id, point.item.id);
+    assert.equal(asked.state, 'open');
+
+    await tool(owner.token, 'cast_vote', { decision: asked.id, option: 'Pro' });
+    const listed = (await pointIn('Tiers')).decisions;
+    assert.deepEqual(listed.map((one: any) => [one.question, one.leading]), [['Which tier ships first?', ['Pro']]]);
+
+    const content = async () => {
+      const filed = await tool(owner.token, 'file_meeting_minutes', { meeting: meeting.id });
+      return String(get<any>(`SELECT content FROM pages WHERE id = ?`, filed.page_id)!.content);
+    };
+    assert.match(await content(), /### Decisions\n\n- Which tier ships first\? — still open · ahead: Pro/);
+    await tool(owner.token, 'close_decision', { decision: asked.id });
+    assert.match(await content(), /- Which tier ships first\? — decided: Pro/, 'filed again once the vote closed');
+  });
+
+  it('takes it for the whole workspace when asked to, and still wants two options', async () => {
+    const point = await tool(owner.token, 'add_agenda_item', { meeting: meeting.id, title: 'Office', projects: [project.key] });
+    const wide = await tool(owner.token, 'create_decision_from_agenda_item', {
+      item: point.item.id, question: 'Which day is the office day?', options: ['Tuesday', 'Thursday'], workspace_wide: true,
+    });
+    assert.equal(wide.project_id, null);
+    await assert.rejects(
+      () => tool(owner.token, 'create_decision_from_agenda_item', { item: point.item.id, question: 'Yes?', options: ['Yes'] }),
+      /at least two options/,
+    );
+  });
+
+  it('sends the link to the point down to a device, like any other field', async () => {
+    const point = await pointIn('Tiers');
+    const rows = (await pull(owner, workspace)).decision ?? [];
+    const synced = rows.find((row: any) => row.question === 'Which tier ships first?');
+    assert.equal(synced?.agenda_item_id, point.id);
+  });
+
+  it('refuses a point from another workspace as where a decision was asked', async () => {
+    const elsewhere = await register('meet-decide-elsewhere@example.com');
+    await ok(`/api/workspaces/${elsewhere.workspace}`, {
+      cookie: elsewhere.person.cookie, method: 'PATCH', body: { features: { meetings: true, decisions: true } },
+    });
+    const theirs = await newItem(elsewhere.workspace, elsewhere.person, (await newMeeting(elsewhere.workspace, elsewhere.person)).id);
+    const result = await call(`/api/workspaces/${workspace}/decisions`, {
+      cookie: owner.cookie,
+      body: { question: 'Borrowed point?', agenda_item_id: theirs.id, mode: 'single', visibility: 'open', status: 'open' },
+    });
+    assert.ok(result.status >= 400, `a point from somewhere else was accepted (${result.status})`);
+  });
+
+  it('keeps a decision in a private project out of the minutes, and out of the report for those outside it', async () => {
+    const lin = await join('meet-decide-lin@example.com', workspace, owner);
+    await ok(`/api/workspaces/${workspace}/projects`, {
+      cookie: owner.cookie, body: { name: 'Acquisition', key: 'ACQ', visibility: 'private' },
+    });
+    const point = await tool(owner.token, 'add_agenda_item', { meeting: meeting.id, title: 'The thing we cannot name', projects: ['ACQ'] });
+    await tool(owner.token, 'create_decision_from_agenda_item', {
+      item: point.item.id, question: 'Do we make the offer?', options: ['Yes', 'Not yet'],
+    });
+
+    assert.equal((await pointIn('The thing we cannot name')).decisions.length, 1, 'the person in the project sees it');
+    const theirs = await tool(lin.token, 'get_meeting', { meeting: meeting.id, workspace_id: workspace });
+    const unseen = theirs.items.find((one: any) => one.id === point.item.id);
+    assert.deepEqual(unseen.decisions, [], 'a private project’s question listed to somebody outside it');
+
+    const filed = await tool(owner.token, 'file_meeting_minutes', { meeting: meeting.id });
+    const page = String(get<any>(`SELECT content FROM pages WHERE id = ?`, filed.page_id)!.content);
+    assert.doesNotMatch(page, /make the offer/, 'the minutes published a private project’s question to the wiki');
+    assert.match(page, /Which day is the office day\?/, 'one taken for the whole workspace is everybody’s');
+  });
+
+  it('says nothing about decisions while they are switched off, and will not ask one', async () => {
+    await features(false);
+    try {
+      assert.deepEqual((await pointIn('Tiers')).decisions, []);
+      const point = await pointIn('Tiers');
+      await assert.rejects(
+        () => tool(owner.token, 'create_decision_from_agenda_item', { item: point.id, question: 'Off?', options: ['A', 'B'] }),
+        /switched off/,
+      );
+    } finally {
+      await features(true);
+    }
+  });
+});

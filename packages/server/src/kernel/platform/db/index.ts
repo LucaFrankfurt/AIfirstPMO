@@ -172,6 +172,9 @@ for (const [table, column, definition] of [
   // writes it: a column the INSERT names and an upgraded database lacks throws
   // inside the write that triggered it.
   ['notifications', 'meeting_id', 'TEXT'],
+  // The agenda point a decision was asked at — `tasks.agenda_item_id`'s twin.
+  // NULL on every decision that predates it, which none of them were.
+  ['decisions', 'agenda_item_id', 'TEXT'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {
@@ -200,6 +203,7 @@ db.exec(`CREATE INDEX IF NOT EXISTS attachments_subject ON attachments (subject_
 // The same reason again: an agenda point lists the tasks that came out of it,
 // and the column it asks by is one the loop above may just have added.
 db.exec(`CREATE INDEX IF NOT EXISTS tasks_agenda_item ON tasks (agenda_item_id)`);
+db.exec(`CREATE INDEX IF NOT EXISTS decisions_agenda_item ON decisions (agenda_item_id)`);
 
 /*
  * `attachments.checksum`, filled in for the rows that pre-date it being used.

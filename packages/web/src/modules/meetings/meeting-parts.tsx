@@ -19,8 +19,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AGENDA_STATUS, agendaOf, agendaTally, isOverdue, nextAgendaKey, orderKey,
-  type AgendaItem, type AgendaStatus, type Meeting, type MinutesWords, type Task, type User,
+  AGENDA_STATUS, agendaOf, agendaTally, decisionStanding, isOpen, isOverdue, nextAgendaKey, orderKey, tallyOf,
+  type AgendaItem, type AgendaStatus, type Decision, type Meeting, type MinutesWords, type Task, type User,
 } from '@kolibri/shared';
 import { AvatarStack, Icon, MenuButton, Sheet, StateDot, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -31,8 +31,11 @@ import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { create, createTask, remove, update } from '../../kernel/sync/mutations';
 import { byId, list, useQuery, useRow } from '../../kernel/sync/store';
 import { useCanWrite, useFeature, useMe, useMemberMap, useSession } from '../../kernel/identity/session';
+import { SectionHeading } from '../../kernel/design-system/ui/section';
 import { useCollaborativeText, type CollabTarget } from '../pages/collab';
 import { setTyping, useTypists } from '../chat/presence';
+import { DecisionCard, DecisionForm, DecisionState, byUrgency } from '../decisions/decision-parts';
+import { useBallot } from '../decisions/ballot';
 
 /** Where an agenda point keeps its notes: the CRDT, and what it reads as. */
 const NOTES: CollabTarget = { entity: 'agendaItem', state: 'notes_body', text: 'notes' };
@@ -548,10 +551,61 @@ function PointTasks({ item, canWrite }: { item: AgendaItem; canWrite: boolean })
   );
 }
 
-function PointTask({ task }: { task: Task }) {
+/**
+ * What was put to a vote at this point, and the way to put something.
+ *
+ * The ballot itself, not a link to it: the people who have to decide are in
+ * the room, and a vote that needs a second screen is one half of them skip.
+ * Where it is taken is asked, defaulting to the point's first project the way
+ * a task's project does — and "the whole workspace" says that guests see it,
+ * because a meeting is the one thing here they are never sent.
+ */
+function PointDecisions({ item, canWrite }: { item: AgendaItem; canWrite: boolean }) {
+  const t = useT();
+  const toast = useToast();
+  const projects = useTaggableProjects();
+  const decisions = useQuery(
+    () => list('decision', (row) => row.agenda_item_id === item.id).sort(byUrgency),
+    [item.id],
+  );
+  const [creating, setCreating] = useState(false);
+  const first = item.projects.find((id) => projects.some((project) => project.id === id)) ?? null;
+  const scopes = [
+    { id: null, label: t('decision.scopeWorkspace') },
+    ...projects.map((project) => ({ id: project.id, label: project.key ? `${project.key} · ${project.name}` : project.name })),
+  ];
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      {decisions.map((decision) => <DecisionCard key={decision.id} decision={decision} />)}
+      {canWrite && (
+        <div>
+          <Button size="sm" variant="ghost" onClick={() => setCreating(true)}>
+            <Icon name="plus" size={13} /> {t('meeting.newDecision')}
+          </Button>
+        </div>
+      )}
+      {creating && (
+        <DecisionForm
+          agendaItemId={item.id}
+          projectId={first}
+          scopes={scopes}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            // Stays on the meeting: the vote is taken here, not on its own page.
+            setCreating(false);
+            toast(t('meeting.decisionCreated'));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function PointTask({ task, at }: { task: Task; at?: React.ReactNode }) {
   const state = useRow('state', task.state_id);
   const members = useMemberMap();
-  const people = task.assignees.map((id) => members.get(id)).filter(Boolean);
+  const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean);
   return (
     <li className="flex items-center gap-2 text-[13px]">
       <StateDot group={state?.group_key} color={state?.color} />
@@ -559,6 +613,7 @@ function PointTask({ task }: { task: Task }) {
         <span className="text-muted">{task.identifier}</span> {task.title}
       </Link>
       {people.length > 0 && <AvatarStack users={people} size={18} max={2} />}
+      {at && <><span className="flex-1" />{at}</>}
     </li>
   );
 }
@@ -579,6 +634,7 @@ export function AgendaPoint({
 }) {
   const t = useT();
   const canWrite = useCanWrite();
+  const decisionsOn = useFeature('decisions');
   const members = useMemberMap();
   const { confirm, dialog } = useConfirm();
   const author = item.created_by ? members.get(item.created_by) : undefined;
@@ -720,6 +776,13 @@ export function AgendaPoint({
         <Notes item={item} canWrite={canWrite} />
       </div>
 
+      {decisionsOn && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[12.5px] font-medium text-soft">{t('meeting.decisions')}</span>
+          <PointDecisions item={item} canWrite={canWrite} />
+        </div>
+      )}
+
       <div className="flex flex-col gap-1">
         <span className="text-[12.5px] font-medium text-soft">{t('meeting.tasks')}</span>
         <PointTasks item={item} canWrite={canWrite} />
@@ -742,10 +805,107 @@ export function useMinutesWords(meeting: Meeting | undefined): MinutesWords {
     broughtBy: t('meeting.minutesBroughtBy'),
     notes: t('meeting.notes'),
     tasks: t('meeting.tasks'),
+    decisions: t('meeting.decisions'),
+    decided: t('meeting.minutesDecided'),
+    undecided: t('meeting.minutesUndecided'),
+    leading: t('meeting.minutesLeading'),
+    tie: t('meeting.minutesTie'),
+    noVotes: t('meeting.minutesNoVotes'),
     continued: t('meeting.minutesContinued'),
     empty: t('meeting.minutesEmpty'),
     status: { open: t('meeting.status.open'), discussed: t('meeting.status.discussed'), deferred: t('meeting.status.deferred') },
   }), [meeting?.starts_at, t]);
+}
+
+/* -------------------------------------------------------------- outcomes */
+
+/** A point's place on the agenda, as the outcomes list links back to it. */
+function PointRef({ item, number }: { item: AgendaItem; number: number }) {
+  const t = useT();
+  return (
+    <a href={`#point-${item.id}`} className="inline-flex min-h-6 shrink-0 items-center text-[12px] text-muted" title={item.title}>
+      {t('meeting.pointRef', { n: number })}
+    </a>
+  );
+}
+
+/** One decision in the outcomes: the question, its state, and where the vote stands. */
+function OutcomeDecision({ decision, item, number, words }: { decision: Decision; item: AgendaItem; number: number; words: MinutesWords }) {
+  const me = useMe();
+  const { options, votes } = useBallot(decision.id);
+  const result = useMemo(() => tallyOf(decision, options, votes, me), [decision, options, votes, me]);
+  const leading = result.leading.map((row) => row.option.label);
+  // The chip beside it already says "open", with its deadline; the minutes'
+  // "still open" would say it twice. Who is ahead is what it does not say.
+  const standing = isOpen(decision)
+    ? (leading.length ? `${words.leading}: ${leading.join(' / ')}` : '')
+    : decisionStanding({ open: false, leading }, words);
+  return (
+    <li className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+      <Link to={`/decisions/${decision.id}`} className="block min-w-0 truncate leading-6">{decision.question}</Link>
+      <DecisionState decision={decision} />
+      {standing && <span className="text-muted">{standing}</span>}
+      <span className="flex-1" />
+      <PointRef item={item} number={number} />
+    </li>
+  );
+}
+
+/**
+ * Everything that came out of the meeting, in one place.
+ *
+ * Each decision and task stays under the point it was filed from — that is
+ * where it was argued — and this gathers them, because "what did we decide
+ * and who is doing what" is the question asked of a meeting afterwards, and
+ * scrolling twelve agenda cards is not an answer to it. Nothing at all while
+ * nothing has been filed: an empty frame reads as a feature that is broken.
+ */
+export function MeetingOutcomes({ agenda, words }: { agenda: AgendaItem[]; words: MinutesWords }) {
+  const t = useT();
+  const decisionsOn = useFeature('decisions');
+  const numbers = useMemo(() => new Map(agenda.map((item, index) => [item.id, { item, number: index + 1 }])), [agenda]);
+  const key = agenda.map((item) => item.id).join(',');
+  const decisions = useQuery(
+    () => (decisionsOn
+      ? list('decision', (row) => !!row.agenda_item_id && numbers.has(row.agenda_item_id))
+        .sort((a, b) => numbers.get(a.agenda_item_id!)!.number - numbers.get(b.agenda_item_id!)!.number || byUrgency(a, b))
+      : []),
+    [key, decisionsOn],
+  );
+  const tasks = useQuery(
+    () => list('task', (row) => !!row.agenda_item_id && numbers.has(row.agenda_item_id) && !row.deleted_at)
+      .sort((a, b) => numbers.get(a.agenda_item_id!)!.number - numbers.get(b.agenda_item_id!)!.number || a.created_at - b.created_at),
+    [key],
+  );
+  if (!decisions.length && !tasks.length) return null;
+
+  return (
+    <section className="flex flex-col gap-2" aria-labelledby="meeting-outcomes">
+      <SectionHeading id="meeting-outcomes">{t('meeting.outcomes')}</SectionHeading>
+      {decisions.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[12.5px] font-medium text-soft">{t('meeting.decisions')}</span>
+          <ul className="flex list-none flex-col gap-1 p-0">
+            {decisions.map((decision) => {
+              const at = numbers.get(decision.agenda_item_id!)!;
+              return <OutcomeDecision key={decision.id} decision={decision} item={at.item} number={at.number} words={words} />;
+            })}
+          </ul>
+        </div>
+      )}
+      {tasks.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <span className="text-[12.5px] font-medium text-soft">{t('meeting.tasks')}</span>
+          <ul className="flex list-none flex-col gap-1 p-0">
+            {tasks.map((task) => {
+              const at = numbers.get(task.agenda_item_id!)!;
+              return <PointTask key={task.id} task={task} at={<PointRef item={at.item} number={at.number} />} />;
+            })}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
 }
 
 /* ------------------------------------------------------- on a task's page */

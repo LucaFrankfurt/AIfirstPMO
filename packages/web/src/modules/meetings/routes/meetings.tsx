@@ -8,14 +8,15 @@
  *
  * The detail is the agenda, read top to bottom the way the meeting runs it.
  * Everything a meeting produces is reached from here: the notes in each point,
- * the tasks filed from it, the unfinished points carried forward, and the
- * minutes filed as a page. The last two go through `@kolibri/shared`, so the
+ * the decisions put to a vote at it and the tasks filed from it — gathered
+ * again under the agenda as its outcomes — the unfinished points carried
+ * forward, and the minutes filed as a page. The last two go through `@kolibri/shared`, so the
  * rows they write are the rows an assistant asked to do the same thing writes.
  */
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import {
-  carryOver, followUp, meetingsInOrder, minutesMarkdown, nextMeeting, type Meeting,
+  byBallotOrder, carryOver, followUp, isOpen, meetingsInOrder, minutesMarkdown, nextMeeting, tallyOf, type Meeting,
 } from '@kolibri/shared';
 import { Header, Trail } from '../../../kernel/design-system/chrome';
 import { AvatarStack, Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
@@ -26,7 +27,8 @@ import { create, createPage, remove, update } from '../../../kernel/sync/mutatio
 import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useCanWrite, useFeature, useMe, useMemberMap, usePeople } from '../../../kernel/identity/session';
 import {
-  AddTopic, AgendaPoint, MeetingCard, MeetingFields, MeetingForm, MeetingState, meetingWhen, useAgenda, useMinutesWords,
+  AddTopic, AgendaPoint, MeetingCard, MeetingFields, MeetingForm, MeetingOutcomes, MeetingState, meetingWhen, useAgenda,
+  useMinutesWords,
 } from '../meeting-parts';
 
 function SwitchedOff() {
@@ -140,6 +142,7 @@ export function MeetingDetail() {
   const navigate = useNavigate();
   const canWrite = useCanWrite();
   const enabled = useFeature('meetings');
+  const decisionsOn = useFeature('decisions');
   const me = useMe();
   const toast = useToast();
   const members = useMemberMap();
@@ -200,6 +203,12 @@ export function MeetingDetail() {
     const tasks = list('task', (task) => !!task.agenda_item_id && ids.has(task.agenda_item_id) && !task.deleted_at && everybody(task.project_id))
       .sort((a, b) => a.created_at - b.created_at);
     const nameOf = (userId: string) => people.get(userId)?.name ?? people.get(userId)?.email;
+    // A decision for the whole workspace is everybody's by definition; one
+    // taken in a project is published only where the project is public.
+    const decisions = decisionsOn
+      ? list('decision', (row) => !!row.agenda_item_id && ids.has(row.agenda_item_id) && (!row.project_id || everybody(row.project_id)))
+        .sort((a, b) => a.created_at - b.created_at)
+      : [];
     const content = minutesMarkdown({
       meeting,
       items: agenda,
@@ -210,6 +219,16 @@ export function MeetingDetail() {
         state: byId('state', task.state_id)?.name ?? '',
         assignees: task.assignees.map(nameOf).filter((name): name is string => !!name),
       })),
+      decisions: decisions.map((decision) => {
+        const options = list('decisionOption', (row) => row.decision_id === decision.id).sort(byBallotOrder);
+        const votes = list('decisionVote', (row) => row.decision_id === decision.id);
+        return {
+          agenda_item_id: decision.agenda_item_id,
+          question: decision.question,
+          open: isOpen(decision),
+          leading: tallyOf(decision, options, votes).leading.map((row) => row.option.label),
+        };
+      }),
       people: new Map([...people.keys()].map((userId) => [userId, nameOf(userId) ?? ''])),
       projects: new Map(list('project', (project) => everybody(project.id)).map((project) => [project.id, project.key || project.name])),
       words,
@@ -270,6 +289,8 @@ export function MeetingDetail() {
           ))}
         </ol>
         {canWrite && <AddTopic meetingId={meeting.id} agenda={agenda} />}
+
+        <MeetingOutcomes agenda={agenda} words={words} />
 
         {canWrite && (
           <>

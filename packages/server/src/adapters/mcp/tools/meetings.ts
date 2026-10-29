@@ -11,6 +11,12 @@
  * the new text, so appending is an insertion at the end and somebody's
  * half-written sentence above it survives.
  *
+ * **What came out of a point hangs off the point.** A task filed from it and a
+ * decision put to a vote at it both carry `agenda_item_id`, so the meeting
+ * lists them, the minutes print them, and each links back. Both stay what they
+ * are — a task in its project, a decision where it was taken — and a report
+ * names one only where the caller can see it.
+ *
  * **Carrying over and filing the minutes are the browser's rules, run here.**
  * `carryOver` and `minutesMarkdown` in `@kolibri/shared` are what the meeting
  * screen calls, so an assistant that carries the unfinished points forward
@@ -18,15 +24,17 @@
  * ids included, so doing both is not doing it twice.
  */
 import {
-  AGENDA_STATUS, MEETING_STATUS, agendaOf, agendaTally, carryOver, followUp, isOverdue, meetingsInOrder,
-  minutesMarkdown, nextAgendaKey, nextMeeting,
-  type AgendaItem, type AgendaStatus, type Meeting, type MinutesTask,
+  AGENDA_STATUS, DECISION_MODES, DECISION_VISIBILITY, MEETING_STATUS, agendaOf, agendaTally, carryOver, followUp, isOpen,
+  isOverdue, meetingsInOrder, minutesMarkdown, nextAgendaKey, nextMeeting, tallyOf,
+  type AgendaItem, type AgendaStatus, type Meeting, type MinutesDecision, type MinutesTask,
 } from '@kolibri/shared';
 import { all, get, tx, type Row } from '../../../kernel/platform/db/index.ts';
 import { canSeeProject, serialize, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { localeOf, translatorFor } from '../../../kernel/i18n/i18n.ts';
+import { hasFeature } from '../../../kernel/platform/features.ts';
+import { asDecision, askDecision, decisionReport, optionsOf, votesOf } from './decisions.ts';
 import {
   fileTask, findMember, findProject, McpError, namesOf, requireFeature, requireWrite, resolveUsers, safeList, str, taskView,
   type McpCtx, type ToolDef, workspaceOf, writeOpts,
@@ -148,6 +156,35 @@ function tasksFrom(items: AgendaItem[], workspaceId: string, audience: Audience)
   ).filter((task) => shows(audience, String(task.project_id), task.project_visibility));
 }
 
+/**
+ * The decisions put to a vote at these points, for the same audiences.
+ *
+ * A decision taken for the whole workspace is everybody's — guests read the
+ * workspace's decisions — so only one taken in a project is held back, by the
+ * project's rule. Nothing at all while decisions are switched off: the screen
+ * shows none then, and a report should not show what the screen does not.
+ */
+function decisionsFrom(items: AgendaItem[], workspaceId: string, audience: Audience): Row[] {
+  if (!items.length || !hasFeature(workspaceId, 'decisions')) return [];
+  return all<Row>(
+    `SELECT d.*, p.visibility AS project_visibility FROM decisions d LEFT JOIN projects p ON p.id = d.project_id
+      WHERE d.agenda_item_id IN (${items.map(() => '?').join(', ')}) AND d.workspace_id = ? AND d.deleted_at IS NULL
+      ORDER BY d.created_at`,
+    ...items.map((item) => item.id), workspaceId,
+  ).filter((row) => !row.project_id || shows(audience, String(row.project_id), row.project_visibility));
+}
+
+/** A decision as the minutes print it: the question, and where the count stands now. */
+function minutesDecision(row: Row): MinutesDecision {
+  const decision = asDecision(row);
+  return {
+    agenda_item_id: decision.agenda_item_id ?? null,
+    question: decision.question,
+    open: isOpen(decision),
+    leading: tallyOf(decision, optionsOf(decision.id), votesOf(decision.id)).leading.map((count) => count.option.label),
+  };
+}
+
 const projectKeys = (workspaceId: string, audience: Audience): Map<string, string> => new Map(
   all<Row>(`SELECT id, key, name, visibility FROM projects WHERE workspace_id = ?`, workspaceId)
     .filter((row) => shows(audience, String(row.id), row.visibility))
@@ -177,6 +214,7 @@ function meetingReport(meeting: Meeting, ctx: McpCtx) {
   const audience = { caller: ctx.auth.userId };
   const items = itemsOf(meeting.id);
   const tasks = tasksFrom(items, meeting.workspace_id, audience);
+  const decisions = decisionsFrom(items, meeting.workspace_id, audience);
   const keys = projectKeys(meeting.workspace_id, audience);
   const names = namesOf(items.flatMap((item) => [item.created_by ?? '', ...item.assignees]));
   return {
@@ -195,6 +233,7 @@ function meetingReport(meeting: Meeting, ctx: McpCtx) {
       brought_by: item.created_by ? names[item.created_by] ?? null : null,
       notes: item.notes ?? '',
       carried_from: item.carried_from,
+      decisions: decisions.filter((row) => row.agenda_item_id === item.id).map((row) => decisionReport(row, ctx.auth.userId)),
       tasks: tasks.filter((task) => task.agenda_item_id === item.id).map(taskView),
     })),
   };
@@ -458,6 +497,46 @@ export const meetingTools: ToolDef[] = [
     },
   },
   {
+    name: 'create_decision_from_agenda_item',
+    title: 'Put a question to a vote at an agenda point',
+    description:
+      'A decision asked at a meeting, remembered as having been asked there: the point shows the '
+      + 'ballot so the room can vote on it, the meeting lists it among its outcomes, the minutes '
+      + 'print where the vote stands, and the decision links back. Where it is taken defaults to '
+      + 'the first project the point is about; `project` picks another, and `workspace_wide` takes '
+      + 'it for the whole workspace — which its guests can read, though they are never sent the '
+      + 'meeting. Otherwise it takes what create_decision takes.',
+    schema: {
+      type: 'object',
+      properties: {
+        item: { type: 'string', description: 'The agenda point id' },
+        question: { type: 'string' },
+        options: { type: 'array', items: { type: 'string' }, description: 'At least two, in ballot order' },
+        description: { type: 'string' },
+        mode: { type: 'string', enum: [...DECISION_MODES] },
+        visibility: { type: 'string', enum: [...DECISION_VISIBILITY] },
+        closes_at: { type: 'number', description: 'Epoch milliseconds' },
+        project: { type: 'string', description: 'Where it is taken, by key, id or name' },
+        workspace_wide: { type: 'boolean', description: 'Taken for the whole workspace rather than a project' },
+        workspace_id: { type: 'string' },
+      },
+      required: ['item', 'question', 'options'],
+    },
+    run: (args, ctx) => {
+      const workspaceId = enter(args, ctx, true);
+      requireFeature(workspaceId, 'decisions');
+      const item = findItem(String(args.item), workspaceId);
+      // The point's first project the caller can see: a project they cannot
+      // open is not one to take a decision in on their behalf.
+      const first = item.projects.find((id) => canSeeProject(ctx.auth.userId, id)) ?? null;
+      const project = args.workspace_wide === true
+        ? null
+        : str(args.project) ? String(findProject(String(args.project), workspaceId, ctx).id) : first;
+      const row = askDecision(args, workspaceId, ctx, { task_id: null, project_id: project, agenda_item_id: item.id });
+      return decisionReport(row, ctx.auth.userId);
+    },
+  },
+  {
     name: 'carry_over_agenda',
     title: 'Carry the unfinished points forward',
     description:
@@ -520,6 +599,7 @@ export const meetingTools: ToolDef[] = [
       const t = translatorFor(ctx.auth.userId);
       const items = itemsOf(meeting.id);
       const tasks = tasksFrom(items, workspaceId, 'everybody');
+      const decisions = decisionsFrom(items, workspaceId, 'everybody');
       const people = new Map(Object.entries(namesOf([
         ...meeting.attendees, ...items.flatMap((item) => [item.created_by ?? '', ...item.assignees]),
         ...tasks.flatMap((task) => safeList(task.assignees)),
@@ -536,6 +616,7 @@ export const meetingTools: ToolDef[] = [
           state: states.get(String(task.state_id)) ?? '',
           assignees: safeList(task.assignees).map((id) => people.get(id)).filter((name): name is string => !!name),
         })),
+        decisions: decisions.map(minutesDecision),
         people,
         projects: projectKeys(workspaceId, 'everybody'),
         words: {
@@ -546,6 +627,12 @@ export const meetingTools: ToolDef[] = [
           broughtBy: t('minutes.broughtBy'),
           notes: t('minutes.notes'),
           tasks: t('minutes.tasks'),
+          decisions: t('minutes.decisions'),
+          decided: t('minutes.decided'),
+          undecided: t('minutes.undecided'),
+          leading: t('minutes.leading'),
+          tie: t('minutes.tie'),
+          noVotes: t('minutes.noVotes'),
           continued: t('minutes.continued'),
           empty: t('minutes.empty'),
           status: { open: t('minutes.open'), discussed: t('minutes.discussed'), deferred: t('minutes.deferred') },

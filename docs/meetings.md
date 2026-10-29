@@ -2,7 +2,7 @@
 
 A meeting with a time, the people expected, and an agenda everybody in the workspace can add
 topics to. Each topic carries the projects it is about, notes written by everybody in the room at
-once, and the tasks that came out of it. What was not discussed is carried to the next meeting;
+once, the decisions put to a vote at it, and the tasks that came out of it. What was not discussed is carried to the next meeting;
 what was said is filed as a page. Off by default; switched on per workspace under
 **Settings → Workspace**.
 
@@ -12,6 +12,7 @@ what was said is filed as a page. Off by default; switched on per workspace unde
 |---|---|
 | **Meeting** | When, where, who is expected, what it is for, and whether it is still ahead or closed |
 | **Agenda point** | One topic: a title, an optional description, the projects it is about, who is responsible for it, where it got to — *open*, *discussed* or *deferred* — and its notes. Its own row, so two people adding topics at once from two devices both end up on the agenda |
+| **Decision** | An ordinary decision — a question, its options, the votes — that knows the point it was asked at (`decisions.agenda_item_id`). Hidden while decisions are switched off, like everywhere else |
 | **Task** | An ordinary task that knows the point it came out of (`tasks.agenda_item_id`). On the task, not as a list on the point, so two tasks filed from one point at once are both kept |
 
 A point records who brought it, and that is the server's to say: `created_by` cannot be written by
@@ -52,6 +53,29 @@ appending is an insertion at the end and the half-written sentence above it surv
 
 The title and the description are ordinary last-writer-wins fields. They are a sentence one person
 rewords, not a document several people write.
+
+## Deciding and handing out, at the point
+
+A point has **Put to a vote** beside **File a task**. The ballot appears under the point, and the
+room votes on it there: the people who have to decide are the ones in the meeting, and a vote that
+needs a second screen is one half of them skip. Closing it, deadlines, secret ballots — all of it is
+the decision's own; see [`decisions.md`](decisions.md). The decision links back to its meeting.
+
+Where it is taken is **asked**, not inferred, because who can see and vote on a decision follows
+from it. It defaults to the point's first project, the way a task's project does. *The whole
+workspace* is offered and says that guests see it: a meeting is never sent to a guest, but a
+decision taken for the whole workspace is read by everyone in it, guests included. A decision in a
+project that a member is not on is invisible to them under the point, the same as a task there.
+
+Under the agenda, **What came of it** gathers every decision and task filed from any point, each
+with *Point n* linking back to where it was argued — "what did we decide, and who is doing what" is
+the question asked of a meeting afterwards, and twelve agenda cards are not an answer to it. A
+closed decision there says how it ended in the minutes' words — *decided: Pro*, *tied: A / B* — and
+an open one says who is ahead beside the chip that says it is open. Nothing is shown while nothing
+has been filed.
+
+Deleting a meeting deletes neither: a task is work still owed, and a decision is a choice the team
+made, whatever happened to the agenda it was made at.
 
 ## Who sees a meeting
 
@@ -98,7 +122,7 @@ A carried point keeps who brought it. Whoever pressed the button at the end of t
 
 **File the minutes as a page** writes the meeting up as markdown: the time and place, who was
 expected, and one section per point with its state, its projects, who is responsible, who brought it,
-the notes, and the tasks filed from it. The page is linked from the meeting. Filing again rewrites *the same page* from
+the notes, the decisions asked at it with where each vote stands, and the tasks filed from it. The page is linked from the meeting. Filing again rewrites *the same page* from
 the meeting as it stands, after asking — somebody may have tidied it by hand — and the previous text
 stays in the page's history like any other edit.
 
@@ -123,17 +147,21 @@ are work, and the work is still owed.
 | Tool | |
 |---|---|
 | `list_meetings` | still open first, soonest first, then the closed ones; `unclosed` names the meeting nobody closed |
-| `get_meeting` | the agenda in order, with each point's notes, projects, author and tasks. A title several meetings share — a weekly — means the next one still open |
+| `get_meeting` | the agenda in order, with each point's notes, projects, author, decisions and tasks. A title several meetings share — a weekly — means the next one still open |
 | `create_meeting` | a time, a place, who is expected, and optionally the first topics |
 | `update_meeting` | move it, rename it, change who is expected, or close it |
 | `add_agenda_item` | a topic at the end of the agenda, as whoever the token belongs to, optionally with who is responsible |
 | `update_agenda_item` | state, title, description, projects, who is responsible, and the notes — `append_notes` while people may be typing |
 | `create_task_from_agenda_item` | a task that remembers the point; the project defaults to the point's first |
+| `create_decision_from_agenda_item` | a question put to a vote at the point; taken in the point's first project unless told otherwise — `workspace_wide` for the whole workspace |
 | `carry_over_agenda` | the button, as a tool — same rows, same ids |
 | `file_meeting_minutes` | the minutes as a page, or the same page rewritten |
 
 ## What it does not do, yet
 
+- **A carried point does not bring its decisions.** They stay at the point where they were asked,
+  which the carried one links back to, and are listed among *that* meeting's outcomes only. A vote
+  still open there stays open, and is closed on its own page like any other.
 - **No calendar invitation.** A meeting is not in the `.ics` feed and sends nobody an email. The feed
   carries what is *due*; a meeting is something people attend, and an invitation is a promise about
   somebody else's calendar that this instance cannot keep in sync.
