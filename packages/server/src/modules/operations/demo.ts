@@ -6,7 +6,7 @@
  * view populated on first launch. Run from the CLI with `npm run seed`, or
  * automatically on an empty database with KOLIBRI_SEED_DEMO=true.
  */
-import { orderKey, orderKeys } from '@kolibri/shared';
+import { makeAnchor, orderKey, orderKeys } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../kernel/platform/db/index.ts';
 import { hashPassword } from '../../kernel/identity/auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../../kernel/write-path/bootstrap.ts';
@@ -213,6 +213,99 @@ export function seedDemoData(): boolean {
     (get<Row>(`SELECT id FROM page_statuses WHERE workspace_id = ? AND kind = ? AND deleted_at IS NULL`, ws, kind)?.id as string) ?? null;
   const settled = rung('final');
   const reading = rung('review');
+
+  /*
+   * A canvas, so the demo shows one and so every screen check that walks the
+   * seeded instance walks one too — at every width, in both themes. Written
+   * before the handbook on purpose: the pages index shows the six most
+   * recently edited, the smoke walkthrough opens the handbook from there, and
+   * a newer page here is one fewer slot for it.
+   */
+  const canvas = uid();
+  const asAda = { workspaceId: ws, actorId: ada, hlc: hlc(), system: true };
+  writeEntity('page', canvas, {
+    workspace_id: ws, title: 'Sales pipeline', icon: '🎨', format: 'canvas', access: 'workspace', created_by: ada,
+    content: '',
+  }, asAda);
+  const pipeline = uid();
+  const PIPELINE = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #14161c; background: #ffffff; line-height: 1.5; }
+    td, th { padding: 9px 12px; border-bottom: 1px solid #e5e6eb; text-align: left; }
+  </style>
+</head>
+<body>
+  <main style="max-width: 1180px; margin: 0 auto; padding: 32px; display: flex; flex-direction: column; gap: 20px">
+    <h1 style="margin: 0; font-size: 28px">Pipeline this quarter</h1>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px">
+      <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">Open deals</p><p style="margin: 4px 0 0; font-size: 28px; font-weight: 700" id="count">0</p></div>
+      <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">Pipeline value</p><p style="margin: 4px 0 0; font-size: 28px; font-weight: 700" id="total">0</p></div>
+      <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px; background: #eeeefc"><p style="margin: 0; font-size: 12px; color: #2e2e8f">Target</p><p style="margin: 4px 0 0; font-size: 28px; font-weight: 700; color: #2e2e8f">€250k</p></div>
+    </div>
+    <table style="width: 100%; border-collapse: collapse">
+      <tr><th>Company</th><th>Stage</th><th>Value (€k)</th></tr>
+      <tr><td>Acme</td><td>Demo</td><td class="value">80</td></tr>
+      <tr><td>Globex</td><td>Proposal</td><td class="value">45</td></tr>
+      <tr><td>Initech</td><td>First call</td><td class="value">30</td></tr>
+    </table>
+  </main>
+  <script>
+    // The tiles add themselves up from the table, so editing a row is enough.
+    const values = [...document.querySelectorAll('.value')].map((cell) => Number(cell.textContent) || 0);
+    document.getElementById('count').textContent = String(values.length);
+    document.getElementById('total').textContent = '€' + values.reduce((a, b) => a + b, 0) + 'k';
+  </script>
+</body>
+</html>
+`;
+  writeEntity('artboard', pipeline, {
+    workspace_id: ws, page_id: canvas, kind: 'html', title: 'Pipeline', x: 0, y: 0, w: 1280, h: 720,
+    content: PIPELINE, sort_order: orderKey(null, null), created_by: ada,
+  }, asAda);
+  const script = uid();
+  const SCRIPT = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #14161c; background: #ffffff; line-height: 1.55; }</style>
+</head>
+<body>
+  <main style="padding: 40px; display: flex; flex-direction: column; gap: 14px">
+    <h1 style="margin: 0; font-size: 26px">Cold call script</h1>
+    <p style="margin: 0">Hi, this is Ada from Kolibri. Do you have two minutes?</p>
+    <h2 style="margin: 8px 0 0; font-size: 18px">If they say yes</h2>
+    <ul style="margin: 0; padding-left: 20px">
+      <li>Ask how they plan projects today.</li>
+      <li>Listen for the tool they are leaving.</li>
+      <li>Offer a 20-minute demo this week.</li>
+    </ul>
+    <div style="padding: 14px 16px; border-radius: 10px; background: #eeeefc; color: #2e2e8f"><strong>Never</strong> read the price list out on a first call.</div>
+  </main>
+</body>
+</html>
+`;
+  writeEntity('artboard', script, {
+    workspace_id: ws, page_id: canvas, kind: 'html', title: 'Cold call script', x: 1360, y: 0, w: 760, h: 720,
+    content: SCRIPT, sort_order: orderKey(orderKey(null, null), null), created_by: ada,
+  }, asAda);
+  writeEntity('artboard', uid(), {
+    workspace_id: ws, page_id: canvas, kind: 'note', title: '', color: 'yellow', x: 1360, y: 780, w: 300, h: 160,
+    content: 'Grace: confirm the Q3 target with finance before Friday.', sort_order: orderKey(orderKey(orderKey(null, null), null), null),
+    created_by: ada,
+  }, asAda);
+  writeEntity('comment', uid(), {
+    workspace_id: ws, page_id: canvas, author_id: grace, body: 'Is Acme still at the demo stage? I heard they signed on Tuesday.',
+    anchor: { board: pipeline, x: 60, y: 300 }, reactions: {},
+  }, { workspaceId: ws, actorId: grace, hlc: hlc(), system: true });
+  const greeting = SCRIPT.indexOf('Hi, this is Ada');
+  writeEntity('comment', uid(), {
+    workspace_id: ws, page_id: canvas, author_id: alan, body: 'Friendlier opener?', reactions: {},
+    anchor: { board: script, x: 40, y: 80, ...makeAnchor(SCRIPT, greeting, greeting + 'Hi, this is Ada'.length) },
+    suggestion: 'Hello, Ada here',
+  }, { workspaceId: ws, actorId: alan, hlc: hlc(), system: true });
 
   const handbook = uid();
   writeEntity('page', handbook, {

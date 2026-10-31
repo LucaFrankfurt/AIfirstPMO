@@ -12,7 +12,7 @@ import { startTelegram, stopTelegram } from './adapters/telegram/telegram.ts';
 import { provision } from './modules/operations/provision.ts';
 import { installSettings } from './kernel/platform/settings.ts';
 import { installEffects } from './wiring.ts';
-import { buildCsp } from './kernel/platform/csp.ts';
+import { buildCsp, buildFrameCsp, FRAME_FILE } from './kernel/platform/csp.ts';
 import { HttpError, Router, badRequest, decodeParam, send, type Ctx } from './kernel/platform/http.ts';
 import { overTls } from './kernel/platform/origin.ts';
 import { registerAiRoutes } from './modules/ai-review/routes/ai.ts';
@@ -166,9 +166,21 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
   const ext = extname(file);
   // Vite fingerprints assets, so everything under /assets can be cached hard.
   const immutable = isFile && relative.startsWith('assets/');
+  /*
+   * The artboard frame is the one file served under a different policy — see
+   * `buildFrameCsp`. Cached hard as well, and that is not a nicety: the service
+   * worker is never asked for a sandboxed frame, so the browser's own cache is
+   * the only thing that can draw a canvas offline. The app asks for it with its
+   * hash in the query, so a new build is a new address.
+   */
+  const frame = isFile && relative === FRAME_FILE;
+  if (frame) {
+    res.setHeader('content-security-policy', FRAME_CSP);
+    res.removeHeader('x-frame-options');
+  }
   res.writeHead(200, {
     'content-type': MIME[ext] ?? 'application/octet-stream',
-    'cache-control': immutable ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'cache-control': immutable || frame ? 'public, max-age=31536000, immutable' : 'no-cache',
     'content-length': String(statSync(file).size),
   });
   createReadStream(file)
@@ -188,6 +200,7 @@ function serveStatic(pathname: string, res: ServerResponse): boolean {
 /* -------------------------------------------------------------- the server */
 
 const CSP = buildCsp(env.storage);
+const FRAME_CSP = buildFrameCsp();
 
 function securityHeaders(res: ServerResponse, secure: boolean): void {
   res.setHeader('content-security-policy', CSP);

@@ -114,6 +114,17 @@ const PATHS = {
   // trolley — this is the catalogue somebody maintains, not a checkout — and
   // not a box, which is already what `stack` says about servers.
   tag: 'M3 12.3V5a2 2 0 0 1 2-2h7.3a2 2 0 0 1 1.4.6l6.7 6.7a2 2 0 0 1 0 2.8l-7.3 7.3a2 2 0 0 1-2.8 0l-6.7-6.7a2 2 0 0 1-.6-1.4ZM7.5 7.5h.01',
+  // Four frames of different sizes laid out side by side: a canvas page, as
+  // opposed to `page`, which is one sheet of text.
+  canvas: 'M3 4h8v7H3zM13 4h8v4h-8zM13 10h8v10h-8zM3 13h8v7H3z',
+  // A sheet with its corner folded: a sticky note on a canvas.
+  note: 'M5 4h14v11l-5 5H5zM14 20v-5h5',
+  // A map pin: a comment left at a point rather than on a passage.
+  pin: 'M12 21s-6-5.3-6-11a6 6 0 1 1 12 0c0 5.7-6 11-6 11ZM12 12.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
+  undo: 'M9 14 4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3',
+  redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
+  // Four corners pulled out to the edges: show everything there is.
+  fit: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
 } satisfies Record<string, string>;
 
 /**

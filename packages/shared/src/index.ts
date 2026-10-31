@@ -38,6 +38,8 @@ export * from './modules/work/quickadd.ts';
 export * from './modules/work/relocate.ts';
 export * from './modules/work/reactions.ts';
 export * as crdt from './modules/pages/text-crdt.ts';
+export * as artboard from './modules/pages/artboard.ts';
+export type { ElementInfo, Placed, Placement, SourceElement } from './modules/pages/artboard.ts';
 export type { CrdtState } from './modules/pages/text-crdt.ts';
 export { CLOCK_HEADER, Clock, gt as hlcGreater, parse as parseHLC, timestampOf } from './kernel/registry/hlc.ts';
 export type { HLC } from './kernel/registry/hlc.ts';

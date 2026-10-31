@@ -52,18 +52,18 @@ interface Hit {
 }
 
 const KIND_ICON: Record<string, string> = {
-  task: 'check', page: 'page', project: 'folder',
+  task: 'check', page: 'page', artboard: 'canvas', project: 'folder',
   comment: 'chat', message: 'chat', cycle: 'cycle', module: 'board', mail: 'mail',
 };
 
 const KIND_GROUP: Record<string, TranslationKey> = {
-  task: 'search.groupTasks', page: 'search.groupPages', project: 'search.groupProjects',
+  task: 'search.groupTasks', page: 'search.groupPages', artboard: 'search.groupBoards', project: 'search.groupProjects',
   comment: 'search.groupComments', message: 'search.groupMessages',
   cycle: 'search.groupCycles', module: 'search.groupModules', mail: 'search.groupMail',
 };
 
 /** Work first, then what is written about it — and last, what arrived from outside. */
-const KIND_ORDER = ['task', 'page', 'project', 'cycle', 'module', 'comment', 'message', 'mail'];
+const KIND_ORDER = ['task', 'page', 'artboard', 'project', 'cycle', 'module', 'comment', 'message', 'mail'];
 
 /**
  * A row from the server, in the shape the rest of this file uses. The rename
@@ -301,6 +301,12 @@ export function Search() {
   const open = (hit: Hit) => {
     if (hit.kind === 'task') openTask({ id: hit.id });
     else if (hit.kind === 'page') navigate(`/pages/${hit.id}`);
+    // A board opens on its canvas: it is a thing on a page, not a page.
+    else if (hit.kind === 'artboard') {
+      const board = byId('artboard', hit.id);
+      if (board?.page_id) navigate(`/pages/${board.page_id}`);
+      else toast(t('search.boardGone'));
+    }
     else if (hit.kind === 'project') navigate(`/projects/${hit.id}`);
     else if (hit.kind === 'cycle' || hit.kind === 'module') navigate(`/projects/${hit.projectId ?? ''}`);
     else if (hit.kind === 'comment') {

@@ -224,6 +224,8 @@ export function comment(
   body: string,
   actorId: string,
   anchor: unknown = null,
+  /** What the anchored passage should say instead, for a suggestion. */
+  suggestion: string | null = null,
 ): string {
   return create('comment', {
     task_id: target.task_id ?? null,
@@ -232,6 +234,7 @@ export function comment(
     author_id: actorId,
     reactions: {},
     anchor,
+    suggestion,
   });
 }
 

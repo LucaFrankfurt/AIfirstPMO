@@ -15,8 +15,8 @@ import { canSeeSecret } from '../../../modules/secrets/rules/secrets.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import {
-  canSeeBudget, canSeeChannel, canSeeKpi, canSeeProject, canSeeSubject, canSeeTask, deleteEntity, pageIsVisible,
-  parseIds, serialize, visibleTaskSql, writeEntity,
+  canSeeBudget, canSeeChannel, canSeeKpi, canSeePage, canSeeProject, canSeeSubject, canSeeTask, deleteEntity,
+  pageIsVisible, parseIds, serialize, visiblePageSql, visibleTaskSql, writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
@@ -79,6 +79,20 @@ function visibleRow(userId: string, entity: EntityName, row: Row): boolean {
     const subject = attachmentSubject(row);
     if (!subject) return !row.subject_kind && !row.subject_id;
     return canSeeSubject(userId, subject.kind, subject.id);
+  }
+  // A board on a canvas is its page's, all of it — read, change and delete.
+  if (entity === 'artboard') return canSeePage(userId, String(row.page_id ?? ''));
+  /*
+   * A comment is its task's or its page's — both halves, the pull filter's two
+   * clauses read the same way. Only the task half used to be asked here, so a
+   * comment on somebody's private page answered `GET /api/comments/:id` and the
+   * listing for every member of the workspace, while their devices were
+   * correctly never sent it. Measured against a seeded instance before the fix:
+   * 200 and the comment's text, for a page that answered 403.
+   */
+  if (entity === 'comment') {
+    if (row.task_id != null) return canSeeTask(userId, String(row.task_id));
+    return row.page_id == null || canSeePage(userId, String(row.page_id));
   }
   // A comment with no task hangs off a page, whose own access rule is
   // `guardPage`; a relation always has a task. Exactly the pull filter's
@@ -685,6 +699,17 @@ export function registerEntityRoutes(router: Router): void {
       filters.push(entity === 'relation' ? clause : `(${def.table}.task_id IS NULL OR ${clause})`);
       params.push(ctx.params.ws, auth.userId);
     }
+    // And a comment's page half, which the listing did not ask either.
+    if (entity === 'comment') {
+      filters.push(`(${def.table}.page_id IS NULL OR ${visiblePageSql(`${def.table}.page_id`)})`);
+      params.push(auth.userId, ctx.params.ws, auth.userId);
+    }
+    // The same for a board, through its page. `visiblePageSql` asks the user
+    // twice around the workspace — the author half, then the project half.
+    if (entity === 'artboard') {
+      filters.push(visiblePageSql(`${def.table}.page_id`));
+      params.push(auth.userId, ctx.params.ws, auth.userId);
+    }
     if (entity === 'message') {
       filters.push(`EXISTS (SELECT 1 FROM channels c
                              WHERE c.id = messages.channel_id AND c.deleted_at IS NULL
@@ -962,6 +987,60 @@ export function registerEntityRoutes(router: Router): void {
       return serialize('page', row);
     }
     throw badRequest('Pass { restore: versionId } to restore a version');
+  });
+
+  /* --------------------------------------------------- board history */
+
+  /**
+   * A board's history, through its page.
+   *
+   * Server-side only, like a page's — what a board said last week is read when
+   * somebody asks, not mirrored to every device. Who may ask is who may see
+   * the canvas, and nobody else: the same `canSeePage` every other door to a
+   * board uses.
+   */
+  const boardFor = (ctx: Ctx, userId: string, role?: 'member'): Row => {
+    const board = workspaceOf('artboard', ctx.params.id);
+    requireWorkspace(ctx, board.workspace_id, role);
+    if (!canSeePage(userId, String(board.page_id))) throw forbidden('That canvas is private');
+    return board;
+  };
+
+  router.get('/api/artboards/:id/versions', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    boardFor(ctx, auth.userId);
+    return all<Row>(
+      `SELECT id, title, author_id, created_at, length(content) AS size FROM artboard_versions
+        WHERE artboard_id = ? ORDER BY created_at DESC LIMIT 100`,
+      ctx.params.id,
+    );
+  });
+
+  router.get('/api/artboards/:id/versions/:versionId', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    boardFor(ctx, auth.userId);
+    const version = get<Row>(`SELECT * FROM artboard_versions WHERE id = ? AND artboard_id = ?`, ctx.params.versionId, ctx.params.id);
+    if (!version) throw notFound('Version not found');
+    return version;
+  });
+
+  /**
+   * Put a board back as it was. A content-only write, so the board's CRDT is
+   * moved to match by a diff — and the state being replaced becomes a version
+   * of its own, so a restore is itself undoable.
+   */
+  router.post('/api/artboards/:id/versions', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const board = boardFor(ctx, auth.userId, 'member');
+    const body = await readJson<{ restore?: string }>(ctx);
+    if (!body.restore) throw badRequest('Pass { restore: versionId } to restore a version');
+    const version = get<Row>(`SELECT * FROM artboard_versions WHERE id = ? AND artboard_id = ?`, body.restore, ctx.params.id);
+    if (!version) throw notFound('Version not found');
+    const { row } = writeEntity('artboard', ctx.params.id, { content: version.content }, {
+      workspaceId: board.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
+    });
+    return serialize('artboard', row);
   });
 
   /* --------------------------------------------------- bulk helpers */

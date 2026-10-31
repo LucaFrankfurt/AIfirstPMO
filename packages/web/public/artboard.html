@@ -1,0 +1,36 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; media-src data: blob:; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>Artboard</title>
+</head>
+<body>
+<script>
+/*
+ * The frame an artboard is drawn in, and nothing else.
+ *
+ * It waits for the page that holds it to hand over a document and then becomes
+ * that document. Everything that makes this safe is outside this file: the
+ * iframe's `sandbox="allow-scripts"` gives it an origin of its own, so it can
+ * read neither the app's storage nor its cookies, and the policy above — sent
+ * again as a header by the server, with `sandbox` added — lets it reach no
+ * network at all. See docs/canvas.md.
+ *
+ * Changing this file changes its hash, and the app asks for it by that hash
+ * (`FRAME_VERSION`), so a browser never keeps an old copy past a deploy.
+ */
+(function () {
+  function take(event) {
+    if (event.source !== parent || !event.data || event.data.type !== 'kolibri:render') return;
+    removeEventListener('message', take);
+    document.open();
+    document.write(String(event.data.html));
+    document.close();
+  }
+  addEventListener('message', take);
+  parent.postMessage({ type: 'kolibri:ready' }, '*');
+})();
+</script>
+</body>
+</html>

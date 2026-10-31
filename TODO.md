@@ -120,6 +120,14 @@ would close them in — is in [`docs/comparison.md`](docs/comparison.md).
       Not done: a decision's, budget's or KPI's attachments do not travel in a project export,
       because those rows do not either — an attachment naming a row that is not in the file is the
       paperclip-onto-a-404 the export already refuses to write. A project's, cycle's and module's do.
+- [x] **What was said on a private page reached the whole workspace through three doors.** The pull
+      filter asks a comment's task and its page; the REST read of one comment and the comments
+      listing asked only the task, and search asked only the project — so a comment on a colleague's
+      private page came back over `GET /api/comments/:id`, in the listing, and from search, along
+      with the private page itself. Measured on a seeded instance before the fix: the page answered
+      403 and its comment 200. Leaving a comment on a page you cannot see was accepted as well. Found
+      while adding pinned comments to canvases; `page-comments-scope.test.ts` fails on four cases
+      against the old code.
 - [x] **No request can end the process.** Found while turning a 500 into a 400 for a file name that
       will not decode, and much worse than that: the router decodes path parameters, and static
       serving decodes the path, before the one `catch` in `index.ts` was reached — and the listener
@@ -1622,7 +1630,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 127 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 135 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
@@ -1725,7 +1733,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **66** the list carries; the other undroppable-looking eight turned out to be something else
+      **70** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1835,6 +1843,58 @@ two screens, a line on the task detail, and nine MCP tools. See [`docs/meetings.
       a workspace document, as decisions and KPIs do.
 - [ ] **`kolibri doctor --fix` does not compact agenda notes.** It folds the tombstones out of page
       bodies only. A point's notes are a few hundred characters.
+
+## Canvas pages: what was decided, and what is left open
+
+Built as a third page format, `canvas`, whose boards are rows of their own — see
+[`docs/canvas.md`](docs/canvas.md) for the model, the sandbox and what was measured before it was
+written.
+
+- [x] **A board is a whole HTML document, drawn in a sandbox.** Claude's artifacts are styled and
+      scripted pages, and the requirement was that people can change and discuss them, documents
+      and interactive ones alike. So the board is kept as written and run in `artboard.html` under
+      `sandbox="allow-scripts"` and a policy that reaches no network. The alternatives were measured
+      and refused: rendering through the page sanitiser drops every style and script, and a
+      `srcdoc`, `blob:` or `data:` frame inherits the app's policy, so nothing runs at all.
+- [x] **The source is the only document.** Visual edits are rewrites of the HTML through the same
+      text CRDT a keystroke uses, so there is nothing to keep in step with anything else.
+- [x] **Pins, not quotes, on a canvas.** A comment is anchored to a board and a point on it. Export,
+      import and project copy carry boards; export and import re-point pins at the new board ids.
+- [x] **Suggestions, and settling a comment.** A comment may carry what its passage should say
+      instead; accepting it is done on the server against the text as it stands then, found again by
+      its quote, as a content-only write — so it merges like an edit — and refused if the passage has
+      changed since. Works on text pages (*Suggest* beside *Comment* on a selection), on boards (from
+      the editor), and over MCP (`suggest_page_edit`, `resolve_comment`). Any comment can be resolved
+      by anybody who can read it; who settled it and when are the server's to stamp.
+      `suggestions.test.ts` fails on six cases with the server's half taken out.
+- [x] **A saved history per board.** `artboard_versions`, one row per author per sitting, previewed
+      and restored from the editor; a restore keeps the state it replaced.
+- [x] **Boards in search**, as the words on them, each hit checked against its canvas.
+- [x] **Pictures from this server inside a board**, handed in by the app as their bytes while the
+      source keeps the path; *Image* in the editor, and pictures dropped on the canvas become boards.
+- [x] **A redraw no longer reuses the board's JavaScript realm.** The first version wrote each render
+      into the same frame, so a board whose script declared a top-level `const` threw on every redraw
+      after the first and stopped running — found on the seeded canvas. Every render is a fresh
+      frame now, drawn behind the visible one and swapped in when it is done.
+- [x] **On a phone.** Pinch wherever the fingers land, a double tap to open, larger handles on a
+      coarse pointer, an editor that stacks; the seed has a canvas, so CI's screen checks walk one.
+- [ ] **No libraries and no web fonts.** A board that loads Chart.js from a CDN draws an empty box,
+      offline and online. A fixed set served by this instance, rewritten from their CDN addresses and
+      handed in the way pictures are, would keep boards offline-capable and send no viewer's address
+      anywhere. Not started.
+- [ ] **No live cursors.** Edits merge, but nobody sees where anybody else is. The chat's socket
+      already carries presence; a canvas is where it would matter most.
+- [ ] **A canvas cannot be shared by link, exported as a file, or used as a template.** Each of
+      those reads only a page's text, so the menu offers none of them on a canvas rather than
+      producing an empty page and calling it the canvas.
+- [ ] **`kolibri doctor --fix` does not compact board bodies.** It folds page bodies only, as it
+      does not agenda notes.
+- [ ] **Run in Chromium only.** Safari, Firefox and the packaged app on iOS and Android have not
+      drawn a board; the phone was a Chromium window at phone size with touch. The sandbox, the
+      offline cache and a two-finger pinch are the things most likely to differ.
+- [ ] **A board cannot read the workspace.** A live dashboard — a KPI board that stays current —
+      would need a channel from the app into the frame, answered with the viewer's own permissions.
+      Deliberately later: it is the largest security decision on this list.
 
 ## The UI port, and what is left of it
 

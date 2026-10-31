@@ -163,6 +163,22 @@ export function copyProject(
         }, opts());
         bump('pages');
       }
+      // A canvas copied without its boards would arrive as an empty page that
+      // says it is a canvas. Comments stay behind, as they do for every page.
+      const pageIds = pages.map((page) => String(page.id));
+      const boards = pageIds.length
+        ? all<Row>(`SELECT * FROM artboards WHERE page_id IN (${pageIds.map(() => '?').join(', ')}) AND deleted_at IS NULL`, ...pageIds)
+        : [];
+      for (const row of boards) {
+        const { id: _i, created_at: _c, updated_at: _u, seq: _s, clocks: _k, deleted_at: _d, ...rest } = row;
+        writeEntity('artboard', uid(), {
+          ...rest,
+          workspace_id: workspaceId,
+          page_id: mapped(row.page_id),
+          created_by: actorId,
+        }, opts());
+        bump('artboards');
+      }
     }
 
     if (include.tasks) {

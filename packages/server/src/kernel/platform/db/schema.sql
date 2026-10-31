@@ -1113,6 +1113,37 @@ CREATE TABLE IF NOT EXISTS pages (
 CREATE INDEX IF NOT EXISTS pages_seq ON pages (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS pages_parent ON pages (parent_id);
 
+-- One board on a canvas page: a whole HTML document at a place on the page, or
+-- a sticky note beside the boards. A row per board so that moving one is two
+-- last-writer-wins fields, not a merge of the whole canvas.
+CREATE TABLE IF NOT EXISTS artboards (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  page_id      TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  -- 'html' for a board, 'note' for a sticky note.
+  kind         TEXT NOT NULL DEFAULT 'html',
+  x            REAL NOT NULL DEFAULT 0,
+  y            REAL NOT NULL DEFAULT 0,
+  w            REAL NOT NULL DEFAULT 960,
+  h            REAL NOT NULL DEFAULT 640,
+  color        TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  -- What the board says: its HTML, or a note's text. Derived from `body` when
+  -- there is one, the way a page's `content` is.
+  content      TEXT NOT NULL DEFAULT '',
+  -- The same as a text CRDT, merged rather than replaced on write.
+  body         TEXT,
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS artboards_seq ON artboards (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS artboards_page ON artboards (page_id);
+
 -- A credential the team keeps somewhere better than a page.
 --
 -- `value` is the one column in this database that is encrypted rather than
@@ -1183,6 +1214,18 @@ CREATE TABLE IF NOT EXISTS page_versions (
 );
 CREATE INDEX IF NOT EXISTS page_versions_page ON page_versions (page_id, created_at);
 
+-- What a board said before each change, for its history. Server-side only,
+-- like page_versions: read through the API, never synced.
+CREATE TABLE IF NOT EXISTS artboard_versions (
+  id          TEXT PRIMARY KEY,
+  artboard_id TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  author_id   TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS artboard_versions_board ON artboard_versions (artboard_id, created_at);
+
 CREATE TABLE IF NOT EXISTS comments (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -1201,6 +1244,14 @@ CREATE TABLE IF NOT EXISTS comments (
   -- When the body was last rewritten, stamped by the server. `updated_at` is
   -- not this: a reaction moves that too, and "edited" has to mean the words.
   edited_at    INTEGER,
+  -- A suggestion: what the anchored passage should say instead. NULL on an
+  -- ordinary comment.
+  suggestion   TEXT,
+  -- How the comment was settled: 'resolved', or for a suggestion 'accepted' or
+  -- 'rejected'. NULL while it is open. Who and when are the server's to stamp.
+  resolution   TEXT,
+  resolved_by  TEXT,
+  resolved_at  INTEGER,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,
