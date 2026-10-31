@@ -18,7 +18,7 @@ import { relativeTime } from '../../kernel/design-system/format';
 import { comment as postComment, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useMe, useMemberMap, useRunsWorkspace } from '../../kernel/identity/session';
-import { anchorLabel, findAnchor, type Anchor } from '@kolibri/shared';
+import { anchorLabel, findAnchor, isPin, textAnchor, type Anchor, type Pin } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Chip } from '../../kernel/design-system/ui/chip';
@@ -30,16 +30,21 @@ import { useMinute } from '../../kernel/design-system/minute';
 /** Exactly one of the two, which is also how the row is stored. */
 export type CommentTarget = { task_id: string; page_id?: never } | { page_id: string; task_id?: never };
 
-export function Comments({ target, empty, anchor, onAnchorDone, source, active, onPick }: {
+export function Comments({ target, empty, anchor, onAnchorDone, source, active, onPick, pinLabel }: {
   target: CommentTarget;
   empty?: string;
-  /** A passage the next comment is about, set by selecting text on the page. */
-  anchor?: Anchor | null;
+  /**
+   * What the next comment is about: a passage, set by selecting text on a page,
+   * or a pin, set by clicking a board on a canvas.
+   */
+  anchor?: Anchor | Pin | null;
   onAnchorDone?: () => void;
   /** The text the anchors are expressed against, for showing what is orphaned. */
   source?: string;
   active?: string | null;
   onPick?: (id: string) => void;
+  /** How a pin on a canvas is named — the board it is on. Only a canvas passes it. */
+  pinLabel?: (pin: Pin) => string;
 }) {
   useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
@@ -125,6 +130,8 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
       {comments.length === 0 && empty && <p className="text-muted text-[12.5px]">{empty}</p>}
       {comments.map((entry) => {
         const author = members.get(entry.author_id);
+        const quoted = textAnchor(entry.anchor);
+        const pin = isPin(entry.anchor) ? entry.anchor : null;
         // A note left through a public link has no account behind it. The name
         // is whatever was typed into a box, so it is shown as exactly that
         // rather than sitting in the row looking like a colleague.
@@ -169,16 +176,21 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                   </span>
                 )}
               </div>
-              {entry.anchor?.quote && (
+              {quoted && (
                 <button
-                  className={`quoted${findAnchor(source ?? '', entry.anchor) ? '' : ' orphan'}`}
+                  className={`quoted${findAnchor(source ?? '', quoted) ? '' : ' orphan'}`}
                   onClick={() => onPick?.(entry.id)}
-                  title={findAnchor(source ?? '', entry.anchor) ? t('annotate.jump') : t('annotate.orphanHint')}
+                  title={findAnchor(source ?? '', quoted) ? t('annotate.jump') : t('annotate.orphanHint')}
                 >
-                  <Icon name="link" size={11} /> {anchorLabel(entry.anchor)}
-                  {source !== undefined && !findAnchor(source, entry.anchor) && (
+                  <Icon name="link" size={11} /> {anchorLabel(quoted)}
+                  {source !== undefined && !findAnchor(source, quoted) && (
                     <em> · {t('annotate.orphan')}</em>
                   )}
+                </button>
+              )}
+              {pin && pinLabel && (
+                <button className="quoted" onClick={() => onPick?.(entry.id)}>
+                  <Icon name="pin" size={11} /> {pinLabel(pin)}
                 </button>
               )}
               {editing?.id === entry.id ? (
@@ -220,7 +232,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
         {anchor && (
           <div className="flex items-center gap-2 quoted-draft">
             <Icon name="link" size={12} />
-            <span className="flex-1 min-w-0 truncate">{anchorLabel(anchor)}</span>
+            <span className="flex-1 min-w-0 truncate">{isPin(anchor) ? pinLabel?.(anchor) : anchorLabel(anchor)}</span>
             <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => onAnchorDone?.()}>
               <Icon name="close" size={12} />
             </Button>

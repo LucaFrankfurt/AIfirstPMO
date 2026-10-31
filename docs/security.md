@@ -31,7 +31,7 @@ Three questions, asked in this order, in `lib/auth.ts` and `lib/repo.ts`:
    a "public" project is public *to that workspace*, and `canSeeProject` used to answer the
    visibility question without asking the membership one.
 3. **Does the token carry the scope?** API and MCP tokens are `read` or `read,write`. A read-only
-   token is refused by every write path, including all 70 writing MCP tools.
+   token is refused by every write path, including all 74 writing MCP tools.
 4. **Does the row answer for itself?** Most do not — they follow their project, and that is the
    whole of it. Two do: a **secret**, and a **page**, which can be `access: 'private'` inside a
    project everybody can see. `pageIsVisible` in `lib/repo.ts` asks both halves, and it is one
@@ -59,6 +59,16 @@ existed; the column sat in the entity's `fields`, which is last-writer-wins and 
 client's, so the server's stamp was applied *in addition to* whatever arrived. A `PATCH` carrying
 nothing but `edited_at` marked a message nobody had edited, and one carrying a date in the past
 buried a real edit. It is `serverOnly` on both now.
+
+A comment is whatever it hangs on, and three doors had only half of that. The pull filter has always
+asked a comment's task *and* its page; the REST read of one comment, the comments listing and search
+asked only the task half, or only the project, so a comment on a colleague's private page answered
+`GET /api/comments/:id` with its text for every member of the workspace — measured on a seeded
+instance, against a page that answered 403 — and search returned both the private page and what was
+said on it. Leaving a new comment on a page you cannot see was accepted too, because the guard only
+looked at comments that already existed. Found while adding pinned comments to canvases, which are
+page comments; `page-comments-scope.test.ts` asks every door. A board on a canvas has no access of its
+own at all: it is its page's, in the pull, on REST and in MCP (`artboards.test.ts`).
 
 A row may only reference rows in its own workspace. `parent_id`, `project_id`, `state_id` and the
 rest are checked at the write in `guardReferences` — not because a dangling reference is dangerous
@@ -110,6 +120,22 @@ protocol-relative URLs are refused; external links carry `rel="noopener noreferr
 Content-Security-Policy (`lib/csp.ts`) is the second lock rather than the first: `default-src 'self'`,
 no inline or `eval`'d script, `frame-ancestors 'none'`. It is computed rather than constant, because
 a pre-signed download redirects the browser to the object store and that origin has to be named.
+
+**Artboards — somebody's code, on purpose.** A board on a canvas page is a whole HTML document with
+its scripts, so it is the one place this app runs code it did not write. It never runs in the app: it
+is drawn in `artboard.html`, inside an iframe with `sandbox="allow-scripts"` and nothing else, served
+under its own policy (`buildFrameCsp`): `sandbox allow-scripts`, `connect-src 'none'`, pictures and
+fonts from `data:` and `blob:` only, `frame-ancestors 'self'`. The sandbox gives the document an
+opaque origin, so it can read neither the session cookie nor the IndexedDB holding the workspace's
+offline copy, nor reach into the page that holds it; the policy means it cannot send what it shows
+anywhere. Measured in Chromium, with a board that tries each: cookie, `localStorage`, IndexedDB,
+`parent.document`, `fetch` to this server and to the internet, an image beacon and a popup are all
+refused, while its own inline scripts, handlers and `eval` run. What the frame says back is checked for
+shape and dropped when it is about an older render (`readMessage`), and the only thing it can make
+the app do outside the editor is open an `http(s)` or `mailto` link in a new tab. A board's script can
+post an edit message while somebody has that board open in the editor — which changes that board,
+which anybody able to post it could already edit. Not measured: Safari, Firefox and the packaged app.
+See [`canvas.md`](canvas.md).
 
 **SMTP.** An address with a carriage return in it is not a badly-typed address, it is a second
 command to the relay. `lib/address.ts` refuses control characters, and it is called at the socket —

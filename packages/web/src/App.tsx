@@ -52,6 +52,7 @@ const Settings = lazy(() => import('./modules/operations/routes/settings').then(
 import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './kernel/design-system/navigation';
 import { useFeatures, useSession } from './kernel/identity/session';
 import { useI18n, type Locale } from './kernel/i18n/i18n';
+import { warmFrame } from './modules/pages/frame';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
 function TaskRoute() {
@@ -163,6 +164,8 @@ export default function App() {
   useEffect(() => {
     if ('serviceWorker' in navigator && import.meta.env.PROD) {
       navigator.serviceWorker.register('/sw.js').catch(() => undefined);
+      // The one file the service worker is never asked for: see `warmFrame`.
+      warmFrame();
     }
   }, []);
 

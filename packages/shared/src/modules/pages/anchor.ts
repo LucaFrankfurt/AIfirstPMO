@@ -32,6 +32,29 @@ export interface Anchor {
   suffix: string;
 }
 
+/**
+ * Where on a canvas a comment was left: a board, and a point on it in the
+ * board's own pixels.
+ *
+ * Not a quote, because what a person comments on in a board is often not text
+ * at all — a chart, a gap, the colour of a box — and a point on the board is
+ * what they actually pointed at. The point moves with the board and survives
+ * every edit to its source; what it cannot know is whether the thing that was
+ * there is still there, which is the same limit a sticker on a printout has.
+ */
+export interface Pin {
+  board: string;
+  x: number;
+  y: number;
+}
+
+/** A comment's anchor is a quote on a text page or a pin on a canvas; these tell them apart. */
+export const isPin = (anchor: unknown): anchor is Pin =>
+  !!anchor && typeof anchor === 'object' && typeof (anchor as Pin).board === 'string';
+
+export const textAnchor = (anchor: Anchor | Pin | null | undefined): Anchor | null =>
+  anchor && !isPin(anchor) && typeof anchor.quote === 'string' ? anchor : null;
+
 export interface Found {
   start: number;
   end: number;

@@ -1113,6 +1113,37 @@ CREATE TABLE IF NOT EXISTS pages (
 CREATE INDEX IF NOT EXISTS pages_seq ON pages (workspace_id, seq);
 CREATE INDEX IF NOT EXISTS pages_parent ON pages (parent_id);
 
+-- One board on a canvas page: a whole HTML document at a place on the page, or
+-- a sticky note beside the boards. A row per board so that moving one is two
+-- last-writer-wins fields, not a merge of the whole canvas.
+CREATE TABLE IF NOT EXISTS artboards (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  page_id      TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  -- 'html' for a board, 'note' for a sticky note.
+  kind         TEXT NOT NULL DEFAULT 'html',
+  x            REAL NOT NULL DEFAULT 0,
+  y            REAL NOT NULL DEFAULT 0,
+  w            REAL NOT NULL DEFAULT 960,
+  h            REAL NOT NULL DEFAULT 640,
+  color        TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  -- What the board says: its HTML, or a note's text. Derived from `body` when
+  -- there is one, the way a page's `content` is.
+  content      TEXT NOT NULL DEFAULT '',
+  -- The same as a text CRDT, merged rather than replaced on write.
+  body         TEXT,
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS artboards_seq ON artboards (workspace_id, seq);
+CREATE INDEX IF NOT EXISTS artboards_page ON artboards (page_id);
+
 -- A credential the team keeps somewhere better than a page.
 --
 -- `value` is the one column in this database that is encrypted rather than

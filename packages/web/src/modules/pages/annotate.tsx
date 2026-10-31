@@ -23,7 +23,7 @@
  * like a length limit, does not: see `flatten` in `anchor.ts`.
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { findAnchor, makeAnchor, sameQuote, type Anchor, type Comment, type Found } from '@kolibri/shared';
+import { findAnchor, makeAnchor, sameQuote, textAnchor, type Anchor, type Comment, type Found } from '@kolibri/shared';
 import { useT } from '../../kernel/i18n/i18n';
 import { Icon } from '../../kernel/design-system/ui';
 
@@ -161,14 +161,14 @@ export function useHighlights(
 ): void {
   const anchored = useMemo(
     () => comments
-      .filter((comment) => comment.anchor?.quote)
-      .map((comment) => ({
-        id: comment.id,
-        anchor: comment.anchor as Anchor,
+      .map((comment) => ({ id: comment.id, anchor: textAnchor(comment.anchor) }))
+      .filter((entry): entry is { id: string; anchor: Anchor } => entry.anchor !== null)
+      .map((entry) => ({
+        ...entry,
         // Which copy the comment is *about*, decided in the source, where the
         // prefix and suffix it recorded are also expressed. The page only has
         // to be told where that copy reads.
-        meant: findAnchor(source, comment.anchor),
+        meant: findAnchor(source, entry.anchor),
       }))
       .filter((entry): entry is { id: string; anchor: Anchor; meant: Found } => entry.meant !== null),
     [comments, source],

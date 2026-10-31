@@ -326,7 +326,16 @@ function followParent(task: Row, opts: WriteOpts): void {
  *   so an admin or owner may delete it, and only delete it.
  */
 function guardCommentWrite(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
-  if (!existing) return;
+  if (!existing) {
+    // Said about something the writer can see, or not said. A new comment was
+    // waved through, so a member could leave one on a colleague's private page
+    // — or pin one to a board on their private canvas — by naming its id.
+    if (values.task_id && !canSeeTask(opts.actorId, String(values.task_id))) throw forbidden('That task is not yours to see');
+    if (!values.task_id && values.page_id && !canSeePage(opts.actorId, String(values.page_id))) {
+      throw forbidden('That page is private');
+    }
+    return;
+  }
   const reactingOnly = Object.keys(values).every((field) => field === 'reactions');
   const seen = existing.task_id
     ? canSeeTask(opts.actorId, String(existing.task_id))

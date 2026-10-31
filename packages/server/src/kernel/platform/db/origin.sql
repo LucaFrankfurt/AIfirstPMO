@@ -1544,3 +1544,29 @@ CREATE TABLE meetings (
   seq             INTEGER NOT NULL DEFAULT 0,
   clocks          TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE artboards (
+  id           TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  page_id      TEXT NOT NULL,
+  title        TEXT NOT NULL DEFAULT '',
+  -- 'html' for a board, 'note' for a sticky note.
+  kind         TEXT NOT NULL DEFAULT 'html',
+  x            REAL NOT NULL DEFAULT 0,
+  y            REAL NOT NULL DEFAULT 0,
+  w            REAL NOT NULL DEFAULT 960,
+  h            REAL NOT NULL DEFAULT 640,
+  color        TEXT,
+  sort_order   TEXT NOT NULL DEFAULT 'V',
+  -- What the board says: its HTML, or a note's text. Derived from `body` when
+  -- there is one, the way a page's `content` is.
+  content      TEXT NOT NULL DEFAULT '',
+  -- The same as a text CRDT, merged rather than replaced on write.
+  body         TEXT,
+  created_by   TEXT,
+  created_at   INTEGER NOT NULL,
+  updated_at   INTEGER NOT NULL,
+  deleted_at   INTEGER,
+  seq          INTEGER NOT NULL DEFAULT 0,
+  clocks       TEXT NOT NULL DEFAULT '{}'
+);

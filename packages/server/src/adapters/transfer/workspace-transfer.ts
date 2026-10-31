@@ -36,7 +36,7 @@ import { uid } from '../../kernel/platform/ids.ts';
 import { addMember, createWorkspace, serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { writeEntity } from '../../kernel/write-path/repo.ts';
 import {
-  adoptFiles, collectHashes, describeFiles, exportProject, hashesIn, importProject,
+  adoptFiles, collectHashes, describeFiles, exportProject, hashesIn, importProject, repin,
   type FileRef, type ProjectDoc,
 } from './transfer.ts';
 
@@ -56,8 +56,10 @@ export interface WorkspaceDoc {
   /** Cycles and modules several projects run. Carried once, here. */
   cycles: Record<string, unknown>[];
   modules: Record<string, unknown>[];
-  /** Pages outside every project, and what was said on them. */
+  /** Pages outside every project, the boards on the canvases among them, and what was said on them. */
   pages: Record<string, unknown>[];
+  /** Optional: an archive made before there were canvases has none. */
+  page_artboards?: Record<string, unknown>[];
   page_comments: Record<string, unknown>[];
   /** The saved views everybody works from. */
   views: Record<string, unknown>[];
@@ -129,6 +131,9 @@ export function exportWorkspace(workspaceId: string, options: WorkspaceExportOpt
   const pageComments = pageIds.length
     ? live('comments', `page_id IN (${pageIds.map(() => '?').join(', ')})`, ...pageIds)
     : [];
+  const pageArtboards = pageIds.length
+    ? live('artboards', `page_id IN (${pageIds.map(() => '?').join(', ')})`, ...pageIds)
+    : [];
 
   /* Open, workspace-wide rooms only: a private one is left out for the reason
      the project export gives, and a direct conversation belongs to no
@@ -193,6 +198,7 @@ export function exportWorkspace(workspaceId: string, options: WorkspaceExportOpt
     cycles: live('cycles', 'workspace_id = ? AND project_id IS NULL', workspaceId).map(clean),
     modules: live('modules', 'workspace_id = ? AND project_id IS NULL', workspaceId).map(clean),
     pages: pages.map(clean),
+    page_artboards: pageArtboards.map(clean),
     page_comments: pageComments.map(clean),
     views: live('views', 'workspace_id = ?', workspaceId).map(clean),
     channels: channels.map(clean),
@@ -212,6 +218,7 @@ export function exportWorkspace(workspaceId: string, options: WorkspaceExportOpt
   const hashes = new Set<string>();
   collectHashes([doc.workspace], hashes);
   collectHashes(doc.pages, hashes);
+  collectHashes(doc.page_artboards ?? [], hashes);
   collectHashes(doc.page_comments, hashes);
   collectHashes(doc.messages, hashes);
   collectHashes(doc.attachments, hashes);
@@ -429,11 +436,17 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
     });
     bump('pages');
   }
+  for (const row of doc.page_artboards ?? []) {
+    const page = to(row.page_id);
+    if (!page) continue;
+    write('artboard', row, { page_id: page, created_by: who(row.created_by) ?? actorId });
+    bump('artboards');
+  }
   for (const row of doc.page_comments ?? []) {
     const page = to(row.page_id);
     if (!page) continue;
     write('comment', row, {
-      page_id: page, task_id: null, parent_id: to(row.parent_id),
+      page_id: page, task_id: null, parent_id: to(row.parent_id), anchor: repin(row.anchor, to),
       author_id: who(row.author_id) ?? actorId, reactions: {},
     });
     bump('comments');
@@ -473,7 +486,7 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
      answers "not yours" about a file the workspace just imported. */
   const wanted = new Set<string>((doc.files ?? []).map((file) => file.hash));
   collectHashes([doc.workspace], wanted);
-  for (const section of [doc.pages, doc.page_comments, doc.messages, doc.attachments]) collectHashes(section ?? [], wanted);
+  for (const section of [doc.pages, doc.page_artboards, doc.page_comments, doc.messages, doc.attachments]) collectHashes(section ?? [], wanted);
   if (options.restored) for (const hash of options.restored) wanted.add(hash);
   const missingHere = adoptFiles(
     workspaceId, actorId, wanted,

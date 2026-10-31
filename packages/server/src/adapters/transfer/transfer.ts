@@ -12,7 +12,7 @@
  * imported twice into the same workspace and produce two independent projects
  * rather than one corrupted one.
  */
-import { COLLECTIONS, type EntityName } from '@kolibri/shared';
+import { COLLECTIONS, isPin, type EntityName } from '@kolibri/shared';
 import { all, get, run, tx, type Row } from '../../kernel/platform/db/index.ts';
 import { badRequest, notFound } from '../../kernel/platform/http.ts';
 import { uid } from '../../kernel/platform/ids.ts';
@@ -44,6 +44,11 @@ export interface ProjectDoc {
   relations: Record<string, unknown>[];
   comments: Record<string, unknown>[];
   pages: Record<string, unknown>[];
+  /**
+   * The boards on this project's canvas pages. Optional, because a file
+   * exported before there were canvases has none and still imports.
+   */
+  artboards?: Record<string, unknown>[];
   templates: Record<string, unknown>[];
   automations: Record<string, unknown>[];
   time_entries: Record<string, unknown>[];
@@ -98,6 +103,25 @@ const clean = (row: Row): Record<string, unknown> => {
   if (row.created_at) out.created_at_iso = new Date(Number(row.created_at)).toISOString();
   return out;
 };
+
+/**
+ * A comment's anchor, with a pin pointed at the board's id in this instance.
+ *
+ * A quote on a text page means the same thing anywhere and goes across as it
+ * is. A pin names a board by id, and every row an import writes gets a new
+ * one — so a pin carried across unchanged points at a board that is not here,
+ * and the comment quietly loses the thing it was about. One whose board did
+ * not come across is kept as an ordinary comment rather than dropped.
+ */
+export function repin(raw: unknown, to: (id: unknown) => string | null | undefined): unknown {
+  let anchor = raw;
+  if (typeof raw === 'string') {
+    try { anchor = JSON.parse(raw); } catch { return raw; }
+  }
+  if (!isPin(anchor)) return raw;
+  const board = to(anchor.board);
+  return board ? { ...anchor, board } : null;
+}
 
 const live = (table: string, where: string, ...params: unknown[]): Row[] =>
   all<Row>(`SELECT * FROM ${table} WHERE ${where} AND deleted_at IS NULL`, ...params);
@@ -271,6 +295,7 @@ export function exportProject(workspaceId: string, projectId: string, options: E
       .map(clean),
     comments: live('comments', 'task_id IN (SELECT id FROM tasks WHERE project_id = ?) OR page_id IN (SELECT id FROM pages WHERE project_id = ?)', projectId, projectId).map(clean),
     pages: live('pages', 'project_id = ?', projectId).map(clean),
+    artboards: live('artboards', 'page_id IN (SELECT id FROM pages WHERE project_id = ?)', projectId).map(clean),
     templates: live('templates', 'project_id = ?', projectId).map(clean),
     automations: live('automations', 'project_id = ?', projectId).map(clean),
     time_entries: live('time_entries', 'project_id = ?', projectId).map(clean),
@@ -288,7 +313,7 @@ export function exportProject(workspaceId: string, projectId: string, options: E
      to" and that is only knowable once the above exists. */
   const hashes = new Set<string>();
   collectHashes([doc.project], hashes);
-  for (const section of [doc.tasks, doc.pages, doc.comments, doc.templates, doc.messages ?? [], doc.attachments ?? []]) {
+  for (const section of [doc.tasks, doc.pages, doc.artboards ?? [], doc.comments, doc.templates, doc.messages ?? [], doc.attachments ?? []]) {
     collectHashes(section, hashes);
   }
   doc.files = describeFiles(hashes);
@@ -543,6 +568,14 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
       });
     }
 
+    // After the pages they stand on, and before the comments that may be
+    // pinned to them — a pin names its board by id, and that id is new here.
+    for (const row of doc.artboards ?? []) {
+      const page = to(row.page_id);
+      if (!page) continue;
+      write('artboard', row, { page_id: page, created_by: who(row.created_by) ?? actorId });
+    }
+
     for (const row of doc.relations ?? []) {
       const from = to(row.task_id);
       const target_ = to(row.related_task_id);
@@ -568,6 +601,7 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
         task_id: task,
         page_id: page,
         parent_id: to(row.parent_id),
+        anchor: repin(row.anchor, to),
         author_id: who(row.author_id) ?? actorId,
         // Who reacted is a set of ids from another instance; the emoji survive,
         // the attribution does not.
@@ -730,7 +764,7 @@ export function adoptFiles(
 export function hashesOf(doc: ProjectDoc): Set<string> {
   const wanted = new Set<string>((doc.files ?? []).map((file) => file.hash));
   collectHashes([doc.project], wanted);
-  for (const section of [doc.tasks, doc.pages, doc.comments, doc.templates, doc.messages ?? [], doc.attachments ?? []]) {
+  for (const section of [doc.tasks, doc.pages, doc.artboards ?? [], doc.comments, doc.templates, doc.messages ?? [], doc.attachments ?? []]) {
     collectHashes(section ?? [], wanted);
   }
   return wanted;

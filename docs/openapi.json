@@ -195,6 +195,152 @@
           }
         }
       },
+      "Artboard": {
+        "type": "object",
+        "description": "A row of `artboards` (table `artboards`).",
+        "properties": {
+          "body": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "v": {
+                "type": "number",
+                "enum": [
+                  1
+                ],
+                "description": "Format marker, so a later shape can be told from this one."
+              },
+              "a": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Agent ids, interned — they repeat on every run otherwise."
+              },
+              "r": {
+                "type": "array",
+                "items": {
+                  "type": "array",
+                  "prefixItems": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "type": "number",
+                          "enum": [
+                            0
+                          ]
+                        },
+                        {
+                          "type": "number",
+                          "enum": [
+                            1
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "description": "`[agentIndex, clock, originAgentIndex, originClock, deleted, text]`"
+              }
+            },
+            "description": "The same as a CRDT, merged rather than replaced on write."
+          },
+          "color": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A note's colour, by name; ignored on a board."
+          },
+          "content": {
+            "type": "string",
+            "description": "The board's HTML, or a note's text. Derived from `body` whenever there is one."
+          },
+          "created_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "created_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who made it. The server's to set.",
+            "readOnly": true
+          },
+          "deleted_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "h": {
+            "type": "number"
+          },
+          "id": {
+            "type": "string",
+            "readOnly": true
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "html",
+              "note"
+            ]
+          },
+          "page_id": {
+            "type": "string"
+          },
+          "seq": {
+            "type": "number",
+            "description": "Server-assigned, workspace-monotonic sync cursor.",
+            "readOnly": true
+          },
+          "sort_order": {
+            "type": "string",
+            "description": "Front to back. A fractional key, compared with `compareOrder`."
+          },
+          "title": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "number",
+            "readOnly": true
+          },
+          "w": {
+            "type": "number",
+            "description": "The board's frame. Its document may be taller and scrolls inside it."
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "x": {
+            "type": "number",
+            "description": "Where the board's top-left corner sits on the canvas, in canvas pixels."
+          },
+          "y": {
+            "type": "number"
+          }
+        }
+      },
       "Attachment": {
         "type": "object",
         "description": "A row of `attachments` (table `attachments`).",
@@ -1166,23 +1312,41 @@
         "description": "A row of `comments` (table `comments`).",
         "properties": {
           "anchor": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "quote": {
-                "type": "string",
-                "description": "The selected text itself."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "quote": {
+                    "type": "string",
+                    "description": "The selected text itself."
+                  },
+                  "prefix": {
+                    "type": "string",
+                    "description": "The text immediately before and after it, for disambiguation."
+                  },
+                  "suffix": {
+                    "type": "string"
+                  }
+                }
               },
-              "prefix": {
-                "type": "string",
-                "description": "The text immediately before and after it, for disambiguation."
+              {
+                "type": "object",
+                "properties": {
+                  "board": {
+                    "type": "string"
+                  },
+                  "x": {
+                    "type": "number"
+                  },
+                  "y": {
+                    "type": "number"
+                  }
+                }
               },
-              "suffix": {
-                "type": "string"
+              {
+                "type": "null"
               }
-            },
+            ],
             "description": "The passage this comment is about, for a comment made on a selection. A quote with its surroundings rather than an offset, because an offset is wrong the moment somebody types a word above it. See `anchor.ts`."
           },
           "author_id": {
@@ -2931,8 +3095,9 @@
           "format": {
             "type": "string",
             "enum": [
+              "html",
               "markdown",
-              "html"
+              "canvas"
             ],
             "description": "Which language `content` is written in. Two, and they are read by two different renderers with two different safety arguments: markdown is escaped and re-emitted as tags this app wrote, HTML is parsed and put through an allowlist. The column exists so that decision is made once per page and stored, rather than sniffed per render — a document that renders as markdown on one screen and as HTML on the next is a document nobody can edit with confidence."
           },
@@ -4073,6 +4238,7 @@
               "meeting",
               "agendaItem",
               "pageStatus",
+              "artboard",
               "attachment",
               "view",
               "timeEntry",
@@ -4294,12 +4460,12 @@
           "kind": {
             "type": "string",
             "enum": [
+              "note",
               "password",
               "api_key",
               "token",
               "certificate",
-              "connection",
-              "note"
+              "connection"
             ]
           },
           "last_used_at": {
@@ -6069,6 +6235,199 @@
         "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
         "tags": [
           "agenda-items"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artboards/{id}": {
+      "get": {
+        "operationId": "getArtboard",
+        "summary": "Read one artboard",
+        "tags": [
+          "artboards"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The row.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateArtboard",
+        "summary": "Change a artboard",
+        "description": "Partial: only the fields present are written.",
+        "tags": [
+          "artboards"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Artboard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it now stands.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artboard"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteArtboard",
+        "summary": "Delete a artboard",
+        "description": "Soft: the row keeps its place in the sync log and comes back as deleted.",
+        "tags": [
+          "artboards"
         ],
         "parameters": [
           {
@@ -19391,6 +19750,179 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgendaItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body was refused — a rule in the registry, or one the entity keeps for itself.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{ws}/artboards": {
+      "get": {
+        "operationId": "listArtboard",
+        "summary": "List artboards",
+        "description": "Filterable by any field of the row: `?project_id=…&priority=urgent`, and `?field=null` for rows that have none.",
+        "tags": [
+          "artboards"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "maximum": 1000
+            },
+            "description": "At most 1000."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "order_by",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Any field of the row."
+          },
+          {
+            "name": "order",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "asc",
+                "desc"
+              ]
+            }
+          },
+          {
+            "name": "include_deleted",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "1"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The artboards this caller may see.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "artboards": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Artboard"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Authenticated, and not allowed to do this.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "createArtboard",
+        "summary": "Create a artboard",
+        "tags": [
+          "artboards"
+        ],
+        "parameters": [
+          {
+            "name": "ws",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Artboard"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The row as it was stored.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Artboard"
                 }
               }
             }

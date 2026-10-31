@@ -49,6 +49,7 @@ export type EntityName =
   | 'agendaItem'
   | 'pageStatus'
   | 'page'
+  | 'artboard'
   | 'comment'
   | 'attachment'
   | 'view'
@@ -498,6 +499,32 @@ export const ENTITIES = {
     crdt: ['body'],
   },
   /**
+   * One board on a canvas page: a whole HTML document, drawn at a place on the
+   * page, or a sticky note beside the boards.
+   *
+   * A row per board rather than one document per canvas, and the reason is the
+   * grain of the edits. Moving a board is `x` and `y`, and per-field
+   * last-writer-wins is exactly right for that — two people moving two boards
+   * never touch the same field, and two people dragging one board end with it
+   * where the later one let go. A canvas kept as one merged text would send
+   * every board on every drag, and merge a coordinate as characters.
+   *
+   * The board's HTML is `body` as a CRDT and `content` as what it reads as, the
+   * arrangement a page's text has, so two people editing one board both keep
+   * their changes and everything else reads plain text. It is rendered only in
+   * a sandboxed frame — see `docs/canvas.md` — never into the app itself.
+   */
+  artboard: {
+    table: 'artboards',
+    fields: [
+      'workspace_id', 'page_id', 'title', 'kind', 'x', 'y', 'w', 'h', 'color', 'sort_order',
+      'content', 'body',
+    ],
+    serverOnly: ['created_by'],
+    json: ['body'],
+    crdt: ['body'],
+  },
+  /**
    * A credential the team keeps somewhere better than a page.
    *
    * The `secret: ['value']` below is the whole storage design in one line, and
@@ -871,6 +898,7 @@ export const COLLECTIONS: Record<EntityName, string> = {
   module: 'modules',
   pageStatus: 'page-statuses',
   page: 'pages',
+  artboard: 'artboards',
   comment: 'comments',
   attachment: 'attachments',
   view: 'views',

@@ -2,7 +2,7 @@ import type { EntityName } from './entities.ts';
 import type { AttachmentSubject } from './attachments.ts';
 import type { CrdtState } from '../../modules/pages/text-crdt.ts';
 import type { HLC } from './hlc.ts';
-import type { Anchor } from '../../modules/pages/anchor.ts';
+import type { Anchor, Pin } from '../../modules/pages/anchor.ts';
 import type { ChannelKind, ChannelNotify, InvitePolicy } from '../../modules/chat/chat.ts';
 import type { SecretAccess, SecretKind } from '../../modules/secrets/secret.ts';
 
@@ -1099,8 +1099,44 @@ export interface Module extends Base {
   sort_order: string;
 }
 
-/** What a page's text is written in. Anything else is refused on the way in. */
-export type PageFormat = 'markdown' | 'html';
+/**
+ * What a page is written in. Anything else is folded to markdown on the way in.
+ *
+ * `canvas` is the odd one out: its `content` is not the page — the page is its
+ * artboards, rows of their own — so every reader that only knows the first two
+ * sees a canvas as an empty markdown page, which is what an older client shows
+ * and is harmless.
+ */
+export type PageFormat = 'markdown' | 'html' | 'canvas';
+
+/** The two things a canvas holds: a board of HTML, or a note beside the boards. */
+export type ArtboardKind = 'html' | 'note';
+
+/**
+ * One board on a canvas page. See the registry entry for why a board is a row.
+ */
+export interface Artboard extends Base {
+  workspace_id: ID;
+  page_id: ID;
+  title: string;
+  kind: ArtboardKind;
+  /** Where the board's top-left corner sits on the canvas, in canvas pixels. */
+  x: number;
+  y: number;
+  /** The board's frame. Its document may be taller and scrolls inside it. */
+  w: number;
+  h: number;
+  /** A note's colour, by name; ignored on a board. */
+  color: string | null;
+  /** Front to back. A fractional key, compared with `compareOrder`. */
+  sort_order: string;
+  /** The board's HTML, or a note's text. Derived from `body` whenever there is one. */
+  content: string;
+  /** The same as a CRDT, merged rather than replaced on write. */
+  body: CrdtState | null;
+  /** Who made it. The server's to set. */
+  created_by: ID | null;
+}
 
 /**
  * One rung of a workspace's own ladder for how finished a page is.
@@ -1252,7 +1288,7 @@ export interface Comment extends Base {
    * A quote with its surroundings rather than an offset, because an offset is
    * wrong the moment somebody types a word above it. See `anchor.ts`.
    */
-  anchor: Anchor | null;
+  anchor: Anchor | Pin | null;
   /**
    * Stamped by the server when the body changes, never taken from a client.
    *
@@ -2276,6 +2312,7 @@ export interface EntityMap {
   agendaItem: AgendaItem;
   pageStatus: PageStatus;
   page: Page;
+  artboard: Artboard;
   comment: Comment;
   attachment: Attachment;
   view: View;

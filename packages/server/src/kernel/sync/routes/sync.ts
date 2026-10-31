@@ -414,6 +414,13 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
               AND (${table}.subject_id IS NULL OR ${subjectVisibleSql(table)})`;
     case 'relation':
       return `AND ${visibleTaskSql(`${table}.task_id`, '?1', '?2')}`;
+    /*
+     * A board on a canvas is exactly as visible as its page, and has no
+     * visibility of its own to add. Unlike a comment it always has a page, so
+     * there is no `IS NULL` half: a board pointing at nothing reaches nobody.
+     */
+    case 'artboard':
+      return `AND ${visiblePageSql(`${table}.page_id`, '?1', '?2')}`;
     default:
       return '';
   }

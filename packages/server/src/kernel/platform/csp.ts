@@ -57,3 +57,44 @@ export function buildCsp(storage: StorageOrigin): string {
     "form-action 'self'",
   ].join('; ');
 }
+
+/**
+ * The policy for the one document that is not the app: the frame an artboard
+ * on a canvas is drawn in (`web/public/artboard.html`).
+ *
+ * The opposite bargain to the app's. A board is somebody's whole HTML page —
+ * Claude writes them with inline scripts and styles as a matter of course — so
+ * scripts have to run, inline and through `eval`. What makes that safe is what
+ * they are kept *from*:
+ *
+ * - `sandbox allow-scripts` gives the document an opaque origin, so it can read
+ *   neither the app's cookies nor its storage nor its IndexedDB — where the
+ *   offline copy of the whole workspace lives — and cannot reach into the page
+ *   that holds it. The iframe carries the same attribute; this is the same
+ *   promise for somebody who opens the file on its own.
+ * - `connect-src 'none'`, and nothing but `data:` and `blob:` for pictures and
+ *   fonts: a board cannot send what it shows anywhere, nor load a beacon.
+ * - `frame-ancestors 'self'`: only this app may hold it.
+ *
+ * Measured in Chromium before it was written: inline script, inline handlers,
+ * `eval` and styles all work, and every one of the escapes above is refused.
+ * See `docs/canvas.md` for the table.
+ */
+export function buildFrameCsp(): string {
+  return [
+    'sandbox allow-scripts',
+    "default-src 'none'",
+    "script-src 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'unsafe-inline'",
+    'img-src data: blob:',
+    'font-src data:',
+    'media-src data: blob:',
+    "connect-src 'none'",
+    "frame-ancestors 'self'",
+    "base-uri 'none'",
+    "form-action 'none'",
+  ].join('; ');
+}
+
+/** Where the frame is served from, relative to the web build. */
+export const FRAME_FILE = 'artboard.html';

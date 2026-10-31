@@ -19,6 +19,7 @@ import { PageGraph } from '../PageGraph';
 import { Markdown, MarkdownEditor } from '../Markdown';
 import { HtmlEditor, HtmlView } from '../Html';
 import { ImportPages } from '../import';
+import { CanvasView } from '../Canvas';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { ShareSheet } from '../../share/share';
@@ -52,6 +53,9 @@ import { useMinute } from '../../../kernel/design-system/minute';
  * Only where there is enough of a page to get lost in. An outline over two
  * headings is furniture.
  */
+/** What a new canvas is marked with in the tree, until somebody picks another. */
+const CANVAS_ICON = '🎨';
+
 function PageOutline({ source, format }: { source: string; format: PageFormat }) {
   const t = useT();
   // Two readers, one list. The slugs come out the same because both outline
@@ -273,6 +277,14 @@ export function PagesIndex() {
           </Button>
         )}
         {canWrite && (
+          <Button
+            variant="secondary" size="sm" title={t('canvas.new')} aria-label={t('canvas.new')}
+            onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled'), format: 'canvas', icon: CANVAS_ICON }, me)}`)}
+          >
+            <Icon name="canvas" size={14} /> <span className="hide-sm">{t('canvas.new')}</span>
+          </Button>
+        )}
+        {canWrite && (
           <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
           </Button>
@@ -308,7 +320,7 @@ export function PagesIndex() {
                     <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
                     <PageStatusChip page={page} dot />
                   </span>
-                  <p className="m-0 text-[12.5px] text-muted">{pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
+                  <p className="m-0 text-[12.5px] text-muted">{page.format === 'canvas' ? t('canvas.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
                   <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
                 </Link>
               ))}
@@ -600,7 +612,7 @@ export function PageDetail() {
   return (
     <>
       <Header title={<span className="flex items-center gap-1.5"><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
-        <Button size="sm" hidden={!canWrite} onClick={() => {
+        <Button size="sm" hidden={!canWrite || page.format === 'canvas'} onClick={() => {
           if (editing) {
             flush();
             commitTitle();
@@ -615,6 +627,8 @@ export function PageDetail() {
           items={[
             { id: 'child', label: t('page.addSubpage'), icon: <Icon name="plus" size={14} />,
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
+            { id: 'child-canvas', label: t('canvas.addSubcanvas'), icon: <Icon name="canvas" size={14} />,
+              onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled'), format: 'canvas', icon: CANVAS_ICON }, me)}`) },
             // Beside "add a sub-page", because that is what it does — several
             // at once, out of files somebody already has.
             { id: 'import', label: t('page.importHere'), icon: <Icon name="attach" size={14} />,
@@ -631,7 +645,7 @@ export function PageDetail() {
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
             // Three ways out of the same door, so one row rather than three.
-            {
+            ...(page.format === 'canvas' ? [] : [{
               id: 'download',
               label: t('page.download'),
               icon: <Icon name="page" size={14} />,
@@ -640,8 +654,10 @@ export function PageDetail() {
                 { id: 'export-html', label: t('page.exportHtml'), onSelect: () => exportPage(page, 'html') },
                 { id: 'print', label: t('page.print'), onSelect: () => printPage(page) },
               ],
-            },
-            {
+            }]),
+            // A canvas is not text in another language: its boards are rows of
+            // their own, and "convert" would have nothing to convert them into.
+            ...(page.format === 'canvas' ? [] : [{
               id: 'format',
               label: t('page.format'),
               icon: <Icon name="code" size={14} />,
@@ -656,11 +672,15 @@ export function PageDetail() {
                 onSelect: () => { void convert(one); },
               })),
             },
+            // Each of these reads the page's text and nothing else, so on a
+            // canvas they would share, export or copy an empty page and say
+            // they had done the canvas. Absent until they carry the boards —
+            // see `TODO.md`.
             { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
               onSelect: () => setSharing(true) },
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
               icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
-              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
+              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) }]),
             ...cover.items(t('page.cover')),
             ...moveItems(page, workspaceId, t('page.move')),
             labelItems(page, labels, t('page.labels')),
@@ -720,6 +740,7 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
+      {page.format === 'canvas' ? <CanvasView page={page} canWrite={canWrite} thread={(props) => <Comments {...props} />} /> : (
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">
         {/*
           * The tree, beside the page rather than one screen back.
@@ -915,6 +936,7 @@ export function PageDetail() {
         )}
         </div>
       </div>
+      )}
 
       {sharing && (
         <ShareSheet

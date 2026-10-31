@@ -1,10 +1,10 @@
 /**
  * The wiki: reading it, writing it, and starting from a template.
  */
-import { linkGraph, orderKey, pageResolver, wikiLinks, type LinkablePage } from '@kolibri/shared';
+import { artboard, isPin, linkGraph, orderKey, pageResolver, textAnchor, wikiLinks, type LinkablePage } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
-import { serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { deleteEntity, serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { renameFollowers } from '../../../modules/pages/rules/pages.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
@@ -97,6 +97,47 @@ function findStatus(wanted: string, workspaceId: string): Row {
   return found;
 }
 
+
+/** The three things a page may be written as; anything else is markdown. */
+const asFormat = (raw: unknown): 'markdown' | 'html' | 'canvas' =>
+  (str(raw) === 'html' ? 'html' : str(raw) === 'canvas' ? 'canvas' : 'markdown');
+
+/**
+ * What a board may be, said once for every tool that writes one.
+ *
+ * The frame a board is drawn in reaches no network at all — that is what lets
+ * it run scripts — so everything a board needs has to be inside it. Said in the
+ * tool description because the assistant writing the board is the one who has
+ * to know, and a board that loads Chart.js from a CDN draws a blank box.
+ */
+const BOARD_RULES = 'A board is one complete, self-contained HTML document (`<!doctype html>` … `</html>`): inline `<style>` and `<script>` are fine and run, but nothing is fetched — no CDN scripts, no web fonts, no remote images, no `fetch`. Use system fonts, inline SVG, and `data:` URIs for pictures. Put the look in inline `style` attributes where you can: that is what people restyle in the editor.';
+
+/** A board on a page this caller may see, by id. */
+function findBoard(ref: string, workspaceId: string, ctx: McpCtx): { board: Row; page: Row } {
+  const board = get<Row>(`SELECT * FROM artboards WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`, ref, workspaceId);
+  if (!board) throw new McpError(`Board ${ref} not found`);
+  // The page's own lookup, so a board is exactly as findable as its canvas.
+  const page = findPage(String(board.page_id), workspaceId, ctx);
+  return { board, page };
+}
+
+/** A board as a listing shows it: everything but the HTML, and how much of that there is. */
+const boardSummary = (row: Row) => ({
+  id: row.id, title: row.title, kind: row.kind, x: row.x, y: row.y, w: row.w, h: row.h, color: row.color,
+  characters: String(row.content ?? '').length,
+  text: artboard.text(String(row.content ?? '')).slice(0, 160),
+});
+
+/** Where a new board goes when the caller did not say: to the right of everything already there. */
+function nextSpot(pageId: string): { x: number; y: number } {
+  const edge = get<Row>(
+    `SELECT MAX(x + w) AS right, MIN(y) AS top FROM artboards WHERE page_id = ? AND deleted_at IS NULL`, pageId,
+  );
+  return edge?.right === null || edge?.right === undefined ? { x: 0, y: 0 } : { x: Number(edge.right) + 80, y: Number(edge.top ?? 0) };
+}
+
+const finite = (value: unknown): number | undefined => (value === undefined || value === null || !Number.isFinite(Number(value)) ? undefined : Number(value));
+
 export const pageTools: ToolDef[] = [
   {
     name: 'list_page_statuses',
@@ -179,6 +220,13 @@ export const pageTools: ToolDef[] = [
         (ids ?? []).map((id) => byId.get(id)?.title).filter((title): title is string => !!title);
       return {
         ...serialize('page', page),
+        // A canvas is its boards: listed here without their HTML, which
+        // `get_artboard` reads one at a time.
+        ...(page.format === 'canvas' ? {
+          artboards: all<Row>(
+            `SELECT * FROM artboards WHERE page_id = ? AND deleted_at IS NULL ORDER BY sort_order`, String(page.id),
+          ).map(boardSummary),
+        } : {}),
         links_to: titles(graph.out.get(String(page.id))),
         linked_from: titles(graph.in.get(String(page.id))),
         // What this page asks for and nobody has written. Spelled as the author
@@ -195,7 +243,7 @@ export const pageTools: ToolDef[] = [
   {
     name: 'create_page',
     title: 'Create page',
-    description: 'Create a wiki page from markdown, or from HTML with `format: "html"`.',
+    description: 'Create a wiki page from markdown, from HTML with `format: "html"`, or an empty canvas with `format: "canvas"` — a page of positioned HTML boards and notes that people edit visually and comment on; add boards to it with `add_artboard`.',
     schema: {
       type: 'object',
       required: ['title'],
@@ -203,8 +251,8 @@ export const pageTools: ToolDef[] = [
         title: { type: 'string' }, content: { type: 'string' }, project: { type: 'string' },
         parent: { type: 'string' }, icon: { type: 'string' }, workspace_id: { type: 'string' },
         format: {
-          type: 'string', enum: ['markdown', 'html'],
-          description: 'What `content` is written in. Markdown unless said otherwise; HTML is rendered through an allowlist, so a script or a style block in it is dropped rather than stored and refused.',
+          type: 'string', enum: ['markdown', 'html', 'canvas'],
+          description: 'What `content` is written in. Markdown unless said otherwise; HTML is rendered through an allowlist, so a script or a style block in it is dropped rather than stored and refused. `canvas` makes a canvas instead: its content is its boards, so leave `content` out and call `add_artboard`.',
         },
         status: {
           type: 'string',
@@ -221,9 +269,9 @@ export const pageTools: ToolDef[] = [
         project_id: project?.id ?? null,
         parent_id: str(args.parent) ?? null,
         title: String(args.title),
-        icon: str(args.icon) ?? '📄',
+        icon: str(args.icon) ?? (asFormat(args.format) === 'canvas' ? '🎨' : '📄'),
         content: String(args.content ?? ''),
-        format: str(args.format) === 'html' ? 'html' : 'markdown',
+        format: asFormat(args.format),
         created_by: ctx.auth.userId,
         // Only when asked for. Left undefined, the write path's own default
         // puts it on the workspace's draft — one answer, not two.
@@ -244,8 +292,8 @@ export const pageTools: ToolDef[] = [
         append: { type: 'string', description: 'Markdown appended to the end instead of replacing' },
         icon: { type: 'string' },
         format: {
-          type: 'string', enum: ['markdown', 'html'],
-          description: 'Change what the body is read as. The text is not converted — send `content` in the new language in the same call, or the page will render its old body through the new renderer.',
+          type: 'string', enum: ['markdown', 'html', 'canvas'],
+          description: 'Change what the body is read as. The text is not converted — send `content` in the new language in the same call, or the page will render its old body through the new renderer. A canvas keeps its boards in rows of their own, so switching to or from `canvas` neither creates nor removes any.',
         },
         parent: {
           type: 'string',
@@ -279,7 +327,7 @@ export const pageTools: ToolDef[] = [
       if (args.content !== undefined) patch.content = String(args.content);
       if (args.append) patch.content = `${page.content ?? ''}\n\n${args.append}`;
       if (args.icon !== undefined) patch.icon = str(args.icon) ?? null;
-      if (args.format !== undefined) patch.format = str(args.format) === 'html' ? 'html' : 'markdown';
+      if (args.format !== undefined) patch.format = asFormat(args.format);
       if (args.parent !== undefined) Object.assign(patch, reparent(page, String(args.parent), workspaceId, ctx));
       const { row } = writeEntity('page', page.id, patch, writeOpts(workspaceId, ctx));
       // Said in the answer, because rewriting other people's pages is a real
@@ -368,6 +416,169 @@ export const pageTools: ToolDef[] = [
         project: project?.key ?? null,
         url: `${env.publicUrl}/pages/${row.id}`,
       };
+    },
+  },
+  {
+    name: 'get_artboard',
+    title: 'Get artboard',
+    description: 'Read one board on a canvas page, including its whole HTML. `get_page` lists a canvas\'s boards without it.',
+    readOnly: true,
+    schema: { type: 'object', required: ['artboard'], properties: { artboard: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const { board, page } = findBoard(String(args.artboard), workspaceId, ctx);
+      const { body: _body, ...rest } = serialize('artboard', board) ?? {};
+      return { ...rest, page: page.title };
+    },
+  },
+  {
+    name: 'add_artboard',
+    title: 'Add artboard',
+    description: `Put a board on a canvas page: a styled, optionally interactive HTML document people can then edit visually, rearrange and comment on — or, with \`kind: "note"\`, a sticky note of plain text. ${BOARD_RULES} Left without a position it goes to the right of the boards already there.`,
+    schema: {
+      type: 'object',
+      required: ['page'],
+      properties: {
+        page: { type: 'string', description: 'The canvas page, by id or exact title.' },
+        title: { type: 'string' },
+        html: { type: 'string', description: 'The board\'s whole HTML document — or a note\'s text.' },
+        kind: { type: 'string', enum: ['html', 'note'] },
+        x: { type: 'number' }, y: { type: 'number' },
+        w: { type: 'number', description: 'Width in pixels: 1280–1440 for a page or dashboard, 390 for a phone screen.' },
+        h: { type: 'number' },
+        color: { type: 'string', enum: ['yellow', 'blue', 'green', 'pink'], description: 'A note\'s colour.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const page = findPage(String(args.page), workspaceId, ctx);
+      if (page.format !== 'canvas') throw new McpError(`"${page.title}" is not a canvas. Create one with create_page and format: "canvas".`);
+      const note = str(args.kind) === 'note';
+      const spot = nextSpot(String(page.id));
+      const last = get<Row>(`SELECT sort_order FROM artboards WHERE page_id = ? AND deleted_at IS NULL ORDER BY sort_order DESC LIMIT 1`, String(page.id));
+      const { row } = writeEntity('artboard', uid(), {
+        workspace_id: workspaceId,
+        page_id: page.id,
+        title: str(args.title) ?? '',
+        kind: note ? 'note' : 'html',
+        content: String(args.html ?? ''),
+        x: finite(args.x) ?? spot.x,
+        y: finite(args.y) ?? spot.y,
+        w: finite(args.w) ?? (note ? 240 : 1280),
+        h: finite(args.h) ?? (note ? 180 : 800),
+        color: note ? (str(args.color) ?? 'yellow') : null,
+        sort_order: orderKey((last?.sort_order as string | null) ?? null, null),
+      }, writeOpts(workspaceId, ctx));
+      return { ...boardSummary(row), page: page.title, url: `${env.publicUrl}/pages/${page.id}` };
+    },
+  },
+  {
+    name: 'update_artboard',
+    title: 'Update artboard',
+    description: `Change a board on a canvas: replace its HTML, rename it, move or resize it. ${BOARD_RULES} Sending \`html\` replaces the whole document, so read it with \`get_artboard\` first and send back the edited whole — somebody may have restyled it by hand since you wrote it.`,
+    schema: {
+      type: 'object',
+      required: ['artboard'],
+      properties: {
+        artboard: { type: 'string' },
+        title: { type: 'string' }, html: { type: 'string' },
+        x: { type: 'number' }, y: { type: 'number' }, w: { type: 'number' }, h: { type: 'number' },
+        color: { type: 'string', enum: ['yellow', 'blue', 'green', 'pink'] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const { board } = findBoard(String(args.artboard), workspaceId, ctx);
+      const patch: Record<string, unknown> = {};
+      if (args.title !== undefined) patch.title = String(args.title);
+      if (args.html !== undefined) patch.content = String(args.html);
+      if (args.color !== undefined) patch.color = str(args.color) ?? null;
+      for (const field of ['x', 'y', 'w', 'h'] as const) {
+        const value = finite(args[field]);
+        if (value !== undefined) patch[field] = value;
+      }
+      const { row } = writeEntity('artboard', String(board.id), patch, writeOpts(workspaceId, ctx));
+      return boardSummary(row);
+    },
+  },
+  {
+    name: 'delete_artboard',
+    title: 'Delete artboard',
+    description: 'Take a board off its canvas. It goes to the trash, where it can be restored from.',
+    destructive: true,
+    schema: { type: 'object', required: ['artboard'], properties: { artboard: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const { board } = findBoard(String(args.artboard), workspaceId, ctx);
+      deleteEntity('artboard', String(board.id), writeOpts(workspaceId, ctx));
+      return { deleted: board.id, title: board.title };
+    },
+  },
+  {
+    name: 'comment_page',
+    title: 'Comment on a page',
+    description: 'Add a markdown comment to a page\'s discussion. On a canvas, name an `artboard` to pin it there — at `x`, `y` in the board\'s own pixels, its top-left corner if left out.',
+    schema: {
+      type: 'object',
+      required: ['page', 'body'],
+      properties: {
+        page: { type: 'string' }, body: { type: 'string' },
+        artboard: { type: 'string', description: 'Pin the comment to this board of the canvas.' },
+        x: { type: 'number' }, y: { type: 'number' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      // `findPage` asks whether this caller may see the page at all, which the
+      // comment's own write path does not ask on a create.
+      const page = findPage(String(args.page), workspaceId, ctx);
+      let anchor: Record<string, unknown> | null = null;
+      if (args.artboard !== undefined) {
+        const { board } = findBoard(String(args.artboard), workspaceId, ctx);
+        if (String(board.page_id) !== String(page.id)) throw new McpError('That board is on another page');
+        anchor = { board: board.id, x: Math.round(finite(args.x) ?? 24), y: Math.round(finite(args.y) ?? 24) };
+      }
+      const { row } = writeEntity('comment', uid(), {
+        workspace_id: workspaceId, page_id: page.id, body: String(args.body), author_id: ctx.auth.userId, anchor,
+      }, writeOpts(workspaceId, ctx));
+      return { id: row.id, page: page.title, created_at: row.created_at, ...(anchor ? { pinned_to: args.artboard } : {}) };
+    },
+  },
+  {
+    name: 'list_page_comments',
+    title: 'List page comments',
+    description: 'The discussion on a page, oldest first: who said what, and what it is about — the passage quoted on a text page, the board it is pinned to on a canvas.',
+    readOnly: true,
+    schema: { type: 'object', required: ['page'], properties: { page: { type: 'string' }, workspace_id: { type: 'string' } } },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      const page = findPage(String(args.page), workspaceId, ctx);
+      const boards = new Map(all<Row>(`SELECT id, title FROM artboards WHERE page_id = ?`, String(page.id)).map((row) => [String(row.id), String(row.title ?? '')]));
+      return all<Row>(
+        `SELECT c.id, c.body, c.anchor, c.created_at, c.edited_at, c.guest_name, u.name AS author
+           FROM comments c LEFT JOIN users u ON u.id = c.author_id
+          WHERE c.page_id = ? AND c.deleted_at IS NULL ORDER BY c.created_at`,
+        String(page.id),
+      ).map((row) => {
+        let anchor: unknown = null;
+        try { anchor = row.anchor ? JSON.parse(String(row.anchor)) : null; } catch { anchor = null; }
+        const quoted = textAnchor(anchor as never);
+        return {
+          id: row.id,
+          author: row.author ?? row.guest_name ?? null,
+          body: row.body,
+          created_at: row.created_at,
+          ...(quoted ? { about: quoted.quote } : {}),
+          ...(isPin(anchor) ? { pinned_to: { artboard: anchor.board, title: boards.get(anchor.board) ?? null, x: anchor.x, y: anchor.y } } : {}),
+        };
+      });
     },
   },
 ];

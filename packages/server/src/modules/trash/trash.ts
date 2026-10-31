@@ -125,6 +125,11 @@ const REFERENCES: [table: string, column: string][] = [
   ['meetings', 'description'],
   ['agenda_items', 'description'],
   ['agenda_items', 'notes'],
+  // A board cannot load a file from this server today — its frame reaches no
+  // network — but a board's HTML is the kind of text that will name one the
+  // day it can, and a blob emptied out from under it then is a broken picture
+  // nobody can trace back to a trash run.
+  ['artboards', 'content'],
 ];
 
 /**
