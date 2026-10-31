@@ -27,3 +27,19 @@ export const navItem = cva(
 
 /** The number at the end of a nav row — unread, open, whatever it counts. */
 export const navCount = 'ms-auto text-[11.5px] text-muted tabular-nums';
+
+/**
+ * The same row with the words taken away: one square, for the folded sidebar.
+ *
+ * A square that centres rather than a line that fills, because a rail is as
+ * wide as one icon and `navItem`'s padding and left-aligned text would push
+ * the glyph off centre. The selected state is still read from `aria-current`,
+ * for the reason it is there — the styling and what a screen reader announces
+ * cannot come apart. Every caller must pass the name as a `title` and an
+ * `aria-label`: an icon on its own names nothing.
+ */
+export const navRailItem =
+  'relative flex size-9 shrink-0 cursor-pointer select-none items-center justify-center '
+  + 'rounded-[var(--radius-sm)] border-none bg-transparent p-0 text-soft transition-colors '
+  + 'hover:bg-hover hover:text-fg outline-none focus-visible:ring-2 focus-visible:ring-accent/60 '
+  + 'aria-[current=page]:bg-active aria-[current=page]:text-fg';

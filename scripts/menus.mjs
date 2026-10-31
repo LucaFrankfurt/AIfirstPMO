@@ -192,6 +192,22 @@ for (const window of WINDOWS) {
     for (let at = 0; at < total; at++) {
       const open = async () => {
         const trigger = page.locator(TRIGGERS).nth(at);
+        /*
+         * Asked before it is clicked, because the answer was being bought at
+         * 1.2 seconds a time.
+         *
+         * `count()` counts the DOM, and on a phone the sidebar is still in it —
+         * `display: none`, every one of its buttons present and none of them
+         * reachable. So the walk clicked each one and waited out the timeout to
+         * be told what a box measurement says at once. Measured over four
+         * screens at 390px: 40 of 49 triggers, 48 seconds of waiting, and over
+         * the whole walk it was most of the phone window's 439s against the
+         * laptop's 218s for twelve times as many menus.
+         *
+         * Nothing goes unchecked that was checked before: a trigger that is not
+         * on the screen returned `null` here anyway, a second and a bit later.
+         */
+        if (!await trigger.isVisible().catch(() => false)) return null;
         try {
           await trigger.click({ timeout: 1200 });
         } catch {
