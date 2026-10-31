@@ -621,10 +621,10 @@ export function PageDetail() {
               onSelect: () => setImporting(true) },
             { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
               onSelect: () => setHistory(true) },
-            // In the menu rather than as a button in the header: on the screens
-            // where the aside exists at all there is room for it, and on the
-            // ones where there is not, a control for something invisible is
-            // worse than no control.
+            // In the menu as well as on the aside's own button, and not in the
+            // header: on the screens where the aside exists at all there is
+            // room for it, and on the ones where there is not, a control for
+            // something invisible is worse than no control.
             { id: 'aside', label: aside ? t('page.sidebarHide') : t('page.sidebarShow'),
               icon: <Icon name="hierarchy" size={14} />, hint: aside ? '✓' : undefined,
               onSelect: () => showTree(!aside) },
@@ -735,19 +735,30 @@ export function PageDetail() {
           * than a second table of contents: moving between pages is the thing a
           * wiki makes you do twenty times an hour.
           */}
-        {aside && (
+        {aside ? (
           <aside className="page-aside" aria-label={t('page.listTitle')}>
-            <Input
-              className="w-full mb-1.5"
-              placeholder={t('page.filterTree')}
-              aria-label={t('page.filterTree')}
-              value={hunt}
-              onChange={(event) => setHunt(event.target.value)}
-            />
+            <div className="flex items-center gap-1 mb-1.5">
+              <Input
+                className="flex-1 min-w-0"
+                placeholder={t('page.filterTree')}
+                aria-label={t('page.filterTree')}
+                value={hunt}
+                onChange={(event) => setHunt(event.target.value)}
+              />
+              <Button variant="ghost" size="iconSm" className="shrink-0" onClick={() => showTree(false)} title={t('page.sidebarHide')} aria-label={t('page.sidebarHide')}>
+                <Icon name="sidebar" size={15} />
+              </Button>
+            </div>
             {keep?.size === 0
               ? <p className="text-muted text-[12px]">{t('page.filterNone')}</p>
               : <PageTree pages={siblings} activeId={id} canWrite={canWrite} folds={folds} keep={keep} matched={matched} />}
           </aside>
+        ) : (
+          /* Where the tree was, so it comes back from the place it went. Only
+             at the widths the aside can exist at — see `.page-aside-open`. */
+          <Button variant="ghost" size="iconSm" className="page-aside-open" onClick={() => showTree(true)} title={t('page.sidebarShow')} aria-label={t('page.sidebarShow')}>
+            <Icon name="sidebar" size={15} />
+          </Button>
         )}
         <div className="page-reading">
         {/* Said on the page, not only in the menu: an archived page still opens

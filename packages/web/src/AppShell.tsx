@@ -29,6 +29,8 @@ import { useUnreadMessages } from './modules/chat/unread';
 
 /** Which project branches this device has folded. Never synced — see below. */
 const COLLAPSED_KEY = 'kolibri.collapsed-projects';
+/** Whether this device has the whole sidebar folded away. Never synced either. */
+const FOLDED_KEY = 'kolibri.sidebar-folded';
 
 /* ------------------------------------------------------------------ shell */
 
@@ -85,6 +87,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...next])); } catch { /* private window */ }
     return next;
   });
+
+  /**
+   * The whole sidebar, folded down to the one button that brings it back.
+   *
+   * A rail with only that button rather than gone entirely: the button needs
+   * somewhere to live that is not inside every route's own header.
+   */
+  const [folded, setFolded] = useState(() => {
+    try { return localStorage.getItem(FOLDED_KEY) === '1'; } catch { return false; }
+  });
+  const fold = (next: boolean) => {
+    setFolded(next);
+    try { localStorage.setItem(FOLDED_KEY, next ? '1' : '0'); } catch { /* private window */ }
+  };
 
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
@@ -190,106 +206,119 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   ];
 
   return (
-    <div className="shell">
+    <div className={`shell${folded ? ' nav-folded' : ''}`}>
       {/* Labelled, because a second `<aside>` appears on the chat screen and a
           rotor listing "complementary" twice tells nobody which is which. */}
       <aside className="sidebar" aria-label={t('nav.sidebar')}>
-        <MenuButton items={workspaceItems} className={navItem()} title={t('nav.switchWorkspace')}>
-          <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
-          <span className="flex-1 min-w-0 truncate font-semibold">
-            {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
-          </span>
-          <Icon name="chevronDown" size={14} />
-        </MenuButton>
-
-        {canWrite && (
-          <Button variant="primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
-            <Icon name="plus" size={15} /> {t('nav.newTask')}
+        {folded ? (
+          <Button variant="ghost" size="iconSm" onClick={() => fold(false)} title={t('nav.unfoldSidebar')} aria-label={t('nav.unfoldSidebar')}>
+            <Icon name="sidebar" size={16} />
           </Button>
-        )}
+        ) : (
+          <>
+            <div className="flex items-center gap-0.5">
+              <MenuButton items={workspaceItems} className={navItem()} title={t('nav.switchWorkspace')}>
+                <img src="/icon.svg" alt="" width={20} height={20} style={{ borderRadius: 5 }} />
+                <span className="flex-1 min-w-0 truncate font-semibold">
+                  {session?.workspaces.find((w) => w.id === workspaceId)?.name ?? t('app.name')}
+                </span>
+                <Icon name="chevronDown" size={14} />
+              </MenuButton>
+              <Button variant="ghost" size="iconSm" className="shrink-0" onClick={() => fold(true)} title={t('nav.foldSidebar')} aria-label={t('nav.foldSidebar')}>
+                <Icon name="sidebar" size={16} />
+              </Button>
+            </div>
 
-        <Item to="/" icon="home" count={myOpen}>{t('nav.myWork')}</Item>
-        <Item to="/inbox" icon="inbox" count={unread}>{t('nav.inbox')}</Item>
-        <Item to="/search" icon="search">{t('nav.search')}</Item>
-        {/* From `lib/nav.ts`, which the More screen renders too — see the note
-            there about the screens a phone could not reach. */}
-        {enabled(WORKSPACE_DESTINATIONS, has).map((item) => (
-          <Item key={item.to} to={item.to} icon={item.icon} count={item.to === '/chat' ? unreadMessages : undefined}>
-            {t(item.label)}
-          </Item>
-        ))}
+            {canWrite && (
+              <Button variant="primary" style={{ margin: '6px 4px 10px' }} onClick={() => setAdding(true)}>
+                <Icon name="plus" size={15} /> {t('nav.newTask')}
+              </Button>
+            )}
 
-        <div className="nav-section">
-          {t('nav.projects')}
-          <Button variant="ghost" size="iconSm" onClick={() => navigate('/projects/new')} title={t('nav.newProject')}>
-            <Icon name="plus" size={13} />
-          </Button>
-        </div>
-        {nested.map(({ project, depth, hasChildren }) => (
-          <ProjectRow
-            key={project.id}
-            project={project}
-            depth={depth}
-            hasChildren={hasChildren}
-            collapsed={collapsed.has(project.id)}
-            onToggle={() => toggleCollapsed(project.id)}
-            canWrite={canWrite}
-            dropping={dropTarget === project.id}
-            onDragStart={() => setDragging(project.id)}
-            onDragEnd={() => { setDragging(null); setDropTarget(null); }}
-            onDragOver={() => setDropTarget(project.id)}
-            onDrop={() => reparent(project.id)}
-            onTaskDrop={(taskId) => { setDropTarget(null); refile(taskId, project.id); }}
-            dragging={dragging === project.id}
-          />
-        ))}
-        {/* The only way to say "no parent" with a pointer. A row is a project,
-            so dropping onto one nests; this strip is the outdent, and it only
-            appears while something is actually being dragged. */}
-        {dragging && (
-          <div
-            className={`nav-root-drop${dropTarget === '' ? ' over' : ''}`}
-            /* Projects only. "Move to the top" is a thing a project can be and
-               a task cannot — a task always belongs to one. */
-            onDragOver={(event) => {
-              if (!isDrag(event, PROJECT_DRAG)) return;
-              event.preventDefault();
-              setDropTarget('');
-            }}
-            onDrop={(event) => {
-              if (!isDrag(event, PROJECT_DRAG)) return;
-              event.preventDefault();
-              reparent(null);
-            }}
-          >
-            {t('nav.moveToTop')}
-          </div>
-        )}
-        {projects.length > 1 && (
-          <NavLink to="/portfolio" className={navItem()}>
-            <Icon name="target" size={15} />
-            <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
-          </NavLink>
-        )}
-        {enabled(PLANNING_DESTINATIONS, has).map((item) => (
-          <NavLink key={item.to} to={item.to} className={navItem()}>
-            <Icon name={item.icon} size={15} />
-            <span className="flex-1 min-w-0 truncate">{t(item.label)}</span>
-          </NavLink>
-        ))}
-        {!projects.length && (
-          <button className={navItem()} onClick={() => navigate('/projects/new')}>
-            <Icon name="plus" size={15} /> {t('nav.firstProject')}
-          </button>
-        )}
+            <Item to="/" icon="home" count={myOpen}>{t('nav.myWork')}</Item>
+            <Item to="/inbox" icon="inbox" count={unread}>{t('nav.inbox')}</Item>
+            <Item to="/search" icon="search">{t('nav.search')}</Item>
+            {/* From `lib/nav.ts`, which the More screen renders too — see the note
+                there about the screens a phone could not reach. */}
+            {enabled(WORKSPACE_DESTINATIONS, has).map((item) => (
+              <Item key={item.to} to={item.to} icon={item.icon} count={item.to === '/chat' ? unreadMessages : undefined}>
+                {t(item.label)}
+              </Item>
+            ))}
 
-        <div className="flex-1 min-w-0" />
-        <div className="my-2 h-px bg-line" />
-        <MenuButton items={accountItems} className={navItem()}>
-          <Avatar user={user ?? undefined} size={22} />
-          <span className="flex-1 min-w-0 truncate">{user?.name ?? t('nav.account')}</span>
-          <Icon name="dots" size={14} />
-        </MenuButton>
+            <div className="nav-section">
+              {t('nav.projects')}
+              <Button variant="ghost" size="iconSm" onClick={() => navigate('/projects/new')} title={t('nav.newProject')}>
+                <Icon name="plus" size={13} />
+              </Button>
+            </div>
+            {nested.map(({ project, depth, hasChildren }) => (
+              <ProjectRow
+                key={project.id}
+                project={project}
+                depth={depth}
+                hasChildren={hasChildren}
+                collapsed={collapsed.has(project.id)}
+                onToggle={() => toggleCollapsed(project.id)}
+                canWrite={canWrite}
+                dropping={dropTarget === project.id}
+                onDragStart={() => setDragging(project.id)}
+                onDragEnd={() => { setDragging(null); setDropTarget(null); }}
+                onDragOver={() => setDropTarget(project.id)}
+                onDrop={() => reparent(project.id)}
+                onTaskDrop={(taskId) => { setDropTarget(null); refile(taskId, project.id); }}
+                dragging={dragging === project.id}
+              />
+            ))}
+            {/* The only way to say "no parent" with a pointer. A row is a project,
+                so dropping onto one nests; this strip is the outdent, and it only
+                appears while something is actually being dragged. */}
+            {dragging && (
+              <div
+                className={`nav-root-drop${dropTarget === '' ? ' over' : ''}`}
+                /* Projects only. "Move to the top" is a thing a project can be and
+                   a task cannot — a task always belongs to one. */
+                onDragOver={(event) => {
+                  if (!isDrag(event, PROJECT_DRAG)) return;
+                  event.preventDefault();
+                  setDropTarget('');
+                }}
+                onDrop={(event) => {
+                  if (!isDrag(event, PROJECT_DRAG)) return;
+                  event.preventDefault();
+                  reparent(null);
+                }}
+              >
+                {t('nav.moveToTop')}
+              </div>
+            )}
+            {projects.length > 1 && (
+              <NavLink to="/portfolio" className={navItem()}>
+                <Icon name="target" size={15} />
+                <span className="flex-1 min-w-0 truncate">{t('nav.portfolio')}</span>
+              </NavLink>
+            )}
+            {enabled(PLANNING_DESTINATIONS, has).map((item) => (
+              <NavLink key={item.to} to={item.to} className={navItem()}>
+                <Icon name={item.icon} size={15} />
+                <span className="flex-1 min-w-0 truncate">{t(item.label)}</span>
+              </NavLink>
+            ))}
+            {!projects.length && (
+              <button className={navItem()} onClick={() => navigate('/projects/new')}>
+                <Icon name="plus" size={15} /> {t('nav.firstProject')}
+              </button>
+            )}
+
+            <div className="flex-1 min-w-0" />
+            <div className="my-2 h-px bg-line" />
+            <MenuButton items={accountItems} className={navItem()}>
+              <Avatar user={user ?? undefined} size={22} />
+              <span className="flex-1 min-w-0 truncate">{user?.name ?? t('nav.account')}</span>
+              <Icon name="dots" size={14} />
+            </MenuButton>
+          </>
+        )}
       </aside>
 
       <div className="main">

@@ -77,6 +77,8 @@ export const fr: Catalogue = {
   'nav.settings': 'Réglages',
   'nav.newTask': 'Nouvelle tâche',
   'nav.sidebar': 'Navigation principale',
+  'nav.foldSidebar': 'Replier la barre latérale',
+  'nav.unfoldSidebar': 'Déplier la barre latérale',
   'nav.tabbar': 'Sections',
   'nav.newProject': 'Nouveau projet',
   'nav.moveToTop': 'Déposer ici pour le sortir de tous les projets',
