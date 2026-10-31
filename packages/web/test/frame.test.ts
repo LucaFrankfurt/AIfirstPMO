@@ -17,7 +17,7 @@ import { describe, it } from 'node:test';
 import { FRAME_VERSION, outboundLink, prepare, readMessage, type RuntimeConfig } from '../src/modules/pages/frame.ts';
 
 const config = (mode: RuntimeConfig['mode']): RuntimeConfig => ({
-  mode, rev: 3, selected: null, keepScroll: false, labels: { drag: 'Drag' },
+  mode, rev: 3, selected: null, scroll: null, labels: { drag: 'Drag' },
 });
 
 describe('the frame file', () => {

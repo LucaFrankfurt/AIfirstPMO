@@ -1340,6 +1340,25 @@
                   },
                   "y": {
                     "type": "number"
+                  },
+                  "quote": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "description": "A passage of the board's source, for a suggestion made on a board: the quote it would replace, found again the way a text page's anchor is."
+                  },
+                  "prefix": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "suffix": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
                   }
                 }
               },
@@ -1406,10 +1425,45 @@
               }
             }
           },
+          "resolution": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "resolved",
+              "accepted",
+              "rejected",
+              null
+            ],
+            "description": "How the comment was settled, or null while it is open."
+          },
+          "resolved_at": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "readOnly": true
+          },
+          "resolved_by": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Who settled it, and when. The server's to stamp.",
+            "readOnly": true
+          },
           "seq": {
             "type": "number",
             "description": "Server-assigned, workspace-monotonic sync cursor.",
             "readOnly": true
+          },
+          "suggestion": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What the anchored passage should say instead, when the comment is a suggestion. Accepting it writes the replacement into the page or the board — on the server, against the text as it is then, through the same CRDT an edit goes through. Missing on a row a device synced before the column existed, which reads as an ordinary comment."
           },
           "task_id": {
             "type": [
@@ -2129,8 +2183,8 @@
           "status": {
             "type": "string",
             "enum": [
-              "new",
               "accepted",
+              "new",
               "declined"
             ]
           },
@@ -6465,6 +6519,117 @@
           },
           "404": {
             "description": "No such row — or one this caller may not see, which answers the same on purpose.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artboards/{id}/versions": {
+      "get": {
+        "operationId": "getArtboardsVersions",
+        "summary": "GET /api/artboards/:id/versions",
+        "description": "Defined in `packages/server/src/kernel/write-path/routes/entities.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "postArtboardsVersions",
+        "summary": "POST /api/artboards/:id/versions",
+        "description": "Defined in `packages/server/src/kernel/write-path/routes/entities.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/artboards/{id}/versions/{versionId}": {
+      "get": {
+        "operationId": "getArtboardsVersionsByVersionId",
+        "summary": "GET /api/artboards/:id/versions/:versionId",
+        "description": "Defined in `packages/server/src/kernel/write-path/routes/entities.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "versionId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
             "content": {
               "application/json": {
                 "schema": {

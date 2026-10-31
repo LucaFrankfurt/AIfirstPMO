@@ -7,8 +7,8 @@
  */
 
 import {
-  ENTITIES, ENTITY_NAMES, LINK_COLUMNS, type EntityName, attachmentSubject, isAttachmentSubject, isDoneGroup,
-  type ProjectVocabulary, relocate, soleLink,
+  COMMENT_RESOLUTIONS, ENTITIES, ENTITY_NAMES, LINK_COLUMNS, type EntityName, attachmentSubject, escapeHtml, findAnchor,
+  isAttachmentSubject, isDoneGroup, passageOf, type ProjectVocabulary, relocate, soleLink,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
@@ -336,7 +336,10 @@ function guardCommentWrite(values: Record<string, unknown>, existing: Row | unde
     }
     return;
   }
-  const reactingOnly = Object.keys(values).every((field) => field === 'reactions');
+  // What a reader may do to somebody else's comment: react to it, and settle
+  // it — resolve a thread, accept or reject a suggestion. Neither changes a
+  // word of what they said, and settling is the reason a suggestion exists.
+  const reactingOnly = Object.keys(values).every((field) => field === 'reactions' || field === 'resolution');
   const seen = existing.task_id
     ? canSeeTask(opts.actorId, String(existing.task_id))
     : canSeePage(opts.actorId, String(existing.page_id));
@@ -373,6 +376,103 @@ function guardCommentWrite(values: Record<string, unknown>, existing: Row | unde
  * somebody else's remark to a sentence they never read.
  */
 const COMMENT_FIXED = ['task_id', 'page_id', 'parent_id', 'author_id', 'guest_name', 'anchor'] as const;
+
+/** A JSON column as it arrives at a rule: an object, a string holding one, or nothing. */
+function jsonOf(raw: unknown): Record<string, unknown> | null {
+  if (!raw) return null;
+  if (typeof raw === 'object') return raw as Record<string, unknown>;
+  try {
+    const parsed = JSON.parse(String(raw));
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * How a comment is settled, and by whom.
+ *
+ * `resolution` is one of three words or nothing; anything else is an open
+ * comment rather than a refusal, because it arrives from devices three versions
+ * old as easily as from this one. Accepting or rejecting is only a thing a
+ * suggestion can be — an ordinary comment told it was accepted is resolved.
+ *
+ * Who and when are stamped here, never taken from the client, for the reason
+ * `edited_at` is: "Ada accepted this" is a claim about this server's records.
+ *
+ * And a suggestion needs a passage. One whose anchor names none — a pin on a
+ * canvas with no quote, a comment on the whole page — has nothing to replace,
+ * so it is stored as the ordinary comment it then is.
+ */
+function settleResolution(
+  values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>, opts: WriteOpts,
+): void {
+  const settle = (field: string, value: unknown): void => {
+    values[field] = value;
+    forced[field] = value;
+  };
+  if (!existing && values.suggestion !== undefined && values.suggestion !== null) {
+    if (!passageOf(jsonOf(values.anchor) as never)) settle('suggestion', null);
+    else if (typeof values.suggestion !== 'string') settle('suggestion', String(values.suggestion));
+  }
+  if (values.resolution === undefined) return;
+  // An import or a copy carries a comment's status as it was; it is history
+  // being moved, not a decision being made now.
+  if (opts.system) return;
+  // A comment does not arrive already settled: settling is a decision about
+  // one that exists, and "accepted" on arrival would be a suggestion marked
+  // done that changed nothing.
+  if (!existing) {
+    if (values.resolution !== null) settle('resolution', null);
+    return;
+  }
+  const isSuggestion = (values.suggestion ?? existing?.suggestion) !== null && (values.suggestion ?? existing?.suggestion) !== undefined;
+  let resolution = (COMMENT_RESOLUTIONS as readonly unknown[]).includes(values.resolution) ? String(values.resolution) : null;
+  if (!isSuggestion && (resolution === 'accepted' || resolution === 'rejected')) resolution = 'resolved';
+  // Accepted is final: the text has been written, and reopening the thread
+  // would offer to write it a second time.
+  if (existing?.resolution === 'accepted' && resolution !== 'accepted') resolution = 'accepted';
+  if (resolution !== values.resolution) settle('resolution', resolution);
+  if (resolution === (existing?.resolution ?? null)) return;
+  settle('resolved_by', resolution ? opts.actorId : null);
+  settle('resolved_at', resolution ? Date.now() : null);
+}
+
+/**
+ * Write an accepted suggestion into what it was made on.
+ *
+ * On the server, against the text as it stands at this moment, found again by
+ * its quote — not against the copy the person accepting it was looking at,
+ * which may be minutes old on a device that was offline. The write is a
+ * content-only write, so the CRDT is moved to match by `crdt.edit`, which is
+ * a diff: everything else anybody typed meanwhile stays.
+ *
+ * A passage that is no longer there refuses the acceptance, and the comment
+ * stays open: a suggestion silently applied to the wrong sentence, or marked
+ * accepted while changing nothing, is worse than being told it went stale.
+ *
+ * On an HTML page and on a board the replacement is text, so it is escaped:
+ * somebody suggesting "use <b> here" means the words, not a tag.
+ */
+function applySuggestion(row: Row, opts: WriteOpts): void {
+  const anchor = jsonOf(row.anchor);
+  const passage = passageOf(anchor as never);
+  if (!passage || row.suggestion === null || row.suggestion === undefined) return;
+  const board = typeof anchor?.board === 'string' ? anchor.board : null;
+  const target = board
+    ? get<Row>(`SELECT id, content, deleted_at FROM artboards WHERE id = ? AND page_id = ?`, board, String(row.page_id ?? ''))
+    : get<Row>(`SELECT id, content, format, deleted_at FROM pages WHERE id = ?`, String(row.page_id ?? ''));
+  if (!target || target.deleted_at) throw badRequest('What this suggestion was made on is gone');
+  const text = String(target.content ?? '');
+  const found = findAnchor(text, passage);
+  if (!found) throw badRequest('The passage this suggestion is about has changed since, so it cannot be applied');
+  const replacement = String(row.suggestion);
+  const written = board || target.format === 'html' ? escapeHtml(replacement) : replacement;
+  writeEntity(board ? 'artboard' : 'page', String(target.id), {
+    content: `${text.slice(0, found.start)}${written}${text.slice(found.end)}`,
+  }, { ...opts, op: undefined });
+}
+
 
 /**
  * You cannot hang a file on something you cannot open.
@@ -582,6 +682,7 @@ export const workRules = {
     }
     if (entity === 'task') applyTaskInvariants(values, existing, forced);
     if (entity === 'comment' && existing) settleAuthored('comment', values, existing, forced, opts, COMMENT_FIXED);
+    if (entity === 'comment') settleResolution(values, existing, forced, opts);
   },
   effects(entity, row, before, changed, opts) {
     if (entity === 'field' && row.deleted_at && !before?.deleted_at) tombstoneValuesOf(row, opts);
@@ -596,6 +697,13 @@ export const workRules = {
     if (entity === 'project' && before) {
       if (row.deleted_at && !before.deleted_at) cascadeProject(row, false, opts);
       else if (!row.deleted_at && before.deleted_at) cascadeProject(before, true, opts);
+    }
+    // The transition again: accepting is what writes the text, once.
+    // Only a person accepting an existing suggestion writes it in. An import
+    // carrying one that was accepted long ago must not apply it again — its
+    // passage is gone by then, and the refusal would fail the whole import.
+    if (entity === 'comment' && before && !opts.system && row.resolution === 'accepted' && before.resolution !== 'accepted') {
+      applySuggestion(row, opts);
     }
   },
 } satisfies EntityRule;

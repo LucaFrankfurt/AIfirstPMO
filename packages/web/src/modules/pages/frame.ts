@@ -46,8 +46,10 @@ export type Where = 'before' | 'after';
 /** Everything the frame may tell the app. */
 export type FrameMessage =
   | { type: 'kolibri:ready' }
+  | { type: 'kolibri:rendered'; rev: number }
+  | { type: 'kolibri:scroll'; rev: number; x: number; y: number }
   | { type: 'kolibri:open'; href: string }
-  | { type: 'kolibri:select'; rev: number; k: number | null }
+  | { type: 'kolibri:select'; rev: number; k: number | null; x?: number; y?: number }
   | { type: 'kolibri:inner'; rev: number; k: number; html: string }
   | { type: 'kolibri:move'; rev: number; k: number; target: number; where: Where }
   | { type: 'kolibri:key'; rev: number; key: FrameKey };
@@ -57,6 +59,7 @@ export type FrameKey = 'delete' | 'escape' | 'undo' | 'redo' | 'duplicate';
 const KEYS = new Set<FrameKey>(['delete', 'escape', 'undo', 'redo', 'duplicate']);
 
 const isIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0 && (value as number) < 1e7;
+const isCoordinate = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) < 1e6;
 
 /** A message from a frame, if it is one of ours and well-formed; otherwise null. */
 export function readMessage(data: unknown): FrameMessage | null {
@@ -66,12 +69,23 @@ export function readMessage(data: unknown): FrameMessage | null {
   switch (message.type) {
     case 'kolibri:ready':
       return { type: 'kolibri:ready' };
+    case 'kolibri:rendered':
+      return isIndex(rev) ? { type: 'kolibri:rendered', rev } : null;
+    case 'kolibri:scroll':
+      return isIndex(rev) && isCoordinate(message.x) && isCoordinate(message.y)
+        ? { type: 'kolibri:scroll', rev, x: message.x, y: message.y } : null;
     case 'kolibri:open':
       return typeof message.href === 'string' && message.href.length < 4096 ? { type: 'kolibri:open', href: message.href } : null;
     case 'kolibri:select':
       if (!isIndex(rev)) return null;
-      return message.k === null ? { type: 'kolibri:select', rev, k: null }
-        : isIndex(message.k) ? { type: 'kolibri:select', rev, k: message.k } : null;
+      if (message.k === null) return { type: 'kolibri:select', rev, k: null };
+      if (!isIndex(message.k)) return null;
+      // Where the element starts in the board, for a pin left on it. Dropped
+      // rather than refused when it is not a sane number: it is a nicety.
+      return {
+        type: 'kolibri:select', rev, k: message.k,
+        ...(isCoordinate(message.x) && isCoordinate(message.y) ? { x: message.x, y: message.y } : {}),
+      };
     case 'kolibri:inner':
       return isIndex(rev) && isIndex(message.k) && typeof message.html === 'string' && message.html.length < 1_000_000
         ? { type: 'kolibri:inner', rev, k: message.k, html: message.html } : null;
@@ -106,8 +120,8 @@ export interface RuntimeConfig {
   mode: FrameMode;
   rev: number;
   selected: number | null;
-  /** Keep the scroll position across a re-render, which an edit is. */
-  keepScroll: boolean;
+  /** Where to scroll to once drawn: where the previous render was, across an edit. */
+  scroll: { x: number; y: number } | null;
   /** Words the editing overlay shows, in the reader's language. */
   labels: { drag: string };
 }
@@ -116,40 +130,34 @@ export interface RuntimeConfig {
  * The script of ours inside every board.
  *
  * Self-contained by necessity: it is sent as text and runs in the frame. Three
- * jobs in every mode — take the next render, keep the scroll across it, and
- * hand links to the app — and in `edit` the whole editing surface: a hover
+ * jobs in every mode — say when the board is drawn, keep its scroll position
+ * across the next one, and hand links to the app — and in `edit` the whole
+ * editing surface: a hover
  * outline, a selection with a grip to drag by, text edited in place, and the
  * keys an editor answers to. The outline lives in a shadow root hung off
  * `<html>`, outside the body, so nothing it draws can end up in what is saved.
  */
 export function runtime(config: RuntimeConfig): void {
-  const w = window as unknown as Record<string, unknown>;
-  const token = Math.random().toString(36).slice(2);
-  w.__kolibri = token;
-  const mine = (): boolean => w.__kolibri === token;
   const post = (message: Record<string, unknown>): void => parent.postMessage({ rev: config.rev, ...message }, '*');
 
-  // Scripts written by `document.write` see listeners from the document they
-  // replaced on browsers that do not clear them; `mine` keeps only the newest.
   addEventListener('message', (event) => {
-    if (!mine() || event.source !== parent || !event.data) return;
-    const data = event.data as { type?: string; html?: string; k?: number | null };
-    if (data.type === 'kolibri:render') {
-      w.__kolibriScroll = [scrollX, scrollY];
-      document.open();
-      document.write(String(data.html));
-      document.close();
-    } else if (data.type === 'kolibri:select' && config.mode === 'edit') {
-      select(typeof data.k === 'number' ? data.k : null, false);
-    }
+    if (event.source !== parent || !event.data) return;
+    const data = event.data as { type?: string; k?: number | null };
+    if (data.type === 'kolibri:select' && config.mode === 'edit') select(typeof data.k === 'number' ? data.k : null, false);
   });
 
-  const kept = w.__kolibriScroll as [number, number] | undefined;
-  if (config.keepScroll && kept) {
-    const back = (): void => scrollTo(kept[0], kept[1]);
-    addEventListener('DOMContentLoaded', back);
-    addEventListener('load', back);
-  }
+  // Drawn: back where the last render was scrolled to, then say so — the app
+  // shows this frame in place of the previous one only now, so an edit never
+  // flashes an empty board.
+  addEventListener('load', () => {
+    if (config.scroll) scrollTo(config.scroll.x, config.scroll.y);
+    requestAnimationFrame(() => post({ type: 'kolibri:rendered' }));
+  });
+  let reported = 0;
+  addEventListener('scroll', () => {
+    if (reported) return;
+    reported = setTimeout(() => { reported = 0; post({ type: 'kolibri:scroll', x: scrollX, y: scrollY }); }, 120) as unknown as number;
+  }, { passive: true });
 
   const elementOf = (node: EventTarget | null): Element | null =>
     node && (node as Node).nodeType === 1 ? node as Element : (node as Node | null)?.parentElement ?? null;
@@ -184,7 +192,8 @@ export function runtime(config: RuntimeConfig): void {
     .hover{outline:1px dashed #5b5bd6;outline-offset:-1px}
     .sel{outline:2px solid #5b5bd6;outline-offset:-1px}
     .tag{position:absolute;left:-2px;top:-20px;font:600 11px/18px system-ui,sans-serif;color:#fff;background:#5b5bd6;padding:0 6px;border-radius:4px 4px 0 0;white-space:nowrap}
-    .grip{position:absolute;right:-2px;top:-20px;width:20px;height:18px;border:0;border-radius:4px 4px 0 0;background:#5b5bd6;color:#fff;font:14px/18px system-ui;cursor:grab;pointer-events:auto;padding:0}
+    .grip{position:absolute;right:-2px;top:-20px;width:20px;height:18px;border:0;border-radius:4px 4px 0 0;background:#5b5bd6;color:#fff;font:14px/18px system-ui;cursor:grab;pointer-events:auto;padding:0;touch-action:none}
+    @media (pointer:coarse){.grip{width:36px;height:30px;top:-32px;font-size:18px;line-height:30px}.tag{top:-32px;line-height:30px}}
     .drop{position:fixed;display:none;background:#5b5bd6;pointer-events:none;border-radius:2px}
   </style><div class="box hover"></div><div class="box sel"><span class="tag"></span><button class="grip" type="button">⠿</button></div><div class="drop"></div>`;
   document.documentElement.appendChild(host);
@@ -228,7 +237,10 @@ export function runtime(config: RuntimeConfig): void {
   function select(k: number | null, tell: boolean): void {
     selected = k !== null && byKey(k) ? k : null;
     redraw();
-    if (tell) post({ type: 'kolibri:select', k: selected });
+    if (!tell) return;
+    const element = byKey(selected);
+    const rect = element?.getBoundingClientRect();
+    post({ type: 'kolibri:select', k: selected, ...(rect ? { x: Math.round(rect.left + scrollX), y: Math.round(rect.top + scrollY) } : {}) });
   }
 
   const ready = (): void => select(config.selected, false);

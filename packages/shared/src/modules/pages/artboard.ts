@@ -297,6 +297,8 @@ export interface ElementInfo {
   path: { k: number; tag: string }[];
   /** Where it sits in a table, when it is a cell or inside one. */
   cell: { table: number; row: number; column: number } | null;
+  /** Its content, as a span of the source — what a suggestion on it replaces. */
+  inner: { start: number; end: number };
 }
 
 const attribute = (element: SourceElement, name: string): string | null =>
@@ -358,6 +360,7 @@ export function describe(source: string, k: number): ElementInfo | null {
       .filter((one) => one.editable)
       .map((one) => ({ k: one.k, tag: one.tag })),
     cell: cellOf(elements, k),
+    inner: { start: element.openEnd, end: element.closeStart },
   };
 }
 

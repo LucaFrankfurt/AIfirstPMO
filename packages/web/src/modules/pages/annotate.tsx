@@ -73,6 +73,11 @@ export function useSelectionAnchor(
   container: HTMLElement | null,
   source: string,
   onStart: (anchor: Anchor) => void,
+  /**
+   * Offer "suggest a change" beside "comment". Optional because a suggestion is
+   * written into the text it replaces, and only a page knows how to be written.
+   */
+  onSuggest?: (anchor: Anchor) => void,
 ): { pending: Pending | null; bubble: React.ReactNode } {
   const t = useT();
   const [pending, setPending] = useState<Pending | null>(null);
@@ -127,19 +132,23 @@ export function useSelectionAnchor(
     };
   }, [container, source]);
 
+  const take = (start: (anchor: Anchor) => void) => {
+    if (!pending) return;
+    start(pending.anchor);
+    setPending(null);
+    window.getSelection()?.removeAllRanges();
+  };
   const bubble = pending ? (
-    <button
-      className="anchor-bubble"
-      style={{ insetInlineStart: pending.x, top: pending.y }}
-      onPointerDown={(event) => event.preventDefault()}
-      onClick={() => {
-        onStart(pending.anchor);
-        setPending(null);
-        window.getSelection()?.removeAllRanges();
-      }}
-    >
-      <Icon name="inbox" size={12} /> {t('annotate.comment')}
-    </button>
+    <span className="anchor-bubble" style={{ insetInlineStart: pending.x, top: pending.y }}>
+      <button type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => take(onStart)}>
+        <Icon name="inbox" size={12} /> {t('annotate.comment')}
+      </button>
+      {onSuggest && (
+        <button type="button" onPointerDown={(event) => event.preventDefault()} onClick={() => take(onSuggest)}>
+          <Icon name="pencil" size={12} /> {t('suggest.action')}
+        </button>
+      )}
+    </span>
   ) : null;
 
   return { pending, bubble };
@@ -161,6 +170,9 @@ export function useHighlights(
 ): void {
   const anchored = useMemo(
     () => comments
+      // A settled comment is no longer about the text as it reads now — an
+      // accepted suggestion's passage is gone by definition.
+      .filter((comment) => !comment.resolution)
       .map((comment) => ({ id: comment.id, anchor: textAnchor(comment.anchor) }))
       .filter((entry): entry is { id: string; anchor: Anchor } => entry.anchor !== null)
       .map((entry) => ({

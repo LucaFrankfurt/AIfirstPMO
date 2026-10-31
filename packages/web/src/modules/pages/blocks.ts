@@ -125,3 +125,25 @@ export function template(kind: TemplateKind, words: Words, lang: string): Templa
       ], 'padding: 56px 20px 24px; display: flex; flex-direction: column; gap: 16px') };
   }
 }
+
+/**
+ * A board that is one picture, filling its frame.
+ *
+ * `object-fit: contain` rather than `cover`: a board resized to a different
+ * shape should show all of the picture with a margin, not quietly crop it.
+ */
+export function imageBoard(url: string, name: string, lang: string): string {
+  return [
+    '<!doctype html>',
+    `<html lang="${esc(lang)}">`,
+    '<head>',
+    '  <meta charset="utf-8">',
+    '  <style>html, body { margin: 0; height: 100%; background: #ffffff; }</style>',
+    '</head>',
+    '<body>',
+    `  <img src="${esc(url)}" alt="${esc(name).replace(/"/g, '&quot;')}" style="display: block; width: 100%; height: 100%; object-fit: contain">`,
+    '</body>',
+    '</html>',
+    '',
+  ].join('\n');
+}

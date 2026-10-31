@@ -1570,3 +1570,12 @@ CREATE TABLE artboards (
   seq          INTEGER NOT NULL DEFAULT 0,
   clocks       TEXT NOT NULL DEFAULT '{}'
 );
+
+CREATE TABLE artboard_versions (
+  id          TEXT PRIMARY KEY,
+  artboard_id TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  author_id   TEXT,
+  created_at  INTEGER NOT NULL
+);

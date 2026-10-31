@@ -285,6 +285,73 @@ describe('a canvas in a copied project', () => {
   });
 });
 
+describe('a board\'s history', () => {
+  it('keeps what a board said before each sitting, and puts it back', async () => {
+    const page = (await ok(`/api/workspaces/${workspace}/pages`, {
+      cookie: author.cookie, body: { title: 'History canvas', format: 'canvas' },
+    })).id;
+    const id = (await board(author.cookie, page, 'Plan', '<h1>v1</h1>')).id;
+    const edit = (who: Person, content: string) =>
+      ok(`/api/artboards/${id}`, { cookie: who.cookie, method: 'PATCH', body: { content } });
+
+    await edit(author, '<h1>v2</h1>');
+    // The same person, a moment later: the same sitting, so no second version.
+    await edit(author, '<h1>v3</h1>');
+    await edit(colleague, '<h1>v4</h1>');
+
+    const versions = await ok(`/api/artboards/${id}/versions`, { cookie: author.cookie });
+    assert.equal(versions.length, 2, 'a version per write is a history nobody can read');
+    const said = await Promise.all(versions.map((version: { id: string }) =>
+      ok(`/api/artboards/${id}/versions/${version.id}`, { cookie: author.cookie })));
+    assert.deepEqual(said.map((version: { content: string }) => version.content), ['<h1>v3</h1>', '<h1>v1</h1>']);
+
+    const restored = await ok(`/api/artboards/${id}/versions`, {
+      cookie: author.cookie, body: { restore: versions[1].id },
+    });
+    assert.equal(restored.content, '<h1>v1</h1>');
+    const after = await ok(`/api/artboards/${id}/versions`, { cookie: author.cookie });
+    const newest = await ok(`/api/artboards/${id}/versions/${after[0].id}`, { cookie: author.cookie });
+    assert.equal(newest.content, '<h1>v4</h1>', 'the state a restore replaced was lost');
+  });
+
+  it('is as private as the canvas', async () => {
+    await ok(`/api/artboards/${secretBoard}`, { cookie: author.cookie, method: 'PATCH', body: { content: '<p>changed</p>' } });
+    // The canvas was opened up by an earlier case; close it again for this one.
+    await ok(`/api/pages/${shut}`, { cookie: author.cookie, method: 'PATCH', body: { access: 'private' } });
+    assert.equal((await call(`/api/artboards/${secretBoard}/versions`, { cookie: colleague.cookie })).status, 403);
+    const versions = await ok(`/api/artboards/${secretBoard}/versions`, { cookie: author.cookie });
+    assert.ok(versions.length >= 1);
+    assert.equal((await call(`/api/artboards/${secretBoard}/versions/${versions[0].id}`, { cookie: colleague.cookie })).status, 403);
+    assert.equal((await call(`/api/artboards/${secretBoard}/versions`, {
+      cookie: colleague.cookie, body: { restore: versions[0].id },
+    })).status, 403);
+  });
+});
+
+describe('a board in search', () => {
+  const found = async (person: Person, words: string) =>
+    JSON.stringify((await ok(`/api/workspaces/${workspace}/search?q=${encodeURIComponent(words)}`, { cookie: person.cookie })).results);
+
+  it('is found by the words on it, not by its markup or its script', async () => {
+    const page = (await ok(`/api/workspaces/${workspace}/pages`, {
+      cookie: author.cookie, body: { title: 'Search canvas', format: 'canvas' },
+    })).id;
+    await board(author.cookie, page, 'Quarterly', '<div class="gridwombat"><h1>Pelicanforecast numbers</h1></div><script>var hiddenotter = 1</script>');
+    assert.match(await found(author, 'pelicanforecast'), /"kind":"artboard"/);
+    assert.doesNotMatch(await found(author, 'gridwombat'), /artboard/, 'a class name was indexed');
+    assert.doesNotMatch(await found(author, 'hiddenotter'), /artboard/, 'a script was indexed');
+  });
+
+  it('is found only by those who may see its canvas', async () => {
+    const page = (await ok(`/api/workspaces/${workspace}/pages`, {
+      cookie: author.cookie, body: { title: 'Private search canvas', format: 'canvas', access: 'private' },
+    })).id;
+    await board(author.cookie, page, 'Salaries', '<p>Flamingosalary bands</p>');
+    assert.match(await found(author, 'flamingosalary'), /artboard/);
+    assert.doesNotMatch(await found(colleague, 'flamingosalary'), /artboard|Flamingo/i);
+  });
+});
+
 describe('the frame a board is drawn in', () => {
   it('is served under its own policy, which runs scripts and reaches nothing', async () => {
     const response = await fetch(`${base}/artboard.html?v=test`);

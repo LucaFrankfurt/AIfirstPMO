@@ -1,10 +1,13 @@
 /**
  * The wiki: reading it, writing it, and starting from a template.
  */
-import { artboard, isPin, linkGraph, orderKey, pageResolver, textAnchor, wikiLinks, type LinkablePage } from '@kolibri/shared';
+import {
+  artboard, findAnchor, isPin, linkGraph, makeAnchor, orderKey, pageResolver, passageOf, textAnchor, wikiLinks,
+  type LinkablePage,
+} from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
-import { deleteEntity, serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { canSeeSubject, deleteEntity, serialize, wouldLoop, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { renameFollowers } from '../../../modules/pages/rules/pages.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import {
@@ -110,7 +113,7 @@ const asFormat = (raw: unknown): 'markdown' | 'html' | 'canvas' =>
  * tool description because the assistant writing the board is the one who has
  * to know, and a board that loads Chart.js from a CDN draws a blank box.
  */
-const BOARD_RULES = 'A board is one complete, self-contained HTML document (`<!doctype html>` … `</html>`): inline `<style>` and `<script>` are fine and run, but nothing is fetched — no CDN scripts, no web fonts, no remote images, no `fetch`. Use system fonts, inline SVG, and `data:` URIs for pictures. Put the look in inline `style` attributes where you can: that is what people restyle in the editor.';
+const BOARD_RULES = 'A board is one complete, self-contained HTML document (`<!doctype html>` … `</html>`): inline `<style>` and `<script>` are fine and run, but nothing is fetched — no CDN scripts, no web fonts, no remote images, no `fetch`. Use system fonts and inline SVG. For a picture, upload it with `upload_attachment` on the canvas page and use the `/files/…` url it answers as the `src`: the app hands the board the picture itself. Put the look in inline `style` attributes where you can: that is what people restyle in the editor.';
 
 /** A board on a page this caller may see, by id. */
 function findBoard(ref: string, workspaceId: string, ctx: McpCtx): { board: Row; page: Row } {
@@ -554,7 +557,7 @@ export const pageTools: ToolDef[] = [
   {
     name: 'list_page_comments',
     title: 'List page comments',
-    description: 'The discussion on a page, oldest first: who said what, and what it is about — the passage quoted on a text page, the board it is pinned to on a canvas.',
+    description: 'The discussion on a page, oldest first: who said what, what it is about — the passage quoted on a text page, the board it is pinned to on a canvas — whether it is still open, and for a suggestion what it proposes instead (`suggests`).',
     readOnly: true,
     schema: { type: 'object', required: ['page'], properties: { page: { type: 'string' }, workspace_id: { type: 'string' } } },
     run: (args, ctx) => {
@@ -562,23 +565,100 @@ export const pageTools: ToolDef[] = [
       const page = findPage(String(args.page), workspaceId, ctx);
       const boards = new Map(all<Row>(`SELECT id, title FROM artboards WHERE page_id = ?`, String(page.id)).map((row) => [String(row.id), String(row.title ?? '')]));
       return all<Row>(
-        `SELECT c.id, c.body, c.anchor, c.created_at, c.edited_at, c.guest_name, u.name AS author
-           FROM comments c LEFT JOIN users u ON u.id = c.author_id
+        `SELECT c.id, c.body, c.anchor, c.created_at, c.edited_at, c.guest_name, c.suggestion, c.resolution,
+                u.name AS author, r.name AS resolved_by
+           FROM comments c LEFT JOIN users u ON u.id = c.author_id LEFT JOIN users r ON r.id = c.resolved_by
           WHERE c.page_id = ? AND c.deleted_at IS NULL ORDER BY c.created_at`,
         String(page.id),
       ).map((row) => {
         let anchor: unknown = null;
         try { anchor = row.anchor ? JSON.parse(String(row.anchor)) : null; } catch { anchor = null; }
-        const quoted = textAnchor(anchor as never);
+        const quoted = textAnchor(anchor as never) ?? passageOf(anchor as never);
         return {
           id: row.id,
           author: row.author ?? row.guest_name ?? null,
           body: row.body,
           created_at: row.created_at,
+          status: row.resolution ?? 'open',
+          ...(row.resolution ? { settled_by: row.resolved_by ?? null } : {}),
           ...(quoted ? { about: quoted.quote } : {}),
+          ...(row.suggestion !== null && row.suggestion !== undefined ? { suggests: row.suggestion } : {}),
           ...(isPin(anchor) ? { pinned_to: { artboard: anchor.board, title: boards.get(anchor.board) ?? null, x: anchor.x, y: anchor.y } } : {}),
         };
       });
+    },
+  },
+  {
+    name: 'suggest_page_edit',
+    title: 'Suggest a page edit',
+    description: 'Propose replacing a passage of a page — or of one board on a canvas — instead of changing it. It appears in the page\'s discussion with the old words struck through and the new ones beside them, and a person accepts or rejects it; accepting writes it in. Quote the passage exactly as the page has it (`get_page`, `get_artboard`); a passage that appears more than once needs a longer quote.',
+    schema: {
+      type: 'object',
+      required: ['page', 'quote', 'replacement'],
+      properties: {
+        page: { type: 'string' },
+        quote: { type: 'string', description: 'The exact words to replace, as they stand in the page\'s content or the board\'s HTML.' },
+        replacement: { type: 'string', description: 'What they should say instead. Plain text; empty to suggest removing them.' },
+        body: { type: 'string', description: 'Why — shown with the suggestion.' },
+        artboard: { type: 'string', description: 'On a canvas: the board whose HTML the quote is in.' },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const page = findPage(String(args.page), workspaceId, ctx);
+      const quote = String(args.quote ?? '');
+      if (!quote.trim()) throw new McpError('Quote the words to replace');
+      let text = String(page.content ?? '');
+      let board: Row | null = null;
+      if (args.artboard !== undefined) {
+        board = findBoard(String(args.artboard), workspaceId, ctx).board;
+        if (String(board.page_id) !== String(page.id)) throw new McpError('That board is on another page');
+        text = String(board.content ?? '');
+      }
+      // Exactly once, or the person accepting it could not know which copy is
+      // meant — and neither could the server, the day it writes it in.
+      const first = text.indexOf(quote);
+      if (first < 0) {
+        const loose = findAnchor(text, { quote, prefix: '', suffix: '' });
+        if (!loose) throw new McpError('Those words are not in it. Quote them exactly as they stand.');
+      }
+      if (first >= 0 && text.indexOf(quote, first + 1) >= 0) {
+        throw new McpError('Those words appear more than once. Quote a longer passage, so it says which one.');
+      }
+      const found = first >= 0 ? { start: first, end: first + quote.length } : findAnchor(text, { quote, prefix: '', suffix: '' })!;
+      const passage = makeAnchor(text, found.start, found.end)!;
+      const anchor = board ? { board: board.id, x: 24, y: 24, ...passage } : passage;
+      const { row } = writeEntity('comment', uid(), {
+        workspace_id: workspaceId, page_id: page.id, body: String(args.body ?? ''), author_id: ctx.auth.userId,
+        anchor, suggestion: String(args.replacement ?? ''),
+      }, writeOpts(workspaceId, ctx));
+      return { id: row.id, page: page.title, status: 'open', about: passage.quote, suggests: row.suggestion };
+    },
+  },
+  {
+    name: 'resolve_comment',
+    title: 'Settle a comment',
+    description: 'Settle a comment on a page: `resolved` closes a thread, `accepted` writes a suggestion\'s replacement into the page or board, `rejected` turns it down, `open` reopens it. Accepting is refused when the passage has changed since the suggestion was made.',
+    schema: {
+      type: 'object',
+      required: ['comment', 'status'],
+      properties: {
+        comment: { type: 'string' },
+        status: { type: 'string', enum: ['resolved', 'accepted', 'rejected', 'open'] },
+        workspace_id: { type: 'string' },
+      },
+    },
+    run: (args, ctx) => {
+      const workspaceId = workspaceOf(args, ctx);
+      requireWrite(ctx, workspaceId);
+      const found = get<Row>(`SELECT id, page_id FROM comments WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`, String(args.comment), workspaceId);
+      // Not found and not yours to see are the same answer, as for a page.
+      if (!found || !canSeeSubject(ctx.auth.userId, 'comment', String(found.id))) throw new McpError(`Comment ${args.comment} not found`);
+      const status = str(args.status);
+      const { row } = writeEntity('comment', String(found.id), { resolution: status === 'open' ? null : status }, writeOpts(workspaceId, ctx));
+      return { id: row.id, status: row.resolution ?? 'open' };
     },
   },
 ];

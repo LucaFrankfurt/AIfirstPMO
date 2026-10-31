@@ -29,7 +29,8 @@ import { Icon, MenuButton, useConfirm } from '../../kernel/design-system/ui';
 import { cn } from '../../kernel/design-system/cn';
 import { ArtboardFrame } from './ArtboardFrame';
 import { ArtboardEditor, useWords } from './ArtboardEditor';
-import { TEMPLATE_KINDS, template, type TemplateKind } from './blocks';
+import { TEMPLATE_KINDS, imageBoard, template, type TemplateKind } from './blocks';
+import { useUploads } from '../../kernel/files/uploads';
 import { clampScale, grip, pinch, STEP, wheelFactor, zoomAt, type Grip, type View } from './zoom';
 
 /** Space between boards placed side by side, in canvas pixels. */
@@ -48,6 +49,17 @@ const TEMPLATE_LABEL = {
 } as const;
 
 interface Box { x: number; y: number; w: number; h: number }
+
+/** A picture's own size, read before it is uploaded — the upload is downscaled, the proportions are not. */
+function naturalSize(file: File): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => { resolve({ width: image.naturalWidth || 800, height: image.naturalHeight || 600 }); URL.revokeObjectURL(url); };
+    image.onerror = () => { resolve(null); URL.revokeObjectURL(url); };
+    image.src = url;
+  });
+}
 
 /** Everything on the canvas, as one rectangle. */
 function bounds(boards: Box[]): Box | null {
@@ -198,11 +210,51 @@ export function CanvasView({ page, canWrite, thread }: {
     }
   };
 
+  /**
+   * Every finger, wherever it lands — on the plane or on a board.
+   *
+   * Counted in the capture phase so that a second finger is seen before a
+   * board under it can start a drag of its own: two fingers are a pinch, and
+   * whatever the first one had started is let go of. Only the plane counted
+   * fingers before, so a pinch that began on a board — most of a full canvas,
+   * on a phone — moved the board instead of zooming.
+   */
+  const onPointerDownCapture = (event: React.PointerEvent) => {
+    if (event.pointerType === 'mouse') return;
+    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    if (pointers.current.size !== 2) return;
+    const [a, b] = [...pointers.current.values()];
+    pinchFrom.current = { grip: grip(a, b), view };
+    drag.current = null;
+    setLive(null);
+    event.stopPropagation();
+  };
+
+  /**
+   * A double tap, by hand: a touch screen does not reliably send `dblclick`,
+   * and a board that opens on a double click and on nothing else cannot be
+   * opened on a phone except through the toolbar.
+   */
+  const lastTap = useRef<{ id: string; at: number } | null>(null);
+  const tapped = (board: Artboard) => {
+    const now = Date.now();
+    if (lastTap.current?.id === board.id && now - lastTap.current.at < 350) {
+      lastTap.current = null;
+      if (board.kind === 'note') { if (canWrite) setNoteEditing(board.id); } else setEditing(board.id);
+      return;
+    }
+    lastTap.current = { id: board.id, at: now };
+  };
+
   const onPointerUp = (event: React.PointerEvent) => {
     pointers.current.delete(event.pointerId);
     if (pointers.current.size < 2) pinchFrom.current = null;
     const now = drag.current;
     drag.current = null;
+    if (now?.kind === 'move' && !now.moved && event.pointerType !== 'mouse' && !pinning) {
+      const board = boards.find((one) => one.id === now.id);
+      if (board) tapped(board);
+    }
     if (!now || now.kind === 'pan' || !live || live.id !== now.id) {
       setLive(null);
       return;
@@ -214,13 +266,6 @@ export function CanvasView({ page, canWrite, thread }: {
 
   const onBackgroundDown = (event: React.PointerEvent) => {
     if (event.target !== event.currentTarget && !(event.target as Element).classList.contains('canvas-world')) return;
-    pointers.current.set(event.pointerId, { x: event.clientX, y: event.clientY });
-    if (pointers.current.size === 2) {
-      const [a, b] = [...pointers.current.values()];
-      pinchFrom.current = { grip: grip(a, b), view };
-      drag.current = null;
-      return;
-    }
     setSelected(null);
     setNoteEditing(null);
     begin(event, { kind: 'pan', start: { x: event.clientX, y: event.clientY }, view });
@@ -228,6 +273,12 @@ export function CanvasView({ page, canWrite, thread }: {
 
   const onBoardDown = (event: React.PointerEvent, board: Artboard) => {
     if (event.button !== 0) return;
+    // A board a viewer cannot move still has to be openable by a double tap.
+    if (!canWrite && event.pointerType !== 'mouse' && !pinning) {
+      setSelected(board.id);
+      tapped(board);
+      return;
+    }
     if (pinning) {
       event.stopPropagation();
       const point = toCanvas(event.clientX, event.clientY);
@@ -268,6 +319,34 @@ export function CanvasView({ page, canWrite, thread }: {
     });
     setSelected(id);
     show({ ...at, w: made.w, h: made.h });
+  };
+
+  /*
+   * Pictures dropped on the plane become boards of their own, where they were
+   * dropped, at their own proportions. Uploaded like any file and hung on the
+   * canvas, so they follow its visibility; drawn through `board-files.ts`.
+   */
+  const uploads = useUploads({ kind: 'page', id: page.id });
+  const [dropping, setDropping] = useState(false);
+  const dropImages = async (files: File[], clientX: number, clientY: number) => {
+    const images = files.filter((file) => file.type.startsWith('image/'));
+    if (!images.length || !canWrite) return;
+    const sizes = await Promise.all(images.map(naturalSize));
+    const done = await uploads.take(images);
+    let at = toCanvas(clientX, clientY);
+    let last: string | null = null;
+    done.forEach((image, index) => {
+      const natural = sizes[index] ?? { width: 800, height: 600 };
+      const scale = Math.min(1, 1200 / natural.width);
+      const w = Math.max(40, Math.round(natural.width * scale));
+      const h = Math.max(40, Math.round(natural.height * scale));
+      last = create('artboard', {
+        page_id: page.id, kind: 'html', title: image.name, x: Math.round(at.x), y: Math.round(at.y), w, h,
+        content: imageBoard(image.url, image.name, locale), sort_order: front(),
+      });
+      at = { x: at.x + w + GAP, y: at.y };
+    });
+    if (last) setSelected(last);
   };
 
   const addNote = () => {
@@ -327,7 +406,8 @@ export function CanvasView({ page, canWrite, thread }: {
     const out = new Map<string, { id: string; n: number; x: number; y: number }[]>();
     let n = 0;
     for (const comment of comments) {
-      if (!isPin(comment.anchor)) continue;
+      // A settled comment leaves the board; the thread still has it.
+      if (!isPin(comment.anchor) || comment.resolution) continue;
       n += 1;
       const pin = comment.anchor;
       out.set(pin.board, [...(out.get(pin.board) ?? []), { id: comment.id, n, x: pin.x, y: pin.y }]);
@@ -434,11 +514,24 @@ export function CanvasView({ page, canWrite, thread }: {
 
       <div
         ref={viewport}
-        className={cn('canvas-viewport', pinning && 'is-pinning')}
+        className={cn('canvas-viewport', pinning && 'is-pinning', dropping && 'is-dropping')}
+        onPointerDownCapture={onPointerDownCapture}
         onPointerDown={onBackgroundDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
+        onDragOver={(event) => {
+          if (!canWrite || ![...event.dataTransfer.items].some((item) => item.kind === 'file')) return;
+          event.preventDefault();
+          setDropping(true);
+        }}
+        onDragLeave={() => setDropping(false)}
+        onDrop={(event) => {
+          if (!canWrite) return;
+          event.preventDefault();
+          setDropping(false);
+          void dropImages([...event.dataTransfer.files], event.clientX, event.clientY);
+        }}
       >
         <div
           className="canvas-world"
@@ -526,6 +619,7 @@ export function CanvasView({ page, canWrite, thread }: {
           </div>
         )}
         {pinning && <p className="canvas-hint" role="status">{t('canvas.pinHint')}</p>}
+        {(dropping || uploads.busy) && <p className="canvas-hint" role="status">{uploads.busy ? t('canvas.uploading') : t('canvas.dropImages')}</p>}
       </div>
 
       {panel && (

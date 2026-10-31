@@ -18,9 +18,10 @@ import { relativeTime } from '../../kernel/design-system/format';
 import { comment as postComment, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useCanWrite, useMe, useMemberMap, useRunsWorkspace } from '../../kernel/identity/session';
-import { anchorLabel, findAnchor, isPin, textAnchor, type Anchor, type Pin } from '@kolibri/shared';
+import { anchorLabel, findAnchor, isPin, passageOf, textAnchor, type Anchor, type Comment, type Pin } from '@kolibri/shared';
 import { Markdown, MarkdownEditor } from '../pages/Markdown';
 import { Button } from '../../kernel/design-system/ui/button';
+import { Textarea } from '../../kernel/design-system/ui/field';
 import { Chip } from '../../kernel/design-system/ui/chip';
 import { Avatar, Icon, useConfirm } from '../../kernel/design-system/ui';
 import { Reactions, ReactionPicker } from './reactions';
@@ -30,7 +31,7 @@ import { useMinute } from '../../kernel/design-system/minute';
 /** Exactly one of the two, which is also how the row is stored. */
 export type CommentTarget = { task_id: string; page_id?: never } | { page_id: string; task_id?: never };
 
-export function Comments({ target, empty, anchor, onAnchorDone, source, active, onPick, pinLabel }: {
+export function Comments({ target, empty, anchor, onAnchorDone, source, active, onPick, pinLabel, suggesting = false }: {
   target: CommentTarget;
   empty?: string;
   /**
@@ -45,6 +46,11 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   onPick?: (id: string) => void;
   /** How a pin on a canvas is named — the board it is on. Only a canvas passes it. */
   pinLabel?: (pin: Pin) => string;
+  /**
+   * The next comment is a suggestion for `anchor`'s passage: the composer asks
+   * what it should say instead, and the words of the comment become optional.
+   */
+  suggesting?: boolean;
 }) {
   useMinute(); // re-reads the ages below once a minute — `design-system/minute.ts`
   const t = useT();
@@ -66,6 +72,11 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   const runsThis = useRunsWorkspace();
   const { confirm, dialog } = useConfirm();
   const [draft, setDraft] = useState('');
+  /** What a suggestion would put in place of its passage. */
+  const [replacement, setReplacement] = useState('');
+  /** Settled comments are folded away until somebody asks to see them. */
+  const [showSettled, setShowSettled] = useState(false);
+  const proposing = suggesting && !!passageOf(anchor);
   /** Which comment is open for editing, and the text as it stands. */
   const [editing, setEditing] = useState<{ id: string; body: string } | null>(null);
   const editor = useRef<HTMLDivElement>(null);
@@ -74,6 +85,9 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   // sentence is type about it, and hunting for the box is a step in the way.
   useEffect(() => {
     if (!anchor) return;
+    // A suggestion starts from the words it replaces: changing a sentence is
+    // easier than retyping it.
+    setReplacement(passageOf(anchor)?.quote ?? '');
     editor.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     editor.current?.querySelector('textarea')?.focus();
   }, [anchor]);
@@ -104,11 +118,30 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
 
   const send = () => {
     const body = draft.trim();
-    if (!body) return;
-    postComment(target, body, me, anchor ?? null);
+    if (proposing) {
+      // A suggestion that says nothing new is not one.
+      if (replacement === passageOf(anchor)?.quote) return;
+      postComment(target, body, me, anchor ?? null, replacement);
+    } else {
+      if (!body) return;
+      postComment(target, body, me, anchor ?? null);
+    }
     setDraft('');
+    setReplacement('');
     onAnchorDone?.();
   };
+
+  /**
+   * Whether this thread is one that gets settled: a page's, where comments are
+   * review — a passage to fix, a suggestion to take. A task's thread is its
+   * log, and folding away half of it because somebody ticked "resolved" would
+   * hide the history the task is for.
+   */
+  const settleable = !!target.page_id;
+
+  /** Settle a comment, or open it again. The server stamps who and when. */
+  const settle = (entry: Comment, resolution: Comment['resolution']) => update('comment', entry.id, { resolution });
+  const settledCount = comments.filter((entry) => entry.resolution).length;
 
   /**
    * Commit an edit, or quietly drop one that changed nothing.
@@ -128,16 +161,28 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
   return (
     <>
       {comments.length === 0 && empty && <p className="text-muted text-[12.5px]">{empty}</p>}
-      {comments.map((entry) => {
+      {settleable && settledCount > 0 && (
+        <button type="button" className="comment-settled-toggle" aria-expanded={showSettled} onClick={() => setShowSettled(!showSettled)}>
+          <Icon name={showSettled ? 'chevronDown' : 'chevronRight'} size={12} />
+          {t(showSettled ? 'comment.hideSettled' : 'comment.showSettled', { count: settledCount })}
+        </button>
+      )}
+      {comments.filter((entry) => !settleable || showSettled || !entry.resolution || entry.id === active).map((entry) => {
         const author = members.get(entry.author_id);
         const quoted = textAnchor(entry.anchor);
         const pin = isPin(entry.anchor) ? entry.anchor : null;
+        // Read defensively: a row synced before these columns existed has
+        // neither, and is an open, ordinary comment.
+        const suggestion = typeof entry.suggestion === 'string' ? entry.suggestion : null;
+        const passage = passageOf(entry.anchor);
+        const resolution = entry.resolution ?? null;
+        const settler = entry.resolved_by ? members.get(entry.resolved_by) : undefined;
         // A note left through a public link has no account behind it. The name
         // is whatever was typed into a box, so it is shown as exactly that
         // rather than sitting in the row looking like a colleague.
         const guest = !entry.author_id && entry.guest_name !== undefined;
         return (
-          <div className="comment" key={entry.id}>
+          <div className={`comment${resolution ? ' is-settled' : ''}`} key={entry.id}>
             <Avatar user={guest ? undefined : author} size={26} />
             <div className="body">
               <div className="flex items-center gap-1.5">
@@ -193,6 +238,42 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                   <Icon name="pin" size={11} /> {pinLabel(pin)}
                 </button>
               )}
+              {suggestion !== null && passage && (
+                <div className="suggestion-diff">
+                  <span className="sr-only">{t('suggest.replace')}</span>
+                  <del>{passage.quote}</del>
+                  <span className="sr-only">{t('suggest.with')}</span>
+                  <ins>{suggestion || t('suggest.removed')}</ins>
+                </div>
+              )}
+              {resolution && (
+                <p className="comment-settled">
+                  <Icon name="check" size={12} />
+                  {t(resolution === 'accepted' ? 'comment.accepted' : resolution === 'rejected' ? 'comment.rejected' : 'comment.resolved', {
+                    name: settler?.name ?? t('common.someone'),
+                    time: relativeTime(entry.resolved_at ?? entry.updated_at),
+                  })}
+                  {canWrite && resolution !== 'accepted' && (
+                    <button type="button" className="comment-link" onClick={() => settle(entry, null)}>{t('comment.reopen')}</button>
+                  )}
+                </p>
+              )}
+              {settleable && !resolution && canWrite && !entry.parent_id && (
+                <div className="comment-settle">
+                  {suggestion !== null && passage ? (
+                    <>
+                      <Button size="sm" variant="primary" onClick={() => settle(entry, 'accepted')}>
+                        <Icon name="check" size={13} /> {t('suggest.accept')}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => settle(entry, 'rejected')}>{t('suggest.reject')}</Button>
+                    </>
+                  ) : (
+                    <Button size="sm" variant="ghost" onClick={() => settle(entry, 'resolved')}>
+                      <Icon name="check" size={13} /> {t('comment.resolve')}
+                    </Button>
+                  )}
+                </div>
+              )}
               {editing?.id === entry.id ? (
                 <div className="mt-1.5">
                   {/* The same editor the composer uses, so an edit is typed
@@ -231,24 +312,36 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
       <div className="mt-2.5" ref={editor}>
         {anchor && (
           <div className="flex items-center gap-2 quoted-draft">
-            <Icon name="link" size={12} />
-            <span className="flex-1 min-w-0 truncate">{isPin(anchor) ? pinLabel?.(anchor) : anchorLabel(anchor)}</span>
+            <Icon name={proposing ? 'pencil' : 'link'} size={12} />
+            <span className="flex-1 min-w-0 truncate">
+              {proposing && <strong>{t('suggest.draftLabel')} </strong>}
+              {isPin(anchor) && !proposing ? pinLabel?.(anchor) : anchorLabel(passageOf(anchor) ?? (anchor as Anchor))}
+            </span>
             <Button variant="ghost" size="iconSm" aria-label={t('annotate.clear')} onClick={() => onAnchorDone?.()}>
               <Icon name="close" size={12} />
             </Button>
           </div>
         )}
+        {proposing && (
+          <label className="suggestion-field">
+            <span>{t('suggest.replaceWith')}</span>
+            <Textarea value={replacement} rows={3} onChange={(event) => setReplacement(event.target.value)} />
+          </label>
+        )}
         <MarkdownEditor
           value={draft}
           onChange={setDraft}
           minHeight={70}
-          placeholder={t('task.commentPlaceholder')}
+          placeholder={proposing ? t('suggest.why') : t('task.commentPlaceholder')}
           attachTo={attachTo}
           onSubmit={send}
         />
         <div className="flex items-center gap-2 mt-2" style={{ justifyContent: 'flex-end' }}>
-          <Button variant="primary" size="sm" disabled={!draft.trim()} onClick={send}>
-            <Icon name="send" size={14} /> {t('task.comment')}
+          <Button
+            variant="primary" size="sm" onClick={send}
+            disabled={proposing ? replacement === passageOf(anchor)?.quote : !draft.trim()}
+          >
+            <Icon name="send" size={14} /> {proposing ? t('suggest.send') : t('task.comment')}
           </Button>
         </div>
       </div>

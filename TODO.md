@@ -1630,7 +1630,7 @@ confused later.
       bound. Nothing is wrong today and nothing has been measured. The options when it does start to
       hurt: a windowed sync, an age-based local prune, or paging the stream. The measurement to take
       first is the size of one device's mirror after a busy year.
-- [ ] **An assistant cannot read a conversation.** MCP exposes 133 tools over tasks, pages, time and
+- [ ] **An assistant cannot read a conversation.** MCP exposes 135 tools over tasks, pages, time and
       cycles, and none of them touch chat — so "what did we decide about the pricing page" finds the
       task and the page and misses the room the decision was actually made in. The permission story
       is already settled: a token acts as the person it belongs to, so it would see exactly what they
@@ -1733,7 +1733,7 @@ follows is what was deliberately *not* built, and why, so that none of it is re-
       that one column and can never invent one — and both the terminal and a comment above the table
       say so rather than leaving it to be inferred. Doing it properly means rebuilding the table
       instead of altering it, in a generator that so far only ever adds. It is one column out of the
-      **66** the list carries; the other undroppable-looking eight turned out to be something else
+      **70** the list carries; the other undroppable-looking eight turned out to be something else
       entirely, list entries for columns `CREATE TABLE` never creates at all, which is the shape
       everything here is trying to reach. The shape comparison inherits the same blind spot: the
       recorded table carries the `UNIQUE`, so the check believes an upgraded instance has it, while
@@ -1860,21 +1860,28 @@ written.
       text CRDT a keystroke uses, so there is nothing to keep in step with anything else.
 - [x] **Pins, not quotes, on a canvas.** A comment is anchored to a board and a point on it. Export,
       import and project copy carry boards; export and import re-point pins at the new board ids.
-- [ ] **Suggestions.** Asked for with comments and not built. The shape that fits: a comment that
-      carries a replacement for its anchored passage, accepted through the CRDT like any edit — on
-      text pages and boards alike, and from MCP, so an assistant can propose instead of overwrite.
-- [ ] **A saved history per board.** A page keeps its previous revisions; a board keeps only the
-      editor's undo, for as long as the editor is open. Restoring yesterday's board is not possible.
-- [ ] **Boards are not in search.** Only the canvas's title is. Indexing a board means indexing
-      `artboard.text`, which is the source minus scripts and tags — a chart's numbers drawn by a
-      script are not in it.
-- [ ] **No pictures or fonts from this server inside a board.** The frame has an opaque origin, so a
-      request from it carries no session and `/files/…` answers 401; and its policy allows only
-      `data:` and `blob:`. The way out is the one named for share links further up: a file URL
-      scoped to something other than the session — here, handed in by the app.
-- [ ] **No libraries.** A board that loads Chart.js from a CDN draws an empty box, offline and
-      online. A fixed set served by this instance, rewritten from their CDN addresses, would keep
-      boards offline-capable and send no viewer's address anywhere. Not started.
+- [x] **Suggestions, and settling a comment.** A comment may carry what its passage should say
+      instead; accepting it is done on the server against the text as it stands then, found again by
+      its quote, as a content-only write — so it merges like an edit — and refused if the passage has
+      changed since. Works on text pages (*Suggest* beside *Comment* on a selection), on boards (from
+      the editor), and over MCP (`suggest_page_edit`, `resolve_comment`). Any comment can be resolved
+      by anybody who can read it; who settled it and when are the server's to stamp.
+      `suggestions.test.ts` fails on six cases with the server's half taken out.
+- [x] **A saved history per board.** `artboard_versions`, one row per author per sitting, previewed
+      and restored from the editor; a restore keeps the state it replaced.
+- [x] **Boards in search**, as the words on them, each hit checked against its canvas.
+- [x] **Pictures from this server inside a board**, handed in by the app as their bytes while the
+      source keeps the path; *Image* in the editor, and pictures dropped on the canvas become boards.
+- [x] **A redraw no longer reuses the board's JavaScript realm.** The first version wrote each render
+      into the same frame, so a board whose script declared a top-level `const` threw on every redraw
+      after the first and stopped running — found on the seeded canvas. Every render is a fresh
+      frame now, drawn behind the visible one and swapped in when it is done.
+- [x] **On a phone.** Pinch wherever the fingers land, a double tap to open, larger handles on a
+      coarse pointer, an editor that stacks; the seed has a canvas, so CI's screen checks walk one.
+- [ ] **No libraries and no web fonts.** A board that loads Chart.js from a CDN draws an empty box,
+      offline and online. A fixed set served by this instance, rewritten from their CDN addresses and
+      handed in the way pictures are, would keep boards offline-capable and send no viewer's address
+      anywhere. Not started.
 - [ ] **No live cursors.** Edits merge, but nobody sees where anybody else is. The chat's socket
       already carries presence; a canvas is where it would matter most.
 - [ ] **A canvas cannot be shared by link, exported as a file, or used as a template.** Each of
@@ -1883,7 +1890,8 @@ written.
 - [ ] **`kolibri doctor --fix` does not compact board bodies.** It folds page bodies only, as it
       does not agenda notes.
 - [ ] **Run in Chromium only.** Safari, Firefox and the packaged app on iOS and Android have not
-      drawn a board. The sandbox and the offline cache are the two things most likely to differ.
+      drawn a board; the phone was a Chromium window at phone size with touch. The sandbox, the
+      offline cache and a two-finger pinch are the things most likely to differ.
 - [ ] **A board cannot read the workspace.** A live dashboard — a KPI board that stays current —
       would need a channel from the app into the frame, answered with the viewer's own permissions.
       Deliberately later: it is the largest security decision on this list.

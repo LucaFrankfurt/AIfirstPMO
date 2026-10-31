@@ -465,6 +465,8 @@ export function PageDetail() {
   const [importing, setImporting] = useState(false);
   const [body, setBody] = useState<HTMLDivElement | null>(null);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  /** Whether the passage in `anchor` was picked to suggest a change rather than to comment. */
+  const [suggesting, setSuggesting] = useState(false);
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const canWrite = useCanWrite();
   const projects = useQuery(() => list('project'), []);
@@ -511,7 +513,11 @@ export function PageDetail() {
 
   // Selecting a passage offers a comment on it; the anchored passages are
   // painted back onto the rendered page afterwards.
-  const { bubble } = useSelectionAnchor(body, page?.content ?? '', setAnchor);
+  const { bubble } = useSelectionAnchor(
+    body, page?.content ?? '',
+    (picked) => { setSuggesting(false); setAnchor(picked); },
+    canWrite ? (picked) => { setSuggesting(true); setAnchor(picked); } : undefined,
+  );
   useHighlights(body, page?.content ?? '', pageComments, activeComment, setActiveComment);
 
   useEffect(() => {
@@ -924,7 +930,8 @@ export function PageDetail() {
               empty={t('page.noComments')}
               source={page.content ?? ''}
               anchor={anchor}
-              onAnchorDone={() => setAnchor(null)}
+              suggesting={suggesting}
+              onAnchorDone={() => { setAnchor(null); setSuggesting(false); }}
               active={activeComment}
               onPick={(commentId) => {
                 setActiveComment(commentId);

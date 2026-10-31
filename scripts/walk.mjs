@@ -82,6 +82,18 @@ export async function walkable(page, base) {
   });
   if (!pageId) throw new Error('no page to open — the seed built none');
 
+  /*
+   * A canvas, because it is the one page that is not a column of text: a plane
+   * that has to fill whatever height the screen has, a toolbar that has to fit
+   * a phone, and boards drawn in frames whose own contrast is the author's.
+   */
+  const canvasId = await page.evaluate(async () => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const body = await (await fetch(`/api/workspaces/${workspace}/pages?limit=500`, { credentials: 'include' })).json();
+    return (body.pages ?? body.items ?? body).find((row) => row.format === 'canvas')?.id;
+  });
+  if (!canvasId) throw new Error('no canvas to open — the seed built none');
+
   const SCREENS = [
     ['my work', '/'],
     ['project', `/projects/${project}`],
@@ -95,6 +107,7 @@ export async function walkable(page, base) {
     // the densest row this wiki draws, and the one most likely to come apart.
     ['pages: tidying up', '/pages/tidy'],
     ['page', `/pages/${pageId}`],
+    ['canvas', `/pages/${canvasId}`],
     ['teams', '/teams'],
     ['planner', '/planner'],
     ['portfolio', '/portfolio'],

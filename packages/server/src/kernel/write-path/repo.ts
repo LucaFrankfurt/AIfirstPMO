@@ -1,5 +1,6 @@
 import {
   ENTITIES,
+  artboard,
   attachmentSubject,
   crdt,
   entityDef,
@@ -608,6 +609,14 @@ export const SEARCHABLE: Partial<Record<EntityName, (row: Row) => { title: strin
    * index. `searchWorkspace` asks `canSeeBudget` about each hit instead.
    */
   budget: (row) => ({ title: row.name ?? '', body: row.description ?? '' }),
+  /*
+   * A board, as the words a reader can see on it: `artboard.text` drops its
+   * scripts, styles and tags, so a search for "div" or "grid-template" finds
+   * nothing — and what a script draws at runtime is not in it, which no index
+   * can help. A board has no project of its own, so `searchWorkspace` asks
+   * `canSeeBoard` about each hit, as it asks about a page.
+   */
+  artboard: (row) => ({ title: row.title ?? '', body: artboard.text(String(row.content ?? '')) }),
 };
 
 /**
@@ -1122,6 +1131,12 @@ export function pageIsVisible(userId: string, page: Row): boolean {
  * anything over. Deletion is deliberately not asked about — a deleted page's
  * attachments still have to reach the devices that hold them.
  */
+/** A board on a canvas, by id: exactly whether its page may be seen. */
+export function canSeeBoard(userId: string, boardId: string): boolean {
+  const board = get<Row>(`SELECT page_id FROM artboards WHERE id = ?`, boardId);
+  return !!board && canSeePage(userId, String(board.page_id));
+}
+
 export function canSeePage(userId: string, pageId: string | null | undefined): boolean {
   if (!pageId) return false;
   const page = get<Row>(`SELECT project_id, access, created_by FROM pages WHERE id = ?`, pageId);

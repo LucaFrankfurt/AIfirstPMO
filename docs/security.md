@@ -31,7 +31,7 @@ Three questions, asked in this order, in `lib/auth.ts` and `lib/repo.ts`:
    a "public" project is public *to that workspace*, and `canSeeProject` used to answer the
    visibility question without asking the membership one.
 3. **Does the token carry the scope?** API and MCP tokens are `read` or `read,write`. A read-only
-   token is refused by every write path, including all 74 writing MCP tools.
+   token is refused by every write path, including all 76 writing MCP tools.
 4. **Does the row answer for itself?** Most do not — they follow their project, and that is the
    whole of it. Two do: a **secret**, and a **page**, which can be `access: 'private'` inside a
    project everybody can see. `pageIsVisible` in `lib/repo.ts` asks both halves, and it is one
@@ -134,8 +134,15 @@ refused, while its own inline scripts, handlers and `eval` run. What the frame s
 shape and dropped when it is about an older render (`readMessage`), and the only thing it can make
 the app do outside the editor is open an `http(s)` or `mailto` link in a new tab. A board's script can
 post an edit message while somebody has that board open in the editor — which changes that board,
-which anybody able to post it could already edit. Not measured: Safari, Firefox and the packaged app.
-See [`canvas.md`](canvas.md).
+which anybody able to post it could already edit. Every render is a fresh frame, so nothing a board's
+script left behind survives into the next one. Pictures from this server are fetched by the app,
+with the session, and handed in as `data:` URLs — the frame itself still reaches nothing. Not
+measured: Safari, Firefox and the packaged app. See [`canvas.md`](canvas.md).
+
+**Settling a comment.** Anybody who can read a comment may resolve it, or accept or reject it when it
+is a suggestion, exactly as they may react to it; its words stay its author's. Who settled it and when
+are stamped by the server. Accepting writes into the page or board through the ordinary write path,
+as the person accepting, so it is refused wherever they could not have made the edit by hand.
 
 **SMTP.** An address with a carriage return in it is not a badly-typed address, it is a second
 command to the relay. `lib/address.ts` refuses control characters, and it is called at the socket —

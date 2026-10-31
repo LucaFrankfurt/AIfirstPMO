@@ -989,6 +989,60 @@ export function registerEntityRoutes(router: Router): void {
     throw badRequest('Pass { restore: versionId } to restore a version');
   });
 
+  /* --------------------------------------------------- board history */
+
+  /**
+   * A board's history, through its page.
+   *
+   * Server-side only, like a page's — what a board said last week is read when
+   * somebody asks, not mirrored to every device. Who may ask is who may see
+   * the canvas, and nobody else: the same `canSeePage` every other door to a
+   * board uses.
+   */
+  const boardFor = (ctx: Ctx, userId: string, role?: 'member'): Row => {
+    const board = workspaceOf('artboard', ctx.params.id);
+    requireWorkspace(ctx, board.workspace_id, role);
+    if (!canSeePage(userId, String(board.page_id))) throw forbidden('That canvas is private');
+    return board;
+  };
+
+  router.get('/api/artboards/:id/versions', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    boardFor(ctx, auth.userId);
+    return all<Row>(
+      `SELECT id, title, author_id, created_at, length(content) AS size FROM artboard_versions
+        WHERE artboard_id = ? ORDER BY created_at DESC LIMIT 100`,
+      ctx.params.id,
+    );
+  });
+
+  router.get('/api/artboards/:id/versions/:versionId', (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    boardFor(ctx, auth.userId);
+    const version = get<Row>(`SELECT * FROM artboard_versions WHERE id = ? AND artboard_id = ?`, ctx.params.versionId, ctx.params.id);
+    if (!version) throw notFound('Version not found');
+    return version;
+  });
+
+  /**
+   * Put a board back as it was. A content-only write, so the board's CRDT is
+   * moved to match by a diff — and the state being replaced becomes a version
+   * of its own, so a restore is itself undoable.
+   */
+  router.post('/api/artboards/:id/versions', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const board = boardFor(ctx, auth.userId, 'member');
+    const body = await readJson<{ restore?: string }>(ctx);
+    if (!body.restore) throw badRequest('Pass { restore: versionId } to restore a version');
+    const version = get<Row>(`SELECT * FROM artboard_versions WHERE id = ? AND artboard_id = ?`, body.restore, ctx.params.id);
+    if (!version) throw notFound('Version not found');
+    const { row } = writeEntity('artboard', ctx.params.id, { content: version.content }, {
+      workspaceId: board.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
+    });
+    return serialize('artboard', row);
+  });
+
   /* --------------------------------------------------- bulk helpers */
 
   /** One round trip for "move these five tasks to In Progress". */

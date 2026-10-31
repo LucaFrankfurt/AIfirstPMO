@@ -22,7 +22,7 @@
  */
 import { identifiersIn, parseTerms, type SearchTerm } from '@kolibri/shared';
 import { all, type Row } from '../platform/db/index.ts';
-import { canSeeBudget, canSeePage, canSeeProject, canSeeSubject } from '../write-path/repo.ts';
+import { canSeeBoard, canSeeBudget, canSeePage, canSeeProject, canSeeSubject } from '../write-path/repo.ts';
 
 export interface SearchHit {
   kind: string;
@@ -188,7 +188,8 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
       // these a private page's words, and what was said on it, were one search
       // away for every member of the workspace.
       && (row.kind !== 'page' || canSeePage(userId, String(row.ref_id)))
-      && (row.kind !== 'comment' || canSeeSubject(userId, 'comment', String(row.ref_id))))
+      && (row.kind !== 'comment' || canSeeSubject(userId, 'comment', String(row.ref_id)))
+      && (row.kind !== 'artboard' || canSeeBoard(userId, String(row.ref_id))))
     .map((row) => ({
       kind: row.kind,
       id: row.ref_id,

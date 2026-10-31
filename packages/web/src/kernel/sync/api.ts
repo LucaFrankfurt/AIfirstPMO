@@ -198,6 +198,10 @@ export const api = {
   pageVersions: (pageId: string) => request<any[]>(`/api/pages/${pageId}/versions`),
   pageVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions/${versionId}`),
   restoreVersion: (pageId: string, versionId: string) => request<any>(`/api/pages/${pageId}/versions`, json({ restore: versionId })),
+  boardVersions: (boardId: string) => request<any[]>(`/api/artboards/${boardId}/versions`),
+  boardVersion: (boardId: string, versionId: string) => request<any>(`/api/artboards/${boardId}/versions/${versionId}`),
+  restoreBoardVersion: (boardId: string, versionId: string) =>
+    request<any>(`/api/artboards/${boardId}/versions`, json({ restore: versionId })),
 
   /*
    * The three calls a value takes, and the reason they are here rather than in

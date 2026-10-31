@@ -46,6 +46,13 @@ export interface Pin {
   board: string;
   x: number;
   y: number;
+  /**
+   * A passage of the board's source, for a suggestion made on a board: the
+   * quote it would replace, found again the way a text page's anchor is.
+   */
+  quote?: string;
+  prefix?: string;
+  suffix?: string;
 }
 
 /** A comment's anchor is a quote on a text page or a pin on a canvas; these tell them apart. */
@@ -54,6 +61,15 @@ export const isPin = (anchor: unknown): anchor is Pin =>
 
 export const textAnchor = (anchor: Anchor | Pin | null | undefined): Anchor | null =>
   anchor && !isPin(anchor) && typeof anchor.quote === 'string' ? anchor : null;
+
+/**
+ * The passage an anchor names, wherever it is — on a text page, or inside a
+ * board's source for a pin that carries one. What a suggestion replaces.
+ */
+export function passageOf(anchor: Anchor | Pin | null | undefined): Anchor | null {
+  if (!anchor || typeof anchor.quote !== 'string' || !anchor.quote) return null;
+  return { quote: anchor.quote, prefix: String(anchor.prefix ?? ''), suffix: String(anchor.suffix ?? '') };
+}
 
 export interface Found {
   start: number;

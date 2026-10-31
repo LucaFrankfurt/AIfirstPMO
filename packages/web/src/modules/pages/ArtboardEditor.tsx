@@ -14,18 +14,23 @@
  * has no saved history yet the way a page does; see `TODO.md`.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { artboard, type Artboard, type ElementInfo } from '@kolibri/shared';
-import { update } from '../../kernel/sync/mutations';
+import { artboard, makeAnchor, type Artboard, type ElementInfo } from '@kolibri/shared';
+import { comment, update } from '../../kernel/sync/mutations';
+import { useMe, useMemberMap } from '../../kernel/identity/session';
+import { api } from '../../kernel/sync/api';
+import { pull } from '../../kernel/sync/sync';
+import { shortDate } from '../../kernel/design-system/format';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Dialog, DialogContent, DialogTitle } from '../../kernel/design-system/ui/dialog';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../kernel/design-system/ui/field';
-import { Icon, useToast } from '../../kernel/design-system/ui';
+import { Avatar, Icon, useConfirm, useToast } from '../../kernel/design-system/ui';
 import { cn } from '../../kernel/design-system/cn';
 import { useCollaborativeText, type CollabTarget } from './collab';
-import { ArtboardFrame } from './ArtboardFrame';
+import { ArtboardFrame, type BoardMessage } from './ArtboardFrame';
+import { restoreFiles } from './board-files';
+import { useUploads } from '../../kernel/files/uploads';
 import { BLOCK_KINDS, block, type BlockKind, type Words } from './blocks';
-import type { FrameMessage } from './frame';
 
 export const BOARD_BODY: CollabTarget = { entity: 'artboard', state: 'body', text: 'content' };
 
@@ -62,6 +67,9 @@ export function useWords(): Words {
   }), [t]);
 }
 
+const escapeAttribute = (value: string): string =>
+  value.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
 /** A colour as `<input type="color">` can show it, or black when it is not a plain hex. */
 const asHex = (value: string | undefined): string => {
   const hex = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((value ?? '').trim());
@@ -94,8 +102,41 @@ function Committed({ value, onCommit, label, multiline }: {
   );
 }
 
-function Inspector({ info, onStyle, onText, onAttribute, onSelect, act, cell }: {
+/**
+ * Propose new words for an element instead of writing them.
+ *
+ * The suggestion is a comment pinned where the element is, carrying the
+ * element's source as its passage — so whoever accepts it gets exactly this
+ * span replaced, found again by its quote even if the board has moved on
+ * around it, and refused if the span itself has changed.
+ */
+function SuggestChange({ text, onSuggest }: { text: string; onSuggest: (replacement: string, note: string) => void }) {
+  const t = useT();
+  const [replacement, setReplacement] = useState(text);
+  const [note, setNote] = useState('');
+  useEffect(() => setReplacement(text), [text]);
+  return (
+    <section className="artboard-section">
+      <h3>{t('suggest.title')}</h3>
+      <Textarea aria-label={t('suggest.replaceWith')} rows={3} value={replacement} onChange={(event) => setReplacement(event.target.value)} />
+      <Input
+        aria-label={t('suggest.why')} placeholder={t('suggest.why')} inputSize="sm" className="mt-1.5"
+        value={note} onChange={(event) => setNote(event.target.value)}
+      />
+      <Button
+        size="sm" variant="secondary" className="mt-1.5" disabled={replacement === text}
+        onClick={() => { onSuggest(replacement, note.trim()); setNote(''); }}
+      >
+        <Icon name="pencil" size={13} /> {t('suggest.send')}
+      </Button>
+    </section>
+  );
+}
+
+function Inspector({ info, onStyle, onText, onAttribute, onSelect, act, cell, onSuggest, onReplaceImage }: {
   info: ElementInfo;
+  onSuggest: (replacement: string, note: string) => void;
+  onReplaceImage: () => void;
   onStyle: (property: string, value: string) => void;
   onText: (text: string) => void;
   onAttribute: (name: string, value: string | null) => void;
@@ -142,6 +183,19 @@ function Inspector({ info, onStyle, onText, onAttribute, onSelect, act, cell }: 
           <Committed value={info.text} onCommit={onText} label={t('canvas.text')} multiline />
         </section>
       )}
+      {info.text !== null && <SuggestChange text={info.text} onSuggest={onSuggest} />}
+      {info.tag === 'img' && (
+        <section className="artboard-section">
+          <h3>{t('canvas.image')}</h3>
+          <Button size="sm" variant="secondary" onClick={onReplaceImage}>
+            <Icon name="image" size={13} /> {t('canvas.imageReplace')}
+          </Button>
+          <label className="artboard-field mt-1.5">
+            <span>{t('canvas.imageAlt')}</span>
+            <Committed value={info.attrs.alt ?? ''} onCommit={(alt) => onAttribute('alt', alt)} label={t('canvas.imageAlt')} />
+          </label>
+        </section>
+      )}
       {info.tag === 'a' && (
         <section className="artboard-section">
           <h3>{t('canvas.link')}</h3>
@@ -179,6 +233,79 @@ function Inspector({ info, onStyle, onText, onAttribute, onSelect, act, cell }: 
   );
 }
 
+/** One saved state of a board, as the history lists it. */
+interface BoardVersion { id: string; title: string; author_id: string | null; created_at: number; size: number }
+
+/**
+ * What the board said before each sitting, and the way back to it.
+ *
+ * Listed from the server — a board's history is never mirrored — and shown by
+ * drawing the old source in the stage itself, so a version is judged by how it
+ * looks rather than by its HTML. Restoring is a write like any other, so the
+ * board as it was a moment ago becomes a version too and the restore can be
+ * undone the same way.
+ */
+function BoardHistory({ board, previewing, onPreview, onRestored }: {
+  board: Artboard;
+  previewing: string | null;
+  onPreview: (version: { id: string; content: string } | null) => void;
+  onRestored: () => void;
+}) {
+  const t = useT();
+  const toast = useToast();
+  const members = useMemberMap();
+  const { confirm, dialog } = useConfirm();
+  const [versions, setVersions] = useState<BoardVersion[] | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    api.boardVersions(board.id)
+      .then((rows) => { if (live) setVersions(rows as BoardVersion[]); })
+      .catch(() => { if (live) setFailed(true); });
+    return () => { live = false; };
+  }, [board.id, board.updated_at]);
+
+  const preview = async (id: string) => {
+    if (previewing === id) return onPreview(null);
+    try {
+      const version = await api.boardVersion(board.id, id);
+      onPreview({ id, content: String(version.content ?? '') });
+    } catch {
+      toast(t('page.historyFailed'));
+    }
+  };
+
+  const restore = async (id: string) => {
+    if (!(await confirm(t('canvas.restoreConfirm'), t('action.restore')))) return;
+    await api.restoreBoardVersion(board.id, id);
+    await pull();
+    onPreview(null);
+    onRestored();
+    toast(t('page.restored'));
+  };
+
+  return (
+    <section className="artboard-section">
+      <h3>{t('canvas.history')}</h3>
+      {failed && <p className="text-[12px] text-danger">{t('page.historyFailed')}</p>}
+      {versions === null && !failed && <p className="text-muted text-[12.5px]">{t('common.loading')}</p>}
+      {versions !== null && versions.length === 0 && <p className="text-muted text-[12.5px]">{t('canvas.noVersions')}</p>}
+      {(versions ?? []).map((version) => (
+        <div key={version.id} className={cn('artboard-version', previewing === version.id && 'is-current')}>
+          <Avatar user={version.author_id ? members.get(version.author_id) : undefined} size={18} />
+          <button type="button" className="artboard-version-name" aria-pressed={previewing === version.id} onClick={() => { void preview(version.id); }}>
+            <span>{shortDate(version.created_at)}</span>
+            <span className="text-muted">{(version.author_id && members.get(version.author_id)?.name) || t('common.someone')}</span>
+          </button>
+          <Button size="sm" variant="ghost" onClick={() => { void restore(version.id); }}>{t('action.restore')}</Button>
+        </div>
+      ))}
+      {dialog}
+    </section>
+  );
+}
+
 export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; canWrite: boolean; onClose: () => void }) {
   const t = useT();
   const toast = useToast();
@@ -188,7 +315,13 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
   );
   const [tab, setTab] = useState<'design' | 'source'>('design');
   const [playing, setPlaying] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  /** An old version drawn in the stage instead of the board, while the history is open. */
+  const [previewing, setPreviewing] = useState<{ id: string; content: string } | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
+  /** Where the selected element starts on the board, for a pin left on it. */
+  const [spot, setSpot] = useState<{ x: number; y: number } | null>(null);
+  const me = useMe();
   const [title, setTitle] = useState(board.title);
   const undo = useRef<string[]>([]);
   const redo = useRef<string[]>([]);
@@ -271,6 +404,39 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
     setSelected(null);
   });
 
+  /*
+   * Pictures. Uploaded like any other file, hung on the canvas page so they
+   * follow its visibility, and written into the board by their `/files/…`
+   * path — `board-files.ts` hands the frame the bytes.
+   */
+  const uploads = useUploads({ kind: 'page', id: board.page_id });
+  const picker = useRef<HTMLInputElement>(null);
+  const picking = useRef<'insert' | 'replace'>('insert');
+  const pick = (mode: 'insert' | 'replace') => {
+    picking.current = mode;
+    picker.current?.click();
+  };
+  const picked = async (files: File[]) => {
+    const done = (await uploads.take(files)).filter((one) => one.image);
+    if (!done.length) return;
+    attempt(() => {
+      if (picking.current === 'replace' && selected !== null) {
+        apply(artboard.setAttribute(text, selected, 'src', done[0].url));
+        return;
+      }
+      let next = text;
+      let at = selected;
+      for (const image of done) {
+        const html = `<img src="${image.url}" alt="${escapeAttribute(image.name)}" style="display: block; max-width: 100%; height: auto; border-radius: 8px">`;
+        const placed = at !== null ? artboard.insert(next, at, 'after', html) : artboard.append(next, html);
+        next = placed.source;
+        at = placed.k;
+      }
+      apply(next);
+      setSelected(at);
+    });
+  };
+
   const add = (kind: BlockKind) => attempt(() => {
     const html = block(kind, words);
     const done = selected !== null ? artboard.insert(text, selected, 'after', html) : artboard.append(text, html);
@@ -278,14 +444,17 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
     setSelected(done.k);
   });
 
-  const heard = (message: Exclude<FrameMessage, { type: 'kolibri:ready' } | { type: 'kolibri:open' }>) => {
-    if (message.type === 'kolibri:select') setSelected(message.k);
+  const heard = (message: BoardMessage) => {
+    if (message.type === 'kolibri:select') {
+      setSelected(message.k);
+      setSpot(message.x !== undefined && message.y !== undefined ? { x: message.x, y: message.y } : null);
+    }
     if (message.type === 'kolibri:key' && message.key === 'escape' && (!canWrite || playing)) {
       onClose();
       return;
     }
     if (!canWrite) return;
-    if (message.type === 'kolibri:inner') attempt(() => apply(artboard.setInner(text, message.k, message.html)));
+    if (message.type === 'kolibri:inner') attempt(() => apply(artboard.setInner(text, message.k, restoreFiles(message.html))));
     if (message.type === 'kolibri:move') {
       attempt(() => {
         const done = artboard.move(text, message.k, message.target, message.where);
@@ -342,6 +511,13 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
           {merged && <span className="text-[12px] text-muted hide-sm">{t('page.mergedIn')}</span>}
           <Button size="iconSm" variant="ghost" disabled={!undo.current.length} onClick={() => step(undo.current, redo.current)} aria-label={t('canvas.undo')} title={t('canvas.undo')}><Icon name="undo" size={15} /></Button>
           <Button size="iconSm" variant="ghost" disabled={!redo.current.length} onClick={() => step(redo.current, undo.current)} aria-label={t('canvas.redo')} title={t('canvas.redo')}><Icon name="redo" size={15} /></Button>
+          <Button
+            size="iconSm" variant={showHistory ? 'primary' : 'ghost'} aria-pressed={showHistory}
+            onClick={() => { setShowHistory(!showHistory); setPreviewing(null); }}
+            aria-label={t('canvas.history')} title={t('canvas.history')}
+          >
+            <Icon name="refresh" size={15} />
+          </Button>
           <Button size="sm" variant={playing ? 'primary' : 'secondary'} onClick={() => setPlaying(!playing)} aria-pressed={playing}>
             <Icon name="play" size={13} /> {t('canvas.play')}
           </Button>
@@ -350,8 +526,8 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
           <div className="artboard-stage" ref={setStage}>
             <div className="artboard-sheet" style={{ width: board.w * scale, height: Math.max(room.height - 32, 200) }}>
               <ArtboardFrame
-                source={tab === 'design' ? text : preview}
-                mode={playing || !canWrite ? 'play' : 'edit'}
+                source={previewing ? previewing.content : tab === 'design' ? text : preview}
+                mode={previewing ? 'view' : playing || !canWrite ? 'play' : 'edit'}
                 selected={selected}
                 keepScroll
                 title={board.title || t('common.untitled')}
@@ -361,7 +537,16 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
               />
             </div>
           </div>
-          {tab === 'source' ? (
+          {showHistory ? (
+            <aside className="artboard-inspector" aria-label={t('canvas.history')}>
+              <BoardHistory
+                board={board}
+                previewing={previewing?.id ?? null}
+                onPreview={setPreviewing}
+                onRestored={() => { setShowHistory(false); setSelected(null); }}
+              />
+            </aside>
+          ) : tab === 'source' ? (
             <aside className="artboard-source">
               <textarea
                 ref={fieldRef}
@@ -384,6 +569,13 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
                         <Icon name="plus" size={13} /> {t(BLOCK_LABEL[kind])}
                       </Button>
                     ))}
+                    <Button size="sm" variant="ghost" className="justify-start" disabled={uploads.busy} onClick={() => pick('insert')}>
+                      <Icon name="image" size={13} /> {uploads.busy ? t('canvas.uploading') : t('canvas.block.image')}
+                    </Button>
+                    <input
+                      ref={picker} type="file" accept="image/*" multiple hidden
+                      onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ''; void picked(files); }}
+                    />
                   </div>
                 </section>
               )}
@@ -396,6 +588,17 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
                   onAttribute={(name, value) => attempt(() => apply(artboard.setAttribute(text, info.k, name, value)))}
                   act={act}
                   cell={cell}
+                  onReplaceImage={() => pick('replace')}
+                  onSuggest={(replacement, note) => {
+                    const passage = makeAnchor(text, info.inner.start, info.inner.end);
+                    if (!passage) return;
+                    comment(
+                      { page_id: board.page_id }, note, me,
+                      { board: board.id, x: spot?.x ?? 24, y: spot?.y ?? 24, ...passage },
+                      replacement,
+                    );
+                    toast(t('suggest.sent'));
+                  }}
                 />
               ) : (
                 <p className="text-muted text-[12.5px] artboard-section">{canWrite ? t('canvas.selectHint') : t('canvas.readOnly')}</p>

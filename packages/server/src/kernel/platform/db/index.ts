@@ -172,6 +172,13 @@ for (const [table, column, definition] of [
   // writes it: a column the INSERT names and an upgraded database lacks throws
   // inside the write that triggered it.
   ['notifications', 'meeting_id', 'TEXT'],
+  // A comment that proposes a change, and whether any comment has been settled.
+  // On a device that synced before these existed the four are simply missing
+  // from old rows, which every reader takes as "an open, ordinary comment".
+  ['comments', 'suggestion', 'TEXT'],
+  ['comments', 'resolution', 'TEXT'],
+  ['comments', 'resolved_by', 'TEXT'],
+  ['comments', 'resolved_at', 'INTEGER'],
 ] as const) {
   const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
   if (!columns.some((c) => c.name === column)) {

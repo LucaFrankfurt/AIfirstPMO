@@ -31,6 +31,7 @@
 
 import { all, get, nextSeq, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
+import { uid } from '../../../kernel/platform/ids.ts';
 import { canSeePage, type EntityRule, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
 import { settleCrdtText } from './pages.ts';
 
@@ -98,6 +99,32 @@ function applyBoardInvariants(values: Record<string, unknown>, existing: Row | u
 
 const system = (opts: WriteOpts): WriteOpts => ({ ...opts, op: undefined, system: true, silent: true });
 
+/**
+ * A board's history: the text it had before each change, collapsed the way a
+ * page's is.
+ *
+ * The same window and the same reason (`VERSION_WINDOW_MS` beside
+ * `snapshotPage`): a design session is dozens of writes — every nudge in the
+ * inspector is one — and a history with a row per nudge is a history nobody can
+ * find yesterday's board in. One row per author per ten minutes keeps the board
+ * as it was before each sitting.
+ */
+const BOARD_WINDOW_MS = 10 * 60 * 1000;
+
+function snapshotBoard(before: Row, actorId: string): void {
+  if (!before.content) return;
+  const latest = get<Row>(
+    `SELECT content, author_id, created_at FROM artboard_versions WHERE artboard_id = ? ORDER BY created_at DESC LIMIT 1`,
+    String(before.id),
+  );
+  if (latest?.content === before.content) return;
+  if (latest && latest.author_id === actorId && Date.now() - Number(latest.created_at) < BOARD_WINDOW_MS) return;
+  run(
+    `INSERT INTO artboard_versions (id, artboard_id, content, title, author_id, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+    uid(), String(before.id), String(before.content), String(before.title ?? ''), actorId, Date.now(),
+  );
+}
+
 /** Deleting a canvas takes every board on it. */
 function tombstoneBoards(page: Row, opts: WriteOpts): void {
   for (const row of all<Row>(`SELECT id FROM artboards WHERE page_id = ? AND deleted_at IS NULL`, String(page.id))) {
@@ -146,6 +173,10 @@ export const artboardRules = {
     if (entity === 'artboard') applyBoardInvariants(values, existing, forced);
   },
   effects(entity, row, before, changed, opts) {
+    if (entity === 'artboard') {
+      if (before && changed.content !== undefined) snapshotBoard(before, opts.actorId);
+      return;
+    }
     if (entity !== 'page' || !before) return;
     if (row.deleted_at && !before.deleted_at) tombstoneBoards(row, opts);
     if (!row.deleted_at && before.deleted_at) restoreBoards(row, Number(before.deleted_at), opts);

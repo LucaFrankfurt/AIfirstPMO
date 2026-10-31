@@ -1214,6 +1214,18 @@ CREATE TABLE IF NOT EXISTS page_versions (
 );
 CREATE INDEX IF NOT EXISTS page_versions_page ON page_versions (page_id, created_at);
 
+-- What a board said before each change, for its history. Server-side only,
+-- like page_versions: read through the API, never synced.
+CREATE TABLE IF NOT EXISTS artboard_versions (
+  id          TEXT PRIMARY KEY,
+  artboard_id TEXT NOT NULL,
+  content     TEXT NOT NULL,
+  title       TEXT NOT NULL,
+  author_id   TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS artboard_versions_board ON artboard_versions (artboard_id, created_at);
+
 CREATE TABLE IF NOT EXISTS comments (
   id           TEXT PRIMARY KEY,
   workspace_id TEXT NOT NULL,
@@ -1232,6 +1244,14 @@ CREATE TABLE IF NOT EXISTS comments (
   -- When the body was last rewritten, stamped by the server. `updated_at` is
   -- not this: a reaction moves that too, and "edited" has to mean the words.
   edited_at    INTEGER,
+  -- A suggestion: what the anchored passage should say instead. NULL on an
+  -- ordinary comment.
+  suggestion   TEXT,
+  -- How the comment was settled: 'resolved', or for a suggestion 'accepted' or
+  -- 'rejected'. NULL while it is open. Who and when are the server's to stamp.
+  resolution   TEXT,
+  resolved_by  TEXT,
+  resolved_at  INTEGER,
   created_at   INTEGER NOT NULL,
   updated_at   INTEGER NOT NULL,
   deleted_at   INTEGER,

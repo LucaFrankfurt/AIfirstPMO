@@ -382,7 +382,19 @@ for (const [label, options] of MODES) {
    * an `aria-label`, and a row of icon buttons — the exact shape that fails
    * the name rule most often, sitting behind one click nothing was making.
    */
-  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', '/teams', '/planner',
+  /*
+   * The seeded canvas: a toolbar that has to fit a phone, a plane, boards and
+   * pins. The boards' own pages are their author's, drawn in sandboxed frames
+   * this check cannot enter; what is checked is the app around them.
+   */
+  const canvasId = await page.evaluate(async () => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const body = await (await fetch(`/api/workspaces/${workspace}/pages?limit=500`, { credentials: 'include' })).json();
+    return (body.pages ?? body.items ?? body).find((row) => row.format === 'canvas')?.id;
+  });
+  if (!canvasId) throw new Error('no canvas to open — the seed built none');
+
+  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', `/pages/${canvasId}`, '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
     '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/decisions', '/meetings', `/meetings/${meetingId}`, '/secrets',
     // Behind the products switch, and reached only because the fixture above

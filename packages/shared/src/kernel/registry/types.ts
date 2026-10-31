@@ -1109,6 +1109,13 @@ export interface Module extends Base {
  */
 export type PageFormat = 'markdown' | 'html' | 'canvas';
 
+/**
+ * How a comment was settled. `resolved` closes any thread; a suggestion is
+ * `accepted` — its replacement written into the text — or `rejected`.
+ */
+export type CommentResolution = 'resolved' | 'accepted' | 'rejected';
+export const COMMENT_RESOLUTIONS: readonly CommentResolution[] = ['resolved', 'accepted', 'rejected'];
+
 /** The two things a canvas holds: a board of HTML, or a note beside the boards. */
 export type ArtboardKind = 'html' | 'note';
 
@@ -1289,6 +1296,19 @@ export interface Comment extends Base {
    * wrong the moment somebody types a word above it. See `anchor.ts`.
    */
   anchor: Anchor | Pin | null;
+  /**
+   * What the anchored passage should say instead, when the comment is a
+   * suggestion. Accepting it writes the replacement into the page or the board
+   * — on the server, against the text as it is then, through the same CRDT an
+   * edit goes through. Missing on a row a device synced before the column
+   * existed, which reads as an ordinary comment.
+   */
+  suggestion?: string | null;
+  /** How the comment was settled, or null while it is open. */
+  resolution?: CommentResolution | null;
+  /** Who settled it, and when. The server's to stamp. */
+  resolved_by?: ID | null;
+  resolved_at?: number | null;
   /**
    * Stamped by the server when the body changes, never taken from a client.
    *

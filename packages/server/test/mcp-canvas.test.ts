@@ -165,3 +165,34 @@ describe('a canvas built over MCP', () => {
     assert.deepEqual(read.artboards.map((one: { title: string }) => one.title), ['Pipeline']);
   });
 });
+
+describe('suggestions over MCP', () => {
+  let page = '';
+
+  it('proposes a change rather than making it', async () => {
+    page = (await tool(ada, 'create_page', { title: 'Launch plan', content: 'We launch on Friday. Friday is final.' })).id;
+    await assert.rejects(() => tool(ada, 'suggest_page_edit', { page, quote: 'Friday', replacement: 'Monday' }), /more than once/);
+    await assert.rejects(() => tool(ada, 'suggest_page_edit', { page, quote: 'Saturday', replacement: 'Monday' }), /not in it/);
+    const made = await tool(ada, 'suggest_page_edit', { page, quote: 'launch on Friday', replacement: 'launch on Monday', body: 'Legal needs the weekend' });
+    assert.equal(made.status, 'open');
+    assert.equal((await tool(ada, 'get_page', { page })).content, 'We launch on Friday. Friday is final.', 'a suggestion changed the page');
+    const thread = (await tool(ada, 'list_page_comments', { page })).result;
+    assert.equal(thread[0].suggests, 'launch on Monday');
+    assert.equal(thread[0].about, 'launch on Friday');
+  });
+
+  it('writes it in when accepted', async () => {
+    const thread = (await tool(ada, 'list_page_comments', { page })).result;
+    const settled = await tool(ada, 'resolve_comment', { comment: thread[0].id, status: 'accepted' });
+    assert.equal(settled.status, 'accepted');
+    assert.equal((await tool(ada, 'get_page', { page })).content, 'We launch on Monday. Friday is final.');
+  });
+
+  it('cannot settle a comment the caller cannot see', async () => {
+    const hidden = (await tool(ada, 'create_page', { title: 'Hidden', content: 'secret words here' })).id;
+    await api('ada', `/api/pages/${hidden}`, { method: 'PATCH', body: { access: 'private' } });
+    const made = await tool(ada, 'suggest_page_edit', { page: hidden, quote: 'secret', replacement: 'open' });
+    await assert.rejects(() => tool(lin, 'resolve_comment', { comment: made.id, status: 'accepted' }), /not found/);
+    await assert.rejects(() => tool(lin, 'suggest_page_edit', { page: hidden, quote: 'words', replacement: 'x' }));
+  });
+});

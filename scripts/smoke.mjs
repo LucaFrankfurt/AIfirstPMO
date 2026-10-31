@@ -1356,6 +1356,56 @@ await step('pages', async () => {
 await page.screenshot({ path: `${shots}/4-page.png` });
 
 /**
+ * A board on a canvas keeps running its script after it is redrawn.
+ *
+ * The first canvas wrote each new render into the frame it already had, which
+ * keeps the frame's JavaScript realm — so the seeded Pipeline board, whose
+ * script declares `const values`, threw "already been declared" on the second
+ * render and its tiles stopped adding up. Nothing but a browser can see that:
+ * the source is right, the server is right, and the frame is a sandbox no
+ * unit test runs. So: read the tile, change the board the way a colleague
+ * would from another device, and read the tile again from what is on screen.
+ * Locale-free on purpose — it runs in both walkthroughs.
+ */
+await step('a canvas board keeps working when it is redrawn', async () => {
+  const found = await page.evaluate(async () => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const pages = await (await fetch(`/api/workspaces/${ws}/pages?limit=500`, { credentials: 'include' })).json();
+    const canvas = (pages.items ?? pages).find((row) => row.format === 'canvas');
+    const boards = await (await fetch(`/api/workspaces/${ws}/artboards?limit=500`, { credentials: 'include' })).json();
+    const board = canvas && (boards.items ?? boards).find((row) => row.page_id === canvas.id && row.content.includes('id="total"'));
+    return canvas && board ? { canvas: canvas.id, board: board.id, content: board.content } : null;
+  });
+  if (!found) throw new Error('the seed has no canvas with a scripted board');
+  const total = async () => {
+    for (const frame of page.frames().filter((one) => one.url().includes('artboard.html'))) {
+      const visible = await frame.frameElement().then((el) => el.evaluate((node) => getComputedStyle(node).visibility !== 'hidden')).catch(() => false);
+      if (!visible) continue;
+      const text = await frame.locator('#total').textContent({ timeout: 500 }).catch(() => null);
+      if (text) return text;
+    }
+    return null;
+  };
+  await page.goto(`${base}/pages/${found.canvas}`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.canvas-board iframe', { timeout: 5000 });
+  let first = null;
+  for (let tries = 0; tries < 20 && !first; tries++) { first = await total(); if (!first) await page.waitForTimeout(250); }
+  if (!first) throw new Error('the board\'s script did not run on the first render');
+  const patch = (content) => page.evaluate(async ([id, body]) => {
+    await fetch(`/api/artboards/${id}`, { method: 'PATCH', credentials: 'include', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content: body }) });
+  }, [found.board, content]);
+  // Twice: the second redraw is the one the old frame failed on.
+  for (const content of [found.content.replace('Pipeline this quarter', 'Pipeline this quarter '), found.content]) {
+    await patch(content);
+    await page.waitForTimeout(2500);
+  }
+  let again = null;
+  for (let tries = 0; tries < 20 && !again; tries++) { again = await total(); if (!again) await page.waitForTimeout(250); }
+  if (again !== first) throw new Error(`after two redraws the board says ${again}, not ${first}`);
+  console.log('     the board adds up to', again, 'before and after two redraws');
+});
+
+/**
  * Selecting a passage in a page leaves the passage selected.
  *
  * A regression test for something no unit test can see. Selecting text sets

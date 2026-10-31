@@ -584,6 +584,7 @@ export const ENTITIES = {
     table: 'comments',
     fields: [
       'workspace_id', 'task_id', 'page_id', 'parent_id', 'body', 'author_id', 'guest_name', 'reactions', 'anchor',
+      'suggestion', 'resolution',
     ],
     /**
      * `edited_at` is the server's to write, and it took a test to make that
@@ -593,7 +594,7 @@ export const ENTITIES = {
      * carrying a date in the past buried a real rewrite. The rule the two
      * docblocks in `work.ts` and `chat.ts` had always claimed is this line.
      */
-    serverOnly: ['edited_at'],
+    serverOnly: ['edited_at', 'resolved_by', 'resolved_at'],
     json: ['reactions', 'anchor'],
   },
   /**
