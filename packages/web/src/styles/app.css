@@ -416,11 +416,16 @@ p { margin: 0 0 0.75em; }
   .tabbar { display: none; }
   .header { padding: 0 16px; }
 
-  /* Folded down to its one button. Through the variable rather than the grid
+  /* Folded to a rail of icons. Through the variable rather than the grid
      alone, because `.selection-bar` is fixed against the viewport and reads the
-     same width to know where the sidebar ends. 49 = 32px button + 2 × 8px
-     padding + the 1px border. */
-  .shell.nav-folded { --sidebar-width: 49px; }
+     same width to know where the sidebar ends. 53 = 36px square + 2 × 8px
+     padding + the 1px border — so the number follows `navRailItem`'s `size-9`,
+     and moving one without the other leaves the icons off centre. */
+  .shell.nav-folded { --sidebar-width: 53px; }
+  /* The squares have a width of their own, so the column's default `stretch`
+     does not place them — without this they sit against the leading edge and
+     the rail reads as a list that was cut off rather than one that was folded. */
+  .shell.nav-folded .sidebar { align-items: center; }
 }
 
 /* ---------------------------------------------------------------- sidebar */

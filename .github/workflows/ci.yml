@@ -104,20 +104,76 @@ jobs:
   smoke:
     runs-on: ubuntu-latest
     needs: test
+    # One job per slice of the walk, because the slices have nothing to say to
+    # each other and the wait was the whole complaint. Measured on one run, in
+    # the order the old job ran them —
+    #
+    #   walkthrough 182s · walkthrough (German) 182s · css 1s · a11y 77s
+    #   contrast 101s · responsive 160s · menus 630s · clocks 12s
+    #
+    # — 1345s of work, which the job paid end to end. It is now the longest of
+    # four rather than the sum of eight. Each leg seeds its own instance; that
+    # setup is 25s and is written once, below, rather than once per leg.
+    #
+    # The 630s is not in that list any more and splitting is not why: most of
+    # it was a phone window clicking sidebar buttons that `display: none` had
+    # already taken off the screen, a 1.2s timeout at a time. `menus.mjs` asks
+    # first now — see the note beside `isVisible` there — which is what makes
+    # `looks` the longest leg instead.
+    name: smoke (${{ matrix.leg.name }})
+    strategy:
+      # A failure in the German walk and one in the contrast floor are two
+      # lines in the summary, not one job that stopped at whichever came first.
+      fail-fast: false
+      matrix:
+        leg:
+          - name: walkthrough
+            run: node scripts/smoke.mjs
+          # The same walk in another language: a string a component hard-codes
+          # shows up as a selector that no longer matches, which is exactly what
+          # should fail the build.
+          #
+          # One other language, not both. The property being tested is "the
+          # interface is not English with a catalogue bolted on", and a second
+          # translated walk demonstrates it no more than the first — while key
+          # parity across all three catalogues, placeholders included, is
+          # enforced by `i18n.test.ts` in the fast job, where it costs seconds
+          # rather than a browser. French can still be walked by hand with
+          # `KOLIBRI_LOCALE=fr`.
+          - name: walkthrough (German)
+            run: KOLIBRI_LOCALE=de node scripts/smoke.mjs
+          # Five questions a walkthrough cannot answer, against the instance it
+          # just seeded: a class the stylesheet never defined, a control a
+          # screen reader cannot name, a word under the contrast floor, a layout
+          # that comes apart at a width nobody happened to open, and — the one
+          # question a single process cannot be asked — what happens when two
+          # machines disagree about what time it is. They have existed as
+          # `npm run check:*` for a while and only ever run by hand, which is
+          # the same as not running: each was failing on main when first pointed
+          # at it.
+          #
+          # One line joined with `&&`, rather than the block this reads better
+          # as. The leg's commands are substituted into a single `run:` below,
+          # and a multi-line value that ever folded would leave this leg running
+          # `check:css` — one second, exit 0 — and reporting green for the four
+          # it never reached. `&&` cannot fail that way: either every one of
+          # them runs or the leg is red.
+          - name: looks
+            run: npm run check:css && npm run check:a11y && npm run check:contrast && npm run check:responsive && npm run check:clocks
+          # Every menu in the app, in a laptop window and a phone one, with
+          # every drawer in them opened. The slowest leg before it was asked
+          # why, and still the one most worth keeping: it walks two windows
+          # because the bug it was written for only existed in the second.
+          - name: menus
+            run: npm run check:menus
     # Without this a hung step sits on a runner until the six-hour default.
     #
-    # 30 rather than 20, because 20 was not a guard any more — it was a coin
-    # flip. Measured across two consecutive runs of the same job: the one that
-    # passed took 1147s of its 1200s budget, and the one that followed took
-    # 1214s and was killed mid-`check:contrast`. The difference was not the
-    # walkthrough — that grew by five seconds — it was `npm ci` and the
-    # Playwright install going from 354s and 328s to 423s and 421s. Two thirds
-    # of this job is dependency installation, and how long a registry takes on
-    # a given morning is nothing a diff can be held responsible for.
-    #
-    # The installs are cached below, which is the actual fix; this is the room
-    # to survive a cold cache on a slow morning.
-    timeout-minutes: 30
+    # 20 rather than the 30 the single job needed, because the longest leg is
+    # 351s of work on top of a 25s setup. The room above that is for a cold
+    # cache: two thirds of the old job was dependency installation, and how long
+    # a registry takes on a given morning is nothing a diff can be held
+    # responsible for.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -129,6 +185,11 @@ jobs:
       # the pinned version, and a hit skips seven minutes twice over. It is
       # saved after the browser step below, for the same reason as in `test`:
       # nothing reaches the cache that a failed step left half-written.
+      #
+      # Every leg restores it and every leg saves it. `cache/save` logs a line
+      # and carries on when the key is already there, so the legs that lose the
+      # race cost nothing; and on a cold cache each leg installs for itself, in
+      # parallel, which is the same wait as the one job used to have.
       - id: modules
         uses: actions/cache/restore@v4
         with:
@@ -182,50 +243,9 @@ jobs:
           curl -fs http://127.0.0.1:4400/api/health > /dev/null || {
             echo "the server never became healthy"; cat /tmp/kolibri-server.log; exit 1
           }
-      - name: Browser walkthrough
-        run: node scripts/smoke.mjs
-        env:
-          KOLIBRI_URL: http://127.0.0.1:4400
-      # The same walk in another language: a string a component hard-codes shows
-      # up as a selector that no longer matches, which is exactly what should
-      # fail the build.
-      #
-      # One other language, not both. The property being tested is "the
-      # interface is not English with a catalogue bolted on", and a second
-      # translated walk demonstrates it no more than the first — while key
-      # parity across all three catalogues, placeholders included, is enforced
-      # by `i18n.test.ts` in the fast job, where it costs seconds rather than a
-      # browser. French can still be walked by hand with `KOLIBRI_LOCALE=fr`.
-      - name: Browser walkthrough (German)
-        run: node scripts/smoke.mjs
-        env:
-          KOLIBRI_URL: http://127.0.0.1:4400
-          KOLIBRI_LOCALE: de
 
-      # Four questions a walkthrough cannot answer, against the instance it
-      # just walked: a class the stylesheet never defined, a control a screen
-      # reader cannot name, a word under the contrast floor, and a layout that
-      # comes apart at a width nobody happened to open. They have existed as
-      # `npm run check:*` for a while and only ever run by hand, which is the
-      # same as not running — each of them was failing on main by the time
-      # they were first pointed at it.
-      - name: Stylesheet, names, contrast, widths and menus
-        run: |
-          npm run check:css
-          npm run check:a11y
-          npm run check:contrast
-          npm run check:responsive
-          npm run check:menus
-        env:
-          KOLIBRI_URL: http://127.0.0.1:4400
-
-      # The one question a single process cannot answer: what happens when two
-      # machines disagree about what time it is. Everything else about the
-      # clock is unit-tested, and all of it runs against one `Date.now()` —
-      # while the bug being guarded against only exists when there are two. So
-      # this one opens a second browser and moves its clock five minutes.
-      - name: Two clocks, five minutes apart
-        run: npm run check:clocks
+      - name: ${{ matrix.leg.name }}
+        run: ${{ matrix.leg.run }}
         env:
           KOLIBRI_URL: http://127.0.0.1:4400
 

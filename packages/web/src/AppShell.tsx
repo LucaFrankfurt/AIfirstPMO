@@ -20,7 +20,7 @@ import { useActiveProject } from './kernel/design-system/active-project';
 import { isDrag, idFrom, PROJECT_DRAG, startDrag, TASK_DRAG } from './kernel/design-system/drag';
 import { useRecordVisits } from './kernel/search/recents';
 import { Button } from './kernel/design-system/ui/button';
-import { navCount, navItem } from './kernel/design-system/ui/nav';
+import { navCount, navItem, navRailItem } from './kernel/design-system/ui/nav';
 import { THEME_KEY, useTheme } from './kernel/design-system/chrome';
 import { CommandPalette } from './CommandPalette';
 import { QuickAdd } from './modules/work/QuickAdd';
@@ -40,6 +40,37 @@ const Item = ({ to, icon, children, count }: { to: string; icon: string; childre
     <span className="flex-1 min-w-0 truncate">{children}</span>
     {count ? <span className={navCount}>{count}</span> : null}
   </NavLink>
+);
+
+/**
+ * One destination in the folded rail.
+ *
+ * The name is not dropped, only the sight of it: it is the `title` a pointer
+ * reads and the `aria-label` a screen reader announces, so the rail is the
+ * same navigation with the words moved rather than a second, poorer one.
+ */
+const RailItem = ({ to, icon, label, dot }: { to: string; icon: string; label: string; dot?: boolean }) => (
+  <NavLink to={to} className={navRailItem} end={to === '/'} title={label} aria-label={label}>
+    <Icon name={icon} size={17} />
+    {/* Out of the flow, so the one item that has it is not a pixel taller than
+        the rest — the tab bar learnt this the same way. */}
+    {dot && <span className="badge-dot absolute end-1.5 top-1.5 size-1.5 rounded-full bg-accent" />}
+  </NavLink>
+);
+
+/** The same square, for the two things in the rail that act rather than go somewhere. */
+const RailButton = ({ icon, label, accent, onClick }: {
+  icon: string; label: string; accent?: boolean; onClick: () => void;
+}) => (
+  <button type="button" className={navRailItem} onClick={onClick} title={label} aria-label={label}>
+    {accent ? (
+      <span style={{ background: 'var(--accent)', color: 'var(--accent-fg)', width: 28, height: 28, borderRadius: 'var(--radius-sm)', display: 'grid', placeItems: 'center' }}>
+        <Icon name={icon} size={16} />
+      </span>
+    ) : (
+      <Icon name={icon} size={16} />
+    )}
+  </button>
 );
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -211,9 +242,51 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           rotor listing "complementary" twice tells nobody which is which. */}
       <aside className="sidebar" aria-label={t('nav.sidebar')}>
         {folded ? (
-          <Button variant="ghost" size="iconSm" onClick={() => fold(false)} title={t('nav.unfoldSidebar')} aria-label={t('nav.unfoldSidebar')}>
-            <Icon name="sidebar" size={16} />
-          </Button>
+          <>
+            <RailButton icon="sidebar" label={t('nav.unfoldSidebar')} onClick={() => fold(false)} />
+            {canWrite && (
+              <RailButton icon="plus" label={t('nav.newTask')} accent onClick={() => setAdding(true)} />
+            )}
+
+            {/* The same destinations the open sidebar lists, read from the same
+                two sources, so a screen added to one cannot go missing from the
+                other. What the rail drops is the words, the counts and the
+                project tree's shape — a column of numbers does not fit in 36px
+                and nesting cannot be drawn with icons. An unread count becomes
+                a dot, which is the tab bar's answer to the same problem. */}
+            <RailItem to="/" icon="home" label={t('nav.myWork')} />
+            <RailItem to="/inbox" icon="inbox" label={t('nav.inbox')} dot={unread > 0} />
+            <RailItem to="/search" icon="search" label={t('nav.search')} />
+            {enabled(WORKSPACE_DESTINATIONS, has).map((item) => (
+              <RailItem
+                key={item.to} to={item.to} icon={item.icon} label={t(item.label)}
+                dot={item.to === '/chat' && unreadMessages > 0}
+              />
+            ))}
+
+            {nested.length > 0 && <div className="my-1.5 h-px w-full bg-line" />}
+            {/* Its own emoji rather than a generic folder, because that is what
+                tells two projects apart once the names are gone. The fallback
+                dot is the one the open sidebar uses. */}
+            {nested.map(({ project }) => (
+              <NavLink
+                key={project.id} to={`/projects/${project.id}`} className={navRailItem}
+                title={project.name} aria-label={project.name}
+              >
+                <span style={{ fontSize: 15, lineHeight: 1 }}>{project.icon ?? '•'}</span>
+              </NavLink>
+            ))}
+            {projects.length > 1 && <RailItem to="/portfolio" icon="target" label={t('nav.portfolio')} />}
+            {enabled(PLANNING_DESTINATIONS, has).map((item) => (
+              <RailItem key={item.to} to={item.to} icon={item.icon} label={t(item.label)} />
+            ))}
+
+            <div className="flex-1" />
+            <div className="my-2 h-px w-full bg-line" />
+            <MenuButton items={accountItems} className={navRailItem} title={user?.name ?? t('nav.account')}>
+              <Avatar user={user ?? undefined} size={22} />
+            </MenuButton>
+          </>
         ) : (
           <>
             <div className="flex items-center gap-0.5">
