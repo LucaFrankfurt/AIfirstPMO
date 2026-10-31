@@ -43,14 +43,15 @@ export async function askProvider(
   url: string,
   init: RequestInit,
   who: string,
+  timeoutMs: number = env.ai.timeoutMs,
 ): Promise<Response> {
   try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(env.ai.timeoutMs) });
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
   } catch (error) {
     // A timeout, a refused connection, DNS. Nothing about the request is known
     // to be wrong, so this is a bad moment rather than a bad question.
     const why = error instanceof Error && error.name === 'TimeoutError'
-      ? `did not answer within ${Math.round(env.ai.timeoutMs / 1000)}s`
+      ? `did not answer within ${Math.round(timeoutMs / 1000)}s`
       : `could not be reached: ${error instanceof Error ? error.message : String(error)}`;
     throw new AiError(`${who} ${why}`, false);
   }

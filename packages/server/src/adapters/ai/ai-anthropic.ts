@@ -37,10 +37,10 @@ export async function reviewWithAnthropic(request: AiRequest): Promise<string> {
       model: env.ai.model || DEFAULT_MODEL,
       max_tokens: request.maxTokens,
       system: request.system,
-      output_config: { effort: 'low' },
+      output_config: { effort: request.effort ?? 'low' },
       messages: [{ role: 'user', content: request.user }],
     }),
-  }, 'Anthropic');
+  }, 'Anthropic', request.timeoutMs);
 
   if (!response.ok) {
     const detail = await detailOf(response);

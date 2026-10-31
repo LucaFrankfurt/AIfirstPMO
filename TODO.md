@@ -1878,6 +1878,16 @@ written.
       frame now, drawn behind the visible one and swapped in when it is done.
 - [x] **On a phone.** Pinch wherever the fingers land, a double tap to open, larger handles on a
       coarse pointer, an editor that stacks; the seed has a canvas, so CI's screen checks walk one.
+- [x] **A note keeps what was typed into it.** It saved on blur, and clicking the canvas background
+      removed its text box before any blur — so the words vanished on the most ordinary way out.
+      Reported from a real instance; it saves on every way out now, and the smoke walkthrough
+      leaves a note by clicking away and reads it back from the server.
+- [x] **A canvas prints as a PDF**, a page per board at the board's own size, scripts run, through
+      the browser's print dialog. Measured in Chromium only.
+- [x] **Boards from a sentence, and from Claude's artifacts.** *Describe it to Claude…* and *Ask
+      Claude* draw or change a board through the model the task review uses, behind the same two
+      switches; *Import HTML…* puts an artifact downloaded from Claude on the canvas as it came. See
+      [`docs/ai.md`](docs/ai.md#boards-on-a-canvas).
 - [ ] **No libraries and no web fonts.** A board that loads Chart.js from a CDN draws an empty box,
       offline and online. A fixed set served by this instance, rewritten from their CDN addresses and
       handed in the way pictures are, would keep boards offline-capable and send no viewer's address
@@ -1886,7 +1896,16 @@ written.
       already carries presence; a canvas is where it would matter most.
 - [ ] **A canvas cannot be shared by link, exported as a file, or used as a template.** Each of
       those reads only a page's text, so the menu offers none of them on a canvas rather than
-      producing an empty page and calling it the canvas.
+      producing an empty page and calling it the canvas. The PDF is for reading it elsewhere; it
+      does not come back in.
+- [ ] **A board drawn by a model arrives whole, after a minute or two.** Nothing is shown while it
+      is written and the request cannot be cancelled from the dialog — closing it would still put
+      the board down when it came. Streaming the answer into the frame as it arrives is the
+      obvious next step; it needs the adapters to stream, which none of them does.
+- [ ] **The model's half has not met a real model.** Every test asks a stand-in that answers like
+      the Messages API; the request shape is the one task reviews already send, plus `effort:
+      medium`. Whether the rules produce boards that are good, editable and inside five minutes
+      is for the first instance with a key to say.
 - [ ] **`kolibri doctor --fix` does not compact board bodies.** It folds page bodies only, as it
       does not agenda notes.
 - [ ] **Run in Chromium only.** Safari, Firefox and the packaged app on iOS and Android have not

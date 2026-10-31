@@ -13634,6 +13634,41 @@
         }
       }
     },
+    "/api/pages/{id}/boards/draft": {
+      "post": {
+        "operationId": "postPagesBoardsDraft",
+        "summary": "POST /api/pages/:id/boards/draft",
+        "description": "Defined in `packages/server/src/modules/ai-review/routes/ai.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pages/{id}/versions": {
       "get": {
         "operationId": "getPagesVersions",

@@ -7,6 +7,7 @@ import { useCanWrite, useFeature, useMe } from '../../kernel/identity/session';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Icon, useToast } from '../../kernel/design-system/ui';
 import { Markdown } from '../pages/Markdown';
+import { useAiProvider } from './provider';
 
 /**
  * A second pair of eyes on a task, before anybody else has to read it.
@@ -33,27 +34,6 @@ import { Markdown } from '../pages/Markdown';
  * end — so they are offered as a comment, which puts the ambiguity in front of
  * the person who can settle it and notifies them the way anything else would.
  */
-
-/**
- * Whether this server can reach a model at all.
- *
- * Asked once per page load and remembered: the answer is a property of the
- * instance, not of the task, and one fetch per task sheet would be a request
- * per click. A failure — offline, most likely — reads as "no", which is the
- * right direction: there is no reviewing anything without a network.
- */
-let asked: Promise<{ provider: string } | null> | null = null;
-
-function useAiProvider(): string | null {
-  const [provider, setProvider] = useState<string | null>(null);
-  useEffect(() => {
-    asked ??= api.config().then((config) => config.ai).catch(() => null);
-    let live = true;
-    asked.then((ai) => { if (live) setProvider(ai?.provider ?? null); });
-    return () => { live = false; };
-  }, []);
-  return provider;
-}
 
 /** So a test and a person can both be sure the panel is talking about now. */
 const isStale = (review: TaskReview, task: Task): boolean => review.reviewed_at !== task.updated_at;

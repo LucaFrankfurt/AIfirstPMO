@@ -151,7 +151,9 @@ export function runtime(config: RuntimeConfig): void {
   // flashes an empty board.
   addEventListener('load', () => {
     if (config.scroll) scrollTo(config.scroll.x, config.scroll.y);
-    requestAnimationFrame(() => post({ type: 'kolibri:rendered' }));
+    // A timer rather than an animation frame: a frame the browser counts as off
+    // screen — every board being laid out for a PDF — may never be given one.
+    setTimeout(() => post({ type: 'kolibri:rendered' }), 0);
   });
   let reported = 0;
   addEventListener('scroll', () => {

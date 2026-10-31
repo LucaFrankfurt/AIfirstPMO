@@ -1406,6 +1406,53 @@ await step('a canvas board keeps working when it is redrawn', async () => {
 });
 
 /**
+ * A note keeps what was typed into it when the canvas is clicked.
+ *
+ * A note saved its text when its textarea lost focus. Clicking the canvas
+ * background — the most ordinary way to leave a note — deselects it, and that
+ * takes the textarea out of the page before the browser has sent it a blur, so
+ * the words disappeared the moment anybody clicked away. Escape and the
+ * toolbar both blurred first and kept them, which is why it survived every
+ * test that left a note some other way; it was found on a real instance.
+ * Locale-free: the note is made through the API and found by its id.
+ */
+await step('a note keeps its text when the canvas is clicked', async () => {
+  const words = `left by clicking the canvas, ${locale}`;
+  const note = await page.evaluate(async () => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const pages = await (await fetch(`/api/workspaces/${ws}/pages?limit=500`, { credentials: 'include' })).json();
+    const canvas = (pages.items ?? pages).find((row) => row.format === 'canvas');
+    const boards = await (await fetch(`/api/workspaces/${ws}/artboards?limit=500`, { credentials: 'include' })).json();
+    const mine = (boards.items ?? boards).filter((row) => row.page_id === canvas.id);
+    // Beside everything already there, so opening the canvas fits it in and nothing covers it.
+    const x = Math.max(...mine.map((row) => row.x + row.w)) + 80;
+    const y = Math.min(...mine.map((row) => row.y));
+    const made = await (await fetch(`/api/workspaces/${ws}/artboards`, {
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ page_id: canvas.id, kind: 'note', title: '', content: '', x, y, w: 240, h: 180 }),
+    })).json();
+    return { canvas: canvas.id, id: made.id, ws };
+  });
+  await page.goto(`${base}/pages/${note.canvas}`, { waitUntil: 'networkidle' });
+  await page.locator(`[data-board="${note.id}"] .canvas-hit`).dblclick({ timeout: 5000 });
+  await page.locator(`[data-board="${note.id}"] textarea`).fill(words);
+  const viewport = await page.locator('.canvas-viewport').boundingBox();
+  await page.mouse.click(viewport.x + 12, viewport.y + viewport.height - 12);
+  let saved = null;
+  for (let tries = 0; tries < 20 && saved !== words; tries++) {
+    await page.waitForTimeout(250);
+    saved = await page.evaluate(async ([ws, id]) => {
+      const boards = await (await fetch(`/api/workspaces/${ws}/artboards?limit=500`, { credentials: 'include' })).json();
+      return (boards.items ?? boards).find((row) => row.id === id)?.content ?? null;
+    }, [note.ws, note.id]);
+  }
+  if (saved !== words) throw new Error(`the note says "${saved}" on the server, not what was typed into it`);
+  const shown = await page.locator(`[data-board="${note.id}"] .canvas-note-body`).textContent();
+  if (shown !== words) throw new Error(`the note shows "${shown}" on the canvas`);
+  await page.evaluate(async (id) => { await fetch(`/api/artboards/${id}`, { method: 'DELETE', credentials: 'include' }); }, note.id);
+});
+
+/**
  * Selecting a passage in a page leaves the passage selected.
  *
  * A regression test for something no unit test can see. Selecting text sets

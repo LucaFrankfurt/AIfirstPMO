@@ -15,6 +15,15 @@ export interface AiRequest {
   user: string;
   /** A ceiling, not a target. A review that hits it was going wrong anyway. */
   maxTokens: number;
+  /**
+   * How long to wait, when it is not the configured default. A review is a
+   * paragraph of JSON and the default suits it; a whole board of HTML is
+   * minutes of writing, and cutting it off at the review's limit fails it
+   * every time.
+   */
+  timeoutMs?: number;
+  /** How hard the model should think, where the provider has the dial. Low unless asked. */
+  effort?: 'low' | 'medium' | 'high';
 }
 
 /** Answers with the model's text, or throws `AiError`. */

@@ -45,7 +45,7 @@ export type BoardMessage = Exclude<
   { type: 'kolibri:ready' } | { type: 'kolibri:open' } | { type: 'kolibri:rendered' } | { type: 'kolibri:scroll' }
 >;
 
-export function ArtboardFrame({ source, mode, title, selected = null, keepScroll = false, onMessage, className, style }: {
+export function ArtboardFrame({ source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, className, style }: {
   source: string;
   mode: FrameMode;
   title: string;
@@ -54,6 +54,8 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
   /** Keep the board's scroll position across a redraw, which is what an edit is. */
   keepScroll?: boolean;
   onMessage?: (message: BoardMessage) => void;
+  /** The board is drawn and on screen — what printing waits for. */
+  onRendered?: () => void;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -66,8 +68,8 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
   const scroll = useRef<{ x: number; y: number } | null>(null);
   // The latest of everything, read by the listener without re-subscribing on
   // every keystroke.
-  const latest = useRef({ source, mode, selected, keepScroll, onMessage, drag: t('canvas.drag'), layers, front });
-  latest.current = { source, mode, selected, keepScroll, onMessage, drag: t('canvas.drag'), layers, front };
+  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, drag: t('canvas.drag'), layers, front });
+  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, drag: t('canvas.drag'), layers, front };
 
   /** Hand a layer the document for render `number`, once its pictures are in. */
   const render = (key: number, number: number): void => {
@@ -120,6 +122,7 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
         if (message.rev !== layer.rev || layer.rev !== rev.current) return;
         setFront(layer.key);
         setLayers((all) => all.filter((one) => one.key === layer.key));
+        latest.current.onRendered?.();
         return;
       }
       // Everything else is about what is on screen, and only believed from it.

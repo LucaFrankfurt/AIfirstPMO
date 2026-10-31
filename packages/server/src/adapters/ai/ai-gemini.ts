@@ -80,7 +80,7 @@ export async function reviewWithGemini(request: AiRequest): Promise<string> {
         ...(thinkingConfig ? { thinkingConfig } : {}),
       },
     }),
-  }, 'Gemini');
+  }, 'Gemini', request.timeoutMs);
 
   if (!response.ok) {
     const detail = await detailOf(response);

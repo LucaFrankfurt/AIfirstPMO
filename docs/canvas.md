@@ -2,8 +2,9 @@
 
 A canvas is a page of boards: whole, styled HTML documents — a dashboard, a screen, a one-pager —
 laid out side by side on a plane you pan and zoom, with sticky notes between them. People edit a
-board by pointing at it; Claude writes and rewrites boards over MCP; everybody comments by pinning
-a note to the spot they mean.
+board by pointing at it, or describe one and have a model draw it; Claude writes and rewrites boards
+over MCP too; an artifact made elsewhere comes in as a file; everybody comments by pinning a note to
+the spot they mean; and the whole canvas prints as a PDF, a page per board.
 
 It exists because an artifact made with Claude could be shared but not changed or discussed by
 anybody else. A canvas is where such a thing can live in the workspace instead: editable by every
@@ -87,6 +88,31 @@ inserts one; a selected picture can be replaced and given a description; and pic
 canvas become boards of their own, at their own proportions. The MCP tools say all of this in their
 descriptions, because the assistant writing the board is the one who has to know.
 
+## Where a board comes from
+
+All under **Add board**:
+
+- **A template** — a blank page, a document, a dashboard, a phone screen.
+- **Import HTML…** — an HTML file, or HTML pasted in, kept exactly as it came. This is the way in for
+  an artifact made in Claude: download it there, import it here, and from then on everybody can edit
+  and discuss it. Nothing is cleaned or converted on the way, because the board is drawn in the
+  sandbox and the source is the document. What cannot work in a board — a script or a font from a
+  CDN — is written down under [Not done](#not-done), not stripped behind the person's back.
+- **Describe it to Claude…** — a sentence, a format (page, wide screen, slide, phone) and whether to
+  match the boards already there. The server asks the model with two sets of rules: the ones that
+  decide whether the board works at all (one complete document, nothing fetched, inline SVG instead
+  of a chart library) and the ones that decide whether people can keep working on it (the look in
+  each element's `style` attribute, which is what the visual editor edits; real headings, tables
+  and buttons). The answer goes onto the canvas as the asker's own edit.
+- **Ask Claude**, in the editor, does the same for the open board: its current HTML and what should
+  change go to the model, and the answer replaces the source as one edit, which *Undo* takes back.
+
+The last two exist only where the server has a model and the workspace has switched it on, and they
+are named after the model that will answer — Claude, Gemini, or "the model" behind a gateway that
+could be serving anybody's. What is sent, the two switches and what it costs are in
+[`ai.md`](ai.md#boards-on-a-canvas). An assistant that already has the MCP connector needs neither:
+it can write boards directly, see [Over MCP](#over-mcp).
+
 ## Editing
 
 Double-click a board. **Design** shows it at its own width, scaled to fit: click to select, double-
@@ -106,8 +132,31 @@ gets its document-order number as `data-k`; the frame reports clicks by it and t
 against the same text. Each render is numbered, and a message about an older render is dropped — an
 edit against yesterday's numbers would change the wrong thing. The numbers are never saved.
 
+**Notes** are edited where they stand: double-click and type. What was typed is saved when the note
+stops being edited, however that happens. The first version saved on blur alone, and a click on the
+canvas background deselects the note, which takes its text box out of the page before the browser
+sends it a blur — so the words vanished the moment anybody clicked away, while Escape and the
+toolbar kept them. The smoke walkthrough now leaves a note that way and reads it back from the server.
+
 Only what is in the source can be edited in place. What a board's script draws at runtime — a chart,
 a computed total — can be commented on and changed in its source, but not clicked and retyped.
+
+## As a PDF
+
+**PDF** in the toolbar prints the canvas: a page per board, each page exactly the board's size, in
+reading order — top to bottom, then left to right — with the notes among them. It goes through the
+browser's print dialog, where *Save as PDF* is the choice. The browser is the only thing here that
+can draw a board the way it looks: a PDF made on the server would need a browser on the server,
+which is a dependency this one does not take.
+
+Every board is drawn the way *Try it* draws it, scripts run, and the dialog opens once each has
+said it is drawn — or after eight seconds, for one that never does — so a chart a board's script
+draws is in the PDF. Each page gets its size from a named `@page` rule; the app around it is hidden
+from print by one rule that looks for the print layer. Measured in Chromium: a canvas with a
+1280 × 720 dashboard, a 760 × 720 board and a 300 × 160 note printed as three pages of exactly those
+sizes, the script-computed totals in them. Not measured in Safari or Firefox, whose support for
+pages of different sizes in one document is the part most likely to differ. What scrolls inside a
+board is cut at its frame, as it is on the canvas.
 
 ## Comments and suggestions
 
@@ -160,5 +209,7 @@ proposes a change to a page or a board instead of making it, and `resolve_commen
 ## Not done
 
 In [`TODO.md`](../TODO.md), with the reason for each: web fonts and a fixed set of libraries boards
-may use, live cursors, share links and exports of a canvas, canvases as templates, and the browsers
-and the packaged app nobody has run it in.
+may use, live cursors, share links and file exports of a canvas (beyond the PDF), canvases as
+templates, a board drawn by a model shown as it is written rather than when it is done, and the
+browsers and the packaged app nobody has run it in. The model's half was tested against a stand-in
+that answers like the Messages API, not against a real model.
