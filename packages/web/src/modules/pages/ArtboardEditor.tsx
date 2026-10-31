@@ -29,6 +29,7 @@ import { cn } from '../../kernel/design-system/cn';
 import { useCollaborativeText, type CollabTarget } from './collab';
 import { ArtboardFrame, type BoardMessage } from './ArtboardFrame';
 import { restoreFiles } from './board-files';
+import { DraftDialog, useAiLabels, type CanvasAi } from './canvas-dialogs';
 import { useUploads } from '../../kernel/files/uploads';
 import { BLOCK_KINDS, block, type BlockKind, type Words } from './blocks';
 
@@ -306,8 +307,15 @@ function BoardHistory({ board, previewing, onPreview, onRestored }: {
   );
 }
 
-export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; canWrite: boolean; onClose: () => void }) {
+export function ArtboardEditor({ board, canWrite, ai = null, onClose }: {
+  board: Artboard;
+  canWrite: boolean;
+  /** Claude, when this server has a model and the workspace has it on. */
+  ai?: CanvasAi | null;
+  onClose: () => void;
+}) {
   const t = useT();
+  const aiLabels = useAiLabels(ai);
   const toast = useToast();
   const words = useWords();
   const { text, setText, rewrite, flush, fieldRef, merged } = useCollaborativeText(
@@ -316,6 +324,7 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
   const [tab, setTab] = useState<'design' | 'source'>('design');
   const [playing, setPlaying] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [asking, setAsking] = useState(false);
   /** An old version drawn in the stage instead of the board, while the history is open. */
   const [previewing, setPreviewing] = useState<{ id: string; content: string } | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -508,9 +517,16 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
             <button type="button" role="tab" aria-selected={tab === 'source'} className={cn('artboard-tab', tab === 'source' && 'is-current')} onClick={() => { flush(); setTab('source'); }}>{t('canvas.source')}</button>
           </div>
           <span className="flex-1" />
-          {merged && <span className="text-[12px] text-muted hide-sm">{t('page.mergedIn')}</span>}
+          {merged && <span className="text-[12px] text-muted">{t('page.mergedIn')}</span>}
           <Button size="iconSm" variant="ghost" disabled={!undo.current.length} onClick={() => step(undo.current, redo.current)} aria-label={t('canvas.undo')} title={t('canvas.undo')}><Icon name="undo" size={15} /></Button>
           <Button size="iconSm" variant="ghost" disabled={!redo.current.length} onClick={() => step(redo.current, undo.current)} aria-label={t('canvas.redo')} title={t('canvas.redo')}><Icon name="redo" size={15} /></Button>
+          {ai && canWrite && (
+            <Button size="sm" variant="secondary" onClick={() => { flush(); setAsking(true); }}>
+              {/* No `hide-sm`: the editor is a portal outside the `screen` container that rule asks, so it would
+                  hide the label at every width and leave a button with no name. The bar scrolls on a phone instead. */}
+              <Icon name="sparkle" size={13} /> {aiLabels.ask}
+            </Button>
+          )}
           <Button
             size="iconSm" variant={showHistory ? 'primary' : 'ghost'} aria-pressed={showHistory}
             onClick={() => { setShowHistory(!showHistory); setPreviewing(null); }}
@@ -617,6 +633,15 @@ export function ArtboardEditor({ board, canWrite, onClose }: { board: Artboard; 
             </aside>
           )}
         </div>
+        {asking && ai && (
+          <DraftDialog
+            ai={ai} pageId={board.page_id} board={{ id: board.id, w: board.w, h: board.h }} hasOthers={false}
+            // One edit, through the same CRDT as typing: it merges with anybody
+            // else's, keeps a version in the history, and undo takes it back.
+            onDrafted={(draft) => { apply(draft.html); setSelected(null); setAsking(false); }}
+            onClose={() => setAsking(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   );

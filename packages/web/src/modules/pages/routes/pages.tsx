@@ -20,6 +20,7 @@ import { Markdown, MarkdownEditor } from '../Markdown';
 import { HtmlEditor, HtmlView } from '../Html';
 import { ImportPages } from '../import';
 import { CanvasView } from '../Canvas';
+import { useBoardAi } from '../../ai-review/board-ai';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
 import { ShareSheet } from '../../share/share';
@@ -469,6 +470,8 @@ export function PageDetail() {
   const [suggesting, setSuggesting] = useState(false);
   const [activeComment, setActiveComment] = useState<string | null>(null);
   const canWrite = useCanWrite();
+  // Composed here, where a route may reach any capability: see `canvas-dialogs.tsx`.
+  const boardAi = useBoardAi();
   const projects = useQuery(() => list('project'), []);
   const pageComments = useQuery(() => list('comment', (entry) => entry.page_id === id), [id]);
 
@@ -746,7 +749,7 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
-      {page.format === 'canvas' ? <CanvasView page={page} canWrite={canWrite} thread={(props) => <Comments {...props} />} /> : (
+      {page.format === 'canvas' ? <CanvasView page={page} canWrite={canWrite} ai={boardAi} thread={(props) => <Comments {...props} />} /> : (
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">
         {/*
           * The tree, beside the page rather than one screen back.

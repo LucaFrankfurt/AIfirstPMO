@@ -41,7 +41,7 @@ export async function reviewWithOpenRouter(request: AiRequest): Promise<string> 
         { role: 'user', content: request.user },
       ],
     }),
-  }, 'OpenRouter');
+  }, 'OpenRouter', request.timeoutMs);
 
   if (!response.ok) {
     const detail = await detailOf(response);

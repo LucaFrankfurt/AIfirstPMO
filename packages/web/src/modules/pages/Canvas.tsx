@@ -19,6 +19,7 @@
  * text page has under it.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { isPin, orderKey, type Anchor, type Artboard, type Page, type Pin } from '@kolibri/shared';
 import { byOrder, create, remove, update } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
@@ -30,6 +31,7 @@ import { cn } from '../../kernel/design-system/cn';
 import { ArtboardFrame } from './ArtboardFrame';
 import { ArtboardEditor, useWords } from './ArtboardEditor';
 import { TEMPLATE_KINDS, imageBoard, template, type TemplateKind } from './blocks';
+import { DraftDialog, ImportDialog, useAiLabels, type CanvasAi, type Drafted } from './canvas-dialogs';
 import { useUploads } from '../../kernel/files/uploads';
 import { clampScale, grip, pinch, STEP, wheelFactor, zoomAt, type Grip, type View } from './zoom';
 
@@ -95,15 +97,122 @@ export interface ThreadProps {
   pinLabel: (pin: Pin) => string;
 }
 
+/**
+ * A note being written, saved however it is left.
+ *
+ * It used to be saved on blur and on nothing else — and a press on the canvas
+ * ends the editing by taking the text box off the screen, which a browser does
+ * without a blur. So the most natural way out of a note, clicking beside it,
+ * threw away everything typed into it. Reported, and measured before the fix:
+ * leaving by Escape or by the toolbar kept the text, leaving by the canvas lost
+ * it. Now the text is also written when the box goes away, and writing twice is
+ * harmless because only a change is ever sent.
+ */
+function NoteEditor({ board, label, onDone }: { board: Artboard; label: string; onDone: () => void }) {
+  const value = useRef(board.content ?? '');
+  const written = useRef(board.content ?? '');
+  const save = (): void => {
+    if (value.current === written.current) return;
+    written.current = value.current;
+    update('artboard', board.id, { content: value.current });
+  };
+  const keep = useRef(save);
+  keep.current = save;
+  useEffect(() => () => keep.current(), []);
+  return (
+    <textarea
+      className="canvas-note-text"
+      autoFocus
+      aria-label={label}
+      defaultValue={board.content ?? ''}
+      onChange={(event) => { value.current = event.target.value; }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onBlur={() => { save(); onDone(); }}
+      onKeyDown={(event) => { if (event.key === 'Escape') (event.target as HTMLTextAreaElement).blur(); }}
+    />
+  );
+}
+
+/** How long a PDF waits for boards that never say they are drawn, before printing anyway. */
+const PRINT_PATIENCE_MS = 8000;
+
+/**
+ * The canvas as a PDF: one page per board, each page exactly the board's size.
+ *
+ * Through the browser's own print, because the server renders nothing — it
+ * has no browser and no dependency to be one — and because the browser is
+ * the one thing that can draw a board at all: its scripts have to run. Each
+ * board is drawn again here at its own size, given a named page whose
+ * `@page` size is the board's, and the dialogue's "Save as PDF" is the export.
+ * In reading order — top to bottom, then left to right — with the notes as
+ * small pages of their own, because a note is part of what the canvas says.
+ *
+ * The layer is in the document while it waits, at the top of the screen and
+ * invisible: a frame the browser counts as off screen may be held back, and a
+ * board drawn into a print that has already been taken is a blank page.
+ */
+function CanvasPrint({ boards, title, onDone }: { boards: Artboard[]; title: string; onDone: () => void }) {
+  const ordered = useMemo(() => [...boards].sort((a, b) => a.y - b.y || a.x - b.x), [boards]);
+  const waiting = useRef(new Set(ordered.filter((board) => board.kind === 'html').map((board) => board.id)));
+  const printed = useRef(false);
+
+  useEffect(() => {
+    const done = () => onDone();
+    addEventListener('afterprint', done);
+    const fallback = setTimeout(() => go(), PRINT_PATIENCE_MS);
+    if (!waiting.current.size) go();
+    return () => { removeEventListener('afterprint', done); clearTimeout(fallback); };
+    // Once, for the boards there were when the export was asked for.
+  }, []);
+
+  function go(): void {
+    if (printed.current) return;
+    printed.current = true;
+    const before = document.title;
+    // The title is the file name the dialogue offers.
+    document.title = title;
+    window.print();
+    document.title = before;
+  }
+
+  const drawn = (id: string) => {
+    waiting.current.delete(id);
+    if (!waiting.current.size) go();
+  };
+
+  return createPortal(
+    <div className="canvas-print" aria-hidden="true">
+      <style>{ordered.map((board, at) => `@page board-${at} { size: ${board.w}px ${board.h}px; margin: 0; }`).join('\n')}</style>
+      {ordered.map((board, at) => (
+        <section key={board.id} className="canvas-print-page" style={{ page: `board-${at}`, width: board.w, height: board.h }}>
+          {board.kind === 'html' ? (
+            <ArtboardFrame
+              source={board.content ?? ''} mode="play" title={board.title || title}
+              className="canvas-print-frame" onRendered={() => drawn(board.id)}
+            />
+          ) : (
+            <div className={cn('canvas-note', `is-${board.color ?? 'yellow'}`)} style={{ width: board.w, height: board.h }}>
+              <p className="canvas-note-body">{board.content}</p>
+            </div>
+          )}
+        </section>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 type Drag =
   | { kind: 'pan'; start: { x: number; y: number }; view: View }
   | { kind: 'move'; id: string; start: { x: number; y: number }; origin: Box; moved: boolean }
   | { kind: 'resize'; id: string; start: { x: number; y: number }; origin: Box };
 
-export function CanvasView({ page, canWrite, thread }: {
+export function CanvasView({ page, canWrite, thread, ai = null }: {
   page: Page;
   canWrite: boolean;
   thread: (props: ThreadProps) => ReactNode;
+  /** The model, when this server has one and the workspace has it switched on. */
+  ai?: CanvasAi | null;
 }) {
   const t = useT();
   const { locale } = useI18n();
@@ -123,6 +232,9 @@ export function CanvasView({ page, canWrite, thread }: {
   const [playing, setPlaying] = useState<string | null>(null);
   const [noteEditing, setNoteEditing] = useState<string | null>(null);
   const [pinning, setPinning] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [opening, setOpening] = useState<'describe' | 'import' | null>(null);
+  const aiLabels = useAiLabels(ai);
   const [panel, setPanel] = useState(false);
   const [pending, setPending] = useState<Pin | null>(null);
   const [active, setActive] = useState<string | null>(null);
@@ -310,6 +422,17 @@ export function CanvasView({ page, canWrite, thread }: {
     setView(fitTo(box, size.width, size.height));
   };
 
+  /** A board that arrived whole — drawn by Claude or brought from a file — put where a new board goes. */
+  const place = (draft: Drafted) => {
+    const at = spot(draft.w, draft.h);
+    const id = create('artboard', {
+      page_id: page.id, kind: 'html', title: draft.title, x: at.x, y: at.y, w: draft.w, h: draft.h,
+      content: draft.html, sort_order: front(),
+    });
+    setSelected(id);
+    show({ ...at, w: draft.w, h: draft.h });
+  };
+
   const addBoard = (kind: TemplateKind) => {
     const made = template(kind, words, locale);
     const at = spot(made.w, made.h);
@@ -445,7 +568,14 @@ export function CanvasView({ page, canWrite, thread }: {
         {canWrite && (
           <MenuButton
             variant="secondary" size="sm" label={t('canvas.addBoard')}
-            items={TEMPLATE_KINDS.map((kind) => ({ id: kind, label: t(TEMPLATE_LABEL[kind]), onSelect: () => addBoard(kind) }))}
+            items={[
+              // First when it is there: describing the board is the way to
+              // something like a real product screen, and a template is a
+              // blank with a heading.
+              ...(ai ? [{ id: 'describe', label: aiLabels.describe, icon: <Icon name="sparkle" size={14} />, onSelect: () => setOpening('describe') }] : []),
+              ...TEMPLATE_KINDS.map((kind) => ({ id: kind, label: t(TEMPLATE_LABEL[kind]), onSelect: () => addBoard(kind) })),
+              { id: 'import', label: t('canvas.importTitle'), icon: <Icon name="attach" size={14} />, onSelect: () => setOpening('import') },
+            ]}
           >
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('canvas.addBoard')}</span>
           </MenuButton>
@@ -506,6 +636,12 @@ export function CanvasView({ page, canWrite, thread }: {
           </>
         )}
         <span className="flex-1" />
+        <Button
+          size="sm" variant="ghost" disabled={!boards.length || printing} onClick={() => setPrinting(true)}
+          title={t('canvas.exportPdf')} aria-label={t('canvas.exportPdf')}
+        >
+          <Icon name="page" size={14} /> <span className="hide-sm">{t('canvas.pdf')}</span>
+        </Button>
         <Button size="sm" variant={panel ? 'primary' : 'secondary'} aria-pressed={panel} onClick={() => setPanel(!panel)}>
           <Icon name="chat" size={14} /> <span className="hide-sm">{t('canvas.comments')}</span>
           {pinCount > 0 && <span className="canvas-count">{pinCount}</span>}
@@ -544,6 +680,7 @@ export function CanvasView({ page, canWrite, thread }: {
             return (
               <div
                 key={board.id}
+                data-board={board.id}
                 className={cn('canvas-item', board.kind === 'note' ? `canvas-note is-${board.color ?? 'yellow'}` : 'canvas-board', isSelected && 'is-selected')}
                 style={{ left: box.x, top: box.y, width: box.w, height: box.h }}
               >
@@ -556,18 +693,7 @@ export function CanvasView({ page, canWrite, thread }: {
                 {board.kind === 'html' ? (
                   <ArtboardFrame source={board.content ?? ''} mode="view" title={name} className="canvas-frame" />
                 ) : noteEditing === board.id && canWrite ? (
-                  <textarea
-                    className="canvas-note-text"
-                    autoFocus
-                    aria-label={t('canvas.note')}
-                    defaultValue={board.content ?? ''}
-                    onPointerDown={(event) => event.stopPropagation()}
-                    onBlur={(event) => {
-                      if (event.target.value !== (board.content ?? '')) update('artboard', board.id, { content: event.target.value });
-                      setNoteEditing(null);
-                    }}
-                    onKeyDown={(event) => { if (event.key === 'Escape') (event.target as HTMLTextAreaElement).blur(); }}
-                  />
+                  <NoteEditor board={board} label={t('canvas.note')} onDone={() => setNoteEditing(null)} />
                 ) : (
                   <p className="canvas-note-body">{board.content || <span className="text-muted">{t('canvas.notePlaceholder')}</span>}</p>
                 )}
@@ -619,6 +745,7 @@ export function CanvasView({ page, canWrite, thread }: {
           </div>
         )}
         {pinning && <p className="canvas-hint" role="status">{t('canvas.pinHint')}</p>}
+        {printing && <p className="canvas-hint" role="status">{t('canvas.preparingPdf')}</p>}
         {(dropping || uploads.busy) && <p className="canvas-hint" role="status">{uploads.busy ? t('canvas.uploading') : t('canvas.dropImages')}</p>}
       </div>
 
@@ -640,7 +767,17 @@ export function CanvasView({ page, canWrite, thread }: {
         </aside>
       )}
 
-      {editingBoard && <ArtboardEditor board={editingBoard} canWrite={canWrite} onClose={() => setEditing(null)} />}
+      {printing && <CanvasPrint boards={boards} title={page.title || t('common.untitled')} onDone={() => setPrinting(false)} />}
+
+      {opening === 'describe' && ai && (
+        <DraftDialog
+          ai={ai} pageId={page.id} hasOthers={boards.some((board) => board.kind === 'html')}
+          onDrafted={(draft) => { place(draft); setOpening(null); }} onClose={() => setOpening(null)}
+        />
+      )}
+      {opening === 'import' && <ImportDialog onImported={(draft) => { place(draft); setOpening(null); }} onClose={() => setOpening(null)} />}
+
+      {editingBoard && <ArtboardEditor board={editingBoard} canWrite={canWrite} ai={ai} onClose={() => setEditing(null)} />}
 
       {playingBoard && (
         <Dialog open onOpenChange={(open) => { if (!open) setPlaying(null); }}>

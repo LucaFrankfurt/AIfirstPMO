@@ -18,15 +18,16 @@
  * of the answer, and this is the one endpoint in the app where a click spends
  * somebody's money.
  */
-import { get, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { requireAuth, requireWorkspace, hasRole } from '../../../kernel/identity/auth.ts';
 import { hasFeature } from '../../../kernel/platform/features.ts';
-import { badRequest, forbidden, notFound, HttpError, type Ctx, type Router } from '../../../kernel/platform/http.ts';
+import { badRequest, forbidden, notFound, HttpError, readJson, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { AiError } from '../../../adapters/ai/ai.ts';
 import { byValue, enforce } from '../../../kernel/identity/ratelimit.ts';
-import { canSeeProject } from '../../../kernel/write-path/repo.ts';
+import { canSeePage, canSeeProject } from '../../../kernel/write-path/repo.ts';
 import { reviewTask } from '../review.ts';
+import { draftBoard } from '../board.ts';
 
 /** Small and slow: nobody reviews ten tasks a minute by hand, and a loop does. */
 const REVIEW_LIMIT = { burst: env.ai.burst, everySeconds: env.ai.everySeconds };
@@ -59,6 +60,69 @@ export function registerAiRoutes(router: Router): void {
       // 502 for a bad moment, 400 for a request that will never work. The
       // sentence is the model's or the adapter's, and it is shown as it is:
       // "the key was refused" is the whole of what somebody needs to hear.
+      throw new HttpError(error.permanent ? 400 : 502, error.message, 'ai_failed');
+    }
+  });
+
+  /**
+   * Draw a board for a canvas, or redraw one of its boards.
+   *
+   * The same three gates as a review, and the canvas has to be one the caller
+   * may see — its other boards are sent to the model as a reference for their
+   * look, and the board being redrawn is sent whole, so this is a door to
+   * their contents as much as `GET /api/artboards/:id` is. Nothing is written:
+   * the draft comes back, and the client puts it on the canvas as an edit of
+   * its own (see `board.ts`).
+   */
+  router.post('/api/pages/:id/boards/draft', async (ctx: Ctx) => {
+    const auth = requireAuth(ctx);
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
+    const page = get<Row>(`SELECT * FROM pages WHERE id = ? AND deleted_at IS NULL`, ctx.params.id);
+    if (!page) throw notFound('No such page');
+    const workspaceId = String(page.workspace_id);
+    const role = requireWorkspace(ctx, workspaceId);
+    if (!hasRole(role, 'member')) throw forbidden('Guests cannot draw boards');
+    if (!canSeePage(auth.userId, String(page.id))) throw notFound('No such page');
+    if (page.format !== 'canvas') throw badRequest('That page is not a canvas');
+    if (!env.aiEnabled) throw badRequest('No model is configured on this server');
+    if (!hasFeature(workspaceId, 'ai')) throw forbidden('Claude is switched off for this workspace');
+
+    const body = await readJson<{ instruction?: string; board?: string; w?: number; h?: number; match?: boolean }>(ctx);
+    const instruction = String(body.instruction ?? '').trim();
+    if (!instruction) throw badRequest('Say what the board should be');
+    if (instruction.length > 4000) throw badRequest('That is longer than a description needs to be');
+
+    const boards = all<Row>(
+      `SELECT id, title, kind, content, w, h FROM artboards WHERE page_id = ? AND deleted_at IS NULL ORDER BY sort_order`,
+      String(page.id),
+    );
+    const current = body.board ? boards.find((one) => one.id === body.board) : undefined;
+    if (body.board && (!current || current.kind !== 'html')) throw notFound('No such board on this canvas');
+    const size = (value: unknown, fallback: number, low: number, high: number): number => {
+      const number = Math.round(Number(value));
+      return Number.isFinite(number) && number > 0 ? Math.min(high, Math.max(low, number)) : fallback;
+    };
+
+    // Checked after the request is known to be sound, so a malformed one does
+    // not spend somebody's allowance.
+    enforce(ctx, [byValue(REVIEW_LIMIT, 'ai-board', auth.userId)]);
+
+    try {
+      return await draftBoard({
+        instruction,
+        canvas: String(page.title ?? ''),
+        w: size(body.w, Number(current?.w ?? 1280), 240, 2400),
+        h: size(body.h, Number(current?.h ?? 800), 240, 4000),
+        current: current ? String(current.content ?? '') : null,
+        // Two at most, and never the one being redrawn: enough to show a look,
+        // and every board sent is somebody's content leaving the building.
+        references: body.match === false ? [] : boards
+          .filter((one) => one.kind === 'html' && one.id !== current?.id && String(one.content ?? '').trim())
+          .slice(0, 2)
+          .map((one) => ({ title: String(one.title ?? ''), html: String(one.content ?? '') })),
+      });
+    } catch (error) {
+      if (!(error instanceof AiError)) throw error;
       throw new HttpError(error.permanent ? 400 : 502, error.message, 'ai_failed');
     }
   });

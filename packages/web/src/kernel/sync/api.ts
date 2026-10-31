@@ -168,6 +168,9 @@ export const api = {
    * suggestion the person decides about. See `docs/ai.md`.
    */
   review: (taskId: string) => request<TaskReview>(`/api/tasks/${taskId}/review`, json({})),
+  /** A board drawn — or redrawn — by the configured model. Nothing is written; see `ai-review/board.ts`. */
+  draftBoard: (pageId: string, body: { instruction: string; board?: string; w?: number; h?: number; match?: boolean }) =>
+    request<{ title: string; html: string; model: string }>(`/api/pages/${pageId}/boards/draft`, json(body)),
   import: (workspaceId: string, body: {
     csv: string; project_id: string; mapping: Record<string, string>; delimiter?: string; dry_run: boolean;
   }) => request<ImportResult>(`/api/workspaces/${workspaceId}/import`, json(body)),

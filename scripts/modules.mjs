@@ -109,7 +109,7 @@ const ABOUT = {
   'guide': ['The tour, the diagrams and the help screens.'],
   'time': ['Timesheets, rates, utilisation and what an hour costs.', 'time'],
   'automation': ['Rules that fire on a write, and the schedule behind them.'],
-  'ai-review': ['Asking a model to read a task back. Manual, off by default.', 'ai'],
+  'ai-review': ['Asking a model to read a task back, or to draw a board on a canvas. Manual, off by default.', 'ai'],
   'trash': ['Tombstones, restore and the purge.'],
   'intake': ['A form that becomes a task, and the queue in front of it.'],
   'notifications': ['What is worth telling somebody about, once.'],

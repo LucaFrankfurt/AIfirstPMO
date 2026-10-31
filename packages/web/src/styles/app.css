@@ -4116,6 +4116,17 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 }
 .canvas-divider { width: 1px; height: 20px; background: var(--line); margin: 0 4px; flex: none; }
 .canvas-scale { min-width: 44px; text-align: center; font-size: 12px; color: var(--fg-muted); font-variant-numeric: tabular-nums; }
+/* Nothing in the bar may shrink. It did: at 340px the zoom buttons were
+   squeezed to 14px wide to make room, which no overflow check sees and no
+   finger hits. So on a phone the bar gives up the zoom readout instead — a
+   pinch, the wheel and Fit all still zoom — and its gaps tighten. */
+.canvas-toolbar > * { flex: none; }
+.canvas-toolbar > .flex-1 { flex: 1 1 0; }
+@container screen (max-width: 763px) {
+  .canvas-toolbar { gap: 2px; padding-inline: 6px; }
+  .canvas-toolbar .canvas-divider { margin: 0 2px; }
+  .canvas-scale { display: none; }
+}
 .canvas-count {
   min-width: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; line-height: 18px;
   background: var(--accent-soft); color: var(--accent);
@@ -4365,3 +4376,27 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   .artboard-title { width: 34vw; }
   .artboard-field { grid-template-columns: 84px minmax(0, 1fr); }
 }
+
+/* ------------------------------------------------------------- canvas as PDF */
+
+/*
+ * The boards, drawn again for a PDF. On screen they are stacked invisibly at
+ * the top of the window — in view, because a frame the browser counts as off
+ * screen may not be drawn in time — and in print they are the document: one
+ * page each, at each board's own size (`@page board-N`, written by
+ * `CanvasPrint`), and nothing of the app around them.
+ */
+.canvas-print { position: fixed; inset: 0; z-index: -1; opacity: 0; pointer-events: none; overflow: hidden; }
+.canvas-print-page { position: absolute; left: 0; top: 0; overflow: hidden; background: #ffffff; }
+.canvas-print-frame { width: 100%; height: 100%; }
+@media print {
+  body:has(> .canvas-print) > :not(.canvas-print) { display: none !important; }
+  .canvas-print { position: static; opacity: 1; overflow: visible; z-index: auto; }
+  .canvas-print-page { position: relative; break-after: page; }
+  .canvas-print-page:last-child { break-after: auto; }
+}
+
+/* Describing a board to Claude, and bringing one in. */
+.canvas-dialog-field { display: grid; gap: 5px; margin-bottom: 12px; font-size: 12.5px; color: var(--fg-soft); }
+.canvas-dialog-check { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg); }
+.canvas-dialog-code { font: 12px/1.5 var(--mono); }
