@@ -70,6 +70,8 @@ export const de: Catalogue = {
   'nav.settings': 'Einstellungen',
   'nav.newTask': 'Neue Aufgabe',
   'nav.sidebar': 'Hauptnavigation',
+  'nav.foldSidebar': 'Navigation einklappen',
+  'nav.unfoldSidebar': 'Navigation ausklappen',
   'nav.tabbar': 'Bereiche',
   'nav.newProject': 'Neues Projekt',
   'nav.moveToTop': 'Hierher ziehen, um es aus allen Projekten herauszunehmen',

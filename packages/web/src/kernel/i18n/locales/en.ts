@@ -69,6 +69,8 @@ export const en = {
   'nav.settings': 'Settings',
   'nav.newTask': 'New task',
   'nav.sidebar': 'Main navigation',
+  'nav.foldSidebar': 'Collapse the sidebar',
+  'nav.unfoldSidebar': 'Expand the sidebar',
   'nav.tabbar': 'Sections',
   'nav.newProject': 'New project',
   'nav.moveToTop': 'Drop here to move it out of every project',

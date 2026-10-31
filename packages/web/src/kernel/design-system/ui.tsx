@@ -72,6 +72,8 @@ const PATHS = {
   hash: 'M9 4 7 20M17 4l-2 16M4 9h16M3 15h16',
   bell: 'M18 10a6 6 0 1 0-12 0c0 5-2 6-2 6h16s-2-1-2-6M10.5 20a2 2 0 0 0 3 0',
   menu: 'M4 7h16M4 12h16M4 17h16',
+  // A window with a column down its start side: the button that folds one away.
+  sidebar: 'M4 5h16v14H4zM9 5v14',
   // Three lines with a knob on each: display options, not another menu. It
   // exists because `list` and `menu` were the same three strokes, and the
   // header put both of them side by side on a phone — the layout switcher
@@ -117,8 +119,10 @@ const PATHS = {
 /**
  * Icons that mean "forwards" or "away" rather than naming a thing. They are
  * mirrored under a right-to-left direction, where forwards is the other way.
+ * `sidebar` is here because the column it draws is on the start side, and
+ * under right-to-left so is the sidebar.
  */
-const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout', 'reply']);
+const DIRECTIONAL = new Set(['chevronLeft', 'chevronRight', 'send', 'logout', 'reply', 'sidebar']);
 
 /**
  * Icons drawn heavier than the rest, by name.
