@@ -58,7 +58,10 @@ Rules that decide whether people can keep working on it:
   short <style> block for resets and the body font is fine; class-based styling of everything is not.
 - Build from real elements — headings, paragraphs, lists, tables, buttons, labelled inputs — not
   divs pretending to be them. Every text must clear 4.5:1 contrast against its background.
-- Lay it out for the frame's width. Content taller than the frame scrolls, which is fine.
+- Lay it out for the frame's width, and let it reflow: the same board is read on phones, about
+  390px wide, where nothing may run off the side. Grids of cards use
+  repeat(auto-fit, minmax(<n>px, 1fr)), rows wrap, a wide table sits in a box that scrolls sideways,
+  and nothing has a fixed width wider than a phone. Content taller than the frame is fine.
 
 Content:
 - Specific, realistic content that fits the request — names, numbers, labels a real team would use.

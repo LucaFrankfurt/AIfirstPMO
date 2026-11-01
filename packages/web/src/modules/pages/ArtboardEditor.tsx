@@ -307,7 +307,7 @@ function BoardHistory({ board, previewing, onPreview, onRestored }: {
   );
 }
 
-export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAsking = false, onClose }: {
+export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAsking = false, askWith, onClose }: {
   board: Artboard;
   canWrite: boolean;
   /** The model, when this server has one and the workspace has it switched on. */
@@ -325,6 +325,8 @@ export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAski
    * answer is one step of *Undo*, and the person sees it before they leave.
    */
   startAsking?: boolean;
+  /** What the dialog starts out asking, when the page asked on the person's behalf. */
+  askWith?: string;
   onClose: () => void;
 }) {
   const t = useT();
@@ -650,7 +652,7 @@ export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAski
         </div>
         {asking && ai && (
           <DraftDialog
-            ai={ai} pageId={board.page_id} board={{ id: board.id, w: board.w, h: board.h }} hasOthers={false}
+            ai={ai} pageId={board.page_id} board={{ id: board.id, w: board.w, h: board.h }} hasOthers={false} initial={askWith}
             // One edit, through the same CRDT as typing: it merges with anybody
             // else's, keeps a version in the history, and undo takes it back.
             onDrafted={(draft) => { apply(draft.html); setSelected(null); setAsking(false); }}

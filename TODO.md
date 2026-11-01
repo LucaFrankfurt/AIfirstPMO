@@ -1906,6 +1906,17 @@ written.
       See [`docs/canvas.md`](docs/canvas.md#out-of-the-workspace).
 - [x] **A board page fits a phone.** Below 60% scale it is drawn at the screen's width, reflowing
       as its own styles say, with *As designed* to go back.
+- [x] **A board not written for a phone reflows to one**, in the app and through a shared link:
+      what runs off the side is loosened in the drawn document, never in the source. Only a layout
+      by absolute position is scaled instead, and its writer is offered *Make it fit phones*.
+      Claude is asked for responsive boards when it draws or writes them.
+- [x] **Layouts placed by position reflow too**, into one column in reading order; lines that never
+      wrap, boxes pushed off by a transform, a margin or an offset, `display: table`, named grid
+      areas, wide SVGs, embeds, form fields and fixed headers are handled. **Downloads** carry the
+      fitting script and a viewport, and *Import HTML…* strips both again.
+- [ ] **The repair is still a heuristic.** What a board's script draws into a `<canvas>` at a fixed
+      size is shrunk, not redrawn; a layout that sizes itself in script from the window once, and
+      never on resize, is fitted after it has, not before. Anything it cannot reflow is scaled.
 - [x] **Pins on a board reflowed to a phone.** A pin names the element it was put on and where on
       it; the reflowed board asks the frame where that is now. Pins from before, or from MCP, still
       show only as designed.

@@ -254,7 +254,8 @@ jobs:
         run: cat /tmp/kolibri-server.log || true
 
   # Boards in Firefox and WebKit — Safari's engine, and so half the phones that
-  # open a shared link. Every other browser job here walks Chromium, and a
+  # open a shared link — and in the image's Chromium beside them, so the three
+  # are compared on one run. Every other browser job here walks Chromium, and a
   # board is exactly the part of the app whose behaviour belongs to the
   # engine: a sandboxed frame with an opaque origin, a policy sent as a header,
   # a `postMessage` handshake, a frame measuring itself, two policies nested in
@@ -311,7 +312,7 @@ jobs:
         run: |
           docker run --rm --network host --ipc=host \
             -v "$PWD:/work" -w /work \
-            -e KOLIBRI_URL=http://127.0.0.1:4400 \
+            -e KOLIBRI_URL=http://127.0.0.1:4400 -e KOLIBRI_ENGINES=chromium,firefox,webkit \
             "mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble" \
             node scripts/engines.mjs
       - name: What the server thought, if anything went wrong

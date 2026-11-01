@@ -13,6 +13,8 @@
  *   - the editor's frame answers a click with a selection;
  *   - the seeded board page grows to its board, with nothing scrolling inside;
  *   - at phone width it reflows, and its pin sits on what it was put on;
+ *   - boards too wide for a phone, four ways — fixed columns, placed by position, a line that
+ *     never wraps, a layout of display: table — reflow to it, in the app and through a shared link;
  *   - a shared canvas and a shared board page work for a stranger.
  *
  * Run against a seeded instance, like the smoke walkthrough:
@@ -30,6 +32,20 @@ import { chromium, devices, firefox, webkit } from 'playwright';
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const wanted = (process.env.KOLIBRI_ENGINES ?? 'firefox,webkit').split(',').map((name) => name.trim()).filter(Boolean);
 const ENGINES = { chromium, firefox, webkit };
+
+/** Boards written for a wide screen and nothing else, each a different way of running off a phone. */
+const doc = (body) => `<!doctype html><html><head><meta charset="utf-8"><title>Wide</title></head>
+<body style="margin: 0; font-family: system-ui, sans-serif"><div style="padding: 24px"><h1 style="margin: 0 0 12px">Wide</h1>${body}</div></body></html>`;
+const WIDE = {
+  'a grid of eight fixed columns': doc(`<div id="t" style="display: grid; grid-template-columns: repeat(8, minmax(140px, 1fr)); gap: 12px">
+${Array.from({ length: 8 }, (_, at) => `<div style="padding: 12px; border: 1px solid #ddd">Stage ${at + 1}</div>`).join('')}</div>`),
+  'a layout placed by position': doc(`<div id="t" style="position: relative; width: 1200px; height: 400px">
+<div style="position: absolute; left: 0; top: 0; width: 300px">First</div><div style="position: absolute; left: 800px; top: 0; width: 300px">Second</div></div>`),
+  'a line that never wraps': doc(`<p id="t" style="white-space: nowrap">A long line of words its author told never to break, running far past the edge of any phone there is.</p>`),
+  'a layout of display: table': doc(`<div id="t" style="display: table; width: 900px"><div style="display: table-row">
+${Array.from({ length: 4 }, (_, at) => `<div style="display: table-cell; padding: 8px">Cell ${at + 1}</div>`).join('')}</div></div>`),
+};
+const CRAMPED = WIDE['a grid of eight fixed columns'];
 const results = [];
 let failed = 0;
 
@@ -132,6 +148,40 @@ async function walk(name) {
     const pinned = await phone.locator('.board-sheet .canvas-pin').count();
     check(name, pinned >= 1, `its pin is found on the reflowed board (${pinned})`);
 
+    // Boards written for a wide screen and nothing else reflow to the phone,
+    // at their own size: nothing cut, nothing shrunk. One board page each.
+    const make = (title, html) => desk.evaluate(async ([ws, name, content]) => {
+      const made = await (await fetch(`/api/workspaces/${ws}/pages`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: name, format: 'board' }),
+      })).json();
+      await fetch(`/api/workspaces/${ws}/artboards`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ page_id: made.id, title: name, content, w: 1280, h: 600 }),
+      });
+      return made.id;
+    }, [seeded.ws, title, html]);
+    let cramped = null;
+    for (const [what, html] of Object.entries(WIDE)) {
+      const id = await make(what, html);
+      if (html === CRAMPED) cramped = id;
+      await phone.goto(`${base}/pages/${id}`);
+      await phone.waitForSelector('.board-sheet iframe', { timeout: 10000 });
+      let state = null;
+      for (let attempt = 0; attempt < 16; attempt += 1) {
+        await phone.waitForTimeout(250);
+        const drawn = await phone.locator('.board-sheet-inner').evaluate((el) => ({ w: el.offsetWidth, t: el.style.transform }));
+        const cut = await fromFrames(phone, () => (document.getElementById('t')
+          ? Math.max(document.documentElement.scrollWidth - document.documentElement.clientWidth,
+            Math.round(document.getElementById('t').getBoundingClientRect().right - document.documentElement.clientWidth))
+          : null), 2);
+        state = { ...drawn, cut };
+        if (cut !== null && cut <= 1 && drawn.t === 'scale(1)') break;
+      }
+      check(name, !!state && state.cut !== null && state.cut <= 1 && state.w < 400 && state.t === 'scale(1)',
+        `${what}, too wide for a phone, reflows to it at its own size (${JSON.stringify(state)})`);
+    }
+
     // A stranger with the links.
     const share = (page) => desk.evaluate(async ([ws, id]) => {
       const made = await (await fetch(`/api/workspaces/${ws}/shares`, {
@@ -149,6 +199,11 @@ async function walk(name) {
     const heading = await fromFrames(stranger, () => [...document.querySelectorAll('h1')].find((one) => one.textContent === 'Q3 in one page')?.textContent ?? null);
     const wide = await stranger.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check(name, heading === 'Q3 in one page' && wide <= 0, `and a shared board page, on a phone, with nothing off the side (${heading}, ${wide}px)`);
+    // The too-wide board, shared: no script around it to scale it, so it fits from inside.
+    await stranger.goto(`${base}/s/${await share(cramped)}`);
+    const sharedFit = await fromFrames(stranger, () => (document.getElementById('t')
+      ? document.documentElement.scrollWidth - document.documentElement.clientWidth : null));
+    check(name, sharedFit !== null && sharedFit <= 1, `a shared board too wide for a phone fits it too (${sharedFit}px cut)`);
   } catch (error) {
     check(name, false, `stopped: ${String(error?.message ?? error).split('\n')[0]}`);
   } finally {

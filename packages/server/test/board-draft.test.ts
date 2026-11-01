@@ -131,6 +131,9 @@ describe('drawing a board', () => {
     const [request] = sent;
     assert.equal(request.system, BOARD_SYSTEM);
     assert.match(request.system, /reaches no network/, 'the model was not told the board cannot fetch');
+    // Boards are read on phones, and one that runs off the side there is drawn
+    // smaller to fit — so the model is asked for a layout that reflows.
+    assert.match(request.system, /390px wide, where nothing may run off the side/, 'the model was not told the board is read on phones');
     assert.match(request.messages[0].content, /Canvas: SetSide CRM/);
     assert.match(request.messages[0].content, /Frame: 1440 × 900/);
     assert.match(request.messages[0].content, /A pipeline overview for the sales team/);

@@ -15,7 +15,7 @@
  * set: an instance without the feature looks like an app without the feature.
  */
 import { useState } from 'react';
-import { htmlTitle, looksLikeHtml } from '@kolibri/shared';
+import { htmlTitle, looksLikeHtml, stripFitScript } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Select, Textarea } from '../../kernel/design-system/ui/field';
@@ -80,18 +80,20 @@ function FormatPicker({ value, onChange }: { value: string; onChange: (id: strin
  * match, and the answer replaces the board's source in the editor — as one
  * edit, which the editor's undo takes back.
  */
-export function DraftDialog({ ai, pageId, board, hasOthers, onDrafted, onClose }: {
+export function DraftDialog({ ai, pageId, board, hasOthers, initial = '', onDrafted, onClose }: {
   ai: CanvasAi;
   pageId: string;
   /** The board to redraw, when this is not a new one. */
   board?: { id: string; w: number; h: number };
   hasOthers: boolean;
+  /** What it starts out asking — written for the person, who reads it and may change it before it is sent. */
+  initial?: string;
   onDrafted: (draft: Drafted) => void;
   onClose: () => void;
 }) {
   const t = useT();
   const labels = useAiLabels(ai);
-  const [instruction, setInstruction] = useState('');
+  const [instruction, setInstruction] = useState(initial);
   const [format, setFormat] = useState('page');
   const [match, setMatch] = useState(true);
   const [working, setWorking] = useState(false);
@@ -172,7 +174,9 @@ export function ImportDialog({ onImported, onClose }: { onImported: (draft: Draf
   };
 
   const done = () => {
-    const html = source.trim();
+    // A board downloaded from here carries our script for phones; the board it
+    // becomes again is what its author wrote.
+    const html = stripFitScript(source.trim());
     if (!looksLikeHtml(html)) {
       setProblem(t('canvas.importNotHtml'));
       return;
