@@ -57,6 +57,25 @@ describe('what the frame is sent', () => {
   });
 });
 
+describe('fitting a board to a phone', () => {
+  // The adapter goes in beside the config, as source, only on a board page
+  // that is being reflowed — never in the editor, the canvas or the designed
+  // view, which show the board as written.
+  const handed = (out: string): string => out.slice(out.lastIndexOf('}, ') + 3, out.lastIndexOf(');</script>'));
+
+  it('hands the frame the adapter only when asked to fit', () => {
+    assert.match(prepare('<p>Hi</p>', { ...config('play'), fit: true, adapt: true }), /function \w*\(\)\s*\{[\s\S]*grid-template-columns/);
+    assert.equal(handed(prepare('<p>Hi</p>', { ...config('play'), fit: true })), 'null');
+    assert.equal(handed(prepare('<p>Hi</p>', config('edit'))), 'null');
+  });
+
+  it('is still one script that parses on its own', () => {
+    const out = prepare('<p>Hi</p>', { ...config('play'), fit: true, adapt: true });
+    const code = out.slice(out.indexOf('<script>') + 8, out.indexOf('</script>'));
+    assert.doesNotThrow(() => new Function(code));
+  });
+});
+
 describe('what the frame is believed about', () => {
   it('takes a well-formed message', () => {
     assert.deepEqual(readMessage({ type: 'kolibri:move', rev: 1, k: 4, target: 9, where: 'after' }),

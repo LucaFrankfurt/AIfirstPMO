@@ -15,7 +15,7 @@
  * set: an instance without the feature looks like an app without the feature.
  */
 import { useState } from 'react';
-import { htmlTitle, looksLikeHtml } from '@kolibri/shared';
+import { htmlTitle, looksLikeHtml, stripFitScript } from '@kolibri/shared';
 import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
 import { Select, Textarea } from '../../kernel/design-system/ui/field';
@@ -174,7 +174,9 @@ export function ImportDialog({ onImported, onClose }: { onImported: (draft: Draf
   };
 
   const done = () => {
-    const html = source.trim();
+    // A board downloaded from here carries our script for phones; the board it
+    // becomes again is what its author wrote.
+    const html = stripFitScript(source.trim());
     if (!looksLikeHtml(html)) {
       setProblem(t('canvas.importNotHtml'));
       return;

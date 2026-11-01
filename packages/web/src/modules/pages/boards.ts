@@ -6,7 +6,7 @@
  * so everything that copies or downloads such a page has to carry the boards,
  * or it carries nothing and says it carried the page.
  */
-import { escapeHtml, isBoardFormat, type Artboard, type Page } from '@kolibri/shared';
+import { escapeHtml, isBoardFormat, withFit, type Artboard, type Page } from '@kolibri/shared';
 import { byOrder, create } from '../../kernel/sync/mutations';
 import { list } from '../../kernel/sync/store';
 import { inlineFiles } from './board-files';
@@ -52,18 +52,21 @@ const STYLE = `
  * A canvas is one document that frames each of its boards, in reading order,
  * with its notes as text: one file, opened by double-clicking, nothing beside
  * it. Either way the pictures go in as their bytes, because a file somebody
- * keeps cannot ask this server for them later.
+ * keeps cannot ask this server for them later — and each board carries the
+ * script that fits it to a phone (`withFit` in `shared`), because a file is
+ * opened on phones as well, with no app around it to do the fitting. The
+ * script is marked, and *Import HTML…* takes it out again.
  */
 export async function boardsFile(page: Page, boards: Artboard[], untitled: string): Promise<string> {
   const live = boards.filter((board) => !board.deleted_at);
   if (page.format === 'board') {
     const board = live.find((one) => one.kind === 'html');
-    return board ? inlineFiles(board.content ?? '') : '';
+    return board ? withFit(await inlineFiles(board.content ?? '')) : '';
   }
   const ordered = [...live].sort((a, b) => a.y - b.y || a.x - b.x);
   const parts = await Promise.all(ordered.map(async (board) => {
     if (board.kind === 'note') return `<aside class="note">${escapeHtml(board.content ?? '')}</aside>`;
-    const source = await inlineFiles(board.content ?? '');
+    const source = withFit(await inlineFiles(board.content ?? ''));
     // `srcdoc` and the sandbox: each board keeps its own document and scripts,
     // and none of them can reach the others or the file around them.
     return `<figure><figcaption>${escapeHtml(board.title || untitled)}</figcaption>`

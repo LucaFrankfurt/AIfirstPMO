@@ -35,21 +35,31 @@ its board; see [Out of the workspace](#out-of-the-workspace). What differs is ho
   `1200px` wide, a table with no box to scroll in — ran off the side of the phone and was cut there,
   which is how this was reported. On a reflowed board the frame now makes it fit (`fitBoard` in
   `shared`): it looks only at what runs off the side — a box too wide, or a box whose content runs
-  on past it, which is what a grid's columns do — and loosens exactly that. Fixed-column grids
-  become `repeat(auto-fill, minmax(…))` at their own narrowest column, rows wrap, wide boxes are
-  held to their container, tables and preformatted text get the scrolling box they lacked,
-  pictures shrink. What fits is left alone, and so is anything inside a box that scrolls on
-  purpose. These are styles on the drawn document: the source keeps what its author wrote, and the
-  editor, the designed view and the PDF never see them. Measured at 390px on nine boards: the six
-  that ran 222–1042px off the side fit with 0px over; a responsive grid, a table in its own scroll
-  box and a kanban that scrolls on purpose were left exactly as they were. On a 427px screen the
-  eight-card pipeline reflows to two columns at its own 16px text.
-  What cannot be reflowed — a layout by absolute position — is still too wide afterwards, and the
-  frame says so by reporting its content's width: the board is drawn at the width it needs and
-  scaled down to fit, the way a phone's browser shows a site never made for it, and its writers are
-  offered **Make it fit phones**, which opens the editor with the request written out for the model
-  and is one step of *Undo*. A shared link runs the same adapter inside the board it serves, so a
-  shared board fits a phone too. `check:engines` walks both in Chromium, Firefox and WebKit.
+  on past it, which is what a grid's columns do — and loosens exactly that:
+  - fixed-column grids become `repeat(auto-fill, minmax(…))` at their own narrowest column, and a
+    grid of named areas loses the areas that assumed the old columns;
+  - rows of flex items wrap;
+  - a layout placed by position — pieces at `left: 900px` — stands in one column, its pieces in the
+    order a reader meets them, top to bottom and then left to right;
+  - a box pushed off the side by a transform, a margin or an offset is brought back; one too wide
+    is held to its container, fixed headers included;
+  - tables, preformatted text and `display: table` layouts get the scrolling box they lacked, and
+    a table's insides are left to it;
+  - a line told never to break may break; pictures, SVGs, embeds and form fields shrink.
+
+  What fits is left alone, and so is anything inside a box that scrolls or clips on purpose — a
+  kanban, a table in its own scroller, a line cut short with an ellipsis — and a fixed drawer parked
+  off the side. These are styles on the drawn document: the source keeps what its author wrote, and
+  the editor, the designed view and the PDF never see them. Measured at 390px on nineteen boards:
+  the fifteen that ran 222–1042px off the side fit with 0px over, the placed layout in reading
+  order; the four that should not be touched were not (0 styles set). On a 427px screen the
+  eight-card pipeline reflows to two columns at its own 16px text. A shared link runs the same
+  adapter inside the board it serves; `check:engines` walks four of these kinds, in the app and
+  through a link, in Chromium, Firefox and WebKit.
+  Whatever still does not fit after that is drawn at the width it needs and scaled down to fit, the
+  way a phone's browser shows a site never made for it, and its writers are offered **Make it fit
+  phones**, which opens the editor with the request written out for the model and is one step of
+  *Undo*.
 - **Pins follow what they were put on.** A pin is a point in the board's own pixels, which means
   nothing once the board reflows — so a pin also names the element under it, as the steps down from
   the body (`main:0/div:10`), and where on that element it sat, as fractions of its box. On a
@@ -93,8 +103,12 @@ A canvas or a board page is its boards, so each way out of the workspace carries
 - **Download** in the page menu: *one HTML file* — a board page as its board's own document, the
   file an artifact downloaded from Claude is, which *Import HTML…* takes back; a canvas as one
   document framing each board through `srcdoc` in a sandbox, notes as text. Pictures go in as their
-  bytes either way, since a kept file cannot ask this server for them later. Measured: the seeded
-  canvas, downloaded and opened from disk, runs its boards — the pipeline tile adds up to €155k.
+  bytes either way, since a kept file cannot ask this server for them later, and each board carries
+  the script that fits it to a phone — plus a viewport, when it names none, because a phone's
+  browser lays out a page without one at 980px and zooms it out. Both are marked, and *Import
+  HTML…* takes them out again, so a download imported back is exactly what was written. Measured:
+  the seeded canvas, downloaded and opened from disk, runs its boards — the pipeline tile adds up to
+  €155k; a board of eight fixed columns, downloaded and opened at 390px, reflows to two columns.
   *Print, or save as PDF* is the toolbar's PDF; a board page's PDF is the board as designed and as
   tall as it is, measured at its own width whichever view the screen was showing.
 - **A template.** *Keep as a template* works on both, and a page made from one — in the app or with

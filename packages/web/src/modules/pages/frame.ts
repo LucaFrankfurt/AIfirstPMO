@@ -19,7 +19,7 @@
  * keeps it type-checked and readable here, at the price of one rule: it may
  * use nothing from outside its own body, because it does not run here.
  */
-import { artboard, fitBoard } from '@kolibri/shared';
+import { artboard, fitBoard, intoHead } from '@kolibri/shared';
 
 /**
  * The frame file's hash, which is the address the browser caches it under.
@@ -559,13 +559,7 @@ export function prepare(source: string, config: RuntimeConfig): string {
   // import it, and a name it could look it up by would not survive the build.
   const adapter = config.adapt ? fitBoard.toString() : 'null';
   const script = `<script>(${runtime.toString()})(${JSON.stringify(config).replace(/</g, '\\u003c')}, ${adapter});</script>`;
-  const head = /<head(\s[^>]*)?>/i.exec(body);
-  if (head) return `${body.slice(0, head.index + head[0].length)}${script}${body.slice(head.index + head[0].length)}`;
-  const html = /<html(\s[^>]*)?>/i.exec(body);
-  if (html) return `${body.slice(0, html.index + html[0].length)}<head>${script}</head>${body.slice(html.index + html[0].length)}`;
-  const doctype = /^\s*<!doctype[^>]*>/i.exec(body);
-  if (doctype) return `${doctype[0]}${script}${body.slice(doctype[0].length)}`;
-  return `<!doctype html><meta charset="utf-8">${script}${body}`;
+  return intoHead(body, script);
 }
 
 /**

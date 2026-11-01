@@ -1910,10 +1910,13 @@ written.
       what runs off the side is loosened in the drawn document, never in the source. Only a layout
       by absolute position is scaled instead, and its writer is offered *Make it fit phones*.
       Claude is asked for responsive boards when it draws or writes them.
-- [ ] **The repair is a heuristic.** It knows grids, flex rows, wide boxes, tables, preformatted
-      text and pictures; a board that overflows some other way — `white-space: nowrap` on a long
-      line, a transform — is scaled rather than reflowed. A download is the source as written,
-      so a non-responsive board downloaded is non-responsive.
+- [x] **Layouts placed by position reflow too**, into one column in reading order; lines that never
+      wrap, boxes pushed off by a transform, a margin or an offset, `display: table`, named grid
+      areas, wide SVGs, embeds, form fields and fixed headers are handled. **Downloads** carry the
+      fitting script and a viewport, and *Import HTML…* strips both again.
+- [ ] **The repair is still a heuristic.** What a board's script draws into a `<canvas>` at a fixed
+      size is shrunk, not redrawn; a layout that sizes itself in script from the window once, and
+      never on resize, is fitted after it has, not before. Anything it cannot reflow is scaled.
 - [x] **Pins on a board reflowed to a phone.** A pin names the element it was put on and where on
       it; the reflowed board asks the frame where that is now. Pins from before, or from MCP, still
       show only as designed.
