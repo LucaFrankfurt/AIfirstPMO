@@ -29,7 +29,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useT } from '../../kernel/i18n/i18n';
 import { cn } from '../../kernel/design-system/cn';
-import { FRAME_URL, outboundLink, prepare, readMessage, type FrameMessage, type FrameMode } from './frame';
+import { FRAME_URL, outboundLink, prepare, readMessage, type FitRule, type FrameMessage, type FrameMode } from './frame';
 import { hasFiles, inlineFiles } from './board-files';
 
 /** One iframe and what is known about it. */
@@ -43,7 +43,7 @@ interface Layer {
 export type BoardMessage = Exclude<
   FrameMessage,
   { type: 'kolibri:ready' } | { type: 'kolibri:open' } | { type: 'kolibri:rendered' } | { type: 'kolibri:scroll' } | { type: 'kolibri:size' }
-  | { type: 'kolibri:located' } | { type: 'kolibri:at' }
+  | { type: 'kolibri:located' } | { type: 'kolibri:at' } | { type: 'kolibri:fitted' }
 >;
 
 /** A pin by what it is on: the element's path in the board, and where on it, as fractions. */
@@ -100,6 +100,8 @@ export function ArtboardFrame({
   latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front };
   /** Questions asked of the frame, by the id the answer will carry. */
   const asked = useRef(new Map<string, (answer: { el: string; fx: number; fy: number } | null) => void>());
+  /** What the fitting changed, once the board has said — for drawing it again with that in place from the start. */
+  const fitted = useRef<FitRule[] | null>(null);
 
   /** Tell a layer which pins to find. Only ever the one on screen is asked. */
   const sendPins = (key: number): void => {
@@ -119,18 +121,23 @@ export function ArtboardFrame({
     const write = (source: string): void => post(prepare(source, {
       mode: now.mode, rev: number, selected: now.selected,
       scroll: now.keepScroll ? scroll.current : null, labels: { drag: now.drag }, fit: !!now.onSize, adapt: now.adapt,
+      ...(now.adapt && fitted.current ? { fitted: fitted.current } : {}),
     }));
     // Pictures from this server go in as their bytes — see `board-files.ts`.
     if (hasFiles(now.source)) void inlineFiles(now.source).then(write);
     else write(now.source);
   };
 
-  // A new source, mode or fitting is a new render, in a new frame unless the only frame
-  // there is has not been given one yet.
-  useEffect(() => {
+  /**
+   * A new render, in a new frame unless the only frame there is has not been
+   * given one yet. `keep` is the frame on screen when React has not been told
+   * yet — one that has only just said it is drawn.
+   */
+  const redraw = (keep?: number): void => {
     rev.current += 1;
     const number = rev.current;
-    const { layers: current, front: shown } = latest.current;
+    const { layers: current, front } = latest.current;
+    const shown = keep ?? front;
     const blank = current.length === 1 && current[0].rev === null;
     if (blank) {
       setLayers([{ ...current[0], rev: number }]);
@@ -141,6 +148,13 @@ export function ArtboardFrame({
     // Only the front and the newest render are ever kept: anything in between
     // is a render nobody will see.
     setLayers([...current.filter((layer) => layer.key === shown), { key, rev: number, ready: false }]);
+  };
+
+  // A new source, mode or fitting is a new render — fitted afresh, since what
+  // the last one needed changed is about the last one.
+  useEffect(() => {
+    fitted.current = null;
+    redraw();
   }, [source, mode, adapt]);
 
   useEffect(() => {
@@ -162,6 +176,15 @@ export function ArtboardFrame({
         if (message.height) latest.current.onSize?.(message.height, message.width);
         sendPins(layer.key);
         latest.current.onRendered?.();
+        return;
+      }
+      // Said right behind `rendered`, before this frame is known to be on
+      // screen — so believed, like it, from the newest render. Once per
+      // source: the second drawing carries the rules and does not report them.
+      if (message.type === 'kolibri:fitted') {
+        if (message.rev !== layer.rev || layer.rev !== rev.current || !latest.current.adapt || fitted.current) return;
+        fitted.current = message.rules;
+        redraw(layer.key);
         return;
       }
       // Everything else is about what is on screen, and only believed from it.

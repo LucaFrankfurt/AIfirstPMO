@@ -56,6 +56,29 @@ its board; see [Out of the workspace](#out-of-the-workspace). What differs is ho
   eight-card pipeline reflows to two columns at its own 16px text. A shared link runs the same
   adapter inside the board it serves; `check:engines` walks four of these kinds, in the app and
   through a link, in Chromium, Firefox and WebKit.
+- **Drawn again when its script measured it.** Fitting changes a board after it has drawn, and a
+  board whose script measured its layout as it loaded measured the one that did not fit: a chart
+  drawn to its box's width and then shrunk as a picture, a bar sized as 60% of a 1200px box that,
+  held to the screen, showed full. So a reflowed board that needed fitting and has a `<canvas>` or a
+  script of its own is drawn once more, with what the fitting changed — `[place, property, value]`,
+  the place as child indices down from the body — put in as a stylesheet ahead of anything of the
+  board's, so its script measures the layout it is shown in. Once: the second drawing does not ask
+  again, and a board of markup alone, which lays itself out again on its own, is not drawn twice. In
+  the app the frame says what it changed and the page draws a new frame behind the one on screen. A
+  shared link and a downloaded file have no app around them, so the board reloads itself once and
+  carries the rules across in the window's name — the one thing a sandboxed frame keeps across a
+  reload, and out of sight, where an address would show in a downloaded file's address bar and a
+  board reading its own `#hash` would find ours there. The name is signed with the document, and a
+  load that is not a fresh navigation never reloads, so a name that went missing cannot loop. What
+  arrives is read as a stranger's (`fitCss`): only the fitting's own properties, values with no
+  colon, quote, semicolon, brace or backslash and no function but `repeat`, `minmax` and `min`, and
+  places made of indices alone. Measured in Chromium: the chart, fitted afterwards, was drawn 400px
+  wide and shown at 326px, and with two passes drawn and shown at 326px; the bar showed 100% and
+  now shows 60% — in the app, in a shared link's frame, opened on its own and in a `srcdoc` frame,
+  and with the second pass switched off all four of `check:engines`' cases for it fail. The fifteen
+  kinds above, fitted from their rules alone as a stylesheet, fit with 0px over. Not reached: a
+  script that measures later — on a click, after a timer — measures whatever is there by then, and
+  a phone turned on its side keeps the rules of the width it opened at, fitted again on top.
   Whatever still does not fit after that is drawn at the width it needs and scaled down to fit, the
   way a phone's browser shows a site never made for it, and its writers are offered **Make it fit
   phones**, which opens the editor with the request written out for the model and is one step of
@@ -106,7 +129,8 @@ A canvas or a board page is its boards, so each way out of the workspace carries
   bytes either way, since a kept file cannot ask this server for them later, and each board carries
   the script that fits it to a phone — plus a viewport, when it names none, because a phone's
   browser lays out a page without one at 980px and zooms it out. Both are marked, and *Import
-  HTML…* takes them out again, so a download imported back is exactly what was written. Measured:
+  HTML…* takes them out again, so a download imported back is exactly what was written. A board
+  whose script measured it reloads itself once with the fitting in place, as above. Measured:
   the seeded canvas, downloaded and opened from disk, runs its boards — the pipeline tile adds up to
   €155k; a board of eight fixed columns, downloaded and opened at 390px, reflows to two columns.
   *Print, or save as PDF* is the toolbar's PDF; a board page's PDF is the board as designed and as
@@ -327,7 +351,15 @@ proposes a change to a page or a board instead of making it, and `resolve_commen
 In [`TODO.md`](../TODO.md), with the reason for each: web fonts and a fixed set of libraries boards
 may use, live cursors, pins on a canvas that know their element too, a board drawn by a model shown
 as it is written rather than when it is done, and the packaged app nobody has run it in. The model's
-half was tested against a stand-in that answers like the Messages API, not against a real model.
+half is tested against a stand-in that answers like the Messages API. `npm run check:model`
+(`scripts/model.mjs`) asks a real one, through the same route, to make four boards too wide for a
+phone fit one and to draw a fifth from a sentence, and measures every answer at 390px *without* the
+fitting — nothing off the side at 390px or 1280px, no text under 11px, nine words in ten of the
+board kept, nothing fetched. CI runs it only by hand (`model.yml`), because it spends tokens. It
+has not been run against a real model yet: the instance it was written on had no key. Against the
+stand-in, it passes a stand-in that repairs the boards and fails one that hands them back
+unchanged (559–998px over), one that loses their words, writes 9px text and loads a script from a
+CDN.
 
 ## In other browsers
 
@@ -335,6 +367,8 @@ Everything above was built and measured in Chromium, and a board is the part of 
 behaviour belongs to the engine. `npm run check:engines` (`scripts/engines.mjs`) walks it in Firefox
 and WebKit — Safari's engine: a board drawing and running its script on the canvas, the editor's
 frame answering a click, a board page growing to its board, reflowing at phone width with its pin on
-its element, and a shared canvas and board page working for a stranger. CI runs it inside
+its element, boards too wide for a phone reflowing to it, boards whose script measured them drawn
+again fitted from the start — in the app, through a link, opened on their own and in a `srcdoc`
+frame — and a shared canvas and board page working for a stranger. CI runs it inside
 Playwright's own image, which has both engines and the libraries they need. What it does not reach:
 printing, which Playwright drives in Chromium alone, and the packaged app on iOS and Android.

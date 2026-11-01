@@ -34,20 +34,36 @@
  * (`frame.ts`) and by a shared link (`adapters/share/boards.ts`) — and run
  * there. So it reaches nothing outside its own body, not even a constant of
  * this file, and it touches the document through `globalThis`, because this
- * package is compiled without the DOM's types. Returns how many styles it set.
+ * package is compiled without the DOM's types. Returns what it changed, as
+ * `[place, property, value]` — `fitCss` turns that into a stylesheet.
  */
-export function fitBoard(): number {
+export function fitBoard(): [string, string, string][] {
   const g = globalThis as any;
   const doc = g.document;
   const root = doc && doc.documentElement;
-  if (!root || !doc.body || !root.clientWidth) return 0;
+  if (!root || !doc.body || !root.clientWidth) return [];
   const screen = root.clientWidth;
   const over = (): number => root.scrollWidth - root.clientWidth;
-  let touched = 0;
+  /*
+   * What was changed, by where: the element's place as child indices down from
+   * the body (`0.3.2`, the body itself ''). A board whose scripts measured the
+   * layout before any of this — a chart drawn to its box's width, columns
+   * sized from the window — is drawn a second time with these as a stylesheet
+   * from the start, so its scripts measure the layout that fits.
+   */
+  const changed = new Map<string, [string, string, string]>();
+  const pathOf = (el: any): string => {
+    const steps: number[] = [];
+    for (let node = el; node && node !== doc.body && node.parentElement; node = node.parentElement) {
+      steps.unshift(Array.prototype.indexOf.call(node.parentElement.children, node));
+    }
+    return steps.join('.');
+  };
   const set = (el: any, prop: string, value: string): void => {
     if (el.style.getPropertyValue(prop) === value && el.style.getPropertyPriority(prop) === 'important') return;
     el.style.setProperty(prop, value, 'important');
-    touched += 1;
+    const path = pathOf(el);
+    changed.set(`${path} ${prop}`, [path, prop, value]);
   };
   /** Inside a box that scrolls or clips: what overflows there is the board's own business. */
   const boxed = (el: any): boolean => {
@@ -170,7 +186,40 @@ export function fitBoard(): number {
     }
   }
   if (over() > 1) set(doc.body, 'overflow-wrap', 'anywhere');
-  return touched;
+  return Array.from(changed.values());
+}
+
+/**
+ * Rules `fitBoard` wrote, as a stylesheet a board can carry from its first
+ * line — so its scripts lay it out already fitted.
+ *
+ * Rules arrive from places a stranger can write: the window's name in a
+ * shared board or a downloaded file, a message from a frame running somebody's
+ * code. So nothing passes that `fitBoard` could not have written itself: one
+ * of its own properties; a value of letters, digits, spaces, brackets, commas,
+ * dots, percent and hyphens — no colon, quote, semicolon, brace or backslash,
+ * so no second declaration and no way out of the rule — calling no function
+ * but the three it writes, so no `url()`; and a place made of child indices.
+ * Self-contained like `fitBoard`, because it travels the same way.
+ */
+export function fitCss(rules: unknown): string {
+  const props = ' grid-template-columns grid-template-areas grid-area flex-wrap display overflow-x white-space'
+    + ' transform margin-left margin-right left right position order max-width min-width'
+    + ' box-sizing height min-height gap flex-direction overflow-wrap ';
+  if (!Array.isArray(rules)) return '';
+  const out: string[] = [];
+  for (const rule of rules.slice(0, 2000)) {
+    if (!Array.isArray(rule) || rule.length !== 3) continue;
+    const [path, prop, value] = rule.map(String);
+    if (!/^(\d{1,4}(\.\d{1,4}){0,40})?$/.test(path)) continue;
+    if (props.indexOf(` ${prop} `) < 0) continue;
+    if (!/^[a-z0-9 ().,%-]{1,120}$/i.test(value)) continue;
+    // The functions it writes, and no other — no `url()`, no `expression()`.
+    if ((value.match(/[a-z-]+\s*\(/gi) || []).some((call) => !/^(repeat|minmax|min)\($/i.test(call.replace(/\s+/g, '')))) continue;
+    const selector = path ? `body>${path.split('.').map((at) => `:nth-child(${Number(at) + 1})`).join('>')}` : 'body';
+    out.push(`${selector}{${prop}:${value}!important}`);
+  }
+  return out.join('\n');
 }
 
 /**
@@ -201,15 +250,86 @@ const FIT_MARK = 'data-kolibri-fit';
 const VIEWPORT = `<meta name="viewport" content="width=device-width, initial-scale=1" ${FIT_MARK}>`;
 
 /**
- * `fitBoard` as a script a document carries on its own: run once drawn, once
- * more when the board's own scripts have had a moment to add to it, and on
- * every resize — a phone turned on its side. Marked, because a document that
- * leaves with it — a download — may come back through *Import HTML…*, and the
- * board it becomes should say what its author wrote, not what we added.
+ * What a document carries to fit itself, with no app around it: a shared
+ * board, a downloaded file. Run once drawn, once more when the board's own
+ * scripts have had a moment to add to it, and on every resize — a phone
+ * turned on its side.
+ *
+ * A board with scripts of its own, or a `<canvas>`, may have measured itself
+ * before it was fitted: a chart drawn to the width its box had, then shrunk
+ * as a picture; columns sized from the window once. Such a board is loaded
+ * once more, with what `fitBoard` changed applied as a stylesheet before
+ * anything of the board runs, so its scripts measure the layout it will be
+ * shown in. The rules ride across the reload in the window's name, the one
+ * thing a sandboxed frame keeps across a reload — an address would show in a
+ * downloaded file's address bar, and a board reading its own `#hash` would
+ * find ours in it. The name is signed with the document, so a tab that goes
+ * on to another board does not bring the first one's rules.
+ *
+ * Once, and never in a loop: a load that is not a fresh navigation — our
+ * reload, the reader's, the back button — does not ask again, whether or not
+ * the rules arrived with it.
  */
-export function fitScript(): string {
-  const source = fitBoard.toString().replace(/<\/script/gi, '<\\/script');
-  return `<script ${FIT_MARK}>(function(fit){var run=function(){try{fit()}catch(e){}};addEventListener('load',function(){run();setTimeout(run,600)});addEventListener('resize',run)})(${source});</script>`;
+export function fitInPlace(fit: () => [string, string, string][], css: (rules: unknown) => string, sign: string): void {
+  const g = globalThis as any;
+  const doc = g.document;
+  const key = `kolibri-fit:${sign}:`;
+  let done = false;
+  try {
+    const name = String(g.name || '');
+    if (name.indexOf(key) === 0) {
+      done = true;
+      const style = doc.createElement('style');
+      style.setAttribute('data-kolibri-fit', '');
+      style.textContent = css(JSON.parse(name.slice(key.length)));
+      (doc.head || doc.documentElement).appendChild(style);
+    }
+    const entry = g.performance && g.performance.getEntriesByType ? g.performance.getEntriesByType('navigation')[0] : null;
+    if (!entry || entry.type !== 'navigate') done = true;
+  } catch {
+    done = true;
+  }
+  /** The board draws or lays out in script: a canvas, or a script that is not one of ours. */
+  const scripted = (): boolean => {
+    if (doc.querySelector('canvas')) return true;
+    const all = doc.scripts;
+    for (let at = 0; at < all.length; at += 1) {
+      if (!all[at].hasAttribute('data-kolibri-fit') && !all[at].hasAttribute('data-kolibri')) return true;
+    }
+    return false;
+  };
+  const run = (): void => {
+    try {
+      const rules = fit();
+      if (done || !rules.length || !scripted()) return;
+      done = true;
+      g.name = key + JSON.stringify(rules);
+      g.location.reload();
+    } catch { /* the board as written, then */ }
+  };
+  g.addEventListener('load', () => { run(); g.setTimeout(run, 600); });
+  g.addEventListener('resize', run);
+}
+
+/**
+ * A short signature of a document, so rules written for one are applied to
+ * no other. Not a secret and not a defence — `fitCss` is that — only a name.
+ */
+function signature(html: string): string {
+  let hash = 5381;
+  for (let at = 0; at < html.length; at += 1) hash = ((hash * 33) ^ html.charCodeAt(at)) >>> 0;
+  return `${hash.toString(36)}${html.length.toString(36)}`;
+}
+
+/**
+ * `fitInPlace` as a script a document carries, with what it needs handed in
+ * as source. Marked, because a document that leaves with it — a download —
+ * may come back through *Import HTML…*, and the board it becomes should say
+ * what its author wrote, not what we added.
+ */
+export function fitScript(sign = ''): string {
+  const source = (fn: (...args: any[]) => unknown): string => fn.toString().replace(/<\/script/gi, '<\\/script');
+  return `<script ${FIT_MARK}>(${source(fitInPlace)})(${source(fitBoard)}, ${source(fitCss)}, ${JSON.stringify(sign)});</script>`;
 }
 
 /** A document without what `withFit` added — what *Import HTML…* keeps of a download. */
@@ -223,5 +343,5 @@ export function stripFitScript(html: string): string {
 export function withFit(html: string): string {
   const clean = stripFitScript(html);
   const viewport = /<meta[^>]+name\s*=\s*["']?viewport/i.test(clean) ? '' : VIEWPORT;
-  return intoHead(clean, viewport + fitScript());
+  return intoHead(clean, viewport + fitScript(signature(clean)));
 }

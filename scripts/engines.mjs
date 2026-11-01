@@ -15,6 +15,10 @@
  *   - at phone width it reflows, and its pin sits on what it was put on;
  *   - boards too wide for a phone, four ways — fixed columns, placed by position, a line that
  *     never wraps, a layout of display: table — reflow to it, in the app and through a shared link;
+ *   - boards whose script measured them before they were fitted — a chart drawn to its box, a
+ *     bar sized from its box — are drawn again, fitted from the start: in the app, in a shared
+ *     link's frame, opened on their own as a downloaded board page is, and in a `srcdoc` frame
+ *     as a downloaded canvas holds them;
  *   - a shared canvas and a shared board page work for a stranger.
  *
  * Run against a seeded instance, like the smoke walkthrough:
@@ -46,6 +50,45 @@ ${Array.from({ length: 8 }, (_, at) => `<div style="padding: 12px; border: 1px s
 ${Array.from({ length: 4 }, (_, at) => `<div style="display: table-cell; padding: 8px">Cell ${at + 1}</div>`).join('')}</div></div>`),
 };
 const CRAMPED = WIDE['a grid of eight fixed columns'];
+/**
+ * Boards too wide for a phone whose script measures them as they load: once
+ * fitted afterwards, the chart is a picture shrunk to the width and the bar
+ * shows a share of the wrong whole. Fitted from the start, both come out right.
+ */
+const SCRIPTED = {
+  'a chart drawn to its box': doc(`<div id="t" style="display: grid; grid-template-columns: repeat(3, 400px); gap: 12px">
+<div><canvas id="c" height="160"></canvas></div><div>Second</div><div>Third</div></div>
+<script>const c = document.getElementById('c'); c.width = c.parentElement.clientWidth;
+const g = c.getContext('2d'); g.fillStyle = '#2f6fed'; [40, 90, 60, 120].forEach((v, i) => g.fillRect(8 + i * c.width / 4, 150 - v, c.width / 4 - 16, v));</script>`),
+  'a bar sized from its box': doc(`<div id="t" style="width: 1200px; background: #e8eaee"><div id="fill" style="height: 16px; background: #2f6fed"></div></div>
+<p>Sixty per cent done.</p><script>document.getElementById('fill').style.width = Math.round(document.getElementById('t').clientWidth * 0.6) + 'px';</script>`),
+};
+/** In the board: whether what its script drew matches what is shown — read in the page, so self-contained. */
+const redrawn = () => {
+  const t = document.getElementById('t');
+  if (!t) return null;
+  const root = document.documentElement;
+  const cut = Math.max(root.scrollWidth - root.clientWidth, Math.round(t.getBoundingClientRect().right - root.clientWidth));
+  const c = document.getElementById('c');
+  const fill = document.getElementById('fill');
+  if (c) {
+    const shown = Math.round(c.getBoundingClientRect().width);
+    return { cut, drawn: c.width, shown, ok: cut <= 1 && Math.abs(c.width - shown) <= 2 };
+  }
+  if (!fill) return null;
+  const part = Math.round((fill.getBoundingClientRect().width / t.getBoundingClientRect().width) * 100) / 100;
+  return { cut, part, ok: cut <= 1 && Math.abs(part - 0.6) < 0.05 };
+};
+/** Ask `redrawn` until it holds or time is up — the second drawing comes a moment after the first. */
+async function untilRedrawn(page) {
+  let state = null;
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    state = await fromFrames(page, redrawn, 2);
+    if (state?.ok) break;
+    await page.waitForTimeout(250);
+  }
+  return state;
+}
 const results = [];
 let failed = 0;
 
@@ -182,6 +225,17 @@ async function walk(name) {
         `${what}, too wide for a phone, reflows to it at its own size (${JSON.stringify(state)})`);
     }
 
+    // Boards whose script measured them: drawn again, fitted from the start.
+    const scripted = [];
+    for (const [what, html] of Object.entries(SCRIPTED)) {
+      const id = await make(what, html);
+      scripted.push([what, id]);
+      await phone.goto(`${base}/pages/${id}`);
+      await phone.waitForSelector('.board-sheet iframe', { timeout: 10000 });
+      const state = await untilRedrawn(phone);
+      check(name, !!state?.ok, `${what}, measured by its script, is drawn again to fit the phone (${JSON.stringify(state)})`);
+    }
+
     // A stranger with the links.
     const share = (page) => desk.evaluate(async ([ws, id]) => {
       const made = await (await fetch(`/api/workspaces/${ws}/shares`, {
@@ -204,6 +258,22 @@ async function walk(name) {
     const sharedFit = await fromFrames(stranger, () => (document.getElementById('t')
       ? document.documentElement.scrollWidth - document.documentElement.clientWidth : null));
     check(name, sharedFit !== null && sharedFit <= 1, `a shared board too wide for a phone fits it too (${sharedFit}px cut)`);
+    // The same, with no app around it: shared, on its own as a downloaded board
+    // page opens, and in a `srcdoc` frame as a downloaded canvas holds it.
+    for (const [what, id] of scripted) {
+      const token = await share(id);
+      await stranger.goto(`${base}/s/${token}`);
+      const framed = await untilRedrawn(stranger);
+      const board = await stranger.evaluate(() => document.querySelector('iframe')?.getAttribute('src') ?? null);
+      await stranger.goto(`${base}${board}`);
+      const alone = await untilRedrawn(stranger);
+      const source = await (await fetch(`${base}${board}`)).text();
+      const quoted = source.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      await stranger.setContent(`<!doctype html><body style="margin: 0"><iframe sandbox="allow-scripts allow-popups" srcdoc="${quoted}" style="width: 100%; height: 700px; border: 0"></iframe></body>`);
+      const held = await untilRedrawn(stranger);
+      check(name, !!framed?.ok && !!alone?.ok && !!held?.ok,
+        `and ${what}, shared, opened on its own and held in a srcdoc frame (${JSON.stringify([framed, alone, held])})`);
+    }
   } catch (error) {
     check(name, false, `stopped: ${String(error?.message ?? error).split('\n')[0]}`);
   } finally {
