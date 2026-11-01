@@ -1488,6 +1488,47 @@ await step('a board page grows to its board', async () => {
 });
 
 /**
+ * A shared canvas shows a stranger its boards, scripts running.
+ *
+ * Two policies, one inside the other: the share document is the app's, and
+ * each board inside it is served from its own URL under the board frame's —
+ * sandboxed, framed only by this origin. A browser is the only thing that
+ * applies both at once, so a `DENY` left on the inner one, or a frame the outer
+ * one refuses, gives the stranger an empty box while every server test passes.
+ * Locale-free: the link is made through the API and the board read by its id.
+ */
+await step('a shared canvas shows a stranger its boards', async () => {
+  const made = await page.evaluate(async () => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const pages = await (await fetch(`/api/workspaces/${ws}/pages?limit=500`, { credentials: 'include' })).json();
+    const canvas = (pages.items ?? pages).find((row) => row.format === 'canvas');
+    const share = await (await fetch(`/api/workspaces/${ws}/shares`, {
+      method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ kind: 'page', page_id: canvas.id }),
+    })).json();
+    return { token: share.token, id: share.id };
+  });
+  if (!made.token) throw new Error('no share link was made for the canvas');
+  const stranger = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  try {
+    const tab = await stranger.newPage();
+    await tab.goto(`${base}/s/${made.token}`, { waitUntil: 'networkidle' });
+    let total = null;
+    for (let tries = 0; tries < 20 && !total; tries++) {
+      for (const frame of tab.frames()) {
+        total = total ?? await frame.evaluate(() => document.getElementById('total')?.textContent ?? null).catch(() => null);
+      }
+      if (!total) await tab.waitForTimeout(250);
+    }
+    if (!total) throw new Error('the stranger saw the shared canvas without a working board in it');
+    console.log('     a stranger reads the pipeline at', total);
+  } finally {
+    await stranger.close();
+    await page.evaluate(async (id) => { await fetch(`/api/shares/${id}`, { method: 'DELETE', credentials: 'include' }); }, made.id);
+  }
+});
+
+/**
  * Selecting a passage in a page leaves the passage selected.
  *
  * A regression test for something no unit test can see. Selecting text sets

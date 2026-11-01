@@ -120,6 +120,12 @@ export const LIMITS = {
    * row — and because nobody reports five bugs a minute by hand.
    */
   intake: { burst: 5, everySeconds: 120 },
+  /**
+   * The boards inside a shared canvas or board page, each a request of its own.
+   * Read-only and as cheap as the page around them, so generous: a reader
+   * scrolling a canvas of a dozen boards twice should never meet it.
+   */
+  shareFrame: { burst: 60, everySeconds: 2 },
 } as const satisfies Record<string, Limit>;
 
 function take(key: string, limit: Limit, now: number): boolean {

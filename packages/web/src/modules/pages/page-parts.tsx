@@ -559,7 +559,7 @@ function subtree(page: Page): Page[] {
 }
 
 /** Hand a blob to the browser as a file. */
-function download(text: string, mime: string, name: string): void {
+export function download(text: string, mime: string, name: string): void {
   const url = URL.createObjectURL(new Blob([text], { type: `${mime};charset=utf-8` }));
   const link = document.createElement('a');
   link.href = url;
@@ -572,7 +572,7 @@ function download(text: string, mime: string, name: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-const fileName = (page: Page, extension: string): string =>
+export const fileName = (page: Page, extension: string): string =>
   `${(page.title || 'page').replace(/[^\w\d -]+/g, '').trim() || 'page'}.${extension}`;
 
 /**

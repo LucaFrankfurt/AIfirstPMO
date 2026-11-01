@@ -10,7 +10,7 @@
  * The token in the URL is the whole of the authorisation, so this file is
  * deliberately narrow: it reads one row, renders it, and offers nothing else.
  */
-import { escapeHtml, htmlOutline, isDoneGroup, pageResolver, renderMarkdown, sanitizeHtml } from '@kolibri/shared';
+import { escapeHtml, htmlOutline, isBoardFormat, isDoneGroup, pageResolver, renderMarkdown, sanitizeHtml, type PageFormat } from '@kolibri/shared';
 import { all, get, nextSeq, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { translatorFor } from '../../../kernel/i18n/i18n.ts';
 import { createNotification } from '../../../modules/notifications/notify.ts';
@@ -19,6 +19,11 @@ import { uid } from '../../../kernel/platform/ids.ts';
 import { byAddress, enforce, LIMITS } from '../../../kernel/identity/ratelimit.ts';
 import { readBody, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { readFilters, tasksMatching } from '../../../modules/work/viewquery.ts';
+import { buildFrameCsp } from '../../../kernel/platform/csp.ts';
+import { boardDocument, sharedBoard, sharedBoards } from '../boards.ts';
+
+/** The policy a shared board is served under: the board frame's, opening its links itself. */
+const SHARE_FRAME_CSP = buildFrameCsp({ popups: true });
 
 /** The shared rule, taking whatever a `Row` column turns out to hold. */
 const escape = (text: unknown): string => escapeHtml(String(text ?? ''));
@@ -104,6 +109,17 @@ function document_(title: string, body: string, workspace: string, writable = fa
     margin-top: 22px; font: inherit; font-weight: 600; color: #fff; background: var(--accent);
     border: 0; border-radius: 8px; padding: 10px 18px; cursor: pointer;
   }
+  /* Boards: each one framed, as wide as the document allows — which is wider
+     than prose, because a board was designed at a width — and reflowing below
+     it on a phone, as its author's own styles say. */
+  main:has(.board) { max-width: 1280px; }
+  .board { margin: 0 0 22px; }
+  .board figcaption { font-size: 13px; color: var(--muted); margin: 0 0 6px; }
+  .board iframe { display: block; width: 100%; max-height: 85vh; border: 1px solid var(--line); border-radius: 10px; background: #fff; }
+  .board.single iframe { height: 85vh; }
+  .board-note { margin: 0 0 22px; padding: 12px 14px; border-radius: 8px; white-space: pre-wrap;
+    background: color-mix(in srgb, var(--warn) 12%, var(--bg)); }
+  @media print { .board iframe { max-height: none; break-inside: avoid; } }
   .note-box { margin-top: 40px; border-top: 1px solid var(--line); padding-top: 8px; }
   .note-box h2 { font-size: 17px; }
   /* A note box is for writing in, not for printing. */
@@ -219,7 +235,9 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
    * shadows a `page-…` target.
    */
   const written = (row: Row): string =>
-    (row.format === 'html'
+    // A canvas or a board page is its boards, framed — never its text, which is empty.
+    (isBoardFormat(row.format as PageFormat) ? sharedBoards(String(share.token), row)
+      : row.format === 'html'
       // `refs.pageHref` here too, so a `[[…]]` written inside an HTML page
       // resolves to the section further down exactly as one in a markdown page
       // does — the rule is about the syntax, not about the format around it.
@@ -245,7 +263,7 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
     ? get<Row>(`SELECT name, kind FROM page_statuses WHERE id = ? AND deleted_at IS NULL`, page.status_id)
     : null;
   const unfinished = rung && rung.kind !== 'final'
-    ? `<p class="status-notice">${escape(String(rung.name))} — this text has not been signed off.</p>`
+    ? `<p class="status-notice">${escape(String(rung.name))} — this ${isBoardFormat(page.format as PageFormat) ? 'page' : 'text'} has not been signed off.</p>`
     : '';
 
   return [
@@ -460,6 +478,37 @@ export function registerShareRoutes(router: Router): void {
     run(`UPDATE shares SET views = views + 1, last_seen_at = ? WHERE id = ?`, Date.now(), share.id);
 
     return html(ctx, document_(String(share.name || workspace?.name || 'Kolibri'), body, String(workspace?.name ?? 'Kolibri'), share.kind === 'intake'));
+  });
+
+  /**
+   * One board of a shared page, served on its own for the share document to frame.
+   *
+   * Under the board frame's policy rather than the app's — `sandbox`, an opaque
+   * origin, no network — and framed only by this origin. A stranger who opens
+   * the URL directly gets the same sandbox in a tab of its own.
+   */
+  router.get('/s/:token/boards/:board', async (ctx: Ctx) => {
+    // Its own bucket: a canvas of eight boards is nine requests per reader,
+    // and those should not use up the allowance for opening the link at all.
+    enforce(ctx, byAddress(ctx, LIMITS.shareFrame, 'share-board'));
+    const share = get<Row>(`SELECT * FROM shares WHERE token = ? AND deleted_at IS NULL AND kind = 'page'`, ctx.params.token);
+    if (!share || (share.expires_at && Number(share.expires_at) < Date.now())) {
+      return html(ctx, gone('That link does not exist, or it was turned off.'), 404);
+    }
+    const board = sharedBoard(share, ctx.params.board);
+    if (!board) return html(ctx, gone('That board is not part of this link.'), 404);
+    const body = await boardDocument(board);
+    ctx.res.setHeader('content-security-policy', SHARE_FRAME_CSP);
+    ctx.res.removeHeader('x-frame-options');
+    ctx.res.writeHead(200, {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'referrer-policy': 'no-referrer',
+      'x-robots-tag': 'noindex, nofollow',
+      'x-content-type-options': 'nosniff',
+    });
+    ctx.res.end(body);
+    return undefined;
   });
 
   /**

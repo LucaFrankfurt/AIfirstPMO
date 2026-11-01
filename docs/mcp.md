@@ -544,7 +544,7 @@ is inclusive to the end of the day it names.
 | `create_project` | includes the default workflow states and labels |
 | `create_cycle` | sprint with start/end dates, for one project, several, or all |
 | `create_module` | a milestone with a lead and a target date, for one project, several, or all |
-| `create_page_from_template` | copies a template into a new page — the same thing the interface's button does, and a copy rather than a link |
+| `create_page_from_template` | copies a template into a new page — the same thing the interface's button does, and a copy rather than a link. In the template's format; a canvas or board page template gives the new page copies of its boards (answered as `artboards`), without their comments or history |
 | `add_artboard` / `update_artboard` / `delete_artboard` | a board on a canvas page: a whole, self-contained HTML document — inline styles and scripts run, nothing is fetched, and a picture is uploaded with `upload_attachment` and named by its `/files/…` url — or a sticky note with `kind: "note"`. Placed to the right of the others unless given `x`/`y`. `update_artboard` replaces the HTML whole, so read it first: people restyle boards by hand. See [`canvas.md`](canvas.md) |
 | `comment_page` | markdown on a page's discussion; on a canvas, `artboard` (and `x`, `y`) pins it to a board |
 | `suggest_page_edit` | proposes replacing a quoted passage of a page — or of a board's HTML — instead of changing it; a person accepts or rejects it. The quote has to appear exactly once |

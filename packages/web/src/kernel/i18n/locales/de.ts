@@ -2203,6 +2203,8 @@ export const de: Catalogue = {
   'board.emptyTitle': 'Ein leeres Board',
   'board.emptyHint': 'Ein Board ist eine gestaltete, interaktive Seite für sich. Starte mit einer Vorlage, bring ein mit Claude erstelltes Artefakt mit oder beschreibe, was es zeigen soll.',
   'board.emptyReader': 'Auf diesem Board ist noch nichts.',
+  'board.fitScreen': 'An Bildschirm anpassen',
+  'board.asDesigned': 'Wie entworfen',
   'canvas.tools': 'Canvas-Werkzeuge',
   'canvas.addBoard': 'Board hinzufügen',
   'canvas.addNote': 'Notiz',

@@ -4316,6 +4316,8 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .board-stage { grid-column: 1; grid-row: 2; position: relative; overflow: auto; padding: 24px; }
 .board-sheet { position: relative; margin: 0 auto; background: #ffffff; box-shadow: var(--shadow); }
 .board-sheet-inner { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+/* Reflowed to the screen: as wide as the stage, so no shadow standing off its sides. */
+.board-sheet.is-fitted { box-shadow: none; outline: 1px solid var(--line); }
 .board-frame { display: block; width: 100%; height: 100%; }
 /* The pin tool: one click on the board is a place, not a press on its buttons. */
 .board-pin-layer {

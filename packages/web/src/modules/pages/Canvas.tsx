@@ -132,6 +132,8 @@ function NoteEditor({ board, label, onDone }: { board: Artboard; label: string; 
 
 /** How long a PDF waits for boards that never say they are drawn, before printing anyway. */
 const PRINT_PATIENCE_MS = 8000;
+/** The tallest page a board prints as — the server's ceiling for a board's frame. */
+const PRINT_TALLEST = 8000;
 
 /**
  * The canvas as a PDF: one page per board, each page exactly the board's size.
@@ -148,19 +150,34 @@ const PRINT_PATIENCE_MS = 8000;
  * invisible: a frame the browser counts as off screen may be held back, and a
  * board drawn into a print that has already been taken is a blank page.
  */
-export function CanvasPrint({ boards, title, onDone }: { boards: Artboard[]; title: string; onDone: () => void }) {
+export function CanvasPrint({ boards, title, fit = false, onDone }: {
+  boards: Artboard[];
+  title: string;
+  /**
+   * Print each board as tall as it is rather than as tall as its frame — a
+   * board page's PDF, where the board is a document. Measured here, at the
+   * board's own width, so it does not matter how the screen showed it.
+   */
+  fit?: boolean;
+  onDone: () => void;
+}) {
   const ordered = useMemo(() => [...boards].sort((a, b) => a.y - b.y || a.x - b.x), [boards]);
   const waiting = useRef(new Set(ordered.filter((board) => board.kind === 'html').map((board) => board.id)));
   const printed = useRef(false);
+  const [heights, setHeights] = useState<Record<string, number>>({});
+  const [ready, setReady] = useState(!waiting.current.size);
 
   useEffect(() => {
     const done = () => onDone();
     addEventListener('afterprint', done);
     const fallback = setTimeout(() => go(), PRINT_PATIENCE_MS);
-    if (!waiting.current.size) go();
     return () => { removeEventListener('afterprint', done); clearTimeout(fallback); };
     // Once, for the boards there were when the export was asked for.
   }, []);
+
+  // After the render that carries the measured heights, so each page is sized
+  // to its board before the dialogue takes its picture.
+  useEffect(() => { if (ready) go(); }, [ready]);
 
   function go(): void {
     if (printed.current) return;
@@ -174,18 +191,24 @@ export function CanvasPrint({ boards, title, onDone }: { boards: Artboard[]; tit
 
   const drawn = (id: string) => {
     waiting.current.delete(id);
-    if (!waiting.current.size) go();
+    if (!waiting.current.size) setReady(true);
   };
+  const measured = (id: string, floor: number, height: number) => {
+    if (printed.current) return;
+    setHeights((now) => ({ ...now, [id]: Math.min(PRINT_TALLEST, Math.max(floor, Math.ceil(height))) }));
+  };
+  const heightOf = (board: Artboard): number => heights[board.id] ?? board.h;
 
   return createPortal(
     <div className="canvas-print" aria-hidden="true">
-      <style>{ordered.map((board, at) => `@page board-${at} { size: ${board.w}px ${board.h}px; margin: 0; }`).join('\n')}</style>
+      <style>{ordered.map((board, at) => `@page board-${at} { size: ${board.w}px ${heightOf(board)}px; margin: 0; }`).join('\n')}</style>
       {ordered.map((board, at) => (
-        <section key={board.id} className="canvas-print-page" style={{ page: `board-${at}`, width: board.w, height: board.h }}>
+        <section key={board.id} className="canvas-print-page" style={{ page: `board-${at}`, width: board.w, height: heightOf(board) }}>
           {board.kind === 'html' ? (
             <ArtboardFrame
               source={board.content ?? ''} mode="play" title={board.title || title}
               className="canvas-print-frame" onRendered={() => drawn(board.id)}
+              onSize={fit ? (height) => measured(board.id, board.h, height) : undefined}
             />
           ) : (
             <div className={cn('canvas-note', `is-${board.color ?? 'yellow'}`)} style={{ width: board.w, height: board.h }}>
@@ -204,10 +227,12 @@ type Drag =
   | { kind: 'move'; id: string; start: { x: number; y: number }; origin: Box; moved: boolean }
   | { kind: 'resize'; id: string; start: { x: number; y: number }; origin: Box };
 
-export function CanvasView({ page, canWrite, thread, ai = null }: {
+export function CanvasView({ page, canWrite, thread, ai = null, printRequest = 0 }: {
   page: Page;
   canWrite: boolean;
   thread: (props: ThreadProps) => ReactNode;
+  /** Bumped by the page menu's *Download → PDF*: the print layer lives here, with the boards. */
+  printRequest?: number;
   /** The model, when this server has one and the workspace has it switched on. */
   ai?: CanvasAi | null;
 }) {
@@ -230,6 +255,7 @@ export function CanvasView({ page, canWrite, thread, ai = null }: {
   const [noteEditing, setNoteEditing] = useState<string | null>(null);
   const [pinning, setPinning] = useState(false);
   const [printing, setPrinting] = useState(false);
+  useEffect(() => { if (printRequest) setPrinting(true); }, [printRequest]);
   const [opening, setOpening] = useState<'describe' | 'import' | null>(null);
   const aiLabels = useAiLabels(ai);
   const [panel, setPanel] = useState(false);

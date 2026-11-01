@@ -22,13 +22,22 @@
  * chase its own tail, growing by the margin each time it is measured; growing
  * by exactly what it just grew by is that signature, and stops it.
  *
+ * **Fitted to a phone, when it would otherwise be a stamp.** Scaled to fit, a
+ * 1280px board on a 390px screen is drawn at a third of its size. Where the
+ * scale would fall below `FIT_BELOW`, the page draws the board at the screen's
+ * width instead — a board written to be responsive, as Claude writes them,
+ * reflows the way the same artifact does on claude.ai — and offers *As
+ * designed* to go back. Pins are points in the board's own pixels and mean
+ * nothing on a reflowed board, so that view hides them, and the comment tool
+ * and a picked comment both go back to the designed one first.
+ *
  * **Working, not a picture.** On a canvas a board is something to move, and a
  * press on it picks it up. Here nothing moves, so the board is live: its
  * buttons, tabs and links work as they do in *Try it*. Pinning a comment is a
  * mode, a layer over the board that takes the one click.
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { isPin, orderKey, type Artboard, type Page, type Pin } from '@kolibri/shared';
+import { isPin, orderKey, type Page, type Pin } from '@kolibri/shared';
 import { byOrder, create } from '../../kernel/sync/mutations';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useI18n, useT } from '../../kernel/i18n/i18n';
@@ -44,6 +53,12 @@ import { DraftDialog, ImportDialog, useAiLabels, type CanvasAi, type Drafted } f
 /** The tallest a board page grows to — the server's ceiling for a board's frame. */
 const MAX_HEIGHT = 8000;
 
+/** Below this scale the page offers — and on first sight uses — the board at the screen's width. */
+const FIT_BELOW = 0.6;
+
+/** The shortest a reflowed board is drawn before it has measured itself. */
+const FIT_FLOOR = 160;
+
 /**
  * The page's frame height, grown to what the board says it needs.
  *
@@ -51,14 +66,13 @@ const MAX_HEIGHT = 8000;
  * height last *set*, not the one last rendered: two measurements can arrive
  * between renders.
  */
-function useFittedHeight(board: Artboard | null): [number, (reported: number) => void] {
-  const floor = board?.h ?? 0;
+function useFittedHeight(floor: number, source: string | undefined): [number, (reported: number) => void] {
   const [height, setHeight] = useState(floor);
   const current = useRef(floor);
   const growth = useRef<number | null>(null);
 
-  // A new source is a new measurement, and the guard starts over with it.
-  useEffect(() => { growth.current = null; }, [board?.content]);
+  // A new source or a new layout is a new measurement, and the guard starts over with it.
+  useEffect(() => { growth.current = null; }, [source, floor]);
   useEffect(() => {
     if (current.current >= floor) return;
     current.current = floor;
@@ -98,7 +112,7 @@ function useWidth(): [(element: HTMLElement | null) => void, number] {
   return [ref, width];
 }
 
-export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, onRename, thread }: {
+export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, onRename, thread, printRequest = 0 }: {
   page: Page;
   canWrite: boolean;
   /** The model, when this server has one and the workspace has it switched on. */
@@ -109,6 +123,8 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
   /** Renaming the board renames the page: one title, the page's. */
   onRename: (title: string) => void;
   thread: (props: ThreadProps) => ReactNode;
+  /** Bumped by the page menu's *Download → PDF*. */
+  printRequest?: number;
 }) {
   const t = useT();
   const { locale } = useI18n();
@@ -126,8 +142,14 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
   );
 
   const [stageRef, width] = useWidth();
-  const [height, fit] = useFittedHeight(board);
-  const scale = board && width ? Math.min(1, width / board.w) : 1;
+  const designedScale = board && width ? Math.min(1, width / board.w) : 1;
+  // Asked once the screen is known, and left to the reader after that.
+  const [layout, setLayout] = useState<'designed' | 'fit' | null>(null);
+  const shrunk = !!board && !!width && designedScale < 1;
+  const fitted = (layout ?? (designedScale < FIT_BELOW ? 'fit' : 'designed')) === 'fit' && shrunk;
+  const scale = fitted ? 1 : designedScale;
+  const drawnWidth = board ? (fitted ? Math.floor(width) : board.w) : 0;
+  const [height, fit] = useFittedHeight(fitted ? FIT_FLOOR : board?.h ?? 0, board?.content);
 
   const [panel, setPanel] = useState(false);
   const [pinning, setPinning] = useState(false);
@@ -137,6 +159,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
   const [opening, setOpening] = useState<'describe' | 'import' | null>(null);
   const [asking, setAsking] = useState(false);
   const sheet = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (printRequest) setPrinting(true); }, [printRequest]);
 
   // Escape leaves the pin tool, as it does on the canvas.
   useEffect(() => {
@@ -187,7 +210,11 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
 
   const pick = (id: string): void => {
     setActive(id);
-    document.querySelector(`[data-pin="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // A pin is a point on the board as designed, so that is where it is shown.
+    if (fitted) setLayout('designed');
+    requestAnimationFrame(() => {
+      document.querySelector(`[data-pin="${CSS.escape(id)}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    });
   };
 
   return (
@@ -195,7 +222,8 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
       <div className="canvas-toolbar" role="toolbar" aria-label={t('canvas.tools')}>
         <Button
           size="sm" variant={pinning ? 'primary' : 'ghost'} aria-pressed={pinning} disabled={!board}
-          onClick={() => setPinning(!pinning)} title={t('canvas.commentTool')} aria-label={t('canvas.commentTool')}
+          onClick={() => { if (fitted) setLayout('designed'); setPinning(!pinning); }}
+          title={t('canvas.commentTool')} aria-label={t('canvas.commentTool')}
         >
           <Icon name="pin" size={14} /> <span className="hide-sm">{t('canvas.comment')}</span>
         </Button>
@@ -205,6 +233,14 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
           </Button>
         )}
         <span className="flex-1" />
+        {shrunk && (
+          <Button
+            size="sm" variant="ghost" aria-pressed={fitted} onClick={() => setLayout(fitted ? 'designed' : 'fit')}
+            title={fitted ? t('board.asDesigned') : t('board.fitScreen')} aria-label={fitted ? t('board.asDesigned') : t('board.fitScreen')}
+          >
+            <Icon name="fit" size={14} /> <span className="hide-sm">{fitted ? t('board.asDesigned') : t('board.fitScreen')}</span>
+          </Button>
+        )}
         <Button
           size="sm" variant="ghost" disabled={!board || printing} onClick={() => setPrinting(true)}
           title={t('canvas.exportPdf')} aria-label={t('canvas.exportPdf')}
@@ -219,11 +255,11 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
 
       <div ref={stageRef} className="board-stage">
         {board ? (
-          <div className="board-sheet" style={{ width: board.w * scale, height: height * scale }}>
+          <div className={cn('board-sheet', fitted && 'is-fitted')} style={{ width: drawnWidth * scale, height: height * scale }}>
             <div
               ref={sheet}
               className="board-sheet-inner"
-              style={{ width: board.w, height, transform: `scale(${scale})`, '--inverse': 1 / scale } as React.CSSProperties}
+              style={{ width: drawnWidth, height, transform: `scale(${scale})`, '--inverse': 1 / scale } as React.CSSProperties}
             >
               <ArtboardFrame
                 source={board.content ?? ''} mode="play" title={page.title || t('common.untitled')}
@@ -232,7 +268,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
               {pinning && (
                 <button type="button" className="board-pin-layer" aria-label={t('canvas.pinHint')} onClick={pinAt} />
               )}
-              {pins.map((pin) => (
+              {!fitted && pins.map((pin) => (
                 <button
                   key={pin.id}
                   type="button"
@@ -245,7 +281,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
                   {pin.n}
                 </button>
               ))}
-              {pending && (
+              {pending && !fitted && (
                 <span className="canvas-pin is-pending" style={{ left: pending.x, top: pending.y }} aria-hidden="true">+</span>
               )}
             </div>
@@ -293,9 +329,9 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
         </aside>
       )}
 
-      {/* The PDF is the board at the height the page shows it, so nothing below its frame is cut. */}
+      {/* The PDF is the board as designed and as tall as it is, however the screen is showing it. */}
       {printing && board && (
-        <CanvasPrint boards={[{ ...board, h: height }]} title={page.title || t('common.untitled')} onDone={() => setPrinting(false)} />
+        <CanvasPrint boards={[board]} fit title={page.title || t('common.untitled')} onDone={() => setPrinting(false)} />
       )}
 
       {opening === 'describe' && ai && (

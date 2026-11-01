@@ -1899,15 +1899,17 @@ written.
       anywhere. Not started.
 - [ ] **No live cursors.** Edits merge, but nobody sees where anybody else is. The chat's socket
       already carries presence; a canvas is where it would matter most.
-- [ ] **A canvas or a board page cannot be shared by link, exported as a file, or used as a template.** Each of
-      those reads only a page's text, so the menu offers none of them on a canvas rather than
-      producing an empty page and calling it the canvas. The PDF is for reading it elsewhere; it
-      does not come back in.
-- [ ] **A board page scales, it does not reflow.** A 1280px board on a 390px phone is drawn at
-      a third of its size. Drawing it at the screen's width instead would read better for a board
-      written to be responsive, and would move every pin off what it was put on — pins are points
-      in the board's own pixels. A phone-width board (390) reads one to one. A reflowing reading
-      mode that hides pins, or pins anchored to elements rather than points, would settle it.
+- [x] **Share links, downloads and templates carry the boards.** A shared canvas or board page frames
+      each board, served sandboxed from its own URL with only its own page's pictures inlined; a
+      download is one HTML file (a board page's board as its own document, a canvas framing each
+      board); a template's boards are copied into the page made from it, in the app and over MCP.
+      See [`docs/canvas.md`](docs/canvas.md#out-of-the-workspace).
+- [x] **A board page fits a phone.** Below 60% scale it is drawn at the screen's width, reflowing
+      as its own styles say, with *As designed* to go back.
+- [ ] **No pins on a board reflowed to a phone.** Pins are points in the board's own pixels, so the
+      reflowed view hides them and the comment tool switches back to the designed one. Pins
+      anchored to the element they were put on, as well as to a point, would let them follow a
+      reflow — and an edit that moves the element.
 - [ ] **A board drawn by a model arrives whole, after a minute or two.** Nothing is shown while it
       is written and the request cannot be cancelled from the dialog — closing it would still put
       the board down when it came. Streaming the answer into the frame as it arrives is the

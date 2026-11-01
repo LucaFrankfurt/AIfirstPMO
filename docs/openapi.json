@@ -31200,6 +31200,49 @@
           }
         }
       }
+    },
+    "/s/{token}/boards/{board}": {
+      "get": {
+        "operationId": "getSBoardsByBoard",
+        "summary": "GET /s/:token/boards/:board",
+        "description": "Defined in `packages/server/src/adapters/share/routes/share.ts`. Its request and response shapes are not derivable from the registry, so they are not described here — read the handler.",
+        "tags": [
+          "hand-written"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "board",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "See the handler."
+          },
+          "401": {
+            "description": "No credentials, or credentials this server does not accept.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
