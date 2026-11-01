@@ -689,7 +689,11 @@ export function CanvasView({ page, canWrite, thread, ai = null, printRequest = 0
         >
           <Icon name="page" size={14} /> <span className="hide-sm">{t('canvas.pdf')}</span>
         </Button>
-        <Button size="sm" variant={panel ? 'primary' : 'secondary'} aria-pressed={panel} onClick={() => setPanel(!panel)}>
+        <Button
+          size="sm" variant={panel ? 'primary' : 'secondary'} aria-pressed={panel} onClick={() => setPanel(!panel)}
+          // Named on its own: on a phone the word is hidden and the count alone would be its name.
+          aria-label={t('canvas.comments')} title={t('canvas.comments')}
+        >
           <Icon name="chat" size={14} /> <span className="hide-sm">{t('canvas.comments')}</span>
           {pinCount > 0 && <span className="canvas-count">{pinCount}</span>}
         </Button>

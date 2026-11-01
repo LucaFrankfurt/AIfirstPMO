@@ -1906,10 +1906,12 @@ written.
       See [`docs/canvas.md`](docs/canvas.md#out-of-the-workspace).
 - [x] **A board page fits a phone.** Below 60% scale it is drawn at the screen's width, reflowing
       as its own styles say, with *As designed* to go back.
-- [ ] **No pins on a board reflowed to a phone.** Pins are points in the board's own pixels, so the
-      reflowed view hides them and the comment tool switches back to the designed one. Pins
-      anchored to the element they were put on, as well as to a point, would let them follow a
-      reflow — and an edit that moves the element.
+- [x] **Pins on a board reflowed to a phone.** A pin names the element it was put on and where on
+      it; the reflowed board asks the frame where that is now. Pins from before, or from MCP, still
+      show only as designed.
+- [ ] **Pins on a canvas, and from the editor and MCP, carry no element.** Only a board page's pin
+      tool records one. Nothing reflows on a canvas, so nothing is wrong there today; it matters
+      the day a canvas is turned into a board page and read on a phone.
 - [ ] **A board drawn by a model arrives whole, after a minute or two.** Nothing is shown while it
       is written and the request cannot be cancelled from the dialog — closing it would still put
       the board down when it came. Streaming the answer into the frame as it arrives is the
@@ -1920,9 +1922,11 @@ written.
       is for the first instance with a key to say.
 - [ ] **`kolibri doctor --fix` does not compact board bodies.** It folds page bodies only, as it
       does not agenda notes.
-- [ ] **Run in Chromium only.** Safari, Firefox and the packaged app on iOS and Android have not
-      drawn a board; the phone was a Chromium window at phone size with touch. The sandbox, the
-      offline cache and a two-finger pinch are the things most likely to differ.
+- [x] **Firefox and WebKit.** `check:engines` walks boards in both on CI — the sandboxed frame,
+      the editor, board pages, phone width, shared links.
+- [ ] **The packaged app on iOS and Android has not drawn a board**, and printing and the offline
+      cache have been measured in Chromium only. A two-finger pinch on the canvas has never met a
+      real touch screen.
 - [ ] **A board cannot read the workspace.** A live dashboard — a KPI board that stays current —
       would need a channel from the app into the frame, answered with the viewer's own permissions.
       Deliberately later: it is the largest security decision on this list.

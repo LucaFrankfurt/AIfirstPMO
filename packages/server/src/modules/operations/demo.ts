@@ -363,7 +363,9 @@ export function seedDemoData(): boolean {
   }, asAda);
   writeEntity('comment', uid(), {
     workspace_id: ws, page_id: review, author_id: grace, body: 'Can we name the pricing owner here before the board meeting?',
-    anchor: { board: reviewBoard, x: 80, y: 820 }, reactions: {},
+    // On the closing callout, by element as well as by point, so the pin follows it when the page
+    // reflows to a phone: `main`, then its eleventh child.
+    anchor: { board: reviewBoard, x: 80, y: 820, el: 'main:0/div:10', fx: 0.05, fy: 0.5 }, reactions: {},
   }, { workspaceId: ws, actorId: grace, hlc: hlc(), system: true });
 
   const handbook = uid();

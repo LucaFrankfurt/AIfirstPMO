@@ -53,6 +53,16 @@ export interface Pin {
   quote?: string;
   prefix?: string;
   suffix?: string;
+  /**
+   * What the pin was put on, for a board drawn at another width than its own —
+   * a board page reflowed to a phone. The element's steps down from the body
+   * (`main:0/div:10`) and where on its box, as fractions. Absent on a pin put
+   * down before these existed, or over MCP, which then shows only where the
+   * board is drawn as designed.
+   */
+  el?: string;
+  fx?: number;
+  fy?: number;
 }
 
 /** A comment's anchor is a quote on a text page or a pin on a canvas; these tell them apart. */

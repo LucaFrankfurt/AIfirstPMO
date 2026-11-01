@@ -28,9 +28,18 @@ its board; see [Out of the workspace](#out-of-the-workspace). What differs is ho
   **On a phone**, where that would draw it below 60% — a 1280px board on a 390px screen is a third
   of its size — the page draws it at the screen's width instead, so a board written to be
   responsive reflows the way the same artifact does on claude.ai, and offers *As designed* to go
-  back. Pins mean nothing on a reflowed board, so that view hides them, and the comment tool and a
-  picked comment both switch to the designed one first. Measured on an iPhone-sized window: the
-  seeded one-pager drawn 374px wide at its own 16px text, against 35% of it scaled.
+  back. Measured on an iPhone-sized window: the seeded one-pager drawn 374px wide at its own 16px
+  text, against 35% of it scaled.
+- **Pins follow what they were put on.** A pin is a point in the board's own pixels, which means
+  nothing once the board reflows — so a pin also names the element under it, as the steps down from
+  the body (`main:0/div:10`), and where on that element it sat, as fractions of its box. On a
+  reflowed board the frame is asked where those elements are now, and answers again whenever the
+  board reflows. Each step carries its tag, so an edit that moves the element leaves the pin to its
+  point rather than on whatever took its place; a pin without an element — put down before this,
+  or over MCP — is shown only on the designed board, and picking it switches there. Putting a pin
+  down needs the designed board, so the comment tool does too. On a phone the thread covers the
+  board, so picking a comment there puts the thread aside to show the pin. Measured: a pin put on
+  the second heading at 1080px sat on that heading at 374px, and the seeded pin on its callout.
 - **As tall as it is.** The frame measures what it drew and grows to it, down to the board's own
   height and never below, so the page scrolls rather than a window inside it. A board that is its
   frame's height (`100vh`) stays that; one that is its frame's height *plus a margin* would grow by
@@ -282,6 +291,16 @@ proposes a change to a page or a board instead of making it, and `resolve_commen
 ## Not done
 
 In [`TODO.md`](../TODO.md), with the reason for each: web fonts and a fixed set of libraries boards
-may use, live cursors, pins on a board reflowed to a phone, a board drawn by a model shown as it is written rather than when it is done, and the
-browsers and the packaged app nobody has run it in. The model's half was tested against a stand-in
-that answers like the Messages API, not against a real model.
+may use, live cursors, pins on a canvas that know their element too, a board drawn by a model shown
+as it is written rather than when it is done, and the packaged app nobody has run it in. The model's
+half was tested against a stand-in that answers like the Messages API, not against a real model.
+
+## In other browsers
+
+Everything above was built and measured in Chromium, and a board is the part of the app whose
+behaviour belongs to the engine. `npm run check:engines` (`scripts/engines.mjs`) walks it in Firefox
+and WebKit — Safari's engine: a board drawing and running its script on the canvas, the editor's
+frame answering a click, a board page growing to its board, reflowing at phone width with its pin on
+its element, and a shared canvas and board page working for a stranger. CI runs it inside
+Playwright's own image, which has both engines and the libraries they need. What it does not reach:
+printing, which Playwright drives in Chromium alone, and the packaged app on iOS and Android.
