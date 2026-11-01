@@ -46,8 +46,8 @@ export type Where = 'before' | 'after';
 /** Everything the frame may tell the app. */
 export type FrameMessage =
   | { type: 'kolibri:ready' }
-  | { type: 'kolibri:rendered'; rev: number; height?: number }
-  | { type: 'kolibri:size'; rev: number; height: number }
+  | { type: 'kolibri:rendered'; rev: number; height?: number; width?: number }
+  | { type: 'kolibri:size'; rev: number; height: number; width?: number }
   | { type: 'kolibri:located'; rev: number; id: string; el: string | null; fx: number; fy: number }
   | { type: 'kolibri:at'; rev: number; points: { id: string; x: number; y: number }[] }
   | { type: 'kolibri:scroll'; rev: number; x: number; y: number }
@@ -80,10 +80,16 @@ export function readMessage(data: unknown): FrameMessage | null {
       return { type: 'kolibri:ready' };
     case 'kolibri:rendered':
       if (!isIndex(rev)) return null;
-      // How tall the board is, when it was asked: a nicety, dropped when insane.
-      return { type: 'kolibri:rendered', rev, ...(isHeight(message.height) ? { height: message.height } : {}) };
+      // How large the board is, when it was asked: a nicety, dropped when insane.
+      return {
+        type: 'kolibri:rendered', rev,
+        ...(isHeight(message.height) ? { height: message.height } : {}),
+        ...(isHeight(message.width) ? { width: message.width } : {}),
+      };
     case 'kolibri:size':
-      return isIndex(rev) && isHeight(message.height) ? { type: 'kolibri:size', rev, height: message.height } : null;
+      return isIndex(rev) && isHeight(message.height)
+        ? { type: 'kolibri:size', rev, height: message.height, ...(isHeight(message.width) ? { width: message.width } : {}) }
+        : null;
     case 'kolibri:located':
       return isIndex(rev) && isId(message.id) && isFraction(message.fx) && isFraction(message.fy)
         && (message.el === null || isPath(message.el))
@@ -246,6 +252,13 @@ export function runtime(config: RuntimeConfig): void {
     const style = getComputedStyle(document.body);
     return Math.ceil(document.body.getBoundingClientRect().height + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0));
   };
+  /*
+   * How wide the board's content is — more than the frame when its layout
+   * does not fit: a row of cards that does not wrap, a table with no box to
+   * scroll in. A box that scrolls on purpose does not count; that is a board
+   * doing what it meant to.
+   */
+  const measureWidth = (): number => document.documentElement.scrollWidth;
 
   // Drawn: back where the last render was scrolled to, then say so — the app
   // shows this frame in place of the previous one only now, so an edit never
@@ -256,11 +269,12 @@ export function runtime(config: RuntimeConfig): void {
     // A timer rather than an animation frame: a frame the browser counts as off
     // screen — every board being laid out for a PDF — may never be given one.
     setTimeout(() => {
-      post({ type: 'kolibri:rendered', ...(config.fit ? { height: measure() } : {}) });
+      post({ type: 'kolibri:rendered', ...(config.fit ? { height: measure(), width: measureWidth() } : {}) });
       if (!config.fit || typeof ResizeObserver === 'undefined' || !document.body) return;
       // A board's script may draw after load — a chart, a list filled in — and
       // the page around it should grow with it.
       let last = measure();
+      let lastWidth = measureWidth();
       let pending = 0;
       new ResizeObserver(() => {
         // A frame with no size is hidden, not empty: what it would measure now
@@ -270,11 +284,13 @@ export function runtime(config: RuntimeConfig): void {
           pending = 0;
           if (!document.documentElement.clientWidth) return;
           const now = measure();
-          // A reflow moves what pins are on, whether or not the height changed.
+          const wide = measureWidth();
+          // A reflow moves what pins are on, whether or not the size changed.
           placePins();
-          if (Math.abs(now - last) < 2) return;
+          if (Math.abs(now - last) < 2 && Math.abs(wide - lastWidth) < 2) return;
           last = now;
-          post({ type: 'kolibri:size', height: now });
+          lastWidth = wide;
+          post({ type: 'kolibri:size', height: now, width: wide });
         }, 100) as unknown as number;
       }).observe(document.body);
     }, 0);

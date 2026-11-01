@@ -73,7 +73,7 @@ export function ArtboardFrame({
    * for it is what makes the frame measure: a board on a canvas is a window of
    * a fixed size and never needs to.
    */
-  onSize?: (height: number) => void;
+  onSize?: (height: number, width?: number) => void;
   /**
    * Pins to find by what they are on. The frame answers where each one is now
    * through `onPins` — on every render, and whenever the board reflows.
@@ -157,7 +157,7 @@ export function ArtboardFrame({
         if (message.rev !== layer.rev || layer.rev !== rev.current) return;
         setFront(layer.key);
         setLayers((all) => all.filter((one) => one.key === layer.key));
-        if (message.height) latest.current.onSize?.(message.height);
+        if (message.height) latest.current.onSize?.(message.height, message.width);
         sendPins(layer.key);
         latest.current.onRendered?.();
         return;
@@ -169,7 +169,7 @@ export function ArtboardFrame({
         return;
       }
       if (message.type === 'kolibri:size') {
-        latest.current.onSize?.(message.height);
+        latest.current.onSize?.(message.height, message.width);
         return;
       }
       if (message.type === 'kolibri:at') {

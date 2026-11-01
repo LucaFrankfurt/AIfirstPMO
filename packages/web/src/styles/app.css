@@ -4327,6 +4327,14 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .board-sheet-inner .canvas-pin { z-index: 3; }
 /* The hints stay at the bottom of what is on screen while the board scrolls under them. */
 .board-stage .canvas-hint { position: sticky; left: auto; bottom: 16px; transform: none; display: block; width: fit-content; margin: 16px auto 0; }
+/* A board wider than the screen, drawn smaller: said, with the fix beside it. */
+.board-cramped {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  max-width: 720px; margin: 0 auto 12px; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg);
+  color: var(--fg-muted); font-size: 12.5px;
+}
+.board-cramped > span { flex: 1 1 200px; }
 .board-empty {
   max-width: 560px;
   margin: 8vh auto 0;

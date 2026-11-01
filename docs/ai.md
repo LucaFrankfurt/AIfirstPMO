@@ -51,7 +51,12 @@ page that loads Tailwind or Chart.js from a CDN — the first thing a model reac
 empty box. The rules forbid fetching anything and name what to use instead: system fonts, inline
 SVG, CSS. The second decides whether people can keep working on it: the visual editor restyles an
 element through its `style` attribute, so the look is asked for there, not in a stylesheet nobody
-can recolour without writing CSS.
+can recolour without writing CSS. And the board is read on phones: it is asked to reflow at about
+390px — grids as `repeat(auto-fit, minmax(…))`, rows that wrap, wide tables in a scrolling box —
+because a board page shows one that does not fit a phone scaled down to a third of its size. The
+same rule is in the MCP tools' descriptions, which is what an assistant writing boards reads.
+*Make it fit phones*, on a board page too wide for the screen, asks for exactly that of an existing
+board.
 
 An answer is read leniently and checked strictly. A document wrapped in a code fence or a sentence
 is cut out of it; markup without a document around it gets one; a reply with no page in it is an

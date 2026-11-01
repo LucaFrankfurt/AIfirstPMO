@@ -30,6 +30,17 @@ its board; see [Out of the workspace](#out-of-the-workspace). What differs is ho
   responsive reflows the way the same artifact does on claude.ai, and offers *As designed* to go
   back. Measured on an iPhone-sized window: the seeded one-pager drawn 374px wide at its own 16px
   text, against 35% of it scaled.
+- **Never cut off.** Reflowing helps only a board written to reflow. One whose own layout does not —
+  a row of cards that never wraps, a table with no box to scroll in — ran off the side of the
+  phone and was cut there, which is how this was reported. The frame now reports how wide its
+  content is, and when that is wider than the screen the board is drawn at the width it needs (up
+  to its own) and scaled down, the way a phone's browser shows a site never made for it: all of it,
+  smaller, and pinch-zoom still works. Measured on a 427px screen with eight cards of 140px that
+  never wrap: 1228px drawn at 33%, nothing cut, where before 854px of it was. A board's writer sees
+  why it is small and, when the model is switched on, **Make it fit phones**: the editor opens with
+  the request written out — let grids and rows wrap, put wide tables in a scrolling box, keep the
+  wide-screen look — and the answer is one step of *Undo*. `check:engines` walks this case in
+  Firefox and WebKit too.
 - **Pins follow what they were put on.** A pin is a point in the board's own pixels, which means
   nothing once the board reflows — so a pin also names the element under it, as the steps down from
   the body (`main:0/div:10`), and where on that element it sat, as fractions of its box. On a

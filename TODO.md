@@ -1906,6 +1906,11 @@ written.
       See [`docs/canvas.md`](docs/canvas.md#out-of-the-workspace).
 - [x] **A board page fits a phone.** Below 60% scale it is drawn at the screen's width, reflowing
       as its own styles say, with *As designed* to go back.
+- [x] **A board too wide for a phone is scaled to fit, not cut off**, and its writer is offered
+      *Make it fit phones*; Claude is asked for responsive boards when it draws or writes them.
+- [ ] **A shared board that does not fit a phone scrolls sideways inside its frame.** The share
+      page has no script, so it cannot measure the board and scale it as the app does. The fix
+      that works everywhere is the board's own: *Make it fit phones* before sharing it.
 - [x] **Pins on a board reflowed to a phone.** A pin names the element it was put on and where on
       it; the reflowed board asks the frame where that is now. Pins from before, or from MCP, still
       show only as designed.

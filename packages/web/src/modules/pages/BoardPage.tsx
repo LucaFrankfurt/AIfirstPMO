@@ -34,6 +34,16 @@
  * whose element an edit has since moved, is shown only as designed. Putting
  * one down needs the designed board, so the comment tool goes back to it.
  *
+ * **Never cut off.** Reflowing helps only a board written to reflow. One whose
+ * own layout does not — a row of cards that never wraps, a table with no box
+ * to scroll in — ran off the side of the phone and was cut there. So the frame
+ * also reports how wide its content is, and when that is wider than the
+ * screen the board is drawn at the width it needs and scaled down to fit, the
+ * way a phone's browser shows a site that was never made for it: all of it,
+ * smaller. The real fix is the board's own, so its writers are offered *Make
+ * it fit phones*, which asks the model to make the layout responsive in the
+ * editor, one step of *Undo* away.
+ *
  * **Working, not a picture.** On a canvas a board is something to move, and a
  * press on it picks it up. Here nothing moves, so the board is live: its
  * buttons, tabs and links work as they do in *Try it*. Pinning a comment is a
@@ -104,6 +114,39 @@ function useFittedHeight(floor: number, source: string | undefined): [number, (r
   return [height, fit];
 }
 
+/**
+ * How wide a reflowed board has to be drawn so that nothing is cut off.
+ *
+ * Starts at the screen and grows to what the frame says its content needs,
+ * never past the board's own width — at that width it is the board as
+ * designed. Content that is always a little wider than whatever it is drawn
+ * at (`100vw` and a margin) would chase its own tail, so, as with the height,
+ * growing by exactly what it just grew by stops it. A new source or a new
+ * screen width starts over.
+ */
+function useNeededWidth(screen: number, most: number, source: string | undefined): [number, (reported: number) => void] {
+  const [needs, setNeeds] = useState(0);
+  const current = useRef(0);
+  const growth = useRef<number | null>(null);
+  useEffect(() => {
+    current.current = 0;
+    growth.current = null;
+    setNeeds(0);
+  }, [screen, most, source]);
+  const widen = useCallback((reported: number) => {
+    if (!screen) return;
+    const now = Math.max(screen, current.current);
+    const next = Math.min(most, Math.ceil(reported));
+    if (next <= now + 1) return;
+    const delta = next - now;
+    if (growth.current !== null && Math.abs(delta - growth.current) <= 2) return;
+    growth.current = delta;
+    current.current = next;
+    setNeeds(next);
+  }, [screen, most]);
+  return [needs, widen];
+}
+
 /** The width a box has for its content, watched. */
 function useWidth(): [(element: HTMLElement | null) => void, number] {
   const [width, setWidth] = useState(0);
@@ -158,9 +201,17 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
   const [layout, setLayout] = useState<'designed' | 'fit' | null>(null);
   const shrunk = !!board && !!width && designedScale < 1;
   const fitted = (layout ?? (designedScale < FIT_BELOW ? 'fit' : 'designed')) === 'fit' && shrunk;
-  const scale = fitted ? 1 : designedScale;
-  const drawnWidth = board ? (fitted ? Math.floor(width) : board.w) : 0;
+  const screen = Math.floor(width);
+  const [needs, widen] = useNeededWidth(fitted ? screen : 0, board?.w ?? 0, board?.content);
+  const drawnWidth = board ? (fitted ? Math.max(screen, needs) : board.w) : 0;
+  const scale = fitted ? Math.min(1, screen / drawnWidth) : designedScale;
+  /** Reflowed, and still wider than the screen: the board's own layout does not fit a phone. */
+  const cramped = fitted && drawnWidth > screen + 1;
   const [height, fit] = useFittedHeight(fitted ? FIT_FLOOR : board?.h ?? 0, board?.content);
+  const measured = (reportedHeight: number, reportedWidth?: number): void => {
+    fit(reportedHeight);
+    if (fitted && reportedWidth) widen(reportedWidth);
+  };
 
   const [panel, setPanel] = useState(false);
   const [pinning, setPinning] = useState(false);
@@ -169,6 +220,8 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
   const [printing, setPrinting] = useState(false);
   const [opening, setOpening] = useState<'describe' | 'import' | null>(null);
   const [asking, setAsking] = useState(false);
+  /** What the model is asked, when the page asks for the person — *Make it fit phones*. */
+  const [askWith, setAskWith] = useState<string | null>(null);
   const sheet = useRef<HTMLDivElement>(null);
   useEffect(() => { if (printRequest) setPrinting(true); }, [printRequest]);
 
@@ -256,7 +309,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
           <Icon name="pin" size={14} /> <span className="hide-sm">{t('canvas.comment')}</span>
         </Button>
         {ai && canWrite && board && (
-          <Button size="sm" variant="ghost" onClick={() => { setAsking(true); onEditing(true); }}>
+          <Button size="sm" variant="ghost" onClick={() => { setAskWith(null); setAsking(true); onEditing(true); }}>
             <Icon name="sparkle" size={14} /> <span className="hide-sm">{aiLabels.ask}</span>
           </Button>
         )}
@@ -286,6 +339,16 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
       </div>
 
       <div ref={stageRef} className="board-stage">
+        {cramped && canWrite && (
+          <p className="board-cramped" role="status">
+            <span>{t('board.tooWide')}</span>
+            {ai && (
+              <Button size="sm" variant="secondary" onClick={() => { setAskWith(t('board.makeFitAsk')); setAsking(true); onEditing(true); }}>
+                <Icon name="sparkle" size={13} /> {t('board.makeFit')}
+              </Button>
+            )}
+          </p>
+        )}
         {board ? (
           <div className={cn('board-sheet', fitted && 'is-fitted')} style={{ width: drawnWidth * scale, height: height * scale }}>
             <div
@@ -295,7 +358,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
             >
               <ArtboardFrame
                 source={board.content ?? ''} mode="play" title={page.title || t('common.untitled')}
-                className="board-frame" onSize={fit} locator={locate}
+                className="board-frame" onSize={measured} locator={locate}
                 pins={fitted ? anchored : undefined} onPins={setFound}
               />
               {pinning && (
@@ -374,8 +437,8 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
 
       {editing && board && (
         <ArtboardEditor
-          board={board} canWrite={canWrite} ai={ai} onRename={onRename} startAsking={asking}
-          onClose={() => { setAsking(false); onEditing(false); }}
+          board={board} canWrite={canWrite} ai={ai} onRename={onRename} startAsking={asking} askWith={askWith ?? undefined}
+          onClose={() => { setAsking(false); setAskWith(null); onEditing(false); }}
         />
       )}
     </div>

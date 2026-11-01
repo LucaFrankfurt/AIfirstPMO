@@ -80,18 +80,20 @@ function FormatPicker({ value, onChange }: { value: string; onChange: (id: strin
  * match, and the answer replaces the board's source in the editor — as one
  * edit, which the editor's undo takes back.
  */
-export function DraftDialog({ ai, pageId, board, hasOthers, onDrafted, onClose }: {
+export function DraftDialog({ ai, pageId, board, hasOthers, initial = '', onDrafted, onClose }: {
   ai: CanvasAi;
   pageId: string;
   /** The board to redraw, when this is not a new one. */
   board?: { id: string; w: number; h: number };
   hasOthers: boolean;
+  /** What it starts out asking — written for the person, who reads it and may change it before it is sent. */
+  initial?: string;
   onDrafted: (draft: Drafted) => void;
   onClose: () => void;
 }) {
   const t = useT();
   const labels = useAiLabels(ai);
-  const [instruction, setInstruction] = useState('');
+  const [instruction, setInstruction] = useState(initial);
   const [format, setFormat] = useState('page');
   const [match, setMatch] = useState(true);
   const [working, setWorking] = useState(false);

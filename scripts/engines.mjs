@@ -13,6 +13,7 @@
  *   - the editor's frame answers a click with a selection;
  *   - the seeded board page grows to its board, with nothing scrolling inside;
  *   - at phone width it reflows, and its pin sits on what it was put on;
+ *   - a board too wide for a phone is scaled to fit rather than cut off;
  *   - a shared canvas and a shared board page work for a stranger.
  *
  * Run against a seeded instance, like the smoke walkthrough:
@@ -30,6 +31,14 @@ import { chromium, devices, firefox, webkit } from 'playwright';
 const base = process.env.KOLIBRI_URL ?? 'http://localhost:4400';
 const wanted = (process.env.KOLIBRI_ENGINES ?? 'firefox,webkit').split(',').map((name) => name.trim()).filter(Boolean);
 const ENGINES = { chromium, firefox, webkit };
+
+/** A board whose own layout cannot fit a phone: a row of eight cards that never wraps. */
+const CRAMPED = `<!doctype html><html><head><meta charset="utf-8"><title>Cramped</title></head>
+<body style="margin: 0; font-family: system-ui, sans-serif"><div style="padding: 24px">
+<h1 style="margin: 0 0 12px">Pipeline</h1>
+<div id="row" style="display: grid; grid-template-columns: repeat(8, minmax(140px, 1fr)); gap: 12px">
+${Array.from({ length: 8 }, (_, at) => `<div style="padding: 12px; border: 1px solid #ddd">Stage ${at + 1}</div>`).join('')}
+</div></div></body></html>`;
 const results = [];
 let failed = 0;
 
@@ -131,6 +140,28 @@ async function walk(name) {
     check(name, reflowed.w < 400 && reflowed.t === 'scale(1)', `a board page reflows at phone width (${reflowed.w}px, ${reflowed.t})`);
     const pinned = await phone.locator('.board-sheet .canvas-pin').count();
     check(name, pinned >= 1, `its pin is found on the reflowed board (${pinned})`);
+
+    // A board whose own layout does not fit a phone — eight cards that never
+    // wrap — is drawn at the width it needs and scaled down, not cut off.
+    const cramped = await desk.evaluate(async ([ws, html]) => {
+      const made = await (await fetch(`/api/workspaces/${ws}/pages`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ title: 'Cramped', format: 'board' }),
+      })).json();
+      await fetch(`/api/workspaces/${ws}/artboards`, {
+        method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ page_id: made.id, title: 'Cramped', content: html, w: 1280, h: 600 }),
+      });
+      return made.id;
+    }, [seeded.ws, CRAMPED]);
+    await phone.goto(`${base}/pages/${cramped}`);
+    await phone.waitForSelector('.board-sheet iframe', { timeout: 10000 });
+    await phone.waitForTimeout(3000);
+    const shrunk = await phone.locator('.board-sheet-inner').evaluate((el) => ({ w: el.offsetWidth, t: el.style.transform }));
+    const cut = await fromFrames(phone, () => (document.getElementById('row')
+      ? document.documentElement.scrollWidth - document.documentElement.clientWidth : null));
+    check(name, cut !== null && cut <= 1 && shrunk.w > 1000 && /scale\(0\./.test(shrunk.t),
+      `a board too wide for a phone is scaled to fit, not cut off (${shrunk.w}px, ${shrunk.t}, ${cut}px cut)`);
 
     // A stranger with the links.
     const share = (page) => desk.evaluate(async ([ws, id]) => {

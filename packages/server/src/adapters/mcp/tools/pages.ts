@@ -118,7 +118,7 @@ const ICONS: Record<PageFormat, string> = { markdown: '📄', html: '📄', canv
  * tool description because the assistant writing the board is the one who has
  * to know, and a board that loads Chart.js from a CDN draws a blank box.
  */
-const BOARD_RULES = 'A board is one complete, self-contained HTML document (`<!doctype html>` … `</html>`): inline `<style>` and `<script>` are fine and run, but nothing is fetched — no CDN scripts, no web fonts, no remote images, no `fetch`. Use system fonts and inline SVG. For a picture, upload it with `upload_attachment` on the canvas page and use the `/files/…` url it answers as the `src`: the app hands the board the picture itself. Put the look in inline `style` attributes where you can: that is what people restyle in the editor.';
+const BOARD_RULES = 'A board is one complete, self-contained HTML document (`<!doctype html>` … `</html>`): inline `<style>` and `<script>` are fine and run, but nothing is fetched — no CDN scripts, no web fonts, no remote images, no `fetch`. Use system fonts and inline SVG. For a picture, upload it with `upload_attachment` on the canvas page and use the `/files/…` url it answers as the `src`: the app hands the board the picture itself. Put the look in inline `style` attributes where you can: that is what people restyle in the editor. Make it responsive: a board page is read on phones at about 390px, where nothing may run off the side — grids of cards as `repeat(auto-fit, minmax(…, 1fr))`, rows that wrap, wide tables in a box that scrolls sideways, no fixed width wider than a phone.';
 
 /** A board on a page this caller may see, by id. */
 function findBoard(ref: string, workspaceId: string, ctx: McpCtx): { board: Row; page: Row } {
