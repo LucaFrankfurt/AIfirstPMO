@@ -1884,6 +1884,11 @@ written.
       leaves a note by clicking away and reads it back from the server.
 - [x] **A canvas prints as a PDF**, a page per board at the board's own size, scripts run, through
       the browser's print dialog. Measured in Chromium only.
+- [x] **A board on its own.** A page of format `board` holds one board and shows it as a page —
+      at its own width scaled to fit, grown to its height so the page scrolls, live rather than a
+      picture. Same row, same doors; the server refuses a second board or a note on one. Canvas
+      boards can be copied to a page of their own, and a board page and a one-board canvas turn
+      into each other. See [`docs/canvas.md`](docs/canvas.md#a-board-on-its-own).
 - [x] **Boards from a sentence, and from Claude's artifacts.** *Describe it to Claude…* and *Ask
       Claude* draw or change a board through the model the task review uses, behind the same two
       switches; *Import HTML…* puts an artifact downloaded from Claude on the canvas as it came. See
@@ -1894,10 +1899,15 @@ written.
       anywhere. Not started.
 - [ ] **No live cursors.** Edits merge, but nobody sees where anybody else is. The chat's socket
       already carries presence; a canvas is where it would matter most.
-- [ ] **A canvas cannot be shared by link, exported as a file, or used as a template.** Each of
+- [ ] **A canvas or a board page cannot be shared by link, exported as a file, or used as a template.** Each of
       those reads only a page's text, so the menu offers none of them on a canvas rather than
       producing an empty page and calling it the canvas. The PDF is for reading it elsewhere; it
       does not come back in.
+- [ ] **A board page scales, it does not reflow.** A 1280px board on a 390px phone is drawn at
+      a third of its size. Drawing it at the screen's width instead would read better for a board
+      written to be responsive, and would move every pin off what it was put on — pins are points
+      in the board's own pixels. A phone-width board (390) reads one to one. A reflowing reading
+      mode that hides pins, or pins anchored to elements rather than points, would settle it.
 - [ ] **A board drawn by a model arrives whole, after a minute or two.** Nothing is shown while it
       is written and the request cannot be cancelled from the dialog — closing it would still put
       the board down when it came. Streaming the answer into the frame as it arrives is the

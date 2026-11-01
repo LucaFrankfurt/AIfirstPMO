@@ -46,7 +46,8 @@ export type Where = 'before' | 'after';
 /** Everything the frame may tell the app. */
 export type FrameMessage =
   | { type: 'kolibri:ready' }
-  | { type: 'kolibri:rendered'; rev: number }
+  | { type: 'kolibri:rendered'; rev: number; height?: number }
+  | { type: 'kolibri:size'; rev: number; height: number }
   | { type: 'kolibri:scroll'; rev: number; x: number; y: number }
   | { type: 'kolibri:open'; href: string }
   | { type: 'kolibri:select'; rev: number; k: number | null; x?: number; y?: number }
@@ -60,6 +61,7 @@ const KEYS = new Set<FrameKey>(['delete', 'escape', 'undo', 'redo', 'duplicate']
 
 const isIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0 && (value as number) < 1e7;
 const isCoordinate = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) < 1e6;
+const isHeight = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 1e6;
 
 /** A message from a frame, if it is one of ours and well-formed; otherwise null. */
 export function readMessage(data: unknown): FrameMessage | null {
@@ -70,7 +72,11 @@ export function readMessage(data: unknown): FrameMessage | null {
     case 'kolibri:ready':
       return { type: 'kolibri:ready' };
     case 'kolibri:rendered':
-      return isIndex(rev) ? { type: 'kolibri:rendered', rev } : null;
+      if (!isIndex(rev)) return null;
+      // How tall the board is, when it was asked: a nicety, dropped when insane.
+      return { type: 'kolibri:rendered', rev, ...(isHeight(message.height) ? { height: message.height } : {}) };
+    case 'kolibri:size':
+      return isIndex(rev) && isHeight(message.height) ? { type: 'kolibri:size', rev, height: message.height } : null;
     case 'kolibri:scroll':
       return isIndex(rev) && isCoordinate(message.x) && isCoordinate(message.y)
         ? { type: 'kolibri:scroll', rev, x: message.x, y: message.y } : null;
@@ -122,6 +128,8 @@ export interface RuntimeConfig {
   selected: number | null;
   /** Where to scroll to once drawn: where the previous render was, across an edit. */
   scroll: { x: number; y: number } | null;
+  /** Report the board's height as it is drawn and whenever it changes — for a board shown as a page. */
+  fit?: boolean;
   /** Words the editing overlay shows, in the reader's language. */
   labels: { drag: string };
 }
@@ -146,14 +154,46 @@ export function runtime(config: RuntimeConfig): void {
     if (data.type === 'kolibri:select' && config.mode === 'edit') select(typeof data.k === 'number' ? data.k : null, false);
   });
 
+  /*
+   * How tall the board is, for a page that shows all of it rather than a
+   * window onto it. The document's own scroll height when it overflows the
+   * frame; otherwise the body's, margins included — the root's scroll height
+   * is never less than the frame, so asking only that could grow a board and
+   * never let it shrink again.
+   */
+  const measure = (): number => {
+    const root = document.documentElement;
+    if (root.scrollHeight > root.clientHeight + 1 || !document.body) return root.scrollHeight;
+    const style = getComputedStyle(document.body);
+    return Math.ceil(document.body.getBoundingClientRect().height + (parseFloat(style.marginTop) || 0) + (parseFloat(style.marginBottom) || 0));
+  };
+
   // Drawn: back where the last render was scrolled to, then say so — the app
   // shows this frame in place of the previous one only now, so an edit never
-  // flashes an empty board.
+  // flashes an empty board. The height rides on the same message: a separate
+  // one could arrive before this frame is the one on screen, and be dropped.
   addEventListener('load', () => {
     if (config.scroll) scrollTo(config.scroll.x, config.scroll.y);
     // A timer rather than an animation frame: a frame the browser counts as off
     // screen — every board being laid out for a PDF — may never be given one.
-    setTimeout(() => post({ type: 'kolibri:rendered' }), 0);
+    setTimeout(() => {
+      post({ type: 'kolibri:rendered', ...(config.fit ? { height: measure() } : {}) });
+      if (!config.fit || typeof ResizeObserver === 'undefined' || !document.body) return;
+      // A board's script may draw after load — a chart, a list filled in — and
+      // the page around it should grow with it.
+      let last = measure();
+      let pending = 0;
+      new ResizeObserver(() => {
+        if (pending) return;
+        pending = setTimeout(() => {
+          pending = 0;
+          const now = measure();
+          if (Math.abs(now - last) < 2) return;
+          last = now;
+          post({ type: 'kolibri:size', height: now });
+        }, 100) as unknown as number;
+      }).observe(document.body);
+    }, 0);
   });
   let reported = 0;
   addEventListener('scroll', () => {

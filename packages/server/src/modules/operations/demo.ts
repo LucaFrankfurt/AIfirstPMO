@@ -307,6 +307,65 @@ export function seedDemoData(): boolean {
     suggestion: 'Hello, Ada here',
   }, { workspaceId: ws, actorId: alan, hlc: hlc(), system: true });
 
+  /*
+   * A board on its own, under the canvas: the same kind of board, shown as a
+   * page. Taller than its frame on purpose, so the page grows to it — which is
+   * the one thing a board page does that a canvas does not — and every screen
+   * check walks that too.
+   */
+  const review = uid();
+  writeEntity('page', review, {
+    workspace_id: ws, parent_id: canvas, title: 'Q3 review one-pager', icon: '🖼️', format: 'board', access: 'workspace',
+    created_by: ada, content: '',
+  }, asAda);
+  const reviewBoard = uid();
+  const REVIEW = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <style>body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #14161c; background: #ffffff; line-height: 1.55; }</style>
+</head>
+<body>
+  <main style="max-width: 980px; margin: 0 auto; padding: 40px 40px 56px; display: flex; flex-direction: column; gap: 22px">
+    <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #2e2e8f">Quarterly review · Sales</p>
+    <h1 style="margin: 0; font-size: 32px">Q3 in one page</h1>
+    <p style="margin: 0; font-size: 17px; color: #3d4048">Pipeline grew, conversion held, and the demo-to-proposal step is where deals wait longest.</p>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px">
+      <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">New pipeline</p><p style="margin: 4px 0 0; font-size: 26px; font-weight: 700">€410k</p></div>
+      <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">Won</p><p style="margin: 4px 0 0; font-size: 26px; font-weight: 700">€96k</p></div>
+      <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">Days, demo to proposal</p><p style="margin: 4px 0 0; font-size: 26px; font-weight: 700">19</p></div>
+    </div>
+    <h2 style="margin: 12px 0 0; font-size: 20px">What worked</h2>
+    <ul style="margin: 0; padding-left: 22px">
+      <li>Calling within a day of a demo request doubled the share of demos that happened.</li>
+      <li>The two-minute opener from the cold call script got more people to stay on the line.</li>
+      <li>Weekly pipeline reviews caught three stalled deals before they went quiet.</li>
+    </ul>
+    <h2 style="margin: 12px 0 0; font-size: 20px">What did not</h2>
+    <ul style="margin: 0; padding-left: 22px">
+      <li>Proposals waited on pricing questions nobody owned.</li>
+      <li>Two deals were lost to a competitor's onboarding offer we never matched.</li>
+    </ul>
+    <h2 style="margin: 12px 0 0; font-size: 20px">Q4, three changes</h2>
+    <ol style="margin: 0; padding-left: 22px">
+      <li>One owner for pricing questions, answered within two days.</li>
+      <li>A standard onboarding package priced into every proposal.</li>
+      <li>Proposal sent within a week of the demo, or the deal is reviewed.</li>
+    </ol>
+    <div style="padding: 14px 16px; border-radius: 10px; background: #eeeefc; color: #2e2e8f">Target for Q4: <strong>€250k</strong> won, as on the pipeline canvas.</div>
+  </main>
+</body>
+</html>
+`;
+  writeEntity('artboard', reviewBoard, {
+    workspace_id: ws, page_id: review, kind: 'html', title: 'Q3 review one-pager', x: 0, y: 0, w: 1080, h: 720,
+    content: REVIEW, sort_order: orderKey(null, null), created_by: ada,
+  }, asAda);
+  writeEntity('comment', uid(), {
+    workspace_id: ws, page_id: review, author_id: grace, body: 'Can we name the pricing owner here before the board meeting?',
+    anchor: { board: reviewBoard, x: 80, y: 820 }, reactions: {},
+  }, { workspaceId: ws, actorId: grace, hlc: hlc(), system: true });
+
   const handbook = uid();
   writeEntity('page', handbook, {
     workspace_id: ws, title: 'Team handbook', icon: '📗', access: 'workspace', created_by: ada, status_id: settled,

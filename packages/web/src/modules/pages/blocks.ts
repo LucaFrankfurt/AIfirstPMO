@@ -64,6 +64,15 @@ export type TemplateKind = 'blank' | 'document' | 'dashboard' | 'phone';
 
 export const TEMPLATE_KINDS: TemplateKind[] = ['blank', 'document', 'dashboard', 'phone'];
 
+/** What a board page shows in the tree before anybody picks an icon. */
+export const BOARD_ICON = '🖼️';
+
+/** What each template is called in a menu, by translation key. */
+export const TEMPLATE_LABEL = {
+  blank: 'canvas.template.blank', document: 'canvas.template.document',
+  dashboard: 'canvas.template.dashboard', phone: 'canvas.template.phone',
+} as const satisfies Record<TemplateKind, string>;
+
 /** A new board: its frame and its first source. */
 export interface Template {
   w: number;

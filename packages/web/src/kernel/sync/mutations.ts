@@ -5,7 +5,7 @@
  */
 import {
   compareOrder, descendants, orderKey, relocate,
-  type EntityName, type PageFormat, type Priority, type ProjectVocabulary, type Task,
+  type EntityName, type Page, type PageFormat, type Priority, type ProjectVocabulary, type Task,
 } from '@kolibri/shared';
 import { now } from './clock';
 import * as idb from './idb';
@@ -199,6 +199,8 @@ export function createPage(
   input: {
     title?: string; project_id?: string | null; parent_id?: string | null;
     content?: string; format?: PageFormat; icon?: string;
+    /** Who may see it — the whole workspace unless said. A copy of something private says. */
+    access?: Page['access'];
   },
   actorId: string,
 ): string {
@@ -210,7 +212,7 @@ export function createPage(
     format: input.format ?? 'markdown',
     project_id: input.project_id ?? null,
     parent_id: input.parent_id ?? null,
-    access: 'workspace',
+    access: input.access ?? 'workspace',
     archived: 0,
     created_by: actorId,
     sort_order: orderKey(siblings[siblings.length - 1]?.sort_order ?? null, null),

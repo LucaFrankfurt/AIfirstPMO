@@ -2,8 +2,8 @@
  * The wiki: reading it, writing it, and starting from a template.
  */
 import {
-  artboard, findAnchor, isPin, linkGraph, makeAnchor, orderKey, pageResolver, passageOf, textAnchor, wikiLinks,
-  type LinkablePage,
+  artboard, findAnchor, isBoardFormat, isPin, linkGraph, makeAnchor, orderKey, pageResolver, passageOf, textAnchor, wikiLinks,
+  type LinkablePage, type PageFormat,
 } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
@@ -101,9 +101,14 @@ function findStatus(wanted: string, workspaceId: string): Row {
 }
 
 
-/** The three things a page may be written as; anything else is markdown. */
-const asFormat = (raw: unknown): 'markdown' | 'html' | 'canvas' =>
-  (str(raw) === 'html' ? 'html' : str(raw) === 'canvas' ? 'canvas' : 'markdown');
+/** The four things a page may be; anything else is markdown. */
+const asFormat = (raw: unknown): PageFormat => {
+  const format = str(raw);
+  return format === 'html' || format === 'canvas' || format === 'board' ? format : 'markdown';
+};
+
+/** What a new page shows in the tree before anybody picks an icon. */
+const ICONS: Record<PageFormat, string> = { markdown: '📄', html: '📄', canvas: '🎨', board: '🖼️' };
 
 /**
  * What a board may be, said once for every tool that writes one.
@@ -223,9 +228,9 @@ export const pageTools: ToolDef[] = [
         (ids ?? []).map((id) => byId.get(id)?.title).filter((title): title is string => !!title);
       return {
         ...serialize('page', page),
-        // A canvas is its boards: listed here without their HTML, which
-        // `get_artboard` reads one at a time.
-        ...(page.format === 'canvas' ? {
+        // A canvas is its boards, and a board page is its one: listed here
+        // without their HTML, which `get_artboard` reads one at a time.
+        ...(isBoardFormat(page.format as PageFormat) ? {
           artboards: all<Row>(
             `SELECT * FROM artboards WHERE page_id = ? AND deleted_at IS NULL ORDER BY sort_order`, String(page.id),
           ).map(boardSummary),
@@ -246,7 +251,7 @@ export const pageTools: ToolDef[] = [
   {
     name: 'create_page',
     title: 'Create page',
-    description: 'Create a wiki page from markdown, from HTML with `format: "html"`, or an empty canvas with `format: "canvas"` — a page of positioned HTML boards and notes that people edit visually and comment on; add boards to it with `add_artboard`.',
+    description: `Create a wiki page from markdown, from HTML with \`format: "html"\`, an empty canvas with \`format: "canvas"\` — a page of positioned HTML boards and notes that people edit visually and comment on; add boards to it with \`add_artboard\` — or a board page with \`format: "board"\`: one board shown on its own like a page, whose HTML is \`content\`. ${BOARD_RULES}`,
     schema: {
       type: 'object',
       required: ['title'],
@@ -254,9 +259,11 @@ export const pageTools: ToolDef[] = [
         title: { type: 'string' }, content: { type: 'string' }, project: { type: 'string' },
         parent: { type: 'string' }, icon: { type: 'string' }, workspace_id: { type: 'string' },
         format: {
-          type: 'string', enum: ['markdown', 'html', 'canvas'],
-          description: 'What `content` is written in. Markdown unless said otherwise; HTML is rendered through an allowlist, so a script or a style block in it is dropped rather than stored and refused. `canvas` makes a canvas instead: its content is its boards, so leave `content` out and call `add_artboard`.',
+          type: 'string', enum: ['markdown', 'html', 'canvas', 'board'],
+          description: 'What `content` is written in. Markdown unless said otherwise; HTML is rendered through an allowlist, so a script or a style block in it is dropped rather than stored and refused. `canvas` makes a canvas instead: its content is its boards, so leave `content` out and call `add_artboard`. `board` makes a board page: `content` is the board\'s whole HTML document, kept and run as written.',
         },
+        w: { type: 'number', description: 'A board page\'s width in pixels — 1280 unless said otherwise, 390 for a phone screen.' },
+        h: { type: 'number', description: 'A board page\'s height in pixels — 800 unless said otherwise. Content taller than this makes the page longer.' },
         status: {
           type: 'string',
           description: "How finished it is — a rung's name, its id, or one of `draft`, `review`, `final`. Left out, it starts on the workspace's draft.",
@@ -267,20 +274,29 @@ export const pageTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       const project = args.project ? findProject(String(args.project), workspaceId, ctx) : null;
+      const format = asFormat(args.format);
+      // A board page's content is its board, not its text.
+      const board = format === 'board';
       const { row } = writeEntity('page', uid(), {
         workspace_id: workspaceId,
         project_id: project?.id ?? null,
         parent_id: str(args.parent) ?? null,
         title: String(args.title),
-        icon: str(args.icon) ?? (asFormat(args.format) === 'canvas' ? '🎨' : '📄'),
-        content: String(args.content ?? ''),
-        format: asFormat(args.format),
+        icon: str(args.icon) ?? ICONS[format],
+        content: board ? '' : String(args.content ?? ''),
+        format,
         created_by: ctx.auth.userId,
         // Only when asked for. Left undefined, the write path's own default
         // puts it on the workspace's draft — one answer, not two.
         ...(args.status === undefined ? {} : { status_id: findStatus(String(args.status), workspaceId).id }),
       }, writeOpts(workspaceId, ctx));
-      return serialize('page', row);
+      if (!board) return serialize('page', row);
+      const made = writeEntity('artboard', uid(), {
+        workspace_id: workspaceId, page_id: row.id, title: String(args.title), kind: 'html',
+        content: String(args.content ?? ''), x: 0, y: 0, w: finite(args.w) ?? 1280, h: finite(args.h) ?? 800,
+        sort_order: orderKey(null, null),
+      }, writeOpts(workspaceId, ctx));
+      return { ...serialize('page', row), artboard: boardSummary(made.row), url: `${env.publicUrl}/pages/${row.id}` };
     },
   },
   {
@@ -295,8 +311,8 @@ export const pageTools: ToolDef[] = [
         append: { type: 'string', description: 'Markdown appended to the end instead of replacing' },
         icon: { type: 'string' },
         format: {
-          type: 'string', enum: ['markdown', 'html', 'canvas'],
-          description: 'Change what the body is read as. The text is not converted — send `content` in the new language in the same call, or the page will render its old body through the new renderer. A canvas keeps its boards in rows of their own, so switching to or from `canvas` neither creates nor removes any.',
+          type: 'string', enum: ['markdown', 'html', 'canvas', 'board'],
+          description: 'Change what the body is read as. The text is not converted — send `content` in the new language in the same call, or the page will render its old body through the new renderer. A canvas and a board page keep their boards in rows of their own, so switching to or from them neither creates nor removes any; a canvas becomes a board page only while it has one board and no notes. To change a board page\'s HTML, use `update_artboard` on its board (listed by `get_page`).',
         },
         parent: {
           type: 'string',
@@ -457,6 +473,9 @@ export const pageTools: ToolDef[] = [
       const workspaceId = workspaceOf(args, ctx);
       requireWrite(ctx, workspaceId);
       const page = findPage(String(args.page), workspaceId, ctx);
+      if (page.format === 'board') {
+        throw new McpError(`"${page.title}" is a board page and holds one board already — change it with update_artboard (get_page lists it), or make the page a canvas with update_page and format: "canvas" to put more beside it.`);
+      }
       if (page.format !== 'canvas') throw new McpError(`"${page.title}" is not a canvas. Create one with create_page and format: "canvas".`);
       const note = str(args.kind) === 'note';
       const spot = nextSpot(String(page.id));

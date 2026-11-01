@@ -1453,6 +1453,41 @@ await step('a note keeps its text when the canvas is clicked', async () => {
 });
 
 /**
+ * A board page shows all of its board, and the page scrolls rather than the board.
+ *
+ * A board on a canvas is a window of a fixed size; a board on a page of its
+ * own is a document, and a document taller than its window that scrolls
+ * inside a page that scrolls too is the thing everybody dislikes about
+ * embedded documents. So the frame measures what it drew and the page grows
+ * to it. Only a browser can see whether it did: the measuring is a script
+ * inside the sandbox. The seeded one-pager is taller than its 720px frame on
+ * purpose. Locale-free: found by its format, measured by its elements.
+ */
+await step('a board page grows to its board', async () => {
+  const found = await page.evaluate(async () => {
+    const ws = localStorage.getItem('kolibri.workspace');
+    const pages = await (await fetch(`/api/workspaces/${ws}/pages?limit=500`, { credentials: 'include' })).json();
+    const one = (pages.items ?? pages).find((row) => row.format === 'board');
+    const boards = await (await fetch(`/api/workspaces/${ws}/artboards?limit=500`, { credentials: 'include' })).json();
+    const board = one && (boards.items ?? boards).find((row) => row.page_id === one.id);
+    return one && board ? { page: one.id, h: board.h } : null;
+  });
+  if (!found) throw new Error('the seed has no board page with a board on it');
+  await page.goto(`${base}/pages/${found.page}`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.board-sheet iframe', { timeout: 5000 });
+  let tall = 0;
+  for (let tries = 0; tries < 20 && tall <= found.h; tries++) {
+    tall = await page.locator('.board-sheet-inner').evaluate((el) => el.offsetHeight);
+    if (tall <= found.h) await page.waitForTimeout(250);
+  }
+  if (tall <= found.h) throw new Error(`the board page stayed ${tall}px tall, its frame's height, with its content cut off`);
+  const inner = await page.frameLocator('.board-sheet iframe').first().locator('body')
+    .evaluate(() => document.documentElement.scrollHeight - document.documentElement.clientHeight);
+  if (inner > 1) throw new Error(`the board still scrolls ${inner}px inside its frame`);
+  console.log('     the board page is', tall, 'px tall, past its', found.h, 'px frame, with nothing scrolling inside it');
+});
+
+/**
  * Selecting a passage in a page leaves the passage selected.
  *
  * A regression test for something no unit test can see. Selecting text sets

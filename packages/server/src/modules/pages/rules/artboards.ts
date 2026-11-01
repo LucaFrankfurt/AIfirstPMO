@@ -27,6 +27,12 @@
  * when it was last written was skipped by everybody else's pull at the time.
  * When the page's `access` or project changes, every board on it is given a
  * fresh `seq`, so the people who may now see the page also get what is on it.
+ *
+ * **A board page holds one board.** A page of format `board` is a board shown
+ * on its own, and it shows the one it has: a second board, or a note, would be
+ * on the page and on nobody's screen. So both are refused — when they are put
+ * there, and when a canvas holding more than one board is turned into a board
+ * page. A sync push refuses that one change and keeps the rest.
  */
 
 import { all, get, nextSeq, run, type Row } from '../../../kernel/platform/db/index.ts';
@@ -53,7 +59,11 @@ export const BOARD_SIZE = { min: 40, max: 8000 } as const;
 const REACH = 1_000_000;
 
 const pageRow = (id: unknown): Row | undefined =>
-  (id ? get<Row>(`SELECT id, workspace_id, deleted_at FROM pages WHERE id = ?`, String(id)) : undefined);
+  (id ? get<Row>(`SELECT id, workspace_id, format, deleted_at FROM pages WHERE id = ?`, String(id)) : undefined);
+
+/** The live boards on a page, other than `except`. */
+const boardsOn = (pageId: string, except: string | null = null): Row[] =>
+  all<Row>(`SELECT id, kind FROM artboards WHERE page_id = ? AND deleted_at IS NULL AND id != ?`, pageId, except ?? '');
 
 /** A board goes onto a page that is here, in this workspace, that the writer may see. */
 function guardBoard(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
@@ -69,6 +79,21 @@ function guardBoard(values: Record<string, unknown>, existing: Row | undefined, 
   // Moving a board to another canvas takes it out of this one too.
   if (existing && String(existing.page_id) !== String(page.id) && !canSeePage(opts.actorId, String(existing.page_id))) {
     throw forbidden('That canvas is private');
+  }
+  if (page.format === 'board') {
+    if ((values.kind ?? existing?.kind) === 'note') throw badRequest('A board page holds a board, not a note');
+    if (boardsOn(String(page.id), existing ? String(existing.id) : null).length) {
+      throw badRequest('A board page holds one board, and this one has it');
+    }
+  }
+}
+
+/** A page becomes a board page only if it has at most one board, and that a board. */
+function guardBoardPage(values: Record<string, unknown>, existing: Row | undefined): void {
+  if (!existing || values.format !== 'board' || existing.format === 'board') return;
+  const boards = boardsOn(String(existing.id));
+  if (boards.length > 1 || boards.some((board) => board.kind === 'note')) {
+    throw badRequest('A board page holds one board, and this canvas has more than that');
   }
 }
 
@@ -98,6 +123,19 @@ function applyBoardInvariants(values: Record<string, unknown>, existing: Row | u
 }
 
 const system = (opts: WriteOpts): WriteOpts => ({ ...opts, op: undefined, system: true, silent: true });
+
+/**
+ * A board page has one title, the page's, and its board carries it — it is
+ * what a search hit and `get_artboard` show. Kept here rather than by each
+ * client so a rename over MCP or the API follows too.
+ */
+function nameBoard(page: Row, opts: WriteOpts): void {
+  for (const row of all<Row>(`SELECT id, title FROM artboards WHERE page_id = ? AND deleted_at IS NULL`, String(page.id))) {
+    if (String(row.title ?? '') !== String(page.title ?? '')) {
+      writeEntity('artboard', String(row.id), { title: page.title }, system(opts));
+    }
+  }
+}
 
 /**
  * A board's history: the text it had before each change, collapsed the way a
@@ -168,6 +206,7 @@ export const artboardRules = {
   },
   guards(entity, id, values, existing, opts) {
     if (entity === 'artboard') guardBoard(values, existing, opts);
+    else guardBoardPage(values, existing);
   },
   invariants(entity, id, values, existing, forced) {
     if (entity === 'artboard') applyBoardInvariants(values, existing, forced);
@@ -181,5 +220,6 @@ export const artboardRules = {
     if (row.deleted_at && !before.deleted_at) tombstoneBoards(row, opts);
     if (!row.deleted_at && before.deleted_at) restoreBoards(row, Number(before.deleted_at), opts);
     if (changed.access !== undefined || changed.project_id !== undefined) restampBoards(row);
+    if (row.format === 'board' && (changed.title !== undefined || changed.format !== undefined)) nameBoard(row, opts);
   },
 } satisfies EntityRule;

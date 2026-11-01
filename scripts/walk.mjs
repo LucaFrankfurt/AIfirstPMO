@@ -93,6 +93,13 @@ export async function walkable(page, base) {
     return (body.pages ?? body.items ?? body).find((row) => row.format === 'canvas')?.id;
   });
   if (!canvasId) throw new Error('no canvas to open — the seed built none');
+  // A board on its own: the canvas's toolbar and thread around a page that scrolls.
+  const boardPageId = await page.evaluate(async () => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const body = await (await fetch(`/api/workspaces/${workspace}/pages?limit=500`, { credentials: 'include' })).json();
+    return (body.pages ?? body.items ?? body).find((row) => row.format === 'board')?.id;
+  });
+  if (!boardPageId) throw new Error('no board page to open — the seed built none');
 
   const SCREENS = [
     ['my work', '/'],
@@ -108,6 +115,7 @@ export async function walkable(page, base) {
     ['pages: tidying up', '/pages/tidy'],
     ['page', `/pages/${pageId}`],
     ['canvas', `/pages/${canvasId}`],
+    ['board page', `/pages/${boardPageId}`],
     ['teams', '/teams'],
     ['planner', '/planner'],
     ['portfolio', '/portfolio'],
