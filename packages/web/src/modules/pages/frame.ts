@@ -48,6 +48,8 @@ export type FrameMessage =
   | { type: 'kolibri:ready' }
   | { type: 'kolibri:rendered'; rev: number; height?: number }
   | { type: 'kolibri:size'; rev: number; height: number }
+  | { type: 'kolibri:located'; rev: number; id: string; el: string | null; fx: number; fy: number }
+  | { type: 'kolibri:at'; rev: number; points: { id: string; x: number; y: number }[] }
   | { type: 'kolibri:scroll'; rev: number; x: number; y: number }
   | { type: 'kolibri:open'; href: string }
   | { type: 'kolibri:select'; rev: number; k: number | null; x?: number; y?: number }
@@ -62,6 +64,11 @@ const KEYS = new Set<FrameKey>(['delete', 'escape', 'undo', 'redo', 'duplicate']
 const isIndex = (value: unknown): value is number => Number.isInteger(value) && (value as number) >= 0 && (value as number) < 1e7;
 const isCoordinate = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) < 1e6;
 const isHeight = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0 && value < 1e6;
+const isFraction = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 1;
+const isId = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length < 100;
+/** An element's place in a board: `tag:index` steps down from the body, as `elementPath` writes them. */
+export const isPath = (value: unknown): value is string =>
+  typeof value === 'string' && value.length < 2000 && /^[a-z][a-z0-9-]*:\d+(\/[a-z][a-z0-9-]*:\d+)*$/.test(value);
 
 /** A message from a frame, if it is one of ours and well-formed; otherwise null. */
 export function readMessage(data: unknown): FrameMessage | null {
@@ -77,6 +84,18 @@ export function readMessage(data: unknown): FrameMessage | null {
       return { type: 'kolibri:rendered', rev, ...(isHeight(message.height) ? { height: message.height } : {}) };
     case 'kolibri:size':
       return isIndex(rev) && isHeight(message.height) ? { type: 'kolibri:size', rev, height: message.height } : null;
+    case 'kolibri:located':
+      return isIndex(rev) && isId(message.id) && isFraction(message.fx) && isFraction(message.fy)
+        && (message.el === null || isPath(message.el))
+        ? { type: 'kolibri:located', rev, id: message.id, el: message.el, fx: message.fx, fy: message.fy } : null;
+    case 'kolibri:at': {
+      if (!isIndex(rev) || !Array.isArray(message.points) || message.points.length > 1000) return null;
+      const points = (message.points as unknown[]).filter((point): point is { id: string; x: number; y: number } => {
+        const one = point as Record<string, unknown> | null;
+        return !!one && isId(one.id) && isCoordinate(one.x) && isCoordinate(one.y);
+      }).map((point) => ({ id: point.id, x: point.x, y: point.y }));
+      return { type: 'kolibri:at', rev, points };
+    }
     case 'kolibri:scroll':
       return isIndex(rev) && isCoordinate(message.x) && isCoordinate(message.y)
         ? { type: 'kolibri:scroll', rev, x: message.x, y: message.y } : null;
@@ -148,10 +167,70 @@ export interface RuntimeConfig {
 export function runtime(config: RuntimeConfig): void {
   const post = (message: Record<string, unknown>): void => parent.postMessage({ rev: config.rev, ...message }, '*');
 
+  /*
+   * Where a pin is, in terms of what it was put on rather than where.
+   *
+   * A pin is a point in the board's own pixels, which is right as long as the
+   * board is drawn at its own width — and wrong the moment it reflows to a
+   * phone, where the paragraph it was on is somewhere else entirely. So a pin
+   * also names the element under it, as the steps down from the body that
+   * reach it (`main:0/div:10`), and where on that element it sat, as fractions
+   * of its box. A step whose tag no longer matches finds nothing rather than
+   * the wrong thing: an edit that moved the paragraph leaves the pin to its
+   * point, not on the heading that took the paragraph's place.
+   */
+  const elementPath = (element: Element | null): string | null => {
+    const steps: string[] = [];
+    let node = element;
+    while (node && node !== document.body && node.parentElement) {
+      steps.unshift(`${node.tagName.toLowerCase()}:${Array.prototype.indexOf.call(node.parentElement.children, node)}`);
+      node = node.parentElement;
+    }
+    return node === document.body && steps.length ? steps.join('/') : null;
+  };
+  const elementAt = (path: string): Element | null => {
+    let node: Element | null = document.body;
+    for (const step of path.split('/')) {
+      const [tag, index] = step.split(':');
+      const next: Element | undefined = node ? node.children[Number(index)] : undefined;
+      if (!next || next.tagName.toLowerCase() !== tag) return null;
+      node = next;
+    }
+    return node;
+  };
+  const fraction = (value: number): number => Math.min(1, Math.max(0, Math.round(value * 1000) / 1000));
+  let pinned: { id: string; el: string; fx: number; fy: number }[] = [];
+  const placePins = (): void => {
+    if (!pinned.length) return;
+    const points: { id: string; x: number; y: number }[] = [];
+    for (const pin of pinned) {
+      const element = elementAt(pin.el);
+      const box = element ? element.getBoundingClientRect() : null;
+      // Hidden at this width — `display: none` on a phone — is nowhere, not the corner.
+      if (!box || (!box.width && !box.height)) continue;
+      points.push({ id: pin.id, x: Math.round(box.left + pin.fx * box.width + scrollX), y: Math.round(box.top + pin.fy * box.height + scrollY) });
+    }
+    post({ type: 'kolibri:at', points });
+  };
+
   addEventListener('message', (event) => {
     if (event.source !== parent || !event.data) return;
-    const data = event.data as { type?: string; k?: number | null };
+    const data = event.data as { type?: string; k?: number | null; id?: string; x?: number; y?: number; pins?: unknown };
     if (data.type === 'kolibri:select' && config.mode === 'edit') select(typeof data.k === 'number' ? data.k : null, false);
+    if (data.type === 'kolibri:locate' && typeof data.id === 'string' && typeof data.x === 'number' && typeof data.y === 'number') {
+      const element = document.elementFromPoint(data.x - scrollX, data.y - scrollY);
+      const path = elementPath(element);
+      const box = element && path ? element.getBoundingClientRect() : null;
+      post({
+        type: 'kolibri:located', id: data.id, el: box ? path : null,
+        fx: box && box.width ? fraction((data.x - scrollX - box.left) / box.width) : 0,
+        fy: box && box.height ? fraction((data.y - scrollY - box.top) / box.height) : 0,
+      });
+    }
+    if (data.type === 'kolibri:where' && Array.isArray(data.pins)) {
+      pinned = (data.pins as { id: string; el: string; fx: number; fy: number }[]).slice(0, 1000);
+      placePins();
+    }
   });
 
   /*
@@ -184,10 +263,15 @@ export function runtime(config: RuntimeConfig): void {
       let last = measure();
       let pending = 0;
       new ResizeObserver(() => {
-        if (pending) return;
+        // A frame with no size is hidden, not empty: what it would measure now
+        // is nothing, and nothing is not what the board is.
+        if (pending || !document.documentElement.clientWidth) return;
         pending = setTimeout(() => {
           pending = 0;
+          if (!document.documentElement.clientWidth) return;
           const now = measure();
+          // A reflow moves what pins are on, whether or not the height changed.
+          placePins();
           if (Math.abs(now - last) < 2) return;
           last = now;
           post({ type: 'kolibri:size', height: now });

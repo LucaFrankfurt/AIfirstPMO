@@ -20,11 +20,26 @@ place under a parent, opened and read like any page.
 It is the same board, a row in `artboards` like every other, so everything a board is, it is —
 history, pins and suggestions, pictures, search, MCP, export and the trash ask nothing new. The page
 keeps its own text empty, as a canvas does, which is why an older app shows it as an empty page and
-why share links, templates, downloads and a text history are not offered on it: each of those reads
-only the text. What differs is how it is shown:
+why it has no text history — each board keeps its own. Share links, downloads and templates carry
+its board; see [Out of the workspace](#out-of-the-workspace). What differs is how it is shown:
 
 - **At its own width, scaled down to fit** the column and never up — the picture the canvas and the
   editor draw, because a board is designed at a width and its pins are points in its own pixels.
+  **On a phone**, where that would draw it below 60% — a 1280px board on a 390px screen is a third
+  of its size — the page draws it at the screen's width instead, so a board written to be
+  responsive reflows the way the same artifact does on claude.ai, and offers *As designed* to go
+  back. Measured on an iPhone-sized window: the seeded one-pager drawn 374px wide at its own 16px
+  text, against 35% of it scaled.
+- **Pins follow what they were put on.** A pin is a point in the board's own pixels, which means
+  nothing once the board reflows — so a pin also names the element under it, as the steps down from
+  the body (`main:0/div:10`), and where on that element it sat, as fractions of its box. On a
+  reflowed board the frame is asked where those elements are now, and answers again whenever the
+  board reflows. Each step carries its tag, so an edit that moves the element leaves the pin to its
+  point rather than on whatever took its place; a pin without an element — put down before this,
+  or over MCP — is shown only on the designed board, and picking it switches there. Putting a pin
+  down needs the designed board, so the comment tool does too. On a phone the thread covers the
+  board, so picking a comment there puts the thread aside to show the pin. Measured: a pin put on
+  the second heading at 1080px sat on that heading at 374px, and the seeded pin on its callout.
 - **As tall as it is.** The frame measures what it drew and grows to it, down to the board's own
   height and never below, so the page scrolls rather than a window inside it. A board that is its
   frame's height (`100vh`) stays that; one that is its frame's height *plus a margin* would grow by
@@ -44,6 +59,31 @@ keeps the board's own title in step with the page's however the page is renamed.
 the page opens the editor with the dialog up, so the answer is one step of *Undo*. A new board page
 starts empty with the same ways in as *Add board*, and an untitled page takes the name of the board
 it is given.
+
+## Out of the workspace
+
+A canvas or a board page is its boards, so each way out of the workspace carries them:
+
+- **A share link** frames each board in the shared document — a board page's one board as a window
+  the height of the screen, a canvas's boards in reading order at their own heights with their
+  names, its notes as text. Each board is served sandboxed from its own URL, pictures inlined only
+  from its own page; see [`security.md`](security.md#what-reaches-the-outside). A stranger's note box
+  works as on any shared page. A board reflows to a phone there too, being drawn at the width the
+  document has.
+- **Download** in the page menu: *one HTML file* — a board page as its board's own document, the
+  file an artifact downloaded from Claude is, which *Import HTML…* takes back; a canvas as one
+  document framing each board through `srcdoc` in a sandbox, notes as text. Pictures go in as their
+  bytes either way, since a kept file cannot ask this server for them later. Measured: the seeded
+  canvas, downloaded and opened from disk, runs its boards — the pipeline tile adds up to €155k.
+  *Print, or save as PDF* is the toolbar's PDF; a board page's PDF is the board as designed and as
+  tall as it is, measured at its own width whichever view the screen was showing.
+- **A template.** *Keep as a template* works on both, and a page made from one — in the app or with
+  `create_page_from_template` — is a canvas or a board page with copies of its boards where they
+  stood, and none of the comments, pins or history. A board page's copied board takes the new
+  page's title. (Making a page from an HTML template used to produce a markdown page showing its
+  tags, in the app; it keeps the template's format and icon now.)
+
+## Who holds the shape
 
 The server holds the shape: a second board, or a note, on a board page is refused, and so is turning
 a canvas into a board page while it has more than one board. A board page turns into a canvas from
@@ -251,7 +291,16 @@ proposes a change to a page or a board instead of making it, and `resolve_commen
 ## Not done
 
 In [`TODO.md`](../TODO.md), with the reason for each: web fonts and a fixed set of libraries boards
-may use, live cursors, share links and file exports of a canvas or a board page (beyond the PDF),
-either as a template, a board page that reflows to a phone rather than scaling, a board drawn by a model shown as it is written rather than when it is done, and the
-browsers and the packaged app nobody has run it in. The model's half was tested against a stand-in
-that answers like the Messages API, not against a real model.
+may use, live cursors, pins on a canvas that know their element too, a board drawn by a model shown
+as it is written rather than when it is done, and the packaged app nobody has run it in. The model's
+half was tested against a stand-in that answers like the Messages API, not against a real model.
+
+## In other browsers
+
+Everything above was built and measured in Chromium, and a board is the part of the app whose
+behaviour belongs to the engine. `npm run check:engines` (`scripts/engines.mjs`) walks it in Firefox
+and WebKit — Safari's engine: a board drawing and running its script on the canvas, the editor's
+frame answering a click, a board page growing to its board, reflowing at phone width with its pin on
+its element, and a shared canvas and board page working for a stranger. CI runs it inside
+Playwright's own image, which has both engines and the libraries they need. What it does not reach:
+printing, which Playwright drives in Chromium alone, and the packaged app on iOS and Android.

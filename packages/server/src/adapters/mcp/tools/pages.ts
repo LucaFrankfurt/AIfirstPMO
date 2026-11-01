@@ -386,7 +386,7 @@ export const pageTools: ToolDef[] = [
   {
     name: 'create_page_from_template',
     title: 'New page from a template',
-    description: 'Copy a template into a new page — the same thing the New from template button does. A copy, not a link: editing the new page never edits the template.',
+    description: 'Copy a template into a new page — the same thing the New from template button does. A copy, not a link: editing the new page never edits the template. A canvas or board page template gives the new page copies of its boards.',
     schema: {
       type: 'object',
       required: ['template'],
@@ -420,7 +420,7 @@ export const pageTools: ToolDef[] = [
         content: String(template.content ?? ''),
         // ...and in the language the template is written in, which is the one
         // thing about a copy that must not be decided by a default.
-        format: template.format === 'html' ? 'html' : 'markdown',
+        format: asFormat(template.format),
         icon: template.icon ?? null,
         created_by: ctx.auth.userId,
         // Never a template itself. Copying one is how somebody ends up with
@@ -428,10 +428,26 @@ export const pageTools: ToolDef[] = [
         is_template: 0,
       }, writeOpts(workspaceId, ctx));
 
+      // A canvas or a board page is its boards, so the copy is of them: fresh
+      // rows where they stood, with none of the template's comments or history.
+      const boards = isBoardFormat(row.format as PageFormat)
+        ? all<Row>(`SELECT * FROM artboards WHERE page_id = ? AND deleted_at IS NULL ORDER BY sort_order`, String(template.id))
+        : [];
+      for (const board of boards) {
+        writeEntity('artboard', uid(), {
+          workspace_id: workspaceId, page_id: row.id,
+          // A board page's board carries the page's title, which may be a new one.
+          title: row.format === 'board' ? String(row.title) : String(board.title ?? ''),
+          kind: board.kind, content: String(board.content ?? ''), color: board.color ?? null,
+          x: board.x, y: board.y, w: board.w, h: board.h, sort_order: board.sort_order,
+        }, writeOpts(workspaceId, ctx));
+      }
+
       return {
         id: String(row.id),
         title: String(row.title),
         from_template: String(template.title),
+        ...(boards.length ? { artboards: boards.length } : {}),
         project: project?.key ?? null,
         url: `${env.publicUrl}/pages/${row.id}`,
       };

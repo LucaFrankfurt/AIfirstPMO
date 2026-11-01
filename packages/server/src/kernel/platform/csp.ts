@@ -80,9 +80,12 @@ export function buildCsp(storage: StorageOrigin): string {
  * `eval` and styles all work, and every one of the escapes above is refused.
  * See `docs/canvas.md` for the table.
  */
-export function buildFrameCsp(): string {
+export function buildFrameCsp({ popups = false }: { popups?: boolean } = {}): string {
   return [
-    'sandbox allow-scripts',
+    // A shared board has no app around it to open its links, so there it may
+    // open them itself — in a new tab, outside the sandbox, which is what a
+    // link on any page does. Inside the app the app opens them instead.
+    popups ? 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox' : 'sandbox allow-scripts',
     "default-src 'none'",
     "script-src 'unsafe-inline' 'unsafe-eval'",
     "style-src 'unsafe-inline'",

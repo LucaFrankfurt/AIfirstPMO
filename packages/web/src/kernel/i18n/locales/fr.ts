@@ -2204,6 +2204,8 @@ export const fr: Catalogue = {
   'board.emptyTitle': 'Une planche vide',
   'board.emptyHint': 'Une planche est une page stylée et interactive à part entière. Partez d’un modèle, importez un artefact créé avec Claude ou décrivez ce qu’elle doit montrer.',
   'board.emptyReader': 'Rien n’a encore été posé sur cette planche.',
+  'board.fitScreen': 'Adapter à l’écran',
+  'board.asDesigned': 'Tel que conçu',
   'canvas.tools': 'Outils du canevas',
   'canvas.addBoard': 'Ajouter une planche',
   'canvas.addNote': 'Note',

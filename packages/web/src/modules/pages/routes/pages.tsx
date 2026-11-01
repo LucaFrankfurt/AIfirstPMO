@@ -22,6 +22,7 @@ import { ImportPages } from '../import';
 import { CanvasView } from '../Canvas';
 import { BoardPageView } from '../BoardPage';
 import { BOARD_ICON } from '../blocks';
+import { copyBoards, downloadBoards } from '../boards';
 import { useBoardAi } from '../../ai-review/board-ai';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
@@ -264,10 +265,18 @@ export function PagesIndex() {
               id: template.id,
               label: `${template.icon ?? '📄'} ${template.title}`,
               // A copy, not a link: a template is a starting point, and editing
-              // the new page must not edit the template.
-              onSelect: () => navigate(`/pages/${createPage({
-                title: template.title, content: template.content, project_id: template.project_id,
-              }, me)}`),
+              // the new page must not edit the template. In the template's own
+              // format and with its icon — an HTML template used to become a
+              // markdown page showing its tags — and with copies of its boards
+              // when it is a canvas or a board page.
+              onSelect: () => {
+                const made = createPage({
+                  title: template.title, content: template.content, project_id: template.project_id,
+                  format: template.format ?? 'markdown', icon: template.icon ?? undefined,
+                }, me);
+                copyBoards(template, { id: made, title: template.title, format: template.format ?? 'markdown' });
+                navigate(`/pages/${made}`);
+              },
             }))}
           >
             <Icon name="copy" size={14} />
@@ -462,6 +471,8 @@ export function PageDetail() {
    */
   const [editingBoard, setEditingBoard] = useState(false);
   useEffect(() => setEditingBoard(false), [id]);
+  /** Bumped by *Download → PDF* on a canvas or a board page, whose view holds the print layer. */
+  const [printRequest, setPrintRequest] = useState(0);
   const [title, setTitle] = useState(page?.title ?? '');
   const [history, setHistory] = useState(false);
   const [diffing, setDiffing] = useState<string | null>(null);
@@ -695,17 +706,22 @@ export function PageDetail() {
               onSelect: () => showTree(!aside) },
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
-            // Three ways out of the same door, so one row rather than three.
-            ...(isBoardFormat(page.format) ? [] : [{
+            // Three ways out of the same door, so one row rather than three. A
+            // canvas or a board page is its boards, not text, so it leaves as a
+            // file of its boards or a PDF of them — the print layer is the view's.
+            {
               id: 'download',
               label: t('page.download'),
               icon: <Icon name="page" size={14} />,
-              items: [
+              items: isBoardFormat(page.format) ? [
+                { id: 'export-html', label: t('page.exportHtml'), onSelect: () => { void downloadBoards(page, t('common.untitled')); } },
+                { id: 'print', label: t('page.print'), onSelect: () => setPrintRequest((n) => n + 1) },
+              ] : [
                 { id: 'export-md', label: t('page.export'), onSelect: () => exportPage(page, 'markdown') },
                 { id: 'export-html', label: t('page.exportHtml'), onSelect: () => exportPage(page, 'html') },
                 { id: 'print', label: t('page.print'), onSelect: () => printPage(page) },
               ],
-            }]),
+            },
             // A canvas is not text in another language: its boards are rows of
             // their own, and "convert" would have nothing to convert them into.
             ...(isBoardFormat(page.format) ? [] : [{
@@ -722,16 +738,15 @@ export function PageDetail() {
                 hint: (page.format ?? 'markdown') === one ? '✓' : undefined,
                 onSelect: () => { void convert(one); },
               })),
-            },
-            // Each of these reads the page's text and nothing else, so on a
-            // canvas they would share, export or copy an empty page and say
-            // they had done the canvas. Absent until they carry the boards —
-            // see `TODO.md`.
+            }]),
+            // On every format: a shared canvas or board page frames its boards
+            // (`adapters/share/boards.ts`), and a page made from one as a
+            // template is given copies of them (`boards.ts`).
             { id: 'share', label: t('share.action'), icon: <Icon name="link" size={14} />,
               onSelect: () => setSharing(true) },
             { id: 'template', label: page.is_template ? t('page.unmarkTemplate') : t('page.markTemplate'),
               icon: <Icon name="copy" size={14} />, hint: page.is_template ? '✓' : undefined,
-              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) }]),
+              onSelect: () => update('page', id, { is_template: page.is_template ? 0 : 1 }) },
             ...cover.items(t('page.cover')),
             ...moveItems(page, workspaceId, t('page.move')),
             labelItems(page, labels, t('page.labels')),
@@ -791,13 +806,15 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
-      {page.format === 'canvas' ? <CanvasView page={page} canWrite={canWrite} ai={boardAi} thread={(props) => <Comments {...props} />} /> : page.format === 'board' ? (
+      {page.format === 'canvas' ? (
+        <CanvasView page={page} canWrite={canWrite} ai={boardAi} printRequest={printRequest} thread={(props) => <Comments {...props} />} />
+      ) : page.format === 'board' ? (
         // Keyed by the page: this screen is not remounted between pages, and a pin
         // half-placed on one board page belongs to nobody on the next.
         <BoardPageView
           key={page.id}
           page={page} canWrite={canWrite} ai={boardAi} editing={editingBoard} onEditing={setEditingBoard}
-          onRename={renameTo} thread={(props) => <Comments {...props} />}
+          onRename={renameTo} printRequest={printRequest} thread={(props) => <Comments {...props} />}
         />
       ) : (
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">

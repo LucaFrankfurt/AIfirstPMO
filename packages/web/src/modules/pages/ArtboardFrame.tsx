@@ -43,9 +43,21 @@ interface Layer {
 export type BoardMessage = Exclude<
   FrameMessage,
   { type: 'kolibri:ready' } | { type: 'kolibri:open' } | { type: 'kolibri:rendered' } | { type: 'kolibri:scroll' } | { type: 'kolibri:size' }
+  | { type: 'kolibri:located' } | { type: 'kolibri:at' }
 >;
 
-export function ArtboardFrame({ source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, className, style }: {
+/** A pin by what it is on: the element's path in the board, and where on it, as fractions. */
+export interface PinPlace { id: string; el: string; fx: number; fy: number }
+
+/** Which element is under a point of the board, and where on it — or null for none, or no answer. */
+export type Locate = (x: number, y: number) => Promise<{ el: string; fx: number; fy: number } | null>;
+
+/** How long a question to the frame waits for its answer before it is taken as none. */
+const ANSWER_MS = 600;
+
+export function ArtboardFrame({
+  source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, pins, onPins, locator, className, style,
+}: {
   source: string;
   mode: FrameMode;
   title: string;
@@ -62,6 +74,14 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
    * a fixed size and never needs to.
    */
   onSize?: (height: number) => void;
+  /**
+   * Pins to find by what they are on. The frame answers where each one is now
+   * through `onPins` — on every render, and whenever the board reflows.
+   */
+  pins?: PinPlace[];
+  onPins?: (points: Map<string, { x: number; y: number }>) => void;
+  /** Filled with a way to ask which element is under a point, for a pin about to be put there. */
+  locator?: React.MutableRefObject<Locate | null>;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -74,8 +94,17 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
   const scroll = useRef<{ x: number; y: number } | null>(null);
   // The latest of everything, read by the listener without re-subscribing on
   // every keystroke.
-  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, onSize, drag: t('canvas.drag'), layers, front });
-  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, drag: t('canvas.drag'), layers, front };
+  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, onSize, pins, onPins, drag: t('canvas.drag'), layers, front });
+  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, pins, onPins, drag: t('canvas.drag'), layers, front };
+  /** Questions asked of the frame, by the id the answer will carry. */
+  const asked = useRef(new Map<string, (answer: { el: string; fx: number; fy: number } | null) => void>());
+
+  /** Tell a layer which pins to find. Only ever the one on screen is asked. */
+  const sendPins = (key: number): void => {
+    const now = latest.current.pins;
+    if (!now?.length) return;
+    elements.current.get(key)?.contentWindow?.postMessage({ type: 'kolibri:where', pins: now }, '*');
+  };
 
   /** Hand a layer the document for render `number`, once its pictures are in. */
   const render = (key: number, number: number): void => {
@@ -129,6 +158,7 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
         setFront(layer.key);
         setLayers((all) => all.filter((one) => one.key === layer.key));
         if (message.height) latest.current.onSize?.(message.height);
+        sendPins(layer.key);
         latest.current.onRendered?.();
         return;
       }
@@ -140,6 +170,16 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
       }
       if (message.type === 'kolibri:size') {
         latest.current.onSize?.(message.height);
+        return;
+      }
+      if (message.type === 'kolibri:at') {
+        latest.current.onPins?.(new Map(message.points.map((point) => [point.id, { x: point.x, y: point.y }])));
+        return;
+      }
+      if (message.type === 'kolibri:located') {
+        const answer = asked.current.get(message.id);
+        asked.current.delete(message.id);
+        answer?.(message.el ? { el: message.el, fx: message.fx, fy: message.fy } : null);
         return;
       }
       if (message.type === 'kolibri:open') {
@@ -158,6 +198,24 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
     if (mode !== 'edit') return;
     elements.current.get(front)?.contentWindow?.postMessage({ type: 'kolibri:select', k: selected }, '*');
   }, [selected, mode, front]);
+
+  // A new list of pins goes to the frame on screen; a new frame is sent it when it is drawn.
+  const pinKey = pins?.length ? JSON.stringify(pins) : '';
+  useEffect(() => { if (pinKey) sendPins(front); }, [pinKey, front]);
+
+  useEffect(() => {
+    if (!locator) return;
+    let count = 0;
+    locator.current = (x, y) => new Promise((resolve) => {
+      const id = `q${++count}`;
+      asked.current.set(id, resolve);
+      elements.current.get(latest.current.front)?.contentWindow?.postMessage({ type: 'kolibri:locate', id, x, y }, '*');
+      // A frame that never answers — still loading, or a board whose script
+      // took the message channel — leaves the pin to its point alone.
+      setTimeout(() => { if (asked.current.delete(id)) resolve(null); }, ANSWER_MS);
+    });
+    return () => { locator.current = null; };
+  }, [locator]);
 
   return (
     <div className={cn('artboard-host', className)} style={style}>

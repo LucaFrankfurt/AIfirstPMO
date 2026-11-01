@@ -100,8 +100,10 @@ beside it, the database on the private network, the metadata service on `169.254
 `http://n8n:5678` on its own docker network. Off by default.
 
 **A model, when somebody asks for one.** A task review (`docs/ai.md`) sends the project name, column,
-labels, title and description of one task to whichever provider the operator configured. It is the
-only feature that sends a workspace's own words to a third party, so it is gated twice — a key in
+labels, title and description of one task to whichever provider the operator configured; a board
+drawn or changed on a canvas sends the description typed, the canvas's title, the board being
+changed and — when *match the look* is ticked — up to two other boards. These are the only features
+that send a workspace's own words to a third party, so they are gated twice — a key in
 the environment *and* a switch a workspace admin sets — refused for guests and read-only tokens,
 rate-limited per person, and never triggered by anything but a click. Assignees, dates, estimates,
 comments and attachments are not sent. Nothing about the review is stored; what survives is whatever
@@ -111,6 +113,18 @@ The provider URL comes from the environment rather than from a user, which is wh
 through plain `fetch` rather than `lib/outbound.ts`: those checks exist for an address somebody
 typed into the app, and applying them here would refuse a gateway on the instance's own network,
 which is a supported way to run this.
+
+**A board, through a share link.** A shared page is a server-rendered document with no script in
+it; a shared canvas or board page is that document framing each board, and each board is served on
+its own at `/s/:token/boards/:id` under the board frame's policy (`buildFrameCsp`): `sandbox`, so its
+origin is opaque and it can read neither cookies nor storage of this origin, no network
+(`connect-src 'none'`), framed only by this origin. The share's variant adds `allow-popups` and
+`allow-popups-to-escape-sandbox`, so a link in a board opens in a new tab as on any page — there is
+no app around it to open links for it. A board is served only while the link is live and only if it
+is on the shared page or a page the share brings. Its pictures are inlined by the server, and only
+pictures attached to the board's own page: naming another page's file in a board leaves it a broken
+image rather than publishing it. `test/board-shares.test.ts` asks each of these, and fails on each
+with its check taken out.
 
 ## What comes back in
 

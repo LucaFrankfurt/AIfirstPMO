@@ -326,11 +326,11 @@ export function seedDemoData(): boolean {
   <style>body { margin: 0; font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; color: #14161c; background: #ffffff; line-height: 1.55; }</style>
 </head>
 <body>
-  <main style="max-width: 980px; margin: 0 auto; padding: 40px 40px 56px; display: flex; flex-direction: column; gap: 22px">
+  <main style="max-width: 980px; margin: 0 auto; padding: clamp(20px, 5vw, 40px) clamp(16px, 5vw, 40px) 56px; display: flex; flex-direction: column; gap: 22px">
     <p style="margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #2e2e8f">Quarterly review · Sales</p>
     <h1 style="margin: 0; font-size: 32px">Q3 in one page</h1>
     <p style="margin: 0; font-size: 17px; color: #3d4048">Pipeline grew, conversion held, and the demo-to-proposal step is where deals wait longest.</p>
-    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px">
       <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">New pipeline</p><p style="margin: 4px 0 0; font-size: 26px; font-weight: 700">€410k</p></div>
       <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">Won</p><p style="margin: 4px 0 0; font-size: 26px; font-weight: 700">€96k</p></div>
       <div style="padding: 18px; border: 1px solid #e5e6eb; border-radius: 12px"><p style="margin: 0; font-size: 12px; color: #646872">Days, demo to proposal</p><p style="margin: 4px 0 0; font-size: 26px; font-weight: 700">19</p></div>
@@ -363,7 +363,9 @@ export function seedDemoData(): boolean {
   }, asAda);
   writeEntity('comment', uid(), {
     workspace_id: ws, page_id: review, author_id: grace, body: 'Can we name the pricing owner here before the board meeting?',
-    anchor: { board: reviewBoard, x: 80, y: 820 }, reactions: {},
+    // On the closing callout, by element as well as by point, so the pin follows it when the page
+    // reflows to a phone: `main`, then its eleventh child.
+    anchor: { board: reviewBoard, x: 80, y: 820, el: 'main:0/div:10', fx: 0.05, fy: 0.5 }, reactions: {},
   }, { workspaceId: ws, actorId: grace, hlc: hlc(), system: true });
 
   const handbook = uid();

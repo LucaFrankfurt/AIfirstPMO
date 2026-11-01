@@ -2209,6 +2209,8 @@ export const en = {
   'board.emptyTitle': 'An empty board',
   'board.emptyHint': 'A board is a styled, interactive page of its own. Start from a template, bring an artifact made with Claude, or describe what it should show.',
   'board.emptyReader': 'Nothing has been put on this board yet.',
+  'board.fitScreen': 'Fit to screen',
+  'board.asDesigned': 'As designed',
   'canvas.tools': 'Canvas tools',
   'canvas.addBoard': 'Add board',
   'canvas.addNote': 'Note',

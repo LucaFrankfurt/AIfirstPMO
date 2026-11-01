@@ -253,6 +253,71 @@ jobs:
         if: failure()
         run: cat /tmp/kolibri-server.log || true
 
+  # Boards in Firefox and WebKit — Safari's engine, and so half the phones that
+  # open a shared link. Every other browser job here walks Chromium, and a
+  # board is exactly the part of the app whose behaviour belongs to the
+  # engine: a sandboxed frame with an opaque origin, a policy sent as a header,
+  # a `postMessage` handshake, a frame measuring itself, two policies nested in
+  # a shared link. `scripts/engines.mjs` says what it walks.
+  #
+  # The server runs on the runner, as in `smoke`; only the browsers run in
+  # Playwright's own image, which carries both engines and the libraries they
+  # need. That is the reason for the image rather than `playwright install`:
+  # WebKit wants a dozen system libraries, and getting them means apt, which
+  # is what hung `smoke` for hours (see the note there). The tag is
+  # `PLAYWRIGHT_VERSION` from the top of this file, so the browsers in the
+  # image are the ones the installed package expects and there is one number
+  # to bump — a `container:` key could not read it.
+  engines:
+    runs-on: ubuntu-latest
+    needs: test
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - id: modules
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            packages/*/node_modules
+          key: modules-pw-${{ runner.os }}-node22-${{ hashFiles('package-lock.json') }}-${{ env.PLAYWRIGHT_VERSION }}
+      - if: steps.modules.outputs.cache-hit != 'true'
+        run: npm ci --no-audit --no-fund
+      - run: npm run build
+      - name: Playwright, to drive the image's browsers
+        timeout-minutes: 10
+        run: |
+          if [ ! -d node_modules/playwright ]; then
+            npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
+          fi
+          docker pull "mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble"
+      - name: Seed and start the server
+        run: |
+          npm run seed
+          PORT=4400 npm start > /tmp/kolibri-server.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:4400/api/health && break; sleep 2; done
+          curl -fs http://127.0.0.1:4400/api/health > /dev/null || {
+            echo "the server never became healthy"; cat /tmp/kolibri-server.log; exit 1
+          }
+      - name: Firefox and WebKit
+        timeout-minutes: 10
+        # `--network host` so the browsers in the container reach the server on
+        # the runner's loopback; the workspace mounted so the script and the
+        # Playwright package installed above are the ones that run.
+        run: |
+          docker run --rm --network host --ipc=host \
+            -v "$PWD:/work" -w /work \
+            -e KOLIBRI_URL=http://127.0.0.1:4400 \
+            "mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble" \
+            node scripts/engines.mjs
+      - name: What the server thought, if anything went wrong
+        if: failure()
+        run: cat /tmp/kolibri-server.log || true
+
   # The two websites. A separate job because they have their own dependency
   # tree — `sites/*` are not workspaces of the root project, on purpose — and
   # because nothing in the `test` job would notice them breaking.
