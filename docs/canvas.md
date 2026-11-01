@@ -30,17 +30,26 @@ its board; see [Out of the workspace](#out-of-the-workspace). What differs is ho
   responsive reflows the way the same artifact does on claude.ai, and offers *As designed* to go
   back. Measured on an iPhone-sized window: the seeded one-pager drawn 374px wide at its own 16px
   text, against 35% of it scaled.
-- **Never cut off.** Reflowing helps only a board written to reflow. One whose own layout does not —
-  a row of cards that never wraps, a table with no box to scroll in — ran off the side of the
-  phone and was cut there, which is how this was reported. The frame now reports how wide its
-  content is, and when that is wider than the screen the board is drawn at the width it needs (up
-  to its own) and scaled down, the way a phone's browser shows a site never made for it: all of it,
-  smaller, and pinch-zoom still works. Measured on a 427px screen with eight cards of 140px that
-  never wrap: 1228px drawn at 33%, nothing cut, where before 854px of it was. A board's writer sees
-  why it is small and, when the model is switched on, **Make it fit phones**: the editor opens with
-  the request written out — let grids and rows wrap, put wide tables in a scrolling box, keep the
-  wide-screen look — and the answer is one step of *Undo*. `check:engines` walks this case in
-  Firefox and WebKit too.
+- **Made to fit, never cut off.** Reflowing helps only a board written to reflow. One whose own
+  layout does not — a grid of eight fixed columns, a row of cards that never wraps, a container
+  `1200px` wide, a table with no box to scroll in — ran off the side of the phone and was cut there,
+  which is how this was reported. On a reflowed board the frame now makes it fit (`fitBoard` in
+  `shared`): it looks only at what runs off the side — a box too wide, or a box whose content runs
+  on past it, which is what a grid's columns do — and loosens exactly that. Fixed-column grids
+  become `repeat(auto-fill, minmax(…))` at their own narrowest column, rows wrap, wide boxes are
+  held to their container, tables and preformatted text get the scrolling box they lacked,
+  pictures shrink. What fits is left alone, and so is anything inside a box that scrolls on
+  purpose. These are styles on the drawn document: the source keeps what its author wrote, and the
+  editor, the designed view and the PDF never see them. Measured at 390px on nine boards: the six
+  that ran 222–1042px off the side fit with 0px over; a responsive grid, a table in its own scroll
+  box and a kanban that scrolls on purpose were left exactly as they were. On a 427px screen the
+  eight-card pipeline reflows to two columns at its own 16px text.
+  What cannot be reflowed — a layout by absolute position — is still too wide afterwards, and the
+  frame says so by reporting its content's width: the board is drawn at the width it needs and
+  scaled down to fit, the way a phone's browser shows a site never made for it, and its writers are
+  offered **Make it fit phones**, which opens the editor with the request written out for the model
+  and is one step of *Undo*. A shared link runs the same adapter inside the board it serves, so a
+  shared board fits a phone too. `check:engines` walks both in Chromium, Firefox and WebKit.
 - **Pins follow what they were put on.** A pin is a point in the board's own pixels, which means
   nothing once the board reflows — so a pin also names the element under it, as the steps down from
   the body (`main:0/div:10`), and where on that element it sat, as fractions of its box. On a

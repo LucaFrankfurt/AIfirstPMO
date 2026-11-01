@@ -142,6 +142,9 @@ describe('a shared board page', () => {
     assert.match(body, /<h1>Q3 in one page<\/h1>/);
     assert.match(body, /document\.title = 'ran'/);
     assert.match(body, /window\.open\(u\.href,'_blank'/, 'links would navigate the frame away from the board');
+    // And made to fit the width it is framed at — a phone — as the app does.
+    assert.match(body, /function fitBoard\(\)/, 'a shared board is not fitted to a phone');
+    assert.match(body, /repeat\(auto-fill, minmax\(min\(100%/);
   });
 
   it('inlines a picture hung on its page, and no other', async () => {

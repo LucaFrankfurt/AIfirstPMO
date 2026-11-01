@@ -36,13 +36,15 @@
  *
  * **Never cut off.** Reflowing helps only a board written to reflow. One whose
  * own layout does not — a row of cards that never wraps, a table with no box
- * to scroll in — ran off the side of the phone and was cut there. So the frame
- * also reports how wide its content is, and when that is wider than the
- * screen the board is drawn at the width it needs and scaled down to fit, the
- * way a phone's browser shows a site that was never made for it: all of it,
- * smaller. The real fix is the board's own, so its writers are offered *Make
- * it fit phones*, which asks the model to make the layout responsive in the
- * editor, one step of *Undo* away.
+ * to scroll in — ran off the side of the phone and was cut there. So, on the
+ * reflowed board, the frame first makes it fit: `fitBoard` in `shared` loosens
+ * exactly what runs off the side, in the drawn document and never in the
+ * source. What it cannot help — a layout by absolute position — is still too
+ * wide, and the frame says so by reporting how wide its content is: the board
+ * is then drawn at the width it needs and scaled down to fit, the way a
+ * phone's browser shows a site never made for it. That last case is offered
+ * to its writers as *Make it fit phones*, which asks the model to make the
+ * layout responsive in the editor, one step of *Undo* away.
  *
  * **Working, not a picture.** On a canvas a board is something to move, and a
  * press on it picks it up. Here nothing moves, so the board is live: its
@@ -358,7 +360,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
             >
               <ArtboardFrame
                 source={board.content ?? ''} mode="play" title={page.title || t('common.untitled')}
-                className="board-frame" onSize={measured} locator={locate}
+                className="board-frame" onSize={measured} adapt={fitted} locator={locate}
                 pins={fitted ? anchored : undefined} onPins={setFound}
               />
               {pinning && (

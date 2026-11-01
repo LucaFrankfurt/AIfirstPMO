@@ -21,7 +21,7 @@
  *   opens them itself, in a new tab, which is what the share's frame policy
  *   allows and nothing more.
  */
-import { escapeHtml } from '@kolibri/shared';
+import { escapeHtml, fitBoard } from '@kolibri/shared';
 import { all, get, type Row } from '../../kernel/platform/db/index.ts';
 import * as storage from '../../kernel/files/storage.ts';
 
@@ -104,14 +104,24 @@ async function inlinePictures(source: string, pageId: string, workspaceId: strin
  */
 const LINKS = `<script>(function(){document.addEventListener('click',function(e){var t=e.target;if(t&&t.nodeType!==1)t=t.parentElement;var a=t&&t.closest?t.closest('a[href]'):null;if(!a)return;if((a.getAttribute('href')||'').charAt(0)==='#')return;var u;try{u=new URL(a.href)}catch(x){return}if(!/^(https?|mailto):$/.test(u.protocol))return;e.preventDefault();window.open(u.href,'_blank','noopener,noreferrer')},true)})();</script>`;
 
+/**
+ * Ours, in the board, too: a board not written for the width it is framed at
+ * — a phone, most of all — is made to fit it, as the app does for a board
+ * page (`fitBoard` in `shared`, which says what it changes). Once drawn, once
+ * more when a script has had a moment to add to it, and on every resize; a
+ * board that fits is left exactly as it is.
+ */
+const FIT = `<script>(function(fit){var run=function(){try{fit()}catch(e){}};addEventListener('load',function(){run();setTimeout(run,600)});addEventListener('resize',run)})(${fitBoard.toString().replace(/<\/script/gi, '<\\/script')});</script>`;
+
 /** The board's document, ready to be served on its own. */
 export async function boardDocument(board: Row): Promise<string> {
   const body = await inlinePictures(String(board.content ?? ''), String(board.page_id), String(board.workspace_id));
+  const ours = LINKS + FIT;
   const head = /<head(\s[^>]*)?>/i.exec(body);
-  if (head) return `${body.slice(0, head.index + head[0].length)}${LINKS}${body.slice(head.index + head[0].length)}`;
+  if (head) return `${body.slice(0, head.index + head[0].length)}${ours}${body.slice(head.index + head[0].length)}`;
   const html = /<html(\s[^>]*)?>/i.exec(body);
-  if (html) return `${body.slice(0, html.index + html[0].length)}<head>${LINKS}</head>${body.slice(html.index + html[0].length)}`;
+  if (html) return `${body.slice(0, html.index + html[0].length)}<head>${ours}</head>${body.slice(html.index + html[0].length)}`;
   const doctype = /^\s*<!doctype[^>]*>/i.exec(body);
-  if (doctype) return `${doctype[0]}${LINKS}${body.slice(doctype[0].length)}`;
-  return `<!doctype html><meta charset="utf-8">${LINKS}${body}`;
+  if (doctype) return `${doctype[0]}${ours}${body.slice(doctype[0].length)}`;
+  return `<!doctype html><meta charset="utf-8">${ours}${body}`;
 }

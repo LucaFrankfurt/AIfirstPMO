@@ -13,7 +13,7 @@
  *   - the editor's frame answers a click with a selection;
  *   - the seeded board page grows to its board, with nothing scrolling inside;
  *   - at phone width it reflows, and its pin sits on what it was put on;
- *   - a board too wide for a phone is scaled to fit rather than cut off;
+ *   - a board too wide for a phone reflows to it, in the app and through a shared link;
  *   - a shared canvas and a shared board page work for a stranger.
  *
  * Run against a seeded instance, like the smoke walkthrough:
@@ -142,7 +142,7 @@ async function walk(name) {
     check(name, pinned >= 1, `its pin is found on the reflowed board (${pinned})`);
 
     // A board whose own layout does not fit a phone — eight cards that never
-    // wrap — is drawn at the width it needs and scaled down, not cut off.
+    // wrap — reflows to it, at its own size: nothing cut, nothing shrunk.
     const cramped = await desk.evaluate(async ([ws, html]) => {
       const made = await (await fetch(`/api/workspaces/${ws}/pages`, {
         method: 'POST', credentials: 'include', headers: { 'content-type': 'application/json' },
@@ -157,11 +157,17 @@ async function walk(name) {
     await phone.goto(`${base}/pages/${cramped}`);
     await phone.waitForSelector('.board-sheet iframe', { timeout: 10000 });
     await phone.waitForTimeout(3000);
-    const shrunk = await phone.locator('.board-sheet-inner').evaluate((el) => ({ w: el.offsetWidth, t: el.style.transform }));
-    const cut = await fromFrames(phone, () => (document.getElementById('row')
-      ? document.documentElement.scrollWidth - document.documentElement.clientWidth : null));
-    check(name, cut !== null && cut <= 1 && shrunk.w > 1000 && /scale\(0\./.test(shrunk.t),
-      `a board too wide for a phone is scaled to fit, not cut off (${shrunk.w}px, ${shrunk.t}, ${cut}px cut)`);
+    const drawn = await phone.locator('.board-sheet-inner').evaluate((el) => ({ w: el.offsetWidth, t: el.style.transform }));
+    const fitted = await fromFrames(phone, () => {
+      const row = document.getElementById('row');
+      if (!row) return null;
+      return {
+        cut: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        columns: getComputedStyle(row).gridTemplateColumns.split(' ').length,
+      };
+    });
+    check(name, !!fitted && fitted.cut <= 1 && fitted.columns <= 3 && drawn.w < 400 && drawn.t === 'scale(1)',
+      `a board too wide for a phone reflows to it at its own size (${drawn.w}px, ${drawn.t}, ${JSON.stringify(fitted)})`);
 
     // A stranger with the links.
     const share = (page) => desk.evaluate(async ([ws, id]) => {
@@ -180,6 +186,13 @@ async function walk(name) {
     const heading = await fromFrames(stranger, () => [...document.querySelectorAll('h1')].find((one) => one.textContent === 'Q3 in one page')?.textContent ?? null);
     const wide = await stranger.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     check(name, heading === 'Q3 in one page' && wide <= 0, `and a shared board page, on a phone, with nothing off the side (${heading}, ${wide}px)`);
+    // The too-wide board, shared: no script around it to scale it, so it fits from inside.
+    await stranger.goto(`${base}/s/${await share(cramped)}`);
+    const sharedFit = await fromFrames(stranger, () => {
+      const row = document.getElementById('row');
+      return row ? document.documentElement.scrollWidth - document.documentElement.clientWidth : null;
+    });
+    check(name, sharedFit !== null && sharedFit <= 1, `a shared board too wide for a phone fits it too (${sharedFit}px cut)`);
   } catch (error) {
     check(name, false, `stopped: ${String(error?.message ?? error).split('\n')[0]}`);
   } finally {

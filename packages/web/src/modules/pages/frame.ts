@@ -19,7 +19,7 @@
  * keeps it type-checked and readable here, at the price of one rule: it may
  * use nothing from outside its own body, because it does not run here.
  */
-import { artboard } from '@kolibri/shared';
+import { artboard, fitBoard } from '@kolibri/shared';
 
 /**
  * The frame file's hash, which is the address the browser caches it under.
@@ -155,6 +155,12 @@ export interface RuntimeConfig {
   scroll: { x: number; y: number } | null;
   /** Report the board's height as it is drawn and whenever it changes — for a board shown as a page. */
   fit?: boolean;
+  /**
+   * Make a board that was not written for this width fit it — a board page
+   * reflowed to a phone. `fitBoard` in `shared` says what it changes and what
+   * it leaves alone; it is handed in beside the config, as source.
+   */
+  adapt?: boolean;
   /** Words the editing overlay shows, in the reader's language. */
   labels: { drag: string };
 }
@@ -170,7 +176,7 @@ export interface RuntimeConfig {
  * keys an editor answers to. The outline lives in a shadow root hung off
  * `<html>`, outside the body, so nothing it draws can end up in what is saved.
  */
-export function runtime(config: RuntimeConfig): void {
+export function runtime(config: RuntimeConfig, adapt: (() => number) | null = null): void {
   const post = (message: Record<string, unknown>): void => parent.postMessage({ rev: config.rev, ...message }, '*');
 
   /*
@@ -259,6 +265,11 @@ export function runtime(config: RuntimeConfig): void {
    * doing what it meant to.
    */
   const measureWidth = (): number => document.documentElement.scrollWidth;
+  /** The adapter, when there is one: a board's own failure to fit is the board's, never the frame's. */
+  const fit = (): void => {
+    if (!adapt) return;
+    try { adapt(); } catch { /* the board as written, then */ }
+  };
 
   // Drawn: back where the last render was scrolled to, then say so — the app
   // shows this frame in place of the previous one only now, so an edit never
@@ -269,6 +280,8 @@ export function runtime(config: RuntimeConfig): void {
     // A timer rather than an animation frame: a frame the browser counts as off
     // screen — every board being laid out for a PDF — may never be given one.
     setTimeout(() => {
+      // Fitted to this width first, so what is measured is what is shown.
+      fit();
       post({ type: 'kolibri:rendered', ...(config.fit ? { height: measure(), width: measureWidth() } : {}) });
       if (!config.fit || typeof ResizeObserver === 'undefined' || !document.body) return;
       // A board's script may draw after load — a chart, a list filled in — and
@@ -283,6 +296,8 @@ export function runtime(config: RuntimeConfig): void {
         pending = setTimeout(() => {
           pending = 0;
           if (!document.documentElement.clientWidth) return;
+          // Late content — a list a script filled in — may not fit either.
+          fit();
           const now = measure();
           const wide = measureWidth();
           // A reflow moves what pins are on, whether or not the size changed.
@@ -540,7 +555,10 @@ export function prepare(source: string, config: RuntimeConfig): string {
   const body = config.mode === 'edit' ? artboard.annotate(source) : source;
   // `<\/script>` cannot appear in a function's source unless it is in a
   // string, and then it is escaped; the replace is for the one that is not.
-  const script = `<script>(${runtime.toString()})(${JSON.stringify(config).replace(/</g, '\\u003c')});</script>`;
+  // The adapter goes in as source too, as an argument: the runtime cannot
+  // import it, and a name it could look it up by would not survive the build.
+  const adapter = config.adapt ? fitBoard.toString() : 'null';
+  const script = `<script>(${runtime.toString()})(${JSON.stringify(config).replace(/</g, '\\u003c')}, ${adapter});</script>`;
   const head = /<head(\s[^>]*)?>/i.exec(body);
   if (head) return `${body.slice(0, head.index + head[0].length)}${script}${body.slice(head.index + head[0].length)}`;
   const html = /<html(\s[^>]*)?>/i.exec(body);

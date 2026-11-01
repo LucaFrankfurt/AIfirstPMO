@@ -56,7 +56,7 @@ export type Locate = (x: number, y: number) => Promise<{ el: string; fx: number;
 const ANSWER_MS = 600;
 
 export function ArtboardFrame({
-  source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, pins, onPins, locator, className, style,
+  source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, adapt = false, pins, onPins, locator, className, style,
 }: {
   source: string;
   mode: FrameMode;
@@ -74,6 +74,8 @@ export function ArtboardFrame({
    * a fixed size and never needs to.
    */
   onSize?: (height: number, width?: number) => void;
+  /** Make a board not written for this width fit it — see `fitBoard`. A change is a new render. */
+  adapt?: boolean;
   /**
    * Pins to find by what they are on. The frame answers where each one is now
    * through `onPins` — on every render, and whenever the board reflows.
@@ -94,8 +96,8 @@ export function ArtboardFrame({
   const scroll = useRef<{ x: number; y: number } | null>(null);
   // The latest of everything, read by the listener without re-subscribing on
   // every keystroke.
-  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, onSize, pins, onPins, drag: t('canvas.drag'), layers, front });
-  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, pins, onPins, drag: t('canvas.drag'), layers, front };
+  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front });
+  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, adapt, pins, onPins, drag: t('canvas.drag'), layers, front };
   /** Questions asked of the frame, by the id the answer will carry. */
   const asked = useRef(new Map<string, (answer: { el: string; fx: number; fy: number } | null) => void>());
 
@@ -116,14 +118,14 @@ export function ArtboardFrame({
     };
     const write = (source: string): void => post(prepare(source, {
       mode: now.mode, rev: number, selected: now.selected,
-      scroll: now.keepScroll ? scroll.current : null, labels: { drag: now.drag }, fit: !!now.onSize,
+      scroll: now.keepScroll ? scroll.current : null, labels: { drag: now.drag }, fit: !!now.onSize, adapt: now.adapt,
     }));
     // Pictures from this server go in as their bytes — see `board-files.ts`.
     if (hasFiles(now.source)) void inlineFiles(now.source).then(write);
     else write(now.source);
   };
 
-  // A new source or mode is a new render, in a new frame unless the only frame
+  // A new source, mode or fitting is a new render, in a new frame unless the only frame
   // there is has not been given one yet.
   useEffect(() => {
     rev.current += 1;
@@ -139,7 +141,7 @@ export function ArtboardFrame({
     // Only the front and the newest render are ever kept: anything in between
     // is a render nobody will see.
     setLayers([...current.filter((layer) => layer.key === shown), { key, rev: number, ready: false }]);
-  }, [source, mode]);
+  }, [source, mode, adapt]);
 
   useEffect(() => {
     const listen = (event: MessageEvent): void => {
