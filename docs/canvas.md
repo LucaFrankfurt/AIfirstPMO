@@ -10,6 +10,48 @@ It exists because an artifact made with Claude could be shared but not changed o
 anybody else. A canvas is where such a thing can live in the workspace instead: editable by every
 member who can see the page, by hand and by an assistant, with the discussion beside it.
 
+## A board on its own
+
+A board does not have to live on a canvas. A **board page** — *New board* on the pages list, *Add a
+board below* in a page's menu — is a page of format `board` that holds exactly one board and shows
+it the way a markdown page shows its text: in the tree, with a title, a status, labels, access and a
+place under a parent, opened and read like any page.
+
+It is the same board, a row in `artboards` like every other, so everything a board is, it is —
+history, pins and suggestions, pictures, search, MCP, export and the trash ask nothing new. The page
+keeps its own text empty, as a canvas does, which is why an older app shows it as an empty page and
+why share links, templates, downloads and a text history are not offered on it: each of those reads
+only the text. What differs is how it is shown:
+
+- **At its own width, scaled down to fit** the column and never up — the picture the canvas and the
+  editor draw, because a board is designed at a width and its pins are points in its own pixels.
+- **As tall as it is.** The frame measures what it drew and grows to it, down to the board's own
+  height and never below, so the page scrolls rather than a window inside it. A board that is its
+  frame's height (`100vh`) stays that; one that is its frame's height *plus a margin* would grow by
+  the margin every time it was measured, and growing by exactly what it just grew by is taken as
+  that and stopped. Measured on five boards: a `100vh + 40px` board stopped after one step at 640px,
+  a script adding 1500px after load grew to 1550px, a board edited from 1800px to 900px shrank to
+  900px, a board without a doctype measured its body's margins, and a short `min-height: 100vh` one
+  stopped at 616px — its paragraph's margin collapses through the body, so it really does overflow
+  its frame by 16px at any height. The smoke walkthrough opens the seeded one-pager, which is taller
+  than its frame, and fails if the page did not grow to it.
+- **Working, not a picture.** On a canvas a press picks a board up; here nothing moves, so its
+  buttons, tabs and links work as in *Try it*. Pinning a comment is a mode — a layer over the board
+  that takes one click.
+
+*Edit* in the header opens the editor; renaming the board there renames the page, and the server
+keeps the board's own title in step with the page's however the page is renamed. *Ask Claude* on
+the page opens the editor with the dialog up, so the answer is one step of *Undo*. A new board page
+starts empty with the same ways in as *Add board*, and an untitled page takes the name of the board
+it is given.
+
+The server holds the shape: a second board, or a note, on a board page is refused, and so is turning
+a canvas into a board page while it has more than one board. A board page turns into a canvas from
+its menu, to put things beside the board, and a canvas of one board back into a board page. A board
+on a canvas can be **copied to its own page** — a copy, under the canvas, with the canvas's access
+and project: its pins are that canvas's discussion, and a move would either strand them or carry
+somebody's comments onto a page they never wrote on.
+
 ## What is stored
 
 A canvas is an ordinary page with `format: 'canvas'`, and its boards are rows of their own in
@@ -209,7 +251,7 @@ proposes a change to a page or a board instead of making it, and `resolve_commen
 ## Not done
 
 In [`TODO.md`](../TODO.md), with the reason for each: web fonts and a fixed set of libraries boards
-may use, live cursors, share links and file exports of a canvas (beyond the PDF), canvases as
-templates, a board drawn by a model shown as it is written rather than when it is done, and the
+may use, live cursors, share links and file exports of a canvas or a board page (beyond the PDF),
+either as a template, a board page that reflows to a phone rather than scaling, a board drawn by a model shown as it is written rather than when it is done, and the
 browsers and the packaged app nobody has run it in. The model's half was tested against a stand-in
 that answers like the Messages API, not against a real model.

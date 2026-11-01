@@ -161,6 +161,15 @@ describe('drawing a board', () => {
     assert.match(prompt, /Frame: 760 × 720/);
   });
 
+  it('draws on a board page as well as a canvas', async () => {
+    answer = () => PAGE;
+    const page = (await ok(`/api/workspaces/${workspace}/pages`, { cookie: ada.cookie, body: { title: 'One-pager', format: 'board' } })).id;
+    sent = [];
+    const result = await draft(ada, page, { instruction: 'A one-pager for the board meeting' });
+    assert.equal(result.status, 200);
+    assert.match(sent[0].messages[0].content, /Canvas: One-pager/);
+  });
+
   it('refuses a reply that is not a page, and puts nothing anywhere', async () => {
     answer = () => 'Sorry, I cannot draw that.';
     const result = await draft(ada, canvas, { instruction: 'Anything' });
@@ -177,7 +186,7 @@ describe('who may ask', () => {
     assert.equal(sent.length, 0, 'a refused request still reached the model');
   });
 
-  it('not on a page that is not a canvas', async () => {
+  it('not on a page that holds no boards', async () => {
     const text = (await ok(`/api/workspaces/${workspace}/pages`, { cookie: ada.cookie, body: { title: 'Text' } })).id;
     assert.equal((await draft(ada, text, { instruction: 'Draw' })).status, 400);
   });

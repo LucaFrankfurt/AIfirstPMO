@@ -393,8 +393,15 @@ for (const [label, options] of MODES) {
     return (body.pages ?? body.items ?? body).find((row) => row.format === 'canvas')?.id;
   });
   if (!canvasId) throw new Error('no canvas to open — the seed built none');
+  // A board on its own: the canvas's toolbar and thread around a page that scrolls.
+  const boardPageId = await page.evaluate(async () => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const body = await (await fetch(`/api/workspaces/${workspace}/pages?limit=500`, { credentials: 'include' })).json();
+    return (body.pages ?? body.items ?? body).find((row) => row.format === 'board')?.id;
+  });
+  if (!boardPageId) throw new Error('no board page to open — the seed built none');
 
-  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', `/pages/${canvasId}`, '/teams', '/planner',
+  const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', `/pages/${canvasId}`, `/pages/${boardPageId}`, '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
     '/mail', ['/settings?tab=mailboxes', openMailboxEditor], '/decisions', '/meetings', `/meetings/${meetingId}`, '/secrets',
     // Behind the products switch, and reached only because the fixture above

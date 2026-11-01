@@ -307,11 +307,24 @@ function BoardHistory({ board, previewing, onPreview, onRestored }: {
   );
 }
 
-export function ArtboardEditor({ board, canWrite, ai = null, onClose }: {
+export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAsking = false, onClose }: {
   board: Artboard;
   canWrite: boolean;
-  /** Claude, when this server has a model and the workspace has it on. */
+  /** The model, when this server has one and the workspace has it switched on. */
   ai?: CanvasAi | null;
+  /**
+   * Where a new title goes instead of the board's own. A board page has one
+   * title, the page's — renaming it there follows the page's links and keeps
+   * the board's in step — so the editor hands the name over rather than
+   * writing a second one that could drift.
+   */
+  onRename?: (title: string) => void;
+  /**
+   * Open with the model's dialog already up. A board page's *Ask* comes here
+   * rather than writing the answer straight onto the board: in the editor the
+   * answer is one step of *Undo*, and the person sees it before they leave.
+   */
+  startAsking?: boolean;
   onClose: () => void;
 }) {
   const t = useT();
@@ -324,7 +337,7 @@ export function ArtboardEditor({ board, canWrite, ai = null, onClose }: {
   const [tab, setTab] = useState<'design' | 'source'>('design');
   const [playing, setPlaying] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
-  const [asking, setAsking] = useState(false);
+  const [asking, setAsking] = useState(startAsking);
   /** An old version drawn in the stage instead of the board, while the history is open. */
   const [previewing, setPreviewing] = useState<{ id: string; content: string } | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
@@ -485,7 +498,9 @@ export function ArtboardEditor({ board, canWrite, ai = null, onClose }: {
 
   const commitTitle = () => {
     const next = title.trim();
-    if (next !== board.title) update('artboard', board.id, { title: next });
+    if (next === board.title) return;
+    if (onRename) onRename(next);
+    else update('artboard', board.id, { title: next });
   };
 
   // The board's frame, drawn at its own width and scaled down to fit the stage.

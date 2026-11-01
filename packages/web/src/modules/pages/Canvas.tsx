@@ -20,8 +20,10 @@
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { isPin, orderKey, type Anchor, type Artboard, type Page, type Pin } from '@kolibri/shared';
-import { byOrder, create, remove, update } from '../../kernel/sync/mutations';
+import { byOrder, create, createPage, remove, update } from '../../kernel/sync/mutations';
+import { useMe } from '../../kernel/identity/session';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useI18n, useT } from '../../kernel/i18n/i18n';
 import { Button } from '../../kernel/design-system/ui/button';
@@ -30,7 +32,7 @@ import { Icon, MenuButton, useConfirm } from '../../kernel/design-system/ui';
 import { cn } from '../../kernel/design-system/cn';
 import { ArtboardFrame } from './ArtboardFrame';
 import { ArtboardEditor, useWords } from './ArtboardEditor';
-import { TEMPLATE_KINDS, imageBoard, template, type TemplateKind } from './blocks';
+import { BOARD_ICON, TEMPLATE_KINDS, TEMPLATE_LABEL, imageBoard, template, type TemplateKind } from './blocks';
 import { DraftDialog, ImportDialog, useAiLabels, type CanvasAi, type Drafted } from './canvas-dialogs';
 import { useUploads } from '../../kernel/files/uploads';
 import { clampScale, grip, pinch, STEP, wheelFactor, zoomAt, type Grip, type View } from './zoom';
@@ -43,11 +45,6 @@ const SLOP = 3;
 const NOTE_COLORS = ['yellow', 'blue', 'green', 'pink'] as const;
 const NOTE_LABEL = {
   yellow: 'canvas.color.yellow', blue: 'canvas.color.blue', green: 'canvas.color.green', pink: 'canvas.color.pink',
-} as const;
-
-const TEMPLATE_LABEL = {
-  blank: 'canvas.template.blank', document: 'canvas.template.document',
-  dashboard: 'canvas.template.dashboard', phone: 'canvas.template.phone',
 } as const;
 
 interface Box { x: number; y: number; w: number; h: number }
@@ -151,7 +148,7 @@ const PRINT_PATIENCE_MS = 8000;
  * invisible: a frame the browser counts as off screen may be held back, and a
  * board drawn into a print that has already been taken is a blank page.
  */
-function CanvasPrint({ boards, title, onDone }: { boards: Artboard[]; title: string; onDone: () => void }) {
+export function CanvasPrint({ boards, title, onDone }: { boards: Artboard[]; title: string; onDone: () => void }) {
   const ordered = useMemo(() => [...boards].sort((a, b) => a.y - b.y || a.x - b.x), [boards]);
   const waiting = useRef(new Set(ordered.filter((board) => board.kind === 'html').map((board) => board.id)));
   const printed = useRef(false);
@@ -490,6 +487,27 @@ export function CanvasView({ page, canWrite, thread, ai = null }: {
     setSelected(id);
   };
 
+  /*
+   * A board taken out to stand on its own: a board page beside nothing, under
+   * this canvas in the tree. A copy, not a move — the board's pins and their
+   * discussion belong to this canvas's thread, and a move would either strand
+   * them or carry somebody's comments to a page they did not write on. Who may
+   * see it is who may see this canvas: a copy of something private is private.
+   */
+  const navigate = useNavigate();
+  const me = useMe();
+  const copyToPage = (board: Artboard) => {
+    const id = createPage({
+      title: board.title || t('common.untitled'), format: 'board', icon: BOARD_ICON,
+      parent_id: page.id, project_id: page.project_id, access: page.access,
+    }, me);
+    create('artboard', {
+      page_id: id, kind: 'html', title: board.title || t('common.untitled'), x: 0, y: 0, w: board.w, h: board.h,
+      content: board.content, sort_order: orderKey(null, null),
+    });
+    navigate(`/pages/${id}`);
+  };
+
   const deleteBoard = async (board: Artboard) => {
     if (board.kind === 'html' && !(await confirm(t('canvas.deleteBoard', { title: board.title || t('common.untitled') })))) return;
     remove('artboard', board.id);
@@ -626,6 +644,9 @@ export function CanvasView({ page, canWrite, thread, ai = null }: {
                 variant="ghost" size="iconSm" label={t('common.moreActions')}
                 items={[
                   { id: 'duplicate', label: t('canvas.duplicate'), icon: <Icon name="copy" size={14} />, onSelect: () => duplicateBoard(chosen) },
+                  ...(chosen.kind === 'html'
+                    ? [{ id: 'own-page', label: t('board.copyToPage'), icon: <Icon name="page" size={14} />, onSelect: () => copyToPage(chosen) }]
+                    : []),
                   { id: 'front', label: t('canvas.toFront'), onSelect: () => update('artboard', chosen.id, { sort_order: front() }) },
                   { id: 'delete', label: t('canvas.delete'), danger: true, icon: <Icon name="trash" size={14} />, onSelect: () => { void deleteBoard(chosen); } },
                 ]}

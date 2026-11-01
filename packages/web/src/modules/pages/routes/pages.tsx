@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  formatHtml, htmlOutline, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
+  formatHtml, htmlOutline, isBoardFormat, htmlToMarkdown, outlineOf, pageExcerpt, pageResolver, renderMarkdown,
   statusOf, type Anchor, type Page, type PageFormat,
 } from '@kolibri/shared';
 import { Header, Trail, type Crumb } from '../../../kernel/design-system/chrome';
@@ -20,6 +20,8 @@ import { Markdown, MarkdownEditor } from '../Markdown';
 import { HtmlEditor, HtmlView } from '../Html';
 import { ImportPages } from '../import';
 import { CanvasView } from '../Canvas';
+import { BoardPageView } from '../BoardPage';
+import { BOARD_ICON } from '../blocks';
 import { useBoardAi } from '../../ai-review/board-ai';
 import { Attachments } from '../../../kernel/files/Attachments';
 import { Empty, Icon, MenuButton, useConfirm, useToast } from '../../../kernel/design-system/ui';
@@ -286,6 +288,14 @@ export function PagesIndex() {
           </Button>
         )}
         {canWrite && (
+          <Button
+            variant="secondary" size="sm" title={t('board.new')} aria-label={t('board.new')}
+            onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled'), format: 'board', icon: BOARD_ICON }, me)}`)}
+          >
+            <Icon name="page" size={14} /> <span className="hide-sm">{t('board.new')}</span>
+          </Button>
+        )}
+        {canWrite && (
           <Button variant="primary" size="sm" onClick={() => navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`)}>
             <Icon name="plus" size={14} /> <span className="hide-sm">{t('page.new')}</span>
           </Button>
@@ -321,7 +331,7 @@ export function PagesIndex() {
                     <strong className="flex-1 min-w-0 truncate">{page.title || t('common.untitled')}</strong>
                     <PageStatusChip page={page} dot />
                   </span>
-                  <p className="m-0 text-[12.5px] text-muted">{page.format === 'canvas' ? t('canvas.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
+                  <p className="m-0 text-[12.5px] text-muted">{page.format === 'canvas' ? t('canvas.kind') : page.format === 'board' ? t('board.kind') : pageExcerpt(page.content, page.format, 110) || t('page.emptyPage')}</p>
                   <span className="text-[11.5px] text-muted">{t('page.updated', { time: relativeTime(page.updated_at) })}</span>
                 </Link>
               ))}
@@ -445,6 +455,13 @@ export function PageDetail() {
   const { confirm, dialog } = useConfirm();
 
   const [editing, setEditing] = useState(false);
+  /*
+   * A board page's editor, apart from the text editor's flag: that one
+   * survives moving to another page — this component is not remounted — and a
+   * board page opened while it was set would open straight into its editor.
+   */
+  const [editingBoard, setEditingBoard] = useState(false);
+  useEffect(() => setEditingBoard(false), [id]);
   const [title, setTitle] = useState(page?.title ?? '');
   const [history, setHistory] = useState(false);
   const [diffing, setDiffing] = useState<string | null>(null);
@@ -474,6 +491,7 @@ export function PageDetail() {
   const boardAi = useBoardAi();
   const projects = useQuery(() => list('project'), []);
   const pageComments = useQuery(() => list('comment', (entry) => entry.page_id === id), [id]);
+  const boards = useQuery(() => list('artboard', (board) => board.page_id === id), [id]);
 
   /* --------------------------------------------- the tree beside the page */
 
@@ -610,18 +628,34 @@ export function PageDetail() {
     toast(t('page.converted'));
   };
 
-  const commitTitle = () => {
-    const next = title.trim() || t('common.untitled');
+  const renameTo = (wanted: string) => {
+    const next = wanted.trim() || t('common.untitled');
     if (next === page.title) return;
     const moved = rename(page, next);
     if (moved.refused) toast(t('page.renameRefused'));
     else if (moved.pages) toast(t('page.renameLinks', { count: moved.pages }));
   };
+  const commitTitle = () => renameTo(title);
+
+  /*
+   * A canvas and a board page are the same rows shown two ways, so either can
+   * become the other — a board page into a canvas to put things beside it, a
+   * canvas back into a board page while it holds one board and nothing else.
+   * The server refuses the second when that is no longer true by the time it
+   * arrives.
+   */
+  const htmlBoards = boards.filter((board) => board.kind === 'html');
+  const canBeBoardPage = page.format === 'canvas' && htmlBoards.length === 1 && boards.length === 1;
 
   return (
     <>
       <Header title={<span className="flex items-center gap-1.5"><span>{page.icon ?? '📄'}</span><span className="truncate">{page.title || t('common.untitled')}</span></span>}>
-        <Button size="sm" hidden={!canWrite || page.format === 'canvas'} onClick={() => {
+        {/* Rendered only where it applies, not hidden elsewhere: a second, invisible "Edit" on
+            every page is the one a script asking for the first "Edit" finds. */}
+        {canWrite && page.format === 'board' && htmlBoards.length > 0 && (
+          <Button size="sm" onClick={() => setEditingBoard(true)}>{t('action.edit')}</Button>
+        )}
+        <Button size="sm" hidden={!canWrite || isBoardFormat(page.format)} onClick={() => {
           if (editing) {
             flush();
             commitTitle();
@@ -638,12 +672,20 @@ export function PageDetail() {
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled') }, me)}`) },
             { id: 'child-canvas', label: t('canvas.addSubcanvas'), icon: <Icon name="canvas" size={14} />,
               onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled'), format: 'canvas', icon: CANVAS_ICON }, me)}`) },
+            { id: 'child-board', label: t('board.addSubboard'), icon: <Icon name="page" size={14} />,
+              onSelect: () => navigate(`/pages/${createPage({ parent_id: id, project_id: page.project_id, title: t('common.untitled'), format: 'board', icon: BOARD_ICON }, me)}`) },
             // Beside "add a sub-page", because that is what it does — several
             // at once, out of files somebody already has.
             { id: 'import', label: t('page.importHere'), icon: <Icon name="attach" size={14} />,
               onSelect: () => setImporting(true) },
-            { id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
-              onSelect: () => setHistory(true) },
+            // A page's history is its text's, and a canvas or a board page has
+            // none: each board keeps its own, in the editor.
+            ...(isBoardFormat(page.format) ? [] : [{ id: 'history', label: t('page.history'), icon: <Icon name="refresh" size={14} />,
+              onSelect: () => setHistory(true) }]),
+            ...(page.format === 'board' && canWrite ? [{ id: 'to-canvas', label: t('board.toCanvas'), icon: <Icon name="canvas" size={14} />,
+              onSelect: () => update('page', id, { format: 'canvas' }) }] : []),
+            ...(canBeBoardPage && canWrite ? [{ id: 'to-board', label: t('board.fromCanvas'), icon: <Icon name="page" size={14} />,
+              onSelect: () => update('page', id, { format: 'board' }) }] : []),
             // In the menu as well as on the aside's own button, and not in the
             // header: on the screens where the aside exists at all there is
             // room for it, and on the ones where there is not, a control for
@@ -654,7 +696,7 @@ export function PageDetail() {
             { id: 'watch', label: watching ? t('page.unwatch') : t('page.watch'), icon: <Icon name="bell" size={14} />,
               hint: watching ? '✓' : undefined, onSelect: toggleWatch },
             // Three ways out of the same door, so one row rather than three.
-            ...(page.format === 'canvas' ? [] : [{
+            ...(isBoardFormat(page.format) ? [] : [{
               id: 'download',
               label: t('page.download'),
               icon: <Icon name="page" size={14} />,
@@ -666,7 +708,7 @@ export function PageDetail() {
             }]),
             // A canvas is not text in another language: its boards are rows of
             // their own, and "convert" would have nothing to convert them into.
-            ...(page.format === 'canvas' ? [] : [{
+            ...(isBoardFormat(page.format) ? [] : [{
               id: 'format',
               label: t('page.format'),
               icon: <Icon name="code" size={14} />,
@@ -749,7 +791,15 @@ export function PageDetail() {
         </MenuButton>
       </Header>
 
-      {page.format === 'canvas' ? <CanvasView page={page} canWrite={canWrite} ai={boardAi} thread={(props) => <Comments {...props} />} /> : (
+      {page.format === 'canvas' ? <CanvasView page={page} canWrite={canWrite} ai={boardAi} thread={(props) => <Comments {...props} />} /> : page.format === 'board' ? (
+        // Keyed by the page: this screen is not remounted between pages, and a pin
+        // half-placed on one board page belongs to nobody on the next.
+        <BoardPageView
+          key={page.id}
+          page={page} canWrite={canWrite} ai={boardAi} editing={editingBoard} onEditing={setEditingBoard}
+          onRename={renameTo} thread={(props) => <Comments {...props} />}
+        />
+      ) : (
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5 page-with-tree">
         {/*
           * The tree, beside the page rather than one screen back.

@@ -1102,12 +1102,18 @@ export interface Module extends Base {
 /**
  * What a page is written in. Anything else is folded to markdown on the way in.
  *
- * `canvas` is the odd one out: its `content` is not the page — the page is its
- * artboards, rows of their own — so every reader that only knows the first two
- * sees a canvas as an empty markdown page, which is what an older client shows
- * and is harmless.
+ * `canvas` and `board` are the odd ones out: their `content` is not the page —
+ * the page is its artboards, rows of their own — so every reader that only
+ * knows the first two sees them as empty markdown pages, which is what an older
+ * client shows and is harmless. A canvas holds any number of boards and notes
+ * laid out on a plane; a `board` page holds exactly one board and shows it on
+ * its own, the way a markdown page shows its text.
  */
-export type PageFormat = 'markdown' | 'html' | 'canvas';
+export type PageFormat = 'markdown' | 'html' | 'canvas' | 'board';
+
+/** The formats whose page is its artboards rather than its text. */
+export const isBoardFormat = (format: PageFormat | null | undefined): format is 'canvas' | 'board' =>
+  format === 'canvas' || format === 'board';
 
 /**
  * How a comment was settled. `resolved` closes any thread; a suggestion is
@@ -1177,12 +1183,14 @@ export interface Page extends Base {
   /**
    * Which language `content` is written in.
    *
-   * Two, and they are read by two different renderers with two different safety
+   * Two languages, read by two different renderers with two different safety
    * arguments: markdown is escaped and re-emitted as tags this app wrote, HTML
    * is parsed and put through an allowlist. The column exists so that decision
    * is made once per page and stored, rather than sniffed per render — a
    * document that renders as markdown on one screen and as HTML on the next is
-   * a document nobody can edit with confidence.
+   * a document nobody can edit with confidence. `canvas` and `board` are not
+   * languages: their page is their artboards, and their `content` stays an
+   * ordinary, usually empty, markdown text.
    */
   format: PageFormat;
   /**

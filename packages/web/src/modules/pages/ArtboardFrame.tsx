@@ -42,10 +42,10 @@ interface Layer {
 
 export type BoardMessage = Exclude<
   FrameMessage,
-  { type: 'kolibri:ready' } | { type: 'kolibri:open' } | { type: 'kolibri:rendered' } | { type: 'kolibri:scroll' }
+  { type: 'kolibri:ready' } | { type: 'kolibri:open' } | { type: 'kolibri:rendered' } | { type: 'kolibri:scroll' } | { type: 'kolibri:size' }
 >;
 
-export function ArtboardFrame({ source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, className, style }: {
+export function ArtboardFrame({ source, mode, title, selected = null, keepScroll = false, onMessage, onRendered, onSize, className, style }: {
   source: string;
   mode: FrameMode;
   title: string;
@@ -56,6 +56,12 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
   onMessage?: (message: BoardMessage) => void;
   /** The board is drawn and on screen — what printing waits for. */
   onRendered?: () => void;
+  /**
+   * How tall the board's content is, as drawn and whenever it changes. Asking
+   * for it is what makes the frame measure: a board on a canvas is a window of
+   * a fixed size and never needs to.
+   */
+  onSize?: (height: number) => void;
   className?: string;
   style?: React.CSSProperties;
 }) {
@@ -68,8 +74,8 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
   const scroll = useRef<{ x: number; y: number } | null>(null);
   // The latest of everything, read by the listener without re-subscribing on
   // every keystroke.
-  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, drag: t('canvas.drag'), layers, front });
-  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, drag: t('canvas.drag'), layers, front };
+  const latest = useRef({ source, mode, selected, keepScroll, onMessage, onRendered, onSize, drag: t('canvas.drag'), layers, front });
+  latest.current = { source, mode, selected, keepScroll, onMessage, onRendered, onSize, drag: t('canvas.drag'), layers, front };
 
   /** Hand a layer the document for render `number`, once its pictures are in. */
   const render = (key: number, number: number): void => {
@@ -81,7 +87,7 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
     };
     const write = (source: string): void => post(prepare(source, {
       mode: now.mode, rev: number, selected: now.selected,
-      scroll: now.keepScroll ? scroll.current : null, labels: { drag: now.drag },
+      scroll: now.keepScroll ? scroll.current : null, labels: { drag: now.drag }, fit: !!now.onSize,
     }));
     // Pictures from this server go in as their bytes — see `board-files.ts`.
     if (hasFiles(now.source)) void inlineFiles(now.source).then(write);
@@ -122,6 +128,7 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
         if (message.rev !== layer.rev || layer.rev !== rev.current) return;
         setFront(layer.key);
         setLayers((all) => all.filter((one) => one.key === layer.key));
+        if (message.height) latest.current.onSize?.(message.height);
         latest.current.onRendered?.();
         return;
       }
@@ -129,6 +136,10 @@ export function ArtboardFrame({ source, mode, title, selected = null, keepScroll
       if (layer.key !== shown || ('rev' in message && message.rev !== layer.rev)) return;
       if (message.type === 'kolibri:scroll') {
         scroll.current = { x: message.x, y: message.y };
+        return;
+      }
+      if (message.type === 'kolibri:size') {
+        latest.current.onSize?.(message.height);
         return;
       }
       if (message.type === 'kolibri:open') {

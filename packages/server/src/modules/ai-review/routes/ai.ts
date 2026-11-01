@@ -18,6 +18,7 @@
  * of the answer, and this is the one endpoint in the app where a click spends
  * somebody's money.
  */
+import { isBoardFormat, type PageFormat } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { requireAuth, requireWorkspace, hasRole } from '../../../kernel/identity/auth.ts';
@@ -83,7 +84,7 @@ export function registerAiRoutes(router: Router): void {
     const role = requireWorkspace(ctx, workspaceId);
     if (!hasRole(role, 'member')) throw forbidden('Guests cannot draw boards');
     if (!canSeePage(auth.userId, String(page.id))) throw notFound('No such page');
-    if (page.format !== 'canvas') throw badRequest('That page is not a canvas');
+    if (!isBoardFormat(page.format as PageFormat)) throw badRequest('That page holds no boards');
     if (!env.aiEnabled) throw badRequest('No model is configured on this server');
     if (!hasFeature(workspaceId, 'ai')) throw forbidden('Claude is switched off for this workspace');
 

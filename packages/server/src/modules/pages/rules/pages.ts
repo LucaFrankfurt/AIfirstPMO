@@ -27,7 +27,7 @@ const VERSION_WINDOW_MS = 10 * 60 * 1000;
 
 /**
  * Keep a page's text and its CRDT saying the same thing, and its format one of
- * the three things it may be.
+ * the four things it may be.
  *
  * The format is folded to `markdown` rather than refused, and that is a
  * decision: `format` reaches here from an import, from MCP, from a `PATCH`
@@ -59,10 +59,11 @@ const VERSION_WINDOW_MS = 10 * 60 * 1000;
  */
 function applyPageInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   if (values.format !== undefined) {
-    // `canvas` keeps its boards in rows of their own, so the text columns of a
-    // canvas page carry on being an ordinary (and usually empty) markdown text.
-    const format: PageFormat = String(values.format) === 'html' ? 'html'
-      : String(values.format) === 'canvas' ? 'canvas' : 'markdown';
+    // `canvas` and `board` keep their boards in rows of their own, so the text
+    // columns of such a page carry on being an ordinary (and usually empty)
+    // markdown text.
+    const raw = String(values.format);
+    const format: PageFormat = raw === 'html' || raw === 'canvas' || raw === 'board' ? raw : 'markdown';
     values.format = format;
     forced.format = format;
   }
