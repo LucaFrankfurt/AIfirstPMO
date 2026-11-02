@@ -4,8 +4,13 @@ This is the horizontal view: the layers, and what each is allowed to know. For t
 where a single capability lives, what it would cost to switch one off or take one out, and the rings
 the code is checked against — see [`modules.md`](modules.md).
 
-Kolibri is four packages in one repository. The rule that shapes all of them: **the client owns a
-full copy of the workspace, the server owns the truth, and one registry describes both.**
+Kolibri is five packages in one repository. The rule that shapes the first four: **the client owns
+a full copy of the workspace, the server owns the truth, and one registry describes both.** The fifth,
+`packages/feedback`, is not part of the app at all: it is the library another application embeds to
+file a screenshot report into Kolibri, published to npm as `@kolibri-day/feedback`. It talks to
+Kolibri only over the public API (`POST …/tasks`, `POST …/files`), imports none of the other four —
+`check:modules` enforces that — and is the one package built to JavaScript, because it runs in
+other people's bundlers and Node versions.
 
 ```
 packages/shared   entity registry · types · hybrid logical clock · fractional indexing

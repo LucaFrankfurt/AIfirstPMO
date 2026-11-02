@@ -1,0 +1,84 @@
+{
+  "name": "@kolibri-day/feedback",
+  "version": "0.1.0",
+  "description": "In-app feedback with a screenshot of the current view, delivered to Kolibri — or to any tracker behind the same target interface.",
+  "license": "MIT",
+  "author": "Kolibri contributors",
+  "homepage": "https://github.com/LucaFrankfurt/AIfirstPMO/tree/main/packages/feedback#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/LucaFrankfurt/AIfirstPMO.git",
+    "directory": "packages/feedback"
+  },
+  "bugs": "https://github.com/LucaFrankfurt/AIfirstPMO/issues",
+  "keywords": ["feedback", "bug-report", "screenshot", "kolibri", "issue-tracker", "react"],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": { "types": "./dist/esm/index.d.ts", "default": "./dist/esm/index.js" },
+      "require": { "types": "./dist/cjs/index.d.ts", "default": "./dist/cjs/index.js" }
+    },
+    "./kolibri": {
+      "import": { "types": "./dist/esm/kolibri.d.ts", "default": "./dist/esm/kolibri.js" },
+      "require": { "types": "./dist/cjs/kolibri.d.ts", "default": "./dist/cjs/kolibri.js" }
+    },
+    "./server": {
+      "import": { "types": "./dist/esm/server.d.ts", "default": "./dist/esm/server.js" },
+      "require": { "types": "./dist/cjs/server.d.ts", "default": "./dist/cjs/server.js" }
+    },
+    "./browser": {
+      "import": { "types": "./dist/esm/browser.d.ts", "default": "./dist/esm/browser.js" },
+      "require": { "types": "./dist/cjs/browser.d.ts", "default": "./dist/cjs/browser.js" }
+    },
+    "./react": {
+      "import": { "types": "./dist/esm/react.d.ts", "default": "./dist/esm/react.js" },
+      "require": { "types": "./dist/cjs/react.d.ts", "default": "./dist/cjs/react.js" }
+    },
+    "./package.json": "./package.json"
+  },
+  "typesVersions": {
+    "*": {
+      "kolibri": ["./dist/cjs/kolibri.d.ts"],
+      "server": ["./dist/cjs/server.d.ts"],
+      "browser": ["./dist/cjs/browser.d.ts"],
+      "react": ["./dist/cjs/react.d.ts"]
+    }
+  },
+  "bin": {
+    "kolibri-feedback-preflight": "./dist/cjs/preflight-cli.js"
+  },
+  "files": ["dist", "fixtures", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node scripts/postbuild.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test test/*.test.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "html2canvas": "^1.4.1",
+    "modern-screenshot": "^4.7.0",
+    "react": "^18.2.0 || ^19.0.0"
+  },
+  "peerDependenciesMeta": {
+    "html2canvas": { "optional": true },
+    "modern-screenshot": { "optional": true },
+    "react": { "optional": true }
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "html2canvas": "^1.4.1",
+    "modern-screenshot": "^4.7.0",
+    "react": "^19.2.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

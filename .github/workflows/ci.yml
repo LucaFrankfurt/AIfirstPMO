@@ -100,6 +100,10 @@ jobs:
       - run: npm run check:schema
       - run: npm test
       - run: npm run build
+      # The feedback package is the one that ships compiled (ESM + CommonJS, for other
+      # people's bundlers and Node versions); its build is what release-feedback.yml
+      # publishes, so a change that only breaks the build fails here, not at release.
+      - run: npm run build -w @kolibri-day/feedback
 
   smoke:
     runs-on: ubuntu-latest

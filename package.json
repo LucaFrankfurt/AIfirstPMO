@@ -12,7 +12,8 @@
     "packages/shared",
     "packages/server",
     "packages/web",
-    "packages/mcp"
+    "packages/mcp",
+    "packages/feedback"
   ],
   "scripts": {
     "dev": "npm run dev --workspaces --if-present",
@@ -26,10 +27,11 @@
     "seed": "npm run seed -w @kolibri/server",
     "doctor": "npm run doctor -w @kolibri/server",
     "kolibri": "npm run cli -w @kolibri/server --",
-    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && tsc --noEmit -p packages/web/tsconfig.test.json && tsc --noEmit -p packages/mcp",
-    "test": "npm run test:server && npm run test:web && npm run test:checks",
+    "typecheck": "tsc --noEmit -p packages/shared && tsc --noEmit -p packages/server && tsc --noEmit -p packages/web && tsc --noEmit -p packages/web/tsconfig.test.json && tsc --noEmit -p packages/mcp && tsc --noEmit -p packages/feedback",
+    "test": "npm run test:server && npm run test:web && npm run test:feedback && npm run test:checks",
     "test:server": "node --test packages/server/test/*.test.ts",
     "test:web": "node --import ./packages/web/test/loader.mjs --test packages/web/test/*.test.ts",
+    "test:feedback": "node --test packages/feedback/test/*.test.ts",
     "test:checks": "node --test scripts/*.test.mjs",
     "check:compose": "node scripts/compose-env.mjs",
     "check:modules": "node scripts/modules.mjs",

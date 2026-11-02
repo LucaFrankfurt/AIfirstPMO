@@ -1,7 +1,7 @@
 # Kolibri, for an agent starting here
 
 An offline-first, self-hosted work OS: projects, tasks, cycles, pages, chat, time, budgets, KPIs,
-an infrastructure register, and an MCP surface over most of it. One npm workspace, four packages,
+an infrastructure register, and an MCP surface over most of it. One npm workspace, five packages,
 **no runtime dependencies on the server** — Node 22 runs TypeScript directly and `node:sqlite` is
 the database. Keep it that way; adding a server dependency is a decision, not a convenience.
 
@@ -10,6 +10,8 @@ packages/shared   types, the entity registry, pure domain logic — imports neit
 packages/server   the API, the write path, the adapters
 packages/web      the client (React, Vite)
 packages/mcp      the stdio bridge
+packages/feedback in-app feedback for OTHER apps, published to npm as @kolibri-day/feedback —
+                  imports none of the others, and is the one package that ships compiled
 sites/            the marketing and docs sites, built separately
 ```
 
