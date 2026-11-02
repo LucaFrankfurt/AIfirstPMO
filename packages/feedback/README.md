@@ -269,8 +269,10 @@ where WebP comes back as PNG), the blank-canvas check, and the reporter state ma
 ## Releasing
 
 Releases are published from GitHub Actions with npm's trusted publishing — no npm token is
-stored anywhere, and every version carries a provenance statement linking it to the
-commit and the workflow run that built it.
+stored anywhere, and every version the workflow publishes carries a provenance statement
+linking it to the commit and the run that built it (npm adds it automatically; a manual
+publish from a laptop has none, which is why only the first version is published that
+way).
 
 1. Bump `version` in `packages/feedback/package.json` and merge that to `main`.
 2. Push a tag `feedback-v<version>` on that commit, e.g. `feedback-v0.2.0`.
