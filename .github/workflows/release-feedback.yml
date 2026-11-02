@@ -1,0 +1,57 @@
+name: Release @kolibri-day/feedback
+
+# Publishes packages/feedback to npm when a tag `feedback-v<version>` is pushed.
+#
+# Trusted publishing: npm exchanges this workflow's OIDC token for a short-lived
+# publish credential, so no npm token is stored in this repository, and every version
+# carries a provenance statement naming the commit and the run that built it. The
+# package's npm settings must name this repository and this file — see
+# packages/feedback/README.md, "Releasing", for the one-time setup.
+on:
+  push:
+    tags: ['feedback-v*']
+
+permissions:
+  contents: read
+  # The OIDC token npm trades for a publish credential. Nothing else in this job can
+  # write anywhere.
+  id-token: write
+
+# Two tags pushed in a row must not race each other to the registry.
+concurrency:
+  group: release-feedback
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - run: npm install -g npm@^11.5.1 --no-audit --no-fund
+      # A tag is a promise about what it publishes. Refuse one whose name and the
+      # package version disagree, or that points at a commit main never had — a tag on
+      # an unreviewed branch would otherwise publish unreviewed code.
+      - name: Tag names the package version, on a commit from main
+        run: |
+          version=$(node -p "require('./packages/feedback/package.json').version")
+          if [ "feedback-v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match packages/feedback/package.json version $version"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME points at a commit that is not on main"
+            exit 1
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npx tsc --noEmit -p packages/feedback
+      - run: npm run test:feedback
+      - run: npm run build -w @kolibri-day/feedback
+      - run: npm publish -w @kolibri-day/feedback --access public

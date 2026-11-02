@@ -128,6 +128,11 @@ const ABOUT = {
   'ai': ['Three providers behind one call.'],
   'calendar': ['An iCal feed of what is due.'],
   's3': ['Object storage, signed by hand.'],
+  // packages/feedback — the in-app feedback package, published to npm on its own.
+  'feedback': ['A report as a tracker sees it: the shape, the target contract, the ticket body and the delivery rules.'],
+  'kolibri': ['Kolibri as a feedback target: two calls, the settings that name it, and the preflight.'],
+  'capture': ['The browser side of a report: the screenshot, what the browser says about itself, and the post.'],
+  'react': ['The reporter for React: who is open, what was captured, with no markup of its own.'],
   'shell': ['Composition only: the entry points that wire the rest together.'],
 };
 
@@ -298,6 +303,11 @@ const SHELL = new Set([
   'web/src/CommandPalette.tsx', 'web/src/wiring.ts',
   'web/vite.config.ts', 'web/capacitor.config.ts',
   'mcp/src/index.ts',
+  // One entry point per published sub-path, the target resolver, and the preflight
+  // command — the package's composition, as server/src/wiring.ts is the server's.
+  'feedback/src/index.ts', 'feedback/src/server.ts', 'feedback/src/browser.ts',
+  'feedback/src/react.ts', 'feedback/src/kolibri.ts', 'feedback/src/wiring.ts',
+  'feedback/src/preflight-cli.ts',
 ]);
 for (const file of sources) {
   if (placeOf(file).ring !== 'shell') continue;
@@ -320,7 +330,14 @@ for (const key of Object.keys(ABOUT)) {
 }
 
 /* 2. Packages point one way. */
-const FORBIDDEN_PACKAGE = { shared: ['server', 'web', 'mcp'], web: ['server'], server: ['web'] };
+// `feedback` is published to npm by itself, so an import of any sibling would ship as
+// a path that does not exist on the installing machine.
+const FORBIDDEN_PACKAGE = {
+  shared: ['server', 'web', 'mcp'],
+  web: ['server'],
+  server: ['web'],
+  feedback: ['shared', 'server', 'web', 'mcp'],
+};
 for (const [file, deps] of graph) {
   for (const dep of deps) {
     if (!dep.file) continue;

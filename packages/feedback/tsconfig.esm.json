@@ -1,0 +1,14 @@
+{
+  // The published ES-module build. Sources import with `.ts` like the rest of the
+  // repository; rewriteRelativeImportExtensions turns those into `.js` on the way out.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "allowImportingTsExtensions": false,
+    "declaration": true,
+    "target": "ES2022",
+    "outDir": "dist/esm",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

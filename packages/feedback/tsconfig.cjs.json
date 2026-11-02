@@ -1,0 +1,12 @@
+{
+  // CommonJS for consumers that still `require()` — a Node 20 process cannot always
+  // load ESM through require(). verbatimModuleSyntax forbids writing `import` into a
+  // CommonJS file, which is exactly what this build is for, so it is off here only.
+  "extends": "./tsconfig.esm.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "Node10",
+    "verbatimModuleSyntax": false,
+    "outDir": "dist/cjs"
+  }
+}
