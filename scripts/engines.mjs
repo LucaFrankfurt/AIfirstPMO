@@ -73,7 +73,8 @@ const redrawn = () => {
   const fill = document.getElementById('fill');
   if (c) {
     const shown = Math.round(c.getBoundingClientRect().width);
-    return { cut, drawn: c.width, shown, ok: cut <= 1 && Math.abs(c.width - shown) <= 2 };
+    // A chart drawn at no width matches being shown at none, and is no chart.
+    return { cut, drawn: c.width, shown, ok: cut <= 1 && shown > 100 && Math.abs(c.width - shown) <= 2 };
   }
   if (!fill) return null;
   const part = Math.round((fill.getBoundingClientRect().width / t.getBoundingClientRect().width) * 100) / 100;

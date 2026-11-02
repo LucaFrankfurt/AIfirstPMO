@@ -1916,8 +1916,9 @@ written.
       fitting script and a viewport, and *Import HTML…* strips both again.
 - [x] **A board whose script measured it is drawn again, fitted from the start.** A chart drawn to
       its box, a bar sized from its box: the fitting's changes are written down and put in as a
-      stylesheet before the board's scripts run — a new frame in the app, one reload carrying the
-      rules in the window's name in a shared link or a download. Measured in `check:engines`.
+      stylesheet before the board's scripts run — a new frame in the app, one reload in a shared
+      link or a download, the rules carried in the window's name in a frame and in the address on
+      its own. Measured in `check:engines`, in Chromium, Firefox and WebKit.
 - [ ] **The repair is still a heuristic.** A script that measures later than its load — on a click,
       after a timer — measures whatever is there by then; a phone turned on its side keeps the
       rules of the width it opened at; a `<canvas>` drawn at a fixed size, not its box's, is still

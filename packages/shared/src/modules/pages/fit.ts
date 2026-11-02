@@ -257,35 +257,56 @@ const VIEWPORT = `<meta name="viewport" content="width=device-width, initial-sca
  *
  * A board with scripts of its own, or a `<canvas>`, may have measured itself
  * before it was fitted: a chart drawn to the width its box had, then shrunk
- * as a picture; columns sized from the window once. Such a board is loaded
- * once more, with what `fitBoard` changed applied as a stylesheet before
- * anything of the board runs, so its scripts measure the layout it will be
- * shown in. The rules ride across the reload in the window's name, the one
- * thing a sandboxed frame keeps across a reload — an address would show in a
- * downloaded file's address bar, and a board reading its own `#hash` would
- * find ours in it. The name is signed with the document, so a tab that goes
- * on to another board does not bring the first one's rules.
+ * as a picture; a bar sized from a box that was then narrowed. Such a board is
+ * loaded once more, with what `fitBoard` changed applied as a stylesheet
+ * before anything of the board runs, so its scripts measure the layout it will
+ * be shown in.
  *
- * Once, and never in a loop: a load that is not a fresh navigation — our
- * reload, the reader's, the back button — does not ask again, whether or not
- * the rules arrived with it.
+ * What carries the rules across that reload depends on where the board is,
+ * and was measured in Chromium, Firefox and WebKit rather than assumed:
+ *
+ * - **In a frame** — a shared link's, a downloaded canvas's `srcdoc` — the
+ *   window's name. A frame keeps its name across a reload in all three. A
+ *   `#hash` is no use there: reloading `about:srcdoc#…` loads an empty page.
+ * - **On its own** — a downloaded board page, a shared board opened directly —
+ *   the address's `#hash`, taken out again here before any of the board's
+ *   scripts can see it, and the board's own hash put back. Firefox and WebKit
+ *   forget a tab's name when a sandboxed page reloads (its origin is new each
+ *   time); every engine keeps the address.
+ *
+ * Either is signed with the document, so rules written for one board reach no
+ * other. And once, never in a loop: a load that says it is a reload or a step
+ * back — ours, the reader's — never asks again, whether or not the rules
+ * arrived with it. A load that says nothing about itself, which is what
+ * WebKit's `srcdoc` frames do, is taken as fresh; there the name was measured
+ * to arrive.
  */
 export function fitInPlace(fit: () => [string, string, string][], css: (rules: unknown) => string, sign: string): void {
   const g = globalThis as any;
   const doc = g.document;
   const key = `kolibri-fit:${sign}:`;
+  let alone = false;
   let done = false;
   try {
-    const name = String(g.name || '');
-    if (name.indexOf(key) === 0) {
+    alone = g.parent === g;
+    let carried: { rules: unknown; hash?: string } | null = null;
+    const hash = String(g.location.hash || '');
+    if (alone && hash.indexOf(`#${key}`) === 0) {
+      carried = JSON.parse(decodeURIComponent(hash.slice(key.length + 1)));
+      // Ours, and gone again before the board's own scripts read the address.
+      try { g.history.replaceState(g.history.state, '', String(g.location.href).split('#')[0] + (carried?.hash || '')); } catch { /* left in the address */ }
+    } else if (!alone && String(g.name || '').indexOf(key) === 0) {
+      carried = JSON.parse(String(g.name).slice(key.length));
+    }
+    if (carried) {
       done = true;
       const style = doc.createElement('style');
       style.setAttribute('data-kolibri-fit', '');
-      style.textContent = css(JSON.parse(name.slice(key.length)));
+      style.textContent = css(carried.rules);
       (doc.head || doc.documentElement).appendChild(style);
     }
     const entry = g.performance && g.performance.getEntriesByType ? g.performance.getEntriesByType('navigation')[0] : null;
-    if (!entry || entry.type !== 'navigate') done = true;
+    if (entry && entry.type !== 'navigate') done = true;
   } catch {
     done = true;
   }
@@ -303,7 +324,15 @@ export function fitInPlace(fit: () => [string, string, string][], css: (rules: u
       const rules = fit();
       if (done || !rules.length || !scripted()) return;
       done = true;
-      g.name = key + JSON.stringify(rules);
+      if (alone) {
+        const [base, own] = String(g.location.href).split('#');
+        const address = `${base}#${key}${encodeURIComponent(JSON.stringify({ rules, hash: own ? `#${own}` : '' }))}`;
+        // Past this an address is too long for some browser to keep; fitted afterwards, then.
+        if (address.length > 32000) return;
+        g.location.replace(address);
+      } else {
+        g.name = key + JSON.stringify({ rules });
+      }
       g.location.reload();
     } catch { /* the board as written, then */ }
   };
