@@ -30,8 +30,18 @@ import { canSeePage, canSeeProject } from '../../../kernel/write-path/repo.ts';
 import { reviewTask } from '../review.ts';
 import { draftBoard } from '../board.ts';
 
-/** Small and slow: nobody reviews ten tasks a minute by hand, and a loop does. */
-const REVIEW_LIMIT = { burst: env.ai.burst, everySeconds: env.ai.everySeconds };
+/**
+ * Small and slow: nobody reviews ten tasks a minute by hand, and a loop does.
+ *
+ * Refusals do not deepen it. This paces somebody spending the instance's
+ * model, not somebody guessing a password, and the 429 says how long to wait:
+ * with refusals costing a token, a reader who pressed *Make it fit phones*
+ * again after waiting the twenty seconds they were told was told twenty more,
+ * and the wait grew with every honest retry — measured by `check:model`, which
+ * waited as told and was refused for minutes. Spend stays bounded either way:
+ * one board per `everySeconds`, however often somebody asks.
+ */
+const REVIEW_LIMIT = { burst: env.ai.burst, everySeconds: env.ai.everySeconds, deepens: false };
 
 export function registerAiRoutes(router: Router): void {
   router.post('/api/tasks/:id/review', async (ctx: Ctx) => {

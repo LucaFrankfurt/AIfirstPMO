@@ -46,7 +46,8 @@
     "check:a11y": "node scripts/a11y.mjs",
     "check:clocks": "node scripts/clocks.mjs",
     "check:menus": "node scripts/menus.mjs",
-    "check:engines": "node scripts/engines.mjs"
+    "check:engines": "node scripts/engines.mjs",
+    "check:model": "node scripts/model.mjs"
   },
   "devDependencies": {
     "@types/node": "^22.20.1",

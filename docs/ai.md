@@ -59,6 +59,12 @@ same rule is in the MCP tools' descriptions, which is what an assistant writing 
 *Make it fit phones*, on a board page too wide for the screen, asks for exactly that of an existing
 board.
 
+Whether a model does what those words ask is not something a unit test can keep, so
+`npm run check:model` asks the configured one, through the same route, and measures the answers in
+a browser at a phone's width — see [`canvas.md`](canvas.md#not-done) for what it checks. It runs
+against an instance that has a key, and in CI only by hand (`model.yml`, with the repository's
+`ANTHROPIC_API_KEY`), because every run spends tokens.
+
 An answer is read leniently and checked strictly. A document wrapped in a code fence or a sentence
 is cut out of it; markup without a document around it gets one; a reply with no page in it is an
 error, and nothing is put anywhere.
@@ -128,7 +134,8 @@ KOLIBRI_AI_BASE_URL=
 # A review's. A board waits at least five minutes, or this if it is longer.
 KOLIBRI_AI_TIMEOUT_MS=20000
 # Requests one person may make: a burst of this many, one back every N seconds.
-# Counted separately for reviews and for boards.
+# Counted separately for reviews and for boards. A refused request costs
+# nothing, so the wait a 429 names is the wait.
 KOLIBRI_AI_BURST=10
 KOLIBRI_AI_EVERY_SECONDS=20
 ```

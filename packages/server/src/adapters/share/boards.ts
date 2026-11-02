@@ -100,9 +100,10 @@ async function inlinePictures(source: string, pageId: string, workspaceId: strin
 /**
  * Ours, in the board: a link opens in a new tab instead of navigating the
  * frame, which would leave the board for a site that may refuse to be framed.
- * An in-page `#anchor` is the board's own business.
+ * An in-page `#anchor` is the board's own business. Marked as ours, so the
+ * fitting does not take it for a script of the board's that may measure it.
  */
-const LINKS = `<script>(function(){document.addEventListener('click',function(e){var t=e.target;if(t&&t.nodeType!==1)t=t.parentElement;var a=t&&t.closest?t.closest('a[href]'):null;if(!a)return;if((a.getAttribute('href')||'').charAt(0)==='#')return;var u;try{u=new URL(a.href)}catch(x){return}if(!/^(https?|mailto):$/.test(u.protocol))return;e.preventDefault();window.open(u.href,'_blank','noopener,noreferrer')},true)})();</script>`;
+const LINKS = `<script data-kolibri>(function(){document.addEventListener('click',function(e){var t=e.target;if(t&&t.nodeType!==1)t=t.parentElement;var a=t&&t.closest?t.closest('a[href]'):null;if(!a)return;if((a.getAttribute('href')||'').charAt(0)==='#')return;var u;try{u=new URL(a.href)}catch(x){return}if(!/^(https?|mailto):$/.test(u.protocol))return;e.preventDefault();window.open(u.href,'_blank','noopener,noreferrer')},true)})();</script>`;
 
 /** The board's document, ready to be served on its own: its links opened outside, and fitted to the width it is framed at — a phone, most of all — as the app fits a board page (`withFit` in `shared`). */
 export async function boardDocument(board: Row): Promise<string> {

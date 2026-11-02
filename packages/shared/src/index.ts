@@ -25,7 +25,7 @@ export * from './modules/pages/links.ts';
 export * from './modules/pages/status.ts';
 export * from './modules/pages/editor.ts';
 export * from './modules/pages/anchor.ts';
-export { fitBoard, fitScript, intoHead, stripFitScript, withFit } from './modules/pages/fit.ts';
+export { fitBoard, fitCss, fitInPlace, fitScript, intoHead, stripFitScript, withFit } from './modules/pages/fit.ts';
 export * from './adapters/webhooks/foreign.ts';
 export * from './modules/chat/chat.ts';
 export * from './modules/mail/mailbox.ts';

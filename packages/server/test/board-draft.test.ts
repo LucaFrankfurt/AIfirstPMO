@@ -22,7 +22,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
+const { rateLimitInternals, resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 const { env } = await import('../src/kernel/platform/env.ts');
 const { BOARD_SYSTEM, htmlFromReply } = await import('../src/modules/ai-review/board.ts');
 
@@ -209,5 +209,23 @@ describe('who may ask', () => {
     env.ai.key = '';
     assert.equal((await draft(ada, canvas, { instruction: 'Draw' })).status, 400);
     env.ai.key = key;
+  });
+});
+
+describe('pacing', () => {
+  // The 429 says how long to wait. A refused request that still cost a token
+  // made that a lie: whoever waited as told was refused again, for longer.
+  it('keeps the wait it promised, however often a refused person asks again', async () => {
+    resetRateLimits();
+    answer = () => PAGE;
+    let first429 = -1;
+    for (let at = 0; at < 200 && first429 < 0; at += 1) {
+      if ((await draft(lin, canvas, { instruction: 'A board' })).status === 429) first429 = at;
+    }
+    assert.ok(first429 > 0, 'never refused');
+    for (let again = 0; again < 5; again += 1) assert.equal((await draft(lin, canvas, { instruction: 'A board' })).status, 429);
+    const bucket = rateLimitInternals.buckets.get(`ai-board:${lin.id}`)!;
+    assert.ok(bucket.tokens > -0.01 && bucket.tokens < 1, `the bucket went to ${bucket.tokens}: asking again made the wait longer`);
+    resetRateLimits();
   });
 });
