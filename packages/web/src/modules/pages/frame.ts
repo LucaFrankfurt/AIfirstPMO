@@ -19,7 +19,7 @@
  * keeps it type-checked and readable here, at the price of one rule: it may
  * use nothing from outside its own body, because it does not run here.
  */
-import { artboard, fitBoard, intoHead } from '@kolibri/shared';
+import { artboard, fitBoard, fitCss, intoHead } from '@kolibri/shared';
 
 /**
  * The frame file's hash, which is the address the browser caches it under.
@@ -48,6 +48,7 @@ export type FrameMessage =
   | { type: 'kolibri:ready' }
   | { type: 'kolibri:rendered'; rev: number; height?: number; width?: number }
   | { type: 'kolibri:size'; rev: number; height: number; width?: number }
+  | { type: 'kolibri:fitted'; rev: number; rules: FitRule[] }
   | { type: 'kolibri:located'; rev: number; id: string; el: string | null; fx: number; fy: number }
   | { type: 'kolibri:at'; rev: number; points: { id: string; x: number; y: number }[] }
   | { type: 'kolibri:scroll'; rev: number; x: number; y: number }
@@ -70,6 +71,17 @@ const isId = (value: unknown): value is string => typeof value === 'string' && v
 export const isPath = (value: unknown): value is string =>
   typeof value === 'string' && value.length < 2000 && /^[a-z][a-z0-9-]*:\d+(\/[a-z][a-z0-9-]*:\d+)*$/.test(value);
 
+/** One change the fitting made: where, which property, to what — `fitBoard` in `shared`. */
+export type FitRule = [string, string, string];
+
+/**
+ * Rules as a frame reports them, if they are only that. What they say is
+ * checked again where they become a stylesheet (`fitCss`); this is the shape.
+ */
+const isRules = (value: unknown): value is FitRule[] =>
+  Array.isArray(value) && value.length <= 2000 && value.every((rule) =>
+    Array.isArray(rule) && rule.length === 3 && rule.every((part) => typeof part === 'string' && part.length < 200));
+
 /** A message from a frame, if it is one of ours and well-formed; otherwise null. */
 export function readMessage(data: unknown): FrameMessage | null {
   if (!data || typeof data !== 'object') return null;
@@ -90,6 +102,9 @@ export function readMessage(data: unknown): FrameMessage | null {
       return isIndex(rev) && isHeight(message.height)
         ? { type: 'kolibri:size', rev, height: message.height, ...(isHeight(message.width) ? { width: message.width } : {}) }
         : null;
+    case 'kolibri:fitted':
+      return isIndex(rev) && isRules(message.rules) && message.rules.length
+        ? { type: 'kolibri:fitted', rev, rules: message.rules.map((rule) => [rule[0], rule[1], rule[2]] as FitRule) } : null;
     case 'kolibri:located':
       return isIndex(rev) && isId(message.id) && isFraction(message.fx) && isFraction(message.fy)
         && (message.el === null || isPath(message.el))
@@ -161,6 +176,14 @@ export interface RuntimeConfig {
    * it leaves alone; it is handed in beside the config, as source.
    */
   adapt?: boolean;
+  /**
+   * What the fitting changed the last time this board was drawn, to be in
+   * place before anything of the board runs: a board whose script measured
+   * itself — a chart drawn to its box, columns sized from the window — then
+   * measures the layout it is shown in, rather than being fitted afterwards
+   * and shrunk. Present only on that second drawing, which does not ask again.
+   */
+  fitted?: FitRule[];
   /** Words the editing overlay shows, in the reader's language. */
   labels: { drag: string };
 }
@@ -176,7 +199,7 @@ export interface RuntimeConfig {
  * keys an editor answers to. The outline lives in a shadow root hung off
  * `<html>`, outside the body, so nothing it draws can end up in what is saved.
  */
-export function runtime(config: RuntimeConfig, adapt: (() => number) | null = null): void {
+export function runtime(config: RuntimeConfig, adapt: (() => FitRule[]) | null = null): void {
   const post = (message: Record<string, unknown>): void => parent.postMessage({ rev: config.rev, ...message }, '*');
 
   /*
@@ -266,9 +289,18 @@ export function runtime(config: RuntimeConfig, adapt: (() => number) | null = nu
    */
   const measureWidth = (): number => document.documentElement.scrollWidth;
   /** The adapter, when there is one: a board's own failure to fit is the board's, never the frame's. */
-  const fit = (): void => {
-    if (!adapt) return;
-    try { adapt(); } catch { /* the board as written, then */ }
+  const fit = (): FitRule[] => {
+    if (!adapt) return [];
+    try { return adapt(); } catch { return []; }
+  };
+  /*
+   * Whether the board may have measured itself before it was fitted: it has a
+   * `<canvas>`, or a script that is not ours. A board of markup and styles
+   * lays itself out again on its own; drawing it twice would only flash.
+   */
+  const scripted = (): boolean => {
+    if (document.querySelector('canvas')) return true;
+    return Array.prototype.some.call(document.scripts, (script: HTMLScriptElement) => !script.hasAttribute('data-kolibri'));
   };
 
   // Drawn: back where the last render was scrolled to, then say so — the app
@@ -281,8 +313,10 @@ export function runtime(config: RuntimeConfig, adapt: (() => number) | null = nu
     // screen — every board being laid out for a PDF — may never be given one.
     setTimeout(() => {
       // Fitted to this width first, so what is measured is what is shown.
-      fit();
+      const rules = fit();
       post({ type: 'kolibri:rendered', ...(config.fit ? { height: measure(), width: measureWidth() } : {}) });
+      // Fitted after its own scripts ran: draw it again with the fitting in place from the start.
+      if (rules.length && !config.fitted && scripted()) post({ type: 'kolibri:fitted', rules });
       if (!config.fit || typeof ResizeObserver === 'undefined' || !document.body) return;
       // A board's script may draw after load — a chart, a list filled in — and
       // the page around it should grow with it.
@@ -558,8 +592,10 @@ export function prepare(source: string, config: RuntimeConfig): string {
   // The adapter goes in as source too, as an argument: the runtime cannot
   // import it, and a name it could look it up by would not survive the build.
   const adapter = config.adapt ? fitBoard.toString() : 'null';
-  const script = `<script>(${runtime.toString()})(${JSON.stringify(config).replace(/</g, '\\u003c')}, ${adapter});</script>`;
-  return intoHead(body, script);
+  const script = `<script data-kolibri>(${runtime.toString()})(${JSON.stringify(config).replace(/</g, '\\u003c')}, ${adapter});</script>`;
+  // `fitCss` lets through only what `fitBoard` could have written: nothing in it closes the element.
+  const fitted = config.fitted?.length ? `<style data-kolibri-fit>${fitCss(config.fitted)}</style>` : '';
+  return intoHead(body, script + fitted);
 }
 
 /**

@@ -1914,9 +1914,15 @@ written.
       wrap, boxes pushed off by a transform, a margin or an offset, `display: table`, named grid
       areas, wide SVGs, embeds, form fields and fixed headers are handled. **Downloads** carry the
       fitting script and a viewport, and *Import HTML…* strips both again.
-- [ ] **The repair is still a heuristic.** What a board's script draws into a `<canvas>` at a fixed
-      size is shrunk, not redrawn; a layout that sizes itself in script from the window once, and
-      never on resize, is fitted after it has, not before. Anything it cannot reflow is scaled.
+- [x] **A board whose script measured it is drawn again, fitted from the start.** A chart drawn to
+      its box, a bar sized from its box: the fitting's changes are written down and put in as a
+      stylesheet before the board's scripts run — a new frame in the app, one reload in a shared
+      link or a download, the rules carried in the window's name in a frame and in the address on
+      its own. Measured in `check:engines`, in Chromium, Firefox and WebKit.
+- [ ] **The repair is still a heuristic.** A script that measures later than its load — on a click,
+      after a timer — measures whatever is there by then; a phone turned on its side keeps the
+      rules of the width it opened at; a `<canvas>` drawn at a fixed size, not its box's, is still
+      shrunk. Anything the fitting cannot reflow is scaled.
 - [x] **Pins on a board reflowed to a phone.** A pin names the element it was put on and where on
       it; the reflowed board asks the frame where that is now. Pins from before, or from MCP, still
       show only as designed.
@@ -1929,8 +1935,13 @@ written.
       obvious next step; it needs the adapters to stream, which none of them does.
 - [ ] **The model's half has not met a real model.** Every test asks a stand-in that answers like
       the Messages API; the request shape is the one task reviews already send, plus `effort:
-      medium`. Whether the rules produce boards that are good, editable and inside five minutes
-      is for the first instance with a key to say.
+      medium`. `npm run check:model` (and `model.yml`, by hand) now asks a real one and measures
+      whether *Make it fit phones* and a fresh drawing fit a 390px screen as written — but it has
+      not been run: the instance it was written on had no key. Whether the boards are *good*, and
+      editable, is still for a person to say.
+- [x] **A 429 from the model routes now means what it says.** Refusals cost a token, so a person who
+      waited the twenty seconds they were told and asked again was told twenty more; found by
+      `check:model` waiting as told. The model routes no longer deepen the bucket.
 - [ ] **`kolibri doctor --fix` does not compact board bodies.** It folds page bodies only, as it
       does not agenda notes.
 - [x] **Firefox and WebKit.** `check:engines` walks boards in both on CI — the sandboxed frame,

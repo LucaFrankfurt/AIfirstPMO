@@ -1,0 +1,79 @@
+name: Model
+
+# What the model writes when a board is asked to fit a phone, and when one is
+# drawn from a sentence — measured at a phone's width, as `scripts/model.mjs`
+# says. Only by hand, never on a push: it spends real tokens on every run, and
+# what it measures is the model's behaviour, which no diff here changes. Run it
+# after changing the board prompt (`modules/ai-review/board.ts`) or the words
+# *Make it fit phones* sends, and when the configured model changes.
+#
+# It needs the repository secret `ANTHROPIC_API_KEY`. Without it the run says
+# so and fails: nothing measured is not a pass.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Model to ask (empty: the server's default)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    # Five boards, each minutes of writing at worst; the server allows one five
+    # minutes before it gives up on an answer.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: A key to ask with
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::No ANTHROPIC_API_KEY secret in this repository: nothing can be asked, so nothing is measured."
+            exit 1
+          fi
+      - run: npm ci --no-audit --no-fund
+      - run: npm run build
+      # As in `ci.yml`: the runner's own Chrome, no apt, no browser download —
+      # and the Playwright version `ci.yml` pins, read from there, so there is
+      # still one number to bump.
+      - name: A browser to measure with
+        timeout-minutes: 10
+        run: |
+          PLAYWRIGHT_VERSION=$(sed -n 's/^  PLAYWRIGHT_VERSION: *//p' .github/workflows/ci.yml)
+          test -n "$PLAYWRIGHT_VERSION" || { echo "::error::no PLAYWRIGHT_VERSION in ci.yml"; exit 1; }
+          npm install --no-save --no-audit --no-fund "playwright@${PLAYWRIGHT_VERSION}"
+          if [ -x /usr/bin/google-chrome ]; then
+            echo "CHROMIUM_PATH=/usr/bin/google-chrome" >> "$GITHUB_ENV"
+          else
+            npx playwright install chromium
+          fi
+      - name: Seed and start the server, with the key
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          KOLIBRI_AI_MODEL: ${{ inputs.model }}
+        run: |
+          npm run seed
+          # The log to a file, for the reason `ci.yml` gives: a background
+          # process holding this step's stdout keeps the step from ending.
+          PORT=4400 npm start > /tmp/kolibri-server.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:4400/api/health && break; sleep 2; done
+          curl -fs http://127.0.0.1:4400/api/health > /dev/null || {
+            echo "the server never became healthy"; cat /tmp/kolibri-server.log; exit 1
+          }
+      - name: What the model writes
+        timeout-minutes: 30
+        run: npm run check:model
+        env:
+          KOLIBRI_URL: http://127.0.0.1:4400
+      - name: What the server thought, if anything went wrong
+        if: failure()
+        run: cat /tmp/kolibri-server.log || true

@@ -31,12 +31,12 @@ describe('the frame file', () => {
 describe('what the frame is sent', () => {
   it('puts our script first in the head, after the doctype', () => {
     const out = prepare('<!doctype html><html><head><title>x</title></head><body><p>Hi</p></body></html>', config('view'));
-    assert.match(out, /^<!doctype html><html><head><script>\(/);
-    assert.ok(out.indexOf('<script>') < out.indexOf('<title>'));
+    assert.match(out, /^<!doctype html><html><head><script data-kolibri>\(/);
+    assert.ok(out.indexOf('<script') < out.indexOf('<title>'));
   });
 
   it('gives a fragment a document of its own rather than a quirks-mode one', () => {
-    assert.match(prepare('<p>Hi</p>', config('view')), /^<!doctype html><meta charset="utf-8"><script>/);
+    assert.match(prepare('<p>Hi</p>', config('view')), /^<!doctype html><meta charset="utf-8"><script data-kolibri>/);
   });
 
   it('numbers elements only while editing', () => {
@@ -47,7 +47,7 @@ describe('what the frame is sent', () => {
 
   it('is a script that parses on its own', () => {
     const out = prepare('<p>Hi</p>', config('edit'));
-    const code = /<script>([\s\S]*)<\/script>/.exec(out)![1];
+    const code = /<script data-kolibri>([\s\S]*)<\/script>/.exec(out)![1];
     assert.doesNotThrow(() => new Function(code));
   });
 
@@ -71,8 +71,30 @@ describe('fitting a board to a phone', () => {
 
   it('is still one script that parses on its own', () => {
     const out = prepare('<p>Hi</p>', { ...config('play'), fit: true, adapt: true });
-    const code = out.slice(out.indexOf('<script>') + 8, out.indexOf('</script>'));
+    const code = out.slice(out.indexOf('<script data-kolibri>') + 21, out.indexOf('</script>'));
     assert.doesNotThrow(() => new Function(code));
+  });
+
+  // A board whose script measured it is drawn a second time with what the
+  // fitting changed already in place — as a stylesheet ahead of anything of
+  // the board's, and made only of what `fitCss` lets through.
+  it('draws a board again with the fitting in place from the start', () => {
+    const board = '<!doctype html><html><head><title>x</title><script>draw()</script></head><body><div>Hi</div></body></html>';
+    const out = prepare(board, { ...config('play'), fit: true, adapt: true, fitted: [['0', 'max-width', '100%'], ['', 'overflow-wrap', 'anywhere']] });
+    assert.match(out, /<style data-kolibri-fit>body>:nth-child\(1\)\{max-width:100%!important\}\nbody\{overflow-wrap:anywhere!important\}<\/style>/);
+    assert.ok(out.indexOf('<style data-kolibri-fit>') < out.indexOf('<script>draw()'), 'the board\'s script ran before the fitting was in place');
+    assert.doesNotMatch(prepare(board, { ...config('play'), fit: true, adapt: true }), /<style data-kolibri-fit>/);
+  });
+
+  it('lets nothing into that stylesheet that the fitting could not have written', () => {
+    const out = prepare('<p>Hi</p>', { ...config('play'), fit: true, adapt: true, fitted: [
+      ['0', 'max-width', '100%</style><script>alert(1)</script>'],
+      ['0', 'background', 'url(https://example.com/x)'],
+      ['0', 'max-width', '1px;background:red'],
+      ['0 > *', 'max-width', '100%'],
+    ] });
+    assert.equal(out.match(/<\/script>/g)!.length, 1);
+    assert.match(out, /<style data-kolibri-fit><\/style>/);
   });
 });
 
@@ -80,6 +102,15 @@ describe('what the frame is believed about', () => {
   it('takes a well-formed message', () => {
     assert.deepEqual(readMessage({ type: 'kolibri:move', rev: 1, k: 4, target: 9, where: 'after' }),
       { type: 'kolibri:move', rev: 1, k: 4, target: 9, where: 'after' });
+  });
+
+  it('takes what the fitting changed only as rules of three strings', () => {
+    assert.deepEqual(readMessage({ type: 'kolibri:fitted', rev: 2, rules: [['0.1', 'flex-wrap', 'wrap']] }),
+      { type: 'kolibri:fitted', rev: 2, rules: [['0.1', 'flex-wrap', 'wrap']] });
+    assert.equal(readMessage({ type: 'kolibri:fitted', rev: 2, rules: [] }), null);
+    assert.equal(readMessage({ type: 'kolibri:fitted', rev: 2, rules: [['0', 'flex-wrap']] }), null);
+    assert.equal(readMessage({ type: 'kolibri:fitted', rev: 2, rules: [['0', 'flex-wrap', 7]] }), null);
+    assert.equal(readMessage({ type: 'kolibri:fitted', rev: 2, rules: Array.from({ length: 2001 }, () => ['0', 'gap', '0']) }), null);
   });
 
   it('drops one it does not know, or one with the wrong shape', () => {
