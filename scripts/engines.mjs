@@ -19,7 +19,8 @@
  *     bar sized from its box — are drawn again, fitted from the start: in the app, in a shared
  *     link's frame, opened on their own as a downloaded board page is, and in a `srcdoc` frame
  *     as a downloaded canvas holds them;
- *   - a shared canvas and a shared board page work for a stranger.
+ *   - a shared canvas and a shared board page work for a stranger, and no board on the canvas
+ *     loads more than twice — once, and once more to fit the phone.
  *
  * Run against a seeded instance, like the smoke walkthrough:
  *
@@ -99,11 +100,23 @@ const check = (engine, ok, what) => {
   console.log(results[results.length - 1]);
 };
 
+/**
+ * One frame's answer, or null when it gives none in time. A frame WebKit has
+ * not loaded yet — a lazy board below the fold of a shared canvas — never
+ * answers `evaluate` at all, and an unbounded ask hung this walk for the ten
+ * minutes CI allows: the board being read had just reloaded to fit itself, so
+ * the walk went on to the frames after it.
+ */
+const ask = (frame, read) => Promise.race([
+  frame.evaluate(read).catch(() => null),
+  new Promise((done) => setTimeout(() => done(null), 2000)),
+]);
+
 /** Read something from whichever frame of the page has it — boards are frames of their own. */
 async function fromFrames(page, read, tries = 24) {
   for (let attempt = 0; attempt < tries; attempt += 1) {
     for (const frame of page.frames()) {
-      const value = await frame.evaluate(read).catch(() => null);
+      const value = await ask(frame, read);
       if (value !== null && value !== undefined) return value;
     }
     await page.waitForTimeout(250);
@@ -246,9 +259,17 @@ async function walk(name) {
       return made.token;
     }, [seeded.ws, page]);
     const stranger = await (await browser.newContext(phoneOptions)).newPage();
+    // A board that fits itself reloads once to do it, and never more: counted per board.
+    const loads = new Map();
+    const counted = (frame) => { if (frame !== stranger.mainFrame() && frame.url()) loads.set(frame.url(), (loads.get(frame.url()) ?? 0) + 1); };
+    stranger.on('framenavigated', counted);
     await stranger.goto(`${base}/s/${await share(seeded.canvas)}`);
     const shared = await fromFrames(stranger, () => document.getElementById('total')?.textContent ?? null);
     check(name, shared === '€155k', `a stranger opening a shared canvas sees its boards working (${shared})`);
+    await stranger.waitForTimeout(2500);
+    const most = Math.max(0, ...loads.values());
+    check(name, loads.size > 0 && most <= 2, `and none of its boards loads more than twice to fit the phone (${JSON.stringify([...loads.values()])})`);
+    stranger.off('framenavigated', counted);
     await stranger.goto(`${base}/s/${await share(seeded.one)}`);
     // By its words: the share document around it has an `h1` of its own, the page's title.
     const heading = await fromFrames(stranger, () => [...document.querySelectorAll('h1')].find((one) => one.textContent === 'Q3 in one page')?.textContent ?? null);
