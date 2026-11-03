@@ -1,6 +1,6 @@
 {
   "name": "@kolibri-day/feedback",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "In-app feedback with a screenshot of the current view, delivered to Kolibri — or to any tracker behind the same target interface.",
   "license": "MIT",
   "author": "Kolibri contributors",
@@ -49,7 +49,7 @@
     }
   },
   "bin": {
-    "kolibri-feedback-preflight": "./dist/cjs/preflight-cli.js"
+    "kolibri-feedback-preflight": "dist/cjs/preflight-cli.js"
   },
   "files": ["dist", "fixtures", "README.md", "LICENSE"],
   "scripts": {
