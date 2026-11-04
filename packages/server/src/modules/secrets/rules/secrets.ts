@@ -18,17 +18,33 @@
 
 import { SECRET_ACCESS, SECRET_KINDS, type SecretAccess, type SecretKind, type WorkspaceRole } from '@kolibri/shared';
 import type { Row } from '../../../kernel/platform/db/index.ts';
-import { canSeeProject, type EntityRule } from '../../../kernel/write-path/repo.ts';
-import { canOpenEnvironment } from './environments.ts';
+import { forbidden } from '../../../kernel/platform/http.ts';
+import { canSeeProject, isWorkspaceAdmin, type EntityRule } from '../../../kernel/write-path/repo.ts';
+import { canOpenEnvironment, roleOf } from './environments.ts';
 
 const KINDS = new Set<string>(SECRET_KINDS);
 const ACCESS = new Set<string>(SECRET_ACCESS);
+/** The columns that decide who may read a secret. */
+const AUDIENCE = ['access', 'project_id', 'environment_id', 'created_by'] as const;
 
 export const secretRules = {
   entities: ['secret'],
   defaults(entity, id, values, opts, setForced) {
     if (entity !== 'secret') return;
     if (!values.created_by) setForced('created_by', opts.actorId);
+  },
+  guards(entity, id, values, existing, opts) {
+    if (entity !== 'secret' || !existing) return;
+    // The REST routes ask this before writing; a sync push or an MCP call arrives here without it.
+    const workspaceId = String(existing.workspace_id);
+    if (!canSeeSecret(existing, opts.actorId, roleOf({ ...opts, workspaceId }))) {
+      throw forbidden('That secret is not yours');
+    }
+    const moving = AUDIENCE.some((field) =>
+      values[field] !== undefined && (values[field] ?? null) !== (existing[field] ?? null));
+    if (moving && existing.created_by !== opts.actorId && !isWorkspaceAdmin(workspaceId, opts.actorId)) {
+      throw forbidden('Only its author or an administrator may change who a secret is for');
+    }
   },
   invariants(entity, id, values, existing, forced) {
     if (entity !== 'secret') return;
