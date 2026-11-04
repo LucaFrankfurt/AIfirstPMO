@@ -172,7 +172,7 @@ function Register() {
                         of row. */}
                     <span style={{ paddingInlineStart: depth * 18 }}>
                       {depth > 0 && <span className="tree-branch" aria-hidden>└ </span>}
-                      {component.name}
+                      {canWrite ? <button type="button" className="row-open">{component.name}</button> : component.name}
                     </span>
                     {component.reference && <span className="row-sub" style={{ paddingInlineStart: depth * 18 }}>{component.reference}</span>}
                   </td>
@@ -478,7 +478,7 @@ function Vendors() {
                 return (
                   <tr key={vendor.id} onClick={() => canWrite && setEditing(vendor)}>
                     <td className="title">
-                      {vendor.name}
+                      {canWrite ? <button type="button" className="row-open">{vendor.name}</button> : vendor.name}
                       {vendor.contact && <span className="row-sub">{vendor.contact}</span>}
                     </td>
                     <td>{t(vendorKindKey(vendor.kind))}</td>

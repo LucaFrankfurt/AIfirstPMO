@@ -42,6 +42,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
 /* A tick on a cumulative axis: the point in time the running total is read
@@ -609,7 +610,7 @@ function Plan({ budget }: { budget: Budget }) {
               {sorted.map((line) => (
                 <tr key={line.id} onClick={() => canWrite && setEditing(line)}>
                   <td className="title">
-                    {line.name}
+                    {canWrite ? <button type="button" className="row-open">{line.name}</button> : line.name}
                     {line.vendor && <span className="row-sub">{line.vendor}</span>}
                   </td>
                   <td>{t(categoryKey(line.category))}</td>
@@ -685,6 +686,7 @@ function LineForm({ budget, line, last, onClose }: {
 }) {
   const t = useT();
   const projects = useQuery(() => list('project', (row) => !row.archived && !row.is_container), []);
+  const saveChanges = useSaveChanges('budgetLine', line);
   const [form, setForm] = useState(() => ({
     name: line?.name ?? '',
     amount: line?.amount ?? 0,
@@ -714,7 +716,7 @@ function LineForm({ budget, line, last, onClose }: {
       allocations,
       note: form.note.trim() || null,
     };
-    if (line) update('budgetLine', line.id, patch);
+    if (line) saveChanges(patch);
     else create('budgetLine', { ...patch, sort_order: orderKey(last, null) });
     onClose();
   };
@@ -877,7 +879,7 @@ function Actuals({ budget }: { budget: Budget }) {
                 <tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
                   <td>{shortDate(entry.spent_on)}</td>
                   <td className="title">
-                    {entry.description}
+                    {canWrite ? <button type="button" className="row-open">{entry.description}</button> : entry.description}
                     {entry.reference && <span className="row-sub">{entry.reference}</span>}
                   </td>
                   <td>
@@ -1089,6 +1091,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
 }) {
   const t = useT();
   const projects = useQuery(() => list('project', (row) => !row.archived && !row.is_container), []);
+  const saveChanges = useSaveChanges('budgetActual', entry);
   const [form, setForm] = useState(() => ({
     description: entry?.description ?? '',
     amount: entry?.amount ?? 0,
@@ -1136,7 +1139,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
       allocations,
       note: form.note.trim() || null,
     };
-    if (entry) update('budgetActual', entry.id, patch);
+    if (entry) saveChanges(patch);
     else create('budgetActual', patch);
     onClose();
   };
@@ -1328,6 +1331,7 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
   onClose: () => void;
 }) {
   const t = useT();
+  const saveChanges = useSaveChanges('budgetScenario', scenario);
   const [name, setName] = useState(scenario?.name ?? '');
   const [description, setDescription] = useState(scenario?.description ?? '');
   const [adjustments, setAdjustments] = useState<ScenarioAdjustment[]>(scenario?.adjustments ?? []);
@@ -1351,7 +1355,7 @@ function ScenarioForm({ budget, scenario, lines, onClose }: {
       // every scenario look like it had an opinion about confidence.
       weights: Object.values(weights).every((value) => value === FULL_SHARE) ? null : weights,
     };
-    if (scenario) update('budgetScenario', scenario.id, patch);
+    if (scenario) saveChanges(patch);
     else create('budgetScenario', patch);
     onClose();
   };

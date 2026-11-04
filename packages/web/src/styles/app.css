@@ -768,6 +768,8 @@ p { margin: 0 0 0.75em; }
 .task-table tr.group .count { color: var(--fg-muted); font-weight: 500; margin-inline-start: 6px; }
 .task-table tr.group .state-dot { margin-inline-end: 6px; vertical-align: -1px; }
 .task-table .title { white-space: normal; min-width: 240px; }
+/* A row's name as a button, the keyboard's way into the row; its click bubbles to the row's handler. */
+.task-table .row-open { text-align: start; cursor: pointer; text-decoration: inherit; }
 /*
  * Prose in a cell, allowed to wrap.
  *
@@ -1637,7 +1639,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
 .calendar .day.other { background: var(--bg-sunken); }
 .calendar .day .num { font-size: 11px; color: var(--fg-muted); }
 .calendar .day.today .num { color: var(--accent); font-weight: 700; }
-.calendar .pill { font-size: 10.5px; padding: 2px 5px; border-radius: 4px; background: var(--bg-hover); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.calendar .pill { font-size: 10.5px; padding: 2px 5px; border-radius: 4px; background: var(--bg-hover); cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; }
 
 /* ---------------------------------------------------------------- overlays */
 
