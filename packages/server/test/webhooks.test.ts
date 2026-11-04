@@ -594,3 +594,45 @@ describe('calling out', () => {
     assert.ok('last_status' in listed[0], 'but the delivery result is worth showing');
   });
 });
+
+describe('a delivery that cannot write down how it went', () => {
+  it('is logged rather than left to end the process', async () => {
+    const { DatabaseSync } = await import('node:sqlite');
+    const { db } = await import('../src/kernel/platform/db/index.ts');
+    let release = (): void => {};
+    let held!: ReturnType<typeof createServer>;
+    const arrived = new Promise<void>((reached) => {
+      held = createServer((request: IncomingMessage, response: ServerResponse) => {
+        request.resume();
+        release = () => { response.writeHead(204).end(); };
+        reached();
+      });
+    });
+    await new Promise<void>((done) => held.listen(0, '127.0.0.1', done));
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'Held', url: `http://127.0.0.1:${(held.address() as AddressInfo).port}/hook`, events: 'task.created', enabled: 1,
+    });
+
+    const unhandled: unknown[] = [];
+    const note = (reason: unknown): void => { unhandled.push(reason); };
+    process.on('unhandledRejection', note);
+    // Another connection holding the write lock, as `doctor --fix` or a vacuum does on a live instance.
+    const lock = new DatabaseSync(env.dbFile);
+    try {
+      await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Answered while the database is locked' });
+      await arrived;
+      lock.exec('BEGIN EXCLUSIVE');
+      db.exec('PRAGMA busy_timeout = 20');
+      release();
+      await settle();
+    } finally {
+      lock.exec('ROLLBACK');
+      lock.close();
+      db.exec('PRAGMA busy_timeout = 5000');
+      process.off('unhandledRejection', note);
+      held.close();
+      await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
+    }
+    assert.deepEqual(unhandled, []);
+  });
+});

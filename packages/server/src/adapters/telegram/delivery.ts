@@ -12,4 +12,6 @@ import { onNotification } from '../../modules/notifications/notify.ts';
 import { deliverNotification } from './telegram.ts';
 
 /** Hung off notifications by `wiring.ts`. */
-export const installTelegramDelivery = (): void => onNotification(({ id }) => void deliverNotification(id));
+export const installTelegramDelivery = (): void => onNotification(({ id }) => {
+  deliverNotification(id).catch((error) => console.error('[telegram] delivery of', id, 'failed:', error));
+});

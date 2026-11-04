@@ -396,6 +396,9 @@ if (process.env.NODE_ENV !== 'test') {
 
   sweep();
   setInterval(sweep, 6 * 3600_000).unref();
+
+  // A background write that loses a lock race is logged; by default Node would end the process on it.
+  process.on('unhandledRejection', (reason) => log('error', 'Unhandled rejection in background work', reason));
 }
 
 const shutdown = (signal: string) => {
