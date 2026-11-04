@@ -100,6 +100,8 @@ export const en = {
   'sync.clockBehind': 'This device’s clock is {amount} behind the server’s. Times are counted on the server’s.',
   'sync.sessionExpired': 'Session expired — please sign in again',
   'sync.failed': 'Sync failed',
+  'sync.unsentOnSignOut_one': '{count} change has not reached the server yet and exists only on this device. Signing out deletes it. Sign out anyway?',
+  'sync.unsentOnSignOut_other': '{count} changes have not reached the server yet and exist only on this device. Signing out deletes them. Sign out anyway?',
 
   /* ---------------------------------------------------------- priorities */
   'priority.urgent': 'Urgent',

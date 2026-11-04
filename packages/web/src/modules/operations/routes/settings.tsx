@@ -1088,8 +1088,7 @@ function DataSettings() {
         </Button>
         <Button variant="danger"
           onClick={async () => {
-            await signOut();
-            toast(t('data.cleared'));
+            if (await signOut()) toast(t('data.cleared'));
           }}
         >
           <Icon name="logout" size={14} /> {t('data.signOutClear')}

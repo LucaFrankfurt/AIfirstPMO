@@ -106,6 +106,8 @@ export const fr: Catalogue = {
   'sync.clockBehind': 'L’horloge de cet appareil retarde de {amount} sur celle du serveur. Les dates sont comptées sur celle du serveur.',
   'sync.sessionExpired': 'Session expirée — veuillez vous reconnecter',
   'sync.failed': 'Échec de la synchronisation',
+  'sync.unsentOnSignOut_one': '{count} modification n’a pas encore atteint le serveur et n’existe que sur cet appareil. Se déconnecter la supprime. Se déconnecter quand même ?',
+  'sync.unsentOnSignOut_other': '{count} modifications n’ont pas encore atteint le serveur et n’existent que sur cet appareil. Se déconnecter les supprime. Se déconnecter quand même ?',
 
   /* ---------------------------------------------------------- priorities */
   'priority.urgent': 'Urgent',

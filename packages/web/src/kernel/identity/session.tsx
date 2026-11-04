@@ -1,9 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import type { SessionInfo, User, WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
+import { currentLocale, translate } from '../i18n/i18n';
 import { api, ApiError } from '../sync/api';
 import * as idb from '../sync/idb';
 import { byId, list, useQuery } from '../sync/store';
-import { signOutLocal, start } from '../sync/sync';
+import { flush, signOutLocal, start, unsentChanges } from '../sync/sync';
 
 interface SessionValue {
   ready: boolean;
@@ -14,7 +15,8 @@ interface SessionValue {
   role: WorkspaceRole;
   setWorkspace: (id: string) => void;
   signIn: (session: SessionInfo) => Promise<void>;
-  signOut: () => Promise<void>;
+  /** False when the person chose to keep changes that have not reached the server. */
+  signOut: () => Promise<boolean>;
   refresh: () => Promise<void>;
   /** True when the cached session is used because the network is unreachable. */
   offlineSession: boolean;
@@ -32,12 +34,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const adopt = useCallback(async (next: SessionInfo, cached = false) => {
     setSession(next);
     setOfflineSession(cached);
-    if (!cached) await idb.setMeta('session', next);
+    if (!cached) await idb.setMeta('session', next, idb.DEVICE);
     const preferred = next.workspaces.find((w) => w.id === localStorage.getItem(WORKSPACE_KEY)) ?? next.workspaces[0];
     if (preferred) {
       setWorkspaceId(preferred.id);
       localStorage.setItem(WORKSPACE_KEY, preferred.id);
-      await start(preferred.id);
+      await start(preferred.id, next.user.id);
     }
   }, []);
 
@@ -49,7 +51,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
         if (!cancelled) await adopt(live);
       } catch (err) {
         // Offline start-up: fall back to the cached session so the app opens.
-        const cached = await idb.getMeta<SessionInfo>('session');
+        const cached = await idb.getMeta<SessionInfo>('session', idb.DEVICE);
         if (!cancelled && cached && err instanceof ApiError && err.status === 0) await adopt(cached, true);
       } finally {
         if (!cancelled) setReady(true);
@@ -61,10 +63,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, [adopt]);
 
   useEffect(() => {
-    const onSignedOut = () => {
-      setSession(null);
-      void signOutLocal();
-    };
+    // The sync engine has already stopped and kept everything for the next sign-in.
+    const onSignedOut = () => setSession(null);
     window.addEventListener('kolibri:signed-out', onSignedOut);
     return () => window.removeEventListener('kolibri:signed-out', onSignedOut);
   }, []);
@@ -79,27 +79,33 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setWorkspace: (id: string) => {
       localStorage.setItem(WORKSPACE_KEY, id);
       setWorkspaceId(id);
-      void start(id);
+      if (session) void start(id, session.user.id);
     },
     signIn: async (next: SessionInfo) => {
       await adopt(next);
     },
     signOut: async () => {
+      const userId = session?.user.id ?? '';
+      // Signing out deletes what is queued, and it exists nowhere else yet.
+      await flush();
+      const unsent = userId ? await unsentChanges(userId) : 0;
+      if (unsent && !window.confirm(translate(currentLocale(), 'sync.unsentOnSignOut', { count: unsent }))) return false;
       try {
         await api.logout();
       } catch {
         /* signing out locally matters more than telling the server */
       }
-      await signOutLocal();
-      await idb.setMeta('session', null);
+      if (userId) await signOutLocal(userId);
+      await idb.setMeta('session', null, idb.DEVICE);
       localStorage.removeItem(WORKSPACE_KEY);
       setSession(null);
       setWorkspaceId('');
+      return true;
     },
     refresh: async () => {
       const live = await api.session();
       setSession(live);
-      await idb.setMeta('session', live);
+      await idb.setMeta('session', live, idb.DEVICE);
     },
   }), [ready, session, workspaceId, offlineSession, adopt]);
 

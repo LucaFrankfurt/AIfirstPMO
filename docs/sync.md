@@ -164,7 +164,9 @@ comes back.
 | Offline | Status pill switches to *Offline · N queued*; writes keep working |
 | Back online | `online` event triggers flush → pull → reconnect SSE |
 | Server error / 5xx | Exponential backoff 1s → 30s, outbox untouched |
-| Session expired (401) | Local data is kept, a sign-in prompt appears, the outbox flushes after sign-in |
+| Session expired (401) | Mirror and outbox are kept, a sign-in prompt appears, the outbox flushes after the same person signs in again. Every mirror on the device downloads again from cursor 0 on its next start, because restoring a snapshot signs everybody out and an older cursor would skip rows |
+| Signing out on purpose | Deletes this person's mirrors and outboxes on the device, after one last flush; if anything is still queued, a confirmation says how many changes would be lost |
+| Workspace switch, or a second tab | Each person and workspace has its own IndexedDB (`kolibri:<user>:<workspace>`), so nothing is cleared. A pull or push still on the network for the previous workspace is dropped when it answers |
 | Mutation rejected (e.g. permission) | Reported in `rejected[]`, dropped from the outbox, logged and surfaced in the status pill |
 | Tab in background | Polls every 60s; pulls immediately when it becomes visible again |
 
@@ -245,6 +247,9 @@ tidies.
 - concurrent field-level edits merge as described above,
 - a delta pull returns only what changed,
 - private projects never appear in another member's pull.
+
+`packages/web/test/outbox.test.ts` covers what stays on the device: the outbox across a 401, a
+workspace switch and a pull answering late.
 
 `scripts/smoke.mjs` drives a real browser: it creates a task, switches the context offline and
 verifies the app still renders from IndexedDB.

@@ -683,8 +683,9 @@ Two guarantees make it safe enough to be a button:
 
 Afterwards **everybody is signed out**, including whoever pressed the button — `sessions` is one of
 the tables that was replaced. That is the mechanism rather than a side effect: a client that meets a
-401 clears its local copy and downloads again, which is precisely what a device holding a sync
-cursor newer than the restored data has to be made to do. Sign in with the password from the
+401 downloads its copy again from the beginning once somebody signs in, which is precisely what a
+device holding a sync cursor newer than the restored data has to be made to do. Changes it had not
+sent yet are kept, and pushed once the same person signs in again. Sign in with the password from the
 restored instance; passwords are self-contained, while sessions and API tokens only survive if this
 instance has the same `KOLIBRI_SECRET` as the one the snapshot came from.
 

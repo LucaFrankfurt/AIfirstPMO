@@ -99,6 +99,8 @@ export const de: Catalogue = {
   'sync.clockBehind': 'Die Uhr dieses Geräts geht {amount} nach der des Servers. Zeitangaben zählen nach der des Servers.',
   'sync.sessionExpired': 'Sitzung abgelaufen — bitte erneut anmelden',
   'sync.failed': 'Synchronisierung fehlgeschlagen',
+  'sync.unsentOnSignOut_one': '{count} Änderung hat den Server noch nicht erreicht und existiert nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
+  'sync.unsentOnSignOut_other': '{count} Änderungen haben den Server noch nicht erreicht und existieren nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
 
   /* ---------------------------------------------------------- priorities */
   'priority.urgent': 'Dringend',

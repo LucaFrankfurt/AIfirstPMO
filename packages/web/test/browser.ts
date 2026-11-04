@@ -156,7 +156,19 @@ const indexedDB = {
     });
     return request;
   },
+  deleteDatabase(name: string): FakeRequest<void> {
+    DATA.delete(name);
+    const request = new FakeRequest<void>();
+    later(() => request.onsuccess?.());
+    return request;
+  },
+  databases(): Promise<{ name: string; version: number }[]> {
+    return Promise.resolve([...DATA.keys()].map((name) => ({ name, version: 1 })));
+  },
 };
+
+/** The names of the databases on this "device", for asserting what a sign-out left. */
+export const databaseNames = (): string[] => [...DATA.keys()];
 
 /** Forget every connection but keep the data — a page reload, in other words. */
 export const reloadPage = (): void => { /* connections hold no state of their own */ };
