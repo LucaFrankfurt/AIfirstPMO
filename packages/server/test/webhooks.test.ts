@@ -20,6 +20,7 @@ const { sign } = await import('../src/adapters/webhooks/webhooks.ts');
 const { run, get } = await import('../src/kernel/platform/db/index.ts');
 const { flushDeliveries, pruneDeliveries } = await import('../src/adapters/webhooks/webhooks.ts');
 const { env } = await import('../src/kernel/platform/env.ts');
+const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
 
 let base = '';
 let cookie = '';
@@ -592,5 +593,56 @@ describe('calling out', () => {
     assert.ok(listed.length >= 1);
     assert.equal(listed[0].secret, undefined, 'a shared secret is not something the client is handed back');
     assert.ok('last_status' in listed[0], 'but the delivery result is worth showing');
+  });
+});
+
+describe('who a hook is for', () => {
+  // Any member could point a hook at their own server and hear about projects they are not in.
+  let lin = '';
+  const as = async (path: string, body?: unknown, method?: string) => {
+    const response = await fetch(`${base}${path}`, {
+      method: method ?? (body === undefined ? 'GET' : 'POST'),
+      headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), cookie: lin },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  };
+
+  before(async () => {
+    const invite = await api(`/api/workspaces/${workspaceId}/invites`, { role: 'member' });
+    resetRateLimits();
+    const registered = await fetch(`${base}/api/auth/register`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'lin@example.com', name: 'Lin', password: 'another fine password' }),
+    });
+    lin = registered.headers.get('set-cookie')!.split(';')[0];
+    await as(`/api/invites/${invite.code}/accept`, {});
+  });
+
+  it('is an administrator’s to set up, change and remove', async () => {
+    const made = await as(`/api/workspaces/${workspaceId}/webhooks`, { name: 'Mine', url: receiverUrl, events: 'task.created', enabled: 1 });
+    assert.equal(made.status, 403, 'a member set up a webhook');
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, { name: 'Admin’s', url: receiverUrl, events: '', enabled: 1 });
+    assert.equal((await as(`/api/webhooks/${hook.id}`, { url: 'https://example.invalid/elsewhere' }, 'PATCH')).status, 403);
+    assert.equal((await as(`/api/webhooks/${hook.id}`, undefined, 'DELETE')).status, 403);
+    assert.equal(get<any>(`SELECT url FROM webhooks WHERE id = ?`, hook.id).url, receiverUrl);
+    await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
+  });
+
+  it('hears nothing from a project its maker is not in', async () => {
+    const hook = await api(`/api/workspaces/${workspaceId}/webhooks`, {
+      name: 'Everything', url: receiverUrl, events: 'task.created', enabled: 1,
+    });
+    const theirs = (await as(`/api/workspaces/${workspaceId}/projects`, { name: 'Lin only', key: 'LO', visibility: 'private' })).body.id;
+    received.length = 0;
+    assert.equal((await as(`/api/workspaces/${workspaceId}/tasks`, { project_id: theirs, title: 'Lin’s plan' })).status, 200);
+    await api(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Out in the open' });
+    await settle();
+
+    const titles = received.map((call) => call.body?.data?.title);
+    assert.ok(titles.includes('Out in the open'), 'the hook heard nothing at all, so this proved nothing');
+    assert.equal(titles.includes('Lin’s plan'), false, 'a hook carried a private project to a server outside');
+    await api(`/api/webhooks/${hook.id}`, undefined, 'DELETE');
   });
 });

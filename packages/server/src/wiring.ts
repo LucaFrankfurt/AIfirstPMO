@@ -51,6 +51,7 @@ import { mailRules } from './modules/mail/rules/mail.ts';
 import { secretRules } from './modules/secrets/rules/secrets.ts';
 import { environmentRules } from './modules/secrets/rules/environments.ts';
 import { shareRules } from './adapters/share/rules/share.ts';
+import { webhookRules } from './adapters/webhooks/rules/webhooks.ts';
 
 let installed = false;
 
@@ -87,7 +88,7 @@ export function installEffects(): void {
     workRules, pageRules, chatRules, planningRules,
     budgetRules, productRules, rateRules, kpiRules, landscapeRules,
     mailRules, secretRules, environmentRules, decisionRules, meetingRules, artboardRules,
-    shareRules,
+    shareRules, webhookRules,
   ]) onEntity(rule);
 
   /*
