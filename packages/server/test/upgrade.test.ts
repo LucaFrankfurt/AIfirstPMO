@@ -32,6 +32,7 @@ import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
+import { Clock } from '@kolibri/shared';
 
 const DATA = process.env.KOLIBRI_DATA_DIR!;
 const DB = join(DATA, 'kolibri.sqlite');
@@ -165,8 +166,8 @@ describe('a ballot on an upgraded database keeps every option', () => {
   it('accepts the second option, which is the one the announcement fires on', async () => {
     const uuid = () => crypto.randomUUID();
     const decision = uuid();
-    let tick = 0;
-    const hlc = () => `${Date.now()}:${String(tick++).padStart(4, '0')}:test`;
+    const clock = new Clock('test');
+    const hlc = () => clock.now();
     const option = (label: string, order: string) => {
       const id = uuid();
       return {

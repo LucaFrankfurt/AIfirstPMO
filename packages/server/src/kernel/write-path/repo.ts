@@ -7,6 +7,7 @@ import {
   findMentions as mentionsIn,
   hlcGreater,
   htmlText,
+  isCrossWorkspace,
   projectScope,
   reconcileReactions,
   type AttachmentSubject,
@@ -84,6 +85,10 @@ export function readOrThrow(entity: EntityName, id: string): Row {
   return row;
 }
 
+/** Whether a write scoped to `workspaceId` may touch this stored row at all. */
+export const inWriteScope = (entity: EntityName, row: Row, workspaceId: string): boolean =>
+  row.workspace_id === workspaceId || (row.workspace_id == null && isCrossWorkspace(entity));
+
 /**
  * The single write path for every entity: REST, sync push, MCP and the seeder
  * all funnel through here, so merge semantics and side effects can never drift
@@ -101,6 +106,10 @@ export function writeEntity(entity: EntityName, id: string, patch: Record<string
   return tx(() => {
     const table = def.table;
     const existing = get<Row>(`SELECT * FROM ${table} WHERE id = ?`, id);
+    // An id names a row anywhere in the database; a write only reaches its own workspace's.
+    if (existing && !opts.system && !inWriteScope(entity, existing, opts.workspaceId)) {
+      throw notFound(`${entity} ${id} not found`);
+    }
     const clocks: Record<string, string> = existing?.clocks ? safeJson(existing.clocks) : {};
     const now = Date.now();
     const created = !existing;

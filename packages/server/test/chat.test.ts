@@ -24,7 +24,7 @@ import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
 
 const { server } = await import('../src/index.ts');
-const { directChannelId, readStateId } = await import('@kolibri/shared');
+const { Clock, directChannelId, readStateId } = await import('@kolibri/shared');
 const { canSeeChannel } = await import('../src/kernel/write-path/repo.ts');
 const { searchWorkspace } = await import('../src/kernel/search/search.ts');
 const { all, get, run } = await import('../src/kernel/platform/db/index.ts');
@@ -655,17 +655,18 @@ describe('a guest and their own read marker', () => {
   });
 
   it('is refused through the sync push, mutation by mutation', async () => {
+    const guestClock = new Clock('guest', () => Date.now() + 1000);
     const push = async (mutations: unknown[]) => raw(guest, '/api/sync/push', {
       workspaceId, clientId: 'guest-device', mutations,
     });
     const result = await push([
       {
         id: 'm1', entity: 'channelRead', entityId: readStateId(channel, guest.id), op: 'upsert',
-        hlc: '9999999999999:0:guest', patch: { channel_id: channel, last_read_at: 42 },
+        hlc: guestClock.now(), patch: { channel_id: channel, last_read_at: 42 },
       },
       {
         id: 'm2', entity: 'message', entityId: 'nope', op: 'upsert',
-        hlc: '9999999999999:1:guest', patch: { channel_id: channel, body: 'sneaking in' },
+        hlc: guestClock.now(), patch: { channel_id: channel, body: 'sneaking in' },
       },
     ]);
     assert.equal(result.status, 200);

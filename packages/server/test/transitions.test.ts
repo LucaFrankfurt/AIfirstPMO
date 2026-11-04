@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { mayEnter } from '@kolibri/shared';
+import { Clock, mayEnter } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
@@ -117,7 +117,7 @@ describe('a column that only admins may fill', () => {
       clientId: 'test-client',
       mutations: [{
         id: 'mutation-1', entity: 'task', entityId: taskId, op: 'upsert',
-        patch: { state_id: doneStateId }, hlc: '9999999999999:0000:zzzz',
+        patch: { state_id: doneStateId }, hlc: new Clock('zzzz', () => Date.now() + 1000).now(),
       }],
     }, 'POST', memberCookie);
 
