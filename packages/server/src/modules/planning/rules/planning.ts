@@ -14,7 +14,10 @@
 
 import { reschedule } from '@kolibri/shared';
 import { all, get, type Row } from '../../../kernel/platform/db/index.ts';
-import { type EntityRule, settleProjectScope, writeEntity, type WriteOpts } from '../../../kernel/write-path/repo.ts';
+import { forbidden } from '../../../kernel/platform/http.ts';
+import {
+  type EntityRule, isWorkspaceAdmin, settleProjectScope, writeEntity, type WriteOpts,
+} from '../../../kernel/write-path/repo.ts';
 
 let cascading = false;
 
@@ -102,6 +105,16 @@ export const planningRules = {
     if (entity === 'timeEntry') {
       setForced('user_id', opts.actorId);
       if (!values.spent_on) setForced('spent_on', new Date().toISOString().slice(0, 10));
+    }
+  },
+  guards(entity, id, values, existing, opts) {
+    if (entity !== 'timeEntry' || !existing) return;
+    if (existing.user_id !== opts.actorId && !isWorkspaceAdmin(String(existing.workspace_id), opts.actorId)) {
+      throw forbidden('That time was logged by somebody else');
+    }
+    // Filed under whoever logged it, as `defaults` above does on create.
+    if (values.user_id !== undefined && (values.user_id ?? null) !== (existing.user_id ?? null)) {
+      throw forbidden('Logged time cannot be moved to somebody else');
     }
   },
   /**
