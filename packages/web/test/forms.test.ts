@@ -380,3 +380,18 @@ describe('every column you act from', () => {
     assert.deepEqual(folded, [], `action cell(s) marked \`narrow\`, so the buttons vanish below 700px: ${folded.join(', ')}`);
   });
 });
+
+// A label leaves every task it is on, a shared cycle or module every project: one click must not do that.
+describe('deleting a label, a cycle or a module', () => {
+  const calls = files.flatMap(({ path, text }) => text.split('\n').flatMap((line, i) =>
+    /\bremove\('(label|cycle|module)'/.test(line) ? [{ where: `${path.slice(SRC.length + 1)}:${i + 1}`, line }] : []));
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(calls.length >= 3, `only found ${calls.length} deletes, which means the scan is broken`);
+  });
+
+  it('asks first', () => {
+    const blind = calls.filter((call) => !/await confirm\(/.test(call.line)).map((call) => call.where);
+    assert.deepEqual(blind, [], `deleted without a confirmation: ${blind.join(', ')}`);
+  });
+});

@@ -555,6 +555,7 @@ function Cycles({ projectId }: { projectId: string }) {
     [projectId],
   );
   const [editing, setEditing] = useState<string | 'new' | null>(null);
+  const { confirm, dialog } = useConfirm();
   const day = today();
 
   return (
@@ -596,7 +597,9 @@ function Cycles({ projectId }: { projectId: string }) {
                   items={[
                     { id: 'edit', label: t('action.edit'), onSelect: () => setEditing(cycle.id) },
                     { id: 'open', label: t('cycle.showTasks'), onSelect: () => navigate(`/cycles/${cycle.id}`) },
-                    { id: 'delete', label: t('action.delete'), danger: true, onSelect: () => remove('cycle', cycle.id) },
+                    { id: 'delete', label: t('action.delete'), danger: true, onSelect: async () => {
+                      if (await confirm(t(cycle.project_id ? 'cycle.deleteConfirm' : 'cycle.deleteSharedConfirm', { name: cycle.name }))) remove('cycle', cycle.id);
+                    } },
                   ]}
                 >
                   <Icon name="dots" size={14} />
@@ -616,6 +619,7 @@ function Cycles({ projectId }: { projectId: string }) {
           onClose={() => setEditing(null)}
         />
       )}
+      {dialog}
     </div>
   );
 }
@@ -955,6 +959,7 @@ function Modules({ projectId }: { projectId: string }) {
      the whole thing into an editor is what gives the warning somewhere to sit,
      and gives the name and the target date one place instead of two. */
   const [editing, setEditing] = useState<string | 'new' | null>(null);
+  const { confirm, dialog } = useConfirm();
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
@@ -1000,7 +1005,9 @@ function Modules({ projectId }: { projectId: string }) {
                       id: member.id, section: t('project.lead'), label: member.name,
                       onSelect: () => update('module', module.id, { lead_id: member.id }),
                     })),
-                    { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: () => remove('module', module.id) },
+                    { id: 'delete', section: t('module.danger'), label: t('module.delete'), danger: true, onSelect: async () => {
+                      if (await confirm(t(module.project_id ? 'module.deleteConfirm' : 'module.deleteSharedConfirm', { name: module.name }))) remove('module', module.id);
+                    } },
                   ]}
                 >
                   <Icon name="dots" size={14} />
@@ -1029,6 +1036,7 @@ function Modules({ projectId }: { projectId: string }) {
           onClose={() => setEditing(null)}
         />
       )}
+      {dialog}
     </div>
   );
 }
@@ -1524,9 +1532,12 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       <SectionHeading>{t('project.labels')}</SectionHeading>
       <div className="flex items-center flex-wrap gap-1.5 mb-2">
         {labels.map((label) => (
-          <span className={chipVariants({ interactive: true })} key={label.id} onClick={() => remove('label', label.id)} title={t('project.labelRemoveHint')}>
+          <button
+            type="button" className={chipVariants({ interactive: true })} key={label.id} title={t('project.labelRemoveHint')}
+            onClick={async () => { if (await confirm(t('project.deleteLabelConfirm', { name: label.name }))) remove('label', label.id); }}
+          >
             <span className={chipDot} style={{ background: label.color }} /> {label.name} ✕
-          </span>
+          </button>
         ))}
       </div>
       <form

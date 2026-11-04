@@ -1917,6 +1917,7 @@ export const fr: Catalogue = {
   'project.labels': 'Étiquettes',
   'project.newLabel': 'Nouvelle étiquette',
   'project.labelRemoveHint': 'Cliquer pour retirer',
+  'project.deleteLabelConfirm': 'Supprimer l’étiquette « {name} » ? Elle disparaît de toutes les tâches qui la portent.',
   'project.archive': 'Archiver le projet',
   'project.unarchive': 'Désarchiver le projet',
   'project.delete': 'Supprimer le projet',
@@ -1950,6 +1951,8 @@ export const fr: Catalogue = {
   'cycle.scopeStrandConfirm_other': 'Enregistrer quand même ? {count} tâches restent dans ce cycle sans que leur projet y soit.',
   'cycle.sharedHint': 'Tous les projets de cet espace utilisent ce cycle. Le supprimer le retire de chacun d’eux.',
   'cycle.sharedSomeHint': 'Les projets indiqués sur ce cycle le mènent ensemble. Le supprimer le retire de chacun d’eux.',
+  'cycle.deleteConfirm': 'Supprimer le cycle « {name} » ?',
+  'cycle.deleteSharedConfirm': 'Supprimer le cycle partagé « {name} » ? Il disparaît de tous les projets qui le mènent.',
   'cycle.showTasks': 'Afficher les tâches',
   'cycle.open': 'Ouvrir le cycle',
   'cycle.edit': 'Modifier le cycle',
@@ -1993,6 +1996,8 @@ export const fr: Catalogue = {
   'module.scopeStrandConfirm_other': 'Enregistrer quand même ? {count} tâches restent dans ce module sans que leur projet y soit.',
   'module.sharedHint': 'Tous les projets de cet espace travaillent sur ce module. Le supprimer le retire de chacun d’eux.',
   'module.sharedSomeHint': 'Les projets indiqués sur ce module y travaillent ensemble. Le supprimer le retire de chacun d’eux.',
+  'module.deleteConfirm': 'Supprimer le module « {name} » ?',
+  'module.deleteSharedConfirm': 'Supprimer le module partagé « {name} » ? Il disparaît de tous les projets qui y travaillent.',
   'module.danger': 'Zone sensible',
 
   /* --------------------------------------------------------------- pages */

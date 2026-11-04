@@ -1915,6 +1915,7 @@ export const de: Catalogue = {
   'project.labels': 'Labels',
   'project.newLabel': 'Neues Label',
   'project.labelRemoveHint': 'Zum Entfernen anklicken',
+  'project.deleteLabelConfirm': 'Label „{name}“ löschen? Es verschwindet von allen Aufgaben, die es tragen.',
   'project.archive': 'Projekt archivieren',
   'project.unarchive': 'Projekt aus dem Archiv holen',
   'project.delete': 'Projekt löschen',
@@ -1949,6 +1950,8 @@ export const de: Catalogue = {
   'cycle.scopeStrandConfirm_other': 'Trotzdem speichern? {count} Aufgaben bleiben in diesem Zyklus, ohne dass ihr Projekt darin ist.',
   'cycle.sharedHint': 'Jedes Projekt in diesem Arbeitsbereich nutzt diesen Zyklus. Wird er gelöscht, verschwindet er überall.',
   'cycle.sharedSomeHint': 'Die auf diesem Zyklus genannten Projekte nutzen ihn gemeinsam. Wird er gelöscht, verschwindet er bei allen.',
+  'cycle.deleteConfirm': 'Zyklus „{name}“ löschen?',
+  'cycle.deleteSharedConfirm': 'Geteilten Zyklus „{name}“ löschen? Er verschwindet aus allen Projekten, die ihn nutzen.',
   'cycle.showTasks': 'Aufgaben anzeigen',
   'cycle.open': 'Zyklus öffnen',
   'cycle.edit': 'Zyklus bearbeiten',
@@ -1992,6 +1995,8 @@ export const de: Catalogue = {
   'module.scopeStrandConfirm_other': 'Trotzdem speichern? {count} Aufgaben bleiben in diesem Modul, ohne dass ihr Projekt darin ist.',
   'module.sharedHint': 'Jedes Projekt in diesem Arbeitsbereich arbeitet an diesem Modul. Wird es gelöscht, verschwindet es überall.',
   'module.sharedSomeHint': 'Die auf diesem Modul genannten Projekte arbeiten gemeinsam daran. Wird es gelöscht, verschwindet es bei allen.',
+  'module.deleteConfirm': 'Modul „{name}“ löschen?',
+  'module.deleteSharedConfirm': 'Geteiltes Modul „{name}“ löschen? Es verschwindet aus allen Projekten, die daran arbeiten.',
   'module.danger': 'Achtung',
 
   /* --------------------------------------------------------------- pages */
