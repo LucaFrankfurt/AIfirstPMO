@@ -187,7 +187,11 @@ README.txt            what this is, for whoever opens it in three years
 On the way back in, **every entry is checked against the hash it is filed
 under**. That is not belt-and-braces: storage is content-addressed, so accepting
 bytes under somebody else's hash would replace *their* file with these. An entry
-that fails is listed in the report and dropped.
+that fails is listed in the report and dropped. An entry that unpacks to more
+than the archive's directory says is refused outright, and so is an archive
+whose document and files together unpack to more than `KOLIBRI_MAX_IMPORT_MB`:
+both are read into memory, so the limit on the upload has to hold for what it
+unpacks to as well.
 
 An attachment whose bytes are nowhere — a JSON-only export, or an archive that
 lost a file — is **dropped and named in the report** rather than written as a

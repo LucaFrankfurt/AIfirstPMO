@@ -22,7 +22,8 @@ import { createHash } from 'node:crypto';
 import type { ServerResponse } from 'node:http';
 import type { Writable } from 'node:stream';
 import { get, type Row } from '../../kernel/platform/db/index.ts';
-import { badRequest } from '../../kernel/platform/http.ts';
+import { badRequest, HttpError } from '../../kernel/platform/http.ts';
+import { env } from '../../kernel/platform/env.ts';
 import * as storage from '../../kernel/files/storage.ts';
 import { ZipWriter, unzip } from '../../kernel/files/zip.ts';
 import { contentDisposition } from '../../kernel/files/mime.ts';
@@ -149,6 +150,13 @@ export async function sendArchive(
  */
 export function readArchive(archive: Buffer): { document: unknown; blobs: Map<string, Buffer>; rejected: string[] } {
   const zip = unzip(archive);
+  // All of it is held at once, so the sizes the directory declares are checked before anything inflates.
+  const declared = zip.names()
+    .filter((name) => name === DOCUMENT || hashOfEntry(name))
+    .reduce((sum, name) => sum + (zip.size(name) ?? 0), 0);
+  if (declared > env.maxImportBytes) {
+    throw new HttpError(413, `That archive unpacks to more than ${Math.floor(env.maxImportBytes / 1048576)} MB`, 'too_large');
+  }
   const raw = zip.read(DOCUMENT);
   if (!raw) throw badRequest(`That .zip is not a Kolibri export — it has no ${DOCUMENT} in it`);
 
