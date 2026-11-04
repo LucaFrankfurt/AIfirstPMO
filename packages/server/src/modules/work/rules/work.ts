@@ -536,7 +536,11 @@ export const workRules = {
       if (!project) throw badRequest('task.project_id must reference an existing project');
       if (project.workspace_id !== opts.workspaceId) throw badRequest('project belongs to another workspace');
       if (values.number === undefined || values.identifier === undefined) {
-        const number = Number(project.next_number ?? 1);
+        let number = Number(project.next_number ?? 1);
+        // A key can be reused after a rename or a delete, and the old tasks keep their identifiers.
+        while (get<Row>(
+          `SELECT 1 AS found FROM tasks WHERE workspace_id = ? AND identifier = ?`, project.workspace_id, `${project.key}-${number}`,
+        )) number++;
         run(`UPDATE projects SET next_number = ? WHERE id = ?`, number + 1, project.id);
         setForced('number', number);
         setForced('identifier', `${project.key}-${number}`);
