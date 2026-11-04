@@ -71,6 +71,9 @@ function agedDatabase(): [table: string, column: string][] {
       dropped.push([table, column]);
     } catch { /* held by an index or a constraint — left in place */ }
   }
+  // A search index from before `search_refs`: an entry and no map of it.
+  db.exec(`DROP TABLE search_refs`);
+  db.exec(`INSERT INTO search_index (kind, ref_id, workspace_id, title, body) VALUES ('task', 'aged-task', 'aged', 'Aged', '')`);
   db.close();
   return dropped;
 }
@@ -111,6 +114,16 @@ describe('every column the upgrade list names comes back on a restart', () => {
     await import('../src/kernel/platform/db/index.ts');
     const missing = dropped.filter(([table, column]) => !columnsOf(table).includes(column));
     assert.deepEqual(missing, [], `these did not come back: ${missing.map((m) => m.join('.')).join(', ')}`);
+  });
+
+  it('maps an existing search index, so its entries can still be taken out by rowid', () => {
+    const db = new DatabaseSync(DB, { readOnly: true });
+    const mapped = db.prepare(
+      `SELECT 1 AS found FROM search_refs r JOIN search_index s ON s.rowid = r.doc
+        WHERE r.kind = 'task' AND r.ref_id = 'aged-task' AND s.ref_id = 'aged-task'`,
+    ).get();
+    db.close();
+    assert.ok(mapped);
   });
 });
 

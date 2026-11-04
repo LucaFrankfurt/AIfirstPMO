@@ -23,6 +23,7 @@ import { all, get, nextSeq, run, tx, type Row } from '../../kernel/platform/db/i
 import { env } from '../../kernel/platform/env.ts';
 import { uid } from '../../kernel/platform/ids.ts';
 import { keyFor, remove as removeBlob } from '../../kernel/files/storage.ts';
+import { unindexForSearch } from '../../kernel/write-path/repo.ts';
 
 /**
  * What can be emptied.
@@ -219,7 +220,7 @@ export function emptyTrash(
       for (const row of doomed) {
         hashesIn(get<Row>(`SELECT * FROM ${table} WHERE id = ?`, row.id), named);
         run(`DELETE FROM ${table} WHERE id = ?`, row.id);
-        run(`DELETE FROM search_index WHERE kind = ? AND ref_id = ?`, entity, row.id);
+        unindexForSearch(entity, String(row.id));
         forgetTrail(entity, String(row.id), named);
         run(
           `INSERT INTO purges (id, workspace_id, entity, row_id, reason, created_at, updated_at, seq, clocks)

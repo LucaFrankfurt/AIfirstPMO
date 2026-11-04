@@ -207,6 +207,11 @@ db.exec(`CREATE INDEX IF NOT EXISTS attachments_subject ON attachments (subject_
 // The same reason again: an agenda point lists the tasks that came out of it,
 // and the column it asks by is one the loop above may just have added.
 db.exec(`CREATE INDEX IF NOT EXISTS tasks_agenda_item ON tasks (agenda_item_id)`);
+// An index written before `search_refs` existed: map its rows once.
+db.exec(`
+  INSERT OR IGNORE INTO search_refs (kind, ref_id, doc)
+  SELECT kind, ref_id, rowid FROM search_index
+   WHERE NOT EXISTS (SELECT 1 FROM search_refs) AND EXISTS (SELECT 1 FROM search_index)`);
 
 /*
  * `attachments.checksum`, filled in for the rows that pre-date it being used.
