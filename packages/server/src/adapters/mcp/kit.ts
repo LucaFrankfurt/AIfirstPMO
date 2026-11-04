@@ -1474,15 +1474,24 @@ export function resolveScope(
   return projectScope({ project: owner, projects: listed });
 }
 
-export function resolveCycle(workspaceId: string, ref: string): Row | undefined {
+export function resolveCycle(workspaceId: string, ref: string, projectId?: string): Row | undefined {
+  // With a project, only cycles that cover it — the same test the write path's move rule applies.
+  const covers = projectId
+    ? ` AND ((json_array_length(projects) = 0 AND (project_id IS NULL OR project_id = ?))
+             OR EXISTS (SELECT 1 FROM json_each(projects) WHERE json_each.value = ?))`
+    : '';
+  const scope = projectId ? [projectId, projectId] : [];
   if (ref === 'current') {
     return get<Row>(
       `SELECT * FROM cycles WHERE workspace_id = ? AND deleted_at IS NULL
-        AND start_date <= date('now') AND end_date >= date('now') ORDER BY start_date DESC LIMIT 1`,
-      workspaceId,
+        AND start_date <= date('now') AND end_date >= date('now')${covers} ORDER BY start_date DESC LIMIT 1`,
+      workspaceId, ...scope,
     );
   }
-  return get<Row>(`SELECT * FROM cycles WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL`, workspaceId, ref, ref);
+  return get<Row>(
+    `SELECT * FROM cycles WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL${covers}`,
+    workspaceId, ref, ref, ...scope,
+  );
 }
 
 export function resolveLabels(workspaceId: string, projectId: string, refs: unknown, ctx: McpCtx): string[] {

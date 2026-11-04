@@ -6,7 +6,7 @@ import { all, get, type Row, tx } from '../../../kernel/platform/db/index.ts';
 import { deleteEntity, visibleProjectIds, visibleProjectsSql, withEffectsHeld, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { searchWorkspace } from '../../../kernel/search/search.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
-import { blockingLoop, fileTask, findModule, findProject, findTask, INVERSE_RELATION, isoDay, McpError, requireWrite, resolveCycle, resolveLabels, resolveState, resolveUsers, str, taskView, type ToolDef, workspaceOf, writeCustomFields, writeOpts } from '../kit.ts';
+import { blockingLoop, fileTask, findMember, findModule, findProject, findTask, INVERSE_RELATION, isoDay, McpError, requireWrite, resolveCycle, resolveLabels, resolveState, resolveUsers, str, taskView, type ToolDef, workspaceOf, writeCustomFields, writeOpts } from '../kit.ts';
 
 export const taskTools: ToolDef[] = [
   {
@@ -381,9 +381,21 @@ export const taskTools: ToolDef[] = [
       if (args.due_date !== undefined) patch.due_date = isoDay(args.due_date, 'due_date');
       if (args.start_date !== undefined) patch.start_date = args.start_date;
       if (args.estimate !== undefined) patch.estimate = args.estimate;
-      if (args.archived !== undefined) patch.archived = args.archived ? 1 : 0;
-      if (args.assignees !== undefined) patch.assignees = resolveUsers(workspaceId, args.assignees);
-      if (args.labels !== undefined) patch.labels = resolveLabels(workspaceId, scope, args.labels, ctx);
+      // Refused rather than coerced: "false" is truthy, and a non-list read as [] clears the field.
+      if (args.archived !== undefined) {
+        if (typeof args.archived !== 'boolean') throw new McpError('`archived` must be true or false');
+        patch.archived = args.archived ? 1 : 0;
+      }
+      if (args.assignees !== undefined) {
+        if (!Array.isArray(args.assignees) || args.assignees.some((ref: unknown) => typeof ref !== 'string')) {
+          throw new McpError('`assignees` must be a list of user ids, emails or names');
+        }
+        patch.assignees = args.assignees.map((ref: string) => String(findMember(ref, workspaceId).id));
+      }
+      if (args.labels !== undefined) {
+        if (!Array.isArray(args.labels)) throw new McpError('`labels` must be a list of label names or ids');
+        patch.labels = resolveLabels(workspaceId, scope, args.labels, ctx);
+      }
       if (args.state !== undefined) {
         const state = resolveState(scope, String(args.state));
         if (!state) throw new McpError(`No state matching "${args.state}" in this project`);
@@ -393,7 +405,12 @@ export const taskTools: ToolDef[] = [
         patch.module_id = args.module === null ? null : String(findModule(String(args.module), workspaceId, ctx).id);
       }
       if (args.cycle !== undefined) {
-        patch.cycle_id = args.cycle === null ? null : resolveCycle(workspaceId, String(args.cycle))?.id ?? null;
+        if (args.cycle === null) patch.cycle_id = null;
+        else {
+          const cycle = resolveCycle(workspaceId, String(args.cycle), scope);
+          if (!cycle) throw new McpError(`No cycle matching "${args.cycle}" covers this project`);
+          patch.cycle_id = cycle.id;
+        }
       }
       const { row } = writeEntity('task', task.id, patch, writeOpts(workspaceId, ctx));
       if (args.fields && typeof args.fields === 'object') writeCustomFields(row, args.fields, workspaceId, ctx);
