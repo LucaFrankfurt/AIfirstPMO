@@ -54,7 +54,7 @@ export function environmentName(raw: unknown): string {
 }
 
 /** The caller's rank in this workspace, or nothing if they are not in it. */
-const roleOf = (opts: WriteOpts): WorkspaceRole | undefined =>
+export const roleOf = (opts: WriteOpts): WorkspaceRole | undefined =>
   get<Row>(
     `SELECT role FROM workspace_members WHERE workspace_id = ? AND user_id = ? AND deleted_at IS NULL`,
     opts.workspaceId, opts.actorId,

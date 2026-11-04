@@ -20,6 +20,7 @@ import { byAddress, enforce, LIMITS } from '../../../kernel/identity/ratelimit.t
 import { readBody, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { readFilters, tasksMatching } from '../../../modules/work/viewquery.ts';
 import { buildFrameCsp } from '../../../kernel/platform/csp.ts';
+import { canSeeProject, pageIsVisible } from '../../../kernel/write-path/repo.ts';
 import { boardDocument, sharedBoard, sharedBoards } from '../boards.ts';
 
 /** The policy a shared board is served under: the board frame's, opening its links itself. */
@@ -164,7 +165,9 @@ function html(ctx: Ctx, body: string, status = 200): undefined {
 /** The page a share points at, with its children — a shared page brings its tree. */
 function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
   const page = get<Row>(`SELECT * FROM pages WHERE id = ? AND deleted_at IS NULL`, share.page_id);
-  if (!page) return '';
+  // A link shows what its maker may read today, not what they could when they made it.
+  const maker = String(share.created_by ?? '');
+  if (!page || !pageIsVisible(maker, page)) return '';
   // Scoped to the shared page's own workspace as well as its parentage. The
   // write path refuses a cross-workspace `parent_id` now, but this query is
   // what *publishes* a child to strangers, and a published page is the wrong
@@ -174,7 +177,7 @@ function pageBody(share: Row, notice?: 'sent' | 'problem'): string {
       WHERE parent_id = ? AND workspace_id = ? AND deleted_at IS NULL AND archived = 0
       ORDER BY sort_order`,
     page.id, page.workspace_id,
-  );
+  ).filter((child) => pageIsVisible(maker, child));
   // A page whose body already opens with its own title does not get a second
   // one bolted on top — which is most pages people actually write. Asked of
   // both formats: an imported page opening with `<h1>Spec</h1>` repeats itself
@@ -312,6 +315,11 @@ function tasksBody(share: Row): string {
     ? get<Row>(`SELECT * FROM views WHERE id = ? AND deleted_at IS NULL`, share.view_id)
     : undefined;
 
+  const seen = new Map<string, boolean>();
+  const visible = (projectId: string): boolean => {
+    if (!seen.has(projectId)) seen.set(projectId, canSeeProject(String(share.created_by ?? ''), projectId));
+    return seen.get(projectId)!;
+  };
   // The filter translation lives in `lib/viewquery.ts` — the calendar feed
   // resolves the same views, and two copies of this is how a shared link and a
   // subscribed calendar end up disagreeing about what a view contains.
@@ -320,7 +328,7 @@ function tasksBody(share: Row): string {
     projectId: share.project_id ? String(share.project_id) : null,
     filters: readFilters(view?.filters),
     includeDone: !!share.include_done,
-  });
+  }).filter((task) => visible(String(task.project_id ?? '')));
 
   const people = new Map(
     all<Row>(`SELECT id, name FROM users`).map((user) => [String(user.id), String(user.name)]),

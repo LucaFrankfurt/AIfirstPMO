@@ -292,3 +292,33 @@ describe('the time switch still governs all of it', () => {
     });
   });
 });
+
+/* ------------------------------------------------------ whose time it is */
+
+describe('somebody else’s time', () => {
+  it('is not a member’s to change, delete or file under another name', async () => {
+    const adas = await ok(`/api/workspaces/${workspace}/time-entries`, {
+      cookie: admin.cookie, body: { project_id: web, minutes: 480, spent_on: '2026-05-04' },
+    });
+    const patched = await call(`/api/time-entries/${adas.id}`, { cookie: member.cookie, method: 'PATCH', body: { minutes: 30 } });
+    assert.equal(patched.status, 403, 'a member rewrote a colleague’s hours');
+    const deleted = await call(`/api/time-entries/${adas.id}`, { cookie: member.cookie, method: 'DELETE' });
+    assert.equal(deleted.status, 403, 'a member deleted a colleague’s hours');
+    const stored = get<any>(`SELECT minutes, deleted_at FROM time_entries WHERE id = ?`, adas.id);
+    assert.equal(stored.minutes, 480);
+    assert.equal(stored.deleted_at, null);
+
+    const bobs = await ok(`/api/workspaces/${workspace}/time-entries`, {
+      cookie: member.cookie, body: { project_id: web, minutes: 600, spent_on: '2026-05-04' },
+    });
+    const moved = await call(`/api/time-entries/${bobs.id}`, { cookie: member.cookie, method: 'PATCH', body: { user_id: admin.id } });
+    assert.equal(moved.status, 403, 'a member filed their hours under somebody else');
+    assert.equal(get<any>(`SELECT user_id FROM time_entries WHERE id = ?`, bobs.id).user_id, member.id);
+
+    // Their own is still theirs to edit, and an admin may still correct it.
+    const own = await ok(`/api/time-entries/${bobs.id}`, { cookie: member.cookie, method: 'PATCH', body: { minutes: 540 } });
+    assert.equal(own.minutes, 540);
+    const corrected = await ok(`/api/time-entries/${bobs.id}`, { cookie: admin.cookie, method: 'PATCH', body: { minutes: 500 } });
+    assert.equal(corrected.minutes, 500);
+  });
+});

@@ -19,6 +19,7 @@ import assert from 'node:assert/strict';
 import { rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
+import { Clock } from '@kolibri/shared';
 
 const { server } = await import('../src/index.ts');
 const { resetRateLimits } = await import('../src/kernel/identity/ratelimit.ts');
@@ -229,6 +230,26 @@ describe('a floor on who may open one', () => {
     const mcp = await tool(adaToken, 'list_secrets', { environment: 'production' });
     assert.equal(mcp.secrets.length, 1);
     assert.equal(mcp.secrets[0].environment, 'production');
+  });
+
+  it('refuses a member taking one out of it from a device', async () => {
+    // `environment_id: null` is no environment, and no environment has no floor.
+    // A name of its own, so a name clash with an unscoped secret cannot be what refuses it.
+    const secret = (await api('ada', `/api/workspaces/${workspaceId}/secrets`, {
+      body: { name: 'PRODUCTION_ONLY', kind: 'api_key', environment_id: env.production, value: 'sk-production-only' },
+    })).id;
+    const pushed = await api('lin', '/api/sync/push', {
+      body: {
+        workspaceId, clientId: 'lin-device',
+        mutations: [{
+          id: crypto.randomUUID(), entity: 'secret', entityId: secret, op: 'upsert',
+          patch: { environment_id: null }, hlc: new Clock('env-test').now(),
+        }],
+      },
+    });
+    assert.equal(pushed.rejected.length, 1, 'a push moved a secret out of an environment its writer cannot open');
+    assert.equal(all<any>(`SELECT environment_id FROM secrets WHERE id = ?`, secret)[0].environment_id, env.production);
+    await assert.rejects(() => api('lin', `/api/secrets/${secret}/reveal`, { body: {} }));
   });
 
   it('refuses a member writing into one they cannot open', async () => {
