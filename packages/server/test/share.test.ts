@@ -313,3 +313,73 @@ describe('a shared task list', () => {
     assert.equal(body.includes('Not for sharing'), false);
   });
 });
+
+describe('a link a member makes', () => {
+  // A member who could not open a private project made one link with no project on it, and every private task was on it.
+  let lin = '';
+  let linId = '';
+  let closed = '';
+  let diary = '';
+  const as = async (who: string, path: string, body?: unknown) => {
+    const response = await fetch(`${base}${path}`, {
+      method: body === undefined ? 'GET' : 'POST',
+      headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), cookie: who },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await response.text();
+    return { status: response.status, body: text ? JSON.parse(text) : null };
+  };
+
+  before(async () => {
+    const invite = await ok(`/api/workspaces/${workspaceId}/invites`, { role: 'member' });
+    resetRateLimits();
+    const registered = await fetch(`${base}/api/auth/register`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'lin@example.com', name: 'Lin', password: 'another fine password' }),
+    });
+    lin = registered.headers.get('set-cookie')!.split(';')[0];
+    linId = ((await registered.json()) as any).user.id;
+    await as(lin, `/api/invites/${invite.code}/accept`, {});
+
+    closed = (await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Board only', key: 'BO', visibility: 'private' })).id;
+    await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: closed, title: 'Acquisition shortlist' });
+    // Lin's own, private to her, and hung under the page Ada shares below.
+    diary = (await as(lin, `/api/workspaces/${workspaceId}/pages`, {
+      project_id: projectId, parent_id: pageId, title: 'Lin’s diary', content: 'Not for strangers.', access: 'private',
+    })).body.id;
+  });
+
+  it('cannot reach a project or a page its maker may not read', async () => {
+    const tasks = await as(lin, `/api/workspaces/${workspaceId}/shares`, { kind: 'tasks', name: 'Everything' });
+    assert.equal(tasks.status, 403, 'a member shared the tasks of every project');
+    const project = await as(lin, `/api/workspaces/${workspaceId}/shares`, { kind: 'tasks', project_id: closed });
+    assert.equal(project.status, 403, 'a member shared a project they are not in');
+    const adas = (await ok(`/api/workspaces/${workspaceId}/pages`, { title: 'Ada’s notes', access: 'private' })).id;
+    const page = await as(lin, `/api/workspaces/${workspaceId}/shares`, { kind: 'page', page_id: adas });
+    assert.equal(page.status, 403, 'a member shared somebody else’s private page');
+  });
+
+  it('is made by whoever made it, whatever the request claims', async () => {
+    const share = await as(lin, `/api/workspaces/${workspaceId}/shares`, {
+      kind: 'page', page_id: diary, created_by: get<any>(`SELECT id FROM users WHERE email = 'ada@example.com'`).id,
+    });
+    assert.equal(share.status, 200);
+    assert.equal(share.body.created_by, linId);
+  });
+
+  it('shows strangers only what its maker may read', async () => {
+    // Ada is not in Lin's private project, and Lin's diary is Lin's.
+    const theirs = (await as(lin, `/api/workspaces/${workspaceId}/projects`, { name: 'Lin only', key: 'LO', visibility: 'private' })).body.id;
+    assert.equal((await as(lin, `/api/workspaces/${workspaceId}/tasks`, { project_id: theirs, title: 'Lin’s plan' })).status, 200);
+
+    const everything = await makeShare({ kind: 'tasks', name: 'Everything' });
+    const tasks = await (await open(`/s/${everything.token}`)).text();
+    assert.match(tasks, /Acquisition shortlist/);
+    assert.equal(tasks.includes('Lin’s plan'), false, 'a workspace-wide link showed a project its maker is not in');
+
+    const notes = await makeShare({ kind: 'page', page_id: pageId, project_id: projectId });
+    const page = await (await open(`/s/${notes.token}`)).text();
+    assert.match(page, /Known issues/);
+    assert.equal(page.includes('Not for strangers'), false, 'a shared page brought a child private to somebody else');
+  });
+});
