@@ -37,6 +37,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
 function SwitchedOff() {
@@ -379,6 +380,7 @@ function Readings({ kpi, readings }: { kpi: Kpi; readings: KpiReading[] }) {
 function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | null; onClose: () => void }) {
   const t = useT();
   const toast = useToast();
+  const saveChanges = useSaveChanges('kpiReading', entry);
   const [form, setForm] = useState(() => ({
     measured_on: entry?.measured_on ?? today(),
     value: entry?.value ?? null as number | null,
@@ -403,7 +405,7 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
               source: form.source.trim() || null,
               note: form.note.trim() || null,
             };
-            if (entry) update('kpiReading', entry.id, patch);
+            if (entry) saveChanges(patch);
             else create('kpiReading', patch);
             toast(t('kpi.recorded'));
             onClose();
@@ -566,6 +568,7 @@ function TargetForm({ kpi, entry, modules, onClose }: {
   onClose: () => void;
 }) {
   const t = useT();
+  const saveChanges = useSaveChanges('kpiTarget', entry);
   const [form, setForm] = useState(() => ({
     value: entry?.value ?? null as number | null,
     due_on: entry?.due_on ?? '',
@@ -591,7 +594,7 @@ function TargetForm({ kpi, entry, modules, onClose }: {
               value: form.value,
               note: form.note.trim() || null,
             };
-            if (entry) update('kpiTarget', entry.id, patch);
+            if (entry) saveChanges(patch);
             else create('kpiTarget', { ...patch, sort_order: orderKey() });
             onClose();
           }}

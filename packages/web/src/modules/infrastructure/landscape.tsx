@@ -15,7 +15,8 @@ import {
 } from '@kolibri/shared';
 import { currentLocale, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { today } from '../../kernel/design-system/format';
-import { create, update } from '../../kernel/sync/mutations';
+import { create } from '../../kernel/sync/mutations';
+import { useSaveChanges } from '../../kernel/design-system/row-form';
 import { list, useQuery } from '../../kernel/sync/store';
 import { useMembers } from '../../kernel/identity/session';
 import { Sheet } from '../../kernel/design-system/ui';
@@ -133,6 +134,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
   const components = useQuery(() => list('component'), []);
   const budgets = useQuery(() => list('budget', (row) => !row.archived), []);
   const lines = useQuery(() => list('budgetLine'), []);
+  const saveChanges = useSaveChanges('component', component);
 
   const [form, setForm] = useState(() => ({
     name: component?.name ?? '',
@@ -196,7 +198,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
       projects: depends,
       note: form.note.trim() || null,
     };
-    if (component) update('component', component.id, patch);
+    if (component) saveChanges(patch);
     else create('component', { ...patch, sort_order: 'V' });
     onClose();
   };
@@ -366,6 +368,7 @@ export function ComponentForm({ component, onClose }: { component: Component | n
 
 export function VendorForm({ vendor, onClose }: { vendor: Vendor | null; onClose: () => void }) {
   const t = useT();
+  const saveChanges = useSaveChanges('vendor', vendor);
   const [form, setForm] = useState(() => ({
     name: vendor?.name ?? '',
     kind: vendor?.kind ?? 'cloud',
@@ -399,7 +402,7 @@ export function VendorForm({ vendor, onClose }: { vendor: Vendor | null; onClose
               note: form.note.trim() || null,
               archived: 0,
             };
-            if (vendor) update('vendor', vendor.id, patch);
+            if (vendor) saveChanges(patch);
             else create('vendor', patch);
             onClose();
           }}
@@ -471,6 +474,7 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
   const t = useT();
   const components = useQuery(() => list('component'), []);
   const projects = useQuery(() => list('project', (row) => !row.archived && !row.is_container), []);
+  const saveChanges = useSaveChanges('move', move);
   const [form, setForm] = useState(() => ({
     name: move?.name ?? '',
     description: move?.description ?? '',
@@ -525,7 +529,7 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
               target_date: form.target_date || null,
               project_id: form.project_id || null,
             };
-            if (move) update('move', move.id, patch);
+            if (move) saveChanges(patch);
             else create('move', { ...patch, sort_order: 'V' });
             onClose();
           }}

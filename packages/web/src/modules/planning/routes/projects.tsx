@@ -43,6 +43,7 @@ import { shortDate, today } from '../../../kernel/design-system/format';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
 import { byOrder, create, createPage, remove, update } from '../../../kernel/sync/mutations';
 import { useOpenTask } from '../../../kernel/design-system/navigation';
+import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { byId, list, useQuery, useRow } from '../../../kernel/sync/store';
 import { pull } from '../../../kernel/sync/sync';
 import { useCanWrite, useFeature, useMe, useMembers, useSession } from '../../../kernel/identity/session';
@@ -647,6 +648,7 @@ function Cycles({ projectId }: { projectId: string }) {
 function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycleId?: string; onClose: () => void }) {
   const t = useT();
   const cycle = useRow('cycle', cycleId);
+  const saveChanges = useSaveChanges('cycle', cycle);
   const { confirm, dialog } = useConfirm();
   const [form, setForm] = useState({
     name: cycle?.name ?? '',
@@ -669,7 +671,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
          reader has to resolve under time pressure. */
       if (stranded.length
         && !(await confirm(t('cycle.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
-      update('cycle', cycleId, { ...form, ...choice.settled });
+      saveChanges({ ...form, ...choice.settled });
     } else {
       // `projectScope` is what the server would apply anyway; applying it here
       // too means the row this device writes into its own store is already the
@@ -749,6 +751,7 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
 function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; moduleId?: string; onClose: () => void }) {
   const t = useT();
   const module_ = useRow('module', moduleId);
+  const saveChanges = useSaveChanges('module', module_);
   const { confirm, dialog } = useConfirm();
   const [name, setName] = useState(module_?.name ?? '');
   const [target, setTarget] = useState(module_?.target_date ?? '');
@@ -762,7 +765,7 @@ function ModuleEditor({ projectId, moduleId, onClose }: { projectId: string; mod
     if (moduleId) {
       if (stranded.length
         && !(await confirm(t('module.scopeStrandConfirm', { count: stranded.length }), t('action.save')))) return;
-      update('module', moduleId, { ...fields, ...choice.settled });
+      saveChanges({ ...fields, ...choice.settled });
     } else {
       create('module', { ...fields, ...choice.settled, status: 'planned', sort_order: orderKey(null, null) });
     }

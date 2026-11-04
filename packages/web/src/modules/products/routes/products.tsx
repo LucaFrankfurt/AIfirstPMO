@@ -48,6 +48,7 @@ import { useT, type TranslationKey } from '../../../kernel/i18n/i18n';
 import { create, remove, update } from '../../../kernel/sync/mutations';
 import { list, useQuery, useRow } from '../../../kernel/sync/store';
 import { useTabStrip } from '../../../kernel/design-system/tab-strip';
+import { useSaveChanges } from '../../../kernel/design-system/row-form';
 import { useCanWrite, useFeature } from '../../../kernel/identity/session';
 
 /**
@@ -217,6 +218,7 @@ function CapabilityForm(
   { capability: ProductCapability | null; known: readonly ProductCapability[]; onClose: () => void },
 ) {
   const t = useT();
+  const saveChanges = useSaveChanges('productCapability', capability);
   const [form, setForm] = useState({ name: capability?.name ?? '', description: capability?.description ?? '' });
 
   /* The same comparison `create_capability` refuses on, from the same function
@@ -237,7 +239,7 @@ function CapabilityForm(
           disabled={!form.name.trim() || taken}
           onClick={() => {
             const patch = { name: form.name.trim(), description: form.description.trim() || null };
-            if (capability) update('productCapability', capability.id, patch);
+            if (capability) saveChanges(patch);
             else create('productCapability', { ...patch, archived: 0, sort_order: orderKey() });
             onClose();
           }}
@@ -854,6 +856,7 @@ function PromotionForm({ promotion, products, groups, onClose }: {
 }) {
   const t = useT();
   const toast = useToast();
+  const saveChanges = useSaveChanges('promotion', promotion);
   const [form, setForm] = useState({
     name: promotion?.name ?? '',
     description: promotion?.description ?? '',
@@ -897,7 +900,7 @@ function PromotionForm({ promotion, products, groups, onClose }: {
               status: form.status,
               currency: form.currency,
             };
-            if (promotion) update('promotion', promotion.id, patch);
+            if (promotion) saveChanges(patch);
             else create('promotion', { ...patch, sort_order: orderKey() });
             toast(t('product.promotionSaved'));
             onClose();
@@ -1105,6 +1108,7 @@ function ScenarioForm({ scenario, products, productId, assumptions, onClose }: {
   const t = useT();
   const toast = useToast();
   const promotions = useQuery(() => list('promotion'), []);
+  const saveChanges = useSaveChanges('productScenario', scenario);
   const settled = assumptionsOf(scenario?.assumptions ?? assumptions);
   const [form, setForm] = useState({
     name: scenario?.name ?? '',
@@ -1132,7 +1136,7 @@ function ScenarioForm({ scenario, products, productId, assumptions, onClose }: {
               churn_bps: form.churn_bps,
             };
             const patch = { name: form.name.trim(), product_id: form.product_id || null, assumptions };
-            if (scenario) update('productScenario', scenario.id, patch);
+            if (scenario) saveChanges(patch);
             else create('productScenario', { ...patch, description: null, sort_order: orderKey() });
             toast(t('product.scenarioSaved'));
             onClose();
@@ -1551,6 +1555,7 @@ function ContributorForm({ product, person, onClose }: {
 }) {
   const t = useT();
   const toast = useToast();
+  const saveChanges = useSaveChanges('productContributor', person);
   const [form, setForm] = useState({
     name: person?.name ?? '',
     role: person?.role ?? '',
@@ -1580,7 +1585,7 @@ function ContributorForm({ product, person, onClose }: {
               fee_basis: form.fee_basis,
               note: form.note.trim() || null,
             };
-            if (person) update('productContributor', person.id, patch);
+            if (person) saveChanges(patch);
             else create('productContributor', { ...patch, sort_order: orderKey() });
             toast(t('product.contributorSaved'));
             onClose();
@@ -1896,6 +1901,7 @@ function RaiseForm({ product, price, onClose }: { product: Product; price: Produ
 function PriceForm({ product, price, onClose }: { product: Product; price: ProductPrice | null; onClose: () => void }) {
   const t = useT();
   const toast = useToast();
+  const saveChanges = useSaveChanges('productPrice', price);
   const [form, setForm] = useState({
     name: price?.name ?? '',
     kind: price?.kind ?? ('list' as ProductPrice['kind']),
@@ -1930,7 +1936,7 @@ function PriceForm({ product, price, onClose }: { product: Product; price: Produ
               valid_to: form.valid_to || null,
               note: form.note.trim() || null,
             };
-            if (price) update('productPrice', price.id, patch);
+            if (price) saveChanges(patch);
             else create('productPrice', { ...patch, sort_order: orderKey() });
             toast(t('product.priceSaved'));
             onClose();
@@ -2113,6 +2119,7 @@ function Costs({ product }: { product: Product }) {
 function CostForm({ product, cost, onClose }: { product: Product; cost: ProductCost | null; onClose: () => void }) {
   const t = useT();
   const toast = useToast();
+  const saveChanges = useSaveChanges('productCost', cost);
   const [form, setForm] = useState({
     name: cost?.name ?? '',
     basis: cost?.basis ?? ('unit' as CostBasis),
@@ -2140,7 +2147,7 @@ function CostForm({ product, cost, onClose }: { product: Product; cost: ProductC
               vendor: form.vendor.trim() || null,
               note: form.note.trim() || null,
             };
-            if (cost) update('productCost', cost.id, patch);
+            if (cost) saveChanges(patch);
             else create('productCost', { ...patch, sort_order: orderKey() });
             toast(t('product.costSaved'));
             onClose();
@@ -2576,6 +2583,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
      the kind says, so the catalogue would carry a package's costs under a
      single product's name. */
   const parts = useQuery(() => (product ? list('productPart', (row) => row.product_id === product.id) : []), [product?.id]);
+  const saveChanges = useSaveChanges('product', product);
   const [form, setForm] = useState({
     name: product?.name ?? '',
     code: product?.code ?? '',
@@ -2631,7 +2639,7 @@ function ProductForm({ product, onClose }: { product?: Product; onClose: () => v
               capabilities: form.capabilities,
             };
             if (product) {
-              update('product', product.id, patch);
+              saveChanges(patch);
               toast(t('product.saved'));
             } else {
               const id = create('product', { ...patch, archived: 0, sort_order: orderKey() });
