@@ -238,6 +238,52 @@ describe('minting a token', () => {
     assert.equal(status, 403, 'the read-only token could write directly');
   });
 
+  it('a read-only token writes neither tasks in bulk nor the account', async () => {
+    const readOnly = (await call('/api/tokens', {
+      body: { name: 'bulk-reader', workspaceId: home, scopes: 'read' },
+    })).body.token;
+    const [project] = (await call(`/api/workspaces/${home}/projects`)).body;
+    const task = (await call(`/api/workspaces/${home}/tasks`, { body: { project_id: project.id, title: 'leave me be' } })).body.id;
+
+    const bulk = await call(`/api/workspaces/${home}/tasks/bulk`, {
+      token: readOnly, body: { ids: [task], patch: { title: 'rewritten' } },
+    });
+    assert.equal(bulk.status, 403, 'the bulk route wrote with a read-only token');
+    assert.equal((await call(`/api/tasks/${task}`)).body.title, 'leave me be');
+
+    assert.equal((await call('/api/me/2fa', { token: readOnly, body: {} })).status, 403, 'a read-only token started 2FA');
+    assert.equal((await call('/api/me/2fa/confirm', { token: readOnly, body: { code: '000000' } })).status, 403);
+    assert.equal((await call('/api/me', { token: readOnly, method: 'PATCH', body: { name: 'Mallory' } })).status, 403);
+  });
+
+  it('a confined token cannot change the account behind it', async () => {
+    assert.equal((await call('/api/me', { token: confined, method: 'PATCH', body: { name: 'Mallory' } })).status, 403);
+    assert.equal((await call('/api/me/2fa', { token: confined, body: {} })).status, 403);
+    assert.equal((await call('/api/tokens', { token: confined })).status, 403, 'it listed tokens for other workspaces');
+  });
+
+  it('the bulk route skips a task in a project the caller cannot see', async () => {
+    const { body: invite } = await call(`/api/workspaces/${home}/invites`, { body: { role: 'member' } });
+    resetRateLimits();
+    const joined = await fetch(`${base}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'peer@example.com', name: 'Peer', password: 'correct horse battery', invite: invite.code }),
+    });
+    const peer = joined.headers.get('set-cookie')!.split(';')[0];
+    const hidden = (await call(`/api/workspaces/${home}/projects`, {
+      body: { name: 'Board only', key: 'BOO', visibility: 'private' },
+    })).body;
+    const task = (await call(`/api/workspaces/${home}/tasks`, { body: { project_id: hidden.id, title: 'Salaries' } })).body.id;
+
+    const { status, body } = await call(`/api/workspaces/${home}/tasks/bulk`, {
+      cookie: peer, body: { ids: [task], patch: { title: 'seen' } },
+    });
+    assert.equal(status, 200);
+    assert.equal(body.updated, 0, 'the bulk route wrote to a private project and handed the row back');
+    assert.equal((await call(`/api/tasks/${task}`)).body.title, 'Salaries');
+  });
+
   it('keeps write for a caller that has it', async () => {
     const { body } = await call('/api/tokens', { body: { name: 'writer', workspaceId: home, scopes: 'read,write' } });
     assert.match(body.scopes, /write/, 'a session lost the scope it is entitled to');

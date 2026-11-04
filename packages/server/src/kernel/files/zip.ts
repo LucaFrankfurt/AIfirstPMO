@@ -27,6 +27,7 @@
  */
 import { deflateRawSync, inflateRawSync } from 'node:zlib';
 import type { Writable } from 'node:stream';
+import { badRequest } from '../platform/http.ts';
 
 /** Signatures, in the order a reader meets them. */
 const LOCAL = 0x04034b50;
@@ -244,6 +245,8 @@ export interface ZipFile {
   size(name: string): number | null;
 }
 
+const tooLarge = (name: string) => badRequest(`${name} does not unpack to the size the ZIP directory says`);
+
 /**
  * Read an archive from the central directory backwards, which is the only way
  * a ZIP is meant to be read: the local headers are allowed to lie about sizes
@@ -286,10 +289,19 @@ export function unzip(archive: Buffer): ZipFile {
     const extraLength = archive.readUInt16LE(entry.offset + 28);
     const start = entry.offset + 30 + nameLength + extraLength;
     const raw = archive.subarray(start, start + entry.compressed);
-    const body = entry.method === DEFLATED ? inflateRawSync(raw) : Buffer.from(raw);
+    // Never more than the directory declared, so a few kilobytes cannot inflate into gigabytes.
+    if (entry.method !== DEFLATED && entry.compressed !== entry.size) throw tooLarge(name);
+    let body: Buffer;
+    try {
+      body = entry.method === DEFLATED ? inflateRawSync(raw, { maxOutputLength: Math.max(1, entry.size) }) : Buffer.from(raw);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE') throw tooLarge(name);
+      throw error;
+    }
     // The checksum is the whole reason a ZIP has one: a truncated download is
     // a file that unpacks into plausible nonsense unless somebody checks.
     if (crc32(body) !== entry.crc) throw new Error(`${name} is corrupt — the checksum does not match`);
+    if (body.length !== entry.size) throw tooLarge(name);
     return body;
   };
 

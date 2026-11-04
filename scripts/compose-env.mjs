@@ -37,7 +37,7 @@ const EXEMPT = new Map([
   ['KOLIBRI_WEB_DIR', 'where the build put the client, fixed by the image'],
   ['KOLIBRI_UPLOAD_DIR', 'derived from KOLIBRI_DATA_DIR'],
   ['KOLIBRI_DB', 'derived from KOLIBRI_DATA_DIR'],
-  ['KOLIBRI_DEMO', 'read-only mode for the public demo instance, not a deployment setting'],
+  ['KOLIBRI_DEMO', 'the public demo instance only (docker-compose.demo.yml), not a deployment setting'],
   ['KOLIBRI_TELEGRAM_API', 'test hook, so a test can point at a local stand-in'],
   ['KOLIBRI_SMTP_SECURE', 'legacy alias kept for old deployments; KOLIBRI_SMTP_ENCRYPTION replaced it'],
   // Vendor names, read so a .env written for that vendor's own tooling works

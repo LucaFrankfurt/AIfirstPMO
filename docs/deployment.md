@@ -462,11 +462,10 @@ failure mid-run is fixed by running it again.
 | No `ANTHROPIC_API_KEY` and friends | The task-review button does not appear, so nothing typed into a public instance can leave it for a model |
 | `KOLIBRI_MAX_UPLOAD_MB=5` | A public upload box is a public upload box |
 | `KOLIBRI_SESSION_DAYS=1` | Everyone is the same person; a sixty-day cookie on a shared account is a sixty-day shared cookie |
+| `KOLIBRI_DEMO=true` | The seed does not make the shared account the instance's administrator. Otherwise anybody could set the relay, a backup address that receives every night's database, a model key or the Telegram bot in Settings → Server — which wins over the environment — or restore a snapshot over the demo |
 
-**One flag that does nothing yet.** There is a `KOLIBRI_DEMO` in `packages/server/src/kernel/platform/env.ts`,
-described in `scripts/compose-env.mjs` as "read-only mode for the public demo instance". Nothing
-reads it — it is declared and unused. The demo's protection is the reset and the switches above,
-not a read-only mode, and this file will say otherwise on the day that changes.
+`KOLIBRI_DEMO` does that one thing and nothing else: it is not a read-only mode. The demo's
+protection is the reset and the switches above.
 
 ## TLS
 

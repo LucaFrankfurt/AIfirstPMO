@@ -13,7 +13,7 @@
 import type { WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
-import { requireAuth, requireWorkspace, sessionInfo } from '../auth.ts';
+import { requireAuth, requireWorkspace, requireWrite, sessionInfo } from '../auth.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../../write-path/bootstrap.ts';
 import { featuresOf } from '../../platform/features.ts';
 import { badRequest, conflict, forbidden, notFound, readJson, type Router } from '../../platform/http.ts';
@@ -25,7 +25,7 @@ import { writeEntity } from '../../write-path/repo.ts';
 
 export function registerWorkspaceRoutes(router: Router): void {
   router.post('/api/workspaces', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = requireWrite(ctx);
     const body = await readJson<{ name?: string; slug?: string }>(ctx);
     if (!body.name?.trim()) throw badRequest('Workspace name is required');
     const workspace = createWorkspace(body.name, auth.userId, body.slug);
@@ -35,6 +35,7 @@ export function registerWorkspaceRoutes(router: Router): void {
 
   router.patch('/api/workspaces/:id', async (ctx) => {
     requireWorkspace(ctx, ctx.params.id, 'admin');
+    requireWrite(ctx);
     const body = await readJson<{ name?: string; logo_url?: string; features?: WorkspaceFeatures }>(ctx);
     const fields = ['name', 'logo_url'].filter((f) => body[f as 'name'] !== undefined);
     if (fields.length) {
@@ -69,6 +70,7 @@ export function registerWorkspaceRoutes(router: Router): void {
 
   router.patch('/api/workspaces/:id/members/:userId', async (ctx) => {
     requireWorkspace(ctx, ctx.params.id, 'admin');
+    requireWrite(ctx);
     const body = await readJson<{ role?: WorkspaceRole }>(ctx);
     const member = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, ctx.params.id, ctx.params.userId);
     if (!member) throw notFound('Member not found');
@@ -81,7 +83,7 @@ export function registerWorkspaceRoutes(router: Router): void {
   });
 
   router.delete('/api/workspaces/:id/members/:userId', (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = requireWrite(ctx);
     if (auth.userId !== ctx.params.userId) requireWorkspace(ctx, ctx.params.id, 'admin');
     const member = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, ctx.params.id, ctx.params.userId);
     if (!member) throw notFound('Member not found');
@@ -146,7 +148,7 @@ export function registerWorkspaceRoutes(router: Router): void {
   });
 
   router.post('/api/workspaces/:id/invites', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = requireWrite(ctx);
     requireWorkspace(ctx, ctx.params.id, 'admin');
     const body = await readJson<{ email?: string; role?: WorkspaceRole; expiresInDays?: number }>(ctx);
     const code = shortCode(10);
@@ -197,7 +199,7 @@ export function registerWorkspaceRoutes(router: Router): void {
   router.post('/api/invites/:code/accept', (ctx) => {
     // Invite codes are short, so guessing them is worth somebody's time.
     enforce(ctx, byAddress(ctx, LIMITS.invite, 'invite'));
-    const auth = requireAuth(ctx);
+    const auth = requireWrite(ctx);
     const workspaceId = acceptInvite(ctx.params.code, auth.userId);
     return { workspaceId, session: sessionInfo(auth.userId) };
   });
