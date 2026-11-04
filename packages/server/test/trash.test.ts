@@ -147,6 +147,51 @@ describe('emptying it', () => {
   });
 });
 
+describe('what hangs off it', () => {
+  const live = (table: string, id: string) => !!get(`SELECT id FROM ${table} WHERE id = ? AND deleted_at IS NULL`, id);
+  const parts = async (title: string) => {
+    const task = await makeTask(title);
+    const other = await makeTask(`${title}, related`);
+    const comment = await ok(`/api/workspaces/${workspaceId}/comments`, { task_id: task.id, body: 'A remark' });
+    const relation = await ok(`/api/workspaces/${workspaceId}/relations`, { task_id: task.id, related_task_id: other.id, kind: 'blocks' });
+    const child = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: `${title}, sub`, parent_id: task.id });
+    return { task, other, comment, relation, child };
+  };
+
+  it('takes a task’s comments, relations and sub-tasks into the trash with it, and out of it', async () => {
+    const { task, other, comment, relation, child } = await parts('Has parts');
+    await ok(`/api/tasks/${task.id}`, undefined, 'DELETE');
+    assert.deepEqual([live('comments', comment.id), live('task_relations', relation.id), live('tasks', child.id)], [false, false, false]);
+    assert.ok(live('tasks', other.id), 'the task at the other end of the relation is not part of this one');
+
+    // The way the trash screen restores: an outbox write.
+    const clock = new Clock('trash-parts');
+    await ok('/api/sync/push', {
+      workspaceId, clientId: 'trash-parts',
+      mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: task.id, op: 'upsert', patch: { deleted_at: null }, hlc: clock.now() }],
+    });
+    assert.deepEqual([live('comments', comment.id), live('task_relations', relation.id), live('tasks', child.id)], [true, true, true]);
+  });
+
+  it('leaves nothing of a purged task live', async () => {
+    const { task, comment, relation, child } = await parts('Purged with parts');
+    await ok(`/api/tasks/${task.id}`, undefined, 'DELETE');
+    emptyTrash(workspaceId, 'manual', Date.now());
+    for (const [table, id] of [['tasks', task.id], ['comments', comment.id], ['task_relations', relation.id], ['tasks', child.id]]) {
+      assert.equal(get(`SELECT id FROM ${table} WHERE id = ?`, id), undefined, `${table} ${id} is gone`);
+    }
+  });
+
+  it('takes a purged page’s earlier versions, which hold its text', async () => {
+    const page = await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, title: 'Versioned', content: 'v1 text' });
+    await ok(`/api/pages/${page.id}`, { content: 'v2 text' }, 'PATCH');
+    assert.ok(all(`SELECT id FROM page_versions WHERE page_id = ?`, page.id).length > 0, 'the edit kept a version');
+    await ok(`/api/pages/${page.id}`, undefined, 'DELETE');
+    emptyTrash(workspaceId, 'manual', Date.now());
+    assert.equal(all(`SELECT id FROM page_versions WHERE page_id = ?`, page.id).length, 0);
+  });
+});
+
 describe('the bytes behind it', () => {
   it('keeps a picture the page still shows, and takes the one nothing points at', async () => {
     const upload = (bytes: string, name: string): Promise<any> => fetch(`${base}/api/workspaces/${workspaceId}/files`, {

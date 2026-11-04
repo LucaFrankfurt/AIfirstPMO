@@ -82,6 +82,9 @@ export function purgeable(workspaceId: string, before: number): Counts {
  * a task that no longer exists is an inbox row that opens on nothing.
  */
 function forgetTrail(entity: EntityName, id: string): void {
+  // Earlier versions carry the text itself, so they go with the row.
+  if (entity === 'page') run(`DELETE FROM page_versions WHERE page_id = ?`, id);
+  if (entity === 'artboard') run(`DELETE FROM artboard_versions WHERE artboard_id = ?`, id);
   const column = entity === 'task' ? 'task_id' : entity === 'page' ? 'page_id' : entity === 'project' ? 'project_id' : null;
   if (!column) return;
   run(`DELETE FROM activities WHERE ${column} = ?`, id);
