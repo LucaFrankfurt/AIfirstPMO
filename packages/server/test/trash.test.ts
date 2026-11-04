@@ -193,13 +193,31 @@ describe('what hangs off it', () => {
 });
 
 describe('the bytes behind it', () => {
-  it('keeps a picture the page still shows, and takes the one nothing points at', async () => {
-    const upload = (bytes: string, name: string): Promise<any> => fetch(`${base}/api/workspaces/${workspaceId}/files`, {
-      method: 'POST',
-      headers: { 'content-type': 'image/png', 'x-filename': name, cookie },
-      body: Buffer.from(bytes),
-    }).then((response) => response.json());
+  const upload = (bytes: string, name: string): Promise<any> => fetch(`${base}/api/workspaces/${workspaceId}/files`, {
+    method: 'POST',
+    headers: { 'content-type': 'image/png', 'x-filename': name, cookie },
+    body: Buffer.from(bytes),
+  }).then((response) => response.json());
 
+  it('keeps a page cover, the workspace logo and an upload nothing names yet', async () => {
+    const cover = await upload('cover-bytes', 'cover.png');
+    const logo = await upload('logo-bytes', 'logo.png');
+    const fresh = await upload('fresh-bytes', 'fresh.png');
+    await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, title: 'Covered', cover_url: cover.url });
+    await ok(`/api/workspaces/${workspaceId}`, { logo_url: logo.url }, 'PATCH');
+    // Both also hang on a task that is purged, so both are asked about.
+    const task = await makeTask('Shows the cover and the logo');
+    for (const file of [cover, logo]) {
+      await ok(`/api/workspaces/${workspaceId}/attachments`, { task_id: task.id, name: file.name, mime: 'image/png', size: 11, url: file.url });
+    }
+    await ok(`/api/tasks/${task.id}`, undefined, 'DELETE');
+
+    const done = emptyTrash(workspaceId, 'manual', Date.now());
+    assert.equal(done.blobs, 0);
+    for (const file of [cover, logo, fresh]) assert.ok(get(`SELECT hash FROM files WHERE hash = ?`, file.hash), `${file.name} is kept`);
+  });
+
+  it('keeps a picture the page still shows, and takes the one nothing points at', async () => {
     // Two uploads: one is only ever an attachment, the other is also pasted
     // into a page — which is what makes it content-addressed rather than owned.
     const lonely = await upload('lonely-bytes', 'lonely.png');
