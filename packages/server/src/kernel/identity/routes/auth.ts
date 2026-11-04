@@ -36,6 +36,12 @@ import { isPreference as isTelegramPreference } from '../../../adapters/telegram
 
 
 
+// A token confined to one workspace has no business with the account behind it.
+const unconfined = <T extends { confinedTo: string | null }>(auth: T): T => {
+  if (auth.confinedTo) throw forbidden('A workspace-confined token cannot reach the account');
+  return auth;
+};
+
 /** Recovery codes are stored hashed, as a JSON array. */
 function readCodes(value: unknown): string[] {
   try {
@@ -369,7 +375,7 @@ export function registerAuthRoutes(router: Router): void {
    * nothing is enforced until a code has been typed back.
    */
   router.post('/api/me/2fa', (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     const user = get<Row>(`SELECT email, totp_confirmed_at FROM users WHERE id = ?`, auth.userId)!;
     if (user.totp_confirmed_at) throw badRequest('Two-factor is already on');
 
@@ -380,7 +386,7 @@ export function registerAuthRoutes(router: Router): void {
 
   /** Confirm it by typing a code, and get the recovery codes once. */
   router.post('/api/me/2fa/confirm', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     const body = await readJson<{ code?: string }>(ctx);
     const user = get<Row>(`SELECT totp_secret, totp_confirmed_at FROM users WHERE id = ?`, auth.userId)!;
     if (!user.totp_secret) throw badRequest('Start the setup first');
@@ -398,7 +404,7 @@ export function registerAuthRoutes(router: Router): void {
 
   /** Turn it off. The current password is required, not just the session. */
   router.post('/api/me/2fa/off', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     /* Keyed to the account and not the address: whoever is guessing here is
        already holding this person's session, so the address tells us nothing
        and charging it would only catch an office behind one NAT. The account
@@ -415,7 +421,7 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.get('/api/sessions', (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireAuth(ctx));
     const raw = parseCookies(ctx.req)[SESSION_COOKIE];
     const mine = raw ? hashToken(raw) : '';
     return all<Row>(
@@ -426,7 +432,7 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.delete('/api/sessions/:id', (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     const raw = parseCookies(ctx.req)[SESSION_COOKIE];
     const session = get<Row>(`SELECT * FROM sessions WHERE id = ? AND user_id = ?`, ctx.params.id, auth.userId);
     if (!session) throw notFound('Session not found');
@@ -441,7 +447,7 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.patch('/api/me', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     const body = await readJson<Record<string, unknown>>(ctx);
     const patch: Record<string, unknown> = {};
     for (const field of ['name', 'avatar_url', 'timezone', 'bio'] as const) {
@@ -471,7 +477,7 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.post('/api/me/password', async (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     // The same guessing surface as `2fa/off`, and the bigger prize: getting the
     // current password right here signs every other device out.
     enforce(ctx, [byValue(LIMITS.password, 'password-user', auth.userId)]);
@@ -490,7 +496,7 @@ export function registerAuthRoutes(router: Router): void {
   /* ------------------------------------------------------------ API tokens */
 
   router.get('/api/tokens', (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireAuth(ctx));
     return all<Row>(
       `SELECT id, name, prefix, scopes, workspace_id, confined, created_at, last_used_at, expires_at, revoked_at
          FROM api_tokens WHERE user_id = ? AND revoked_at IS NULL ORDER BY created_at DESC`,
@@ -551,7 +557,7 @@ export function registerAuthRoutes(router: Router): void {
   });
 
   router.delete('/api/tokens/:id', (ctx) => {
-    const auth = requireAuth(ctx);
+    const auth = unconfined(requireWrite(ctx));
     run(`UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND user_id = ?`, Date.now(), ctx.params.id, auth.userId);
     return { ok: true };
   });

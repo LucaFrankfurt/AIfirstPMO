@@ -1049,13 +1049,15 @@ export function registerEntityRoutes(router: Router): void {
   router.post('/api/workspaces/:ws/tasks/bulk', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     requireWorkspace(ctx, ctx.params.ws, 'member');
+    if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     const body = await readJson<{ ids?: string[]; patch?: Record<string, unknown>; op?: 'update' | 'delete' }>(ctx);
     if (!Array.isArray(body.ids) || !body.ids.length) throw badRequest('ids is required');
     if (body.ids.length > 500) throw badRequest('Too many ids (max 500)');
     const updated: Row[] = [];
     for (const id of body.ids) {
       const task = get<Row>(`SELECT * FROM tasks WHERE id = ? AND workspace_id = ?`, id, ctx.params.ws);
-      if (!task) continue;
+      // A task in a private project is skipped like a missing one, so the answer does not confirm it exists.
+      if (!task || !visibleRow(auth.userId, 'task', task)) continue;
       const { row } = writeEntity('task', id, body.op === 'delete' ? {} : body.patch ?? {}, {
         workspaceId: ctx.params.ws, actorId: auth.userId, hlc: serverClock.now(),
         op: body.op === 'delete' ? 'delete' : 'upsert',
