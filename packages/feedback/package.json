@@ -51,7 +51,7 @@
   "bin": {
     "kolibri-feedback-preflight": "dist/cjs/preflight-cli.js"
   },
-  "files": ["dist", "fixtures", "README.md", "LICENSE"],
+  "files": ["dist", "fixtures", "README.md", "AI_INTEGRATION_PROMPT.md", "LICENSE"],
   "scripts": {
     "build": "rm -rf dist && tsc -p tsconfig.esm.json && tsc -p tsconfig.cjs.json && node scripts/postbuild.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json",

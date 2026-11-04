@@ -52,6 +52,15 @@ npm install modern-screenshot html2canvas
 
 `react` is an optional peer dependency, needed only for `./react`.
 
+### With an AI coding assistant
+
+[`AI_INTEGRATION_PROMPT.md`](AI_INTEGRATION_PROMPT.md) holds a prompt to paste into
+Claude Code, Cursor or Copilot Chat in your application's repository. The assistant
+inspects the repository, asks you the few decisions that are yours (delivery mode, kinds,
+language, what must never be in a screenshot), and then installs and wires up the
+package — server route, dialog, configuration and tests — following the rules below.
+Its code samples type-check against the published package.
+
 ## Usage
 
 ### 1. Browser: provider, triggers, dialog
