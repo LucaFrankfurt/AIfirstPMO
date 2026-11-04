@@ -610,7 +610,7 @@ function Plan({ budget }: { budget: Budget }) {
               {sorted.map((line) => (
                 <tr key={line.id} onClick={() => canWrite && setEditing(line)}>
                   <td className="title">
-                    {line.name}
+                    {canWrite ? <button type="button" className="row-open">{line.name}</button> : line.name}
                     {line.vendor && <span className="row-sub">{line.vendor}</span>}
                   </td>
                   <td>{t(categoryKey(line.category))}</td>
@@ -879,7 +879,7 @@ function Actuals({ budget }: { budget: Budget }) {
                 <tr key={entry.id} onClick={() => canWrite && setEditing(entry)}>
                   <td>{shortDate(entry.spent_on)}</td>
                   <td className="title">
-                    {entry.description}
+                    {canWrite ? <button type="button" className="row-open">{entry.description}</button> : entry.description}
                     {entry.reference && <span className="row-sub">{entry.reference}</span>}
                   </td>
                   <td>

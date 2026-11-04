@@ -851,9 +851,9 @@ export function CalendarView({ tasks, onOpen }: { tasks: Task[]; onOpen: (task: 
             >
               <span className="num">{date.getDate()}</span>
               {items.slice(0, 4).map((task) => (
-                <span key={task.id} className="pill" onClick={() => onOpen(task)} title={task.title}>
+                <button type="button" key={task.id} className="pill" onClick={() => onOpen(task)} title={task.title}>
                   {task.title}
-                </span>
+                </button>
               ))}
               {items.length > 4 && <span className="text-muted text-[10px]">+{items.length - 4}</span>}
             </div>
@@ -993,7 +993,7 @@ export function TableView({
                     </td>
                   )}
                   <td className="identifier narrow">{task.identifier}</td>
-                  <td className="title">{task.title}</td>
+                  <td className="title"><button type="button" className="row-open">{task.title}</button></td>
                   <td className="state">
                     <StateDot group={state?.group_key} color={state?.color} /> {state?.name ?? ''}
                   </td>
