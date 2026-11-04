@@ -3,7 +3,7 @@
  */
 import { PRIORITIES, readFieldValue, RELATION_KINDS, type RelationKind } from '@kolibri/shared';
 import { all, get, type Row, tx } from '../../../kernel/platform/db/index.ts';
-import { deleteEntity, visibleProjectIds, withEffectsHeld, writeEntity } from '../../../kernel/write-path/repo.ts';
+import { deleteEntity, visibleProjectIds, visibleProjectsSql, withEffectsHeld, writeEntity } from '../../../kernel/write-path/repo.ts';
 import { searchWorkspace } from '../../../kernel/search/search.ts';
 import { uid } from '../../../kernel/platform/ids.ts';
 import { blockingLoop, fileTask, findModule, findProject, findTask, INVERSE_RELATION, isoDay, McpError, requireWrite, resolveCycle, resolveLabels, resolveState, resolveUsers, str, taskView, type ToolDef, workspaceOf, writeCustomFields, writeOpts } from '../kit.ts';
@@ -104,12 +104,14 @@ export const taskTools: ToolDef[] = [
         params.push(...hits.map((h) => h.id));
       }
 
+      // In the query, not after it: a LIMIT spent on hidden rows returns a short or empty list.
+      where.push(`t.project_id IN (${visibleProjectsSql()})`);
+      params.push(workspaceId, ctx.auth.userId);
       const limit = Math.min(Number(args.limit ?? 50) || 50, 200);
-      const visible = visibleProjectIds(ctx.auth.userId, workspaceId);
       return all<Row>(
         `SELECT t.* FROM tasks t WHERE ${where.join(' AND ')} ORDER BY t.updated_at DESC LIMIT ?`,
         ...params, limit,
-      ).filter((t) => visible.has(t.project_id)).map(taskView);
+      ).map(taskView);
     },
   },
   {
@@ -141,10 +143,19 @@ export const taskTools: ToolDef[] = [
         )
           .map((field) => ({ name: field.name, kind: field.kind, value: readFieldValue(field.kind, field.value) })),
         subtasks: all<Row>(`SELECT * FROM tasks WHERE parent_id = ? AND deleted_at IS NULL`, task.id).map(taskView),
-        relations: all<Row>(
-          `SELECT r.kind, t.id, t.identifier, t.title FROM task_relations r JOIN tasks t ON t.id = r.related_task_id
-            WHERE r.task_id = ? AND r.deleted_at IS NULL`, task.id,
-        ),
+        // Both directions, as the task detail shows them, and only far ends the caller may see.
+        relations: [
+          ...all<Row>(
+            `SELECT r.kind, t.id, t.identifier, t.title FROM task_relations r JOIN tasks t ON t.id = r.related_task_id
+              WHERE r.task_id = ? AND r.deleted_at IS NULL AND t.deleted_at IS NULL
+                AND t.project_id IN (${visibleProjectsSql()})`, task.id, workspaceId, ctx.auth.userId,
+          ),
+          ...all<Row>(
+            `SELECT r.kind, t.id, t.identifier, t.title FROM task_relations r JOIN tasks t ON t.id = r.task_id
+              WHERE r.related_task_id = ? AND r.deleted_at IS NULL AND t.deleted_at IS NULL
+                AND t.project_id IN (${visibleProjectsSql()})`, task.id, workspaceId, ctx.auth.userId,
+          ).map((row) => ({ ...row, kind: INVERSE_RELATION[row.kind as RelationKind] ?? row.kind })),
+        ],
         comments: all<Row>(
           `SELECT c.id, c.body, c.created_at, u.name AS author FROM comments c LEFT JOIN users u ON u.id = c.author_id
             WHERE c.task_id = ? AND c.deleted_at IS NULL ORDER BY c.created_at`, task.id,
