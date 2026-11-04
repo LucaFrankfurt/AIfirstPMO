@@ -181,12 +181,13 @@ describe('two devices editing one task', () => {
    * is the same disagreement that made "geändert vor 5 Minuten" appear under a
    * task saved a second ago, seen from the write path instead of the screen.
    *
-   * Both halves are here because the first is what the second fixes: a device
-   * stamping on its own wrong clock takes the field from a later writer, and
-   * one stamping on the workspace's does not. This client is the corrected one
-   * in both — its stamp comes out of the real outbox, not out of the test.
+   * Both halves are here: a device stamping on the workspace's clock loses to
+   * a later writer, and one stamping on its own wrong clock now does too,
+   * because the server restamps a stamp that runs ahead of it on arrival.
+   * This client is the corrected one in both — its stamp comes out of the
+   * real outbox, not out of the test.
    */
-  it('loses a field to a device whose clock is five minutes fast, if that device stamps its own', async () => {
+  it('keeps a field from a device whose clock is five minutes fast, even if that device stamps its own', async () => {
     const taskId = mutations.createTask({ project_id: projectId, title: 'Whose turn' }, userId);
     await sync.flush();
     await settle(20);
@@ -201,7 +202,7 @@ describe('two devices editing one task', () => {
     await settle(20);
 
     const onServer = await otherDevice(`/api/tasks/${taskId}`);
-    assert.equal(onServer.title, 'From the fast device', 'the wrong clock takes the field from the later writer — the bug, still reachable from outside');
+    assert.equal(onServer.title, 'From here, later', 'the wrong clock took the field from the later writer');
   });
 
   it('settles it by who wrote last, once both stamp on the workspace clock', async () => {

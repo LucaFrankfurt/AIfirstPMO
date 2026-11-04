@@ -228,6 +228,23 @@ describe('kolibri api', () => {
     assert.equal(task.priority, 'urgent', 'the untouched field still takes the older write');
   });
 
+  it('lets no pushed stamp lock a field against later edits', async () => {
+    const tomorrow = new Clock('fast-device', () => Date.now() + 86_400_000).now();
+    const push = (patch: Record<string, unknown>, hlc: unknown) => api('/api/sync/push', {
+      body: { workspaceId, clientId: 'fast-device', mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: taskId, op: 'upsert', patch, hlc }] },
+    });
+
+    const future = await push({ title: 'From the fast device' }, tomorrow);
+    assert.equal(future.accepted.length, 1, 'a stamp from the future is restamped, not refused');
+    await api(`/api/tasks/${taskId}`, { method: 'PATCH', body: { title: 'Fixed via REST' } });
+    assert.equal((await api(`/api/tasks/${taskId}`)).title, 'Fixed via REST', 'the later REST edit lost to a stamp from tomorrow');
+
+    for (const garbage of ['~', 12345, '9999999999999:0:x', null]) {
+      const refused = await push({ priority: 'low' }, garbage);
+      assert.deepEqual(refused.accepted, [], `${JSON.stringify(garbage)} was accepted as a stamp`);
+    }
+  });
+
   it('stores uploads content-addressed and serves them back', async () => {
     const png = Buffer.from(
       'iVBORw0KGgoAAAANSUhEUgAAAAoAAAAFCAYAAABirU3bAAAAG0lEQVR4nGP8//8/AzGAiShVowZTx2AKAAAA//8DAAKrAsfKF8p1AAAAAElFTkSuQmCC',

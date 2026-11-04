@@ -16,6 +16,7 @@ import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
 import { canSeeProject, serialize, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
+import { serverClock } from '../../write-path/bootstrap.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
@@ -24,6 +25,9 @@ import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.
 const SYNCED: EntityName[] = ENTITY_NAMES.filter((name) => name !== 'activity');
 
 const PAGE_SIZE = 2000;
+
+/** How far ahead of the server a device's stamp may run before it is restamped on arrival. */
+const STAMP_LEEWAY = 60_000;
 
 /** Projects the caller is allowed to see, as a subquery to keep pulls in SQL. */
 /**
@@ -643,10 +647,13 @@ export function applyMutation(mutation: Mutation, workspaceId: string, actorId: 
       throw notFound(`${mutation.entity} not found`);
     }
 
+    const hlc = serverClock.admit(mutation.hlc, STAMP_LEEWAY);
+    if (!hlc) throw badRequest('Malformed hlc');
+
     const { row, forced } = writeEntity(entity, mutation.entityId, mutation.patch ?? {}, {
       workspaceId,
       actorId,
-      hlc: mutation.hlc,
+      hlc,
       op: mutation.op === 'delete' ? 'delete' : 'upsert',
       origin: clientId,
     });
