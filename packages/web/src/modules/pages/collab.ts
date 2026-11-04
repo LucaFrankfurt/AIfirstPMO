@@ -234,5 +234,14 @@ export function useCollaborativeText(
     };
   }, [text, editing, commit]);
 
+  // Leaving (tab closed, unmount, another id) sends the unsettled tail; the cleanup runs before the reset, with the old id.
+  useEffect(() => {
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      flush();
+    };
+  }, [flush]);
+
   return { text, setText: put, fieldRef, flush, rewrite, merged };
 }
