@@ -180,12 +180,7 @@ describe('two devices editing one task', () => {
    * on winning for five minutes against everybody who edited afterwards. That
    * is the same disagreement that made "geändert vor 5 Minuten" appear under a
    * task saved a second ago, seen from the write path instead of the screen.
-   *
-   * Both halves are here: a device stamping on the workspace's clock loses to
-   * a later writer, and one stamping on its own wrong clock now does too,
-   * because the server restamps a stamp that runs ahead of it on arrival.
-   * This client is the corrected one in both — its stamp comes out of the
-   * real outbox, not out of the test.
+   * The server restamps a stamp that runs ahead of it, so the later writer wins (DAT-04).
    */
   it('keeps a field from a device whose clock is five minutes fast, even if that device stamps its own', async () => {
     const taskId = mutations.createTask({ project_id: projectId, title: 'Whose turn' }, userId);

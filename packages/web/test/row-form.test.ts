@@ -1,7 +1,4 @@
-/**
- * What an edit form sends: only the fields changed since it opened, so a
- * save does not quietly undo somebody else's edit to a field it never touched.
- */
+// An edit form sends only the fields changed since it opened (WEB-05).
 import assert from 'node:assert/strict';
 import { beforeEach, describe, it } from 'node:test';
 import { installBrowser } from './browser.ts';

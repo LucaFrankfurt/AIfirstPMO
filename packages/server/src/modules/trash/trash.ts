@@ -164,9 +164,7 @@ function hashesIn(row: Row | undefined, into: Set<string>): void {
  * attachment row went would take the picture out of the page as well, so the
  * question asked is the stricter one: does anything at all still name this
  * hash.
- *
- * Only blobs a purged row named are asked about: one nobody names yet may be an
- * upload whose text is still waiting in somebody's outbox.
+ * Only blobs named by purged rows are candidates (DAT-01).
  */
 export function reclaimFiles(workspaceId: string, hashes: Iterable<string>): { blobs: number; bytes: number } {
   let blobs = 0;

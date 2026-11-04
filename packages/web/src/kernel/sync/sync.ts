@@ -281,11 +281,7 @@ export function enqueue(entity: EntityName, entityId: string, patch: Record<stri
   scheduleFlush();
 }
 
-/**
- * Queued upserts of the same row whose every field this one rewrites (a CRDT state contains the earlier ones).
- * Partial overlaps stay: a page's `{ body, content }` cut to `content` would replace the document.
- * So does the first write to a row the server has not sent, which may be its create.
- */
+/** Queued upserts this one fully supersedes; partial overlaps and a possible create stay. */
 function supersededBy(next: Mutation): Mutation[] {
   const keys = new Set(Object.keys(next.patch));
   const same = outbox.filter((queued) => queued.entity === next.entity && queued.entityId === next.entityId);

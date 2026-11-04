@@ -1,10 +1,4 @@
-/**
- * What stays on the device: the outbox and the mirror, across a 401, a
- * workspace switch, a pull that answers late and a queue too large to push.
- *
- * The real sync engine against a fake server, because each of these needs an
- * answer the real one will not give on cue — a 401, a 413, a pull held open.
- */
+// Real sync engine against a fake server: 401, workspace switch, late pull, oversized queue.
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { crdt } from '@kolibri/shared';
