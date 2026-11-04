@@ -1,12 +1,13 @@
 /**
  * What stays on the device: the outbox and the mirror, across a 401, a
- * workspace switch and a pull that answers late.
+ * workspace switch, a pull that answers late and a queue too large to push.
  *
  * The real sync engine against a fake server, because each of these needs an
- * answer the real one will not give on cue — a 401, a pull held open.
+ * answer the real one will not give on cue — a 401, a 413, a pull held open.
  */
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { crdt } from '@kolibri/shared';
 import { databaseNames, installBrowser, net, settle } from './browser.ts';
 
 installBrowser();
@@ -56,6 +57,11 @@ const mutations = await import('../src/kernel/sync/mutations');
 
 const project = (id: string, workspace: string, seq: number) => ({ id, workspace_id: workspace, name: id, seq });
 const ids = (rows: { id: string }[]) => rows.map((row) => row.id).sort();
+
+/** The engine pushes the rest of a queue on its own timers; wait for them, up to a limit. */
+async function until(done: () => boolean, ms = 5000): Promise<void> {
+  for (const end = Date.now() + ms; !done() && Date.now() < end;) await settle(10);
+}
 
 describe('another workspace, in this tab or the next (WEB-02, WEB-04)', () => {
   it('is a database of its own, so a switch clears nothing', async () => {
@@ -137,6 +143,89 @@ describe('a pull still on the network when the workspace changes (WEB-03)', () =
     assert.equal((await idb.getMeta('sync', idb.mirrorName('ada', 'ws-D'))).cursor, 200, 'and keeps its own cursor, not 5000');
     assert.deepEqual(ids(store.listAll('project')), ['proj-D'], 'C’s late answer is not on screen');
     assert.deepEqual(ids(await idb.readAll('project', idb.mirrorName('ada', 'ws-D'))), ['proj-D'], 'nor on disk');
+  });
+});
+
+describe('a long time offline (WEB-07)', () => {
+  it('sends a page saved two hundred times as one body', async () => {
+    server.pulls.set('ws-E', (since) => (since === 0
+      ? { changes: { page: [{ id: 'page-1', workspace_id: 'ws-E', title: 'Notes', content: '', body: crdt.empty(), seq: 1 }] }, cursor: 1 }
+      : { cursor: since }));
+    await sync.start('ws-E', 'ada');
+
+    net.online = false;
+    let text = '';
+    for (let i = 0; i < 200; i++) {
+      text += 'Ein Satz mehr. ';
+      mutations.update('page', 'page-1', { body: crdt.edit(store.byId('page', 'page-1')!.body, text, sync.agentId()) });
+    }
+    await settle(10);
+    assert.equal(sync.getStatus().pending, 1);
+    const queued = await idb.readAll(idb.OUTBOX);
+    assert.equal(queued.length, 1, 'on disk too');
+    assert.equal(crdt.textOf(queued[0].patch.body), text, 'and it is the last state, which holds every earlier one');
+
+    // A write with a field the later one lacks stays: its `body` alone dropped
+    // would leave a bare `content`, which the server reads as a whole new page.
+    const ticked = `${text}- [x] done\n`;
+    mutations.update('page', 'page-1', { body: crdt.edit(store.byId('page', 'page-1')!.body, ticked, sync.agentId()), content: ticked });
+    mutations.update('page', 'page-1', { body: crdt.edit(store.byId('page', 'page-1')!.body, `${ticked}Mehr.`, sync.agentId()) });
+    await settle(10);
+    const shapes = (await idb.readAll(idb.OUTBOX)).map((mutation) => Object.keys(mutation.patch).sort().join('+')).sort();
+    assert.deepEqual(shapes, ['body', 'body+content']);
+
+    net.online = true;
+    await sync.flush();
+    await settle(20);
+    assert.equal(sync.getStatus().pending, 0);
+  });
+
+  it('pushes a few MiB at a time, however much is queued', async () => {
+    net.online = false;
+    const mebibyte = 'x'.repeat(1024 * 1024);
+    for (let i = 0; i < 10; i++) mutations.update('task', `big-${i}`, { description: mebibyte });
+    net.online = true;
+    server.pushes.length = 0;
+    await sync.flush();
+    await until(() => sync.getStatus().pending === 0);
+    assert.equal(sync.getStatus().pending, 0);
+    assert.ok(server.pushes.length >= 3, `${server.pushes.length} pushes`);
+    assert.ok(server.pushes.every((push) => push.bytes < 8 * 1024 * 1024), 'each under the server’s 8 MiB');
+  });
+
+  it('stops resending a push the server refuses outright, and keeps it', async () => {
+    server.refuse = () => 403;
+    net.online = false;
+    mutations.update('task', 'kept', { title: 'written after access was taken away' });
+    net.online = true;
+    server.pushes.length = 0;
+    await sync.flush();
+    await sync.flush();
+    await settle(300);
+    assert.equal(server.pushes.length, 1, 'asked once, not every thirty seconds for ever');
+    assert.equal(sync.getStatus().state, 'error');
+    assert.equal((await idb.readAll(idb.OUTBOX)).length, 1, 'and the change is kept for when it may go');
+    server.refuse = () => 0;
+  });
+
+  it('halves a push a proxy finds too large, and drops the one change too large on its own', async () => {
+    // Started afresh, so the change the last test kept is not part of this one.
+    await sync.start('ws-F', 'ada');
+    server.refuse = (bytes) => (bytes > 1024 * 1024 ? 413 : 0);
+    net.online = false;
+    const part = 'y'.repeat(400 * 1024);
+    for (let i = 0; i < 3; i++) mutations.update('task', `mid-${i}`, { description: part });
+    mutations.update('task', 'huge', { description: 'z'.repeat(2 * 1024 * 1024) });
+    net.online = true;
+    server.pushes.length = 0;
+    await sync.flush();
+    await until(() => sync.getStatus().pending === 0);
+    await settle(100);
+    assert.equal(sync.getStatus().pending, 0, 'nothing left blocking the queue');
+    assert.equal(server.pushes.filter((push) => push.status === 200).flatMap((push) => push.ids).length, 3, 'the three that fit went');
+    assert.ok(server.pushes.length < 10, `not retried endlessly (${server.pushes.length} attempts)`);
+    assert.match(sync.getStatus().message ?? '', /too large/);
+    server.refuse = () => 0;
   });
 });
 

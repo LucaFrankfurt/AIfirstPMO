@@ -15,7 +15,7 @@ import { now } from './clock';
 import { serverUrl, sessionToken } from './server';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
-import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset } from './store';
+import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset, tables } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
@@ -101,6 +101,9 @@ let generation = 0;
 
 /** The device's sign-out count when this mirror was opened; see `suspend`. */
 let epoch = 0;
+
+/** A generation whose pushes the server refused outright; nothing is resent until the next `start`. */
+let refused = -1;
 
 interface SyncMeta { workspaceId: string; cursor: number; epoch?: number }
 
@@ -268,10 +271,28 @@ export function enqueue(entity: EntityName, entityId: string, patch: Record<stri
     patch,
     hlc: clock.now(),
   };
+  const replaced = op === 'upsert' ? supersededBy(mutation) : [];
+  if (replaced.length) outbox = outbox.filter((queued) => !replaced.includes(queued));
   outbox.push(mutation);
   setStatus({ pending: outbox.length, state: 'syncing' });
   void idb.put(idb.OUTBOX, mutation);
+  // After the put, so a reload in between finds both rather than neither.
+  if (replaced.length) void idb.removeMany(idb.OUTBOX, replaced.map((queued) => queued.id));
   scheduleFlush();
+}
+
+/**
+ * Queued upserts of the same row whose every field this one rewrites (a CRDT state contains the earlier ones).
+ * Partial overlaps stay: a page's `{ body, content }` cut to `content` would replace the document.
+ * So does the first write to a row the server has not sent, which may be its create.
+ */
+function supersededBy(next: Mutation): Mutation[] {
+  const keys = new Set(Object.keys(next.patch));
+  const same = outbox.filter((queued) => queued.entity === next.entity && queued.entityId === next.entityId);
+  const deleted = same.findLastIndex((queued) => queued.op !== 'upsert');
+  const known = !!tables[next.entity].get(next.entityId)?.seq;
+  return same.filter((queued, i) =>
+    i > deleted && (known || i > 0) && Object.keys(queued.patch).every((key) => keys.has(key)));
 }
 
 function scheduleFlush(delay = 250): void {
@@ -279,15 +300,35 @@ function scheduleFlush(delay = 250): void {
   flushTimer = setTimeout(() => void flush(), delay);
 }
 
+/** Half the server's 8 MiB body limit; a proxy that allows less answers 413, see `tooLarge`. */
+const PUSH_BYTES = 4 * 1024 * 1024;
+let pushBytes = PUSH_BYTES;
+
+const encoder = new TextEncoder();
+const sizeOf = (mutation: Mutation): number => encoder.encode(JSON.stringify(mutation)).length;
+
+/** The head of the queue within both limits, and never empty, or a large mutation would never go. */
+function nextBatch(): { batch: Mutation[]; bytes: number } {
+  const batch: Mutation[] = [];
+  let bytes = 0;
+  for (const mutation of outbox) {
+    const size = sizeOf(mutation);
+    if (batch.length && (batch.length === 200 || bytes + size > pushBytes)) break;
+    batch.push(mutation);
+    bytes += size;
+  }
+  return { batch, bytes };
+}
+
 export async function flush(): Promise<void> {
-  if (!workspaceId || !outbox.length) return;
+  if (!workspaceId || !outbox.length || refused === generation) return;
   if (!navigator.onLine) {
     setStatus({ state: 'offline' });
     return;
   }
   const mine = generation;
   const db = idb.currentMirror();
-  const batch = outbox.slice(0, 200);
+  const { batch, bytes } = nextBatch();
   try {
     const response = await api.post<PushResponse>('/api/sync/push', { workspaceId, clientId, mutations: batch });
     const accepted = new Set([...response.accepted, ...response.rejected.map((r) => r.id)]);
@@ -314,8 +355,32 @@ export async function flush(): Promise<void> {
     if (outbox.length) scheduleFlush(0);
     else await pull();
   } catch (err) {
-    if (mine === generation) handleError(err);
+    if (mine !== generation) return;
+    if (err instanceof ApiError && err.status === 413) {
+      await tooLarge(batch, bytes, db);
+    } else if (err instanceof ApiError && err.status === 403) {
+      // Not a member any more, or a read-only token: kept, but not resent before the next start.
+      refused = mine;
+      setStatus({ state: 'error', message: translate(currentLocale(), 'sync.refused', { reason: err.message }) });
+    } else {
+      handleError(err);
+    }
   }
+}
+
+/** A 413: halve the batch; one mutation too large alone is dropped like a rejection, or it blocks the queue for good. */
+async function tooLarge(batch: Mutation[], bytes: number, db: string): Promise<void> {
+  if (batch.length > 1) {
+    pushBytes = Math.max(1, Math.floor(bytes / 2));
+    scheduleFlush(0);
+    return;
+  }
+  console.warn('[sync] server refused a mutation as too large', batch[0].entity, batch[0].entityId);
+  outbox = outbox.filter((mutation) => mutation.id !== batch[0].id);
+  await idb.removeMany(idb.OUTBOX, [batch[0].id], db);
+  setStatus({ pending: outbox.length, message: translate(currentLocale(), 'sync.tooLarge') });
+  await undo(batch);
+  if (outbox.length) scheduleFlush(0);
 }
 
 /**
