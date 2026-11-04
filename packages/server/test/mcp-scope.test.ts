@@ -222,4 +222,41 @@ describe('what a token may read', () => {
     assert.equal(file.content[1].mimeType, 'image/gif');
     assert.deepEqual(Buffer.from(file.content[1].data, 'base64'), PIXEL);
   });
+
+  /* ------------------------------------------------ tasks beside hidden ones */
+
+  it('does not name a hidden task at the far end of a relation, in either direction', async () => {
+    const mine = (await api('ada', '/api/tokens', { body: { name: 'ada-links', workspaceId } })).token;
+    const open = await api('ada', `/api/workspaces/${workspaceId}/projects`, {
+      body: { name: 'Open roadmap', key: 'OPN', visibility: 'public' },
+    });
+    const task = (title: string) => api('ada', `/api/workspaces/${workspaceId}/tasks`, { body: { title, project_id: open.id } });
+    const shown = await task('Launch the site');
+    const neighbour = await task('Write the copy');
+    await tool(mine, 'create_task_relation', { source_task: shown.id, target_task: hiddenTask, type: 'relates_to' });
+    await tool(mine, 'create_task_relation', { source_task: hiddenTask, target_task: shown.id, type: 'blocks' });
+    await tool(mine, 'create_task_relation', { source_task: neighbour.id, target_task: shown.id, type: 'blocks' });
+
+    const seen = (await tool(outsider, 'get_task', { task: shown.id })).relations;
+    assert.equal(JSON.stringify(seen).includes(hiddenTask), false, 'a task in a private project was named as a relation');
+    assert.equal(JSON.stringify(seen).includes('term sheet'), false, 'a private task’s title was handed over');
+    assert.deepEqual(seen.map((r: any) => [r.kind, r.id]), [['blocked_by', neighbour.id]], 'the link pointing in was not read');
+
+    const own = (await tool(mine, 'get_task', { task: shown.id })).relations;
+    assert.deepEqual(
+      own.map((r: any) => `${r.kind} ${r.id}`).sort(),
+      [`relates_to ${hiddenTask}`, `blocked_by ${hiddenTask}`, `blocked_by ${neighbour.id}`].sort(),
+    );
+  });
+
+  it('spends list_tasks’ limit on tasks the caller can see', async () => {
+    const acquisition = (await api('ada', `/api/workspaces/${workspaceId}/projects`)).find((p: any) => p.key === 'ACQ').id;
+    // The newest rows in the workspace are all hidden from Lin.
+    for (const title of ['Diligence', 'Valuation', 'Signing']) {
+      await api('ada', `/api/workspaces/${workspaceId}/tasks`, { body: { title, project_id: acquisition } });
+    }
+    const listed = (await tool(outsider, 'list_tasks', { limit: 2 })).result;
+    assert.equal(listed.length, 2, 'the limit was spent on rows the caller may not see, and the list came back short');
+    assert.ok(listed.every((t: any) => t.project_id !== acquisition), 'a task from a private project was listed');
+  });
 });

@@ -941,6 +941,38 @@ describe('kolibri api', () => {
     assert.equal(cleared.lead_id, null, 'null is the one honest way to clear');
   });
 
+  it('refuses a cycle, a person or a flag update_task cannot read, instead of clearing what is there', async () => {
+    // Made first, so a workspace-wide lookup by name finds the other project's.
+    await callTool('create_project', { name: 'Twin board', key: 'TWN' });
+    await callTool('create_cycle', { project: 'TWN', name: 'Twin sprint', start_date: '2026-10-01', end_date: '2026-10-14' });
+    const own = (await callTool('create_cycle', {
+      project: 'WEB', name: 'Twin sprint', start_date: '2026-10-01', end_date: '2026-10-14',
+    })).result.structuredContent;
+    const task = (await callTool('create_task', {
+      project: 'WEB', title: 'Planned and staffed', assignees: ['ada@example.com'],
+    })).result.structuredContent;
+    assert.equal(task.assignees.length, 1);
+
+    const planned = (await callTool('update_task', { task: task.identifier, cycle: 'Twin sprint' })).result.structuredContent;
+    assert.equal(planned.cycle_id, own.id, 'a sprint of the same name in another project was picked');
+
+    const refusals: Array<[Record<string, unknown>, RegExp]> = [
+      [{ cycle: 'Twin sprnit' }, /No cycle/],
+      [{ assignees: 'ada@example.com' }, /assignees/],
+      [{ assignees: ['Nobody At All'] }, /Nobody in this workspace/],
+      [{ labels: 'bug' }, /labels/],
+      [{ archived: 'false' }, /archived/],
+    ];
+    for (const [args, refusal] of refusals) {
+      const answer = await callTool('update_task', { task: task.identifier, ...args });
+      assert.match(answer.error?.message ?? 'accepted', refusal, `${JSON.stringify(args)} was not refused`);
+    }
+    const kept = (await callTool('get_task', { task: task.identifier })).result.structuredContent;
+    assert.equal(kept.cycle_id, own.id, 'a misspelt cycle cleared the real one');
+    assert.equal(kept.assignees.length, 1, 'a malformed list cleared the assignees');
+    assert.equal(all<any>(`SELECT archived FROM tasks WHERE id = ?`, task.id)[0].archived, 0, '"false" archived the task');
+  });
+
   it('files a batch in the order it was given, at the top of the board', async () => {
     await callTool('create_tasks_batch', {
       project: 'WEB',

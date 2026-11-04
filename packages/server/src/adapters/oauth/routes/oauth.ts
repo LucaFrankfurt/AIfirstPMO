@@ -443,10 +443,11 @@ function issue(userId: string, workspaceId: string | null, scopes: string, clien
   const refresh = `kor_${token(24)}`;
   const now = Date.now();
   const expires = now + ACCESS_TOKEN_MINUTES * 60_000;
+  // Confined, not merely pinned: the consent screen granted one workspace, and a pin alone is only a default.
   run(
-    `INSERT INTO api_tokens (id, user_id, workspace_id, name, token_hash, prefix, scopes, client_id, refresh_hash, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    uid(), userId, workspaceId, clientName, hashToken(access), access.slice(0, 12), scopes, clientId, hashToken(refresh), now, expires,
+    `INSERT INTO api_tokens (id, user_id, workspace_id, confined, name, token_hash, prefix, scopes, client_id, refresh_hash, created_at, expires_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    uid(), userId, workspaceId, workspaceId ? 1 : 0, clientName, hashToken(access), access.slice(0, 12), scopes, clientId, hashToken(refresh), now, expires,
   );
   return {
     access_token: access,
