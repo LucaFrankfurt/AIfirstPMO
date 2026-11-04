@@ -291,6 +291,34 @@ describe('the files an export refers to', () => {
     assert.equal(mine.length, 0, 'no paperclip pointing at a 404');
   });
 
+  it('cannot borrow another workspace’s file by naming its hash', async () => {
+    // A loose upload — an avatar, a picture in chat — has no attachment row to refuse it.
+    const upload = await fetch(`${base}/api/workspaces/${workspaceId}/files`, {
+      method: 'POST',
+      headers: { 'content-type': 'image/webp', 'x-filename': 'avatar.webp', cookie },
+      body: Buffer.from('RIFF....WEBPsomebody else’s avatar'),
+    });
+    const hash = ((await upload.json()) as any).hash;
+
+    resetRateLimits();
+    const stranger = await call('/api/auth/register', { email: 'mallory@example.com', name: 'Mallory', password: 'correct horse battery' });
+    const as = (stranger.headers.get('set-cookie') ?? '').split(';')[0];
+    const theirs = ((await stranger.json()) as any).workspaces[0].id;
+    resetRateLimits();
+    assert.equal((await call(`/files/${hash}/avatar.webp`, undefined, 'GET', as)).status, 403);
+
+    const doc = await ok(`/api/workspaces/${workspaceId}/projects/${alpha}/export`);
+    doc.files = [];
+    doc.attachments = [];
+    doc.tasks[0].description = `![](/files/${hash}/avatar.webp)`;
+    const report = await ok(`/api/workspaces/${theirs}/import/json`, { document: doc, name: 'Borrowed' }, undefined, as);
+    assert.deepEqual(report.missingFiles, [hash.slice(0, 12)]);
+    assert.equal(
+      (await call(`/files/${hash}/avatar.webp`, undefined, 'GET', as)).status, 403,
+      'an import adopted bytes it never delivered',
+    );
+  });
+
   it('refuses bytes filed under somebody else’s hash', async () => {
     const doc = await ok(`/api/workspaces/${workspaceId}/projects/${alpha}/export`);
     const lie = 'a'.repeat(64);

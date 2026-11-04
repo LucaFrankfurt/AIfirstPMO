@@ -131,9 +131,11 @@ projects rather than one tangle.
 
 **Export as `.zip`** is the same document with the uploaded files beside it —
 attachments, the pictures pasted into descriptions, the images dropped into
-pages. A JSON export carries no bytes, so an attachment whose file this instance
-has never seen is dropped on the way in and **named** in the report rather than
-written as a paperclip that opens onto a 404. See [`export.md`](export.md) for
+pages. A JSON export carries no bytes, so an attachment whose file the target
+workspace does not already hold is dropped on the way in and **named** in the
+report rather than written as a paperclip that opens onto a 404. Bytes held by
+another workspace on the same instance are not borrowed by hash: that would let
+anybody who knows a checksum read a file that is not theirs. See [`export.md`](export.md) for
 the archive's shape, and for exporting a whole workspace rather than one project.
 
 This is deliberately *not* the backup format. A backup has to be exact, which is
