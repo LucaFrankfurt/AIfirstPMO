@@ -69,7 +69,7 @@ before(async () => {
     workspaceId, lin, Date.now(), Date.now(),
   );
 
-  await sync.start(workspaceId);
+  await sync.start(workspaceId, ada);
 });
 
 after(() => {

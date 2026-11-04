@@ -63,7 +63,7 @@ before(async () => {
   const project = await otherDevice(`/api/workspaces/${workspaceId}/projects`, { name: 'Client', key: 'CLI' });
   projectId = project.id;
 
-  await sync.start(workspaceId);
+  await sync.start(workspaceId, userId);
 });
 
 after(() => {
@@ -256,7 +256,7 @@ describe('coming back after a reload', () => {
     // whole point — would look like a module that does not exist.
     const fresh = `${'../src/kernel/sync/sync.ts'}?reload=1`;
     const reloaded = (await import(fresh)) as typeof sync;
-    await reloaded.start(workspaceId);
+    await reloaded.start(workspaceId, userId);
     await settle(30);
 
     assert.equal(store.byId('project', projectId)?.name, 'Client', 'the workspace is there with the network down');

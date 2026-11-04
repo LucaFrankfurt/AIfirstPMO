@@ -15,7 +15,7 @@ import { now } from './clock';
 import { serverUrl, sessionToken } from './server';
 import * as idb from './idb';
 import { currentLocale, translate } from '../i18n/i18n';
-import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset } from './store';
+import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, reset, tables } from './store';
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
@@ -93,38 +93,78 @@ let cursor = 0;
 let outbox: Mutation[] = [];
 let stream: EventSource | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
-let pulling: Promise<void> | null = null;
+let pulling: { generation: number; done: Promise<void> } | null = null;
 let retryDelay = 1000;
+
+/** Bumped by every start, suspend and sign-out; an answer from an older one is dropped. */
+let generation = 0;
+
+/** The device's sign-out count when this mirror was opened; see `suspend`. */
+let epoch = 0;
+
+/** A generation whose pushes the server refused outright; nothing is resent until the next `start`. */
+let refused = -1;
+
+interface SyncMeta { workspaceId: string; cursor: number; epoch?: number }
 
 export function currentWorkspace(): string {
   return workspaceId;
 }
 
 /** Load the cached workspace from disk, then catch up with the server. */
-export async function start(id: string): Promise<void> {
-  if (workspaceId === id) return;
+export async function start(id: string, userId: string): Promise<void> {
+  const name = idb.mirrorName(userId, id);
+  if (workspaceId === id && idb.currentMirror() === name) return;
   stop();
+  const mine = ++generation;
   workspaceId = id;
-  setStatus({ state: 'starting' });
+  idb.selectMirror(name);
+  cursor = 0;
+  outbox = [];
+  reset();
+  setStatus({ state: 'starting', pending: 0, message: undefined });
 
-  const cached = await idb.getMeta<{ workspaceId: string; cursor: number }>('sync');
-  if (cached?.workspaceId === id) {
-    cursor = cached.cursor;
-    await Promise.all(ENTITY_NAMES.map(async (entity) => hydrate(entity, await idb.readAll(entity))));
-    notifyStore();
-  } else {
-    cursor = 0;
-    reset();
-    await idb.clearAll();
-  }
-
-  outbox = await idb.readAll<Mutation>(idb.OUTBOX);
+  await adoptLegacyMirror(id, name);
+  const [cached, signOuts, rows, queued] = await Promise.all([
+    idb.getMeta<SyncMeta>('sync', name),
+    idb.getMeta<number>('epoch', idb.DEVICE),
+    Promise.all(ENTITY_NAMES.map((entity) => idb.readAll(entity, name))),
+    idb.readAll<Mutation>(idb.OUTBOX, name),
+  ]);
+  if (mine !== generation) return;
+  epoch = signOuts ?? 0;
+  // A 401 since the last pull may mean a restored server: download again, keep the queue.
+  cursor = cached && (cached.epoch ?? 0) >= epoch ? cached.cursor : 0;
+  ENTITY_NAMES.forEach((entity, i) => hydrate(entity, rows[i]));
+  notifyStore();
+  // Disk returns the queue by random id; the stamps are its order.
+  const known = new Set(outbox.map((mutation) => mutation.id));
+  outbox = [...queued.filter((mutation) => !known.has(mutation.id)), ...outbox]
+    .sort((a, b) => (a.hlc < b.hlc ? -1 : a.hlc > b.hlc ? 1 : 0));
   setStatus({ pending: outbox.length });
 
   await flush();
+  if (mine !== generation) return;
   await pull();
+  if (mine !== generation) return;
   connect();
   void idb.requestPersistence();
+}
+
+/** The mirror from before the split moves into its workspace's own; its outbox is unsent work. */
+async function adoptLegacyMirror(id: string, name: string): Promise<void> {
+  const legacy = await idb.getMeta<SyncMeta | null>('sync', idb.DEVICE);
+  if (legacy?.workspaceId !== id) return;
+  const stores = [...ENTITY_NAMES, idb.OUTBOX];
+  const entries = await Promise.all(stores.map(async (store) => ({ store, values: await idb.readAll(store, idb.DEVICE) })));
+  await idb.putMany(entries.filter((entry) => entry.values.length), name);
+  await idb.setMeta('sync', legacy, name);
+  await clearLegacyMirror();
+}
+
+async function clearLegacyMirror(): Promise<void> {
+  await idb.clear([...ENTITY_NAMES, idb.OUTBOX], idb.DEVICE);
+  await idb.setMeta('sync', null, idb.DEVICE);
 }
 
 export function stop(): void {
@@ -134,35 +174,64 @@ export function stop(): void {
   flushTimer = null;
 }
 
-export async function signOutLocal(): Promise<void> {
+/** A 401: mirror and queue stay for the next sign-in; every mirror re-downloads, as a restore signs everybody out. */
+export async function suspend(): Promise<void> {
   stop();
+  generation += 1;
+  workspaceId = '';
+  outbox = [];
+  const count = (await idb.getMeta<number>('epoch', idb.DEVICE)) ?? 0;
+  await idb.setMeta('epoch', count + 1, idb.DEVICE);
+}
+
+/** Signing out on purpose: this person's mirrors leave the device, queues included. */
+export async function signOutLocal(userId: string): Promise<void> {
+  stop();
+  generation += 1;
   workspaceId = '';
   cursor = 0;
   outbox = [];
   reset();
-  await idb.clearAll();
+  setStatus({ pending: 0, message: undefined });
+  for (const name of await idb.mirrorsOf(userId)) await idb.erase(name);
+  idb.selectMirror(idb.DEVICE);
+  await clearLegacyMirror();
+}
+
+/** Changes of this person's that no server has yet, in every workspace on this device. */
+export async function unsentChanges(userId: string): Promise<number> {
+  let count = 0;
+  for (const name of await idb.mirrorsOf(userId)) count += (await idb.readAll(idb.OUTBOX, name)).length;
+  return count + (await idb.readAll(idb.OUTBOX, idb.DEVICE)).length;
 }
 
 /* -------------------------------------------------------------------- pull */
 
 export function pull(): Promise<void> {
-  if (pulling) return pulling;
-  pulling = (async () => {
-    if (!workspaceId) return;
-    setStatus({ state: 'syncing' });
+  if (pulling?.generation === generation) return pulling.done;
+  const mine = { generation, done: Promise.resolve() };
+  pulling = mine;
+  mine.done = (async () => {
     try {
+      if (!workspaceId) return;
+      const ws = workspaceId;
+      const db = idb.currentMirror();
+      setStatus({ state: 'syncing' });
       let more = true;
       while (more) {
-        const response = await api.get<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=${cursor}`);
+        const response = await api.get<PullResponse>(`/api/sync/pull?workspace=${ws}&since=${cursor}`);
+        if (mine.generation !== generation) return;
         if (response.reset && cursor === 0) {
           reset();
-          await idb.clearAll();
+          // The rows only: the queue is unsent work and the snapshot does not contain it.
+          await idb.clear(ENTITY_NAMES, db);
         }
         applyChanges(response.changes, isPendingRow);
-        await persist(response.changes);
+        await persist(response.changes, db);
+        if (mine.generation !== generation) return;
         const before = cursor;
         cursor = response.cursor;
-        await idb.setMeta('sync', { workspaceId, cursor });
+        await idb.setMeta('sync', { workspaceId: ws, cursor, epoch } satisfies SyncMeta, db);
         // The server says whether it truncated. The `cursor > before` guard
         // stays: a server that ever answered without advancing would otherwise
         // spin here forever.
@@ -171,23 +240,23 @@ export function pull(): Promise<void> {
       retryDelay = 1000;
       setStatus({ state: outbox.length ? 'syncing' : 'synced', lastSyncedAt: Date.now(), message: undefined });
     } catch (err) {
-      handleError(err);
+      if (mine.generation === generation) handleError(err);
     } finally {
-      pulling = null;
+      if (pulling === mine) pulling = null;
     }
   })();
-  return pulling;
+  return mine.done;
 }
 
-async function persist(changes: ChangeSet): Promise<void> {
+async function persist(changes: ChangeSet, db = idb.currentMirror()): Promise<void> {
   const entries = Object.entries(changes)
     .filter(([, rows]) => rows?.length)
     .map(([entity, rows]) => ({ store: entity, values: rows as unknown[] }));
-  if (entries.length) await idb.putMany(entries);
+  if (entries.length) await idb.putMany(entries, db);
   // A purge names a row that is gone for good, so it leaves the device too —
   // otherwise a reload would read the tombstone straight back out of IndexedDB
   // and put it in the trash again.
-  for (const { store, keys } of purgedRows(changes)) await idb.removeMany(store, keys);
+  for (const { store, keys } of purgedRows(changes)) await idb.removeMany(store, keys, db);
 }
 
 /* -------------------------------------------------------------------- push */
@@ -202,10 +271,28 @@ export function enqueue(entity: EntityName, entityId: string, patch: Record<stri
     patch,
     hlc: clock.now(),
   };
+  const replaced = op === 'upsert' ? supersededBy(mutation) : [];
+  if (replaced.length) outbox = outbox.filter((queued) => !replaced.includes(queued));
   outbox.push(mutation);
   setStatus({ pending: outbox.length, state: 'syncing' });
   void idb.put(idb.OUTBOX, mutation);
+  // After the put, so a reload in between finds both rather than neither.
+  if (replaced.length) void idb.removeMany(idb.OUTBOX, replaced.map((queued) => queued.id));
   scheduleFlush();
+}
+
+/**
+ * Queued upserts of the same row whose every field this one rewrites (a CRDT state contains the earlier ones).
+ * Partial overlaps stay: a page's `{ body, content }` cut to `content` would replace the document.
+ * So does the first write to a row the server has not sent, which may be its create.
+ */
+function supersededBy(next: Mutation): Mutation[] {
+  const keys = new Set(Object.keys(next.patch));
+  const same = outbox.filter((queued) => queued.entity === next.entity && queued.entityId === next.entityId);
+  const deleted = same.findLastIndex((queued) => queued.op !== 'upsert');
+  const known = !!tables[next.entity].get(next.entityId)?.seq;
+  return same.filter((queued, i) =>
+    i > deleted && (known || i > 0) && Object.keys(queued.patch).every((key) => keys.has(key)));
 }
 
 function scheduleFlush(delay = 250): void {
@@ -213,18 +300,42 @@ function scheduleFlush(delay = 250): void {
   flushTimer = setTimeout(() => void flush(), delay);
 }
 
+/** Half the server's 8 MiB body limit; a proxy that allows less answers 413, see `tooLarge`. */
+const PUSH_BYTES = 4 * 1024 * 1024;
+let pushBytes = PUSH_BYTES;
+
+const encoder = new TextEncoder();
+const sizeOf = (mutation: Mutation): number => encoder.encode(JSON.stringify(mutation)).length;
+
+/** The head of the queue within both limits, and never empty, or a large mutation would never go. */
+function nextBatch(): { batch: Mutation[]; bytes: number } {
+  const batch: Mutation[] = [];
+  let bytes = 0;
+  for (const mutation of outbox) {
+    const size = sizeOf(mutation);
+    if (batch.length && (batch.length === 200 || bytes + size > pushBytes)) break;
+    batch.push(mutation);
+    bytes += size;
+  }
+  return { batch, bytes };
+}
+
 export async function flush(): Promise<void> {
-  if (!workspaceId || !outbox.length) return;
+  if (!workspaceId || !outbox.length || refused === generation) return;
   if (!navigator.onLine) {
     setStatus({ state: 'offline' });
     return;
   }
-  const batch = outbox.slice(0, 200);
+  const mine = generation;
+  const db = idb.currentMirror();
+  const { batch, bytes } = nextBatch();
   try {
     const response = await api.post<PushResponse>('/api/sync/push', { workspaceId, clientId, mutations: batch });
     const accepted = new Set([...response.accepted, ...response.rejected.map((r) => r.id)]);
-    outbox = outbox.filter((m) => !accepted.has(m.id));
-    await idb.removeMany(idb.OUTBOX, [...accepted]);
+    if (mine === generation) outbox = outbox.filter((m) => !accepted.has(m.id));
+    // The mirror the batch came from, even if another workspace is open by now.
+    await idb.removeMany(idb.OUTBOX, [...accepted], db);
+    if (mine !== generation) return;
 
     if (response.rejected.length) {
       console.warn('[sync] server rejected mutations', response.rejected);
@@ -237,15 +348,39 @@ export async function flush(): Promise<void> {
     }
     // The server may have decided values for us (task identifiers, defaults).
     applyChanges(response.patched, isPendingRow);
-    await persist(response.patched);
+    await persist(response.patched, db);
 
     setStatus({ pending: outbox.length, state: outbox.length ? 'syncing' : 'synced', lastSyncedAt: Date.now() });
     retryDelay = 1000;
     if (outbox.length) scheduleFlush(0);
     else await pull();
   } catch (err) {
-    handleError(err);
+    if (mine !== generation) return;
+    if (err instanceof ApiError && err.status === 413) {
+      await tooLarge(batch, bytes, db);
+    } else if (err instanceof ApiError && err.status === 403) {
+      // Not a member any more, or a read-only token: kept, but not resent before the next start.
+      refused = mine;
+      setStatus({ state: 'error', message: translate(currentLocale(), 'sync.refused', { reason: err.message }) });
+    } else {
+      handleError(err);
+    }
   }
+}
+
+/** A 413: halve the batch; one mutation too large alone is dropped like a rejection, or it blocks the queue for good. */
+async function tooLarge(batch: Mutation[], bytes: number, db: string): Promise<void> {
+  if (batch.length > 1) {
+    pushBytes = Math.max(1, Math.floor(bytes / 2));
+    scheduleFlush(0);
+    return;
+  }
+  console.warn('[sync] server refused a mutation as too large', batch[0].entity, batch[0].entityId);
+  outbox = outbox.filter((mutation) => mutation.id !== batch[0].id);
+  await idb.removeMany(idb.OUTBOX, [batch[0].id], db);
+  setStatus({ pending: outbox.length, message: translate(currentLocale(), 'sync.tooLarge') });
+  await undo(batch);
+  if (outbox.length) scheduleFlush(0);
 }
 
 /**
@@ -262,9 +397,12 @@ export async function flush(): Promise<void> {
  * checks.
  */
 async function reread(entity: EntityName, id: string): Promise<void> {
+  const mine = generation;
+  const db = idb.currentMirror();
   const row = await api.get<Record<string, unknown>>(`/api/${COLLECTIONS[entity]}/${id}`);
+  if (mine !== generation) return;
   applyChanges({ [entity]: [row] } as ChangeSet);
-  await persist({ [entity]: [row] } as ChangeSet);
+  await persist({ [entity]: [row] } as ChangeSet, db);
 }
 
 /**
@@ -341,6 +479,7 @@ function handleError(err: unknown): void {
     setStatus({ state: 'offline', message: undefined });
   } else if (err instanceof ApiError && err.status === 401) {
     setStatus({ state: 'error', message: translate(currentLocale(), 'sync.sessionExpired') });
+    void suspend();
     window.dispatchEvent(new CustomEvent('kolibri:signed-out'));
     return;
   } else {
