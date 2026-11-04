@@ -147,14 +147,77 @@ describe('emptying it', () => {
   });
 });
 
-describe('the bytes behind it', () => {
-  it('keeps a picture the page still shows, and takes the one nothing points at', async () => {
-    const upload = (bytes: string, name: string): Promise<any> => fetch(`${base}/api/workspaces/${workspaceId}/files`, {
-      method: 'POST',
-      headers: { 'content-type': 'image/png', 'x-filename': name, cookie },
-      body: Buffer.from(bytes),
-    }).then((response) => response.json());
+describe('what hangs off it', () => {
+  const live = (table: string, id: string) => !!get(`SELECT id FROM ${table} WHERE id = ? AND deleted_at IS NULL`, id);
+  const parts = async (title: string) => {
+    const task = await makeTask(title);
+    const other = await makeTask(`${title}, related`);
+    const comment = await ok(`/api/workspaces/${workspaceId}/comments`, { task_id: task.id, body: 'A remark' });
+    const relation = await ok(`/api/workspaces/${workspaceId}/relations`, { task_id: task.id, related_task_id: other.id, kind: 'blocks' });
+    const child = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: `${title}, sub`, parent_id: task.id });
+    return { task, other, comment, relation, child };
+  };
 
+  it('takes a task’s comments, relations and sub-tasks into the trash with it, and out of it', async () => {
+    const { task, other, comment, relation, child } = await parts('Has parts');
+    await ok(`/api/tasks/${task.id}`, undefined, 'DELETE');
+    assert.deepEqual([live('comments', comment.id), live('task_relations', relation.id), live('tasks', child.id)], [false, false, false]);
+    assert.ok(live('tasks', other.id), 'the task at the other end of the relation is not part of this one');
+
+    // The way the trash screen restores: an outbox write.
+    const clock = new Clock('trash-parts');
+    await ok('/api/sync/push', {
+      workspaceId, clientId: 'trash-parts',
+      mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: task.id, op: 'upsert', patch: { deleted_at: null }, hlc: clock.now() }],
+    });
+    assert.deepEqual([live('comments', comment.id), live('task_relations', relation.id), live('tasks', child.id)], [true, true, true]);
+  });
+
+  it('leaves nothing of a purged task live', async () => {
+    const { task, comment, relation, child } = await parts('Purged with parts');
+    await ok(`/api/tasks/${task.id}`, undefined, 'DELETE');
+    emptyTrash(workspaceId, 'manual', Date.now());
+    for (const [table, id] of [['tasks', task.id], ['comments', comment.id], ['task_relations', relation.id], ['tasks', child.id]]) {
+      assert.equal(get(`SELECT id FROM ${table} WHERE id = ?`, id), undefined, `${table} ${id} is gone`);
+    }
+  });
+
+  it('takes a purged page’s earlier versions, which hold its text', async () => {
+    const page = await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, title: 'Versioned', content: 'v1 text' });
+    await ok(`/api/pages/${page.id}`, { content: 'v2 text' }, 'PATCH');
+    assert.ok(all(`SELECT id FROM page_versions WHERE page_id = ?`, page.id).length > 0, 'the edit kept a version');
+    await ok(`/api/pages/${page.id}`, undefined, 'DELETE');
+    emptyTrash(workspaceId, 'manual', Date.now());
+    assert.equal(all(`SELECT id FROM page_versions WHERE page_id = ?`, page.id).length, 0);
+  });
+});
+
+describe('the bytes behind it', () => {
+  const upload = (bytes: string, name: string): Promise<any> => fetch(`${base}/api/workspaces/${workspaceId}/files`, {
+    method: 'POST',
+    headers: { 'content-type': 'image/png', 'x-filename': name, cookie },
+    body: Buffer.from(bytes),
+  }).then((response) => response.json());
+
+  it('keeps a page cover, the workspace logo and an upload nothing names yet', async () => {
+    const cover = await upload('cover-bytes', 'cover.png');
+    const logo = await upload('logo-bytes', 'logo.png');
+    const fresh = await upload('fresh-bytes', 'fresh.png');
+    await ok(`/api/workspaces/${workspaceId}/pages`, { project_id: projectId, title: 'Covered', cover_url: cover.url });
+    await ok(`/api/workspaces/${workspaceId}`, { logo_url: logo.url }, 'PATCH');
+    // Both also hang on a task that is purged, so both are asked about.
+    const task = await makeTask('Shows the cover and the logo');
+    for (const file of [cover, logo]) {
+      await ok(`/api/workspaces/${workspaceId}/attachments`, { task_id: task.id, name: file.name, mime: 'image/png', size: 11, url: file.url });
+    }
+    await ok(`/api/tasks/${task.id}`, undefined, 'DELETE');
+
+    const done = emptyTrash(workspaceId, 'manual', Date.now());
+    assert.equal(done.blobs, 0);
+    for (const file of [cover, logo, fresh]) assert.ok(get(`SELECT hash FROM files WHERE hash = ?`, file.hash), `${file.name} is kept`);
+  });
+
+  it('keeps a picture the page still shows, and takes the one nothing points at', async () => {
     // Two uploads: one is only ever an attachment, the other is also pasted
     // into a page — which is what makes it content-addressed rather than owned.
     const lonely = await upload('lonely-bytes', 'lonely.png');

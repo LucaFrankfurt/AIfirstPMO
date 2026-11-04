@@ -157,7 +157,9 @@ const GIVE_UP = 5;
  */
 export function notifyDevices(userId: string): void {
   if (!env.push.enabled) return;
-  for (const row of subscriptionsFor(userId)) void deliver(row);
+  for (const row of subscriptionsFor(userId)) {
+    deliver(row).catch((error) => console.error('[push] delivery to', row.id, 'failed:', error));
+  }
 }
 
 async function deliver(row: Row): Promise<void> {

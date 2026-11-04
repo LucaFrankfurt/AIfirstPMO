@@ -103,6 +103,27 @@ describe('the doctor', () => {
     assert.ok(results.some((r: any) => r.title.includes('Renew the certificate')), 'and search works through it');
   });
 
+  const patch = (path: string, body: unknown) => fetch(`${base}${path}`, {
+    method: 'PATCH', headers: { 'content-type': 'application/json', cookie }, body: JSON.stringify(body),
+  }).then((response) => assert.ok(response.ok, `${response.status} ${path}`));
+
+  it('keeps one index entry per row, mapped by rowid so a write never scans the index', async () => {
+    const task = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Edited' });
+    await patch(`/api/tasks/${task.id}`, { title: 'Edited once' });
+    await patch(`/api/tasks/${task.id}`, { title: 'Edited twice' });
+    const entries = all<any>(`SELECT rowid, title FROM search_index WHERE ref_id = ?`, task.id);
+    assert.equal(entries.length, 1);
+    assert.match(entries[0].title, /Edited twice/);
+    assert.equal(get<any>(`SELECT doc FROM search_refs WHERE kind = 'task' AND ref_id = ?`, task.id)!.doc, entries[0].rowid);
+  });
+
+  it('does not count an archived row as missing, because it is left out on purpose', async () => {
+    const task = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: projectId, title: 'Shelved' });
+    await patch(`/api/tasks/${task.id}`, { archived: 1 });
+    assert.equal(get(`SELECT doc FROM search_refs WHERE ref_id = ?`, task.id), undefined, 'it left the index');
+    assert.deepEqual(maintenance.searchDrift(), { missing: 0, stale: 0 });
+  });
+
   it('reports a file whose bytes are gone', async () => {
     run(
       `INSERT INTO files (hash, workspace_id, name, mime, size, created_at, storage)

@@ -8,7 +8,7 @@
  */
 import { cpSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { db, all, pluck, run, type Row } from '../../kernel/platform/db/index.ts';
+import { db, all, columnsOf, pluck, run, type Row } from '../../kernel/platform/db/index.ts';
 import { ENTITIES, crdt, type CrdtState, type EntityName } from '@kolibri/shared';
 import { env } from '../../kernel/platform/env.ts';
 import { indexForSearch, SEARCHABLE } from '../../kernel/write-path/repo.ts';
@@ -51,10 +51,13 @@ const searchableTables = (): [EntityName, string][] =>
 export function searchDrift(): { missing: number; stale: number } {
   let missing = 0;
   for (const [entity, table] of searchableTables()) {
+    // Archived rows are left out of the index on purpose.
+    const archived = columnsOf(table).includes('archived') ? 'AND NOT t.archived' : '';
     missing += Number(pluck<number>(
       `SELECT count(*) FROM ${table} t
-        WHERE t.deleted_at IS NULL
-          AND NOT EXISTS (SELECT 1 FROM search_index s WHERE s.kind = ? AND s.ref_id = t.id)`,
+        WHERE t.deleted_at IS NULL ${archived}
+          AND NOT EXISTS (SELECT 1 FROM search_refs r JOIN search_index s ON s.rowid = r.doc AND s.ref_id = r.ref_id
+                           WHERE r.kind = ? AND r.ref_id = t.id)`,
       entity,
     ) ?? 0);
   }
@@ -219,7 +222,7 @@ export async function checkStorage(): Promise<Finding[]> {
 /** Rebuild the whole search index from the tables it is derived from. */
 export function reindex(): number {
   let indexed = 0;
-  db.exec(`DELETE FROM search_index`);
+  db.exec(`DELETE FROM search_index; DELETE FROM search_refs`);
   for (const [entity, table] of searchableTables()) {
     for (const row of all(`SELECT * FROM ${table} WHERE deleted_at IS NULL`)) {
       // Counted only when it went in: an archived row is walked and skipped,

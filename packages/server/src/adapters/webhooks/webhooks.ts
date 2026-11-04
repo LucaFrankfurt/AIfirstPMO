@@ -79,7 +79,7 @@ export function dispatch(workspaceId: string, event: WebhookEvent, payload: Reco
   }
   // Each one goes now and goes on its own: two receivers are two conversations,
   // and one of them being slow is not a reason the other waits five seconds.
-  for (const id of queued) void sendOne(id);
+  for (const id of queued) sendInBackground(id);
 }
 
 /**
@@ -158,6 +158,11 @@ async function sendOne(id: string, now = Date.now()): Promise<boolean> {
   const row = claim(id, now);
   return row ? attempt(row, now) : false;
 }
+
+// Not awaited by anyone, so a rejection (a locked database) is logged here rather than ending the process.
+const sendInBackground = (id: string, now?: number): void => {
+  sendOne(id, now).catch((error) => console.error('[webhooks] delivery', id, 'failed:', error));
+};
 
 /**
  * One worker pass: everything that is due, at the same time.
@@ -261,7 +266,7 @@ function giveUpOrRetry(
   // Prompt where it matters and durable where it counts: the timer covers the
   // next few minutes, and the scheduler's sweep covers a restart in the middle
   // of them. `unref` so a pending retry never holds the process open.
-  if (!giveUp) setTimeout(() => { void sendOne(String(row.id)); }, backoff(attempts)).unref();
+  if (!giveUp) setTimeout(() => sendInBackground(String(row.id)), backoff(attempts)).unref();
   return false;
 }
 
@@ -356,7 +361,7 @@ export function replayDelivery(id: string): Row | undefined {
     `UPDATE webhook_deliveries SET sent_at = NULL, failed_at = NULL, send_after = ?, attempts = 0 WHERE id = ?`,
     now - 1, id,
   );
-  void sendOne(id, now);
+  sendInBackground(id, now);
   return get<Row>(`SELECT * FROM webhook_deliveries WHERE id = ?`, id);
 }
 

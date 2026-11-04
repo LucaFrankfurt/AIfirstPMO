@@ -178,6 +178,29 @@ function cascadeProject(project: Row, restoring: boolean, opts: WriteOpts): void
   for (const child of children) write('project', String(child.id));
 }
 
+const TASK_PARTS: [EntityName, string][] = [['comment', 'task_id'], ['attachment', 'task_id'], ['fieldValue', 'task_id']];
+
+/** `cascadeProject` for a task: otherwise purging it leaves its parts live and unpurgeable. */
+function cascadeTask(task: Row, restoring: boolean, opts: WriteOpts): void {
+  const write = (entity: EntityName, id: unknown) =>
+    writeEntity(entity, String(id), {}, { ...opts, system: true, silent: true, ...(restoring ? {} : { op: 'delete' as const }) });
+  const since = Number(task.deleted_at ?? 0);
+  const pick = (table: string, where: string, ...params: unknown[]): Row[] => restoring
+    ? all<Row>(`SELECT id FROM ${table} r WHERE (${where}) AND r.deleted_at >= ?`, ...params, since)
+    : all<Row>(`SELECT id FROM ${table} r WHERE (${where}) AND r.deleted_at IS NULL`, ...params);
+
+  for (const [entity, column] of TASK_PARTS) {
+    for (const row of pick(ENTITIES[entity].table, `r.${column} = ?`, task.id)) write(entity, row.id);
+  }
+  // A relation only comes back once both of its ends are live again.
+  const ends = restoring
+    ? ` AND NOT EXISTS (SELECT 1 FROM tasks t WHERE t.id IN (r.task_id, r.related_task_id) AND t.deleted_at IS NOT NULL)`
+    : '';
+  for (const row of pick('task_relations', `(r.task_id = ? OR r.related_task_id = ?)${ends}`, task.id, task.id)) write('relation', row.id);
+  // Each sub-task's own effect carries on below it.
+  for (const row of pick('tasks', 'r.parent_id = ?', task.id)) write('task', row.id);
+}
+
 /**
  * A task that changed projects, and everything on it that belonged to the old
  * one.
@@ -536,7 +559,11 @@ export const workRules = {
       if (!project) throw badRequest('task.project_id must reference an existing project');
       if (project.workspace_id !== opts.workspaceId) throw badRequest('project belongs to another workspace');
       if (values.number === undefined || values.identifier === undefined) {
-        const number = Number(project.next_number ?? 1);
+        let number = Number(project.next_number ?? 1);
+        // A key can be reused after a rename or a delete, and the old tasks keep their identifiers.
+        while (get<Row>(
+          `SELECT 1 AS found FROM tasks WHERE workspace_id = ? AND identifier = ?`, project.workspace_id, `${project.key}-${number}`,
+        )) number++;
         run(`UPDATE projects SET next_number = ? WHERE id = ?`, number + 1, project.id);
         setForced('number', number);
         setForced('identifier', `${project.key}-${number}`);
@@ -690,6 +717,10 @@ export const workRules = {
     // state, for the same reason the project cascade below reads `before`.
     if (entity === 'task' && before && !row.deleted_at && row.project_id !== before.project_id) {
       followParent(row, opts);
+    }
+    if (entity === 'task' && before) {
+      if (row.deleted_at && !before.deleted_at) cascadeTask(row, false, opts);
+      else if (!row.deleted_at && before.deleted_at) cascadeTask(before, true, opts);
     }
     // The transition, not the state: an edit to an already-deleted project
     // must not cascade a second time, and `before` is the only thing that

@@ -254,6 +254,20 @@ describe('container projects', () => {
     assert.equal(moved.key, 'WEB');
   });
 
+  it('skips the identifiers a former holder of the key left behind', async () => {
+    const old = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Old', key: 'OLD' });
+    const kept = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: old.id, title: 'Stays OLD-1' });
+    assert.equal(kept.identifier, 'OLD-1');
+    await ok(`/api/projects/${old.id}`, { key: 'ARC' }, 'PATCH');
+
+    const reused = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'New', key: 'OLD' });
+    assert.equal(reused.key, 'OLD');
+    const first = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: reused.id, title: 'Needs a free number' });
+    assert.equal(first.identifier, 'OLD-2', 'OLD-1 is still taken by the renamed project’s task');
+    const second = await ok(`/api/workspaces/${workspaceId}/tasks`, { project_id: reused.id, title: 'And the next one' });
+    assert.equal(second.identifier, 'OLD-3');
+  });
+
   it('upper-cases a key however it is typed', async () => {
     const project = await ok(`/api/workspaces/${workspaceId}/projects`, { name: 'Lower', key: 'low' });
     assert.equal(project.key, 'LOW', 'an identifier prefix is upper case or it is two prefixes');

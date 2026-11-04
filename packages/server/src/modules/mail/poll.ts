@@ -219,7 +219,7 @@ export function startMailPoller(everyMs = 60_000): void {
   // Every minute, deciding per mailbox — rather than a timer per mailbox, which
   // is four timers to cancel and four to keep in step with a row somebody just
   // edited. The frequent tick is cheap: `due()` is one indexed read.
-  timer = setInterval(() => { void sweep(); }, everyMs);
+  timer = setInterval(() => { sweep().catch((error) => console.error('[mail] poll failed:', error)); }, everyMs);
   timer.unref?.();
 }
 
