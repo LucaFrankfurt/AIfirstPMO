@@ -177,6 +177,34 @@ describe('a stranger holding an id', () => {
     assert.match(String(body.message ?? ''), /another workspace/);
   });
 
+  /** A create that names an existing id is an edit, and a stranger's edit by any door is refused. */
+  it('cannot rename, upsert or delete it by naming its id in a create or a sync push', async () => {
+    const created = await call(`/api/workspaces/${mallory.workspace}/tasks`, {
+      cookie: mallory.cookie, body: { id: taskId, title: 'Owned via create' },
+    });
+    assert.equal(created.status, 404, `create-with-id answered ${created.status}`);
+    assert.ok(!JSON.stringify(created.body).includes('Next quarter salaries'), 'the refusal carried the row');
+
+    const { Clock } = await import('@kolibri/shared');
+    const clock = new Clock('mallory-device');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: mallory.cookie,
+      body: {
+        workspaceId: mallory.workspace, clientId: 'mallory-device',
+        mutations: [
+          { id: crypto.randomUUID(), entity: 'task', entityId: taskId, op: 'upsert', patch: { title: 'Owned via sync' }, hlc: clock.now() },
+          { id: crypto.randomUUID(), entity: 'task', entityId: taskId, op: 'delete', patch: {}, hlc: clock.now() },
+        ],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push from another workspace reached the task');
+    assert.equal(pushed.rejected.length, 2);
+
+    const after = await call(`/api/tasks/${taskId}`, { cookie: ada.cookie });
+    assert.equal(after.body.title, 'Next quarter salaries', 'the title survived');
+    assert.equal(after.body.deleted_at, null, 'the task survived');
+  });
+
   /** And the owner is still fine — a guard that refuses everybody is not a fix. */
   it('while the owner reads it perfectly well', async () => {
     const { body } = await mcp(ada, 'get_task', { task: taskId });
@@ -404,6 +432,49 @@ describe('a colleague outside a private project', () => {
         'get_attachment handed over the bytes of a private project\'s screenshot',
       );
     }
+  });
+
+  it('cannot change the private task by naming its id in a create or a sync push', async () => {
+    const created = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: outsider.cookie, body: { id: privateTask, title: 'Renamed by an outsider' },
+    });
+    assert.equal(created.status, 403, `create-with-id answered ${created.status}, where PATCH refuses`);
+
+    const { Clock } = await import('@kolibri/shared');
+    const clock = new Clock('outsider-device');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: outsider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'outsider-device',
+        mutations: [
+          { id: crypto.randomUUID(), entity: 'task', entityId: privateTask, op: 'upsert', patch: { title: 'Renamed via sync' }, hlc: clock.now() },
+          { id: crypto.randomUUID(), entity: 'task', entityId: privateTask, op: 'delete', patch: {}, hlc: clock.now() },
+        ],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push reached a task its device may not pull');
+
+    const { body: task } = await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie });
+    assert.equal(task.title, 'Next quarter salaries');
+    assert.equal(task.deleted_at, null);
+  });
+
+  it('lets somebody on the project upsert by id, as the feedback package does', async () => {
+    const { status, body } = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: insider.cookie, body: { id: privateTask, project_id: privateProject, title: 'Next quarter salaries' },
+    });
+    assert.equal(status, 200, 'a guard that refuses everybody is not a fix');
+    assert.equal(body.id, privateTask);
+
+    const { Clock } = await import('@kolibri/shared');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: insider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'insider-device',
+        mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: privateTask, op: 'upsert', patch: { priority: 'high' }, hlc: new Clock('insider-device').now() }],
+      },
+    });
+    assert.equal(pushed.accepted.length, 1, `the sync door refused a project member: ${JSON.stringify(pushed.rejected)}`);
   });
 
   it('still works for somebody who is on the project', async () => {

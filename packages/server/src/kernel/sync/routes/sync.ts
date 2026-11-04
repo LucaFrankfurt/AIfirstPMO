@@ -14,8 +14,8 @@ import {
 } from '@kolibri/shared';
 import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
-import { badRequest, forbidden, readJson, type Ctx, type Router } from '../../platform/http.ts';
-import { serialize, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
+import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
+import { canSeeProject, serialize, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
 import { subscribe } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
@@ -631,7 +631,19 @@ export function applyMutation(mutation: Mutation, workspaceId: string, actorId: 
       if (!row || row.user_id !== actorId) throw forbidden('Not your notification');
     }
 
-    const { row, forced } = writeEntity(mutation.entity as EntityName, mutation.entityId, mutation.patch ?? {}, {
+    // A device may change only a row it may pull, and what PATCH's project guard allows.
+    const entity = mutation.entity as EntityName;
+    const table = def.table;
+    const existing = get<Row>(`SELECT * FROM ${table} WHERE id = ?`, mutation.entityId);
+    if (existing && (
+      !get(`SELECT 1 FROM ${table} WHERE ${table}.id = ?3 ${workspaceClause(entity, table)} ${filterFor(entity)}`,
+        workspaceId, actorId, mutation.entityId)
+      || (existing.project_id && !canSeeProject(actorId, String(existing.project_id)))
+    )) {
+      throw notFound(`${mutation.entity} not found`);
+    }
+
+    const { row, forced } = writeEntity(entity, mutation.entityId, mutation.patch ?? {}, {
       workspaceId,
       actorId,
       hlc: mutation.hlc,

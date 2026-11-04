@@ -16,7 +16,7 @@ import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import {
   canSeeBudget, canSeeChannel, canSeeKpi, canSeePage, canSeeProject, canSeeSubject, canSeeTask, deleteEntity,
-  pageIsVisible, parseIds, serialize, visiblePageSql, visibleTaskSql, writeEntity,
+  inWriteScope, pageIsVisible, parseIds, serialize, visiblePageSql, visibleTaskSql, writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
@@ -264,6 +264,19 @@ function guardRate(ctx: Ctx, entity: EntityName, workspaceId: string): void {
   if (!hasRole(requireWorkspace(ctx, workspaceId), 'admin')) {
     throw forbidden('Rates are visible to owners and admins');
   }
+}
+
+/** Every guard a stored row answers to, as one list so the doors that reach a row by id cannot drift. */
+function guardRow(ctx: Ctx, userId: string, entity: EntityName, row: Row, role: WorkspaceRole): void {
+  guardProject(userId, entity, row);
+  guardChat(userId, entity, row);
+  guardMailbox(userId, entity, row);
+  guardPage(userId, entity, row);
+  guardSecret(userId, entity, row, role);
+  guardBudget(userId, entity, row);
+  guardMeeting(entity, role);
+  guardRate(ctx, entity, String(row.workspace_id));
+  if (entity === 'notification' && row.user_id !== userId) throw forbidden('Not your notification');
 }
 
 export function registerEntityRoutes(router: Router): void {
@@ -784,6 +797,12 @@ export function registerEntityRoutes(router: Router): void {
     }
 
     const id = typeof body.id === 'string' ? body.id : uid();
+    // A chosen id that is already taken makes this an edit, and an edit answers to what PATCH does.
+    const existing = typeof body.id === 'string' ? get<Row>(`SELECT * FROM ${ENTITIES[entity].table} WHERE id = ?`, id) : undefined;
+    if (existing) {
+      if (!inWriteScope(entity, existing, ctx.params.ws)) throw notFound(`${entity} not found`);
+      guardRow(ctx, auth.userId, entity, existing, role);
+    }
     const { row } = writeEntity(entity, id, { ...body, workspace_id: ctx.params.ws }, {
       workspaceId: ctx.params.ws,
       actorId: auth.userId,
@@ -797,15 +816,7 @@ export function registerEntityRoutes(router: Router): void {
     const entity = resolve(ctx.params.collection);
     const row = workspaceOf(entity, ctx.params.id);
     const role = requireWorkspace(ctx, row.workspace_id);
-    guardProject(auth.userId, entity, row);
-    guardChat(auth.userId, entity, row);
-    guardMailbox(auth.userId, entity, row);
-    guardPage(auth.userId, entity, row);
-    guardSecret(auth.userId, entity, row, role);
-    guardBudget(auth.userId, entity, row);
-    guardMeeting(entity, role);
-    guardRate(ctx, entity, String(row.workspace_id));
-    if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
+    guardRow(ctx, auth.userId, entity, row, role);
     return serialize(entity, row);
   });
 
@@ -816,15 +827,7 @@ export function registerEntityRoutes(router: Router): void {
     const role = requireWorkspace(ctx, row.workspace_id);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
     if (!hasRole(role, 'member') && !isGuestWritable(entity)) throw forbidden('Guests cannot edit content');
-    guardProject(auth.userId, entity, row);
-    guardChat(auth.userId, entity, row);
-    guardMailbox(auth.userId, entity, row);
-    guardPage(auth.userId, entity, row);
-    guardSecret(auth.userId, entity, row, role);
-    guardBudget(auth.userId, entity, row);
-    guardMeeting(entity, role);
-    guardRate(ctx, entity, String(row.workspace_id));
-    if (entity === 'notification' && row.user_id !== auth.userId) throw forbidden('Not your notification');
+    guardRow(ctx, auth.userId, entity, row, role);
     const body = await readJson<Record<string, unknown>>(ctx);
     const { row: updated } = writeEntity(entity, ctx.params.id, body, {
       workspaceId: row.workspace_id,
@@ -840,14 +843,7 @@ export function registerEntityRoutes(router: Router): void {
     const row = workspaceOf(entity, ctx.params.id);
     const role = requireWorkspace(ctx, row.workspace_id, 'member');
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
-    guardProject(auth.userId, entity, row);
-    guardChat(auth.userId, entity, row);
-    guardMailbox(auth.userId, entity, row);
-    guardPage(auth.userId, entity, row);
-    guardSecret(auth.userId, entity, row, role);
-    guardBudget(auth.userId, entity, row);
-    guardMeeting(entity, role);
-    guardRate(ctx, entity, String(row.workspace_id));
+    guardRow(ctx, auth.userId, entity, row, role);
     deleteEntity(entity, ctx.params.id, {
       workspaceId: row.workspace_id, actorId: auth.userId, hlc: serverClock.now(),
     });
