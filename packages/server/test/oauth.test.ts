@@ -482,4 +482,34 @@ describe('the code, and the token it becomes', () => {
     });
     assert.equal(after.status, 401, 'one Revoke button, and it means it');
   });
+
+  it('confines the token to the workspace chosen on the consent screen, and so does its refresh', async () => {
+    resetRateLimits();
+    const other = (await json('/api/workspaces', { name: 'Elsewhere' })).body.workspace.id;
+    const listIn = async (access: string, workspace: string) => (await fetch(`${base}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${access}` },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_tasks', arguments: { workspace_id: workspace } },
+      }),
+    })).json() as any;
+
+    const granted = await form('/oauth/authorize', {
+      ...Object.fromEntries(authorizeQuery()), workspace_id: workspaceId, decision: 'allow',
+    });
+    const first = (await form('/oauth/token', {
+      grant_type: 'authorization_code',
+      code: new URL(granted.location).searchParams.get('code') ?? '',
+      client_id: clientId, redirect_uri: REDIRECT, code_verifier: verifier,
+    })).body;
+    assert.ok((await listIn(first.access_token, workspaceId)).result, 'the chosen workspace has to work');
+    assert.match((await listIn(first.access_token, other)).error?.message ?? '', /Not a member of workspace/,
+      'the consent screen picked one workspace and the connector reached another');
+
+    const second = (await form('/oauth/token', {
+      grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: clientId,
+    })).body;
+    assert.match((await listIn(second.access_token, other)).error?.message ?? '', /Not a member of workspace/,
+      'a refresh widened the token');
+  });
 });

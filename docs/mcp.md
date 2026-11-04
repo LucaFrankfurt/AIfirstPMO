@@ -15,7 +15,8 @@ what Claude on the web needs. See [Signing in](#signing-in-for-clients-that-cann
 ## Setup
 
 1. **Settings → API & MCP → Create token.** Pin it to a workspace so tools do not need a
-   `workspace_id` argument. Use scope `read` for an assistant that should only look.
+   `workspace_id` argument — a pin is only the default, so tick *confined* as well if the token must
+   not reach the account's other workspaces. Use scope `read` for an assistant that should only look.
 2. Point your client at the instance. Which of the two transports you want depends only on what the
    client speaks — the tools are the same either way, because they are the same implementation.
 
@@ -91,7 +92,8 @@ look, one thing to press.
 The consent screen is server-rendered rather than part of the app, because it has to work inside a
 popup the client opened, with no router in the way. It names the client, names the account, says
 whether write access was asked for, and lets somebody pick which workspace — the granted token is
-pinned to it and cannot reach another.
+**confined** to it, and its refreshes are too: every other workspace answers as though the account
+were not in it, even one the account is a member of.
 
 One detail that cost an afternoon and is worth remembering: the instance sends
 `form-action 'self'` on every response, and a browser applies that to where a form's **redirect**
@@ -999,8 +1001,8 @@ This lets a client attach a handbook page as context without a tool call.
 **Across every workspace the token can reach**, and each entry says which one it came from when
 there is more than one. Unlike a tool, this call takes no arguments — so whatever it leaves out is
 unreachable from the client's "add from Kolibri" menu, and listing one workspace meant somebody in
-two saw half of what they had. A token pinned to a workspace still sees only that one; that pin is
-a boundary somebody set on purpose.
+two saw half of what they had. A token pinned to a workspace lists only that one's pages, because
+the pin is where its owner pointed it; the boundary, for resources as for tools, is `confined`.
 
 Note that this is a different list from the tools. Modules, cycles and everything else are **tools**
 and appear wherever your client shows those; resources are pages, and prompts are the three named
@@ -1013,7 +1015,10 @@ The token owner's permissions apply, always:
 
 - private projects they are not a member of are invisible to every tool,
 - guests cannot write,
-- a token pinned to a workspace cannot reach another one, even if the account is a member.
+- a token **confined** to a workspace cannot reach another one, even if the account is a member —
+  that includes every token a connector gets through OAuth,
+- a token that is only **pinned** uses the pin as the default for a call that names no
+  `workspace_id`; a call that names another workspace the account is in reaches it.
 
 Revoke a token in **Settings → API & MCP**; it stops working immediately. A connector authorised on
 the web is listed there under its own name and is revoked the same way — the OAuth flow issues an

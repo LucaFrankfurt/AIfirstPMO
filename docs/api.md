@@ -45,8 +45,13 @@ curl -H "Authorization: Bearer kol_…" $URL/api/session
 ```
 
 Create tokens in **Settings → API & MCP** or via `POST /api/tokens`
-(`{ name, workspaceId?, scopes?: "read" | "read,write", expiresInDays? }`). The plaintext value is
-returned exactly once — only its hash is stored. A `read` token is rejected on every write.
+(`{ name, workspaceId?, scopes?: "read" | "read,write", expiresInDays?, confined? }`). The plaintext
+value is returned exactly once — only its hash is stored. A `read` token is rejected on every write.
+`workspaceId` alone only pins the default workspace; the token still reaches every workspace the
+account is in. `confined: true` (which needs a `workspaceId`) makes that workspace the only one it
+reaches: the others answer as though the account were not a member, and a confined token cannot
+create tokens, use the calendar feed or act as an instance admin. Tokens issued to a connector
+through OAuth are always confined to the workspace chosen on the consent screen.
 
 ## Entities
 
