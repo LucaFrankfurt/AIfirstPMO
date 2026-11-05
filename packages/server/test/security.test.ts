@@ -156,6 +156,25 @@ describe('rate limiting', () => {
     const right = await call('/api/me/2fa/off', { password: 'correct horse battery' }, { cookie });
     assert.equal(right.status, 200, 'the real password still works');
   });
+
+  it('takes as long to refuse an unknown address as a wrong password (SEC-15)', async () => {
+    // Without an account there was no scrypt to run: ~4 ms against ~49 ms, which confirms an address.
+    const timed = async (email: string) => {
+      resetRateLimits();
+      const started = performance.now();
+      assert.equal((await call('/api/auth/login', { email, password: 'wrong password' })).status, 401);
+      return performance.now() - started;
+    };
+    const known: number[] = [];
+    const unknown: number[] = [];
+    for (let round = 0; round < 5; round++) {
+      known.push(await timed('ada@example.com'));
+      unknown.push(await timed('nobody-here@example.com'));
+    }
+    const median = (values: number[]) => values.sort((a, b) => a - b)[2];
+    assert.ok(median(unknown) > median(known) / 2,
+      `unknown ${median(unknown).toFixed(1)} ms against known ${median(known).toFixed(1)} ms`);
+  });
 });
 
 /**

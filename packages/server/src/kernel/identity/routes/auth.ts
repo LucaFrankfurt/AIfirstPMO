@@ -188,6 +188,9 @@ function createAccount(input: {
 /** Password sign-in is off when the instance is configured for SSO only. */
 const ssoOnly = (): boolean => oidcEnabled() && env.oidc.only;
 
+/** Checked against when there is no account, so a refusal costs the same scrypt either way. */
+let decoyHash: string | null = null;
+
 /** Holds the pending state, so only the browser that started a sign-in can finish it. */
 const OIDC_COOKIE = 'kolibri_oidc';
 
@@ -239,7 +242,9 @@ export function registerAuthRoutes(router: Router): void {
     enforce(ctx, [...byAddress(ctx, LIMITS.login, 'login'), byValue(LIMITS.login, 'login-user', email)]);
 
     const user = get<Row>(`SELECT * FROM users WHERE email = ? AND deleted_at IS NULL`, email);
-    if (!user || !verifyPassword(body.password ?? '', user.password_hash)) {
+    const stored = user?.password_hash ? String(user.password_hash) : (decoyHash ??= hashPassword(token()));
+    const matches = verifyPassword(body.password ?? '', stored);
+    if (!user || !matches) {
       throw unauthorized('Email or password is incorrect');
     }
 
