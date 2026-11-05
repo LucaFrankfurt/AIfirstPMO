@@ -18,6 +18,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 import { twMerge } from 'tailwind-merge';
+import { en } from '../src/kernel/i18n/locales/en.ts';
 
 const SRC = new URL('../src', import.meta.url).pathname;
 
@@ -557,5 +558,89 @@ describe('the shell', () => {
 
   it('names the document after the screen heading', () => {
     assert.match(shell, /querySelector\('h1'\)[\s\S]*document\.title = title/);
+  });
+});
+
+/** The index that ends the string, comment or bracketed group starting at `i` — `i` itself for anything else. */
+function skip(text: string, i: number): number {
+  const c = text[i];
+  if (c === '"' || c === "'" || c === '`') {
+    for (i++; i < text.length && text[i] !== c; i++) if (text[i] === '\\') i++;
+    return i;
+  }
+  if (c === '/' && text[i + 1] === '*') return text.indexOf('*/', i) + 1;
+  if (c === '/' && text[i + 1] === '/') return text.indexOf('\n', i);
+  if ('([{'.includes(c)) {
+    for (i++; i < text.length && !')]}'.includes(text[i]); i++) i = skip(text, i);
+  }
+  return i;
+}
+
+/** The top-level arguments of the call whose `(` is at `open`. */
+function argumentsAt(text: string, open: number): string[] {
+  const end = skip(text, open);
+  const out: string[] = [];
+  let from = open + 1;
+  for (let i = from; i < end; i = skip(text, i) + 1) {
+    if (text[i] === ',') { out.push(text.slice(from, i).trim()); from = i + 1; }
+  }
+  return [...out, text.slice(from, end).trim()].filter(Boolean);
+}
+
+// UX-04: the button said "Delete" on "Leave this channel?"; a token, a channel member and a team member went in one click.
+describe('a confirmation', () => {
+  const asked = files.flatMap(({ path, text }) =>
+    [...text.matchAll(/(?<![\w.])confirm\(/g)].map((match) => ({
+      where: `${path.slice(SRC.length + 1)}:${text.slice(0, match.index).split('\n').length}`,
+      args: argumentsAt(text, match.index! + 'confirm'.length),
+    })));
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(asked.length >= 40, `only found ${asked.length} confirmations, which means the scan is broken`);
+  });
+
+  it('says the verb on its button whenever the question is not to delete', () => {
+    const catalogue: Record<string, string> = en;
+    const wrong = asked.flatMap(({ where, args }) => {
+      const key = /^t\('([\w.]+)'/.exec(args[0] ?? '')?.[1];
+      if (!key || args.length > 1) return [];
+      const text = catalogue[key] ?? catalogue[`${key}_one`];
+      assert.ok(text, `${where}: ${key} is not in the catalogue`);
+      return /^Delete\b/.test(text) ? [] : [`${where} (${key})`];
+    });
+    assert.deepEqual(wrong, [], `a "Delete" button under a question that is not about deleting: ${wrong.join(', ')}`);
+  });
+
+  it('comes before revoking a token, or taking somebody out of a channel or a team, and names them', () => {
+    for (const [file, call, from] of [
+      ['modules/operations/routes/settings.tsx', 'api.revokeToken(', 'onClick='],
+      ['modules/chat/routes/chat.tsx', 'setMembers(inside.filter(', 'onClick='],
+      ['modules/work/routes/teams.tsx', "remove('teamMember'", 'onSelect:'],
+    ] as const) {
+      const text = readFileSync(join(SRC, file), 'utf8');
+      const at = text.indexOf(call);
+      assert.ok(at > 0, `${call} is no longer in ${file} — this rule checks nothing`);
+      assert.match(text.slice(text.lastIndexOf(from, at), at), /\bconfirm\(t\('[\w.]+', \{ name:/, `${file}: ${call} without a confirmation that names it`);
+    }
+  });
+});
+
+// UX-04: a bulk delete or archive had no way back short of the trash, and the trash was three taps deep.
+describe('a bulk delete or archive', () => {
+  it('can be undone from its toast', () => {
+    const tasks = readFileSync(join(SRC, 'modules/work/selection-bar.tsx'), 'utf8');
+    const archive = tasks.slice(tasks.indexOf("id: 'archive'"), tasks.indexOf("id: 'unarchive'"));
+    assert.match(archive, /label: t\('action\.undo'\)[^]*archived: 0/, 'archiving tasks offers no undo');
+    assert.match(tasks.slice(tasks.indexOf("id: 'delete'")), /label: t\('action\.undo'\)[^]*restore\('task'/, 'deleting tasks offers no undo');
+
+    const pages = readFileSync(join(SRC, 'modules/pages/page-bulk.tsx'), 'utf8');
+    assert.doesNotMatch(pages, /applyTo\([^)]*\{ archived: 1 \}\)/, 'archiving pages bypasses the undo');
+    assert.match(pages, /remove\('page'[^]*?label: t\('action\.undo'\)[^]*?restore\('page'/, 'deleting pages offers no undo');
+  });
+
+  it('leaves the trash one tap away on a phone', () => {
+    assert.match(functionBody('modules/work/routes/personal.tsx', 'More'), /to="\/settings\?tab=data"/);
+    const data = functionBody('modules/operations/routes/settings.tsx', 'DataSettings');
+    assert.ok(data.indexOf('<Trash />') < data.indexOf('<AuditLog />'), 'the trash is below the audit log again');
   });
 });

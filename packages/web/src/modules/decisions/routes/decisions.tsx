@@ -162,7 +162,7 @@ export function DecisionDetail() {
                     size="sm"
                     title={t('decision.removeOption', { label: option.label })}
                     onClick={async () => {
-                      if (await confirm(t('decision.removeOptionConfirm', { label: option.label }))) {
+                      if (await confirm(t('decision.removeOptionConfirm', { label: option.label }), t('action.remove'))) {
                         remove('decisionOption', option.id);
                       }
                     }}

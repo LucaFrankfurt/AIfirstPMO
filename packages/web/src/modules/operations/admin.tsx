@@ -100,7 +100,7 @@ export function Webhooks() {
       <p className="text-[12px] text-muted mb-2">{t('hooks.hint')}</p>
 
       {hooks.map((hook) => <Hook key={hook.id} hook={hook} onRemove={async (id, name) => {
-        if (await confirm(t('hooks.remove') + ` — ${name || hook.url}?`)) remove('webhook', id);
+        if (await confirm(t('hooks.remove') + ` — ${name || hook.url}?`, t('hooks.remove'))) remove('webhook', id);
       }} />)}
 
       <form
@@ -132,7 +132,7 @@ export function Webhooks() {
       <SectionHeading>{t('hooks.inTitle')}</SectionHeading>
       <p className="text-[12px] text-muted mb-2">{t('hooks.inHint')}</p>
       {incoming.map((hook) => <Hook key={hook.id} hook={hook} onRemove={async (id, name) => {
-        if (await confirm(t('hooks.remove') + ` — ${name}?`)) remove('webhook', id);
+        if (await confirm(t('hooks.remove') + ` — ${name}?`, t('hooks.remove'))) remove('webhook', id);
       }} />)}
       <Button
         onClick={() => create('webhook', {

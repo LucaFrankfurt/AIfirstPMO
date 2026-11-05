@@ -784,20 +784,20 @@ export function Progress({ value, total }: { value: number; total: number }) {
   );
 }
 
-/** Small confirm dialog — used before anything destructive. */
+/** Small confirm dialog — used before anything destructive. The button says the verb, "Delete" only by default (UX-04). */
 export function useConfirm() {
   const t = useT();
-  const [request, setRequest] = useState<{ message: string; confirmLabel?: string; resolve: (ok: boolean) => void } | null>(null);
+  const [request, setRequest] = useState<{ message: string; confirmLabel?: string; title?: string; resolve: (ok: boolean) => void } | null>(null);
 
   const confirm = useCallback(
-    (message: string, confirmLabel?: string) =>
-      new Promise<boolean>((resolve) => setRequest({ message, confirmLabel, resolve })),
+    (message: string, confirmLabel?: string, title?: string) =>
+      new Promise<boolean>((resolve) => setRequest({ message, confirmLabel, title, resolve })),
     [],
   );
 
   const dialog = request ? (
     <Sheet
-      title={t('action.confirmTitle')}
+      title={request.title ?? t('action.confirmTitle')}
       onClose={() => {
         request.resolve(false);
         setRequest(null);

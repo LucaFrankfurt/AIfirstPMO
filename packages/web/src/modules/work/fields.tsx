@@ -202,7 +202,7 @@ export function ProjectFields({ projectId }: { projectId: string }) {
             </Button>
             <Button variant="ghost" size="iconSm" aria-label={t('field.remove')} title={t('field.remove')}
               onClick={async () => {
-                if (await confirm(t('field.removeConfirm', { name: field.name }))) remove('field', field.id);
+                if (await confirm(t('field.removeConfirm', { name: field.name }), t('action.remove'))) remove('field', field.id);
               }}
             >
               <Icon name="trash" size={13} />

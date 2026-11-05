@@ -333,6 +333,8 @@ export function More() {
               already has them elsewhere. */}
           <Link className={navItem()} to="/projects/new"><Icon name="plus" size={16} /> {t('nav.newProject')}</Link>
           <Link className={navItem()} to="/settings"><Icon name="settings" size={16} /> {t('nav.settings')}</Link>
+          {/* The way back from a delete, one tap from here rather than three (UX-04). */}
+          <Link className={navItem()} to="/settings?tab=data"><Icon name="trash" size={16} /> {t('trash.title')}</Link>
         </div>
 
         <div className="nav-section">{t('nav.projects')}</div>

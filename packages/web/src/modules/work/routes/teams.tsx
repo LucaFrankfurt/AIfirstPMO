@@ -89,9 +89,11 @@ export function Teams() {
                           label: member.name,
                           hint: membership ? '✓' : undefined,
                           icon: <Avatar user={member} size={20} />,
-                          onSelect: () => {
-                            if (membership) remove('teamMember', membership.id);
-                            else create('teamMember', { team_id: team.id, user_id: member.id, role: 'member' });
+                          onSelect: async () => {
+                            if (!membership) create('teamMember', { team_id: team.id, user_id: member.id, role: 'member' });
+                            else if (await confirm(t('team.removeMemberConfirm', { name: member.name, team: team.name }), t('action.remove'), t('team.removeMemberTitle'))) {
+                              remove('teamMember', membership.id);
+                            }
                           },
                         };
                       }),
