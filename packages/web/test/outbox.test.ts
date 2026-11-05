@@ -402,3 +402,49 @@ describe('a slow or failing server (WEB-10)', () => {
     }
   });
 });
+
+// Chromium commits a transaction only after its success events ran; a reload right after Enter lost 14 of 40 quick-added tasks.
+describe('a page left right after a change (NEW-QUICKADD)', () => {
+  it('saves the change with its row in one committed transaction, and beacons the queue on the way out', async () => {
+    const writes: { stores: string[]; committed: boolean }[] = [];
+    const shim = globalThis.indexedDB as any;
+    const open = shim.open;
+    shim.open = (name: string, version?: number) => {
+      const request = open.call(shim, name, version);
+      const db = request.result;
+      const transaction = db.transaction.bind(db);
+      db.transaction = (names: string | string[], mode?: string) => {
+        const tx = transaction(names, mode);
+        const write = { stores: [names].flat(), committed: false };
+        if (mode === 'readwrite') writes.push(write);
+        tx.commit = () => { write.committed = true; };
+        return tx;
+      };
+      return request;
+    };
+    const beacons: { url: string; body: Blob }[] = [];
+    (navigator as any).sendBeacon = (url: string, body: Blob) => { beacons.push({ url, body }); return true; };
+    try {
+      await sync.start('ws-Q', 'ada');
+      writes.length = 0;
+      const id = mutations.create('task', { project_id: 'p', title: 'quick-added' });
+      window.dispatchEvent(new Event('pagehide'));
+      await settle(10);
+
+      const saved = writes.find((write) => write.stores.includes(idb.OUTBOX));
+      assert.deepEqual(saved?.stores.sort(), [idb.OUTBOX, 'task'], 'the change and its row in one transaction');
+      assert.ok(saved?.committed, 'committed at once, not after a round trip the page may not see');
+      // Other tabs of this file (`?tab=…` imports) share the fake window, so only this workspace's beacon counts.
+      const sent = await Promise.all(beacons.map(async ({ url, body }) => ({ url, ...JSON.parse(await body.text()) })));
+      const mine = sent.filter((beacon) => beacon.workspaceId === 'ws-Q');
+      assert.equal(mine.length, 1, 'the queue is sent as the page goes');
+      assert.equal(mine[0].url, '/api/sync/push');
+      assert.deepEqual(mine[0].mutations.map((m: { entityId: string }) => m.entityId), [id]);
+    } finally {
+      shim.open = open;
+      delete (navigator as any).sendBeacon;
+      await until(() => sync.getStatus().pending === 0);
+      sync.stop();
+    }
+  });
+});

@@ -111,7 +111,7 @@ export async function put(store: string, value: unknown, name = current): Promis
   const db = await open(name);
   const tx = db.transaction(store, 'readwrite');
   tx.objectStore(store).put(value);
-  await done(tx);
+  await done(commit(tx));
 }
 
 export async function putMany(entries: { store: string; values: unknown[] }[], name = current): Promise<void> {
@@ -123,14 +123,14 @@ export async function putMany(entries: { store: string; values: unknown[] }[], n
     const objectStore = tx.objectStore(entry.store);
     for (const value of entry.values) objectStore.put(value);
   }
-  await done(tx);
+  await done(commit(tx));
 }
 
 export async function remove(store: string, key: string, name = current): Promise<void> {
   const db = await open(name);
   const tx = db.transaction(store, 'readwrite');
   tx.objectStore(store).delete(key);
-  await done(tx);
+  await done(commit(tx));
 }
 
 export async function removeMany(store: string, keys: string[], name = current): Promise<void> {
@@ -138,14 +138,14 @@ export async function removeMany(store: string, keys: string[], name = current):
   const db = await open(name);
   const tx = db.transaction(store, 'readwrite');
   for (const key of keys) tx.objectStore(store).delete(key);
-  await done(tx);
+  await done(commit(tx));
 }
 
 export async function clear(stores: readonly string[], name = current): Promise<void> {
   const db = await open(name);
   const tx = db.transaction([...stores], 'readwrite');
   for (const store of stores) tx.objectStore(store).clear();
-  await done(tx);
+  await done(commit(tx));
 }
 
 export async function getMeta<T = any>(key: string, name = current): Promise<T | undefined> {
@@ -177,6 +177,12 @@ export async function erase(name: string): Promise<void> {
     request.onblocked = () => resolve();
   });
 }
+
+/** Commit now rather than after the success round trip, which a page left a moment later never sees. */
+const commit = (tx: IDBTransaction): IDBTransaction => {
+  tx.commit?.();
+  return tx;
+};
 
 const done = (tx: IDBTransaction): Promise<void> =>
   new Promise((resolve, reject) => {

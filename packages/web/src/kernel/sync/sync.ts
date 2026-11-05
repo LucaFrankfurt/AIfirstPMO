@@ -280,8 +280,10 @@ async function persist(changes: ChangeSet, db = idb.currentMirror()): Promise<vo
 
 /* -------------------------------------------------------------------- push */
 
-/** Queue a local change: store first, network whenever it comes back. */
-export function enqueue(entity: EntityName, entityId: string, patch: Record<string, unknown>, op: 'upsert' | 'delete' = 'upsert'): void {
+/** Queue a local change: store first, network whenever it comes back. `row` is the optimistic row to save with it. */
+export function enqueue(
+  entity: EntityName, entityId: string, patch: Record<string, unknown>, op: 'upsert' | 'delete' = 'upsert', row?: Record<string, unknown>,
+): void {
   const mutation: Mutation = {
     id: crypto.randomUUID(),
     entity,
@@ -294,7 +296,8 @@ export function enqueue(entity: EntityName, entityId: string, patch: Record<stri
   if (replaced.length) outbox = outbox.filter((queued) => !replaced.includes(queued));
   outbox.push(mutation);
   setStatus({ pending: outbox.length, state: 'syncing' });
-  void idb.put(idb.OUTBOX, mutation);
+  // One transaction for the change and its row, so a page left right after keeps both or neither.
+  void idb.putMany([{ store: idb.OUTBOX, values: [mutation] }, ...(row ? [{ store: idb.storeFor(entity), values: [row] }] : [])]);
   // After the put, so a reload in between finds both rather than neither.
   if (replaced.length) void idb.removeMany(idb.OUTBOX, replaced.map((queued) => queued.id));
   scheduleFlush();
@@ -409,6 +412,23 @@ async function push(): Promise<void> {
       handleError(err);
     }
   }
+}
+
+/** A page being left beacons its queue (64 KiB cap; a keepalive fetch was measured to drop); the server skips a mutation it already applied. */
+function sendOnLeave(): void {
+  // A beacon carries the cookie only, not the packaged app's bearer token.
+  if (!workspaceId || !outbox.length || refused === generation || !navigator.onLine || sessionToken()) return;
+  if (typeof navigator.sendBeacon !== 'function') return;
+  const batch: Mutation[] = [];
+  let bytes = 0;
+  for (const mutation of outbox) {
+    bytes += sizeOf(mutation);
+    if (bytes > 60_000) break;
+    batch.push(mutation);
+  }
+  if (!batch.length) return;
+  const body = new Blob([JSON.stringify({ workspaceId, clientId, mutations: batch })], { type: 'application/json' });
+  navigator.sendBeacon(serverUrl('/api/sync/push'), body);
 }
 
 /** A 413: halve the batch; one mutation too large alone is dropped like a rejection, or it blocks the queue for good. */
@@ -638,6 +658,7 @@ window.addEventListener('online', () => {
   connect();
 });
 window.addEventListener('offline', () => setStatus({ state: 'offline' }));
+window.addEventListener('pagehide', sendOnLeave);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && navigator.onLine) void pull();
 });
