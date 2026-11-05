@@ -334,6 +334,8 @@ p { margin: 0 0 0.75em; }
 }
 
 .content {
+  /* Containing block for absolute descendants (e.g. .sr-only); without it they escape and scroll the document too. */
+  position: relative;
   flex: 1;
   min-height: 0;
   overflow-y: auto;

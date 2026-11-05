@@ -107,6 +107,8 @@ const inspect = () => {
   const out = [];
   const doc = document.documentElement;
   if (doc.scrollWidth > doc.clientWidth + 1) out.push(`page scrolls sideways by ${doc.scrollWidth - doc.clientWidth}px`);
+  // Only #content scrolls; a scrolling document means a second scrollbar.
+  if (doc.scrollHeight > doc.clientHeight + 1) out.push(`page scrolls vertically by ${doc.scrollHeight - doc.clientHeight}px (second scrollbar)`);
 
   const header = document.querySelector('.header');
   if (header) {
