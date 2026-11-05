@@ -245,7 +245,7 @@ export function CostReport() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="week-bar">
+      <div className="week-bar flex-wrap">
         <Select
           className="w-auto"
           aria-label={t('rate.window')}

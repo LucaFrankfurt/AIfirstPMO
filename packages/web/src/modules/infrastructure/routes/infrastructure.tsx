@@ -128,7 +128,7 @@ function Register() {
         </div>
       </div>
 
-      <div className="week-bar">
+      <div className="week-bar flex-wrap">
         <Select className="w-auto" aria-label={t('estate.environment')} value={environment} onChange={(event) => setEnvironment(event.target.value)}>
           <option value="">{t('estate.allEnvironments')}</option>
           {['production', 'staging', 'development', 'shared'].map((env) => (
@@ -136,7 +136,7 @@ function Register() {
           ))}
         </Select>
         <label className="target-field">
-          <input type="checkbox" checked={showRetired} onChange={(event) => setShowRetired(event.target.checked)} />
+          <span className="select-box"><input type="checkbox" checked={showRetired} onChange={(event) => setShowRetired(event.target.checked)} /></span>
           {t('estate.showRetired')}
         </label>
         <div className="flex-1 min-w-0" />
@@ -173,7 +173,7 @@ function Register() {
                         of row. */}
                     <span style={{ paddingInlineStart: depth * 18 }}>
                       {depth > 0 && <span className="tree-branch" aria-hidden>└ </span>}
-                      {canWrite ? <button type="button" className="row-open">{component.name}</button> : component.name}
+                      {canWrite ? <button type="button" className="row-open cell-link">{component.name}</button> : component.name}
                     </span>
                     {component.reference && <span className="row-sub" style={{ paddingInlineStart: depth * 18 }}>{component.reference}</span>}
                   </td>
@@ -252,7 +252,7 @@ function Landscape() {
 
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-      <div className="week-bar">
+      <div className="week-bar flex-wrap">
         <label className="target-field">
           {t('estate.from')}
           <Input type="date" className="w-auto" value={from} onChange={(event) => setFrom(event.target.value || today())} />

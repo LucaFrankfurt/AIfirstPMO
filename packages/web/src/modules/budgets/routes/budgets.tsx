@@ -214,7 +214,7 @@ export function BudgetIndex() {
                 {rolled.map(({ budget, totals }) => (
                   <tr key={budget.id} onClick={() => navigate(`/budgets/${budget.id}`)}>
                     <td className="title">
-                      <Link to={`/budgets/${budget.id}`}>{budget.name}</Link>
+                      <Link className="cell-link" to={`/budgets/${budget.id}`}>{budget.name}</Link>
                       {/* The row is nine columns wide and a phone shows two of
                           them, so the figure somebody came for was behind a
                           sideways scroll. It goes under the name on a narrow
