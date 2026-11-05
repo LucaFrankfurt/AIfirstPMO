@@ -528,6 +528,28 @@ describe('a colleague outside a private project', () => {
     const bytes = await fetch(`${base}/files/${hash}/borrowed.webp`, { headers: { cookie: outsider.cookie } });
     assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
   });
+
+  it('cannot import into the private project, or post in a colleague’s name', async () => {
+    const { body: task } = await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie });
+    const doc = {
+      format: 'kolibri.project/1', project: { name: 'Imported', key: 'IMP' },
+      people: [{ id: 'p-ada', email: 'ada@example.com', name: 'Ada' }],
+      tasks: [{ id: 't1', identifier: task.identifier, title: 'Overwritten by an import' }],
+      comments: [{ id: 'c1', task_id: 't1', author_id: 'p-ada', body: 'Ada never said this' }],
+    };
+    const merged = await call(`/api/workspaces/${ada.workspace}/import/json`, {
+      cookie: outsider.cookie, body: { document: doc, project_id: privateProject },
+    });
+    assert.equal(merged.status, 403, 'an import merged into a project its importer cannot open');
+    assert.equal((await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie })).body.title, 'Next quarter salaries');
+
+    const fresh = await call(`/api/workspaces/${ada.workspace}/import/json`, { cookie: outsider.cookie, body: { document: doc } });
+    assert.equal(fresh.status, 200, 'a guard that refuses every import is not a fix');
+    const me = (await call('/api/session', { cookie: outsider.cookie })).body.user.id;
+    const { body: comments } = await call(`/api/workspaces/${ada.workspace}/comments`, { cookie: ada.cookie });
+    const forged = comments.find((row: any) => row.body === 'Ada never said this');
+    assert.equal(forged?.author_id, me, 'an imported comment was filed under a colleague matched by email');
+  });
 });
 
 describe('the address book', () => {

@@ -276,9 +276,9 @@ reads them back on import. A **private** one is left out on purpose: a project e
 somebody emails, and a private room's whole point is that being able to see the project is not
 enough to be in it. There is also nothing sensible to do with a membership list on another instance.
 
-Message authors are matched by email like everything else in the document; anybody this instance
-does not know becomes the person who pressed import. Reactions do not survive — those ids mean
-nothing here.
+Every imported message is written as the person who pressed import, never as whoever the file names:
+matching authors by email would let anybody with an import put words in a colleague's mouth.
+Reactions do not survive — those ids mean nothing here.
 
 ## Presence and typing
 

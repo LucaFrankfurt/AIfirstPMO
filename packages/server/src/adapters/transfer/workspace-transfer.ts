@@ -447,7 +447,8 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
     if (!page) continue;
     write('comment', row, {
       page_id: page, task_id: null, parent_id: to(row.parent_id), anchor: repin(row.anchor, to),
-      author_id: who(row.author_id) ?? actorId, reactions: {},
+      // The importer, as in `importProject`: a file cannot make somebody here say anything.
+      author_id: actorId, reactions: {},
     });
     bump('comments');
   }
@@ -475,7 +476,7 @@ function writeWorkspace(actorId: string, doc: WorkspaceDoc, options: WorkspaceIm
     if (!channel) continue;
     write('message', row, {
       channel_id: channel, reply_to: to(row.reply_to),
-      author_id: who(row.author_id) ?? actorId, reactions: {},
+      author_id: actorId, reactions: {},
     });
     bump('messages');
   }
