@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { asIdentifier, matchesTerms, pageExcerpt, parseTerms } from '@kolibri/shared';
-import { createPortal } from 'react-dom';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { useNavigate } from 'react-router-dom';
 import { list, useQuery } from './kernel/sync/store';
-
+import { createPage } from './kernel/sync/mutations';
 import { useOpenTask } from './kernel/design-system/navigation';
-import { useSession } from './kernel/identity/session';
+import { DESTINATIONS, enabled } from './kernel/design-system/nav';
+import { useCanWrite, useFeatures, useMe, useSession } from './kernel/identity/session';
 import { useT } from './kernel/i18n/i18n';
 import { Icon, StateDot } from './kernel/design-system/ui';
 import { stateOf } from './modules/work/task-parts';
@@ -40,7 +41,13 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate();
   const openTask = useOpenTask();
   const { workspaceId } = useSession();
+  const me = useMe();
+  const has = useFeatures();
+  const canWrite = useCanWrite();
   const listRef = useRef<HTMLDivElement>(null);
+  // Radix returns focus only to a Dialog.Trigger, and the palette has none: ⌘K opens it from anywhere.
+  const [opener] = useState(() => document.activeElement as HTMLElement | null);
+  const ran = useRef(false);
 
   const tasks = useQuery(() => list('task', (t) => t.workspace_id === workspaceId && !t.archived), [workspaceId]);
   const projects = useQuery(() => list('project', (p) => p.workspace_id === workspaceId), [workspaceId]);
@@ -51,13 +58,32 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       navigate(path);
       onClose();
     };
+    // The sidebar's places, from the same list (UX-06), with Portfolio on the sidebar's condition.
     const navigation: Command[] = [
       { id: 'nav-my', icon: 'home', title: t('nav.myWork'), run: go('/') },
       { id: 'nav-inbox', icon: 'inbox', title: t('nav.inbox'), run: go('/inbox') },
-      { id: 'nav-pages', icon: 'page', title: t('nav.pages'), run: go('/pages') },
-      { id: 'nav-teams', icon: 'users', title: t('nav.teams'), run: go('/teams') },
+      { id: 'nav-search', icon: 'search', title: t('nav.search'), run: go('/search') },
+      ...enabled(DESTINATIONS, has).map((item) => ({ id: `nav-${item.to}`, icon: item.icon, title: t(item.label), run: go(item.to) })),
+      ...(projects.filter((project) => !project.archived).length > 1
+        ? [{ id: 'nav-portfolio', icon: 'target', title: t('nav.portfolio'), run: go('/portfolio') }]
+        : []),
       { id: 'nav-settings', icon: 'settings', title: t('nav.settings'), run: go('/settings') },
-      { id: 'nav-guide', icon: 'help', title: t('nav.guide'), run: go('/guide') },
+      ...(canWrite ? [
+        {
+          id: 'new-task', icon: 'plus', title: t('nav.newTask'),
+          run: () => {
+            onClose();
+            window.dispatchEvent(new CustomEvent('kolibri:new-task'));
+          },
+        },
+        {
+          id: 'new-page', icon: 'plus', title: t('project.newPage'),
+          run: () => {
+            navigate(`/pages/${createPage({ title: t('common.untitled') }, me)}`);
+            onClose();
+          },
+        },
+      ] : []),
       { id: 'nav-new-project', icon: 'plus', title: t('nav.newProject'), run: go('/projects/new') },
     ];
 
@@ -128,61 +154,90 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
       ...navigation.filter((command) => match(command.title)),
       ...fullText,
     ];
-  }, [query, tasks, projects, pages, navigate, openTask, onClose, t]);
+  }, [query, tasks, projects, pages, navigate, openTask, onClose, t, has, canWrite, me]);
 
   useEffect(() => setActive(0), [query]);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-      if (event.key === 'ArrowDown') {
-        event.preventDefault();
-        setActive((current) => Math.min(current + 1, commands.length - 1));
-      }
-      if (event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActive((current) => Math.max(current - 1, 0));
-      }
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        commands[active]?.run();
-      }
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [commands, active, onClose]);
+  const choose = (command: Command) => {
+    ran.current = true;
+    command.run();
+  };
+
+  const onKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setActive((current) => Math.min(current + 1, commands.length - 1));
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setActive((current) => Math.max(current - 1, 0));
+    } else if (event.key === 'Enter' && commands[active]) {
+      event.preventDefault();
+      choose(commands[active]);
+    }
+  };
 
   useEffect(() => {
-    listRef.current?.querySelector('.highlight')?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
   }, [active]);
 
-  return createPortal(
-    <div className="palette" onPointerDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="box">
-        <input
-          autoFocus
-          placeholder={t('search.palettePlaceholder')}
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-        <div className="results menu" ref={listRef} style={{ position: 'static', border: 'none', boxShadow: 'none', maxHeight: 'none' }}>
-          {commands.length === 0 && <div className="section">{t('search.paletteNoResults', { query })}</div>}
-          {commands.map((command, index) => (
-            <button
-              key={command.id}
-              className={index === active ? 'highlight' : ''}
-              onPointerEnter={() => setActive(index)}
-              onClick={command.run}
-            >
-              <Icon name={command.icon} size={15} />
-              <span className="flex-1 min-w-0 truncate">{command.title}</span>
-              {command.hint && <span className="text-muted mono">{command.hint}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>,
-    document.body,
+  // A real modal dialog (UX-05): focus trapped, the page behind hidden, Escape and the backdrop close it.
+  return (
+    <DialogPrimitive.Root open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="palette">
+          <DialogPrimitive.Content
+            className="box"
+            aria-describedby={undefined}
+            onKeyDown={onKeyDown}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              // A command that ran has moved on (a new screen, a sheet); only a dismissal goes back.
+              if (!ran.current && opener?.isConnected) opener.focus();
+            }}
+          >
+            <DialogPrimitive.Title className="sr-only">{t('guide.key.palette')}</DialogPrimitive.Title>
+            <input
+              role="combobox"
+              aria-label={t('search.title')}
+              aria-expanded={commands.length > 0}
+              aria-controls={commands.length ? 'palette-results' : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={commands[active] ? `palette-option-${active}` : undefined}
+              placeholder={t('search.palettePlaceholder')}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <div className="results menu" ref={listRef} style={{ position: 'static', border: 'none', boxShadow: 'none', maxHeight: 'none' }}>
+              {commands.length === 0 ? (
+                <div className="section">{t('search.paletteNoResults', { query })}</div>
+              ) : (
+                <div id="palette-results" role="listbox" aria-label={t('guide.key.palette')}>
+                  {commands.map((command, index) => (
+                    <button
+                      key={command.id}
+                      id={`palette-option-${index}`}
+                      type="button"
+                      role="option"
+                      aria-selected={index === active}
+                      tabIndex={-1}
+                      className={index === active ? 'highlight' : ''}
+                      // The field keeps focus, so the combobox's active option stays what is announced.
+                      onMouseDown={(event) => event.preventDefault()}
+                      onPointerEnter={() => setActive(index)}
+                      onClick={() => choose(command)}
+                    >
+                      <Icon name={command.icon} size={15} />
+                      <span className="flex-1 min-w-0 truncate">{command.title}</span>
+                      {command.hint && <span className="text-muted mono">{command.hint}</span>}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Overlay>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 }
 

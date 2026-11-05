@@ -250,6 +250,24 @@ describe('every tab strip', () => {
   });
 });
 
+// ⌘K was a div of buttons: silent while arrowing, Tab walked out, focus lost on close (UX-05).
+describe('the command palette', () => {
+  const palette = readFileSync(join(SRC, 'CommandPalette.tsx'), 'utf8');
+
+  it('is a modal dialog that hands focus back', () => {
+    assert.match(palette, /<DialogPrimitive\.Content\b/, 'not a Radix dialog: no focus trap, the page behind stays reachable');
+    assert.doesNotMatch(palette, /createPortal|addEventListener\('keydown'/, 'a hand-rolled overlay is back');
+    assert.match(palette, /onCloseAutoFocus=\{[^]*?opener\.focus\(\)/, 'nothing returns focus to what opened it');
+  });
+
+  it('is a labelled combobox over a listbox', () => {
+    assert.match(palette, /role="combobox"\s+aria-label=/);
+    for (const needle of ['aria-activedescendant=', 'role="listbox"', 'role="option"', 'aria-selected=']) {
+      assert.ok(palette.includes(needle), `CommandPalette.tsx lost ${needle}`);
+    }
+  });
+});
+
 /**
  * Two fields side by side were being written as `flex items-center`, which
  * centres each one against the tallest of them. One of a pair almost always
