@@ -3,7 +3,7 @@ import {
   PRIORITIES, ancestry, coversProject, descendants, fieldKeys, isDoneGroup, mayEnter,
   type Cycle, type Filters, type Label, type Layout, type Module, type State, type Task,
 } from '@kolibri/shared';
-import { byId, list, useQuery } from '../../kernel/sync/store';
+import { byId, list, listBy, useQuery } from '../../kernel/sync/store';
 import { byOrder, moveTaskToProject, remove, restore, toggleAssignee, toggleLabel, update } from '../../kernel/sync/mutations';
 import { dueClass, shortDate } from '../../kernel/design-system/format';
 import { groupKey, priorityKey, useT, type Translate } from '../../kernel/i18n/i18n';
@@ -448,7 +448,7 @@ export function TaskRow({
   const project = byId('project', task.project_id);
   const done = isDoneGroup(state?.group_key);
   const people = (task.assignees ?? []).map((id) => members.get(id)).filter(Boolean) as any[];
-  const subtasks = useQuery(() => list('task', (t) => t.parent_id === task.id), [task.id]);
+  const subtasks = useQuery(() => listBy('task', 'parent_id', task.id), [task.id]);
   const picked = !!selection?.has(task.id);
   const press = useLongPressSelect(task.id, order ?? [task.id], selection ?? EMPTY_SELECTION);
 

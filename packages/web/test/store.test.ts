@@ -19,7 +19,7 @@ import { installBrowser } from './browser.ts';
 
 installBrowser();
 
-const { applyChanges, byId, list, listAll, patchLocal, query, reset, tables } = await import('../src/kernel/sync/store');
+const { applyChanges, byId, forgetLocal, hydrate, list, listAll, listBy, patchLocal, query, reset, tables } = await import('../src/kernel/sync/store');
 
 /** A selector with a call counter on it, so "did it run again" is a number. */
 function counted<T>(select: () => T): (() => T) & { runs: number } {
@@ -190,5 +190,38 @@ describe('a merged field', () => {
 
     assert.equal(byId('page', 'p1')!.title, 'Renamed');
     assert.equal(crdt.textOf(byId('page', 'p1')!.body), 'text\n', 'and the body is still there');
+  });
+});
+
+// A sub-task count per rendered row used to scan every task: 2,000 tasks and 500 rows were a million predicate calls per write.
+describe('a lookup by an indexed field (WEB-12)', () => {
+  const children = (id: string) => listBy('task', 'parent_id', id).map((row: any) => row.id).sort();
+  const scanned = (id: string) => list('task', (row: any) => row.parent_id === id).map((row: any) => row.id).sort();
+
+  it('answers what a scan would, through every kind of write', () => {
+    applyChanges({ task: [task('c1', { parent_id: 't1' }), task('c2', { parent_id: 't1' }), task('c3', { parent_id: 't2' })] } as any);
+    assert.deepEqual(children('t1'), ['c1', 'c2']);
+    patchLocal('task', 'c2', { parent_id: 't2' });
+    applyChanges({ task: [{ id: 'c3', title: 'an echo without the field' }] } as any);
+    patchLocal('task', 'c1', { deleted_at: Date.now() });
+    for (const id of ['t1', 't2']) assert.deepEqual(children(id), scanned(id));
+    assert.deepEqual(children('t2'), ['c2', 'c3']);
+
+    applyChanges({ purge: [{ entity: 'task', row_id: 'c2' }] } as any);
+    forgetLocal('task', 'c3');
+    assert.deepEqual(children('t2'), []);
+    reset();
+    hydrate('task', [task('c4', { parent_id: 't1' })]);
+    assert.deepEqual(children('t1'), ['c4'], 'a reset leaves nothing behind, and a cold start fills it');
+  });
+
+  it('runs a selector built on it again when its table changes, and only then', () => {
+    const select = counted(() => listBy('task', 'parent_id', 't1').length);
+    assert.equal(query(select), 0);
+    patchLocal('task', 'c9', { parent_id: 't1' });
+    assert.equal(query(select), 1);
+    patchLocal('label', 'l1', { name: 'bug' });
+    query(select);
+    assert.equal(select.runs, 2);
   });
 });
