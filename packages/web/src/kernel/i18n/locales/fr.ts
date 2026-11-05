@@ -36,6 +36,8 @@ export const fr: Catalogue = {
   'action.unarchive': 'Désarchiver',
   'action.working': 'En cours…',
   'action.confirmTitle': 'Confirmer ?',
+  'sheet.discardChanges': 'Ce que vous avez saisi ici n’est pas enregistré. Fermer et l’abandonner ?',
+  'sheet.discard': 'Abandonner',
   'common.untitled': 'Sans titre',
   'common.nobody': 'Personne',
   'common.someone': 'Quelqu’un',

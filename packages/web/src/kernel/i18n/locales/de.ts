@@ -29,6 +29,8 @@ export const de: Catalogue = {
   'action.unarchive': 'Aus dem Archiv holen',
   'action.working': 'Einen Moment…',
   'action.confirmTitle': 'Sicher?',
+  'sheet.discardChanges': 'Was du hier eingegeben hast, ist nicht gespeichert. Schließen und verwerfen?',
+  'sheet.discard': 'Verwerfen',
   'common.untitled': 'Ohne Titel',
   'common.nobody': 'Niemand',
   'common.someone': 'Jemand',

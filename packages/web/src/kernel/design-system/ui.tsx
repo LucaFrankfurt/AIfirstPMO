@@ -242,11 +242,17 @@ export function PriorityBars({ priority }: { priority: Priority }) {
  * scroll position instead of jumping to the top on close.
  */
 export function Sheet({
-  title, children, onClose, footer, wide,
-}: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean }) {
+  title, children, onClose, footer, wide, dirty,
+}: { title?: ReactNode; children: ReactNode; onClose: () => void; footer?: ReactNode; wide?: boolean; dirty?: boolean }) {
   const t = useT();
+  const discard = useConfirm();
+  // Escape, the backdrop and the X ask first when something typed would be lost (UX-13).
+  const dismiss = () => {
+    if (!dirty) return onClose();
+    void discard.confirm(t('sheet.discardChanges'), t('sheet.discard')).then((ok) => { if (ok) onClose(); });
+  };
   return (
-    <Dialog open onOpenChange={(next) => { if (!next) onClose(); }}>
+    <Dialog open onOpenChange={(next) => { if (!next) dismiss(); }}>
       {/* `sheet` is kept as a hook, not a style — the CSS that used to draw it
           is gone, and this is what tests and the odd screen-specific rule use
           to find the surface. */}
@@ -256,9 +262,16 @@ export function Sheet({
           : <VisuallyHiddenTitle>{t('action.close')}</VisuallyHiddenTitle>}
         <DialogBody>{children}</DialogBody>
         {footer && <DialogFooter>{footer}</DialogFooter>}
+        {discard.dialog}
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Whether a form's state has moved from what it opened with — for `Sheet`'s `dirty`. */
+export function useDirty(value: unknown): boolean {
+  const [start] = useState(() => JSON.stringify(value));
+  return JSON.stringify(value) !== start;
 }
 
 /** A dialog must have a title even when the design shows none. */

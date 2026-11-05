@@ -422,3 +422,38 @@ describe('every row or card that opens on a click', () => {
     assert.deepEqual(mouseOnly, [], `opens on a click and never from the keyboard: ${mouseOnly.join(', ')}`);
   });
 });
+
+/** One function's source, from its `function` line to the next top-level one. */
+function functionBody(file: string, name: string): string {
+  const text = readFileSync(join(SRC, file), 'utf8');
+  const from = text.search(new RegExp(`\\nfunction ${name}\\b|\\nexport function ${name}\\b`));
+  assert.ok(from >= 0, `${name} is no longer in ${file}`);
+  const next = text.slice(from + 1).search(/\n(export )?function /);
+  return text.slice(from, next < 0 ? undefined : from + 1 + next);
+}
+
+// Escape or a stray click on the backdrop must not throw away a half-written record (UX-13).
+describe('a create or edit sheet with typed input', () => {
+  const EDITORS: [string, string][] = [
+    ['modules/work/QuickAdd.tsx', 'QuickAdd'],
+    ['modules/kpis/routes/kpis.tsx', 'KpiForm'],
+    ['modules/kpis/routes/kpis.tsx', 'ReadingForm'],
+    ['modules/kpis/routes/kpis.tsx', 'TargetForm'],
+    ['modules/budgets/routes/budgets.tsx', 'BudgetForm'],
+    ['modules/budgets/routes/budgets.tsx', 'LineForm'],
+    ['modules/budgets/routes/budgets.tsx', 'ActualForm'],
+    ['modules/products/routes/products.tsx', 'ProductForm'],
+  ];
+
+  it('asks before closing', () => {
+    const blind = EDITORS.filter(([file, name]) => !/<Sheet\b[^]*?\bdirty=\{/.test(functionBody(file, name))).map(([, name]) => name);
+    assert.deepEqual(blind, [], `sheet(s) that drop typed input on Escape: ${blind.join(', ')}`);
+  });
+
+  it('creates a task on a plain Enter in the title', () => {
+    const quick = functionBody('modules/work/QuickAdd.tsx', 'QuickAdd');
+    const handler = quick.slice(quick.indexOf('onKeyDown='), quick.indexOf('className="text-base'));
+    assert.match(handler, /event\.key === 'Enter'/);
+    assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
+  });
+});

@@ -31,7 +31,7 @@ import {
 } from '../budget';
 import { Stat } from '../../planning/insights';
 import { MoneyInput, asMoney } from '../../../kernel/design-system/ui/money';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty, Icon, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Chip } from '../../../kernel/design-system/ui/chip';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
@@ -700,6 +700,7 @@ function LineForm({ budget, line, last, onClose }: {
     note: line?.note ?? '',
   }));
   const [allocations, setAllocations] = useState<Allocation[]>(line?.allocations ?? []);
+  const dirty = useDirty({ form, allocations });
 
   const save = () => {
     const patch = {
@@ -725,6 +726,7 @@ function LineForm({ budget, line, last, onClose }: {
     <Sheet
       title={line ? t('budget.line') : t('budget.addLine')}
       onClose={onClose}
+      dirty={dirty}
       footer={<Button variant="primary" onClick={save} disabled={!form.name.trim()}>{t('action.save')}</Button>}
     >
       <div className="field">
@@ -1104,6 +1106,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
     note: entry?.note ?? '',
   }));
   const [allocations, setAllocations] = useState<Allocation[]>(entry?.allocations ?? []);
+  const dirty = useDirty({ form, allocations });
 
   /**
    * Picking a plan line fills in the things the line already knows.
@@ -1148,6 +1151,7 @@ function ActualForm({ budget, entry, lines, onClose }: {
     <Sheet
       title={t('budget.addActual')}
       onClose={onClose}
+      dirty={dirty}
       footer={<Button variant="primary" onClick={save} disabled={!form.description.trim()}>{t('action.save')}</Button>}
     >
       <div className="field">
@@ -1656,12 +1660,14 @@ function BudgetForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: s
     project_id: null,
     projects: [],
   }));
+  const dirty = useDirty(draft);
 
   return (
     <Sheet
       title={t('budget.new')}
       wide
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"

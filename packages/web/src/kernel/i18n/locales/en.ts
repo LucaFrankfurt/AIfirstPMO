@@ -28,6 +28,8 @@ export const en = {
   'action.unarchive': 'Unarchive',
   'action.working': 'Working…',
   'action.confirmTitle': 'Are you sure?',
+  'sheet.discardChanges': 'What you typed here has not been saved. Close and discard it?',
+  'sheet.discard': 'Discard',
   'common.untitled': 'Untitled',
   'common.nobody': 'Nobody',
   'common.someone': 'Someone',

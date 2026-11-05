@@ -27,7 +27,7 @@ import {
   cadenceKey, directionKey, healthKey, measure, unitKey,
 } from '../kpi';
 import { Stat } from '../../planning/insights';
-import { Empty, Icon, Sheet, useConfirm, useToast } from '../../../kernel/design-system/ui';
+import { Empty, Icon, Sheet, useConfirm, useDirty, useToast } from '../../../kernel/design-system/ui';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { Input, Select, Textarea } from '../../../kernel/design-system/ui/field';
 import { SectionHeading } from '../../../kernel/design-system/ui/section';
@@ -387,11 +387,13 @@ function ReadingForm({ kpi, entry, onClose }: { kpi: Kpi; entry: KpiReading | nu
     source: entry?.source ?? '',
     note: entry?.note ?? '',
   }));
+  const dirty = useDirty(form);
 
   return (
     <Sheet
       title={entry ? t('kpi.editReading') : t('kpi.addReading')}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"
@@ -578,11 +580,13 @@ function TargetForm({ kpi, entry, modules, onClose }: {
     note: entry?.note ?? '',
   }));
   const module = modules.find((row) => row.id === form.module_id);
+  const dirty = useDirty(form);
 
   return (
     <Sheet
       title={entry ? t('kpi.editTarget') : t('kpi.addTarget')}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"
@@ -823,11 +827,13 @@ function KpiForm({ onClose, onSaved }: { onClose: () => void; onSaved: (id: stri
     project_id: null,
     projects: [],
   });
+  const dirty = useDirty(draft);
 
   return (
     <Sheet
       title={t('kpi.new')}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <Button
           variant="primary"
