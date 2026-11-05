@@ -2,7 +2,7 @@ import { Component, Suspense, lazy, useEffect, useState, type ReactNode } from '
 import { Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppShell } from './AppShell';
 import { TaskDetail } from './modules/work/TaskDetail';
-import { Empty, ToastHost } from './kernel/design-system/ui';
+import { Empty, Sheet, ToastHost } from './kernel/design-system/ui';
 import { Button } from './kernel/design-system/ui/button';
 import { WelcomeTour } from './modules/guide/tour';
 import { AcceptInvite, Login } from './kernel/identity/routes/Login';
@@ -51,7 +51,7 @@ const Help = lazy(() => import('./modules/guide/routes/help').then((m) => ({ def
 const Settings = lazy(() => import('./modules/operations/routes/settings').then((m) => ({ default: m.Settings })));
 import { backgroundOf, stackDepth, useOpenTask, useTaskRef } from './kernel/design-system/navigation';
 import { useFeatures, useSession } from './kernel/identity/session';
-import { useI18n, type Locale } from './kernel/i18n/i18n';
+import { useI18n, useT, type Locale, type TranslationKey } from './kernel/i18n/i18n';
 import { warmFrame } from './modules/pages/frame';
 
 /** Tasks are addressable, so a link into a task opens it over the last screen. */
@@ -61,6 +61,7 @@ function TaskRoute() {
   const navigate = useNavigate();
   const location = useLocation();
   const openTask = useOpenTask();
+  const t = useT();
   const close = () => {
     // Went straight to the link: there is nothing to go back to.
     // Otherwise pop the whole stack — a sub-task opened from a task is a second
@@ -69,7 +70,11 @@ function TaskRoute() {
     if (backgroundOf(location)) navigate(-stackDepth(location));
     else navigate('/', { replace: true });
   };
-  return <TaskDetail taskId={taskId} onClose={close} onOpen={openTask} />;
+  return (
+    <ScreenBoundary screen={id} sheet={close} {...failure(t)}>
+      <TaskDetail taskId={taskId} onClose={close} onOpen={openTask} />
+    </ScreenBoundary>
+  );
 }
 
 function Boot() {
@@ -117,11 +122,15 @@ const isChunkError = (error: unknown): boolean =>
  * A class because that is the only thing React lets catch a render error, and
  * `Empty` does the actual talking so it looks like every other empty screen.
  */
-class ScreenBoundary extends Component<
-  { children: ReactNode; screen: string; copy: { missing: [string, string]; broken: [string, string] }; retry: string },
-  { failed: false | 'missing' | 'broken' }
+export class ScreenBoundary extends Component<
+  {
+    children: ReactNode; screen: string; copy: { missing: [string, string]; broken: [string, string] }; retry: string;
+    /** Draw the failure as a sheet, for what sits over a screen; closing it calls this. */
+    sheet?: () => void;
+  },
+  { failed: false | 'missing' | 'broken' | 'closed' }
 > {
-  state: { failed: false | 'missing' | 'broken' } = { failed: false };
+  state: { failed: false | 'missing' | 'broken' | 'closed' } = { failed: false };
 
   static getDerivedStateFromError(error: unknown) {
     return { failed: isChunkError(error) ? 'missing' as const : 'broken' as const };
@@ -132,18 +141,32 @@ class ScreenBoundary extends Component<
   }
 
   render() {
-    if (!this.state.failed) return this.props.children;
-    const [title, hint] = this.props.copy[this.state.failed];
-    return (
+    const { failed } = this.state;
+    if (!failed) return this.props.children;
+    if (failed === 'closed') return null;
+    const [title, hint] = this.props.copy[failed];
+    const empty = (
       <Empty
-        emoji={this.state.failed === 'missing' ? '📡' : '🧯'}
+        emoji={failed === 'missing' ? '📡' : '🧯'}
         title={title}
         hint={hint}
         action={<Button onClick={() => window.location.reload()}>{this.props.retry}</Button>}
       />
     );
+    const { sheet } = this.props;
+    if (!sheet) return empty;
+    return <Sheet onClose={() => { this.setState({ failed: 'closed' }); sheet(); }}>{empty}</Sheet>;
   }
 }
+
+/** What a `ScreenBoundary` says, in the reader's words. */
+export const failure = (t: (key: TranslationKey) => string, broken: TranslationKey = 'misc.screenFailedHint') => ({
+  copy: {
+    missing: [t('misc.screenUnavailableTitle'), t('misc.screenUnavailableHint')] as [string, string],
+    broken: [t('misc.screenFailedTitle'), t(broken)] as [string, string],
+  },
+  retry: t('misc.reload'),
+});
 
 export default function App() {
   const { t, adoptLocale } = useI18n();
@@ -260,14 +283,7 @@ export default function App() {
       <AppShell>
         {/* The sheet renders over the screen recorded in the router state, so
             the page behind it never flickers or falls back to a 404. */}
-        <ScreenBoundary
-          screen={(background ?? location).pathname}
-          copy={{
-            missing: [t('misc.screenUnavailableTitle'), t('misc.screenUnavailableHint')],
-            broken: [t('misc.screenFailedTitle'), t('misc.screenFailedHint')],
-          }}
-          retry={t('misc.reload')}
-        >
+        <ScreenBoundary screen={(background ?? location).pathname} {...failure(t)}>
         <Suspense fallback={<Boot />}>
         <Routes location={background ?? location}>
           <Route path="/" element={<MyWork />} />
@@ -320,7 +336,9 @@ export default function App() {
         <Route path="/t/:id" element={<TaskRoute />} />
         <Route path="*" element={null} />
       </Routes>
-      <WelcomeTour />
+      <ScreenBoundary screen="tour" sheet={() => undefined} {...failure(t)}>
+        <WelcomeTour />
+      </ScreenBoundary>
     </ToastHost>
   );
 }

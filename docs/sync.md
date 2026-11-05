@@ -173,7 +173,7 @@ body limit.
 | Session expired (401) | Mirror and outbox are kept, a sign-in prompt appears, the outbox flushes after the same person signs in again. Every mirror on the device downloads again from cursor 0 on its next start, because restoring a snapshot signs everybody out and an older cursor would skip rows |
 | Signing out on purpose | Deletes this person's mirrors and outboxes on the device, after one last flush; if anything is still queued, a confirmation says how many changes would be lost |
 | Workspace switch, or a second tab | Each person and workspace has its own IndexedDB (`kolibri:<user>:<workspace>`), so nothing is cleared. A pull or push still on the network for the previous workspace is dropped when it answers |
-| Mutation rejected (e.g. permission) | Reported in `rejected[]`, dropped from the outbox, logged and surfaced in the status pill |
+| Mutation rejected (e.g. permission) | Reported in `rejected[]` with the status the error would have had. A refusal leaves the outbox and its row is re-read, but the change is kept on the device with its reason, and the status pill counts it until it is copied or dismissed. A 5xx (a locked database, say) is not a refusal: it stays queued and is retried with backoff |
 | Push refused as a whole (403) | Not a member any more, or a read-only token: the outbox is kept and not resent until the next start; the status pill says why |
 | Push too large (413) | The batch is halved until it fits, which also finds a proxy's lower limit. One mutation too large on its own is dropped like a rejection and reported, instead of blocking the queue behind it |
 | Tab in background | Polls every 60s; pulls immediately when it becomes visible again |
@@ -291,7 +291,8 @@ changes and remembers the character that was to its left when it was typed. The 
 then a deterministic function of the character *set*: walk the origin tree, and among characters
 sharing an origin the causally newer one comes first — a Lamport clock, with the agent id breaking
 ties. A deterministic function of a set converges no matter how the rows arrived, and that is the
-whole proof.
+whole proof. An agent is one loaded tab, not one browser: two tabs share the client id a push
+carries, and as one agent they minted the same identities for different letters.
 
 `pages.content` stays, as what the CRDT reads as. Everything else that touches a page — search,
 export, the share document, the markdown renderer, the REST API, MCP — carries on reading plain

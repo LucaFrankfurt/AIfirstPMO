@@ -10,17 +10,19 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { duration } from '@kolibri/shared';
-import { pull, subscribeSync, type SyncStatus } from '../sync/sync';
+import { dismissRejected, pull, subscribeSync, type RejectedChange, type SyncStatus } from '../sync/sync';
 import { clockOffset, NOTICEABLE } from '../sync/clock';
 import { currentLocale, useT, type TranslationKey } from '../i18n/i18n';
 import { chipDot } from './ui/chip';
+import { Button } from './ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
 import { useMinute } from './minute';
 
 /* ------------------------------------------------------------ sync status */
 
 function SyncPill() {
   const t = useT();
-  const [status, setStatus] = useState<SyncStatus>({ state: 'starting', pending: 0, lastSyncedAt: null });
+  const [status, setStatus] = useState<SyncStatus>({ state: 'starting', pending: 0, lastSyncedAt: null, rejected: [] });
   useEffect(() => subscribeSync(setStatus), []);
   useMinute(); // so a reading that lands after this rendered still reaches the tooltip
 
@@ -42,22 +44,24 @@ function SyncPill() {
     ? t(drift < 0 ? 'sync.clockAhead' : 'sync.clockBehind', { amount: duration(Math.round(Math.abs(drift) / 60_000)) })
     : '';
 
+  const refused = status.rejected;
   const label =
-    status.state === 'offline'
+    refused.length ? t('sync.rejected', { count: refused.length })
+    : status.state === 'offline'
       ? (status.pending ? t('sync.offlineQueued', { count: status.pending }) : t('sync.offline'))
       : status.state === 'error' ? t('sync.issue')
         : status.pending ? t('sync.syncing', { count: status.pending })
           : t('sync.synced');
 
-  return (
+  const pill = (
     <button
-      className={`status-pill ${status.state}`}
-      onClick={() => void pull()}
+      className={`status-pill ${refused.length ? 'error' : status.state}`}
+      onClick={refused.length ? undefined : () => void pull()}
       // The word beside the dot is `hide-sm`, so on a phone this button is a
       // coloured dot and nothing else. The name has to come from somewhere.
-      aria-label={`${label} — ${t('sync.now')}`}
+      aria-label={refused.length ? label : `${label} — ${t('sync.now')}`}
       title={[
-        status.message ?? (status.lastSyncedAt
+        refused.at(-1)?.reason ?? status.message ?? (status.lastSyncedAt
           ? t('sync.lastSynced', { time: new Date(status.lastSyncedAt).toLocaleTimeString(currentLocale()) })
           : t('sync.now')),
         clock,
@@ -73,7 +77,36 @@ function SyncPill() {
       <span className="hide-sm">{label}</span>
     </button>
   );
+  if (!refused.length) return pill;
+
+  // Refused changes stay listed, content included, until somebody copies or dismisses them.
+  return (
+    <Popover>
+      <PopoverTrigger asChild>{pill}</PopoverTrigger>
+      <PopoverContent align="end" className="w-80 max-w-[90vw] p-3 text-[13px]">
+        <ul className="m-0 flex max-h-64 list-none flex-col gap-2 overflow-auto p-0">
+          {refused.map((change) => (
+            <li key={change.id} className="min-w-0">
+              <div className="truncate">{preview(change)}</div>
+              <div className="text-soft">{change.reason}</div>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-3 flex justify-end gap-2">
+          <Button size="sm" variant="secondary" onClick={() => void navigator.clipboard?.writeText(JSON.stringify(refused, null, 2))}>
+            {t('action.copy')}
+          </Button>
+          <Button size="sm" onClick={() => void dismissRejected()}>{t('sync.dismissRejected')}</Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
 }
+
+const preview = (change: RejectedChange): string => {
+  const text = change.patch.title ?? change.patch.name ?? change.patch.content ?? change.patch.body;
+  return `${change.entity}${typeof text === 'string' && text ? ` · ${text}` : ''}`;
+};
 
 /* ----------------------------------------------------------------- themes */
 

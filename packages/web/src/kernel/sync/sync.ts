@@ -19,15 +19,21 @@ import { applyChanges, byId, forgetLocal, hydrate, notifyStore, purgedRows, rese
 
 export type SyncState = 'starting' | 'synced' | 'syncing' | 'offline' | 'error';
 
+/** A change the server refused, kept with its content until somebody dismisses it. */
+export interface RejectedChange extends Mutation {
+  reason: string;
+}
+
 export interface SyncStatus {
   state: SyncState;
   pending: number;
   lastSyncedAt: number | null;
   message?: string;
+  rejected: RejectedChange[];
 }
 
 const listeners = new Set<(status: SyncStatus) => void>();
-let status: SyncStatus = { state: 'starting', pending: 0, lastSyncedAt: null };
+let status: SyncStatus = { state: 'starting', pending: 0, lastSyncedAt: null, rejected: [] };
 
 export function subscribeSync(listener: (status: SyncStatus) => void): () => void {
   listeners.add(listener);
@@ -79,14 +85,11 @@ if (!clientId) {
  */
 export const clock = new Clock(clientId, now);
 
-/**
- * This device's identity, as the text CRDT uses it.
- *
- * The same one the hybrid logical clock uses, which is right: a CRDT agent id
- * has to belong to exactly one writer, and "this browser profile" is the unit
- * this app already has for that.
- */
-export const agentId = (): string => clientId;
+// Per page load: tabs share `clientId`, and a CRDT agent must be one writer (sessionStorage is copied by "duplicate tab").
+const tabAgent = `${clientId}.${crypto.randomUUID().slice(0, 6)}`;
+
+/** This tab's identity, as the text CRDT uses it. */
+export const agentId = (): string => tabAgent;
 
 let workspaceId = '';
 let cursor = 0;
@@ -107,6 +110,9 @@ let refused = -1;
 
 interface SyncMeta { workspaceId: string; cursor: number; epoch?: number }
 
+/** The meta key of a mirror's refused changes. */
+const REJECTED = 'rejected';
+
 export function currentWorkspace(): string {
   return workspaceId;
 }
@@ -122,14 +128,15 @@ export async function start(id: string, userId: string): Promise<void> {
   cursor = 0;
   outbox = [];
   reset();
-  setStatus({ state: 'starting', pending: 0, message: undefined });
+  setStatus({ state: 'starting', pending: 0, message: undefined, rejected: [] });
 
   await adoptLegacyMirror(id, name);
-  const [cached, signOuts, rows, queued] = await Promise.all([
+  const [cached, signOuts, rows, queued, rejected] = await Promise.all([
     idb.getMeta<SyncMeta>('sync', name),
     idb.getMeta<number>('epoch', idb.DEVICE),
     Promise.all(ENTITY_NAMES.map((entity) => idb.readAll(entity, name))),
     idb.readAll<Mutation>(idb.OUTBOX, name),
+    idb.getMeta<RejectedChange[]>(REJECTED, name),
   ]);
   if (mine !== generation) return;
   epoch = signOuts ?? 0;
@@ -141,7 +148,7 @@ export async function start(id: string, userId: string): Promise<void> {
   const known = new Set(outbox.map((mutation) => mutation.id));
   outbox = [...queued.filter((mutation) => !known.has(mutation.id)), ...outbox]
     .sort((a, b) => (a.hlc < b.hlc ? -1 : a.hlc > b.hlc ? 1 : 0));
-  setStatus({ pending: outbox.length });
+  setStatus({ pending: outbox.length, rejected: rejected ?? [] });
 
   await flush();
   if (mine !== generation) return;
@@ -192,7 +199,7 @@ export async function signOutLocal(userId: string): Promise<void> {
   cursor = 0;
   outbox = [];
   reset();
-  setStatus({ pending: 0, message: undefined });
+  setStatus({ pending: 0, message: undefined, rejected: [] });
   for (const name of await idb.mirrorsOf(userId)) await idb.erase(name);
   idb.selectMirror(idb.DEVICE);
   await clearLegacyMirror();
@@ -331,25 +338,41 @@ export async function flush(): Promise<void> {
   const { batch, bytes } = nextBatch();
   try {
     const response = await api.post<PushResponse>('/api/sync/push', { workspaceId, clientId, mutations: batch });
-    const accepted = new Set([...response.accepted, ...response.rejected.map((r) => r.id)]);
-    if (mine === generation) outbox = outbox.filter((m) => !accepted.has(m.id));
+    const failing = response.rejected.filter((r) => (r.status ?? 0) >= 500);
+    const declined = response.rejected.filter((r) => !failing.includes(r));
+    // Kept before it leaves the outbox, so a reload in between loses nothing.
+    if (declined.length) {
+      await keepRejected(batch.flatMap((mutation) => {
+        const reason = declined.find((r) => r.id === mutation.id)?.reason;
+        return reason === undefined ? [] : [{ ...mutation, reason }];
+      }), db);
+    }
+    const done = new Set([...response.accepted, ...declined.map((r) => r.id)]);
+    if (mine === generation) outbox = outbox.filter((m) => !done.has(m.id));
     // The mirror the batch came from, even if another workspace is open by now.
-    await idb.removeMany(idb.OUTBOX, [...accepted], db);
+    await idb.removeMany(idb.OUTBOX, [...done], db);
     if (mine !== generation) return;
 
-    if (response.rejected.length) {
-      console.warn('[sync] server rejected mutations', response.rejected);
-      setStatus({ message: response.rejected[0].reason });
+    if (declined.length) {
+      console.warn('[sync] server rejected mutations', declined);
+      setStatus({ message: declined[0].reason });
       // The change was already applied locally, and a row the server did not
       // change will not come back in a delta pull — so the rows a rejection
       // touched are re-read by hand. Without this the screen keeps showing an
       // edit the server refused.
-      await undo(batch.filter((mutation) => response.rejected.some((r) => r.id === mutation.id)));
+      await undo(batch.filter((mutation) => declined.some((r) => r.id === mutation.id)));
     }
     // The server may have decided values for us (task identifiers, defaults).
     applyChanges(response.patched, isPendingRow);
     await persist(response.patched, db);
 
+    if (failing.length) {
+      // The server failed on these (a locked database, say) rather than refused them: kept queued, sent again later.
+      retryDelay = Math.min(retryDelay * 2, 30_000);
+      setStatus({ pending: outbox.length, state: 'error', message: failing[0].reason });
+      scheduleFlush(retryDelay);
+      return;
+    }
     setStatus({ pending: outbox.length, state: outbox.length ? 'syncing' : 'synced', lastSyncedAt: Date.now() });
     retryDelay = 1000;
     if (outbox.length) scheduleFlush(0);
@@ -376,11 +399,39 @@ async function tooLarge(batch: Mutation[], bytes: number, db: string): Promise<v
     return;
   }
   console.warn('[sync] server refused a mutation as too large', batch[0].entity, batch[0].entityId);
+  const reason = translate(currentLocale(), 'sync.tooLarge');
+  await keepRejected([{ ...batch[0], reason }], db);
   outbox = outbox.filter((mutation) => mutation.id !== batch[0].id);
   await idb.removeMany(idb.OUTBOX, [batch[0].id], db);
-  setStatus({ pending: outbox.length, message: translate(currentLocale(), 'sync.tooLarge') });
+  setStatus({ pending: outbox.length, message: reason });
   await undo(batch);
   if (outbox.length) scheduleFlush(0);
+}
+
+let keeping: Promise<void> = Promise.resolve();
+
+/** Adds refused changes to the mirror's list (the newest 50); chained, so two pushes cannot overwrite each other's. */
+function keepRejected(changes: RejectedChange[], db: string): Promise<void> {
+  if (!changes.length) return Promise.resolve();
+  keeping = keeping.catch(() => undefined).then(async () => {
+    const ids = new Set(changes.map((change) => change.id));
+    const before = (await idb.getMeta<RejectedChange[]>(REJECTED, db)) ?? [];
+    const kept = [...before.filter((change) => !ids.has(change.id)), ...changes].slice(-50);
+    await idb.setMeta(REJECTED, kept, db);
+    if (db === idb.currentMirror()) setStatus({ rejected: kept });
+  });
+  return keeping;
+}
+
+/** Forget the refused changes of the open workspace. */
+export function dismissRejected(): Promise<void> {
+  const db = idb.currentMirror();
+  setStatus({ rejected: [] });
+  keeping = keeping.catch(() => undefined).then(async () => {
+    await idb.setMeta(REJECTED, [], db);
+    if (db === idb.currentMirror()) setStatus({ rejected: [] });
+  });
+  return keeping;
 }
 
 /**

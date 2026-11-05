@@ -2524,7 +2524,8 @@ export interface PushRequest {
 export interface PushResponse {
   /** Mutation ids that were applied or already known. */
   accepted: ID[];
-  rejected: { id: ID; reason: string }[];
+  /** `status` is the HTTP status the error would have had; 5xx is the server failing, not a refusal. */
+  rejected: { id: ID; reason: string; status?: number }[];
   /** Server-side values for rows the server rewrote (e.g. task identifiers). */
   patched: ChangeSet;
   cursor: number;

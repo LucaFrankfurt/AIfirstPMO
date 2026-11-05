@@ -12,9 +12,9 @@ import {
   type PushRequest,
   type PushResponse,
 } from '@kolibri/shared';
-import { all, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
+import { all, constraintFailure, currentSeq, get, run, tx, type Row } from '../../platform/db/index.ts';
 import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
-import { badRequest, forbidden, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
+import { badRequest, forbidden, HttpError, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
 import { canSeeProject, serializeFor, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
 import { serverClock } from '../../write-path/bootstrap.ts';
 import { subscribe } from '../../platform/bus.ts';
@@ -517,7 +517,7 @@ export function registerSyncRoutes(router: Router): void {
     if (body.mutations.length > 500) throw badRequest('Too many mutations in one push (max 500)');
 
     const accepted: string[] = [];
-    const rejected: { id: string; reason: string }[] = [];
+    const rejected: PushResponse['rejected'] = [];
     const patched: ChangeSet = {};
 
     for (const mutation of body.mutations) {
@@ -532,7 +532,8 @@ export function registerSyncRoutes(router: Router): void {
           list.push(result);
         }
       } catch (err) {
-        rejected.push({ id: mutation.id, reason: err instanceof Error ? err.message : 'failed' });
+        const status = err instanceof HttpError ? err.status : constraintFailure(err) ? 400 : 500;
+        rejected.push({ id: mutation.id, reason: err instanceof Error ? err.message : 'failed', status });
       }
     }
 

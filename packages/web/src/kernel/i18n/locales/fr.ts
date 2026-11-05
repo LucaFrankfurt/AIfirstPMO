@@ -108,6 +108,9 @@ export const fr: Catalogue = {
   'sync.failed': 'Échec de la synchronisation',
   'sync.refused': 'Le serveur refuse les modifications de cet appareil : {reason}. Elles restent en attente ici.',
   'sync.tooLarge': 'Une modification était trop volumineuse pour le serveur et n’a pas été enregistrée',
+  'sync.rejected_one': '{count} modification non enregistrée',
+  'sync.rejected_other': '{count} modifications non enregistrées',
+  'sync.dismissRejected': 'Ignorer',
   'sync.unsentOnSignOut_one': '{count} modification n’a pas encore atteint le serveur et n’existe que sur cet appareil. Se déconnecter la supprime. Se déconnecter quand même ?',
   'sync.unsentOnSignOut_other': '{count} modifications n’ont pas encore atteint le serveur et n’existent que sur cet appareil. Se déconnecter les supprime. Se déconnecter quand même ?',
 
@@ -3420,5 +3423,6 @@ export const fr: Catalogue = {
   'misc.screenUnavailableHint': 'Il est chargé séparément, et le réseau ou une nouvelle version s’est interposé. Recharger règle généralement la question.',
   'misc.screenFailedTitle': 'Cet écran a rencontré une erreur',
   'misc.screenFailedHint': 'C’est une erreur dans Kolibri, pas dans le réseau. Le reste fonctionne — ouvrir un autre écran, ou recharger pour réessayer celui-ci.',
+  'misc.appFailedHint': 'C’est une erreur dans Kolibri, pas dans le réseau. Recharger relance l’application.',
   'misc.reload': 'Recharger',
 };

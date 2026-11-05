@@ -102,6 +102,9 @@ export const en = {
   'sync.failed': 'Sync failed',
   'sync.refused': 'The server refuses changes from this device: {reason}. They stay queued here.',
   'sync.tooLarge': 'A change was too large for the server and was not saved',
+  'sync.rejected_one': '{count} change not saved',
+  'sync.rejected_other': '{count} changes not saved',
+  'sync.dismissRejected': 'Dismiss',
   'sync.unsentOnSignOut_one': '{count} change has not reached the server yet and exists only on this device. Signing out deletes it. Sign out anyway?',
   'sync.unsentOnSignOut_other': '{count} changes have not reached the server yet and exist only on this device. Signing out deletes them. Sign out anyway?',
 
@@ -3432,6 +3435,7 @@ export const en = {
   'misc.screenUnavailableHint': 'It is fetched separately, and the network or a new version got in the way. Reloading usually settles it.',
   'misc.screenFailedTitle': 'This screen ran into an error',
   'misc.screenFailedHint': 'That is a fault in Kolibri, not in the network. The rest of the app still works — open another screen, or reload to try this one again.',
+  'misc.appFailedHint': 'That is a fault in Kolibri, not in the network. Reloading starts the app again.',
   'misc.reload': 'Reload',
 } as const;
 

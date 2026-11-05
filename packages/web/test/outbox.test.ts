@@ -12,6 +12,8 @@ const server = {
   pulls: new Map<string, (since: number) => Pull | Promise<Pull>>(),
   /** A status to answer a push of this many bytes with, or 0 to take it. */
   refuse: (_bytes: number): number => 0,
+  /** A reason and status to reject one mutation of a push with, or null to take it. */
+  reject: (_mutation: { entity: string }): { reason: string; status: number } | null => null,
   requests: [] as string[],
   pushes: [] as { workspaceId: string; ids: string[]; bytes: number; status: number }[],
 };
@@ -38,7 +40,13 @@ Object.defineProperty(globalThis, 'fetch', {
       const status = server.refuse(bytes) || 200;
       server.pushes.push({ workspaceId: body.workspaceId, ids: body.mutations.map((m: { id: string }) => m.id), bytes, status });
       if (status !== 200) return json(status, { error: 'refused', message: status === 413 ? 'Payload too large' : 'No access' });
-      return json(200, { accepted: body.mutations.map((m: { id: string }) => m.id), rejected: [], patched: {}, cursor: 0 });
+      const answers = body.mutations.map((m: { id: string; entity: string }) => ({ id: m.id, no: server.reject(m) }));
+      return json(200, {
+        accepted: answers.filter((a: any) => !a.no).map((a: any) => a.id),
+        rejected: answers.filter((a: any) => a.no).map((a: any) => ({ id: a.id, ...a.no })),
+        patched: {},
+        cursor: 0,
+      });
     }
     return json(404, { error: 'not_found', message: 'Not found' });
   },
@@ -261,5 +269,65 @@ describe('a session that ends while changes are queued (WEB-01)', () => {
     assert.ok(databaseNames().includes(idb.mirrorName('lin', 'ws-G')), 'another person’s copy stays');
     assert.equal(sync.getStatus().pending, 0);
     net.online = true;
+  });
+});
+
+describe('two tabs of one browser editing one page (WEB-08)', () => {
+  it('write as two CRDT agents, so neither loses the other’s text', async () => {
+    const tab = (await import(`${'../src/kernel/sync/sync.ts'}?tab=two`)) as typeof sync;
+    assert.notEqual(tab.agentId(), sync.agentId(), 'one profile, one client id, but one agent per tab');
+
+    const base = crdt.fromText('Protokoll\nPunkt 1\n', 'server');
+    const one = crdt.edit(base, 'Protokoll\nPunkt 1: Budget freigegeben\n', sync.agentId());
+    const two = crdt.edit(base, 'Protokoll\nPunkt 1\nPunkt 2: Termin\n', tab.agentId());
+    const both = 'Protokoll\nPunkt 1: Budget freigegeben\nPunkt 2: Termin\n';
+    assert.equal(crdt.textOf(crdt.merge(one, two)), both, 'as the server merges it');
+    assert.equal(crdt.textOf(crdt.merge(two, one)), both, 'and as the second tab does');
+    tab.stop();
+  });
+});
+
+describe('a change the server will not take (WEB-09)', () => {
+  it('is kept with its content and counted until dismissed, not dropped behind a green pill', async () => {
+    server.pulls.set('ws-H', (since) => (since === 0 ? { changes: { project: [project('proj-H', 'ws-H', 1)] }, cursor: 10 } : { cursor: since }));
+    await sync.start('ws-H', 'ada');
+    server.reject = () => ({ reason: 'Guests cannot modify this workspace', status: 403 });
+    const typed = mutations.create('task', { project_id: 'proj-H', title: 'Zwei Stunden Notizen, offline getippt' });
+    await sync.flush();
+    await settle(20);
+    server.reject = () => null;
+
+    const status = sync.getStatus();
+    assert.equal(status.pending, 0, 'not resent: the server said no');
+    assert.deepEqual(status.rejected.map((change) => [change.entityId, change.patch.title, change.reason]),
+      [[typed, 'Zwei Stunden Notizen, offline getippt', 'Guests cannot modify this workspace']]);
+    const mirror = idb.mirrorName('ada', 'ws-H');
+    assert.equal((await idb.getMeta('rejected', mirror)).length, 1, 'on disk');
+
+    // Elsewhere and back, as a reload would: still there.
+    await sync.start('ws-G', 'ada');
+    assert.equal(sync.getStatus().rejected.length, 0, 'each workspace keeps its own');
+    await sync.start('ws-H', 'ada');
+    assert.equal(sync.getStatus().rejected[0]?.entityId, typed);
+
+    await sync.dismissRejected();
+    assert.equal(sync.getStatus().rejected.length, 0);
+    assert.deepEqual(await idb.getMeta('rejected', mirror), []);
+  });
+
+  it('is retried when the server failed rather than refused', async () => {
+    server.reject = () => ({ reason: 'database is locked', status: 500 });
+    mutations.update('project', 'proj-H', { name: 'renamed while the database was busy' });
+    await sync.flush();
+    await settle(20);
+    assert.equal(sync.getStatus().pending, 1, 'still queued');
+    assert.equal(sync.getStatus().state, 'error');
+    assert.equal(sync.getStatus().rejected.length, 0, 'and not filed as refused');
+
+    server.reject = () => null;
+    await sync.flush();
+    await settle(20);
+    assert.equal(sync.getStatus().pending, 0, 'sent once the server could take it');
+    assert.equal((await idb.readAll(idb.OUTBOX)).length, 0);
   });
 });

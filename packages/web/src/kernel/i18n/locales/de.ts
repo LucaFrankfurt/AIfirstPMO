@@ -101,6 +101,9 @@ export const de: Catalogue = {
   'sync.failed': 'Synchronisierung fehlgeschlagen',
   'sync.refused': 'Der Server nimmt keine Änderungen von diesem Gerät an: {reason}. Sie bleiben hier in der Warteschlange.',
   'sync.tooLarge': 'Eine Änderung war zu groß für den Server und wurde nicht gespeichert',
+  'sync.rejected_one': '{count} Änderung nicht gespeichert',
+  'sync.rejected_other': '{count} Änderungen nicht gespeichert',
+  'sync.dismissRejected': 'Verwerfen',
   'sync.unsentOnSignOut_one': '{count} Änderung hat den Server noch nicht erreicht und existiert nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
   'sync.unsentOnSignOut_other': '{count} Änderungen haben den Server noch nicht erreicht und existieren nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
 
@@ -3426,5 +3429,6 @@ export const de: Catalogue = {
   'misc.screenUnavailableHint': 'Sie wird separat geladen, und das Netz oder eine neue Version kam dazwischen. Ein Neuladen behebt das meistens.',
   'misc.screenFailedTitle': 'Diese Ansicht ist auf einen Fehler gestoßen',
   'misc.screenFailedHint': 'Das ist ein Fehler in Kolibri, nicht im Netz. Der Rest funktioniert weiter — eine andere Ansicht öffnen oder neu laden, um es hier noch einmal zu versuchen.',
+  'misc.appFailedHint': 'Das ist ein Fehler in Kolibri, nicht im Netz. Neu laden startet die App wieder.',
   'misc.reload': 'Neu laden',
 };
