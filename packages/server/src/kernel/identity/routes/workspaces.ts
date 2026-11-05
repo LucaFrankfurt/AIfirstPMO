@@ -10,7 +10,7 @@
  * account on this instance", which is a membership question — see the note on
  * the handler for why the answer is not "who shares a workspace with you".
  */
-import type { WorkspaceFeatures, WorkspaceRole } from '@kolibri/shared';
+import { WORKSPACE_ROLES, type WorkspaceFeatures, type WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
 import { requireAuth, requireWorkspace, requireWrite, sessionInfo } from '../auth.ts';
@@ -22,6 +22,13 @@ import { isEmailAddress } from '../../mail/address.ts';
 import { byAddress, enforce, LIMITS } from '../ratelimit.ts';
 import { queueInvite } from '../../../adapters/mail/mail.ts';
 import { writeEntity } from '../../write-path/repo.ts';
+
+/** A role somebody asked to hand out: a known one, and `owner` only from an owner. */
+function grantable(role: unknown, granter: WorkspaceRole): WorkspaceRole {
+  if (!(WORKSPACE_ROLES as readonly unknown[]).includes(role)) throw badRequest('Unknown role');
+  if (role === 'owner' && granter !== 'owner') throw forbidden('Only an owner may make somebody an owner');
+  return role as WorkspaceRole;
+}
 
 export function registerWorkspaceRoutes(router: Router): void {
   router.post('/api/workspaces', async (ctx) => {
@@ -69,14 +76,16 @@ export function registerWorkspaceRoutes(router: Router): void {
   });
 
   router.patch('/api/workspaces/:id/members/:userId', async (ctx) => {
-    requireWorkspace(ctx, ctx.params.id, 'admin');
+    const mine = requireWorkspace(ctx, ctx.params.id, 'admin');
     requireWrite(ctx);
     const body = await readJson<{ role?: WorkspaceRole }>(ctx);
+    const role = grantable(body.role ?? 'member', mine);
     const member = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, ctx.params.id, ctx.params.userId);
     if (!member) throw notFound('Member not found');
+    if (member.role === 'owner' && mine !== 'owner') throw forbidden('Only an owner may change an owner');
     const owners = all<Row>(`SELECT id FROM workspace_members WHERE workspace_id = ? AND role = 'owner' AND deleted_at IS NULL`, ctx.params.id);
-    if (member.role === 'owner' && owners.length === 1 && body.role !== 'owner') throw conflict('A workspace needs at least one owner');
-    writeEntity('member', member.id, { role: body.role ?? 'member' }, {
+    if (member.role === 'owner' && owners.length === 1 && role !== 'owner') throw conflict('A workspace needs at least one owner');
+    writeEntity('member', member.id, { role }, {
       workspaceId: ctx.params.id, actorId: requireAuth(ctx).userId, hlc: serverClock.now(), system: true,
     });
     return { ok: true };
@@ -84,9 +93,10 @@ export function registerWorkspaceRoutes(router: Router): void {
 
   router.delete('/api/workspaces/:id/members/:userId', (ctx) => {
     const auth = requireWrite(ctx);
-    if (auth.userId !== ctx.params.userId) requireWorkspace(ctx, ctx.params.id, 'admin');
+    const mine = auth.userId !== ctx.params.userId ? requireWorkspace(ctx, ctx.params.id, 'admin') : null;
     const member = get<Row>(`SELECT * FROM workspace_members WHERE workspace_id = ? AND user_id = ?`, ctx.params.id, ctx.params.userId);
     if (!member) throw notFound('Member not found');
+    if (member.role === 'owner' && mine && mine !== 'owner') throw forbidden('Only an owner may remove an owner');
     const owners = all<Row>(`SELECT id FROM workspace_members WHERE workspace_id = ? AND role = 'owner' AND deleted_at IS NULL`, ctx.params.id);
     if (member.role === 'owner' && owners.length === 1) throw conflict('A workspace needs at least one owner');
     writeEntity('member', member.id, {}, {
@@ -149,8 +159,9 @@ export function registerWorkspaceRoutes(router: Router): void {
 
   router.post('/api/workspaces/:id/invites', async (ctx) => {
     const auth = requireWrite(ctx);
-    requireWorkspace(ctx, ctx.params.id, 'admin');
+    const mine = requireWorkspace(ctx, ctx.params.id, 'admin');
     const body = await readJson<{ email?: string; role?: WorkspaceRole; expiresInDays?: number }>(ctx);
+    const role = grantable(body.role ?? 'member', mine);
     const code = shortCode(10);
     // Validated, and not only because a typo is worth catching: this address
     // is handed to a mail relay, and until now anything at all could be typed
@@ -162,7 +173,7 @@ export function registerWorkspaceRoutes(router: Router): void {
     run(
       `INSERT INTO invites (id, workspace_id, email, role, code, created_by, created_at, expires_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      uid(), ctx.params.id, email, body.role ?? 'member', code, auth.userId,
+      uid(), ctx.params.id, email, role, code, auth.userId,
       Date.now(), Date.now() + (body.expiresInDays ?? 14) * 86_400_000,
     );
 

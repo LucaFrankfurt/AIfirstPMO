@@ -169,6 +169,9 @@ export const environmentRules = {
       if (!role || !hasRole(role, 'admin')) {
         throw forbidden('Environments are set up by an administrator of the workspace');
       }
+      if (existing?.min_role === 'owner' && role !== 'owner') {
+        throw forbidden('Only an owner may change an environment only owners may open');
+      }
       const name = after(values, existing, 'name');
       if (name && (values.name !== undefined || !existing)) {
         const clash = get<Row>(

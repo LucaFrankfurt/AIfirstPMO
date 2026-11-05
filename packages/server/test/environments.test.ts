@@ -285,3 +285,29 @@ describe('renaming and deleting', () => {
     assert.equal(left.some((row: any) => row.name === 'shared'), false);
   });
 });
+
+describe('an environment only owners may open', () => {
+  before(async () => {
+    await api('ada', `/api/environments/${env.production}`, { method: 'PATCH', body: { min_role: 'owner' } });
+    const members = await api('ada', `/api/workspaces/${workspaceId}/members`);
+    const lin = members.find((row: any) => row.email === 'lin@env.test').user_id;
+    await api('ada', `/api/workspaces/${workspaceId}/members/${lin}`, { method: 'PATCH', body: { role: 'admin' } });
+  });
+
+  it('is not an administrator’s to open up, rename or delete', async () => {
+    for (const [method, body] of [['PATCH', { min_role: 'member' }], ['PATCH', { name: 'prod' }], ['DELETE', undefined]] as const) {
+      await assert.rejects(
+        () => api('lin', `/api/environments/${env.production}`, { method, body }),
+        /Only an owner/,
+        `an admin could ${method} an owner-only environment`,
+      );
+    }
+    const row = all<any>(`SELECT name, min_role, deleted_at FROM environments WHERE id = ?`, env.production)[0];
+    assert.deepEqual({ ...row }, { name: 'production', min_role: 'owner', deleted_at: null });
+  });
+
+  it('leaves the administrator every other environment', async () => {
+    const renamed = await api('lin', `/api/environments/${env.staging}`, { method: 'PATCH', body: { name: 'preprod' } });
+    assert.equal(renamed.name, 'preprod', 'a guard that refuses everybody is not a fix');
+  });
+});

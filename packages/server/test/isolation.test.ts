@@ -529,3 +529,53 @@ describe('a colleague outside a private project', () => {
     assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
   });
 });
+
+describe('an administrator and the owner role', () => {
+  let admin: Person;
+  let adminId = '';
+  let adaId = '';
+
+  before(async () => {
+    const { body: invite } = await call(`/api/workspaces/${ada.workspace}/invites`, {
+      cookie: ada.cookie, body: { role: 'admin' },
+    });
+    admin = await register('admin@example.com');
+    await call(`/api/invites/${invite.code}/accept`, { cookie: admin.cookie, body: {} });
+    adminId = (await call('/api/session', { cookie: admin.cookie })).body.user.id;
+    adaId = (await call('/api/session', { cookie: ada.cookie })).body.user.id;
+  });
+
+  it('cannot make anybody an owner, change one or remove one', async () => {
+    const members = `/api/workspaces/${ada.workspace}/members`;
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: admin.cookie, body: { role: 'owner' } });
+    assert.equal(invited.status, 403, 'an admin invited an owner');
+    const promoted = await call(`${members}/${adminId}`, { cookie: admin.cookie, method: 'PATCH', body: { role: 'owner' } });
+    assert.equal(promoted.status, 403, 'an admin made themselves owner');
+    const demoted = await call(`${members}/${adaId}`, { cookie: admin.cookie, method: 'PATCH', body: { role: 'member' } });
+    assert.equal(demoted.status, 403, 'an admin demoted the owner');
+    const removed = await call(`${members}/${adaId}`, { cookie: admin.cookie, method: 'DELETE' });
+    assert.equal(removed.status, 403, 'an admin removed the owner');
+
+    const { body: after } = await call(members, { cookie: ada.cookie });
+    assert.equal(after.find((row: any) => row.user_id === adaId)?.role, 'owner');
+    assert.equal(after.find((row: any) => row.user_id === adminId)?.role, 'admin');
+  });
+
+  it('refuses a role that does not exist', async () => {
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: ada.cookie, body: { role: 'superuser' } });
+    assert.equal(invited.status, 400);
+    const patched = await call(`/api/workspaces/${ada.workspace}/members/${adminId}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { role: 'root' },
+    });
+    assert.equal(patched.status, 400);
+  });
+
+  it('still lets the owner hand the role on', async () => {
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: ada.cookie, body: { role: 'owner' } });
+    assert.equal(invited.status, 200, 'a guard that refuses everybody is not a fix');
+    const promoted = await call(`/api/workspaces/${ada.workspace}/members/${adminId}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { role: 'owner' },
+    });
+    assert.equal(promoted.status, 200);
+  });
+});
