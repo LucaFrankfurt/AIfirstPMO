@@ -592,3 +592,52 @@ describe('and stay useful when something else is broken', { concurrency: 2 }, ()
     assert.ok(after.splits > before.splits, 'three more capabilities leaning on pages and the splits did not grow');
   });
 });
+
+describe('one Node version, everywhere a build picks one', () => {
+  const pinned = readFileSync(join(ROOT, '.nvmrc'), 'utf8').trim();
+  const atLeast = (version, floor) => {
+    const [a, b] = [version, floor].map((v) => v.split('.').map(Number));
+    for (let i = 0; i < 3; i++) if ((a[i] ?? 0) !== (b[i] ?? 0)) return (a[i] ?? 0) > (b[i] ?? 0);
+    return true;
+  };
+
+  it('.nvmrc names an exact version', () => {
+    assert.match(pinned, /^\d+\.\d+\.\d+$/);
+  });
+
+  it('every setup-node step reads .nvmrc', () => {
+    const dir = join(ROOT, '.github/workflows');
+    for (const file of readdirSync(dir).filter((name) => /\.ya?ml$/.test(name))) {
+      const text = readFileSync(join(dir, file), 'utf8');
+      assert.doesNotMatch(text, /^\s*node-version:/m, `${file} names a Node version instead of reading .nvmrc`);
+      const steps = text.match(/uses: actions\/setup-node/g) ?? [];
+      const reads = text.match(/node-version-file: \.nvmrc$/gm) ?? [];
+      assert.equal(reads.length, steps.length, `${file}: a setup-node step without node-version-file`);
+    }
+  });
+
+  it('every Dockerfile builds on that version', () => {
+    for (const file of ['Dockerfile', 'sites/Dockerfile']) {
+      const tags = [...readFileSync(join(ROOT, file), 'utf8').matchAll(/^FROM node:(\S+)/gm)].map((m) => m[1]);
+      assert.ok(tags.length > 0, `${file} no longer starts from a node image`);
+      for (const tag of tags) assert.equal(tag, `${pinned}-alpine`, `${file} builds on node:${tag}`);
+    }
+  });
+
+  // Astro once raised its floor past the runner's cached 22.x and the sites job went red unchanged.
+  it('satisfies every engines floor the repository and the sites declare', () => {
+    const floors = [];
+    for (const file of ['package.json', 'packages/mcp/package.json', 'packages/feedback/package.json', 'sites/video/package.json']) {
+      floors.push([file, JSON.parse(readFileSync(join(ROOT, file), 'utf8')).engines?.node]);
+    }
+    for (const site of ['docs', 'demo']) {
+      const lock = JSON.parse(readFileSync(join(ROOT, `sites/${site}/package-lock.json`), 'utf8'));
+      floors.push([`sites/${site}: astro`, lock.packages['node_modules/astro']?.engines?.node]);
+    }
+    for (const [where, range] of floors) {
+      const floor = /^>=\s*(\d+(?:\.\d+){0,2})$/.exec(range ?? '');
+      assert.ok(floor, `${where}: "${range}" is not a plain >= floor this case understands`);
+      assert.ok(atLeast(pinned, floor[1]), `.nvmrc ${pinned} is below ${where}'s ${range}`);
+    }
+  });
+});
