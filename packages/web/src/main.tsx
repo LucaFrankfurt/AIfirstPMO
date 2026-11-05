@@ -1,8 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
-import App from './App';
-import { I18nProvider, detectLocale, loadLocale } from './kernel/i18n/i18n';
+import App, { failure, ScreenBoundary } from './App';
+import { I18nProvider, currentLocale, detectLocale, loadLocale, translate } from './kernel/i18n/i18n';
 import { SessionProvider } from './kernel/identity/session';
 import { TooltipProvider } from './kernel/design-system/ui/tooltip';
 import { installEffects } from './wiring';
@@ -24,6 +24,8 @@ installEffects();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
+    {/* The last line: a render error anywhere above the screens would otherwise leave a blank page. */}
+    <ScreenBoundary screen="app" {...failure((key) => translate(currentLocale(), key), 'misc.appFailedHint')}>
     <BrowserRouter>
       <I18nProvider>
         <SessionProvider>
@@ -36,5 +38,6 @@ createRoot(document.getElementById('root')!).render(
         </SessionProvider>
       </I18nProvider>
     </BrowserRouter>
+    </ScreenBoundary>
   </StrictMode>,
 );
