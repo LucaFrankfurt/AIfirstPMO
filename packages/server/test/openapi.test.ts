@@ -19,6 +19,7 @@ import { readFileSync, rmSync } from 'node:fs';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import type { AddressInfo } from 'node:net';
 
 const { router, server } = await import('../src/index.ts');
 const { REST_ENTITIES } = await import('@kolibri/shared');
@@ -131,5 +132,25 @@ describe('the OpenAPI document and the router agree', () => {
       assert.ok(router.match('GET', concrete), `the router does not answer on ${concrete}`);
     }
     assert.ok(router.match('GET', '/api/tasks/t1'), 'the router does not answer on /api/tasks/:id');
+  });
+
+  it('declares a list as the bare array the route answers with', async () => {
+    for (const collection of Object.keys(REST_ENTITIES)) {
+      const listed = spec.paths[`/api/workspaces/{ws}/${collection}`]?.get as any;
+      if (!listed || listed.tags?.includes('hand-written')) continue;
+      assert.equal(listed.responses[200].content['application/json'].schema.type, 'array', `GET ${collection}`);
+    }
+
+    await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
+    const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+    const registered = await fetch(`${base}/api/auth/register`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: 'ada@example.com', name: 'Ada', password: 'correct horse battery' }),
+    });
+    const cookie = (registered.headers.get('set-cookie') ?? '').split(';')[0];
+    const workspace = (await registered.json() as any).workspaces[0].id;
+    const tasks = await (await fetch(`${base}/api/workspaces/${workspace}/tasks?limit=2`, { headers: { cookie } })).json();
+    assert.ok(Array.isArray(tasks), `the route answered ${JSON.stringify(tasks).slice(0, 100)}`);
   });
 });

@@ -84,12 +84,19 @@ export const taskTools: ToolDef[] = [
         params.push(...ids);
       }
       if (args.cycle) {
-        const cycle = args.cycle === 'current'
-          ? get<Row>(`SELECT * FROM cycles WHERE workspace_id = ? AND deleted_at IS NULL AND start_date <= date('now') AND end_date >= date('now') ORDER BY start_date DESC LIMIT 1`, workspaceId)
-          : get<Row>(`SELECT * FROM cycles WHERE workspace_id = ? AND (id = ? OR lower(name) = lower(?)) AND deleted_at IS NULL`, workspaceId, args.cycle, args.cycle);
-        if (!cycle) throw new McpError(`Cycle ${args.cycle} not found`);
-        where.push('t.cycle_id = ?');
-        params.push(cycle.id);
+        const ref = String(args.cycle);
+        // With a project, the cycle that covers it; without one, every match — two projects can each run a "current" one.
+        const ids = project
+          ? [resolveCycle(workspaceId, ref, String(project.id))?.id].filter((id) => id !== undefined)
+          : all<Row>(
+            `SELECT id FROM cycles WHERE workspace_id = ? AND deleted_at IS NULL AND ${ref === 'current'
+              ? `start_date <= date('now') AND end_date >= date('now')`
+              : '(id = ? OR lower(name) = lower(?))'}`,
+            workspaceId, ...(ref === 'current' ? [] : [ref, ref]),
+          ).map((row) => row.id);
+        if (!ids.length) throw new McpError(project ? `No cycle matching "${ref}" covers ${project.key}` : `Cycle ${ref} not found`);
+        where.push(`t.cycle_id IN (${ids.map(() => '?').join(', ')})`);
+        params.push(...ids);
       }
       if (args.module) {
         // `findModule` rather than a lookup that can miss: a name nobody

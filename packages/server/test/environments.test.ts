@@ -52,6 +52,7 @@ const tool = (token: string, name: string, args: Record<string, unknown> = {}) =
   api('mcp', '/mcp', { token, body: { jsonrpc: '2.0', id: ++rpc, method: 'tools/call', params: { name, arguments: args } } })
     .then((response) => {
       if (response.error) throw new Error(response.error.message);
+      if (response.result?.isError) throw new Error(response.result.content?.[0]?.text ?? 'failed');
       return response.result.structuredContent;
     });
 
