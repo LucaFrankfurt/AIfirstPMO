@@ -506,6 +506,7 @@ export function registerSyncRoutes(router: Router): void {
   router.post('/api/sync/push', async (ctx: Ctx) => {
     const auth = requireAuth(ctx);
     const body = await readJson<PushRequest>(ctx);
+    if (!body || typeof body !== 'object') throw badRequest('A push is a JSON object');
     const workspaceId = body.workspaceId;
     const role = requireWorkspace(ctx, workspaceId);
     if (!auth.scopes.has('write')) throw forbidden('Token is read-only');
@@ -524,7 +525,7 @@ export function registerSyncRoutes(router: Router): void {
 
     for (const mutation of body.mutations) {
       try {
-        if (guest && !isGuestWritable(mutation.entity as EntityName)) {
+        if (guest && !isGuestWritable(mutation?.entity as EntityName)) {
           throw forbidden('Guests cannot modify this workspace');
         }
         const result = applyMutation(mutation, workspaceId, auth.userId, body.clientId);
@@ -535,7 +536,8 @@ export function registerSyncRoutes(router: Router): void {
         }
       } catch (err) {
         const status = err instanceof HttpError ? err.status : constraintFailure(err) ? 400 : 500;
-        rejected.push({ id: mutation.id, reason: err instanceof Error ? err.message : 'failed', status });
+        // `mutation?.`: one malformed entry is rejected on its own rather than failing the batch.
+        rejected.push({ id: mutation?.id, reason: err instanceof Error ? err.message : 'failed', status });
       }
     }
 

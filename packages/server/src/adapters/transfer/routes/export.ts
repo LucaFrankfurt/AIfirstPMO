@@ -120,7 +120,7 @@ export function registerExportRoutes(router: Router): void {
   router.post('/api/import/workspace', async (ctx: Ctx) => {
     const auth = requireWrite(ctx);
     const body = await readJson<{ document?: unknown; name?: string; match_people?: boolean }>(ctx, env.maxImportBytes);
-    if (!detectWorkspaceDoc(body.document)) throw badRequest('That file is not a Kolibri workspace export');
+    if (!detectWorkspaceDoc(body?.document)) throw badRequest('That file is not a Kolibri workspace export');
     const report = importWorkspace(auth.userId, body.document as WorkspaceDoc, {
       name: body.name,
       matchPeople: body.match_people !== false,

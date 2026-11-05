@@ -36,7 +36,7 @@ import { uid } from '../../kernel/platform/ids.ts';
 import { addMember, createWorkspace, serverClock } from '../../kernel/write-path/bootstrap.ts';
 import { writeEntity } from '../../kernel/write-path/repo.ts';
 import {
-  adoptFiles, collectHashes, describeFiles, exportProject, hashesIn, importProject, repin,
+  adoptFiles, collectHashes, describeFiles, exportProject, hashesIn, importProject, inTreeOrder, repin, requireRows,
   type FileRef, type ProjectDoc,
 } from './transfer.ts';
 
@@ -276,6 +276,11 @@ export function importWorkspace(actorId: string, doc: WorkspaceDoc, options: Wor
   if (!doc || typeof doc !== 'object') throw badRequest('That is not a Kolibri workspace file');
   if (!detectWorkspaceDoc(doc)) throw badRequest('That file is not a Kolibri workspace export');
   if (!doc.workspace || typeof doc.workspace !== 'object') throw badRequest('The file has no workspace in it');
+  requireRows(doc, [
+    'people', 'teams', 'team_members', 'labels', 'cycles', 'modules', 'pages', 'page_artboards', 'page_comments',
+    'views', 'channels', 'messages', 'projects', 'attachments', 'files',
+  ]);
+  if (doc.links && typeof doc.links === 'object') requireRows(doc.links, ['relations']);
   // One transaction for the whole file. Half a workspace — teams and no
   // projects, projects and nothing joining them — is worse than none, and a
   // file big enough to be worth this format is big enough to fail halfway.
@@ -558,22 +563,3 @@ function remapDeep(raw: unknown, lookup: (value: string) => string | null): unkn
   return walk(parsed);
 }
 
-/** Rows sorted so that every parent comes before its children. */
-function inTreeOrder<T extends Record<string, unknown>>(rows: T[]): T[] {
-  const known = new Set(rows.map((row) => String(row.id)));
-  const byParent = new Map<string | null, T[]>();
-  for (const row of rows) {
-    const parent = row.parent_id && known.has(String(row.parent_id)) ? String(row.parent_id) : null;
-    if (!byParent.has(parent)) byParent.set(parent, []);
-    byParent.get(parent)!.push(row);
-  }
-  const out: T[] = [];
-  const walk = (parent: string | null): void => {
-    for (const row of byParent.get(parent) ?? []) {
-      out.push(row);
-      walk(String(row.id));
-    }
-  };
-  walk(null);
-  return out;
-}
