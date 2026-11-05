@@ -73,7 +73,7 @@
     "html2canvas": "^1.4.1",
     "modern-screenshot": "^4.7.0",
     "react": "^19.2.0",
-    "typescript": "^5.9.2"
+    "typescript": "^7.0.2"
   },
   "engines": {
     "node": ">=20"
