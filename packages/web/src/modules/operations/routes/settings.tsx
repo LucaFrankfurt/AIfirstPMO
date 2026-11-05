@@ -13,7 +13,7 @@ import { tokenScope } from '../tokens';
 import { Backups, PersonalExport, WorkspaceTransfer } from '../../../adapters/transfer/data';
 import { Sessions, TwoFactor } from '../../../kernel/identity/security';
 import { downscale } from '../../../kernel/files/uploads';
-import { LOCALE_NAMES, UNREVIEWED, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../../../kernel/i18n/i18n';
+import { LOCALE_NAMES, UNREVIEWED, currentLocale, localeLabel, roleKey, useI18n, useT, type Locale, type TranslationKey, type Translate } from '../../../kernel/i18n/i18n';
 import { PushToggle } from '../../../adapters/push/push';
 import { Button } from '../../../kernel/design-system/ui/button';
 import { buttonVariants } from '../../../kernel/design-system/ui/button';
@@ -1081,7 +1081,7 @@ function DataSettings() {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => undefined);
   }, []);
 
-  const mb = (value?: number) => (value ? `${(value / 1024 / 1024).toFixed(1)} MB` : '—');
+  const mb = (value?: number) => (value ? `${(value / 1024 / 1024).toLocaleString(currentLocale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 })} MB` : '—');
 
   return (
     <>

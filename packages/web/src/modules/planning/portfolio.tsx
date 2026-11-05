@@ -13,7 +13,7 @@ import { useMemo, useState } from 'react';
 import type { Project, Task } from '@kolibri/shared';
 import { isDoneGroup } from '@kolibri/shared';
 import { shortDate, today } from '../../kernel/design-system/format';
-import { useT, type TranslationKey } from '../../kernel/i18n/i18n';
+import { useI18n, useT, type TranslationKey } from '../../kernel/i18n/i18n';
 import { byId, list, useQuery } from '../../kernel/sync/store';
 import { useFeature, useSession } from '../../kernel/identity/session';
 import { Bars, Stat } from './insights';
@@ -49,7 +49,7 @@ interface Bar {
  * as a fill inside the bar it belongs to.
  */
 function Roadmap({ bars, from, to }: { bars: Bar[]; from: number; to: number }) {
-  const t = useT();
+  const { t, locale } = useI18n();
   const [hover, setHover] = useState<string | null>(null);
   const span = Math.max(to - from, DAY);
   const pct = (time: number): number => ((time - from) / span) * 100;
@@ -66,7 +66,7 @@ function Roadmap({ bars, from, to }: { bars: Bar[]; from: number; to: number }) 
       if (time >= from) {
         out.push({
           at: time,
-          label: new Intl.DateTimeFormat(undefined, { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(cursor),
+          label: new Intl.DateTimeFormat(locale, { month: 'short', year: '2-digit', timeZone: 'UTC' }).format(cursor),
         });
       }
       cursor.setUTCMonth(cursor.getUTCMonth() + 1);
@@ -74,7 +74,7 @@ function Roadmap({ bars, from, to }: { bars: Bar[]; from: number; to: number }) 
     // A mark every other month once there are more than eight, so the labels
     // never sit on top of each other.
     return out.length > 8 ? out.filter((_, index) => index % 2 === 0) : out;
-  }, [from, to]);
+  }, [from, to, locale]);
 
   return (
     <figure className="chart">
