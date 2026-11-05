@@ -226,6 +226,30 @@ describe('the row, not only the bytes', () => {
   });
 });
 
+describe('a file asked for by a board (SEC-11)', () => {
+  it('is served only when it hangs on the board\'s own page, whatever rows a client wrote', async () => {
+    const own = await ok(`/api/workspaces/${workspace}/pages`, {
+      cookie: author.cookie, body: { title: 'Diary', project_id: project, access: 'private' },
+    });
+    const secret = await attach(author.cookie, workspace, `page_id=${own.id}`, 'diary.webp');
+    const board = await ok(`/api/workspaces/${workspace}/pages`, {
+      cookie: colleague.cookie, body: { title: 'Dashboard', project_id: project, format: 'board' },
+    });
+    const picture = await attach(colleague.cookie, workspace, `page_id=${board.id}`, 'chart.webp');
+    // A row naming the secret on the board's page: `url` is a client's to write, `checksum` is not.
+    await ok(`/api/workspaces/${workspace}/attachments`, {
+      cookie: colleague.cookie, body: { page_id: board.id, name: 'x.webp', url: `/files/${secret}/x.webp` },
+    });
+    const asked = (hash: string, page: string, cookie: string) =>
+      fetch(`${base}/files/${hash}/shot.webp?page=${page}`, { headers: { cookie } });
+
+    assert.equal((await asked(secret, board.id, author.cookie)).status, 403, 'the viewer\'s own file reached a board');
+    assert.equal((await asked(picture, board.id, author.cookie)).status, 200);
+    assert.equal((await asked(picture, own.id, author.cookie)).status, 403);
+    assert.equal((await fetchFile(secret, author.cookie)).status, 200, 'outside a board nothing changes');
+  });
+});
+
 describe('what must not change', () => {
   it('a page everybody may read is still readable by everybody', async () => {
     // The regression that matters more than the fix: tightening this rule must

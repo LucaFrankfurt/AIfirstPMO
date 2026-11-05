@@ -4,10 +4,11 @@
  * A board's frame cannot fetch `/files/…` itself, for two reasons that are both
  * on purpose. Its origin is opaque, so a request from it carries no session and
  * the files route answers 401; and its policy allows pictures only from `data:`
- * and `blob:`, so it reaches no network at all. So the app — which has the
- * session, and the service worker's copy of every file it has seen, offline
- * included — fetches the picture and hands it in as a `data:` URL, in the
- * document it sends the frame.
+ * and `blob:`, so it cannot load one. So the app — which has the session, and
+ * the service worker's copy of what it fetched before, offline included —
+ * fetches the picture and hands it in as a `data:` URL, in the document it
+ * sends the frame. Only files hung on the board's own page: the frame can still
+ * navigate itself away, so whatever it is handed may leave with it.
  *
  * The board's source keeps saying `/files/<hash>/<name>`. That matters three
  * ways: the source stays small enough to merge as text, the trash still sees
@@ -45,20 +46,23 @@ const readAsDataUrl = (blob: Blob): Promise<string> =>
     reader.readAsDataURL(blob);
   });
 
-function dataUrlFor(path: string): Promise<string | null> {
-  const known = cache.get(path);
+function dataUrlFor(path: string, pageId: string): Promise<string | null> {
+  const key = `${pageId} ${path}`;
+  const known = cache.get(key);
   if (known) return known;
-  const loading = fetch(serverUrl(path), { headers: authHeaders(), credentials: 'include' })
+  // The server hands a board only files hung on its own page; the board's own `?` or `#` cannot drop that.
+  const asked = `${path.split(/[?#]/)[0]}?page=${encodeURIComponent(pageId)}`;
+  const loading = fetch(serverUrl(asked), { headers: authHeaders(), credentials: 'include' })
     .then((response) => (response.ok ? response.blob() : null))
     .then((blob) => (blob && blob.size <= LARGEST ? readAsDataUrl(blob) : null))
     .catch(() => null)
     .then((url) => {
       if (url) reverse.set(url, path);
       // A failure is not remembered: offline now is not offline in a minute.
-      else cache.delete(path);
+      else cache.delete(key);
       return url;
     });
-  cache.set(path, loading);
+  cache.set(key, loading);
   return loading;
 }
 
@@ -75,10 +79,10 @@ export const filePaths = (source: string): string[] => [...new Set(source.match(
  * image — the honest answer for a file this device has never seen and cannot
  * reach right now.
  */
-export async function inlineFiles(source: string): Promise<string> {
+export async function inlineFiles(source: string, pageId: string): Promise<string> {
   const paths = filePaths(source);
   if (!paths.length) return source;
-  const urls = await Promise.all(paths.map(dataUrlFor));
+  const urls = await Promise.all(paths.map((path) => dataUrlFor(path, pageId)));
   const byPath = new Map(paths.map((path, at) => [path, urls[at]]));
   // The same pattern that found them, so a path inside somebody else's URL is
   // left alone here too.
