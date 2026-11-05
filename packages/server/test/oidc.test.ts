@@ -124,11 +124,17 @@ after(() => {
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
 });
 
+/** The cookie `start` set, which the browser carries back to the callback. */
+const boundTo = (start: Response): string => (start.headers.get('set-cookie') ?? '').split(';')[0];
+
 /** Walk the whole flow the way a browser would, following redirects by hand. */
-async function signIn(): Promise<{ status: number; location: string; cookie: string }> {
-  const start = await fetch(`${base}/api/auth/oidc/start`, { redirect: 'manual' });
+async function signIn(next?: string): Promise<{ status: number; location: string; cookie: string }> {
+  // Every walk is a fresh browser; the sign-in limiter is not what these tests are about.
+  (await import('../src/kernel/identity/ratelimit.ts')).resetRateLimits();
+  const query = next === undefined ? '' : `?next=${encodeURIComponent(next)}`;
+  const start = await fetch(`${base}/api/auth/oidc/start${query}`, { redirect: 'manual' });
   const authorize = await fetch(start.headers.get('location')!, { redirect: 'manual' });
-  const callback = await fetch(authorize.headers.get('location')!, { redirect: 'manual' });
+  const callback = await fetch(authorize.headers.get('location')!, { redirect: 'manual', headers: { cookie: boundTo(start) } });
   return {
     status: callback.status,
     location: callback.headers.get('location') ?? '',
@@ -235,11 +241,11 @@ describe('the state parameter', () => {
     const authorize = await fetch(start.headers.get('location')!, { redirect: 'manual' });
     const target = authorize.headers.get('location')!;
 
-    const first = await fetch(target, { redirect: 'manual' });
+    const first = await fetch(target, { redirect: 'manual', headers: { cookie: boundTo(start) } });
     assert.equal(first.headers.get('location'), '/');
 
     // Replaying the exact callback URL must not produce a second session.
-    const replay = await fetch(target, { redirect: 'manual' });
+    const replay = await fetch(target, { redirect: 'manual', headers: { cookie: boundTo(start) } });
     assert.match(replay.headers.get('location') ?? '', /sso_error/);
     assert.equal((replay.headers.get('set-cookie') ?? '').includes('kolibri_session='), false);
   });
@@ -248,6 +254,24 @@ describe('the state parameter', () => {
     assert.equal(oidc.startFlow('/projects/abc').next, '/projects/abc');
     assert.equal(oidc.startFlow('https://evil.example').next, '/', 'an absolute URL is not a destination');
     assert.equal(oidc.startFlow('//evil.example').next, '/', 'nor a protocol-relative one');
+    assert.equal(oidc.startFlow('/\\evil.example').next, '/', 'nor one a browser reads as protocol-relative (SEC-14)');
+    assert.equal(oidc.startFlow('/\t/evil.example').next, '/', 'nor one with a tab the browser drops');
+  });
+
+  it('lands on a backslash path at home rather than off-site (SEC-14)', async () => {
+    assert.equal((await signIn('/\\evil.example')).location, '/');
+    assert.equal((await signIn('/projects/abc')).location, '/projects/abc');
+  });
+
+  it('is finished only by the browser that started it (SEC-14)', async () => {
+    const start = await fetch(`${base}/api/auth/oidc/start`, { redirect: 'manual' });
+    assert.match(start.headers.get('set-cookie') ?? '', /^kolibri_oidc=[^;]+;.*HttpOnly.*SameSite=Lax/);
+    const authorize = await fetch(start.headers.get('location')!, { redirect: 'manual' });
+
+    // A callback URL somebody else started, opened in the victim's browser: login CSRF.
+    const forged = await fetch(authorize.headers.get('location')!, { redirect: 'manual', headers: { cookie: 'kolibri_oidc=theirs' } });
+    assert.match(forged.headers.get('location') ?? '', /sso_error/);
+    assert.equal((forged.headers.get('set-cookie') ?? '').includes('kolibri_session='), false);
   });
 });
 
