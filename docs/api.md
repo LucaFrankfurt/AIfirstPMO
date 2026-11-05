@@ -6,8 +6,9 @@ like `{ "error": "forbidden", "message": "Project is private" }` with a matching
 Every JSON response also carries `x-kolibri-now`: this server's own clock, in milliseconds. Every
 timestamp in every payload was stamped by that clock, so a client that renders them as "3 minutes
 ago" should measure against it rather than against its own — see
-[`sync.md`](sync.md#one-clock-and-it-is-the-servers). It is exposed to cross-origin callers, so a
-browser client can read it too.
+[`sync.md`](sync.md#one-clock-and-it-is-the-servers). It is exposed to the packaged app's origins
+(`capacitor://localhost`, `https://localhost`), so that client can read it too. No other origin is
+granted CORS: a browser page elsewhere cannot read an answer, with or without the session cookie.
 
 ## The document
 
