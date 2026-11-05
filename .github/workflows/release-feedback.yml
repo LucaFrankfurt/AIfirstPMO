@@ -13,9 +13,6 @@ on:
 
 permissions:
   contents: read
-  # The OIDC token npm trades for a publish credential. Nothing else in this job can
-  # write anywhere.
-  id-token: write
 
 # Two tags pushed in a row must not race each other to the registry.
 concurrency:
@@ -23,19 +20,18 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  publish:
+  # Everything that runs dependency code happens here, without the OIDC token.
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "22"
-          registry-url: https://registry.npmjs.org
-      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
-      - run: npm install -g npm@^11.5.1 --no-audit --no-fund
       # A tag is a promise about what it publishes. Refuse one whose name and the
       # package version disagree, or that points at a commit main never had — a tag on
       # an unreviewed branch would otherwise publish unreviewed code.
@@ -50,8 +46,34 @@ jobs:
             echo "::error::$GITHUB_REF_NAME points at a commit that is not on main"
             exit 1
           fi
-      - run: npm ci --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund --ignore-scripts
       - run: npx tsc --noEmit -p packages/feedback
       - run: npm run test:feedback
       - run: npm run build -w @kolibri-day/feedback
-      - run: npm publish -w @kolibri-day/feedback --access public
+      - run: npm pack -w @kolibri-day/feedback --ignore-scripts
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: feedback-package
+          path: kolibri-day-feedback-*.tgz
+          if-no-files-found: error
+          retention-days: 1
+
+  # Only this job can mint the OIDC token; it installs nothing but a pinned npm.
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          registry-url: https://registry.npmjs.org
+      # Trusted publishing needs npm 11.5.1 or later; Node 22 ships npm 10.
+      - run: npm install -g npm@11.21.1 --no-audit --no-fund --ignore-scripts
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: feedback-package
+      - run: npm publish "./kolibri-day-feedback-${GITHUB_REF_NAME#feedback-v}.tgz" --access public
