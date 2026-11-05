@@ -16,7 +16,7 @@ import { overTls } from '../../platform/origin.ts';
 import { leave } from '../../../modules/chat/presence.ts';
 import {
   createSession, destroySession, hashPassword, hashToken, requireAuth, requireWorkspace, requireWrite,
-  sessionInfo, SESSION_COOKIE, verifyPassword,
+  secretEquals, sessionInfo, SESSION_COOKIE, verifyPassword,
 } from '../auth.ts';
 import { acceptInvite } from './workspaces.ts';
 import { addMember, createProject, createWorkspace, serverClock } from '../../write-path/bootstrap.ts';
@@ -188,6 +188,12 @@ function createAccount(input: {
 /** Password sign-in is off when the instance is configured for SSO only. */
 const ssoOnly = (): boolean => oidcEnabled() && env.oidc.only;
 
+/** Checked against when there is no account, so a refusal costs the same scrypt either way. */
+let decoyHash: string | null = null;
+
+/** Holds the pending state, so only the browser that started a sign-in can finish it. */
+const OIDC_COOKIE = 'kolibri_oidc';
+
 export function registerAuthRoutes(router: Router): void {
   router.get('/api/config', () => ({
     allowSignup: env.allowSignup,
@@ -236,7 +242,9 @@ export function registerAuthRoutes(router: Router): void {
     enforce(ctx, [...byAddress(ctx, LIMITS.login, 'login'), byValue(LIMITS.login, 'login-user', email)]);
 
     const user = get<Row>(`SELECT * FROM users WHERE email = ? AND deleted_at IS NULL`, email);
-    if (!user || !verifyPassword(body.password ?? '', user.password_hash)) {
+    const stored = user?.password_hash ? String(user.password_hash) : (decoyHash ??= hashPassword(token()));
+    const matches = verifyPassword(body.password ?? '', stored);
+    if (!user || !matches) {
       throw unauthorized('Email or password is incorrect');
     }
 
@@ -285,7 +293,10 @@ export function registerAuthRoutes(router: Router): void {
     pending.set(flow.state, flow);
 
     const document = await discover();
-    ctx.res.writeHead(302, { location: authorizeUrl(document, flow, redirectUri(ctx)) });
+    ctx.res.writeHead(302, {
+      location: authorizeUrl(document, flow, redirectUri(ctx)),
+      'set-cookie': cookie(OIDC_COOKIE, flow.state, { maxAge: PENDING_TTL / 1000, secure: overTls(ctx) }),
+    });
     ctx.res.end();
     return undefined;
   });
@@ -310,6 +321,9 @@ export function registerAuthRoutes(router: Router): void {
     // worth stealing.
     pending.delete(state);
     if (!flow || Date.now() - flow.created_at > PENDING_TTL) return fail('That sign-in took too long — try again');
+    if (!secretEquals(parseCookies(ctx.req)[OIDC_COOKIE] ?? '', state)) {
+      return fail('That sign-in was started in another browser — try again');
+    }
 
     try {
       const document = await discover();

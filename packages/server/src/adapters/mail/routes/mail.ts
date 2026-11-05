@@ -11,7 +11,7 @@
  * carries its own proof instead: a signature over the user id, and a shared
  * secret in a header.
  */
-import { get, run, type Row } from '../../../kernel/platform/db/index.ts';
+import { all, get, run, type Row } from '../../../kernel/platform/db/index.ts';
 import { env } from '../../../kernel/platform/env.ts';
 import { requireAuth, secretEquals } from '../../../kernel/identity/auth.ts';
 import {
@@ -108,23 +108,25 @@ export function registerMailRoutes(router: Router): void {
 
   /** What is being refused, and a way to allow an address again. */
   router.get('/api/mail/suppressions', (ctx) => {
-    requireAuth(ctx);
-    return suppressions();
+    const auth = requireAuth(ctx);
+    if (auth.isAdmin) return suppressions();
+    // The list is the instance's; anybody else sees only whether their own address is on it.
+    const me = get<Row>(`SELECT email FROM users WHERE id = ?`, auth.userId);
+    return all<Row>(`SELECT * FROM email_suppressions WHERE email = ?`, String(me?.email ?? '').toLowerCase());
   });
 
   router.delete('/api/mail/suppressions/:email', (ctx) => {
     const auth = requireAuth(ctx);
-    // Anybody may un-suppress their own address; an admin may clear any of
-    // them. A bounce is usually a full mailbox, and the person it happened to
-    // is the one who knows it is fixed.
+    // Anybody may un-suppress their own address; an instance admin may clear
+    // any of them. A bounce is usually a full mailbox, and the person it
+    // happened to is the one who knows it is fixed.
     // Decoded once already, by the router. A second pass read `a%41@x` as
     // `aa@x`, which is another address, and a lone `%` as a 500.
     const address = ctx.params.email.toLowerCase();
     const me = get<Row>(`SELECT email FROM users WHERE id = ?`, auth.userId);
     const mine = String(me?.email ?? '').toLowerCase() === address;
-    if (!mine && !auth.isAdmin && ![...auth.memberships.values()].some((role) => role === 'owner' || role === 'admin')) {
-      throw forbidden('Only an admin can clear somebody else’s address');
-    }
+    // Not a workspace owner: on an open instance everybody owns one, and the relay is shared.
+    if (!mine && !auth.isAdmin) throw forbidden('Only an administrator of this instance can clear somebody else’s address');
     unsuppress(address);
     return { ok: true };
   });

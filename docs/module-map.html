@@ -356,7 +356,7 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">373</span><span class="k">source files</span></div>
     <div><span class="v num">48</span><span class="k">modules</span></div>
-    <div><span class="v num">120 142</span><span class="k">lines</span></div>
+    <div><span class="v num">120 190</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">61</span><span class="k">entities</span></div>
     <div><span class="v num">145</span><span class="k">endpoints</span></div>
@@ -441,9 +441,9 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 33 156 lines, 28%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 33 183 lines, 28%</span>
       <span role="listitem"><i style="background: var(--capability)"></i> Capability — 59 119 lines, 49%</span>
-      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 25 188 lines, 21%</span>
+      <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 25 209 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 679 lines, 2%</span>
 <!-- end -->
     </div>
@@ -457,7 +457,7 @@ footer {
       into five adapters. It is <strong>453 lines</strong> now, and the growth is the fix: the
       meaning came home when <code>repo</code> started offering <code>onCommitted</code>, and the
       delivery stayed in the adapters but through a port they register with. And
-      <code>adapter/mcp</code> is <strong>11 010</strong>: the assistant's view of the product is
+      <code>adapter/mcp</code> is <strong>11 007</strong>: the assistant's view of the product is
       larger than the largest thing the product actually does. Fifteen files rather than three, now,
       which makes it readable — not smaller. Finding 7 is why.
     </p>
@@ -1418,11 +1418,11 @@ const MODULES = [
 {"ring":"kernel","name":"i18n","flag":"","files":5,"lines":11002,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3476},
 {"ring":"kernel","name":"registry","flag":"","files":8,"lines":4096,"biggest":"kernel/registry/types.ts","biggestLines":2626},
 {"ring":"kernel","name":"design-system","flag":"","files":30,"lines":2883,"biggest":"kernel/design-system/ui.tsx","biggestLines":828},
-{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2757,"biggest":"kernel/write-path/repo.ts","biggestLines":1363},
-{"ring":"kernel","name":"sync","flag":"","files":8,"lines":2537,"biggest":"kernel/sync/routes/sync.ts","biggestLines":675},
+{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2764,"biggest":"kernel/write-path/repo.ts","biggestLines":1363},
+{"ring":"kernel","name":"sync","flag":"","files":8,"lines":2541,"biggest":"kernel/sync/routes/sync.ts","biggestLines":679},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2430,"biggest":"kernel/platform/env.ts","biggestLines":650},
-{"ring":"kernel","name":"search","flag":"","files":9,"lines":2375,"biggest":"kernel/search/query.ts","biggestLines":489},
-{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2354,"biggest":"kernel/identity/routes/auth.ts","biggestLines":565},
+{"ring":"kernel","name":"search","flag":"","files":9,"lines":2377,"biggest":"kernel/search/query.ts","biggestLines":489},
+{"ring":"kernel","name":"identity","flag":"","files":10,"lines":2368,"biggest":"kernel/identity/routes/auth.ts","biggestLines":579},
 {"ring":"kernel","name":"files","flag":"","files":9,"lines":1227,"biggest":"kernel/files/zip.ts","biggestLines":327},
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
@@ -1447,12 +1447,12 @@ const MODULES = [
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":453,"biggest":"modules/notifications/effects.ts","biggestLines":374},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":229,"biggest":"modules/intake/intake.tsx","biggestLines":229},
 {"ring":"capability","name":"share","flag":"","files":1,"lines":158,"biggest":"modules/share/share.tsx","biggestLines":158},
-{"ring":"adapter","name":"mcp","flag":"","files":19,"lines":11010,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2160},
-{"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3681,"biggest":"adapters/transfer/transfer.ts","biggestLines":847},
+{"ring":"adapter","name":"mcp","flag":"","files":19,"lines":11007,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2160},
+{"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3693,"biggest":"adapters/transfer/transfer.ts","biggestLines":873},
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},
-{"ring":"adapter","name":"mail","flag":"","files":8,"lines":1416,"biggest":"adapters/mail/mail.ts","biggestLines":400},
+{"ring":"adapter","name":"mail","flag":"","files":8,"lines":1418,"biggest":"adapters/mail/mail.ts","biggestLines":400},
 {"ring":"adapter","name":"imap","flag":"","files":4,"lines":1194,"biggest":"adapters/imap/imap.ts","biggestLines":371},
-{"ring":"adapter","name":"oauth","flag":"","files":4,"lines":968,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
+{"ring":"adapter","name":"oauth","flag":"","files":4,"lines":978,"biggest":"adapters/oauth/routes/oauth.ts","biggestLines":515},
 {"ring":"adapter","name":"kolibri","flag":"","files":3,"lines":905,"biggest":"feedback/src/adapters/kolibri/preflight.ts","biggestLines":598},
 {"ring":"adapter","name":"share","flag":"","files":3,"lines":802,"biggest":"adapters/share/routes/share.ts","biggestLines":642},
 {"ring":"adapter","name":"telegram","flag":"","files":5,"lines":763,"biggest":"adapters/telegram/telegram.ts","biggestLines":465},

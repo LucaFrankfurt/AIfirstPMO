@@ -378,6 +378,17 @@ export interface ImportReport {
   map: Map<string, string>;
 }
 
+/** A file's lists, checked to be lists of rows before anything is written: a 400 rather than a 500 halfway. */
+export function requireRows(doc: object, sections: readonly string[]): void {
+  for (const section of sections) {
+    const rows = (doc as Record<string, unknown>)[section];
+    if (rows == null) continue;
+    if (!Array.isArray(rows) || rows.some((row) => !row || typeof row !== 'object' || Array.isArray(row))) {
+      throw badRequest(`The file's ${section} is not a list of rows`);
+    }
+  }
+}
+
 /**
  * Read a document into this workspace as a new project — or into one that is
  * already there, when `intoProjectId` says so.
@@ -393,6 +404,11 @@ export function importProject(workspaceId: string, actorId: string, doc: Project
     throw badRequest('That file is not a Kolibri project export');
   }
   if (!doc.project || typeof doc.project !== 'object') throw badRequest('The file has no project in it');
+  requireRows(doc, [
+    'people', 'states', 'labels', 'fields', 'cycles', 'modules', 'tasks', 'pages', 'artboards', 'relations',
+    'field_values', 'comments', 'templates', 'automations', 'time_entries', 'channels', 'messages', 'baselines',
+    'members', 'attachments', 'files',
+  ]);
 
   return tx(() => {
     const hlc = () => serverClock.now();
@@ -826,7 +842,7 @@ function remapKeys(raw: unknown, to: (id: unknown) => string | null): Record<str
 }
 
 /** Rows sorted so that every parent comes before its children. */
-function inTreeOrder<T extends Record<string, unknown>>(rows: T[]): T[] {
+export function inTreeOrder<T extends Record<string, unknown>>(rows: T[]): T[] {
   const known = new Set(rows.map((row) => String(row.id)));
   const byParent = new Map<string | null, T[]>();
   for (const row of rows) {
@@ -835,12 +851,22 @@ function inTreeOrder<T extends Record<string, unknown>>(rows: T[]): T[] {
     byParent.get(parent)!.push(row);
   }
   const out: T[] = [];
+  const placed = new Set<T>();
   const walk = (parent: string | null): void => {
     for (const row of byParent.get(parent) ?? []) {
+      if (placed.has(row)) continue;
+      placed.add(row);
       out.push(row);
       walk(String(row.id));
     }
   };
   walk(null);
+  // A parent cycle has no root: its rows come last, and the first of each arrives without its parent.
+  for (const row of rows) {
+    if (placed.has(row)) continue;
+    placed.add(row);
+    out.push(row);
+    walk(String(row.id));
+  }
   return out;
 }

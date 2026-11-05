@@ -143,8 +143,8 @@ export function findTask(ref: string, workspaceId: string, ctx: McpCtx): Row {
   const row = /^[A-Za-z][A-Za-z0-9]*-\d+$/.test(ref)
     ? get<Row>(`SELECT * FROM tasks WHERE workspace_id = ? AND identifier = ? AND deleted_at IS NULL`, workspaceId, ref.toUpperCase())
     : get<Row>(`SELECT * FROM tasks WHERE workspace_id = ? AND id = ? AND deleted_at IS NULL`, workspaceId, ref);
-  if (!row) throw new McpError(`Task ${ref} not found`);
-  if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  // The same answer as for nothing at all, or a private project's work can be probed by name.
+  if (!row || !canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError(`Task ${ref} not found`);
   return row;
 }
 
@@ -153,8 +153,7 @@ export function findProject(ref: string, workspaceId: string, ctx: McpCtx): Row 
     `SELECT * FROM projects WHERE workspace_id = ? AND (id = ? OR key = ? OR lower(name) = lower(?)) AND deleted_at IS NULL`,
     workspaceId, ref, ref.toUpperCase(), ref,
   );
-  if (!row) throw new McpError(`Project ${ref} not found`);
-  if (!canSeeProject(ctx.auth.userId, row.id)) throw new McpError('That project is private');
+  if (!row || !canSeeProject(ctx.auth.userId, row.id)) throw new McpError(`Project ${ref} not found`);
   return row;
 }
 
@@ -437,8 +436,7 @@ export const CYCLE_STATUS = ['upcoming', 'active', 'completed', 'archived'] as c
  */
 export function findCycle(ref: string, workspaceId: string, ctx: McpCtx): Row {
   const row = resolveCycle(workspaceId, ref);
-  if (!row) throw new McpError(`Cycle ${ref} not found`);
-  if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  if (!row || !canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError(`Cycle ${ref} not found`);
   return row;
 }
 
@@ -457,7 +455,7 @@ export function findModule(ref: string, workspaceId: string, ctx: McpCtx): Row {
   // A module owned by nobody belongs to more than one project, and
   // `canSeeProject` of a null is not the question to ask about it — whether any
   // covered project is visible is, and `list_modules` answers that in SQL.
-  if (row.project_id && !canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  if (row.project_id && !canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError(`Module ${ref} not found`);
   return row;
 }
 
@@ -538,8 +536,7 @@ export const stateView = (row: Row): Record<string, unknown> => ({
 /** A state in a project the caller may see. */
 export function findState(id: string, workspaceId: string, ctx: McpCtx): Row {
   const row = get<Row>(`SELECT * FROM states WHERE id = ? AND workspace_id = ? AND deleted_at IS NULL`, id, workspaceId);
-  if (!row) throw new McpError(`State ${id} not found`);
-  if (!canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError('That project is private');
+  if (!row || !canSeeProject(ctx.auth.userId, row.project_id)) throw new McpError(`State ${id} not found`);
   return row;
 }
 
