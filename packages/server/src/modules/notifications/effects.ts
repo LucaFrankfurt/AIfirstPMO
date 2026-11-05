@@ -100,7 +100,7 @@ function notify(entity: EntityName, row: Row, before: Row | undefined, changed: 
   // Everybody who *can* see a page is the whole workspace, and notifying them
   // would teach people to ignore the bell.
   if (entity === 'comment' && !before && row.page_id) {
-    const page = get<Row>(`SELECT id, title, created_by FROM pages WHERE id = ?`, row.page_id);
+    const page = get<Row>(`SELECT id, title, created_by, watchers FROM pages WHERE id = ?`, row.page_id);
     if (page) {
       const talkers = all<Row>(
         `SELECT DISTINCT author_id FROM comments WHERE page_id = ? AND deleted_at IS NULL`,
