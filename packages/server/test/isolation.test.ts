@@ -528,4 +528,86 @@ describe('a colleague outside a private project', () => {
     const bytes = await fetch(`${base}/files/${hash}/borrowed.webp`, { headers: { cookie: outsider.cookie } });
     assert.equal(bytes.status, 403, 'a hand-written attachment row bought access to somebody else’s file');
   });
+
+  it('cannot import into the private project, or post in a colleague’s name', async () => {
+    const { body: task } = await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie });
+    const doc = {
+      format: 'kolibri.project/1', project: { name: 'Imported', key: 'IMP' },
+      people: [{ id: 'p-ada', email: 'ada@example.com', name: 'Ada' }],
+      tasks: [{ id: 't1', identifier: task.identifier, title: 'Overwritten by an import' }],
+      comments: [{ id: 'c1', task_id: 't1', author_id: 'p-ada', body: 'Ada never said this' }],
+    };
+    const merged = await call(`/api/workspaces/${ada.workspace}/import/json`, {
+      cookie: outsider.cookie, body: { document: doc, project_id: privateProject },
+    });
+    assert.equal(merged.status, 403, 'an import merged into a project its importer cannot open');
+    assert.equal((await call(`/api/tasks/${privateTask}`, { cookie: ada.cookie })).body.title, 'Next quarter salaries');
+
+    const fresh = await call(`/api/workspaces/${ada.workspace}/import/json`, { cookie: outsider.cookie, body: { document: doc } });
+    assert.equal(fresh.status, 200, 'a guard that refuses every import is not a fix');
+    const me = (await call('/api/session', { cookie: outsider.cookie })).body.user.id;
+    const { body: comments } = await call(`/api/workspaces/${ada.workspace}/comments`, { cookie: ada.cookie });
+    const forged = comments.find((row: any) => row.body === 'Ada never said this');
+    assert.equal(forged?.author_id, me, 'an imported comment was filed under a colleague matched by email');
+  });
+});
+
+describe('the address book', () => {
+  it('finds the people a caller works with, and nobody else on the instance', async () => {
+    const { body: mine } = await call('/api/people?q=outsider', { cookie: ada.cookie });
+    assert.deepEqual(mine.map((row: any) => row.email), ['outsider@example.com'], 'a colleague went missing');
+
+    const { body: theirs } = await call('/api/people?q=example.com', { cookie: mallory.cookie });
+    assert.deepEqual(theirs, [], 'a stranger read the names and addresses of another workspace');
+  });
+});
+
+describe('an administrator and the owner role', () => {
+  let admin: Person;
+  let adminId = '';
+  let adaId = '';
+
+  before(async () => {
+    const { body: invite } = await call(`/api/workspaces/${ada.workspace}/invites`, {
+      cookie: ada.cookie, body: { role: 'admin' },
+    });
+    admin = await register('admin@example.com');
+    await call(`/api/invites/${invite.code}/accept`, { cookie: admin.cookie, body: {} });
+    adminId = (await call('/api/session', { cookie: admin.cookie })).body.user.id;
+    adaId = (await call('/api/session', { cookie: ada.cookie })).body.user.id;
+  });
+
+  it('cannot make anybody an owner, change one or remove one', async () => {
+    const members = `/api/workspaces/${ada.workspace}/members`;
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: admin.cookie, body: { role: 'owner' } });
+    assert.equal(invited.status, 403, 'an admin invited an owner');
+    const promoted = await call(`${members}/${adminId}`, { cookie: admin.cookie, method: 'PATCH', body: { role: 'owner' } });
+    assert.equal(promoted.status, 403, 'an admin made themselves owner');
+    const demoted = await call(`${members}/${adaId}`, { cookie: admin.cookie, method: 'PATCH', body: { role: 'member' } });
+    assert.equal(demoted.status, 403, 'an admin demoted the owner');
+    const removed = await call(`${members}/${adaId}`, { cookie: admin.cookie, method: 'DELETE' });
+    assert.equal(removed.status, 403, 'an admin removed the owner');
+
+    const { body: after } = await call(members, { cookie: ada.cookie });
+    assert.equal(after.find((row: any) => row.user_id === adaId)?.role, 'owner');
+    assert.equal(after.find((row: any) => row.user_id === adminId)?.role, 'admin');
+  });
+
+  it('refuses a role that does not exist', async () => {
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: ada.cookie, body: { role: 'superuser' } });
+    assert.equal(invited.status, 400);
+    const patched = await call(`/api/workspaces/${ada.workspace}/members/${adminId}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { role: 'root' },
+    });
+    assert.equal(patched.status, 400);
+  });
+
+  it('still lets the owner hand the role on', async () => {
+    const invited = await call(`/api/workspaces/${ada.workspace}/invites`, { cookie: ada.cookie, body: { role: 'owner' } });
+    assert.equal(invited.status, 200, 'a guard that refuses everybody is not a fix');
+    const promoted = await call(`/api/workspaces/${ada.workspace}/members/${adminId}`, {
+      cookie: ada.cookie, method: 'PATCH', body: { role: 'owner' },
+    });
+    assert.equal(promoted.status, 200);
+  });
 });

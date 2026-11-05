@@ -37,7 +37,7 @@ import { env } from '../../../kernel/platform/env.ts';
 import { buildCsp } from '../../../kernel/platform/csp.ts';
 import { authenticate, hashToken, secretEquals } from '../../../kernel/identity/auth.ts';
 import { token, uid } from '../../../kernel/platform/ids.ts';
-import { badRequest, HttpError, readJson, send, type Ctx, type Router } from '../../../kernel/platform/http.ts';
+import { badRequest, forbidden, HttpError, readJson, send, type Ctx, type Router } from '../../../kernel/platform/http.ts';
 import { byAddress, enforce, LIMITS } from '../../../kernel/identity/ratelimit.ts';
 import { publicOrigin as origin } from '../../../kernel/platform/origin.ts';
 
@@ -80,6 +80,22 @@ const html = (ctx: Ctx, status: number, body: string, formTarget?: string): void
   ctx.res.writeHead(status, headers);
   ctx.res.end(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">${body}`);
 };
+
+/** Whether this POST came from this instance's own page; browsers always send Origin on one. */
+function postedFromHere(ctx: Ctx): boolean {
+  const sent = ctx.req.headers.origin;
+  if (sent) {
+    try {
+      const from = new URL(sent);
+      return from.origin === new URL(origin(ctx)).origin
+        || from.host === String(ctx.req.headers['x-forwarded-host'] || ctx.req.headers.host || '');
+    } catch {
+      return false;
+    }
+  }
+  const site = ctx.req.headers['sec-fetch-site'];
+  return !site || site === 'same-origin' || site === 'none';
+}
 
 const escape = (text: string): string =>
   text.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
@@ -347,6 +363,7 @@ function pruneClients(): void {
   });
 
   router.post('/oauth/authorize', async (ctx: Ctx) => {
+    if (!postedFromHere(ctx)) throw forbidden('This form has to be sent from this instance');
     const form = await readForm(ctx);
     const clientId = form.get('client_id') ?? '';
     const redirectUri = form.get('redirect_uri') ?? '';

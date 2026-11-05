@@ -133,8 +133,7 @@ describe('conversations in a project document', () => {
     const messages = await ok(`/api/workspaces/${workspaceId}/messages?channel_id=${channels[0].id}`);
     assert.equal(messages.length, 1);
     assert.match(messages[0].body, /Van booked/);
-    // The author is matched by email like everything else, not rewritten to
-    // whoever pressed import.
+    // Written as whoever pressed import: a file cannot speak for somebody else.
     assert.ok(messages[0].author_id);
   });
 });

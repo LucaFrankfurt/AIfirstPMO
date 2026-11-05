@@ -14,7 +14,7 @@ import { installSettings } from './kernel/platform/settings.ts';
 import { installEffects } from './wiring.ts';
 import { buildCsp, buildFrameCsp, FRAME_FILE } from './kernel/platform/csp.ts';
 import { HttpError, Router, badRequest, decodeParam, send, type Ctx } from './kernel/platform/http.ts';
-import { overTls } from './kernel/platform/origin.ts';
+import { overTls, publicOrigin } from './kernel/platform/origin.ts';
 import { registerAiRoutes } from './modules/ai-review/routes/ai.ts';
 import { registerAuthRoutes } from './kernel/identity/routes/auth.ts';
 import { registerWorkspaceRoutes } from './kernel/identity/routes/workspaces.ts';
@@ -268,11 +268,25 @@ const server = createServer((req: IncomingMessage, res: ServerResponse) => {
   handle(req, res).catch((err) => failed(req, res, err, (req.url ?? '/').split('?')[0]));
 });
 
+/** The packaged app's origins (see `capacitor.config.ts`); no other site is granted CORS. */
+const NATIVE_ORIGINS = new Set(['capacitor://localhost', 'https://localhost']);
+
+function trustedOrigin(origin: string, ctx: Ctx): boolean {
+  if (NATIVE_ORIGINS.has(origin)) return true;
+  try {
+    return origin === new URL(publicOrigin(ctx)).origin;
+  } catch {
+    return false;
+  }
+}
+
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = requestUrl(req);
-  securityHeaders(res, overTls({ req, res, url, params: {}, query: url.searchParams, method: req.method ?? 'GET' }));
+  const early: Ctx = { req, res, url, params: {}, query: url.searchParams, method: req.method ?? 'GET' };
+  securityHeaders(res, overTls(early));
   const origin = req.headers.origin;
-  if (origin) {
+  if (origin) res.setHeader('vary', 'Origin');
+  if (origin && trustedOrigin(origin, early)) {
     res.setHeader('access-control-allow-origin', origin);
     res.setHeader('access-control-allow-credentials', 'true');
     // A response header a cross-origin caller may not read might as well not
@@ -280,7 +294,6 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     // without this the clock `send` puts on every answer is invisible to
     // exactly the clients most likely to have a wrong one of their own.
     res.setHeader('access-control-expose-headers', CLOCK_HEADER);
-    res.setHeader('vary', 'Origin');
   }
   if (req.method === 'OPTIONS') {
     res.writeHead(204, {

@@ -147,7 +147,9 @@ People are matched **by email address** — the only identifier that means the
 same thing on two instances. Anybody with no account on the target is named in
 the report and their work arrives unassigned, rather than being handed to
 somebody who is not there. Who reacted to a comment is not carried across for
-the same reason.
+the same reason. Comments and messages are the exception to matching: they are
+written as whoever pressed import, because a file must not be a way to post in
+a colleague's name.
 
 ### Into a new project, or into one you already have
 
@@ -157,7 +159,7 @@ The import asks, because the two are genuinely different operations:
 touched by a bad file, which is what makes it safe to try — and it is what every
 import did before there was a choice.
 
-**This project** merges. A state, label, field, cycle or module whose *name* is
+**This project** merges, and only into a project you can open. A state, label, field, cycle or module whose *name* is
 already in the project is the one the incoming rows land on, with its own colour
 and order left exactly as the team set them: somebody merging a file into a live
 project wants its tasks, not its opinion about what colour "In Progress" is. The
