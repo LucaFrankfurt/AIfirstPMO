@@ -101,6 +101,9 @@ export const de: Catalogue = {
   'sync.failed': 'Synchronisierung fehlgeschlagen',
   'sync.refused': 'Der Server nimmt keine Änderungen von diesem Gerät an: {reason}. Sie bleiben hier in der Warteschlange.',
   'sync.tooLarge': 'Eine Änderung war zu groß für den Server und wurde nicht gespeichert',
+  'sync.rejected_one': '{count} Änderung nicht gespeichert',
+  'sync.rejected_other': '{count} Änderungen nicht gespeichert',
+  'sync.dismissRejected': 'Verwerfen',
   'sync.unsentOnSignOut_one': '{count} Änderung hat den Server noch nicht erreicht und existiert nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
   'sync.unsentOnSignOut_other': '{count} Änderungen haben den Server noch nicht erreicht und existieren nur auf diesem Gerät. Abmelden löscht sie. Trotzdem abmelden?',
 

@@ -102,6 +102,9 @@ export const en = {
   'sync.failed': 'Sync failed',
   'sync.refused': 'The server refuses changes from this device: {reason}. They stay queued here.',
   'sync.tooLarge': 'A change was too large for the server and was not saved',
+  'sync.rejected_one': '{count} change not saved',
+  'sync.rejected_other': '{count} changes not saved',
+  'sync.dismissRejected': 'Dismiss',
   'sync.unsentOnSignOut_one': '{count} change has not reached the server yet and exists only on this device. Signing out deletes it. Sign out anyway?',
   'sync.unsentOnSignOut_other': '{count} changes have not reached the server yet and exist only on this device. Signing out deletes them. Sign out anyway?',
 

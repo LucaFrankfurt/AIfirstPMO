@@ -675,6 +675,7 @@ describe('a guest and their own read marker', () => {
     assert.deepEqual(result.body.accepted, ['m1']);
     assert.equal(result.body.rejected.length, 1);
     assert.equal(result.body.rejected[0].id, 'm2');
+    assert.equal(result.body.rejected[0].status, 403, 'a refusal, which a client keeps aside rather than retries (WEB-09)');
     assert.equal(get<any>(`SELECT body FROM messages WHERE id = 'nope'`), undefined);
   });
 });
