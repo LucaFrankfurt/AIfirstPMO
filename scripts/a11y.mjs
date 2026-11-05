@@ -400,6 +400,13 @@ for (const [label, options] of MODES) {
     return (body.pages ?? body.items ?? body).find((row) => row.format === 'board')?.id;
   });
   if (!boardPageId) throw new Error('no board page to open — the seed built none');
+  // A sub-task's sheet: the parent trail and the editor toolbar were both under 24px there (UI-05).
+  const subtaskId = await page.evaluate(async () => {
+    const workspace = localStorage.getItem('kolibri.workspace');
+    const body = await (await fetch(`/api/workspaces/${workspace}/tasks?limit=500`, { credentials: 'include' })).json();
+    return (body.tasks ?? body.items ?? body).find((row) => row.parent_id)?.id;
+  });
+  if (!subtaskId) throw new Error('no sub-task to open — the seed built none');
 
   const SCREENS = ['/', `/projects/${project}`, '/inbox', '/search', '/chat', '/pages', '/pages/tidy', `/pages/${canvasId}`, `/pages/${boardPageId}`, '/teams', '/planner',
     '/portfolio', '/settings', '/settings?tab=members', '/settings?tab=data', '/settings?tab=instance',
@@ -422,6 +429,12 @@ for (const [label, options] of MODES) {
     for (const hit of await page.evaluate(PROBE)) if (!found.has(hit)) found.set(hit, path);
     for (const hit of await page.evaluate(TARGETS)) if (!small.has(hit)) small.set(hit, path);
   }
+
+  // Targets only: behind a modal the page is aria-hidden on purpose, which the tree rules would misread.
+  await page.goto(`${base}/t/${subtaskId}`, { waitUntil: 'networkidle' });
+  await page.waitForSelector('.parent-trail', { timeout: 10000 });
+  await page.waitForTimeout(350);
+  for (const hit of await page.evaluate(TARGETS)) if (!small.has(hit)) small.set(hit, `/t/${subtaskId}`);
 
   await page.goto(base, { waitUntil: 'networkidle' });
   await page.waitForTimeout(300);

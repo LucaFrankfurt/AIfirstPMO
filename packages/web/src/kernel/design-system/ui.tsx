@@ -125,6 +125,10 @@ const PATHS = {
   redo: 'M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3',
   // Four corners pulled out to the edges: show everything there is.
   fit: 'M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5',
+  // Shapes for states that were only a colour (UX-10): late, due today, no connection.
+  alert: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V13M12 16.5h.01',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7v5l3.5 2',
+  offline: 'M3 3l18 18M8.5 6.3A6 6 0 0 1 17.7 10 4 4 0 0 1 20.4 16.5M16.5 18H7a4.5 4.5 0 0 1-1.3-8.8',
 } satisfies Record<string, string>;
 
 /**
@@ -223,7 +227,13 @@ export function PriorityBars({ priority }: { priority: Priority }) {
   const level = { urgent: 3, high: 3, medium: 2, low: 1, none: 0 }[priority] ?? 0;
   return (
     <span className="priority-bars" style={{ color: PRIORITY_COLOR[priority] }} title={t(priorityKey(priority))}>
-      {[1, 2, 3].map((n) => <i key={n} className={n <= level ? 'on' : ''} />)}
+      {/* Urgent is a shape of its own, not just a redder "high" (UX-10). */}
+      {priority === 'urgent' ? (
+        <svg width="12" height="11" viewBox="0 0 12 11" aria-hidden="true">
+          <rect width="12" height="11" rx="2.5" fill="currentColor" />
+          <path d="M6 2.6v3.5M6 8.3v.01" stroke="#fff" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      ) : [1, 2, 3].map((n) => <i key={n} className={n <= level ? 'on' : ''} />)}
     </span>
   );
 }
