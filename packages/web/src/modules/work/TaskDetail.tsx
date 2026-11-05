@@ -98,6 +98,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
         <Input
           style={{ fontSize: 17, fontWeight: 600, border: 'none', padding: '2px 0', marginBottom: 10, background: 'none' }}
           value={title}
+          aria-label={t('task.titleLabel')}
           onChange={(event) => setTitle(event.target.value)}
           onBlur={saveTitle}
           onKeyDown={(event) => event.key === 'Enter' && event.currentTarget.blur()}
@@ -198,7 +199,7 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
           </div>
           {editingDescription ? (
             <>
-              <MarkdownEditor value={description} onChange={setDescription} attachTo={{ kind: 'task', id: task.id }} autoFocus />
+              <MarkdownEditor value={description} onChange={setDescription} attachTo={{ kind: 'task', id: task.id }} autoFocus label={t('task.description')} />
               <div className="flex items-center gap-2 mt-2">
                 <Button variant="primary" size="sm"
                   onClick={() => {
@@ -265,8 +266,8 @@ export function TaskDetail({ taskId, onClose, onOpen }: { taskId: string; onClos
               setNewSubtask('');
             }}
           >
-            <Input placeholder={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
-            <Button size="sm" type="submit"><Icon name="plus" size={14} /></Button>
+            <Input placeholder={t('task.addSubtask')} aria-label={t('task.addSubtask')} value={newSubtask} onChange={(e) => setNewSubtask(e.target.value)} />
+            <Button size="sm" type="submit" aria-label={t('task.addSubtask')}><Icon name="plus" size={14} /></Button>
           </form>
         </section>
 

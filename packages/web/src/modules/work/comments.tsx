@@ -283,6 +283,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
                     onChange={(body) => setEditing({ id: entry.id, body })}
                     minHeight={70}
                     autoFocus
+                    label={t('comment.edit')}
                     attachTo={attachTo}
                     onSubmit={saveEdit}
                   />
@@ -333,6 +334,7 @@ export function Comments({ target, empty, anchor, onAnchorDone, source, active, 
           onChange={setDraft}
           minHeight={70}
           placeholder={proposing ? t('suggest.why') : t('task.commentPlaceholder')}
+          label={proposing ? t('suggest.why') : t('task.comment')}
           attachTo={attachTo}
           onSubmit={send}
         />

@@ -819,8 +819,8 @@ function LineForm({ budget, line, last, onClose }: {
         <Input id="bl-vendor" value={form.vendor} onChange={(event) => setForm({ ...form, vendor: event.target.value })} />
       </div>
 
-      <div className="field">
-        <label>{t('budget.charges')}</label>
+      <div className="field" role="group" aria-labelledby="bl-charges">
+        <label id="bl-charges">{t('budget.charges')}</label>
         <AllocationEditor value={allocations} projects={projects} onChange={setAllocations} />
       </div>
 
@@ -1223,8 +1223,8 @@ function ActualForm({ budget, entry, lines, onClose }: {
         </div>
       </div>
 
-      <div className="field">
-        <label>{t('budget.charges')}</label>
+      <div className="field" role="group" aria-labelledby="ba-charges">
+        <label id="ba-charges">{t('budget.charges')}</label>
         <AllocationEditor value={allocations} projects={projects} onChange={setAllocations} />
       </div>
     </Sheet>
@@ -1608,8 +1608,8 @@ function BudgetFields({ budget, onChange, disabled }: {
         </div>
       </div>
 
-      <div className="field">
-        <label>{t('budget.scope')}</label>
+      <div className="field" role="group" aria-labelledby="b-scope">
+        <label id="b-scope">{t('budget.scope')}</label>
         <span className="text-[12px] text-muted">{t('budget.scopeHint')}</span>
         <div className="scope-picker">
           <label className="check-row">

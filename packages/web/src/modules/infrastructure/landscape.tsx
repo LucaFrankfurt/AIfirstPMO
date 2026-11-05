@@ -330,8 +330,8 @@ export function ComponentForm({ component, onClose }: { component: Component | n
         </div>
       </div>
 
-      <div className="field">
-        <label>{t('estate.dependsOn')}</label>
+      <div className="field" role="group" aria-labelledby="cmp-depends">
+        <label id="cmp-depends">{t('estate.dependsOn')}</label>
         <span className="text-[12px] text-muted">{t('estate.dependsOnHint')}</span>
         <div className="scope-picker">
           {projects.map((project) => (
@@ -487,9 +487,9 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
 
   /** One picker, used twice. A component can be on both lists — a machine that
       is rebuilt rather than replaced legitimately leaves and arrives. */
-  const picker = (chosen: string[], set: (next: string[]) => void, label: string) => (
-    <div className="field">
-      <label>{label}</label>
+  const picker = (chosen: string[], set: (next: string[]) => void, label: string, id: string) => (
+    <div className="field" role="group" aria-labelledby={id}>
+      <label id={id}>{label}</label>
       <div className="scope-picker">
         {components.map((component) => (
           <label className="check-row" key={component.id}>
@@ -573,8 +573,8 @@ export function MoveForm({ move, onClose }: { move: Move | null; onClose: () => 
         </div>
       </div>
 
-      {picker(leaving, setLeaving, t('estate.retires'))}
-      {picker(arriving, setArriving, t('estate.bringsIn'))}
+      {picker(leaving, setLeaving, t('estate.retires'), 'mv-leaving')}
+      {picker(arriving, setArriving, t('estate.bringsIn'), 'mv-arriving')}
       <p className="text-[12px] text-muted">{t('estate.moveHint')}</p>
     </Sheet>
   );

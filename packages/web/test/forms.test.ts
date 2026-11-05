@@ -192,6 +192,29 @@ describe('every icon-only control', () => {
     }
     assert.deepEqual(mute, [], `button(s) named only by a tooltip: ${mute.join(', ')}`);
   });
+
+  // UX-07: `Button` falls back to its `title`, so with neither words, title nor aria-label it has no name.
+  it('has a name when it is a <Button>', () => {
+    // Anything left once comments and tags are gone is text or an expression that renders some.
+    const words = (body: string): boolean =>
+      /\S/.test(body.replace(/\{\/\*[\s\S]*?\*\/\}/g, '').replace(/<[^<>]*>/g, ''));
+    const mute: string[] = [];
+    let seen = 0;
+    for (const { path, text } of files) {
+      for (const match of text.matchAll(/<Button\b/g)) {
+        seen++;
+        const end = endOfTag(text, match.index!);
+        const tag = text.slice(match.index!, end);
+        if (/\b(?:title|aria-label(?:ledby)?)=/.test(tag) || /\{\.\.\./.test(tag)) continue;
+        const close = tag.endsWith('/>') ? -1 : text.indexOf('</Button>', end);
+        const body = close < 0 ? '' : text.slice(end, close);
+        if (words(body)) continue;
+        mute.push(`${path.slice(SRC.length + 1)}:${text.slice(0, match.index).split('\n').length}`);
+      }
+    }
+    assert.ok(seen >= 100, `only found ${seen} <Button>s, which means the scan is broken`);
+    assert.deepEqual(mute, [], `<Button>(s) with no text, title or aria-label: ${mute.join(', ')}`);
+  });
 });
 
 /**

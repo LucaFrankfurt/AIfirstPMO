@@ -885,13 +885,14 @@ export function PageDetail() {
               />
               <Input
                 className="flex-1 min-w-0 font-semibold" style={{ fontSize: 19 }} value={title}
+                aria-label={t('page.titleLabel')}
                 onChange={(event) => setTitle(event.target.value)}
                 onBlur={commitTitle}
               />
             </div>
             {page.format === 'html'
               ? <HtmlEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} />
-              : <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} fieldRef={fieldRef} />}
+              : <MarkdownEditor value={content} onChange={setContent} minHeight={420} attachTo={{ kind: 'page', id }} fieldRef={fieldRef} label={t('page.contentLabel')} />}
             {/* Quiet, and only while it is true: somebody wanting to know why a
                 sentence appeared under their cursor should be able to find out,
                 and nobody else should have to look at it. */}

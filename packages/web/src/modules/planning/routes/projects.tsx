@@ -257,13 +257,9 @@ export function ProjectNew() {
             </div>
           </div>
           <div className="field">
-            {/* No `htmlFor`: the editor is a toolbar and a textarea rather
-                than one control, so the id would name whichever half happened
-                to carry it. Same as the rule body in `automation.tsx`, which
-                is the other markdown field inside a form. */}
-            <label>{t('project.description')}</label>
+            <label htmlFor="p-desc">{t('project.description')}</label>
             <MarkdownEditor
-              value={form.description} minHeight={90}
+              id="p-desc" value={form.description} minHeight={90}
               onChange={(value) => setForm({ ...form, description: value })}
             />
           </div>
@@ -712,9 +708,9 @@ function CycleEditor({ projectId, cycleId, onClose }: { projectId: string; cycle
           </div>
         </div>
         <div className="field">
-          <label>{t('cycle.goal')}</label>
+          <label htmlFor="c-goal">{t('cycle.goal')}</label>
           <MarkdownEditor
-            value={form.description ?? ''} minHeight={90}
+            id="c-goal" value={form.description ?? ''} minHeight={90}
             onChange={(value) => setForm({ ...form, description: value })}
           />
         </div>
@@ -921,7 +917,7 @@ export function CyclePage() {
             already offers a picker when it is not told one, which is exactly
             the right question to ask here. */}
         <ViewControls view={view} onChange={setView} projectId={cycle.project_id ?? undefined} />
-        <Button variant="primary" size="sm" onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
+        <Button variant="primary" size="sm" title={t('nav.newTask')} onClick={() => setAdding(true)}><Icon name="plus" size={14} /></Button>
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
         <Trail parts={planningCrumbs(cycle.project_id, 'cycles', t('nav.projects'))} />
@@ -1092,7 +1088,7 @@ export function ModulePage() {
         {editing ? (
           <div className="mb-3.5">
             <MarkdownEditor
-              value={module.description ?? ''} minHeight={130} autoFocus
+              value={module.description ?? ''} minHeight={130} autoFocus label={t('task.description')}
               attachTo={{ kind: 'module', id: module.id }}
               onChange={(value) => update('module', module.id, { description: value })}
             />
@@ -1310,9 +1306,9 @@ function ProjectSettings({ projectId }: { projectId: string }) {
         </div>
       </div>
       <div className="field">
-        <label>{t('project.description')}</label>
+        <label htmlFor="s-desc">{t('project.description')}</label>
         <MarkdownEditor
-          value={project.description ?? ''} minHeight={110}
+          id="s-desc" value={project.description ?? ''} minHeight={110}
           attachTo={{ kind: 'project', id: projectId }}
           onChange={(value) => update('project', projectId, { description: value })}
         />
@@ -1414,8 +1410,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
       {/* Which days the *scheduler* counts. Not a lock: a bar dragged onto a
           Saturday stays there, because somebody who did that meant it. */}
       <div className="field">
-        <label>{t('project.workingDays')}</label>
-        <div className="flex items-center flex-wrap gap-1" role="group" aria-label={t('project.workingDays')}>
+        <label id="s-days">{t('project.workingDays')}</label>
+        <div className="flex items-center flex-wrap gap-1" role="group" aria-labelledby="s-days">
           {WEEKDAYS.map(({ day, key }) => {
             const days = project.working_days ?? DEFAULT_WORKING_DAYS;
             const on = days.includes(day);
@@ -1553,8 +1549,8 @@ function ProjectSettings({ projectId }: { projectId: string }) {
           setNewLabel('');
         }}
       >
-        <Input placeholder={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
-        <Button type="submit"><Icon name="plus" size={14} /></Button>
+        <Input placeholder={t('project.newLabel')} aria-label={t('project.newLabel')} value={newLabel} onChange={(event) => setNewLabel(event.target.value)} />
+        <Button type="submit" title={t('action.add')}><Icon name="plus" size={14} /></Button>
       </form>
 
       <SectionHeading>{t('time.title')}</SectionHeading>

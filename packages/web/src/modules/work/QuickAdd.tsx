@@ -180,6 +180,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
           <Input
             autoFocus
             placeholder={t('quickAdd.placeholder')}
+            aria-label={t('task.titleLabel')}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             onKeyDown={(event) => {
@@ -281,7 +282,7 @@ export function QuickAdd({ onClose, projectId: initialProject, cycleId }: { onCl
           </div>
 
           {more ? (
-            <MarkdownEditor value={description} onChange={setDescription} minHeight={110} placeholder={t('quickAdd.descriptionPlaceholder')} />
+            <MarkdownEditor value={description} onChange={setDescription} minHeight={110} placeholder={t('quickAdd.descriptionPlaceholder')} label={t('task.description')} />
           ) : (
             <Button variant="ghost" size="sm" onClick={() => setMore(true)}>
               <Icon name="plus" size={13} /> {t('quickAdd.addDescription')}

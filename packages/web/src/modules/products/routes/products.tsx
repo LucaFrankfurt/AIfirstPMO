@@ -955,8 +955,8 @@ function PromotionForm({ promotion, products, groups, onClose }: {
           <Input id="pm-to" type="date" value={form.ends_on} onChange={(event) => setForm({ ...form, ends_on: event.target.value })} />
         </div>
       </div>
-      <div className="field">
-        <label>{t('product.appliesTo')}</label>
+      <div className="field" role="group" aria-labelledby="pr-applies">
+        <label id="pr-applies">{t('product.appliesTo')}</label>
         <span className="text-[12px] text-muted">{t('product.appliesToHint')}</span>
         <div className="flex flex-wrap gap-2 pt-1">
           {groups.map((group) => (
@@ -1207,8 +1207,8 @@ function ScenarioForm({ scenario, products, productId, assumptions, onClose }: {
           })}
         />
       </div>
-      <div className="field">
-        <label>{t('product.campaignsApplied')}</label>
+      <div className="field" role="group" aria-labelledby="pf-campaigns">
+        <label id="pf-campaigns">{t('product.campaignsApplied')}</label>
         <div className="flex flex-wrap gap-2 pt-1">
           {promotions.map((promotion) => (
             <Chip
@@ -2484,8 +2484,8 @@ function SimulationTab({ product }: { product: Product }) {
             onChange={(event) => setForm({ ...form, cost_bps: Math.round(Number(event.target.value) * 100) })} />
         </div>
       </div>
-      <div className="field">
-        <label>{t('product.campaignsApplied')}</label>
+      <div className="field" role="group" aria-labelledby="ps-campaigns">
+        <label id="ps-campaigns">{t('product.campaignsApplied')}</label>
         <div className="flex flex-wrap gap-2 pt-1">
           {promotions.map((promotion) => (
             <Chip
