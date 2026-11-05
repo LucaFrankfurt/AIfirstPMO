@@ -421,16 +421,24 @@ export function constraintFailure(err: unknown): string | null {
   return error.message ?? 'The database refused this row';
 }
 
+// Bounded, least recently used out first: a write's SQL varies with the set of columns its patch names.
+const STATEMENT_CACHE = 1000;
 const stmtCache = new Map<string, StatementSync>();
 
 function prepare(sql: string): StatementSync {
   let stmt = stmtCache.get(sql);
-  if (!stmt) {
+  if (stmt) {
+    stmtCache.delete(sql);
+  } else {
     stmt = db.prepare(sql);
-    stmtCache.set(sql, stmt);
+    if (stmtCache.size >= STATEMENT_CACHE) stmtCache.delete(stmtCache.keys().next().value!);
   }
+  stmtCache.set(sql, stmt);
   return stmt;
 }
+
+/** How many prepared statements are held. */
+export const statementCount = (): number => stmtCache.size;
 
 /** SQLite only speaks null/number/string/bigint/buffer — normalise the rest. */
 type SqlValue = null | number | bigint | string | Uint8Array;

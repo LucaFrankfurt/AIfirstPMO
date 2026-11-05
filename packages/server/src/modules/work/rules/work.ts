@@ -8,7 +8,7 @@
 
 import {
   COMMENT_RESOLUTIONS, ENTITIES, ENTITY_NAMES, LINK_COLUMNS, type EntityName, attachmentSubject, escapeHtml, findAnchor,
-  isAttachmentSubject, isDoneGroup, passageOf, PRIORITIES, type ProjectVocabulary, relocate, soleLink, TASK_TITLE_MAX,
+  isAttachmentSubject, isDoneGroup, orderKey, passageOf, PRIORITIES, type ProjectVocabulary, relocate, soleLink, TASK_TITLE_MAX,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
@@ -619,7 +619,15 @@ export const workRules = {
         if (fallback) setForced('state_id', fallback);
       }
       if (!values.created_by) setForced('created_by', opts.actorId);
-      if (!values.sort_order) setForced('sort_order', 'V');
+      if (!values.sort_order) {
+        // After the last card in its column, rather than one constant every server-made task shares.
+        const last = get<Row>(
+          `SELECT sort_order FROM tasks WHERE project_id = ? AND state_id IS ? AND deleted_at IS NULL
+            ORDER BY sort_order DESC LIMIT 1`,
+          project.id, values.state_id ?? null,
+        );
+        setForced('sort_order', orderKey((last?.sort_order as string | undefined) ?? null, null));
+      }
       if (!values.subscribers) values.subscribers = JSON.stringify([opts.actorId]);
     }
     if (entity === 'comment' && !values.author_id) setForced('author_id', opts.actorId);

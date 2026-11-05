@@ -17,7 +17,7 @@ import { hasRole, requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, forbidden, HttpError, notFound, readJson, type Ctx, type Router } from '../../platform/http.ts';
 import { canSeeProject, serializeFor, visiblePageSql, visibleProjectsSql, visibleTaskSql, writeEntity } from '../../write-path/repo.ts';
 import { serverClock } from '../../write-path/bootstrap.ts';
-import { subscribe } from '../../platform/bus.ts';
+import { subscribe, subscribeUser, type BusEvent } from '../../platform/bus.ts';
 import { snapshot, subscribePresence, touch, visiblePeople } from '../../../modules/chat/presence.ts';
 import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.ts';
 
@@ -596,10 +596,16 @@ export function registerSyncRoutes(router: Router): void {
 
     ctx.res.write(`event: presence\ndata: ${JSON.stringify({ people: snapshot(visible) })}\n\n`);
 
-    const unsubscribe = subscribe(workspaceId, (event) => {
+    let heard = 0;
+    const onChange = (event: BusEvent) => {
       if (event.origin && event.origin === clientId) return; // do not echo the sender
+      if (event.seq <= heard) return; // the same write, published to the workspace and to this person
+      heard = event.seq;
       ctx.res.write(`event: change\ndata: ${JSON.stringify({ cursor: event.seq, kind: event.kind })}\n\n`);
-    });
+    };
+    const unsubscribe = subscribe(workspaceId, onChange);
+    // A direct conversation is in no workspace, so it is published to its people instead.
+    const unsubscribeUser = subscribeUser(auth.userId, onChange);
 
     // Presence rides this connection but carries no cursor and never touches
     // one: it is a separate event, and a client that ignores it loses nothing.
@@ -613,6 +619,7 @@ export function registerSyncRoutes(router: Router): void {
     const stop = () => {
       clearInterval(keepAlive);
       unsubscribe();
+      unsubscribeUser();
       unwatch();
       ctx.res.end();
     };

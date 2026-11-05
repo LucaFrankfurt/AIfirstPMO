@@ -134,3 +134,40 @@ describe('a list limit', () => {
     assert.equal((await listTasks(5000)).length, 200);
   });
 });
+
+describe('paging the audit log', () => {
+  it('reaches every entry, however many share a millisecond or sit in a private project', async () => {
+    const at = Date.now() - 60_000;
+    for (let index = 0; index < 6; index++) {
+      run(
+        `INSERT INTO activities (id, workspace_id, verb, created_at, updated_at, seq, clocks)
+         VALUES (?, ?, 'updated', ?, ?, ?, '{}')`,
+        `same-ms-${index}`, workspaceId, at, at, nextSeq(),
+      );
+    }
+    // A whole page of entries the admin may not see must not end the paging.
+    const hidden = await api(`/api/workspaces/${workspaceId}/projects`, { name: 'Hidden', key: 'HID', visibility: 'private' });
+    run(`UPDATE project_members SET deleted_at = ? WHERE project_id = ?`, Date.now(), hidden.id);
+    for (let index = 0; index < 3; index++) {
+      run(
+        `INSERT INTO activities (id, workspace_id, project_id, verb, created_at, updated_at, seq, clocks)
+         VALUES (?, ?, ?, 'updated', ?, ?, ?, '{}')`,
+        `hidden-${index}`, workspaceId, hidden.id, at + 10, at + 10, nextSeq(),
+      );
+    }
+
+    const everything = (await api(`/api/workspaces/${workspaceId}/audit?limit=500`)).entries.map((row: any) => row.id);
+    assert.ok(everything.length >= 6 && everything.length < 500);
+    assert.ok(!everything.some((id: string) => id.startsWith('hidden-')), 'the private project stays out');
+
+    const seen: string[] = [];
+    let query = '';
+    for (let pages = 0; pages < 100; pages++) {
+      const page = await api(`/api/workspaces/${workspaceId}/audit?limit=2${query}`);
+      seen.push(...page.entries.map((row: any) => row.id));
+      if (!page.entries.length || page.oldest == null) break;
+      query = `&before=${page.oldest}&before_id=${page.oldest_id}`;
+    }
+    assert.deepEqual(seen, everything, 'every entry once, in the same order');
+  });
+});

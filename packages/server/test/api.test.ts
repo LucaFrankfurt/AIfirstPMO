@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, rmSync } from 'node:fs';
 import { after, before, describe, it } from 'node:test';
 import type { AddressInfo } from 'node:net';
-import { Clock, orderKey, TASK_TITLE_MAX, type PullResponse, type PushResponse } from '@kolibri/shared';
+import { Clock, compareOrder, orderKey, TASK_TITLE_MAX, type PullResponse, type PushResponse } from '@kolibri/shared';
 
 // Imported dynamically: static imports are hoisted above the env setup above,
 // and the server reads its data directory at module load.
@@ -1618,6 +1618,16 @@ describe('kolibri api', () => {
 
     const pull = await api<PullResponse>(`/api/sync/pull?workspace=${workspaceId}&since=0`);
     assert.ok(!pull.changes.project?.some((p: any) => p.id === secret.id), 'sync must not leak private projects');
+  });
+
+  it('files a task given no place after the last one in its column', async () => {
+    const filed = await api(`/api/workspaces/${workspaceId}/tasks`, { body: { project_id: projectId, title: 'Goes last' } });
+    const column = (await api<any[]>(`/api/workspaces/${workspaceId}/tasks?project_id=${projectId}&limit=1000`))
+      .filter((task) => task.state_id === filed.state_id && task.id !== filed.id);
+    assert.ok(column.length > 1);
+    for (const task of column) {
+      assert.ok(compareOrder(task.sort_order, filed.sort_order) < 0, `${filed.sort_order} is not after ${task.sort_order}`);
+    }
   });
 
 /* ------------------------------------------------------------- ai review */

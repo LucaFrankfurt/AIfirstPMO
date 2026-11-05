@@ -16,7 +16,8 @@ import { openEnvironmentSql } from '../../../modules/secrets/rules/environments.
 import { exportProject, importProject, type ProjectDoc } from '../../../adapters/transfer/transfer.ts';
 import {
   canSeeBudget, canSeeChannel, canSeeKpi, canSeePage, canSeeProject, canSeeSubject, canSeeTask, deleteEntity,
-  inWriteScope, pageIsVisible, parseIds, serialize, serializeFor, visiblePageSql, visibleTaskSql, writeEntity,
+  inWriteScope, pageIsVisible, parseIds, serialize, serializeFor, visiblePageSql, visibleProjectsSql, visibleTaskSql,
+  writeEntity,
 } from '../repo.ts';
 import { emptyTrash, purgeable } from '../../../modules/trash/trash.ts';
 import { env } from '../../platform/env.ts';
@@ -299,11 +300,20 @@ export function registerEntityRoutes(router: Router): void {
 
     const limit = limitOf(ctx.query.get('limit'), 100, 500);
     const before = Number(ctx.query.get('before') ?? 0) || Date.now() + 1;
+    const beforeId = ctx.query.get('before_id');
     const actor = ctx.query.get('actor');
     const project = ctx.query.get('project');
 
-    const where = ['a.workspace_id = ?', 'a.deleted_at IS NULL', 'a.created_at < ?'];
-    const params: unknown[] = [ctx.params.ws, before];
+    // Keyset on (created_at, id): one write records several entries in the same millisecond.
+    const where = ['a.workspace_id = ?', 'a.deleted_at IS NULL'];
+    const params: unknown[] = [ctx.params.ws];
+    if (beforeId) { where.push('(a.created_at < ? OR (a.created_at = ? AND a.id < ?))'); params.push(before, before, beforeId); }
+    else { where.push('a.created_at < ?'); params.push(before); }
+    // The private projects this admin is not a member of stay out: being an
+    // admin is not the same as being invited.
+    // In SQL rather than after the LIMIT, so a page of hidden entries cannot end the paging.
+    where.push(`(a.project_id IS NULL OR a.project_id IN (${visibleProjectsSql()}))`);
+    params.push(ctx.params.ws, auth.userId);
     if (actor) { where.push('a.actor_id = ?'); params.push(actor); }
     if (project) { where.push('a.project_id = ?'); params.push(project); }
 
@@ -316,14 +326,12 @@ export function registerEntityRoutes(router: Router): void {
          LEFT JOIN pages p ON p.id = a.page_id
          LEFT JOIN projects pr ON pr.id = a.project_id
         WHERE ${where.join(' AND ')}
-        ORDER BY a.created_at DESC
+        ORDER BY a.created_at DESC, a.id DESC
         LIMIT ?`,
       ...params, limit,
     );
-    // The private projects this admin is not a member of stay out: being an
-    // admin is not the same as being invited.
-    const visible = rows.filter((row) => !row.project_id || canSeeProject(auth.userId, String(row.project_id)));
-    return { entries: visible, oldest: visible[visible.length - 1]?.created_at ?? null };
+    const last = rows[rows.length - 1];
+    return { entries: rows, oldest: last?.created_at ?? null, oldest_id: last?.id ?? null };
   });
 
   /* -------------------------------------------------------- import */
