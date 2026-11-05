@@ -644,3 +644,40 @@ describe('a bulk delete or archive', () => {
     assert.ok(data.indexOf('<Trash />') < data.indexOf('<AuditLog />'), 'the trash is below the audit log again');
   });
 });
+
+// UX-09: a guest's write is refused by the server and rolled back without a word, so it must not be offered.
+describe('a write in the teams screen or a project tab', () => {
+  const SCREENS: [string, string][] = [
+    ['modules/work/routes/teams.tsx', 'Teams'],
+    ['modules/planning/routes/projects.tsx', 'Cycles'],
+    ['modules/planning/routes/projects.tsx', 'CyclePage'],
+    ['modules/planning/routes/projects.tsx', 'Modules'],
+    ['modules/planning/routes/projects.tsx', 'ProjectPages'],
+    ['modules/planning/routes/projects.tsx', 'ProjectSettings'],
+  ];
+  /** Where `canWrite` holds: `{canWrite && …}`, `(canWrite ? …)`, and inside `<fieldset disabled={!canWrite}>`. */
+  const guarded = (body: string): [number, number][] => [
+    ...[...body.matchAll(/[{(]canWrite (?:&&|\?)/g)].map((match): [number, number] => [match.index!, skip(body, match.index!)]),
+    ...[...body.matchAll(/<fieldset disabled=\{!canWrite\}/g)].map((match): [number, number] =>
+      [match.index!, body.indexOf('</fieldset>', match.index!)]),
+  ];
+  // A write, or opening the form that makes one.
+  const WRITE = /(?<![\w.])(?:create|update|remove|createPage)\(|\bset(?:Adding|Editing|Importing|Copying)\((?!null|false)/g;
+  const writes = SCREENS.flatMap(([file, name]) => {
+    const body = functionBody(file, name);
+    const spans = guarded(body);
+    return [...body.matchAll(WRITE)].map((match) => ({
+      where: `${name}: ${body.slice(match.index!, body.indexOf('\n', match.index!)).trim()}`,
+      shown: spans.some(([from, to]) => match.index! > from && match.index! < to),
+    }));
+  });
+
+  it('is found at all — a scanner that matches nothing passes everything', () => {
+    assert.ok(writes.length >= 20, `only found ${writes.length} writes, which means the scan is broken`);
+  });
+
+  it('is only offered to somebody who may write', () => {
+    const blind = writes.filter((write) => !write.shown).map((write) => write.where);
+    assert.deepEqual(blind, [], `offered to a guest: ${blind.join('; ')}`);
+  });
+});
