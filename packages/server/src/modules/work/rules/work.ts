@@ -8,13 +8,13 @@
 
 import {
   COMMENT_RESOLUTIONS, ENTITIES, ENTITY_NAMES, LINK_COLUMNS, type EntityName, attachmentSubject, escapeHtml, findAnchor,
-  isAttachmentSubject, isDoneGroup, passageOf, type ProjectVocabulary, relocate, soleLink,
+  isAttachmentSubject, isDoneGroup, passageOf, PRIORITIES, type ProjectVocabulary, relocate, soleLink, TASK_TITLE_MAX,
 } from '@kolibri/shared';
 import { all, get, type Row, run } from '../../../kernel/platform/db/index.ts';
 import { badRequest, forbidden } from '../../../kernel/platform/http.ts';
 import {
-  canSeePage, canSeeSubject, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored, wouldLoop,
-  writeEntity, type WriteOpts,
+  canSeePage, canSeeProject, canSeeSubject, canSeeTask, type EntityRule, isWorkspaceAdmin, parseIds, settleAuthored,
+  wouldLoop, writeEntity, type WriteOpts,
 } from '../../../kernel/write-path/repo.ts';
 
 const asId = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
@@ -54,6 +54,51 @@ function guardTransition(stateId: string, opts: WriteOpts): void {
 
   throw forbidden(`Only ${allowed.join(' or ')} may move work into “${state.name}”`);
 }
+
+/** A task is filed only into a project its writer can see, on create and on a move, whichever door it came through. */
+function guardProjectTarget(values: Record<string, unknown>, existing: Row | undefined, opts: WriteOpts): void {
+  if (values.project_id === undefined || values.project_id === existing?.project_id) return;
+  const project = get<Row>(`SELECT workspace_id FROM projects WHERE id = ?`, String(values.project_id));
+  if (!project) throw badRequest('task.project_id must reference an existing project');
+  // Another workspace's project is `guardReferences`' refusal to make.
+  if (project.workspace_id === opts.workspaceId && !canSeeProject(opts.actorId, String(values.project_id))) {
+    throw forbidden('That project is private');
+  }
+}
+
+/** `YYYY-MM-DD`, and a day the calendar has: every date comparison in the app is a string comparison. */
+function isDay(value: unknown): boolean {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const time = Date.parse(`${value}T00:00:00Z`);
+  return !Number.isNaN(time) && new Date(time).toISOString().startsWith(value);
+}
+
+const TASK_IDS = ['state_id', 'parent_id', 'cycle_id', 'module_id'] as const;
+
+/** The columns boards, sums and sorts read, refused rather than stored when nothing can read them. */
+function guardTaskFields(values: Record<string, unknown>): void {
+  const refuse = (field: string, what: string): never => { throw badRequest(`task.${field} must be ${what}`); };
+  const given = (field: string): boolean => values[field] !== undefined && values[field] !== null;
+  if (values.title !== undefined && (typeof values.title !== 'string' || values.title.length > TASK_TITLE_MAX)) {
+    refuse('title', `text of at most ${TASK_TITLE_MAX} characters`);
+  }
+  if (values.priority !== undefined && !(PRIORITIES as readonly unknown[]).includes(values.priority)) {
+    refuse('priority', `one of ${PRIORITIES.join(', ')}`);
+  }
+  if (given('estimate') && !(typeof values.estimate === 'number' && Number.isFinite(values.estimate))) {
+    refuse('estimate', 'a number or null');
+  }
+  for (const field of ['start_date', 'due_date']) if (given(field) && !isDay(values[field])) refuse(field, 'a YYYY-MM-DD date or null');
+  // A boolean has been stored as 1 or 0 by the time a rule sees it.
+  if (values.archived !== undefined && values.archived !== 0 && values.archived !== 1) refuse('archived', 'true or false');
+  // So has an object, as its JSON text: no id starts with a brace or a bracket.
+  for (const field of TASK_IDS) {
+    if (given(field) && (typeof values[field] !== 'string' || !values[field] || /^[[{]/.test(String(values[field])))) {
+      refuse(field, 'an id or null');
+    }
+  }
+}
+
 function applyTaskInvariants(values: Record<string, unknown>, existing: Row | undefined, forced: Record<string, unknown>): void {
   const stateId = (values.state_id ?? existing?.state_id) as string | undefined;
   if (values.state_id !== undefined && stateId) {
@@ -586,6 +631,10 @@ export const workRules = {
     }
   },
   guards(entity, id, values, existing, opts) {
+    if (entity === 'task') {
+      guardTaskFields(values);
+      guardProjectTarget(values, existing, opts);
+    }
     if (entity === 'task' && values.state_id !== undefined) guardTransition(String(values.state_id), opts);
     if (entity === 'comment') guardCommentWrite(values, existing, opts);
     if (entity === 'attachment') guardAttachmentWrite(values, existing, opts);

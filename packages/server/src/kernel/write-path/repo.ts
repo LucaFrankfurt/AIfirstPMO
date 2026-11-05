@@ -71,6 +71,13 @@ export function serialize(entity: EntityName, row: Row | undefined): Row | undef
   return out;
 }
 
+/** `serialize` for one reader: a share link opens with its maker's eyes, so only the maker is sent its token. */
+export function serializeFor(entity: EntityName, row: Row | undefined, userId: string): Row | undefined {
+  const out = serialize(entity, row);
+  if (out && entity === 'share' && out.created_by !== userId) out.token = null;
+  return out;
+}
+
 export function readRaw(entity: EntityName, id: string): Row | undefined {
   return get<Row>(`SELECT * FROM ${ENTITIES[entity].table} WHERE id = ?`, id);
 }

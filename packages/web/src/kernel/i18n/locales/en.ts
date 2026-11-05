@@ -1652,6 +1652,7 @@ export const en = {
   'share.make': 'Create a link',
   'share.making': 'Creating…',
   'share.minting': 'Preparing the link…',
+  'share.notYours': 'Made by somebody else — only they can copy it.',
   'share.link': 'Link',
   'share.revoke': 'Turn this link off',
   'share.revokeConfirm': 'Turn this link off? Anybody holding it stops being able to read.',

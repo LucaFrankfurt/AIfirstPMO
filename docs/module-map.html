@@ -356,7 +356,7 @@ footer {
 <!-- generated: tally -->
     <div><span class="v num">371</span><span class="k">source files</span></div>
     <div><span class="v num">48</span><span class="k">modules</span></div>
-    <div><span class="v num">119 067</span><span class="k">lines</span></div>
+    <div><span class="v num">119 137</span><span class="k">lines</span></div>
 <!-- end -->
     <div><span class="v num">61</span><span class="k">entities</span></div>
     <div><span class="v num">145</span><span class="k">endpoints</span></div>
@@ -441,8 +441,8 @@ footer {
 
     <div class="legend" role="list">
 <!-- generated: legend -->
-      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 32 654 lines, 27%</span>
-      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 58 777 lines, 49%</span>
+      <span role="listitem"><i style="background: var(--kernel)"></i> Kernel — 32 672 lines, 27%</span>
+      <span role="listitem"><i style="background: var(--capability)"></i> Capability — 58 829 lines, 49%</span>
       <span role="listitem"><i style="background: var(--adapter)"></i> Adapter — 25 099 lines, 21%</span>
       <span role="listitem"><i style="background: var(--shell)"></i> Shell — 2 537 lines, 2%</span>
 <!-- end -->
@@ -1015,7 +1015,7 @@ footer {
   <h2>What this won't fix</h2>
   <ul class="plain">
     <li>
-      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 1343 lines,
+      <strong><code>repo.ts</code> got smaller than this said it would.</strong> It is 1350 lines,
       from 2 370. This entry used to promise a floor around 1 300 — the merge, the transaction, the
       tombstones, the search index and the generic effects, said to belong together. Two of them did
       not: the notification copy and the webhook payloads were a capability and an adapter sitting in
@@ -1028,8 +1028,8 @@ footer {
       <code>architecture.md</code> accepts is still accepted.
     </li>
     <li>
-      <strong><code>i18n</code> stays the largest kernel module.</strong> 10 893 lines is three
-      catalogues of 3 273 keys. Step 2 stops shipping the two nobody asked for; it does not make the
+      <strong><code>i18n</code> stays the largest kernel module.</strong> 10 896 lines is three
+      catalogues of 3 274 keys. Step 2 stops shipping the two nobody asked for; it does not make the
       catalogues smaller, and it should not — a compile error on a missing key is worth more than the
       file size.
     </li>
@@ -1415,11 +1415,11 @@ footer {
 <script>
 /* generated: inventory */
 const MODULES = [
-{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":10893,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3442},
-{"ring":"kernel","name":"registry","flag":"","files":7,"lines":4054,"biggest":"kernel/registry/types.ts","biggestLines":2622},
+{"ring":"kernel","name":"i18n","flag":"","files":5,"lines":10896,"biggest":"kernel/i18n/locales/en.ts","biggestLines":3443},
+{"ring":"kernel","name":"registry","flag":"","files":7,"lines":4057,"biggest":"kernel/registry/types.ts","biggestLines":2625},
 {"ring":"kernel","name":"design-system","flag":"","files":29,"lines":2747,"biggest":"kernel/design-system/ui.tsx","biggestLines":774},
-{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2727,"biggest":"kernel/write-path/repo.ts","biggestLines":1343},
-{"ring":"kernel","name":"sync","flag":"","files":8,"lines":2426,"biggest":"kernel/sync/routes/sync.ts","biggestLines":664},
+{"ring":"kernel","name":"write-path","flag":"","files":3,"lines":2736,"biggest":"kernel/write-path/repo.ts","biggestLines":1350},
+{"ring":"kernel","name":"sync","flag":"","files":8,"lines":2429,"biggest":"kernel/sync/routes/sync.ts","biggestLines":667},
 {"ring":"kernel","name":"platform","flag":"","files":11,"lines":2407,"biggest":"kernel/platform/env.ts","biggestLines":650},
 {"ring":"kernel","name":"search","flag":"","files":9,"lines":2375,"biggest":"kernel/search/query.ts","biggestLines":489},
 {"ring":"kernel","name":"identity","flag":"","files":10,"lines":2311,"biggest":"kernel/identity/routes/auth.ts","biggestLines":565},
@@ -1427,7 +1427,7 @@ const MODULES = [
 {"ring":"kernel","name":"feedback","flag":"","files":8,"lines":1171,"biggest":"feedback/src/kernel/feedback/input.ts","biggestLines":251},
 {"ring":"kernel","name":"mail","flag":"","files":3,"lines":324,"biggest":"kernel/mail/mailbox.ts","biggestLines":154},
 {"ring":"capability","name":"pages","flag":"","files":41,"lines":14760,"biggest":"modules/pages/routes/pages.tsx","biggestLines":1039},
-{"ring":"capability","name":"work","flag":"","files":24,"lines":6712,"biggest":"modules/work/views.tsx","biggestLines":1071},
+{"ring":"capability","name":"work","flag":"","files":24,"lines":6761,"biggest":"modules/work/views.tsx","biggestLines":1071},
 {"ring":"capability","name":"products","flag":"products","files":4,"lines":5335,"biggest":"modules/products/routes/products.tsx","biggestLines":2878},
 {"ring":"capability","name":"planning","flag":"","files":12,"lines":4757,"biggest":"modules/planning/routes/projects.tsx","biggestLines":1666},
 {"ring":"capability","name":"operations","flag":"","files":11,"lines":3956,"biggest":"modules/operations/routes/settings.tsx","biggestLines":1115},
@@ -1446,7 +1446,7 @@ const MODULES = [
 {"ring":"capability","name":"trash","flag":"","files":2,"lines":482,"biggest":"modules/trash/trash.ts","biggestLines":255},
 {"ring":"capability","name":"notifications","flag":"","files":2,"lines":453,"biggest":"modules/notifications/effects.ts","biggestLines":374},
 {"ring":"capability","name":"intake","flag":"","files":1,"lines":229,"biggest":"modules/intake/intake.tsx","biggestLines":229},
-{"ring":"capability","name":"share","flag":"","files":1,"lines":155,"biggest":"modules/share/share.tsx","biggestLines":155},
+{"ring":"capability","name":"share","flag":"","files":1,"lines":158,"biggest":"modules/share/share.tsx","biggestLines":158},
 {"ring":"adapter","name":"mcp","flag":"","files":19,"lines":10922,"biggest":"adapters/mcp/tools/products.ts","biggestLines":2159},
 {"ring":"adapter","name":"transfer","flag":"","files":8,"lines":3680,"biggest":"adapters/transfer/transfer.ts","biggestLines":847},
 {"ring":"adapter","name":"webhooks","flag":"","files":7,"lines":2007,"biggest":"adapters/webhooks/foreign.ts","biggestLines":747},

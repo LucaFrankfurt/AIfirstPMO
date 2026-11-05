@@ -272,6 +272,39 @@ describe('a colleague who is not the author', () => {
     });
     assert.equal(status, 403, 'a write path is a read path with consequences');
   });
+
+  /** A share token opens the page with its maker's eyes, so a colleague's device must never hold it. */
+  it('is not sent a link to the private page, nor the token of any link it did not make', async () => {
+    const make = async (pageId: string) => (await call(`/api/workspaces/${ada.workspace}/shares`, {
+      cookie: ada.cookie, body: { kind: 'page', page_id: pageId },
+    })).body;
+    const { body: handbook } = await call(`/api/workspaces/${ada.workspace}/pages`, {
+      cookie: ada.cookie, body: { title: 'Handbook', content: 'everybody may read this' },
+    });
+    const hidden = await make(secret);
+    const open = await make(handbook.id);
+    assert.ok(hidden.token && open.token, 'the maker is handed the token');
+
+    const { body: pulled } = await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: colleague.cookie });
+    const shares: any[] = pulled.changes.share ?? [];
+    assert.ok(!shares.some((share) => share.id === hidden.id), 'a link to a private page reached a colleague');
+    assert.equal(shares.find((share) => share.id === open.id)?.token, null, 'a readable page’s link arrives without its token');
+
+    const { body: listed } = await call(`/api/workspaces/${ada.workspace}/shares`, { cookie: colleague.cookie });
+    const { status: byId } = await call(`/api/shares/${hidden.id}`, { cookie: colleague.cookie });
+    assert.equal(byId, 403);
+    const { body: one } = await call(`/api/shares/${open.id}`, { cookie: colleague.cookie });
+    const { body: patched } = await call(`/api/shares/${open.id}`, {
+      cookie: colleague.cookie, method: 'PATCH', body: { expires_at: Date.now() + 86_400_000 },
+    });
+    for (const [door, body] of [['pull', pulled], ['list', listed], ['get', one], ['patch', patched]] as const) {
+      const text = JSON.stringify(body);
+      assert.ok(!text.includes(hidden.token) && !text.includes(open.token), `${door} handed a colleague a share token`);
+    }
+
+    const { body: own } = await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: ada.cookie });
+    assert.equal(own.changes.share.find((share: any) => share.id === hidden.id)?.token, hidden.token, 'the maker still syncs it');
+  });
 });
 
 /**
@@ -549,6 +582,38 @@ describe('a colleague outside a private project', () => {
     const { body: comments } = await call(`/api/workspaces/${ada.workspace}/comments`, { cookie: ada.cookie });
     const forged = comments.find((row: any) => row.body === 'Ada never said this');
     assert.equal(forged?.author_id, me, 'an imported comment was filed under a colleague matched by email');
+  });
+
+  it('cannot file a task into the private project, by create, PATCH, bulk or sync', async () => {
+    const { body: own } = await call(`/api/workspaces/${ada.workspace}/tasks`, {
+      cookie: outsider.cookie, body: { project_id: projectId, title: 'Mine to move' },
+    });
+    const into = { project_id: privateProject };
+    const created = await call(`/api/workspaces/${ada.workspace}/tasks`, { cookie: outsider.cookie, body: { ...into, title: 'Planted' } });
+    assert.equal(created.status, 403, 'a task was created in a project its writer cannot see');
+    assert.equal((await call(`/api/tasks/${own.id}`, { cookie: outsider.cookie, method: 'PATCH', body: into })).status, 403);
+    const bulk = await call(`/api/workspaces/${ada.workspace}/tasks/bulk`, {
+      cookie: outsider.cookie, body: { ids: [own.id, publicTask], patch: into },
+    });
+    assert.equal(bulk.status, 403, 'bulk moved tasks into a private project');
+
+    const { Clock } = await import('@kolibri/shared');
+    const { body: pushed } = await call('/api/sync/push', {
+      cookie: outsider.cookie,
+      body: {
+        workspaceId: ada.workspace, clientId: 'outsider-device',
+        mutations: [{ id: crypto.randomUUID(), entity: 'task', entityId: own.id, op: 'upsert', patch: into, hlc: new Clock('outsider-device').now() }],
+      },
+    });
+    assert.deepEqual(pushed.accepted, [], 'a push moved a task into a private project');
+
+    for (const id of [own.id, publicTask]) {
+      assert.equal((await call(`/api/tasks/${id}`, { cookie: ada.cookie })).body.project_id, projectId, 'a task left its project');
+    }
+    const { body: moved } = await call(`/api/workspaces/${ada.workspace}/tasks/bulk`, {
+      cookie: insider.cookie, body: { ids: [own.id], patch: into },
+    });
+    assert.equal(moved.tasks?.[0]?.project_id, privateProject, 'somebody on the project lost the move');
   });
 });
 
