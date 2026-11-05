@@ -310,6 +310,8 @@ function filterFor(entity: EntityName, table: string = ENTITIES[entity].table): 
     case 'label':
     case 'view':
     case 'webhook':
+    case 'template':
+    case 'automation':
     case 'timeEntry':
       // Time is not private: a lead has to be able to add up the project. It is
       // scoped to the project like everything else, and an entry with no

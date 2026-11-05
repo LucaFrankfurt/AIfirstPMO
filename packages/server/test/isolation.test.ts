@@ -510,6 +510,32 @@ describe('a colleague outside a private project', () => {
     assert.equal(pushed.accepted.length, 1, `the sync door refused a project member: ${JSON.stringify(pushed.rejected)}`);
   });
 
+  it('cannot find the project by search, nor pull its templates and automations (SEC-16)', async () => {
+    const template = await call(`/api/workspaces/${ada.workspace}/templates`, {
+      cookie: ada.cookie, body: { project_id: privateProject, name: 'Payslip run', title: 'Run the payslips' },
+    });
+    const automation = await call(`/api/workspaces/${ada.workspace}/automations`, {
+      cookie: ada.cookie, body: { project_id: privateProject, name: 'Payslip reminder', action_kind: 'set_fields' },
+    });
+    assert.equal(template.status, 200);
+    assert.equal(automation.status, 200);
+
+    const searched = (who: { cookie: string }) =>
+      call(`/api/workspaces/${ada.workspace}/search?q=pay%20review`, { cookie: who.cookie });
+    const pulled = async (who: { cookie: string }, entity: string) =>
+      ((await call(`/api/sync/pull?workspace=${ada.workspace}&since=0`, { cookie: who.cookie })).body.changes[entity] ?? [])
+        .map((row: any) => row.id);
+
+    assert.equal((await searched(outsider)).body.results.some((hit: any) => hit.id === privateProject), false,
+      'search named a project its asker is not on');
+    assert.equal((await pulled(outsider, 'template')).includes(template.body.id), false, 'a pull sent a private project’s template');
+    assert.equal((await pulled(outsider, 'automation')).includes(automation.body.id), false, 'a pull sent a private project’s automation');
+
+    assert.ok((await searched(insider)).body.results.some((hit: any) => hit.id === privateProject), 'the project went missing for its member');
+    assert.ok((await pulled(insider, 'template')).includes(template.body.id), 'the template went missing for a member');
+    assert.ok((await pulled(insider, 'automation')).includes(automation.body.id), 'the automation went missing for a member');
+  });
+
   it('still works for somebody who is on the project', async () => {
     const { status: readable } = await call(`/api/attachments/${attachment}`, { cookie: insider.cookie });
     assert.equal(readable, 200, 'a project member lost access — the fix refuses too much');

@@ -178,6 +178,8 @@ export function searchWorkspace(workspaceId: string, userId: string, query: stri
 
   const indexed = rows
     .filter((row) => canSeeProject(userId, row.project_id)
+      // A project's own row is indexed with no `project_id`, so it is asked about by its id.
+      && (row.kind !== 'project' || canSeeProject(userId, String(row.ref_id)))
       && (row.kind !== 'message' || readable.has(String(row.ref_id)))
       // A budget covering several projects has no single `project_id`, so the
       // clause above reads it as workspace-wide and lets it through. Asked of
