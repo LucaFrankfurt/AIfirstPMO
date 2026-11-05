@@ -309,6 +309,8 @@ p { margin: 0 0 0.75em; }
   border-inline-end: 1px solid var(--line);
   padding: 10px 8px;
   overflow-y: auto;
+  /* overflow-y alone turns the x axis to auto too: a 1px-wide row then shows a sideways scrollbar. */
+  overflow-x: hidden;
 }
 
 /* A column that scrolls must not also squash.
@@ -336,6 +338,8 @@ p { margin: 0 0 0.75em; }
 .content {
   /* Containing block for absolute descendants (e.g. .sr-only); without it they escape and scroll the document too. */
   position: relative;
+  /* Sticky children start below the sticky header, when the screen has one. */
+  --sticky-top: 0px;
   flex: 1;
   min-height: 0;
   overflow-y: auto;
@@ -1452,7 +1456,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
   font-weight: 600;
   color: var(--fg-soft);
   position: sticky;
-  top: 0;
+  top: var(--sticky-top, 0px);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(8px);
   z-index: 2;
@@ -2841,6 +2845,7 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
  * column is the thing that makes a chat feel wrong before anybody can say why.
  */
 .content:has(.chat) { overflow: hidden; }
+.content:has(> .header) { --sticky-top: var(--header-height); }
 
 .chat { display: grid; grid-template-columns: 1fr; min-height: 0; height: 100%; }
 /* The chat's own bottom padding, the back-to-the-list button and the send
@@ -3347,14 +3352,14 @@ mark.anchor.active { background: color-mix(in srgb, var(--accent) 18%, transpare
    */
   .page-with-tree { max-width: none; }
 
-  .page-aside-open { display: inline-flex; flex: none; position: sticky; top: 8px; }
+  .page-aside-open { display: inline-flex; flex: none; position: sticky; top: calc(var(--sticky-top, 0px) + 8px); }
 
   .page-aside {
     display: block;
     flex: none;
     width: 244px;
     position: sticky;
-    top: 8px;
+    top: calc(var(--sticky-top, 0px) + 8px);
     max-height: calc(100vh - 120px);
     /*
      * Both axes, and `hidden` is not belt-and-braces.
