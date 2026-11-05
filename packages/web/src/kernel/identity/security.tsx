@@ -15,7 +15,7 @@ import { Button } from '../design-system/ui/button';
 import { Input } from '../design-system/ui/field';
 import { SectionHeading } from '../design-system/ui/section';
 import { Chip } from '../design-system/ui/chip';
-import { Icon, useConfirm, useToast } from '../design-system/ui';
+import { Icon, Sheet, useToast } from '../design-system/ui';
 import { useMinute } from '../design-system/minute';
 
 /* ------------------------------------------------------------ two factor */
@@ -24,13 +24,27 @@ export function TwoFactor() {
   const t = useT();
   const toast = useToast();
   const { user, refresh } = useSession();
-  const { confirm, dialog } = useConfirm();
 
   const [setup, setSetup] = useState<{ secret: string; uri: string } | null>(null);
   const [code, setCode] = useState('');
   const [recovery, setRecovery] = useState<string[] | null>(null);
   const [failed, setFailed] = useState('');
+  // Turning it off asks for the password in a masked field, not `window.prompt` (UX-15).
+  const [off, setOff] = useState<{ password: string; failed: string; busy: boolean } | null>(null);
   const on = !!user?.two_factor;
+
+  const turnOff = async () => {
+    if (!off?.password || off.busy) return;
+    setOff({ ...off, busy: true, failed: '' });
+    try {
+      await api.disableTwoFactor(off.password);
+      setOff(null);
+      await refresh();
+      toast(t('security.turnedOff'));
+    } catch (error) {
+      setOff({ ...off, busy: false, failed: error instanceof Error ? error.message : String(error) });
+    }
+  };
 
   const start = async () => {
     setFailed('');
@@ -79,20 +93,7 @@ export function TwoFactor() {
       {on ? (
         <div className="flex items-center gap-2">
           <Chip><Icon name="check" size={12} /> {t('security.twoFactorOn')}</Chip>
-          <Button variant="danger" size="sm"
-            onClick={async () => {
-              if (!(await confirm(t('security.turnOffConfirm'), t('security.turnOff')))) return;
-              const password = window.prompt(t('security.passwordToTurnOff'));
-              if (!password) return;
-              try {
-                await api.disableTwoFactor(password);
-                await refresh();
-                toast(t('security.turnedOff'));
-              } catch (error) {
-                setFailed(error instanceof Error ? error.message : String(error));
-              }
-            }}
-          >
+          <Button variant="danger" size="sm" onClick={() => setOff({ password: '', failed: '', busy: false })}>
             {t('security.turnOff')}
           </Button>
         </div>
@@ -127,7 +128,26 @@ export function TwoFactor() {
       )}
 
       {failed && <p className="text-[12px] text-danger mt-2">{failed}</p>}
-      {dialog}
+      {off && (
+        <Sheet title={t('security.turnOff')} onClose={() => setOff(null)}>
+          <form onSubmit={(event) => { event.preventDefault(); void turnOff(); }}>
+            <p className="text-[13px] mb-3">{t('security.turnOffConfirm')}</p>
+            <div className="field">
+              <label htmlFor="totp-off-password">{t('security.passwordToTurnOff')}</label>
+              <Input
+                id="totp-off-password" type="password" autoComplete="current-password" autoFocus
+                value={off.password}
+                onChange={(event) => setOff({ ...off, password: event.target.value })}
+              />
+            </div>
+            {off.failed && <p className="text-[12px] text-danger mb-2">{off.failed}</p>}
+            <div className="flex items-center justify-end gap-2">
+              <Button type="button" onClick={() => setOff(null)}>{t('action.cancel')}</Button>
+              <Button type="submit" variant="danger" disabled={!off.password || off.busy}>{t('security.turnOff')}</Button>
+            </div>
+          </form>
+        </Sheet>
+      )}
     </>
   );
 }

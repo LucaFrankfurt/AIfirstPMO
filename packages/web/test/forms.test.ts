@@ -457,3 +457,16 @@ describe('a create or edit sheet with typed input', () => {
     assert.doesNotMatch(handler, /metaKey|ctrlKey/, 'Enter only submits with a modifier held');
   });
 });
+
+// `window.prompt` shows a password in clear text while it is typed (UX-15).
+describe('asking for anything typed', () => {
+  it('never goes through window.prompt', () => {
+    const native = files.filter(({ text }) => /\bprompt\(/.test(text)).map(({ path }) => path.slice(SRC.length + 1));
+    assert.deepEqual(native, [], `native prompt(s): ${native.join(', ')}`);
+  });
+
+  it('turns two-factor off with a masked password field', () => {
+    const twoFactor = functionBody('kernel/identity/security.tsx', 'TwoFactor');
+    assert.match(twoFactor, /type="password"/);
+  });
+});
