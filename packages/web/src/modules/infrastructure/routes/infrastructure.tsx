@@ -296,7 +296,7 @@ function Landscape() {
         </div>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="rounded-[var(--radius)] border border-line bg-raised p-3.5">
           <SectionHeading tight>{t('estate.leaving', { count: diff.leaving.length })}</SectionHeading>
           {diff.leaving.length ? brief(diff.leaving, 'leaving') : <p className="text-[13px] text-muted">{t('estate.nothingLeaves')}</p>}

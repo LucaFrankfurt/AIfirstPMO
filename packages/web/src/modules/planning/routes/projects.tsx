@@ -142,7 +142,7 @@ export function ProjectList() {
         )}
       </Header>
       <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {projects.map((project) => <ProjectCard key={project.id} projectId={project.id} />)}
         </div>
         {!projects.length && (
@@ -330,7 +330,7 @@ function ContainerChildren({ projectId }: { projectId: string }) {
   return (
     <div className="mx-auto max-w-[1180px] px-3 pb-20 pt-4 sm:px-6 sm:pb-16 sm:pt-5">
       <p className="text-muted text-[12.5px] mb-2.5">{t('project.containerCount', { count: children.length })}</p>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {children.map((child) => {
           const mine = tasks.filter((task) => task.project_id === child.id);
           const done = mine.filter((task) => byId('state', task.state_id)?.group_key === 'completed').length;
@@ -566,7 +566,7 @@ function Cycles({ projectId }: { projectId: string }) {
 
       {!cycles.length && <Empty emoji="🔁" title={t('cycle.emptyTitle')} hint={t('cycle.emptyHint')} guide="planning" />}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {cycles.map((cycle) => {
           const active = cycle.start_date && cycle.end_date && cycle.start_date <= day && cycle.end_date >= day;
           return (
@@ -972,7 +972,7 @@ function Modules({ projectId }: { projectId: string }) {
 
       {!modules.length && <Empty emoji="🎯" title={t('module.emptyTitle')} hint={t('module.emptyHint')} guide="planning" />}
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         {modules.map((module) => {
           const tasks = list('task', (task) => task.module_id === module.id);
           const done = tasks.filter((task) => isDoneGroup(byId('state', task.state_id)?.group_key)).length;
