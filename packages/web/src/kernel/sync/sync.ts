@@ -196,6 +196,10 @@ export async function signOutLocal(userId: string): Promise<void> {
   for (const name of await idb.mirrorsOf(userId)) await idb.erase(name);
   idb.selectMirror(idb.DEVICE);
   await clearLegacyMirror();
+  // The service worker's offline copies of files (`sw.js`) leave with the mirrors.
+  if (typeof caches !== 'undefined') {
+    await caches.keys().then((keys) => Promise.all(keys.filter((key) => key.endsWith('-files')).map((key) => caches.delete(key)))).catch(() => undefined);
+  }
 }
 
 /** Changes of this person's that no server has yet, in every workspace on this device. */

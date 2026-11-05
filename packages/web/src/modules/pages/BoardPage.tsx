@@ -359,7 +359,7 @@ export function BoardPageView({ page, canWrite, ai = null, editing, onEditing, o
               style={{ width: drawnWidth, height, transform: `scale(${scale})`, '--inverse': 1 / scale } as React.CSSProperties}
             >
               <ArtboardFrame
-                source={board.content ?? ''} mode="play" title={page.title || t('common.untitled')}
+                source={board.content ?? ''} pageId={board.page_id} mode="play" title={page.title || t('common.untitled')}
                 className="board-frame" onSize={measured} adapt={fitted} locator={locate}
                 pins={fitted ? anchored : undefined} onPins={setFound}
               />

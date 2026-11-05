@@ -1,5 +1,5 @@
 import { type AttachmentSubject, isAttachmentSubject } from '@kolibri/shared';
-import { all, limitOf, type Row } from '../../platform/db/index.ts';
+import { all, get, limitOf, type Row } from '../../platform/db/index.ts';
 import { env } from '../../platform/env.ts';
 import { requireAuth, requireWorkspace } from '../../identity/auth.ts';
 import { badRequest, decodeParam, forbidden, notFound, readBody, type Ctx, type Router } from '../../platform/http.ts';
@@ -102,6 +102,11 @@ export function registerFileRoutes(router: Router): void {
     // private project could still fetch the bytes of every screenshot hanging
     // off it — the row was refused and the file was not.
     if (!canSeeFile(auth.userId, ctx.params.hash)) throw forbidden('Not your project');
+    // For a board's frame: only files hung on the board's own page, as a share serves them.
+    const page = ctx.query.get('page');
+    if (page !== null && !(canSeeSubject(auth.userId, 'page', page) && get<Row>(
+      `SELECT 1 AS here FROM attachments WHERE checksum = ? AND page_id = ? AND deleted_at IS NULL`, ctx.params.hash, page,
+    ))) throw forbidden('Not a file of that page');
 
     const key = storage.keyFor(file.hash, file.mime);
     const backend = (file.storage ?? 'disk') as storage.StorageKind;

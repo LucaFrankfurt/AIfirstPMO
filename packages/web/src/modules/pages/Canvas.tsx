@@ -206,7 +206,7 @@ export function CanvasPrint({ boards, title, fit = false, onDone }: {
         <section key={board.id} className="canvas-print-page" style={{ page: `board-${at}`, width: board.w, height: heightOf(board) }}>
           {board.kind === 'html' ? (
             <ArtboardFrame
-              source={board.content ?? ''} mode="play" title={board.title || title}
+              source={board.content ?? ''} pageId={board.page_id} mode="play" title={board.title || title}
               className="canvas-print-frame" onRendered={() => drawn(board.id)}
               onSize={fit ? (height) => measured(board.id, board.h, height) : undefined}
             />
@@ -742,7 +742,7 @@ export function CanvasView({ page, canWrite, thread, ai = null, printRequest = 0
                   </div>
                 )}
                 {board.kind === 'html' ? (
-                  <ArtboardFrame source={board.content ?? ''} mode="view" title={name} className="canvas-frame" />
+                  <ArtboardFrame source={board.content ?? ''} pageId={board.page_id} mode="view" title={name} className="canvas-frame" />
                 ) : noteEditing === board.id && canWrite ? (
                   <NoteEditor board={board} label={t('canvas.note')} onDone={() => setNoteEditing(null)} />
                 ) : (
@@ -838,7 +838,7 @@ export function CanvasView({ page, canWrite, thread, ai = null, printRequest = 0
             </header>
             <div className="canvas-play-stage">
               <ArtboardFrame
-                source={playingBoard.content ?? ''} mode="play" title={playingBoard.title || t('common.untitled')}
+                source={playingBoard.content ?? ''} pageId={playingBoard.page_id} mode="play" title={playingBoard.title || t('common.untitled')}
                 className="canvas-play-frame" style={{ width: Math.min(playingBoard.w, 4000) }}
                 onMessage={(message) => { if (message.type === 'kolibri:key' && message.key === 'escape') setPlaying(null); }}
               />

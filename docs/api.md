@@ -407,7 +407,9 @@ blob would take the file out from under the other one. Sweeping blobs nothing po
 a separate job.
 
 Downloads (`GET /files/:hash/:name`) require a session or token and membership in the owning
-workspace, **and** that you may see something the bytes are attached to. Only a safe list of types is
+workspace, **and** that you may see something the bytes are attached to. With `?page=<id>` the file
+must also be attached to that page, which you may see: that is how the app asks for a board's
+pictures, so a board cannot name another file of yours and send it on. Only a safe list of types is
 served inline; everything else downloads with `Content-Disposition: attachment` and
 `X-Content-Type-Options: nosniff`.
 

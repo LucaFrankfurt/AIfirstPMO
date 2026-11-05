@@ -54,7 +54,11 @@ import { decodeBody, decodeParameter, decodeQuotedPrintable, decodeWords, htmlTo
 import { asList, asText, chooseParts, filenameParams, flattenStructure, tokenise } from '../src/adapters/imap/protocol.ts';
 import { ranges } from '../src/adapters/imap/fetcher.ts';
 import { checkMailbox, parseMailboxUrl } from '../src/kernel/mail/mailbox.ts';
+import { env } from '../src/kernel/platform/env.ts';
 import { defaultMailboxPort, isDefaultMailboxPort } from '@kolibri/shared';
+
+// The fake servers below listen on loopback, which a mailbox may not name by default.
+env.outbound.allowPrivate = true;
 
 after(() => {
   rmSync(process.env.KOLIBRI_DATA_DIR!, { recursive: true, force: true });
@@ -477,6 +481,33 @@ describe('signing in with a token', () => {
         /does not accept OAuth sign-in/,
       );
     } finally {
+      server.close();
+    }
+  });
+});
+
+describe('where a mailbox may point (SEC-10)', () => {
+  it('refuses loopback, a name for it and the metadata service, in one sentence and before a packet', async () => {
+    const { ImapConnection } = await import('../src/adapters/imap/imap.ts');
+    let knocked = 0;
+    const server = createServer((socket: Socket) => { knocked += 1; socket.end('* OK listening\r\n'); });
+    await new Promise<void>((done) => { server.listen(0, '127.0.0.1', () => done()); });
+    const port = (server.address() as AddressInfo).port;
+    env.outbound.allowPrivate = false;
+    try {
+      for (const host of ['127.0.0.1', 'localhost', '169.254.169.254', '::1']) {
+        await assert.rejects(
+          () => ImapConnection.open({ host, port, encryption: 'none', username: 'x', credential: { kind: 'password', password: '' } }),
+          (error: Error & { permanent?: boolean }) => {
+            assert.equal(error.message, `${host} does not resolve to a public address — refusing to connect`);
+            assert.equal(error.permanent, true);
+            return true;
+          },
+        );
+      }
+      assert.equal(knocked, 0, 'a refused address was connected to');
+    } finally {
+      env.outbound.allowPrivate = true;
       server.close();
     }
   });

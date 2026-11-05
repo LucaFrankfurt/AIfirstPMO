@@ -29,6 +29,7 @@
 import { connect as netConnect, type Socket } from 'node:net';
 import { connect as tlsConnect, type TLSSocket } from 'node:tls';
 import { hasSecret, type MailboxConfig } from '../../kernel/mail/mailbox.ts';
+import { resolveSafely } from '../webhooks/outbound.ts';
 import { tokenise, type Segment, type Token } from './protocol.ts';
 
 export interface Response {
@@ -79,9 +80,15 @@ export class ImapConnection {
       );
     }
 
+    // Checked and pinned like a webhook's address; one sentence for every refusal, so it maps nothing.
+    const address = await resolveSafely(`https://${config.host.includes(':') ? `[${config.host}]` : config.host}/`)
+      .then((checked) => checked.address)
+      .catch(() => {
+        throw new ImapError(`${config.host} does not resolve to a public address — refusing to connect`, true);
+      });
     const socket = implicit
-      ? tlsConnect({ host: config.host, port: config.port, servername: config.host, rejectUnauthorized: !config.allowInvalidCerts })
-      : netConnect({ host: config.host, port: config.port });
+      ? tlsConnect({ host: address, port: config.port, servername: config.host, rejectUnauthorized: !config.allowInvalidCerts })
+      : netConnect({ host: address, port: config.port });
 
     await new Promise<void>((resolve, reject) => {
       const ready = () => { socket.off('error', failed); resolve(); };

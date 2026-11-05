@@ -560,6 +560,7 @@ export function ArtboardEditor({ board, canWrite, ai = null, onRename, startAski
             <div className="artboard-sheet" style={{ width: board.w * scale, height: Math.max(room.height - 32, 200) }}>
               <ArtboardFrame
                 source={previewing ? previewing.content : tab === 'design' ? text : preview}
+                pageId={board.page_id}
                 mode={previewing ? 'view' : playing || !canWrite ? 'play' : 'edit'}
                 selected={selected}
                 keepScroll
