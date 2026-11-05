@@ -231,12 +231,11 @@ Two smaller things had to follow:
 
 The **People** list beside a conversation is the workspace's members: the people somebody works with
 every day, one click away. It is the right shortcut and the wrong answer to *"can I message this
-colleague at all"*, so under it is **Find somebody…**, which searches every account on the instance.
+colleague at all"*, so under it is **Find somebody…**, which searches everybody who shares any of
+your workspaces with you — not only the open one.
 
-That reach is deliberate. A self-hosted instance *is* a set of people who work together — the setup
-checklist tells you to close sign-up once everybody has an account — and requiring two of them to be
-put in the same project before they can say hello is a rule that exists in no messenger anybody
-likes. Two limits on it:
+Not every account on the instance: on an instance open to sign-up that would hand every stranger who
+registers the address book of everybody else. Two more limits on it:
 
 - **A guest gets nothing.** The only thing the list is for is starting a conversation, and a guest
   cannot write one. Handing them the instance's address book instead would be a straight leak.
@@ -348,5 +347,5 @@ fade within the minute.
 | `packages/shared/src/modules/pages/markdown.ts` | `#WEB` and `WEB-42`, turned into links — given the keys, never guessed |
 | `packages/web/src/modules/pages/Markdown.tsx` | the composer's `#` menu, and following a reference without a reload |
 | `packages/web/src/kernel/identity/routes/Login.tsx` | `AcceptInvite` — the invite link, opened by an account that already exists |
-| `packages/server/src/kernel/identity/routes/auth.ts` | `GET /api/people` — the instance's directory, for starting a conversation |
+| `packages/server/src/kernel/identity/routes/workspaces.ts` | `GET /api/people` — the people you share a workspace with, for starting a conversation |
 | `packages/server/src/kernel/write-path/bootstrap.ts` | `addMember`, which is what makes somebody appear in the People list at all |

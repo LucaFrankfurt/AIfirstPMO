@@ -1329,14 +1329,10 @@ function NewChannel({ me, onClose, onCreated }: { me: string; onClose: () => voi
 }
 
 /**
- * Find somebody to write to, anywhere on this instance.
+ * Find somebody to write to, in any workspace you share with them.
  *
- * The list beside this one is the workspace's members, which is the right
- * shortcut for the people somebody works with every day — and the wrong answer
- * to "can I message this colleague at all". A direct conversation is between
- * two people, not inside an organisation: it needs no workspace in common, and
- * requiring one would mean two people on the same instance had to be put in the
- * same project before they could say hello.
+ * The list beside this one is the open workspace's members; this one also
+ * reaches the people in your other workspaces, and nobody outside them.
  *
  * So the search asks the server rather than the synced cache. Everybody's
  * account is not workspace data and is deliberately not synced to every device

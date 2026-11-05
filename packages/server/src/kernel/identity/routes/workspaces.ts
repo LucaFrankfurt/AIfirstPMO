@@ -6,9 +6,8 @@
  * every endpoint here either reads one or changes one. Signing in is next door;
  * mail, Telegram and push moved to their own adapters.
  *
- * `/api/people` sits here rather than with chat because it answers "who has an
- * account on this instance", which is a membership question — see the note on
- * the handler for why the answer is not "who shares a workspace with you".
+ * `/api/people` sits here rather than with chat because it answers "who shares
+ * a workspace with you", which is a membership question.
  */
 import { WORKSPACE_ROLES, type WorkspaceFeatures, type WorkspaceRole } from '@kolibri/shared';
 import { all, get, run, type Row } from '../../platform/db/index.ts';
@@ -108,16 +107,10 @@ export function registerWorkspaceRoutes(router: Router): void {
   /* ---------------------------------------------------------------- people */
 
   /**
-   * Everybody with an account here.
+   * Everybody the caller shares a workspace with — not every account on the
+   * instance, which on one open to sign-up is every stranger's address book.
    *
-   * A direct conversation is between two people rather than inside an
-   * organisation, so who you can write to is not "who shares a workspace with
-   * you" — that would mean two colleagues on the same instance had to be put in
-   * the same project before they could say hello. It is everybody on the
-   * instance, which is what a self-hosted instance *is*: a set of people who
-   * work together, with sign-up closed once they all have an account.
-   *
-   * Two limits on that, both deliberate:
+   * Two more limits, both deliberate:
    *
    * - **A guest gets nothing.** The only thing this list is for is starting a
    *   conversation, and a guest cannot write one. Handing them the instance's
@@ -140,9 +133,12 @@ export function registerWorkspaceRoutes(router: Router): void {
     return all<Row>(
       `SELECT id, name, email, avatar_url FROM users
         WHERE deleted_at IS NULL AND id <> ?1
+          AND EXISTS (SELECT 1 FROM workspace_members m
+                       WHERE m.user_id = users.id AND m.deleted_at IS NULL
+                         AND m.workspace_id IN (SELECT value FROM json_each(?4)))
           AND (?2 = '' OR lower(name) LIKE ?3 OR lower(email) LIKE ?3)
         ORDER BY name LIMIT 100`,
-      auth.userId, query, like,
+      auth.userId, query, like, JSON.stringify([...auth.memberships.keys()]),
     );
   });
 

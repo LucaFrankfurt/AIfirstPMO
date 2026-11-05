@@ -530,6 +530,16 @@ describe('a colleague outside a private project', () => {
   });
 });
 
+describe('the address book', () => {
+  it('finds the people a caller works with, and nobody else on the instance', async () => {
+    const { body: mine } = await call('/api/people?q=outsider', { cookie: ada.cookie });
+    assert.deepEqual(mine.map((row: any) => row.email), ['outsider@example.com'], 'a colleague went missing');
+
+    const { body: theirs } = await call('/api/people?q=example.com', { cookie: mallory.cookie });
+    assert.deepEqual(theirs, [], 'a stranger read the names and addresses of another workspace');
+  });
+});
+
 describe('an administrator and the owner role', () => {
   let admin: Person;
   let adminId = '';
